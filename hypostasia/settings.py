@@ -27,9 +27,6 @@ SECRET_KEY = 'django-insecure-k$6h%42un)h996fsk35s0*mu-^89nl=&6&w@m#e9d_$m#gepuv
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
-CSRF_TRUSTED_ORIGINS = [
-    f'https://{os.environ.get("DOMAIN")}',
-]
 
 
 # Application definition
@@ -124,10 +121,9 @@ CORS_ALLOW_ALL_ORIGINS = True
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://localhost:8000",
+    f'https://{os.environ.get("DOMAIN")}',
     "chrome-extension://lmflifaokphpaknpdnmdmhdiaeiieomd"
 ]
-
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
