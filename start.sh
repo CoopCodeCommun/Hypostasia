@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-echo "uv sync --freeze"
-uv sync --freeze
+echo "uv sync "
+uv sync
 
 echo "Running migrations..."
 uv run manage.py migrate

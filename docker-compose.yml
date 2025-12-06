@@ -8,8 +8,8 @@ services:
     restart: unless-stopped
     networks:
       - frontend
-#    command: "poetry run celery -A TiBillet worker -l INFO -B --concurrency=6"
-    command: "sleep infinity"
+    command: "poetry run celery -A TiBillet worker -l INFO -B --concurrency=6"
+#    command: "sleep infinity"
 
   nginx:
     image: nginx:alpine
