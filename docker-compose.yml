@@ -18,6 +18,13 @@ services:
     depends_on:
       - web
     restart: unless-stopped
+    labels:
+      # requiered
+      - "traefik.enable=true" 
+      - "traefik.docker.network=frontend"
+      - "traefik.http.routers.hypostasia.tls.certresolver=myresolver"
+      - "traefik.http.services.hypostasia.loadbalancer.server.port=80"
+      - "traefik.http.routers.hypostasia.rule=Host(`$DOMAIN`)"
 
 volumes:
   sqlite_data:

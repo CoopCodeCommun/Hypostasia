@@ -19,7 +19,7 @@ RUN git clone https://github.com/CoopCodeCommun/Hypostasia .
 RUN uv sync --frozen
 
 # Ensure the db directory exists
-RUN mkdir -p db
+RUN mkdir -p db staticfiles
 
 # Environment variables
 ENV PATH="/app/.venv/bin:$PATH"

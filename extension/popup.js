@@ -1,10 +1,20 @@
 // Popup logic
-document.addEventListener('DOMContentLoaded', () => {
+// Popup logic
+document.addEventListener('DOMContentLoaded', async () => {
     const analyzeBtn = document.getElementById('analyzeBtn');
     const status = document.getElementById('status');
     const actionsDiv = document.getElementById('actions');
     const viewArgsBtn = document.getElementById('viewArgsBtn');
     const relaunchBtn = document.getElementById('relaunchBtn');
+
+    // Get configuration
+    const config = await new Promise(resolve => {
+        chrome.storage.sync.get({
+            serverUrl: 'http://127.0.0.1:8000/'
+        }, resolve);
+    });
+
+    const BASE_URL = config.serverUrl.endsWith('/') ? config.serverUrl : config.serverUrl + '/';
 
     // Helper to set state
     function setUIState(state, message) {
@@ -52,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 // Fetch arguments
                 status.textContent = "Récupération des arguments...";
-                const res = await fetch(`http://127.0.0.1:8000/api/pages/${window.currentPageId}/arguments/`);
+                const res = await fetch(`${BASE_URL}api/pages/${window.currentPageId}/arguments/`);
                 if (!res.ok) throw new Error("Erreur récupération arguments");
                 const args = await res.json();
 
@@ -77,10 +87,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             // We need pageId. It should be stored or re-fetched.
-            // Simplified: we re-run flow but force analyze.
-            // Better: store pageId in a global or attribute.
             if (window.currentPageId) {
-                await fetch(`http://127.0.0.1:8000/api/pages/${window.currentPageId}/analyze/`, {
+                await fetch(`${BASE_URL}api/pages/${window.currentPageId}/analyze/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({})
@@ -102,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentUrl = tab.url;
 
         // 1. Check if page exists
-        const checkRes = await fetch(`http://127.0.0.1:8000/api/pages/?url=${encodeURIComponent(currentUrl)}`, {
+        const checkRes = await fetch(`${BASE_URL}api/pages/?url=${encodeURIComponent(currentUrl)}`, {
             headers: { 'Accept': 'application/json' }
         });
 
@@ -127,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Completed / Pending
             setUIState('completed', "Page déjà analysée.");
             // We could fetch arg count here to be nice:
-            const argsRes = await fetch(`http://127.0.0.1:8000/api/pages/${page.id}/arguments/`);
+            const argsRes = await fetch(`${BASE_URL}api/pages/${page.id}/arguments/`);
             const args = await argsRes.json();
             status.textContent = `${args.length} arguments disponibles.`;
 
@@ -150,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.error) throw new Error(data.error);
 
             status.textContent = "Création de la page...";
-            const createRes = await fetch('http://127.0.0.1:8000/api/pages/', {
+            const createRes = await fetch(`${BASE_URL}api/pages/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -161,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             window.currentPageId = newPage.id;
 
             status.textContent = "Lancement de l'analyse...";
-            await fetch(`http://127.0.0.1:8000/api/pages/${newPage.id}/analyze/`, {
+            await fetch(`${BASE_URL}api/pages/${newPage.id}/analyze/`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})

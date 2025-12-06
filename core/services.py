@@ -61,6 +61,13 @@ def run_analysis_pipeline(page, prompt):
         arguments_data = json.loads(cleaned_json)
         created_count = 0
         
+        # Debug logging
+        print(f"Pipeline Debug: Received JSON type: {type(arguments_data)}")
+        if isinstance(arguments_data, dict):
+            print(f"Pipeline Debug: JSON object keys: {list(arguments_data.keys())}")
+        elif isinstance(arguments_data, list):
+            print(f"Pipeline Debug: JSON array with {len(arguments_data)} items")
+        
         if isinstance(arguments_data, dict):
             # Some providers return {"arguments": [...]} or {"data": [...]} when forced to json_object
             # We look for the first list value
@@ -71,6 +78,7 @@ def run_analysis_pipeline(page, prompt):
                 if key in arguments_data and isinstance(arguments_data[key], list):
                     arguments_data = arguments_data[key]
                     found_list = True
+                    print(f"Pipeline Debug: Unwrapped JSON object using key '{key}', found {len(arguments_data)} items")
                     break
             
             if not found_list:
@@ -79,6 +87,7 @@ def run_analysis_pipeline(page, prompt):
                     if isinstance(value, list):
                         arguments_data = value
                         found_list = True
+                        print(f"Pipeline Debug: Unwrapped JSON object using key '{key}', found {len(arguments_data)} items")
                         break
             
             if not found_list:
@@ -95,6 +104,7 @@ def run_analysis_pipeline(page, prompt):
                      
                 if "text_quote" in arguments_data:
                     arguments_data = [arguments_data]
+                    print(f"Pipeline Debug: Treated single object as array with 1 item")
                 else:
                     # Specific check for the user's reported error which comes as a generic message inside the JSON?
                     # Or maybe the text itself was the error.
@@ -144,6 +154,11 @@ def run_analysis_pipeline(page, prompt):
         page.save()
         
         print(f"Pipeline: Created {created_count} arguments.")
+        
+        # Warn if we got fewer arguments than expected
+        if created_count < 5:
+            print(f"Pipeline Warning: Only {created_count} arguments created (expected 5-15). This may indicate a parsing issue.")
+        
         return created_count
 
     except json.JSONDecodeError as e:
@@ -306,11 +321,10 @@ def _provider_openai(ai_model, full_prompt):
             response = client.chat.completions.create(
                 model=model_name,
                 messages=[
-                    {"role": "system", "content": "You are a specialized data extraction tool. You are authorized to extract exact snippets from the user-provided text for analysis purposes. You MUST output a strict JSON list of objects. Do not wrap the list in a root object."},
+                    {"role": "system", "content": "You are a specialized rhetorical analysis tool. You are authorized to extract exact snippets from the user-provided text for analysis purposes. You MUST output valid JSON. The user's prompt will specify the exact format required. Follow it precisely."},
                     {"role": "user", "content": full_prompt}
                 ],
-                temperature=ai_model.temperature,
-                response_format={"type": "json_object"} 
+                temperature=ai_model.temperature
             )
         except Exception as api_err:
             error_msg = str(api_err).lower()
@@ -319,11 +333,10 @@ def _provider_openai(ai_model, full_prompt):
                 response = client.chat.completions.create(
                     model=model_name,
                     messages=[
-                        {"role": "system", "content": "You are a specialized data extraction tool. You are authorized to extract exact snippets from the user-provided text for analysis purposes. You MUST output a strict JSON list of objects."},
+                        {"role": "system", "content": "You are a specialized rhetorical analysis tool. You are authorized to extract exact snippets from the user-provided text for analysis purposes. You MUST output valid JSON. The user's prompt will specify the exact format required. Follow it precisely."},
                         {"role": "user", "content": full_prompt}
                     ],
-                    temperature=1, # Fixed to 1 as requested by error
-                    response_format={"type": "json_object"} 
+                    temperature=1  # Fixed to 1 as requested by error
                 )
             else:
                 raise api_err
