@@ -1,6 +1,6 @@
 # Documentation du Mécanisme de Liaison (Linking Mechanism)
 
-Ce document explique comment **Hypostasia** (anciennement Antigravity) relie les arguments générés par l'IA aux portions spécifiques du texte sur la page web originale.
+Ce document explique comment **Hypostasia** relie les arguments générés par l'IA aux portions spécifiques du texte sur la page web originale.
 
 ---
 

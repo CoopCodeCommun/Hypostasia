@@ -4,7 +4,7 @@ import django
 import sys
 
 # Setup Django environment
-sys.path.append('/home/jonas/Gits/Test antigravity/V3')
+sys.path.append('/home/jonas/Gits/Hypostasia/Hypostasia-V3')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'hypostasia.settings')
 django.setup()
 
