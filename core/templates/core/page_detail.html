@@ -1,0 +1,186 @@
+{% extends "core/base.html" %}
+
+{% block title %}Lecture & Arguments{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Readability Column Styles */
+    #readability-content {
+        font-family: 'Merriweather', serif;
+        /* Serif for reading */
+        line-height: 1.8;
+        font-size: 1.1rem;
+        color: #2c3e50;
+        background-color: #fff;
+        padding: 40px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    [data-bs-theme="dark"] #readability-content {
+        background-color: #1e1e1e;
+        color: #e0e0e0;
+    }
+
+    /* Highlight style */
+    .highlight-arg {
+        background-color: rgba(255, 235, 59, 0.3);
+        /* Yellow highlight */
+        cursor: pointer;
+        transition: background-color 0.3s;
+        border-bottom: 2px solid #fbc02d;
+    }
+
+    .highlight-arg.active {
+        background-color: rgba(255, 235, 59, 0.7);
+    }
+
+    [data-bs-theme="dark"] .highlight-arg {
+        background-color: rgba(255, 235, 59, 0.15);
+        border-bottom: 2px solid #fbc02d;
+    }
+
+    /* Arguments Column Styles */
+    .argument-card {
+        cursor: pointer;
+        transition: all 0.2s;
+        border-left: 4px solid transparent;
+    }
+
+    .argument-card:hover {
+        background-color: rgba(0, 0, 0, 0.03);
+    }
+
+    .argument-card.pour {
+        border-left-color: #198754;
+    }
+
+    .argument-card.contre {
+        border-left-color: #dc3545;
+    }
+
+    .argument-card.neutre {
+        border-left-color: #6c757d;
+    }
+
+    .sticky-sidebar {
+        position: sticky;
+        top: 20px;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+    }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Readability Content (Left) -->
+    <div class="col-lg-8 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <a href="/api/pages/" class="btn btn-outline-secondary btn-sm">&larr; Retour</a>
+            <a href="{{ page.url }}" target="_blank" class="text-muted small">{{ page.url }}</a>
+        </div>
+
+        <div id="readability-content">
+            {{ page.html_readability|safe }}
+        </div>
+    </div>
+
+    <!-- Arguments Sidebar (Right) -->
+    <div class="col-lg-4">
+        <div class="sticky-sidebar">
+            <h4 class="mb-3 d-flex justify-content-between align-items-center">
+                Arguments
+                <span class="badge bg-primary rounded-pill">{{ page.arguments.count }}</span>
+            </h4>
+
+            <div class="d-grid gap-2 mb-3">
+                <button class="btn btn-outline-primary btn-sm" hx-post="{% url 'page-analyze' page.id %}"
+                    hx-target="#arguments-list" hx-swap="innerHTML" hx-disabled-elt="this"
+                    hx-indicator="#analysis-indicator">
+                    ⚡ Relancer l'analyse
+                </button>
+                <div id="analysis-indicator" class="htmx-indicator text-center small text-muted">
+                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    Analyse en cours...
+                </div>
+            </div>
+
+            <div class="list-group" id="arguments-list">
+                {% include "core/partials/arguments_list.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // View Logic (Scroll, Highlight)
+    // No more custom fetch for analysis here!
+    let currentHighlight = null;
+
+    function scrollToArgument(selector, textSnippet, cardElement) {
+        // 1. Reset previous highlight
+        if (currentHighlight) {
+            const parent = currentHighlight.parentNode;
+            parent.replaceChild(document.createTextNode(currentHighlight.textContent), currentHighlight);
+            parent.normalize();
+            currentHighlight = null;
+        }
+
+        // 2. Active card visual
+        document.querySelectorAll('.argument-card').forEach(el => el.classList.remove('active'));
+        if (cardElement) cardElement.classList.add('active');
+
+        const container = document.getElementById('readability-content');
+        if (!container) return;
+
+        // 3. Robust Text Search Strategy
+        const cleanSnippet = textSnippet.trim().replace(/\s+/g, ' ');
+
+        function findNode(strategyName, matcher) {
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+            let node;
+            while (node = walker.nextNode()) {
+                const nodeText = node.textContent.replace(/\s+/g, ' ');
+                if (matcher(nodeText)) {
+                    // console.log(`Found via ${strategyName}`);
+                    return node;
+                }
+            }
+            return null;
+        }
+
+        // Strategy A: Exact Match (Normalized)
+        let foundNode = findNode('Exact', text => text.includes(cleanSnippet));
+
+        // Strategy B: First 60 chars (if long enough)
+        if (!foundNode && cleanSnippet.length > 60) {
+            const startChunk = cleanSnippet.substring(0, 60);
+            foundNode = findNode('Prefix-60', text => text.includes(startChunk));
+        }
+
+        // Strategy C: First 5-8 words (User suggestion)
+        if (!foundNode) {
+            const words = cleanSnippet.split(' ');
+            if (words.length >= 5) {
+                const firstFive = words.slice(0, 5).join(' ');
+                foundNode = findNode('First-5-Words', text => text.includes(firstFive));
+            }
+        }
+
+        if (foundNode) {
+            const parentBlock = foundNode.parentElement;
+            parentBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // Highlight extraction
+            parentBlock.classList.add('highlight-arg');
+            setTimeout(() => parentBlock.classList.remove('highlight-arg'), 2000);
+        } else {
+            console.warn("Text not found even with fuzzy search:", cleanSnippet);
+        }
+    }
+</script>
+{% endblock %}
