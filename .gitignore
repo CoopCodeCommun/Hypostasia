@@ -11,3 +11,6 @@ wheels/
 
 # Database
 db/db.sqlite3
+
+# static 
+./staticfiles/*
