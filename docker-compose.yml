@@ -2,6 +2,7 @@ services:
   web:
     build: .
     container_name: hypostasia_web
+    env_file: .env
     volumes:
       - sqlite_data:/app/db
       - static_volume:/app/staticfiles
