@@ -1,185 +1,236 @@
 {% extends "core/base.html" %}
 
-{% block title %}Lecture & Arguments{% endblock %}
+{% block title %}{{ page.title|default:"Lecture" }} - Hypostasia{% endblock %}
 
 {% block extra_css %}
 <style>
-    /* Readability Column Styles */
-    #readability-content {
-        font-family: 'Merriweather', serif;
-        /* Serif for reading */
+    /* Readability Custom Styles for Dark Mode */
+    .readability-prose {
+        font-family: 'Georgia', 'Cambria', 'Times New Roman', serif;
         line-height: 1.8;
-        font-size: 1.1rem;
-        color: #2c3e50;
-        background-color: #fff;
-        padding: 40px;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        font-size: 1.125rem;
+        /* 18px */
+        color: #e2e8f0;
+        /* slate-200 */
     }
 
-    [data-bs-theme="dark"] #readability-content {
-        background-color: #1e1e1e;
-        color: #e0e0e0;
+    .readability-prose h1,
+    .readability-prose h2,
+    .readability-prose h3 {
+        color: #f8fafc;
+        /* slate-50 */
+        margin-top: 2em;
+        margin-bottom: 1em;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 700;
     }
 
-    /* Highlight style */
-    .highlight-arg {
-        background-color: rgba(255, 235, 59, 0.3);
-        /* Yellow highlight */
-        cursor: pointer;
-        transition: background-color 0.3s;
-        border-bottom: 2px solid #fbc02d;
+    .readability-prose p {
+        margin-bottom: 1.5em;
     }
 
-    .highlight-arg.active {
-        background-color: rgba(255, 235, 59, 0.7);
+    .readability-prose a {
+        color: #38bdf8;
+        /* brand-400 */
+        text-decoration: underline;
+        text-underline-offset: 4px;
     }
 
-    [data-bs-theme="dark"] .highlight-arg {
-        background-color: rgba(255, 235, 59, 0.15);
-        border-bottom: 2px solid #fbc02d;
+    .readability-prose blockquote {
+        border-left: 4px solid #38bdf8;
+        padding-left: 1rem;
+        font-style: italic;
+        color: #94a3b8;
+        /* slate-400 */
     }
 
-    /* Arguments Column Styles */
-    .argument-card {
-        cursor: pointer;
-        transition: all 0.2s;
-        border-left: 4px solid transparent;
+    .readability-prose img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 0.5rem;
+        margin: 2rem 0;
     }
 
-    .argument-card:hover {
-        background-color: rgba(0, 0, 0, 0.03);
+    /* Highlight Animation */
+    @keyframes highlight-pulse {
+        0% {
+            background-color: rgba(14, 165, 233, 0.3);
+        }
+
+        /* brand-500 */
+        100% {
+            background-color: transparent;
+        }
     }
 
-    .argument-card.pour {
-        border-left-color: #198754;
+    .highlight-active {
+        animation: highlight-pulse 2s ease-out forwards;
+        border-radius: 4px;
+        box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
     }
 
-    .argument-card.contre {
-        border-left-color: #dc3545;
-    }
-
-    .argument-card.neutre {
-        border-left-color: #6c757d;
-    }
-
-    .sticky-sidebar {
-        position: sticky;
-        top: 20px;
-        max-height: calc(100vh - 40px);
-        overflow-y: auto;
+    /* Card Flip3D Effect (Optional, simplified to fade/slide for now for robustness) */
+    .perspective-1000 {
+        perspective: 1000px;
     }
 </style>
-<link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
-<div class="row">
-    <!-- Readability Content (Left) -->
-    <div class="col-lg-8 mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <a href="/api/pages/" class="btn btn-outline-secondary btn-sm">&larr; Retour</a>
-            <a href="{{ page.url }}" target="_blank" class="text-muted small">{{ page.url }}</a>
+<div class="flex flex-col lg:flex-row gap-8 relative transition-all duration-500 ease-in-out"
+    x-data="{ sidebarExpanded: false }">
+
+    <!-- Left Column: Navigation & Content -->
+    <!-- Dynamically adjust width based on sidebar expansion -->
+    <div class="w-full transition-all duration-500 ease-in-out" :class="sidebarExpanded ? 'lg:w-1/2' : 'lg:w-3/5'">
+
+        <!-- Breadcrumb / Header -->
+        <div
+            class="flex items-center justify-between mb-6 sticky top-20 z-10 bg-slate-900/95 backdrop-blur py-4 border-b border-slate-800">
+            <a href="/api/pages/"
+                class="inline-flex items-center text-sm text-slate-400 hover:text-brand-400 transition-colors">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                </svg>
+                Retour aux lectures
+            </a>
+            <a href="{{ page.url }}" target="_blank"
+                class="text-xs text-slate-500 hover:text-slate-300 truncate max-w-xs flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+                Ouvrir l'original
+            </a>
         </div>
 
-        <div id="readability-content">
+        <!-- Readability Viewer -->
+        <article id="readability-content"
+            class="readability-prose bg-slate-800/50 p-8 md:p-12 rounded-2xl border border-slate-700/50 shadow-sm">
             {{ page.html_readability|safe }}
-        </div>
+        </article>
     </div>
 
-    <!-- Arguments Sidebar (Right) -->
-    <div class="col-lg-4">
-        <div class="sticky-sidebar">
-            <h4 class="mb-3 d-flex justify-content-between align-items-center">
-                Arguments
-                <span class="badge bg-primary rounded-pill">{{ page.arguments.count }}</span>
-            </h4>
+    <!-- Right Column: Sidebar Analysis -->
+    <!-- Dynamically adjust width -->
+    <div class="w-full transition-all duration-500 ease-in-out" :class="sidebarExpanded ? 'lg:w-1/2' : 'lg:w-2/5'">
 
-            <div class="d-grid gap-2 mb-3">
-                <button class="btn btn-outline-primary btn-sm" hx-post="{% url 'page-analyze' page.id %}"
-                    hx-target="#arguments-list" hx-swap="innerHTML" hx-disabled-elt="this"
-                    hx-indicator="#analysis-indicator">
-                    ⚡ Relancer l'analyse
-                </button>
-                <div id="analysis-indicator" class="htmx-indicator text-center small text-muted">
-                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                    Analyse en cours...
-                </div>
+        <div class="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2 custom-scrollbar">
+
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01">
+                        </path>
+                    </svg>
+                    Analyse
+
+                    <!-- Re-analyze Button (Inside H3 for tight grouping) -->
+                    <button
+                        class="p-1.5 ml-2 rounded-full bg-slate-800 text-slate-400 hover:text-brand-400 hover:bg-slate-700 transition-all border border-slate-700/50 hover:border-brand-500/30"
+                        title="Relancer l'analyse" hx-post="/api/pages/{{ page.id }}/analyze/" hx-target="#sidebar-loop"
+                        hx-swap="outerHTML" hx-indicator="#analysis-indicator">
+                        <svg class="w-4 h-4 transform group-hover:rotate-180 transition-transform duration-700"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.282c.249.769.697 1.487 1.286 2.071 1.936 1.921 5.068 1.933 6.994.022L12.5 11l-.859-.854c-1.464 1.449-3.834 1.44-5.289-.009A3.75 3.75 0 015.17 7H9V4H4zm16 16v-5h-.282a3.992 3.992 0 01-1.286-2.071 5.002 5.002 0 00-6.994-.022L11.5 13l.859.854c1.464-1.449 3.834-1.44 5.289.009.734.73 1.134 1.705 1.127 2.748L15 17v3h5z">
+                            </path>
+                        </svg>
+                    </button>
+
+                    <!-- Loading Indicator -->
+                    <div id="analysis-indicator" class="htmx-indicator ml-1">
+                        <svg class="animate-spin h-4 w-4 text-brand-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+                            viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                            </path>
+                        </svg>
+                    </div>
+                </h3>
+
+                <span
+                    class="bg-brand-500/10 text-brand-400 text-xs font-medium px-2.5 py-0.5 rounded border border-brand-500/20">
+                    {{ page.blocks.count }} blocs
+                </span>
+
             </div>
 
-            <div class="list-group" id="arguments-list">
-                {% include "core/partials/arguments_list.html" %}
+
+            <div class="space-y-4">
+                {% include "core/includes/sidebar_items.html" %}
             </div>
+
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
-    // View Logic (Scroll, Highlight)
-    // No more custom fetch for analysis here!
-    let currentHighlight = null;
+    function scrollToBlock(selector, textSnippet) {
+        // Remove previous highlights
+        document.querySelectorAll('.highlight-active').forEach(el => {
+            el.classList.remove('highlight-active');
+        });
 
-    function scrollToArgument(selector, textSnippet, cardElement) {
-        // 1. Reset previous highlight
-        if (currentHighlight) {
-            const parent = currentHighlight.parentNode;
-            parent.replaceChild(document.createTextNode(currentHighlight.textContent), currentHighlight);
-            parent.normalize();
-            currentHighlight = null;
+        let targetNode = null;
+        const container = document.getElementById('readability-content');
+
+        // Strategy 1: Try CSS Selector (Prioritized as per new architecture)
+        if (selector) {
+            try {
+                // Determine if selector is scoped to container or global document
+                // Usually selector is global path, but we need to ensure it's within our readability content
+                // Actually, readability content usually strips original IDs/classes, so selectors might rely on structure (nth-of-type)
+                // Let's try finding it inside the container first
+                targetNode = container.querySelector(selector);
+            } catch (e) {
+                console.warn("Invalid selector or not found:", selector);
+            }
         }
 
-        // 2. Active card visual
-        document.querySelectorAll('.argument-card').forEach(el => el.classList.remove('active'));
-        if (cardElement) cardElement.classList.add('active');
+        // Strategy 2: Text Search (Fallback)
+        if (!targetNode && textSnippet) {
+            console.log("Selector failed, attempting text search...");
+            const cleanSnippet = textSnippet.replace(/[^\w\sÀ-ÿ]/g, '').trim().substring(0, 50); // Simplify for matching
 
-        const container = document.getElementById('readability-content');
-        if (!container) return;
-
-        // 3. Robust Text Search Strategy
-        const cleanSnippet = textSnippet.trim().replace(/\s+/g, ' ');
-
-        function findNode(strategyName, matcher) {
             const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
             let node;
             while (node = walker.nextNode()) {
-                const nodeText = node.textContent.replace(/\s+/g, ' ');
-                if (matcher(nodeText)) {
-                    // console.log(`Found via ${strategyName}`);
-                    return node;
+                const nodeText = node.textContent.replace(/[^\w\sÀ-ÿ]/g, '');
+                if (nodeText.includes(cleanSnippet)) {
+                    targetNode = node.parentElement; // Highlight the parent element of the text
+                    break;
                 }
             }
-            return null;
         }
 
-        // Strategy A: Exact Match (Normalized)
-        let foundNode = findNode('Exact', text => text.includes(cleanSnippet));
-
-        // Strategy B: First 60 chars (if long enough)
-        if (!foundNode && cleanSnippet.length > 60) {
-            const startChunk = cleanSnippet.substring(0, 60);
-            foundNode = findNode('Prefix-60', text => text.includes(startChunk));
-        }
-
-        // Strategy C: First 5-8 words (User suggestion)
-        if (!foundNode) {
-            const words = cleanSnippet.split(' ');
-            if (words.length >= 5) {
-                const firstFive = words.slice(0, 5).join(' ');
-                foundNode = findNode('First-5-Words', text => text.includes(firstFive));
-            }
-        }
-
-        if (foundNode) {
-            const parentBlock = foundNode.parentElement;
-            parentBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            // Highlight extraction
-            parentBlock.classList.add('highlight-arg');
-            setTimeout(() => parentBlock.classList.remove('highlight-arg'), 2000);
+        // Execution
+        if (targetNode) {
+            targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetNode.classList.add('highlight-active');
         } else {
-            console.warn("Text not found even with fuzzy search:", cleanSnippet);
+            console.error("Could not find block to scroll to.");
+            // Notify user via toast?
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2000,
+                timerProgressBar: true,
+                background: '#1e293b',
+                color: '#fff'
+            });
+            Toast.fire({
+                icon: 'warning',
+                title: 'Passage introuvable dans le texte'
+            });
         }
     }
 </script>

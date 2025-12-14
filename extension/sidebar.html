@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hypostasia Sidebar</title>
+    <script src="lib/htmx.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            background: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ag-header {
+            padding: 15px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ag-title {
+            font-weight: bold;
+            margin: 0;
+            font-size: 16px;
+            color: #333;
+        }
+
+        .ag-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .ag-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            margin: 0;
+        }
+
+        .ag-btn-analyze {
+            background-color: #198754;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background-color 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .ag-btn-analyze:hover {
+            background-color: #157347;
+        }
+
+        /* Styles copiés pour l'affichage des arguments */
+        .ag-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            border-left: 4px solid transparent;
+        }
+
+        .ag-item:hover {
+            background: #f9f9f9;
+        }
+
+        .ag-item.pour {
+            border-left-color: #198754;
+        }
+
+        .ag-item.contre {
+            border-left-color: #dc3545;
+        }
+
+        .ag-item.neutre {
+            border-left-color: #6c757d;
+        }
+
+        .ag-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .ag-badge.pour {
+            background-color: #198754;
+        }
+
+        .ag-badge.contre {
+            background-color: #dc3545;
+        }
+
+        .ag-badge.neutre {
+            background-color: #6c757d;
+        }
+
+        .ag-summary {
+            margin: 0;
+            font-size: 13px;
+            color: #333;
+            line-height: 1.4;
+        }
+
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity 200ms ease-in;
+        }
+
+        .htmx-request .htmx-indicator {
+            opacity: 1;
+        }
+
+        .htmx-request.htmx-indicator {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ag-header">
+        <h2 class="ag-title">Hypostasia</h2>
+        <button class="ag-close">&times;</button>
+    </div>
+    <div class="ag-content" id="sidebar-content">
+        <!-- Contenu initial -->
+        <div
+            style="padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+            <p style="margin-bottom: 20px; color: #666;">Lancez l'analyse pour voir les arguments.</p>
+            <button id="btn-analyze" class="ag-btn-analyze">
+                Analyser la page
+            </button>
+            <div id="ag-loading" class="htmx-indicator" style="margin-top:15px; color: #666;">
+                Chargement...
+            </div>
+        </div>
+    </div>
+
+    <script src="sidebar.js"></script>
+</body>
+
+</html>

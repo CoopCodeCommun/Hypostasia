@@ -1,91 +1,130 @@
 {% extends "core/base.html" %}
 
-{% block title %}Mes Pages - Hypostasia{% endblock %}
+{% block title %}Mes Lectures - Hypostasia{% endblock %}
 
 {% block content %}
-<div class="row mb-4 align-items-center">
-    <div class="col">
-        <h1 class="h3 mb-0">Mes Lectures</h1>
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+    <div>
+        <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Mes
+            Lectures</h1>
+        <p class="text-slate-400 mt-1">Gérez et analysez vos pages web enregistrées.</p>
     </div>
+
+    <!-- Optional: Add filters or search bar here in future -->
+    {% if pages %}
+    <div class="text-sm text-slate-500">
+        {{ pages|length }} page{{ pages|length|pluralize }}
+    </div>
+    {% endif %}
 </div>
 
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
+{% if not pages %}
+<!-- Empty State -->
+<div
+    class="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/50">
+    <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4">
+        <svg class="w-8 h-8 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+            </path>
+        </svg>
+    </div>
+    <h3 class="text-lg font-medium text-white">Aucune lecture pour le moment</h3>
+    <p class="text-slate-500 mt-2 max-w-sm">Commencez par utiliser l'extension navigateur pour sauvegarder des pages.
+    </p>
+</div>
+{% else %}
+
+<!-- Grid Layout -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
     {% for page in pages %}
-    <div class="col">
-        <div class="card h-100 shadow-sm border-0 transition-hover overflow-hidden">
-            <!-- Image Header -->
+    <article
+        class="group relative flex flex-col bg-slate-800 rounded-xl overflow-hidden border border-slate-700/50 hover:border-brand-500/50 transition-all duration-300 hover:shadow-2xl hover:shadow-brand-500/10 hover:-translate-y-1">
+
+        <!-- Image Container -->
+        <div class="relative w-full h-48 bg-slate-900 overflow-hidden">
             {% if page.first_image_url %}
-            <div style="height: 160px; overflow: hidden; background-color: #e9ecef;">
-                <img src="{{ page.first_image_url }}" class="w-100 h-100 object-fit-cover" alt="Article image">
-            </div>
+            <img src="{{ page.first_image_url }}" alt=""
+                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90 group-hover:opacity-100">
             {% else %}
-            <div
-                style="height: 160px; background-color: #e9ecef; display: flex; align-items: center; justify-content: center;">
-                <span class="text-muted small">Aucune image</span>
+            <div class="w-full h-full flex items-center justify-center text-slate-700 bg-slate-800/50">
+                <svg class="w-12 h-12 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+                    </path>
+                </svg>
             </div>
             {% endif %}
 
-            <div class="card-body">
-                <!-- Date Badge -->
-                <span class="badge bg-light text-dark border mb-2">{{ page.created_at|date:"d M Y" }}</span>
+            <!-- Analysis Badge (Status) -->
+            <div class="absolute top-3 right-3">
+                {% if page.status == 'completed' %}
+                <span
+                    class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 backdrop-blur-md">
+                    Analysé
+                </span>
+                {% elif page.status == 'error' %}
+                <span
+                    class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 backdrop-blur-md">
+                    Erreur
+                </span>
+                {% else %}
+                <span
+                    class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 backdrop-blur-md">
+                    {{ page.get_status_display }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
 
-                <!-- Title -->
-                <h5 class="card-title text-truncate-2-lines mb-2" title="{{ page.title|default:page.url }}">
-                    <a href="/api/pages/{{ page.id }}/" class="text-decoration-none text-reset stretched-link">
-                        {{ page.title|default:page.url|truncatechars:60 }}
-                    </a>
-                </h5>
+        <!-- Content -->
+        <div class="flex flex-col flex-grow p-5">
+            <!-- Domain & Date -->
+            <div class="flex items-center gap-2 mb-3 text-xs text-slate-400">
+                {% if page.domain %}
+                <div class="flex items-center gap-1.5 truncate max-w-[70%]">
+                    <img src="https://www.google.com/s2/favicons?domain={{ page.domain }}&sz=32" alt=""
+                        class="w-3.5 h-3.5 rounded-sm opacity-70">
+                    <span class="truncate">{{ page.domain }}</span>
+                </div>
+                <span class="text-slate-600">•</span>
+                {% endif %}
+                <time>{{ page.created_at|date:"d M" }}</time>
+            </div>
 
-                <!-- Extract Snippet -->
-                <p class="card-text text-muted small text-truncate-3-lines mb-3">
-                    {{ page.text_readability|striptags|truncatewords:25 }}
-                </p>
+            <!-- Title -->
+            <h2
+                class="text-lg font-semibold text-slate-200 mb-2 line-clamp-2 leading-tight group-hover:text-brand-400 transition-colors">
+                <a href="/api/pages/{{ page.id }}/" class="before:absolute before:inset-0 outline-none">
+                    {{ page.title|default:page.url }}
+                </a>
+            </h2>
 
-                <!-- URL Domain & Status -->
-                <div class="d-flex justify-content-between align-items-center mt-auto">
-                    <small class="text-primary fw-bold">
-                        <img src="https://www.google.com/s2/favicons?domain={{ page.domain }}" width="16" height="16"
-                            class="me-1">
-                        {{ page.domain }}
-                    </small>
+            <!-- Snippet -->
+            <p class="text-sm text-slate-400 line-clamp-3 mb-4 leading-relaxed">
+                {{ page.text_readability|striptags|truncatewords:25 }}
+            </p>
 
-                    <span
-                        class="badge rounded-pill {% if page.status == 'completed' %}text-bg-success{% elif page.status == 'error' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">
-                        {{ page.arguments.count }} args
+            <!-- Footer Stats -->
+            <div
+                class="mt-auto pt-4 border-t border-slate-700/50 flex items-center justify-between text-xs text-slate-500">
+                <div class="flex items-center gap-4">
+                    {% if page.arguments.count > 0 %}
+                    <span class="flex items-center gap-1.5 text-slate-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z">
+                            </path>
+                        </svg>
+                        {{ page.arguments.count }}
                     </span>
+                    {% endif %}
                 </div>
             </div>
         </div>
-    </div>
+    </article>
     {% endfor %}
 </div>
-
-<style>
-    .transition-hover {
-        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-    }
-
-    .transition-hover:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 1rem 3rem rgba(0, 0, 0, .175) !important;
-    }
-
-    .object-fit-cover {
-        object-fit: cover;
-    }
-
-    .text-truncate-2-lines {
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-    .text-truncate-3-lines {
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-</style>
+{% endif %}
 {% endblock %}

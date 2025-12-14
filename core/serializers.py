@@ -115,3 +115,34 @@ class PromptSerializer(serializers.ModelSerializer):
     class Meta:
         model = Prompt
         fields = ['id', 'name', 'description', 'created_at', 'inputs']
+
+
+# --- VALIDATION ---
+
+class AnalysisItemSerializer(serializers.Serializer):
+    """
+    Serializer to validate a single item from the AI JSON response.
+    Used in the analysis pipeline to ensure strict adherence to the schema.
+    """
+    text_quote = serializers.CharField(required=True, allow_blank=False)
+    significant_extract = serializers.CharField(required=True, allow_blank=False)
+    summary = serializers.CharField(required=True, allow_blank=False)
+    hypostasis = serializers.CharField(required=True)
+    mode = serializers.CharField(required=True)
+    theme = serializers.CharField(required=True, allow_blank=False)
+
+    def validate_hypostasis(self, value):
+        from .models import Hypostasis
+        # The AI returns the value (e.g. "problème"), which matches the values in the Choice class
+        if value not in Hypostasis.values:
+            # Try lowercase just in case
+            if value.lower() in Hypostasis.values:
+                return value.lower()
+            raise serializers.ValidationError(f"Invalid hypostasis: '{value}'. Must be one of {Hypostasis.values}")
+        return value
+
+    def validate_mode(self, value):
+        allowed_modes = ["A initier", "Discuté", "Disputé", "Controversé", "Consensuel"]
+        if value not in allowed_modes:
+             raise serializers.ValidationError(f"Invalid mode: '{value}'. Must be one of {allowed_modes}")
+        return value

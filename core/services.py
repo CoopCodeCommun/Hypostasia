@@ -30,148 +30,185 @@ def run_analysis_pipeline(page, prompt):
     # 1. Build Prompt
     full_prompt_text = build_full_prompt(page, prompt)
     
-    # 2. Call LLM (Dispatcher)
-    try:
-        llm_response_json = dispatch_llm_request(ai_model, full_prompt_text, page_context=page)
-    except Exception as e:
-        print(f"Pipeline Error: LLM Provider failed - {e}")
-        page.status = "error"
-        page.error_message = str(e)
-        page.save()
-        return 0
+    # Main Instructions are in the prompt
+    current_prompt = full_prompt_text
+    max_retries = 2
+    retry_count = 0
     
-    # 3. Parse & Save
-    try:
-        # Cleanup: sometimes LLMs output Markdown code blocks ```json ... ```
-        cleaned_json = llm_response_json.strip()
-        if cleaned_json.startswith("```"):
-            cleaned_json = cleaned_json.split("\n", 1)[1] # Remove first line
-            if cleaned_json.endswith("```"):
-                cleaned_json = cleaned_json.rsplit("\n", 1)[0] # Remove last line
+    while retry_count <= max_retries:
+        print(f"Pipeline: Dispatching request (Attempt {retry_count+1}/{max_retries+1})...")
         
-        # Check for Refusal / Text Response appearing as JSON error
-        if "Request requires extraction of exact quotes" in cleaned_json or "Contrainte de sécurité" in cleaned_json:
-             msg = "LLM Refusal: The model refused to extract quotes due to safety policies. Try using a larger model (GPT-4) or rephrasing the prompt."
-             print(f"Pipeline Error: {msg}")
-             page.status = "error"
-             page.error_message = msg
-             page.save()
-             return 0
+        # 2. Dispatch to LLM
+        try:
+            llm_response_json = dispatch_llm_request(ai_model, current_prompt, page)
+        except Exception as e:
+            # API Error
+            page.status = "error"
+            page.error_message = f"API Error: {str(e)}"
+            page.save()
+            return 0
 
-        arguments_data = json.loads(cleaned_json)
-        created_count = 0
-        
-        # Debug logging
-        print(f"Pipeline Debug: Received JSON type: {type(arguments_data)}")
-        if isinstance(arguments_data, dict):
-            print(f"Pipeline Debug: JSON object keys: {list(arguments_data.keys())}")
-        elif isinstance(arguments_data, list):
-            print(f"Pipeline Debug: JSON array with {len(arguments_data)} items")
-        
-        if isinstance(arguments_data, dict):
+        # 3. Validation & Parsing
+        try:
+            # Handle markdown code blocks if present
+            cleaned_json = llm_response_json.strip()
+            if cleaned_json.startswith("```"):
+                cleaned_json = cleaned_json.split("\n", 1)[1]
+                if cleaned_json.endswith("```"):
+                    cleaned_json = cleaned_json.rsplit("\n", 1)[0]
+            
+            # Check for Refusal / Text Response appearing as JSON error
+            if "Request requires extraction of exact quotes" in cleaned_json or "Contrainte de sécurité" in cleaned_json:
+                msg = "LLM Refusal: The model refused to extract quotes due to safety policies. Try using a larger model (GPT-4) or rephrasing the prompt."
+                print(f"Pipeline Error: {msg}")
+                page.status = "error"
+                page.error_message = msg
+                page.save()
+                return 0
+
+            arguments_data = json.loads(cleaned_json)
+            
             # Some providers return {"arguments": [...]} or {"data": [...]} when forced to json_object
             # We look for the first list value
-            found_list = False
-            
-            # Prioritize standard keys
-            for key in ['arguments', 'items', 'data', 'list']:
-                if key in arguments_data and isinstance(arguments_data[key], list):
-                    arguments_data = arguments_data[key]
-                    found_list = True
-                    print(f"Pipeline Debug: Unwrapped JSON object using key '{key}', found {len(arguments_data)} items")
-                    break
-            
-            if not found_list:
-                # Search any key
-                for key, value in arguments_data.items():
-                    if isinstance(value, list):
-                        arguments_data = value
+            if isinstance(arguments_data, dict):
+                found_list = False
+                
+                # Prioritize standard keys
+                for key in ['arguments', 'items', 'data', 'list']:
+                    if key in arguments_data and isinstance(arguments_data[key], list):
+                        arguments_data = arguments_data[key]
                         found_list = True
                         print(f"Pipeline Debug: Unwrapped JSON object using key '{key}', found {len(arguments_data)} items")
                         break
+                
+                if not found_list:
+                    # Search any key
+                    for key, value in arguments_data.items():
+                        if isinstance(value, list):
+                            arguments_data = value
+                            found_list = True
+                            print(f"Pipeline Debug: Unwrapped JSON object using key '{key}', found {len(arguments_data)} items")
+                            break
+                if not found_list:
+                    raise ValueError("JSON object did not contain a list of arguments under expected keys.")
+
+            # Use Serializer for Validation
+            from .serializers import AnalysisItemSerializer
+            serializer = AnalysisItemSerializer(data=arguments_data, many=True)
             
-            if not found_list:
-                # Fallback: maybe the dict ITSELF is a single argument?
-                # Check fields
-                if "error" in arguments_data:
-                     # This catches provider errors returned as JSON (e.g. from OpenAI 400)
-                     msg = f"LLM Error: {arguments_data['error']}"
-                     print(f"Pipeline Error: {msg}")
-                     page.status = "error"
-                     page.error_message = msg
-                     page.save()
-                     return 0
-                     
-                if "text_quote" in arguments_data:
-                    arguments_data = [arguments_data]
-                    print(f"Pipeline Debug: Treated single object as array with 1 item")
+            if not serializer.is_valid():
+                # Validation Failed
+                error_msg = f"JSON Validation Failed: {serializer.errors}"
+                print(f"Pipeline Warning: {error_msg}")
+                
+                if retry_count < max_retries:
+                    # Prepare retry prompt
+                    feedback = f"\n\nERREUR DANS LE JSON PRÉCÉDENT :\n{json.dumps(serializer.errors, indent=2)}\n\nCORRIGE LE JSON ET RENVOIE UNIQUEMENT LA LISTE CORRIGÉE."
+                    current_prompt += f"\n\n--- RÉPONSE INCORRECTE ---\n{llm_response_json}\n{feedback}"
+                    retry_count += 1
+                    continue
                 else:
-                    # Specific check for the user's reported error which comes as a generic message inside the JSON?
-                    # Or maybe the text itself was the error.
-                    msg = f"Invalid JSON structure (no list found). Keys: {list(arguments_data.keys())}"
-                    print(f"Pipeline Error: {msg}")
+                    # Give up
                     page.status = "error"
-                    page.error_message = msg
+                    page.error_message = f"Validation failed after retries. Errors: {serializer.errors}"
                     page.save()
                     return 0
 
-        # Clear old arguments for this page
-        page.arguments.all().delete()
-        
-        for arg_data in arguments_data:
-            quotation = arg_data.get('text_quote', '').strip()
-            summary = arg_data.get('summary', '')
-            stance = arg_data.get('stance', 'neutre').lower()
+            # If Valid, proceed to binding
+            validated_data = serializer.validated_data
+            created_count = 0
             
-            if not quotation:
-                continue
-                
-            # 4. Data Binding (Find offsets)
-            start_offset = page.text_readability.find(quotation)
+            # Clear old data for this page
+            page.blocks.all().delete() 
             
-            if start_offset == -1:
-                # If using real LLM, quotation might be slightly inexact.
-                # Should we implement fuzzy matching here?
-                # For now, we rely on the prompt instructing "EXACT QUOTES".
-                continue
-                
-            end_offset = start_offset + len(quotation)
+            MODE_MAPPING = {
+                "A initier": "IN",
+                "Discuté": "DC",
+                "Disputé": "DP",
+                "Controversé": "CT",
+                "Consensuel": "CS"
+            }
             
-            Argument.objects.create(
-                page=page,
-                text_block=None,
-                selector="body",
-                start_offset=start_offset,
-                end_offset=end_offset,
-                text_original=quotation,
-                summary=summary,
-                stance=stance
-            )
-            created_count += 1
-        
-        # UPDATE STATUS: COMPLETED
-        page.status = "completed"
-        page.save()
-        
-        print(f"Pipeline: Created {created_count} arguments.")
-        
-        # Warn if we got fewer arguments than expected
-        if created_count < 5:
-            print(f"Pipeline Warning: Only {created_count} arguments created (expected 5-15). This may indicate a parsing issue.")
-        
-        return created_count
+            from .models import TextBlock, Argument, Theme
 
-    except json.JSONDecodeError as e:
-        msg = f"Invalid JSON from LLM: {e}"
-        print(f"Pipeline Error: {msg}")
-        
-        # Save RAW output for debugging/display to user
-        detailed_error = f"{msg}\n\nRAW OUTPUT:\n{llm_response_json}"
-        
-        page.status = "error"
-        page.error_message = detailed_error
-        page.save()
-        return 0
+            for item in validated_data:
+                quotation = item['text_quote'].strip()
+                summary = item['summary']
+                hypostasis = item['hypostasis'] # Already lowercased/validated by serializer? Check serializer implementation.
+                mode_label = item['mode']
+                theme_str = item['theme']
+                significant_extract = item['significant_extract']
+                
+                start_offset = page.text_readability.find(quotation)
+                
+                if start_offset == -1:
+                    print(f"Pipeline Warning: Quote not found in text: '{quotation[:30]}...'")
+                    continue
+                    
+                end_offset = start_offset + len(quotation)
+                mode_code = MODE_MAPPING.get(mode_label, "IN")
+
+                # Create TextBlock
+                block = TextBlock.objects.create(
+                    page=page,
+                    selector="body",
+                    start_offset=start_offset,
+                    end_offset=end_offset,
+                    text=quotation,
+                    significant_extract=significant_extract,
+                    hypostasis=hypostasis,
+                    modes=mode_code
+                )
+                
+                # Handle Theme
+                if theme_str:
+                    theme_obj, _ = Theme.objects.get_or_create(name=theme_str.strip())
+                    block.themes.add(theme_obj)
+                
+                # Create Argument linked to Block
+                Argument.objects.create(
+                    page=page,
+                    text_block=block,
+                    selector="body",
+                    start_offset=start_offset,
+                    end_offset=end_offset,
+                    text_original=quotation,
+                    summary=summary
+                )
+                created_count += 1
+            
+            # Success
+            page.status = "completed"
+            page.save()
+            print(f"Pipeline: Created {created_count} blocks/arguments.")
+            return created_count
+
+        except json.JSONDecodeError as e:
+            if retry_count < max_retries:
+                print(f"Pipeline: JSON Decode Error ({e}). Retrying...")
+                feedback = f"\n\nERREUR JSON : {str(e)}\nRENVOIE UN JSON VALIDE."
+                current_prompt += f"\n\n--- REPONSE INVALIDE ---\n{llm_response_json}\n{feedback}"
+                retry_count += 1
+                continue
+            else:
+                page.status = "error"
+                page.error_message = f"JSON Decode Error: {e}"
+                page.save()
+                return 0
+        except ValueError as e: # Catch the custom ValueError for unwrapping
+            if retry_count < max_retries:
+                print(f"Pipeline: JSON Structure Error ({e}). Retrying...")
+                feedback = f"\n\nERREUR DE STRUCTURE JSON : {str(e)}\nRENVOIE UN JSON VALIDE AVEC UNE LISTE D'ARGUMENTS."
+                current_prompt += f"\n\n--- REPONSE INVALIDE ---\n{llm_response_json}\n{feedback}"
+                retry_count += 1
+                continue
+            else:
+                page.status = "error"
+                page.error_message = f"JSON Structure Error: {e}"
+                page.save()
+                return 0
+    
+    return 0
 
 
 def build_full_prompt(page, prompt):
@@ -182,8 +219,8 @@ def build_full_prompt(page, prompt):
     full_text = ""
     
     for inp in inputs:
-        full_text += f"\n--- {inp.role} ---\n"
-        full_text += inp.content
+        # full_text += f"\n--- {inp.role} ---\n" # Role is for organization, not necessarily prompt text injection
+        full_text += inp.content + "\n"
         
     # Variable Injection
     # We replace {{ TEXT }} with the content
@@ -191,7 +228,7 @@ def build_full_prompt(page, prompt):
         full_text = full_text.replace("{{ TEXT }}", page.text_readability)
     else:
         # Default append if no tag found
-        full_text += "\n\n--- CONTENT TO ANALYZE ---\n" + page.text_readability
+        full_text += "\n\n--- TEXTE À ANALYSER ---\n" + page.text_readability
         
     return full_text
 
@@ -238,7 +275,7 @@ def _provider_mock(full_prompt, page_context=None):
         sentences = [text[i:i+100] for i in range(0, len(text), 100)]
         
     # Pick random sentences
-    target_count = min(15, len(sentences))
+    target_count = min(5, len(sentences))
     if target_count == 0:
         return "[]"
 
@@ -246,16 +283,23 @@ def _provider_mock(full_prompt, page_context=None):
     
     output_data = []
     
+    modes_list = ["A initier", "Discuté", "Disputé", "Controversé", "Consensuel"]
+    hypostasis_list = ["problème", "principe", "donnée", "valeur", "théorie"]
+    
     for sentence in selected_sentences:
-        stance = random.choice(['pour', 'contre', 'neutre'])
+        mode = random.choice(modes_list)
+        hypostasis = random.choice(hypostasis_list)
         
         # Determine strict summary length
-        summary = f"Argument {stance} simulé. (Mock)"
+        summary = f"Analyse simulée ({hypostasis}/{mode})."
+        sig_extract = sentence[:20] + "..."
         
         output_data.append({
             "text_quote": sentence, # EXACT text for linking
             "summary": summary,
-            "stance": stance
+            "hypostasis": hypostasis,
+            "mode": mode,
+            "significant_extract": sig_extract
         })
         
     return json.dumps(output_data)

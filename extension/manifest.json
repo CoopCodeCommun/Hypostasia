@@ -12,12 +12,14 @@
         "storage"
     ],
     "action": {
-        "default_popup": "popup.html",
         "default_icon": {
             "16": "icons/icon16.png",
             "48": "icons/icon48.png",
             "128": "icons/icon128.png"
         }
+    },
+    "background": {
+        "service_worker": "background.js"
     },
     "options_ui": {
         "page": "options.html",
@@ -31,7 +33,10 @@
     "web_accessible_resources": [
         {
             "resources": [
-                "lib/Readability.js"
+                "lib/Readability.js",
+                "lib/htmx.min.js",
+                "init_htmx_sidebar.js",
+                "sidebar.html"
             ],
             "matches": [
                 "<all_urls>"

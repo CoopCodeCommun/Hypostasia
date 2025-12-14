@@ -57,18 +57,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Sub-actions
+    // Sub-actions
     viewArgsBtn.addEventListener('click', async () => {
         if (window.currentPageId) {
             try {
-                // Fetch arguments
-                status.textContent = "Récupération des arguments...";
-                const res = await fetch(`${BASE_URL}api/pages/${window.currentPageId}/arguments/`);
-                if (!res.ok) throw new Error("Erreur récupération arguments");
-                const args = await res.json();
+                // Fetch arguments HTML
+                status.textContent = "Récupération de la sidebar...";
+                // On appelle la nouvelle route qui renvoie du HTML
+                const res = await fetch(`${BASE_URL}api/pages/${window.currentPageId}/sidebar/`);
+                if (!res.ok) throw new Error("Erreur récupération sidebar");
+                const htmlContent = await res.text();
 
-                // Inject UI with args
+                // Inject UI with HTML
                 const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                await injectUI(tab.id, args);
+                await injectUI(tab.id, htmlContent);
 
                 window.close(); // Close popup
             } catch (e) {
