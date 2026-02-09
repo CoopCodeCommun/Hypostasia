@@ -7,12 +7,11 @@ from django.http import HttpResponse
 
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
-from .models import Page, Argument, Prompt
+from .models import Page, Argument, Prompt, TextBlock, Reformulation
 from .serializers import (
     PageListSerializer, PageDetailSerializer, PageCreateSerializer,
     ArgumentSerializer, ArgumentUpdateSerializer,
-    ArgumentSerializer, ArgumentUpdateSerializer,
-    PromptSerializer
+    PromptSerializer, TextBlockSerializer
 )
 import random
 import re
@@ -67,12 +66,20 @@ class PageViewSet(viewsets.ModelViewSet):
         
         # Optimize query for template rendering
         if request.accepted_renderer.format == 'html':
+            from .models import HypostasisTag, Theme
             instance = Page.objects.prefetch_related(
                 'blocks__arguments__comments__author',
                 'blocks__themes',
-                'blocks__reformulations'
+                'blocks__reformulations',
+                'blocks__hypostases'
             ).get(pk=instance.pk)
-            return Response({'page': instance}, template_name='core/page_detail.html')
+            all_hypostases = HypostasisTag.objects.all().order_by('name')
+            all_themes = Theme.objects.all().order_by('name')
+            return Response({
+                'page': instance,
+                'all_hypostases': all_hypostases,
+                'all_themes': all_themes
+            }, template_name='core/page_detail.html')
             
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
@@ -157,8 +164,97 @@ class ArgumentViewSet(viewsets.ModelViewSet):
             return queryset.filter(page_id=page_id)
         return queryset
 
+    @action(detail=True, methods=['post', 'patch'])
+    def update_content(self, request, pk=None):
+        """
+        HTMX Action: Met à jour le résumé de l'argument.
+        """
+        argument = self.get_object()
+        serializer = ArgumentUpdateSerializer(argument, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            
+            # Si c'est une requête HTMX, on renvoie le HTML partiel
+            if request.headers.get('HX-Request'):
+                return render(request, 'core/includes/sidebar_items_partial.html', {'block': argument.text_block})
+            
+            # Sinon on renvoie du JSON standard
+            return Response(serializer.data)
+            
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-from .models import Page, Argument, Prompt, TextInput
+
+class TextBlockViewSet(viewsets.ModelViewSet):
+    """
+    Gestion des blocs de texte.
+    """
+    queryset = TextBlock.objects.all()
+    serializer_class = TextBlockSerializer
+
+    @action(detail=True, methods=['post', 'patch'])
+    def update_content(self, request, pk=None):
+        """
+        HTMX Action: Met à jour les hypostases et l'extrait significatif.
+        """
+        block = self.get_object()
+        
+        # Gestion des hypostases (Many-to-Many via tags)
+        new_hypostases = request.data.getlist('hypostases')
+        if 'hypostases' in request.data:
+            from .models import HypostasisTag
+            block.hypostases.clear()
+            for h_name in new_hypostases:
+                if h_name.strip():
+                    tag, _ = HypostasisTag.objects.get_or_create(name=h_name.strip())
+                    block.hypostases.add(tag)
+
+        # Gestion des thèmes (Many-to-Many)
+        new_themes = request.data.getlist('themes')
+        if 'themes' in request.data:
+            from .models import Theme
+            block.themes.clear()
+            for t_name in new_themes:
+                if t_name.strip():
+                    theme, _ = Theme.objects.get_or_create(name=t_name.strip())
+                    block.themes.add(theme)
+
+        block.significant_extract = request.data.get('significant_extract', block.significant_extract)
+        block.save()
+
+        if request.headers.get('HX-Request'):
+            from .models import HypostasisTag, Theme
+            all_hypostases = HypostasisTag.objects.all().order_by('name')
+            all_themes = Theme.objects.all().order_by('name')
+            return render(request, 'core/includes/sidebar_items_partial.html', {
+                'block': block,
+                'all_hypostases': all_hypostases,
+                'all_themes': all_themes
+            })
+        
+        return Response({"status": "updated"})
+
+
+class ReformulationViewSet(viewsets.ModelViewSet):
+    """
+    Gestion des reformulations.
+    """
+    queryset = Reformulation.objects.all()
+    serializer_class = ArgumentSerializer # Minimal placeholder, or create a specific one if needed
+
+    @action(detail=True, methods=['post', 'patch'])
+    def update_content(self, request, pk=None):
+        """
+        HTMX Action: Met à jour le texte d'une reformulation.
+        """
+        reformulation = self.get_object()
+        reformulation.text = request.data.get('text', reformulation.text)
+        reformulation.save()
+
+        if request.headers.get('HX-Request'):
+            return render(request, 'core/includes/sidebar_items_partial.html', {'block': reformulation.origin})
+        
+        return Response({"status": "updated"})
+
 
 # ... imports ...
 
@@ -180,9 +276,14 @@ class PromptViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         if request.accepted_renderer.format == 'html':
-            from .models import AIModel
+            from .models import AIModel, HypostasisTag
             aimodels = AIModel.objects.filter(is_active=True)
-            return Response({'prompt': instance, 'aimodels': aimodels}, template_name='core/prompt_detail.html')
+            hypostases = HypostasisTag.objects.all().order_by('name')
+            return Response({
+                'prompt': instance, 
+                'aimodels': aimodels,
+                'all_hypostases': hypostases
+            }, template_name='core/prompt_detail.html')
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 

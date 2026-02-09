@@ -1,0 +1,12 @@
+services:
+  web:
+    image: kimi
+    container_name: hypostasia_web
+    volumes:
+      - ./:/hypostasia
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    command: "sleep infinity"
+#    command: "bash start.sh"
+

@@ -1,0 +1,415 @@
+{% load static %}
+<div x-data="{
+        view: 'arguments',
+        init() {
+            this.$watch('view', value => {
+                if (value === 'comments') {
+                    sidebarExpanded = true;
+                } 
+            })
+        }
+    }"
+    class="group relative bg-slate-800 border border-slate-700 rounded-xl overflow-hidden transition-all duration-300 hover:border-brand-500/30 hover:shadow-lg hover:shadow-brand-500/5"
+    :class="view === 'comments' || view === 'edit' ? 'border-brand-500 shadow-brand-500/10' : ''"
+    id="block-card-{{ block.id }}">
+    <!-- Content Area -->
+    <div class="p-4 min-h-[160px]">
+
+        <!-- VIEW 1: ARGUMENTS (⚡️) -->
+        <div x-show="view === 'arguments'" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 transform scale-95"
+            x-transition:enter-end="opacity-100 transform scale-100">
+            <div
+                class="flex items-center gap-2 mb-3 text-xs font-semibold text-brand-400 uppercase tracking-widest">
+                <span class="text-lg">⚡️</span> {{ block.get_modes_display }}
+                {% if block.arguments.all.0.user_edited %}
+                <span class="ml-auto bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded text-[10px]">Modifié</span>
+                {% endif %}
+                <div class="ml-auto flex items-center gap-1">
+                    <button @click="view = 'edit'" class="p-1 text-slate-500 hover:text-amber-500 transition-colors" title="Éditer">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="scrollToBlock('{{ block.selector|escapejs }}', '{{ block.text|escapejs|truncatewords:20 }}')" 
+                        class="p-1 text-slate-500 hover:text-brand-400 transition-colors" title="Lier au texte">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            {% with args=block.arguments.all %}
+            <div @click="scrollToBlock('{{ block.selector|escapejs }}', '{{ block.text|escapejs|truncatewords:20 }}')" class="cursor-pointer">
+                {% if args %}
+                <div class="space-y-3">
+                    {% for arg in args %}
+                    <p class="text-base text-slate-100 leading-relaxed font-medium">
+                        {{ arg.summary }}
+                    </p>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-sm text-slate-500 italic">Aucun argument résumé.</p>
+                {% endif %}
+            </div>
+            {% endwith %}
+        </div>
+
+        <!-- VIEW 2: DETAILS (🔍) -->
+        <div x-show="view === 'details'" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 transform translate-x-4"
+            x-transition:enter-end="opacity-100 transform translate-x-0" style="display: none;">
+            <div
+                class="flex items-center gap-2 mb-4 text-xs font-semibold text-emerald-400 uppercase tracking-widest">
+                <span class="text-lg">🔍</span> Analyse Profonde
+                <div class="ml-auto flex items-center gap-1">
+                    <button @click="view = 'edit_details'" class="p-1 text-slate-500 hover:text-emerald-400 transition-colors" title="Modifier l'analyse">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="scrollToBlock('{{ block.selector|escapejs }}', '{{ block.text|escapejs|truncatewords:20 }}')" 
+                        class="p-1 text-slate-500 hover:text-brand-400 transition-colors" title="Lier au texte">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <span class="text-xs text-slate-500 uppercase">Hypostases</span>
+                    <div class="flex flex-wrap gap-2 mt-1">
+                        {% for hypo in block.hypostases.all %}
+                        <span class="px-2 py-0.5 rounded text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">{{ hypo.name }}</span>
+                        {% empty %}
+                        <span class="text-xs text-slate-600 italic">Non classifié</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-500 uppercase">Phrase Significative</span>
+                    <blockquote class="text-sm text-slate-300 italic mt-1 border-l-2 border-emerald-500/30 pl-2">
+                        "{{ block.significant_extract|default:block.text|truncatechars:100 }}"
+                    </blockquote>
+                </div>
+                <div>
+                    <span class="text-xs text-slate-500 uppercase">Thèmes</span>
+                    <div class="flex flex-wrap gap-2 mt-1">
+                        {% for theme in block.themes.all %}
+                        <span class="px-2 py-0.5 rounded text-xs bg-slate-700 text-slate-300">{{ theme.name }}</span>
+                        {% empty %}
+                        <span class="text-sm text-slate-600">-</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 3: REFORMULATIONS (📑) -->
+        <div x-show="view === 'reformulations'" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 transform -translate-y-4"
+            x-transition:enter-end="opacity-100 transform translate-y-0" style="display: none;">
+            <div
+                class="flex items-center gap-2 mb-4 text-xs font-semibold text-amber-400 uppercase tracking-widest">
+                <span class="text-lg">📑</span> Reformulations
+                <div class="ml-auto flex items-center gap-1">
+                    <button @click="view = 'edit_reformulations'" class="p-1 text-slate-500 hover:text-amber-400 transition-colors" title="Modifier les reformulations">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="scrollToBlock('{{ block.selector|escapejs }}', '{{ block.text|escapejs|truncatewords:20 }}')" 
+                        class="p-1 text-slate-500 hover:text-brand-400 transition-colors" title="Lier au texte">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                {% for ref in block.reformulations.all %}
+                <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+                    <p class="text-sm text-slate-200">{{ ref.text }}</p>
+                    <div class="mt-2 text-[10px] text-slate-500 text-right">{{ ref.style|default:"Global" }}</div>
+                </div>
+                {% empty %}
+                <p class="text-sm text-slate-500 italic">Aucune reformulation disponible.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- VIEW 4: COMMENTS (💬) -->
+        <div x-show="view === 'comments'" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 transform scale-95"
+            x-transition:enter-end="opacity-100 transform scale-100" style="display: none;">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2 text-xs font-semibold text-blue-400 uppercase tracking-widest">
+                    <span class="text-lg">💬</span> Discussion
+                </div>
+                <button @click="view = 'arguments'; sidebarExpanded = false;"
+                    class="text-slate-500 hover:text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-4 max-h-[400px] overflow-y-auto mb-4">
+                {% for arg in block.arguments.all %}
+                <!-- Context -->
+                <div class="text-xs text-slate-500 mb-2 pb-2 border-b border-slate-700/50">
+                    Sur : {{ arg.summary|truncatechars:50 }}
+                </div>
+
+                {% for comment in arg.comments.all %}
+                <div class="flex gap-3">
+                    <div
+                        class="flex-shrink-0 w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
+                        {{ comment.author.username|slice:":1"|upper }}
+                    </div>
+                    <div>
+                        <div class="text-xs text-slate-400 flex items-center gap-2">
+                            {{ comment.author.username }} <span class="text-slate-600">• {{ comment.created_at|timesince }}</span>
+                        </div>
+                        <p class="text-sm text-slate-200 mt-1">{{ comment.comment }}</p>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center py-4 text-slate-600 italic text-sm">Aucun commentaire sur cet
+                    argument.</div>
+                {% endfor %}
+                {% endfor %}
+            </div>
+
+            <!-- Mock Input -->
+            <div class="mt-2">
+                <input type="text" placeholder="Ajouter un commentaire..."
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500">
+            </div>
+        </div>
+
+        <!-- VIEW 5: EDIT (✍️) -->
+        <div x-show="view === 'edit'" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 transform scale-95"
+            x-transition:enter-end="opacity-100 transform scale-100" style="display: none;">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2 text-xs font-semibold text-amber-400 uppercase tracking-widest">
+                    <span class="text-lg">✍️</span> Édition Argument
+                </div>
+                <button @click="view = 'arguments'" class="text-slate-500 hover:text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            {% for arg in block.arguments.all %}
+            <form hx-patch="/api/arguments/{{ arg.id }}/update_content/" hx-target="#block-card-{{ block.id }}" hx-swap="outerHTML" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-[10px] text-slate-500 uppercase font-bold mb-1">Résumé de l'argument</label>
+                    <textarea name="summary" rows="4"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-brand-500 resize-none leading-relaxed">{{ arg.summary }}</textarea>
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors">
+                        Enregistrer
+                    </button>
+                </div>
+            </form>
+            {% endfor %}
+        </div>
+
+        <!-- VIEW 6: EDIT DETAILS (🔍✍️) -->
+        <div x-show="view === 'edit_details'" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 transform scale-95"
+            x-transition:enter-end="opacity-100 transform scale-100" style="display: none;"
+            x-data="{ 
+                newHypo: '',
+                selectedHypos: [{% for h in block.hypostases.all %}'{{ h.name|escapejs }}',{% endfor %}],
+                addHypo() {
+                    if (this.newHypo.trim() && !this.selectedHypos.includes(this.newHypo.trim())) {
+                        this.selectedHypos.push(this.newHypo.trim());
+                        this.newHypo = '';
+                    }
+                },
+                removeHypo(h) {
+                    this.selectedHypos = this.selectedHypos.filter(item => item !== h);
+                },
+                newTheme: '',
+                selectedThemes: [{% for t in block.themes.all %}'{{ t.name|escapejs }}',{% endfor %}],
+                addTheme() {
+                    if (this.newTheme.trim() && !this.selectedThemes.includes(this.newTheme.trim())) {
+                        this.selectedThemes.push(this.newTheme.trim());
+                        this.newTheme = '';
+                    }
+                },
+                removeTheme(t) {
+                    this.selectedThemes = this.selectedThemes.filter(item => item !== t);
+                }
+            }">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2 text-xs font-semibold text-emerald-400 uppercase tracking-widest">
+                    <span class="text-lg">✍️</span> Édition Analyse
+                </div>
+                <button @click="view = 'details'" class="text-slate-500 hover:text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <form hx-patch="/api/textblocks/{{ block.id }}/update_content/" hx-target="#block-card-{{ block.id }}" hx-swap="outerHTML" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-[10px] text-slate-500 uppercase font-bold mb-1">Hypostases</label>
+                    
+                    <!-- Tag Display & Removal -->
+                    <div class="flex flex-wrap gap-2 mb-2 p-2 bg-slate-900 rounded-lg border border-slate-700 min-h-[40px]">
+                        <template x-for="h in selectedHypos" :key="h">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-brand-500/20 text-brand-400 border border-brand-500/30">
+                                <span x-text="h"></span>
+                                <button type="button" @click="removeHypo(h)" class="hover:text-white">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                                <input type="hidden" name="hypostases" :value="h">
+                            </span>
+                        </template>
+                        <span x-show="selectedHypos.length === 0" class="text-xs text-slate-600 italic">Aucun tag</span>
+                    </div>
+
+                    <!-- Tag Input / Selection -->
+                    <div class="flex gap-2">
+                        <input type="text" x-model="newHypo" @keydown.enter.prevent="addHypo()" placeholder="Nouveau tag..." 
+                            class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:border-brand-500">
+                        
+                        <select @change="newHypo = $event.target.value; addHypo(); $event.target.value = ''" 
+                            class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-400 focus:border-brand-500 max-w-[120px]">
+                            <option value="">Suggérer...</option>
+                            {% for h in all_hypostases %}
+                                <option value="{{ h.name }}">{{ h.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] text-slate-500 uppercase font-bold mb-1">Thèmes</label>
+                    
+                    <!-- Theme Display & Removal -->
+                    <div class="flex flex-wrap gap-2 mb-2 p-2 bg-slate-900 rounded-lg border border-slate-700 min-h-[40px]">
+                        <template x-for="t in selectedThemes" :key="t">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                <span x-text="t"></span>
+                                <button type="button" @click="removeTheme(t)" class="hover:text-white">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                                <input type="hidden" name="themes" :value="t">
+                            </span>
+                        </template>
+                        <span x-show="selectedThemes.length === 0" class="text-xs text-slate-600 italic">Aucun thème</span>
+                    </div>
+
+                    <!-- Theme Input / Selection -->
+                    <div class="flex gap-2">
+                        <input type="text" x-model="newTheme" @keydown.enter.prevent="addTheme()" placeholder="Nouveau thème..." 
+                            class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:border-brand-500">
+                        
+                        <select @change="newTheme = $event.target.value; addTheme(); $event.target.value = ''" 
+                            class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-slate-400 focus:border-brand-500 max-w-[120px]">
+                            <option value="">Suggérer...</option>
+                            {% for t in all_themes %}
+                                <option value="{{ t.name }}">{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] text-slate-500 uppercase font-bold mb-1">Extrait Significatif</label>
+                    <textarea name="significant_extract" rows="4"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-brand-500 resize-none leading-relaxed">{{ block.significant_extract|default:block.text }}</textarea>
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold py-2 px-4 rounded-lg transition-colors">
+                        Enregistrer
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- VIEW 7: EDIT REFORMULATIONS (📑✍️) -->
+        <div x-show="view === 'edit_reformulations'" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 transform scale-95"
+            x-transition:enter-end="opacity-100 transform scale-100" style="display: none;">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2 text-xs font-semibold text-amber-400 uppercase tracking-widest">
+                    <span class="text-lg">✍️</span> Édition Reformulations
+                </div>
+                <button @click="view = 'reformulations'" class="text-slate-500 hover:text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            {% for ref in block.reformulations.all %}
+            <form hx-patch="/api/reformulations/{{ ref.id }}/update_content/" hx-target="#block-card-{{ block.id }}" hx-swap="outerHTML" class="space-y-4 mb-4 pb-4 border-b border-slate-700/50 last:border-0">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-[10px] text-slate-500 uppercase font-bold mb-1">Style : {{ ref.style|default:"Global" }}</label>
+                    <textarea name="text" rows="3"
+                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-brand-500 resize-none leading-relaxed">{{ ref.text }}</textarea>
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-colors">
+                        Mettre à jour
+                    </button>
+                </div>
+            </form>
+            {% empty %}
+            <p class="text-sm text-slate-500 italic">Aucune reformulation à modifier.</p>
+            {% endfor %}
+        </div>
+
+    </div>
+
+    <!-- Toolbar (Emoticon Buttons) -->
+    <div class="bg-slate-900/50 border-t border-slate-700/50 px-2 py-1.5 flex justify-around items-center">
+        <button @click="view = 'arguments'; sidebarExpanded = false"
+            class="p-2 rounded-lg transition-colors hover:bg-slate-700"
+            :class="view === 'arguments' ? 'bg-slate-700 text-brand-400' : 'text-slate-400'" title="Le Pourquoi">
+            ⚡️
+        </button>
+        <button @click="view = 'details'; sidebarExpanded = false"
+            class="p-2 rounded-lg transition-colors hover:bg-slate-700"
+            :class="view === 'details' ? 'bg-slate-700 text-emerald-400' : 'text-slate-400'"
+            title="Le Pourquoi du Pourquoi">
+            🔍
+        </button>
+        <button @click="view = 'reformulations'; sidebarExpanded = false"
+            class="p-2 rounded-lg transition-colors hover:bg-slate-700"
+            :class="view === 'reformulations' ? 'bg-slate-700 text-amber-400' : 'text-slate-400'"
+            title="Ré-écriture">
+            📑
+        </button>
+        <button @click="view = 'comments'" class="p-2 rounded-lg transition-colors hover:bg-slate-700"
+            :class="view === 'comments' ? 'bg-slate-700 text-blue-400' : 'text-slate-400'" title="Commentaire">
+            💬
+        </button>
+    </div>
+
+</div>

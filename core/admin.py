@@ -1,5 +1,9 @@
 from django.contrib import admin
-from .models import Page, Argument, ArgumentComment, Prompt, TextInput, TextBlock, AIModel, Theme, Reformulation
+from .models import Page, Argument, ArgumentComment, Prompt, TextInput, TextBlock, AIModel, Theme, Reformulation, HypostasisTag
+
+@admin.register(HypostasisTag)
+class HypostasisTagAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description')
 
 # Register your models here.
 @admin.register(AIModel)
@@ -14,7 +18,7 @@ class ThemeAdmin(admin.ModelAdmin):
 class TextBlockInline(admin.TabularInline):
     model = TextBlock
     extra = 0
-    fields = ('selector', 'hypostasis', 'modes', 'significant_extract', 'text')
+    fields = ('selector', 'modes', 'significant_extract', 'text')
     show_change_link = True
 
 class ArgumentInline(admin.TabularInline):
@@ -42,10 +46,10 @@ class PageAdmin(admin.ModelAdmin):
 
 @admin.register(TextBlock)
 class TextBlockAdmin(admin.ModelAdmin):
-    list_display = ('page', 'selector', 'hypostasis', 'modes', 'start_offset', 'end_offset')
-    list_filter = ('page', 'hypostasis', 'modes', 'themes')
+    list_display = ('page', 'selector', 'modes', 'start_offset', 'end_offset')
+    list_filter = ('page', 'hypostases', 'modes', 'themes')
     search_fields = ('text', 'significant_extract')
-    filter_horizontal = ('themes',)
+    filter_horizontal = ('themes', 'hypostases')
     inlines = [ArgumentBlockInline, ReformulationInline]
     
     fieldsets = (
@@ -56,7 +60,7 @@ class TextBlockAdmin(admin.ModelAdmin):
             'fields': ('text', 'significant_extract')
         }),
         ('Analyse', {
-            'fields': ('hypostasis', 'modes', 'themes')
+            'fields': ('hypostases', 'modes', 'themes')
         }),
     )
 

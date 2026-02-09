@@ -1,5 +1,12 @@
 from rest_framework import serializers
-from .models import Page, TextBlock, Argument, ArgumentComment, Prompt, TextInput
+from .models import Page, TextBlock, Argument, ArgumentComment, Prompt, TextInput, HypostasisTag, HypostasisChoices
+
+# --- HYPOSTASES ---
+
+class HypostasisTagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HypostasisTag
+        fields = ['id', 'name', 'description']
 
 # --- TEXT BLOCKS ---
 
@@ -8,9 +15,11 @@ class TextBlockSerializer(serializers.ModelSerializer):
     Sérialiseur pour les blocs de texte.
     Utilisé pour l'affichage et la création nichée dans une Page.
     """
+    hypostases = HypostasisTagSerializer(many=True, read_only=True)
+
     class Meta:
         model = TextBlock
-        fields = ['id', 'selector', 'start_offset', 'end_offset', 'text']
+        fields = ['id', 'selector', 'start_offset', 'end_offset', 'text', 'significant_extract', 'hypostases', 'modes']
 
 
 # --- ARGUMENTS ---
@@ -25,7 +34,7 @@ class ArgumentSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'page', 'text_block', 
             'selector', 'start_offset', 'end_offset', 
-            'text_original', 'summary', 'stance', 
+            'text_original', 'summary', 
             'user_edited', 'created_at'
         ]
         read_only_fields = ['user_edited', 'created_at']
@@ -33,11 +42,11 @@ class ArgumentSerializer(serializers.ModelSerializer):
 class ArgumentUpdateSerializer(serializers.ModelSerializer):
     """
     Sérialiseur spécifique pour la modification par l'utilisateur.
-    Seuls le résumé et la posture (stance) sont modifiables.
+    Seul le résumé est modifiable.
     """
     class Meta:
         model = Argument
-        fields = ['summary', 'stance']
+        fields = ['summary']
 
     def update(self, instance, validated_data):
         # Si l'utilisateur modifie quelque chose, on passe le flag à True
@@ -132,13 +141,14 @@ class AnalysisItemSerializer(serializers.Serializer):
     theme = serializers.CharField(required=True, allow_blank=False)
 
     def validate_hypostasis(self, value):
-        from .models import Hypostasis
+        from .models import HypostasisChoices
         # The AI returns the value (e.g. "problème"), which matches the values in the Choice class
-        if value not in Hypostasis.values:
+        if value not in HypostasisChoices.values:
             # Try lowercase just in case
-            if value.lower() in Hypostasis.values:
+            if value.lower() in HypostasisChoices.values:
                 return value.lower()
-            raise serializers.ValidationError(f"Invalid hypostasis: '{value}'. Must be one of {Hypostasis.values}")
+            # If not in HypostasisChoices, we still allow it as it can be a new tag
+            return value
         return value
 
     def validate_mode(self, value):

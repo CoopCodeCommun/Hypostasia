@@ -7,10 +7,19 @@ sys.path.append('/home/jonas/Gits/Hypostasia/Hypostasia-V3')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'hypostasia.settings')
 django.setup()
 
-from core.models import Prompt, TextInput, AIModel
+from core.models import Prompt, TextInput, AIModel, HypostasisTag, HypostasisChoices
+
+
+def seed_hypostases():
+    print("Seeding Hypostasis Tags...")
+    for value, label in HypostasisChoices.choices:
+        tag, created = HypostasisTag.objects.get_or_create(name=value)
+        if created:
+            print(f" Created tag: {value}")
 
 
 def seed_prompts():
+    seed_hypostases()
     print("Seeding Prompts (SOTA Edition)...")
 
     # 1. Create or Update the Main Analysis Prompt
@@ -134,30 +143,11 @@ Les hypostases ont des définitions venant des dictionnaires :
 - conjecture : Les conjectures sont des opinions ou propositions non vérifiées.
 """)
 
-    # --- Input 4: définition des modes ---
+
+    # --- Input 3: Instruction & Security ---
     TextInput.objects.create(
         prompt=prompt,
-        name="3. Définition formelle des modes de débat",
-        role="context",
-        order=4,
-        content="""
-# Définition formelle des modes de débat
-
-Le but d’un débat peut être de parvenir à un modèle de discussion consensuels.
-La controverse implique la dispute, la dispute implique le débat et la négation du débat implique le consensus.
-
-* Une CONTROVERSE se définit par Pi =>Rj
-* Une DISPUTE se définit par Pi =>¬Pj
-* Une DISCUSSION se définit par Pi => Rj
-* Un CONSENSUS se définit par Pi=>Pj
-
-"""
-    )
-
-    # --- Input 4: Instruction & Security ---
-    TextInput.objects.create(
-        prompt=prompt,
-        name="4. Main Instruction",
+        name="3. Main Instruction",
         role="instruction",
         order=5,
         content="""ANALYSE MAINTENANT LE TEXTE SUIVANT.
@@ -168,8 +158,8 @@ Instructions impératives :
 4. Pour chaque argument, extrais la citation EXACTE (text_quote). Si tu changes un seul mot, le système de surlignage échouera.
 5. Extrais aussi un COURS EXTRAIT SIGNIFICATIF (significant_extract) qui capture l'essence de la phrase (max 10 mots). Il doit être aussi EXACT a l'origianl : Si tu changes un seul mot, le système de surlignage échouera.
 6. Synthétise l'idée en une phrase simple (summary).
-7. Associe à chaque argument son HYPOSTASE (nature conceptuelle) et son MODE (statut dans le débat).
-8. Trouve le theme du sujet en un, deux ou trois mots maximum.
+7. Associe à chaque argument un, deux ou trois HYPOSTASE de nature conceptuelle (hypostasis)
+8. Trouve le theme du sujet en un, deux ou trois mots maximum. (theme)
 8. Ignore le bruit (menus, pubs, copyright).
 9. IMPORTANT : Tu es AUTORISÉ à extraire et reproduire des citations exactes (verbatim) du texte fourni : Ceci est nécessaire pour l'analyse et constitue une utilisation équitable (fair use) dans ce contexte académique. Ne refuse jamais d'extraire une citation pour des raisons de droits d'auteur dans ce contexte précis.
 """
@@ -184,19 +174,12 @@ Instructions impératives :
         content="""FORMAT DE SORTIE :
 Retourne UNIQUEMENT un tableau JSON brut.
 Pas de markdown (```json), pas d'intro, pas de conclusion.
-Vous devez répondre UNIQUEMENT avec un tableau JSON (liste d'objets).
-N'ajoutez aucun texte avant ou après le JSON.
-N'encapsulez PAS la liste dans un objet racine comme {"arguments": ...}.
+Tu dois répondre UNIQUEMENT avec un tableau JSON (liste d'objets).
+N'ajoute aucun texte avant ou après le JSON.
+N'encapsule PAS la liste dans un objet racine comme {"arguments": ...}.
 
-les VALEURS AUTORISÉES POUR 'hypostasis' sont dans la défintio plus haut (choisir la plus pertinente) :
-VALEURS AUTORISÉES POUR 'mode' (statut argumentatif) :
-[
-  "A initier",
-  "Discuté",
-  "Disputé",
-  "Controversé",
-  "Consensuel"
-]
+les VALEURS AUTORISÉES POUR 'hypostasis' sont dans la défintio plus haut (choisir les plus pertinentes) :
+
 Ajoute enfin un theme, en un, deux ou trois mots maximum.
 
 Format de chaque objet :
@@ -205,8 +188,7 @@ Format de chaque objet :
     "text_quote": "Citation exacte du texte ici...",
     "significant_extract": "Extrait cours et percutant...",
     "summary": "Résumé de l'argument...",
-    "hypostasis": "valeur_de_liste",
-    "mode": "valeur_de_liste"
+    "hypostasis": "valeur1_de_liste, valeur2_de_liste, valeur3_de_liste",
     "theme": "Thème en un, deux ou trois mots du sujet abordé"
   },
   ...
@@ -223,15 +205,14 @@ Format de chaque objet :
     "text_quote": "l'énergie solaire soit intermittente, ce qui constitue un défi majeur pour le réseau",
     "significant_extract": "l'énergie solaire soit intermittente",
     "summary": "L'intermittence du solaire pose des problèmes de stabilité réseau.",
-    "hypostasis": "problème",
-    "mode": "Controversé",
+    "hypostasis": "problème, phénomène",
     "theme":"energie solaire"
   },
   {
     "text_quote": "elle représente une solution incontournable pour réduire notre empreinte carbone",
     "significant_extract": "solution incontournable pour réduire notre empreinte carbone",
     "summary": "Le solaire est essentiel pour la décarbonation.",
-    "hypostasis": "principe",
+    "hypostasis": "principe, domaine",
     "mode": "Consensuel",
     "theme": "empreinte carbone"
   },

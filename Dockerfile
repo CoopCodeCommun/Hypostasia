@@ -1,7 +1,9 @@
-FROM ghcr.io/astral-sh/uv:python3.14-trixie
+FROM ghcr.io/astral-sh/uv:python3.13-trixie
 
 # Install git for cloning
-RUN apt-get update && apt-get upgrade -y && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
+RUN curl -L code.kimi.com/install.sh | bash
+
 
 RUN useradd -ms /bin/bash hypostasia
 USER hypostasia
@@ -23,4 +25,5 @@ RUN mkdir -p db staticfiles
 
 # Environment variables
 ENV PATH="/app/.venv/bin:$PATH"
+
 

@@ -62,8 +62,18 @@ class Page(models.Model):
             return match.group(1)
         return None
 
-class Hypostasis(models.TextChoices):
-    """Taxonomie des hypostases (typologie conceptuelle) assignables à un bloc."""
+class HypostasisTag(models.Model):
+    """Nouveau modèle pour les hypostases (tags)."""
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+class HypostasisChoices(models.TextChoices):
+    """Taxonomie des hypostases (typologie conceptuelle) assignables à un bloc.
+    Sert de guide pour le LLM et de base pour les premières instances de HypostasisTag.
+    """
     CLASSIFICATION = "classification", "classification"
     APORIE = "aporie", "aporie"
     APPROXIMATION = "approximation", "approximation"
@@ -123,7 +133,7 @@ class TextBlock(models.Model):
     end_offset = models.IntegerField(help_text="Offset de fin dans le `textContent` du nœud")
     text = models.TextField(help_text="Texte brut du bloc (extrait côté extension)")
     significant_extract = models.TextField(blank=True, null=True, help_text="Extrait représentatif et concis du bloc")
-    hypostasis = models.CharField(max_length=20, choices=Hypostasis.choices, blank=True, null=True, verbose_name="Hypostase", help_text="Typologie conceptuelle (ex: classification, axiome, théorie…)")
+    hypostases = models.ManyToManyField(HypostasisTag, related_name="text_blocks", blank=True, verbose_name="Hypostases", help_text="Typologies conceptuelles (ex: classification, axiome, théorie…)")
     modes = models.CharField(max_length=20, choices=Modes.choices, default=Modes.IN, verbose_name="Mode de débat", help_text="Statut argumentatif du contenu (ex: discuté, consensuel)")
     themes = models.ManyToManyField(Theme, related_name="text_blocks", help_text="Thèmes associés à ce bloc")
 

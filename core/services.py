@@ -129,12 +129,12 @@ def run_analysis_pipeline(page, prompt):
                 "Consensuel": "CS"
             }
             
-            from .models import TextBlock, Argument, Theme
+            from .models import TextBlock, Argument, Theme, HypostasisTag
 
             for item in validated_data:
                 quotation = item['text_quote'].strip()
                 summary = item['summary']
-                hypostasis = item['hypostasis'] # Already lowercased/validated by serializer? Check serializer implementation.
+                hypostasis_val = item['hypostasis']
                 mode_label = item['mode']
                 theme_str = item['theme']
                 significant_extract = item['significant_extract']
@@ -156,9 +156,13 @@ def run_analysis_pipeline(page, prompt):
                     end_offset=end_offset,
                     text=quotation,
                     significant_extract=significant_extract,
-                    hypostasis=hypostasis,
                     modes=mode_code
                 )
+                
+                # Handle Hypostases (ManyToMany)
+                if hypostasis_val:
+                    hypo_obj, _ = HypostasisTag.objects.get_or_create(name=hypostasis_val.strip())
+                    block.hypostases.add(hypo_obj)
                 
                 # Handle Theme
                 if theme_str:
