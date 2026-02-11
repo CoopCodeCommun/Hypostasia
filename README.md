@@ -8,7 +8,7 @@
 [![Django 6.0](https://img.shields.io/badge/django-6.0-092E20?logo=django&logoColor=white)](https://djangoproject.com)
 [![HTMX](https://img.shields.io/badge/htmx-1.27+-3366CC?logo=htmx&logoColor=white)](https://htmx.org)
 [![LangExtract](https://img.shields.io/badge/langextract-0.1+-FF6F00)](https://github.com/google/langextract)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPLv3-blue)](LICENSE)
 
 </div>
 
