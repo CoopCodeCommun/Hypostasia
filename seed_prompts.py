@@ -233,8 +233,100 @@ Format de chaque objet :
     print("Prompts seeded successfully with SOTA configuration.")
 
 
+def seed_langextract_examples():
+    """
+    Cree des exemples few-shot pour l'application Hypostasis Extractor.
+    Ces exemples guident LangExtract pour l'extraction d'hypostases.
+    """
+    from hypostasis_extractor.models import ExtractionExample
+    
+    print("Seeding LangExtract Examples...")
+    
+    # Exemple 1: Extraction d'arguments avec emotions
+    example1, created1 = ExtractionExample.objects.get_or_create(
+        name="Arguments avec emotions",
+        defaults={
+            'description': "Exemple d'extraction d'arguments et de leur charge emotionnelle",
+            'example_text': "L'energie nucleaire permet une production massive et pilotable. Cependant, le risque d'accident catastrophique reste une epine dans le pied du secteur.",
+            'example_extractions': [
+                {
+                    'extraction_class': 'principe',
+                    'extraction_text': "L'energie nucleaire permet une production massive et pilotable",
+                    'attributes': {'emotion': 'confiance', 'stance': 'pour'}
+                },
+                {
+                    'extraction_class': 'probleme',
+                    'extraction_text': "le risque d'accident catastrophique reste une epine dans le pied du secteur",
+                    'attributes': {'emotion': 'crainte', 'stance': 'contre'}
+                }
+            ]
+        }
+    )
+    if created1:
+        print(f" Created example: {example1.name}")
+    
+    # Exemple 2: Metaphores et concepts abstraits
+    example2, created2 = ExtractionExample.objects.get_or_create(
+        name="Metaphores et concepts",
+        defaults={
+            'description': "Exemple d'extraction de metaphores conceptuelles",
+            'example_text': "La transition energetique est une course de fond qui necessite de changer de paradigme. Nous sommes a un carrefour historique.",
+            'example_extractions': [
+                {
+                    'extraction_class': 'metaphore',
+                    'extraction_text': "une course de fond",
+                    'attributes': {'concept_source': 'sport', 'concept_cible': 'transition'}
+                },
+                {
+                    'extraction_class': 'paradigme',
+                    'extraction_text': "changer de paradigme",
+                    'attributes': {'type': 'revolution_cognitive'}
+                },
+                {
+                    'extraction_class': 'metaphore',
+                    'extraction_text': "un carrefour historique",
+                    'attributes': {'concept_source': 'espace', 'concept_cible': 'temporalite'}
+                }
+            ]
+        }
+    )
+    if created2:
+        print(f" Created example: {example2.name}")
+    
+    # Exemple 3: Donnees et faits
+    example3, created3 = ExtractionExample.objects.get_or_create(
+        name="Donnees chiffrees",
+        defaults={
+            'description': "Exemple d'extraction de donnees chiffrees",
+            'example_text': "Les emissions de CO2 ont augmente de 2,5% en 2023, atteignant 37,4 milliards de tonnes. Le cout du MWh solaire est passe sous les 30 euros.",
+            'example_extractions': [
+                {
+                    'extraction_class': 'donnee',
+                    'extraction_text': "Les emissions de CO2 ont augmente de 2,5% en 2023",
+                    'attributes': {'valeur': '2,5%', 'unite': 'pourcent', 'annee': 2023}
+                },
+                {
+                    'extraction_class': 'donnee',
+                    'extraction_text': "37,4 milliards de tonnes",
+                    'attributes': {'valeur': 37.4, 'unite': 'milliards_de_tonnes'}
+                },
+                {
+                    'extraction_class': 'donnee',
+                    'extraction_text': "Le cout du MWh solaire est passe sous les 30 euros",
+                    'attributes': {'valeur': 30, 'unite': 'euros/MWh', 'comparateur': 'moins_de'}
+                }
+            ]
+        }
+    )
+    if created3:
+        print(f" Created example: {example3.name}")
+    
+    print("LangExtract Examples seeded successfully.")
+
+
 if __name__ == "__main__":
     seed_prompts()
+    seed_langextract_examples()
 
 """
 Texte exemple a tester :

@@ -1,91 +1,128 @@
 from django.contrib import admin
-from .models import Page, Argument, ArgumentComment, Prompt, TextInput, TextBlock, AIModel, Theme, Reformulation, HypostasisTag
+from .models import (
+    Page,
+    Argument,
+    ArgumentComment,
+    Prompt,
+    TextInput,
+    TextBlock,
+    AIModel,
+    Theme,
+    Reformulation,
+    HypostasisTag,
+    Dossier,
+)
+
 
 @admin.register(HypostasisTag)
 class HypostasisTagAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description')
+    list_display = ("name", "description")
+    search_fields = ("name", "description")
 
-# Register your models here.
+
 @admin.register(AIModel)
 class AIModelAdmin(admin.ModelAdmin):
-    list_display = ('name', 'provider', 'model_name', 'is_active')
-    list_filter = ('provider', 'is_active')
+    """
+    Admin pour les modèles AI avec sélection unifiée.
+    """
+
+    list_display = ("get_display_name", "model_choice", "provider", "is_active")
+    list_filter = ("is_active", "provider")
+    fields = ("name", "model_choice", "api_key", "temperature", "is_active")
+    readonly_fields = ("provider", "model_name")
+
+    def get_display_name(self, obj):
+        return obj.get_display_name()
+
+    get_display_name.short_description = "Nom du modèle"
+
 
 @admin.register(Theme)
 class ThemeAdmin(admin.ModelAdmin):
-    list_display = ('name',)
+    list_display = ("name",)
+
 
 class TextBlockInline(admin.TabularInline):
     model = TextBlock
     extra = 0
-    fields = ('selector', 'modes', 'significant_extract', 'text')
+    fields = ("selector", "modes", "significant_extract", "text")
     show_change_link = True
+
 
 class ArgumentInline(admin.TabularInline):
     model = Argument
     extra = 0
-    fk_name = 'page'
+    fk_name = "page"
+
 
 class ReformulationInline(admin.TabularInline):
     model = Reformulation
     extra = 0
 
+
 class ArgumentBlockInline(admin.StackedInline):
     model = Argument
     extra = 0
-    fk_name = 'text_block'
+    fk_name = "text_block"
     verbose_name = "Argument lié au bloc"
     verbose_name_plural = "Arguments liés au bloc"
 
+
+@admin.register(Dossier)
+class DossierAdmin(admin.ModelAdmin):
+    list_display = ("name", "created_at")
+    search_fields = ("name",)
+
+
 @admin.register(Page)
 class PageAdmin(admin.ModelAdmin):
-    list_display = ('url', 'status', 'created_at', 'updated_at')
-    search_fields = ('url', 'title')
-    list_filter = ('status',)
+    list_display = ("url", "dossier", "status", "created_at", "updated_at")
+    search_fields = ("url", "title")
+    list_filter = ("status", "dossier")
     inlines = [TextBlockInline, ArgumentInline]
+
 
 @admin.register(TextBlock)
 class TextBlockAdmin(admin.ModelAdmin):
-    list_display = ('page', 'selector', 'modes', 'start_offset', 'end_offset')
-    list_filter = ('page', 'hypostases', 'modes', 'themes')
-    search_fields = ('text', 'significant_extract')
-    filter_horizontal = ('themes', 'hypostases')
+    list_display = ("page", "selector", "modes", "start_offset", "end_offset")
+    list_filter = ("page", "hypostases", "modes", "themes")
+    search_fields = ("text", "significant_extract")
+    filter_horizontal = ("themes", "hypostases")
     inlines = [ArgumentBlockInline, ReformulationInline]
-    
+
     fieldsets = (
-        ('Ancrage', {
-            'fields': ('page', 'selector', 'start_offset', 'end_offset')
-        }),
-        ('Contenu', {
-            'fields': ('text', 'significant_extract')
-        }),
-        ('Analyse', {
-            'fields': ('hypostases', 'modes', 'themes')
-        }),
+        ("Ancrage", {"fields": ("page", "selector", "start_offset", "end_offset")}),
+        ("Contenu", {"fields": ("text", "significant_extract")}),
+        ("Analyse", {"fields": ("hypostases", "modes", "themes")}),
     )
+
 
 @admin.register(Argument)
 class ArgumentAdmin(admin.ModelAdmin):
-    list_display = ('summary', 'page', 'text_block', 'user_edited', 'created_at')
-    list_filter = ('user_edited', 'page')
-    search_fields = ('summary', 'text_original')
-    autocomplete_fields = ['page', 'text_block']
+    list_display = ("summary", "page", "text_block", "user_edited", "created_at")
+    list_filter = ("user_edited", "page")
+    search_fields = ("summary", "text_original")
+    autocomplete_fields = ["page", "text_block"]
+
 
 @admin.register(ArgumentComment)
 class ArgumentCommentAdmin(admin.ModelAdmin):
-    list_display = ('author', 'argument', 'created_at')
+    list_display = ("author", "argument", "created_at")
+
 
 class TextInputInline(admin.TabularInline):
     model = TextInput
     extra = 1
 
+
 @admin.register(Prompt)
 class PromptAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_at')
+    list_display = ("name", "created_at")
     inlines = [TextInputInline]
+
 
 @admin.register(TextInput)
 class TextInputAdmin(admin.ModelAdmin):
-    list_display = ('name', 'prompt', 'role', 'order')
-    list_filter = ('prompt', 'role')
-    ordering = ('prompt', 'order')
+    list_display = ("name", "prompt", "role", "order")
+    list_filter = ("prompt", "role")
+    ordering = ("prompt", "order")

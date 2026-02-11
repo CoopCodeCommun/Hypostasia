@@ -1,0 +1,6 @@
+<li class="py-0.5">
+    <a href="#" class="text-sm text-slate-600 hover:text-blue-600 truncate block"
+       hx-get="/lire/{{ page.pk }}/" hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true">
+        {{ page.title|default:page.domain|truncatechars:30 }}
+    </a>
+</li>

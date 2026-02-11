@@ -1,0 +1,6 @@
+{% load extractor_tags %}
+<div class="extraction-card bg-white rounded-lg border border-slate-200 p-3 mb-3 hover:shadow-sm transition-shadow">
+    {% with attr_0=block.attr_0 attr_1=block.attr_1 text=block.text attr_2=block.attr_2 attr_3=block.attr_3 %}
+        {% include "hypostasis_extractor/includes/_card_body.html" %}
+    {% endwith %}
+</div>

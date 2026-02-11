@@ -1,0 +1,22 @@
+{# Partiel HTMX pour une ligne de job dans la liste #}
+<tr hx-swap-oob="afterbegin:tbody">
+    <td>{{ job.name }}</td>
+    <td>
+        <a href="{{ job.page.url }}" target="_blank" class="text-truncate d-inline-block" style="max-width: 200px;">
+            {{ job.page.title|default:job.page.url }}
+        </a>
+    </td>
+    <td>{{ job.ai_model.name|default:"Default" }}</td>
+    <td>
+        <span class="badge bg-secondary">
+            {{ job.get_status_display }}
+        </span>
+    </td>
+    <td>0</td>
+    <td>{{ job.created_at|date:"d/m/Y H:i" }}</td>
+    <td>
+        <a href="/api/extraction-jobs/{{ job.id }}/" class="btn btn-sm btn-primary">
+            Voir
+        </a>
+    </td>
+</tr>

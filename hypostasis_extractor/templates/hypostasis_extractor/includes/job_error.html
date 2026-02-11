@@ -1,0 +1,12 @@
+{# Partiel HTMX pour afficher une erreur #}
+<div class="alert alert-danger">
+    <h5>Erreur lors de l'extraction</h5>
+    <p>{{ error }}</p>
+    <hr>
+    <button 
+        hx-post="/api/extraction-jobs/{{ job.id }}/run/"
+        hx-target="#job-results"
+        class="btn btn-sm btn-outline-danger">
+        Reessayer
+    </button>
+</div>

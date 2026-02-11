@@ -1,0 +1,55 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <h1 class="mb-4">Exemples Few-Shot</h1>
+    
+    <div class="row">
+        {% for example in examples %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">{{ example.name }}</h5>
+                </div>
+                <div class="card-body">
+                    {% if example.description %}
+                    <p class="text-muted">{{ example.description }}</p>
+                    {% endif %}
+                    
+                    <h6>Texte d'exemple:</h6>
+                    <blockquote class="blockquote bg-light p-3 rounded">
+                        <p class="mb-0 small">{{ example.example_text|truncatechars:200 }}</p>
+                    </blockquote>
+                    
+                    <h6>Extractions attendues:</h6>
+                    <ul class="list-group list-group-flush">
+                        {% for ext in example.example_extractions %}
+                        <li class="list-group-item">
+                            <span class="badge bg-info">{{ ext.extraction_class }}</span>
+                            <code class="small d-block mt-1">{{ ext.extraction_text|truncatechars:100 }}</code>
+                            {% if ext.attributes %}
+                            <small class="text-muted">
+                                {% for key, value in ext.attributes.items %}
+                                {{ key }}: {{ value }}{% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            </small>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div class="card-footer">
+                    <a href="/api/extraction-examples/{{ example.id }}/" class="btn btn-sm btn-primary">Details</a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                Aucun exemple cree. Executez <code>python seed_prompts.py</code> pour creer les exemples par defaut.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

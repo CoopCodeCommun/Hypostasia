@@ -1,0 +1,161 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<style>
+    .readability-prose {
+        font-family: 'Georgia', 'Cambria', 'Times New Roman', serif;
+        line-height: 1.8;
+        font-size: 1.125rem;
+        color: #e2e8f0;
+        white-space: pre-wrap;
+    }
+
+    @keyframes highlight-pulse {
+        0% { background-color: rgba(14, 165, 233, 0.3); }
+        100% { background-color: transparent; }
+    }
+
+    .highlight-active {
+        animation: highlight-pulse 2s ease-out forwards;
+        border-radius: 4px;
+        box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
+    }
+
+    .entity-card {
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+    .entity-card:hover {
+        border-color: #38bdf8 !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h1>{{ job.name }}</h1>
+            <p class="text-muted mb-1">Sur: {{ job.page.title|default:job.page.url }}</p>
+            <p class="text-muted small">{{ job.prompt_description|truncatechars:200 }}</p>
+        </div>
+        <div class="text-end">
+            <span class="badge bg-{% if job.status == 'completed' %}success{% elif job.status == 'error' %}danger{% elif job.status == 'processing' %}warning{% else %}secondary{% endif %} fs-6">
+                {{ job.get_status_display }}
+            </span>
+            <p class="text-muted small mt-2">
+                {{ job.entities_count }} entite{% if job.entities_count > 1 %}s{% endif %}
+                {% if job.processing_time_seconds %}
+                en {{ job.processing_time_seconds|floatformat:1 }}s
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="mb-4">
+        {% if job.status == 'pending' or job.status == 'error' %}
+        <button
+            hx-post="/api/extraction-jobs/{{ job.id }}/run/"
+            hx-target="#job-results"
+            hx-swap="innerHTML"
+            class="btn btn-primary">
+            <span class="spinner-border spinner-border-sm htmx-indicator" role="status"></span>
+            Lancer l'extraction
+        </button>
+        {% endif %}
+
+        {% if job.status == 'completed' %}
+        <button
+            hx-get="/api/extraction-jobs/{{ job.id }}/visualization/"
+            hx-target="#visualization-modal"
+            class="btn btn-outline-primary">
+            Voir la Visualisation
+        </button>
+        {% endif %}
+
+        <a href="/api/extraction-jobs/" class="btn btn-outline-secondary">Retour a la liste</a>
+    </div>
+
+    <!-- Two-column layout -->
+    <div class="row">
+        <!-- Left: Source text -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Texte source</h5>
+                </div>
+                <div class="card-body">
+                    <article id="readability-content" class="readability-prose">{{ page.text_readability }}</article>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Extraction results -->
+        <div class="col-lg-6">
+            <div id="job-results" style="position: sticky; top: 1rem; max-height: calc(100vh - 6rem); overflow-y: auto;">
+                {% include "hypostasis_extractor/includes/job_results.html" %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal pour visualisation -->
+    <div id="visualization-modal"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function scrollToExtraction(startChar, endChar, extractionText) {
+        // Remove previous highlights
+        document.querySelectorAll('.highlight-active').forEach(el => {
+            el.classList.remove('highlight-active');
+        });
+
+        const container = document.getElementById('readability-content');
+        if (!container) return;
+
+        let targetNode = null;
+
+        // Strategy: text search using extractionText
+        if (extractionText) {
+            const cleanSnippet = extractionText.replace(/[^\w\sÀ-ÿ]/g, '').trim().substring(0, 60);
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+            let node;
+            while (node = walker.nextNode()) {
+                const nodeText = node.textContent.replace(/[^\w\sÀ-ÿ]/g, '');
+                if (nodeText.includes(cleanSnippet)) {
+                    targetNode = node.parentElement;
+                    break;
+                }
+            }
+        }
+
+        // Fallback: wrap matching text in a span for highlight
+        if (!targetNode && extractionText) {
+            // Try exact substring match on textContent
+            const fullText = container.textContent;
+            const idx = fullText.indexOf(extractionText.substring(0, 40));
+            if (idx !== -1) {
+                // Find the text node at that position
+                const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+                let node, charCount = 0;
+                while (node = walker.nextNode()) {
+                    if (charCount + node.textContent.length > idx) {
+                        targetNode = node.parentElement;
+                        break;
+                    }
+                    charCount += node.textContent.length;
+                }
+            }
+        }
+
+        if (targetNode) {
+            targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetNode.classList.add('highlight-active');
+        }
+    }
+</script>
+{% endblock %}

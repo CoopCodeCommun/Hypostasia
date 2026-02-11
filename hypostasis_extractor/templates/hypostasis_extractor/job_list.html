@@ -1,0 +1,62 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Jobs d'Extraction LangExtract</h1>
+        <a href="{% url 'extraction-example-list' %}" class="btn btn-outline-secondary">
+            Voir les Exemples
+        </a>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nom</th>
+                        <th>Page</th>
+                        <th>Modele</th>
+                        <th>Statut</th>
+                        <th>Entites</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in jobs %}
+                    <tr>
+                        <td>{{ job.name }}</td>
+                        <td>
+                            <a href="{{ job.page.url }}" target="_blank" class="text-truncate d-inline-block" style="max-width: 200px;">
+                                {{ job.page.title|default:job.page.url }}
+                            </a>
+                        </td>
+                        <td>{{ job.ai_model.name|default:"Default" }}</td>
+                        <td>
+                            <span class="badge bg-{% if job.status == 'completed' %}success{% elif job.status == 'error' %}danger{% elif job.status == 'processing' %}warning{% else %}secondary{% endif %}">
+                                {{ job.get_status_display }}
+                            </span>
+                        </td>
+                        <td>{{ job.entities_count }}</td>
+                        <td>{{ job.created_at|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            <a href="/api/extraction-jobs/{{ job.id }}/" class="btn btn-sm btn-primary">
+                                Voir
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            Aucun job d'extraction. Creez-en un depuis une Page.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hypostasia — Bibliothèque</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .tree-arrow { transition: transform 0.15s ease; }
+        .tree-arrow.open { transform: rotate(90deg); }
+        #sidebar-left { transition: margin-left 0.2s ease, opacity 0.2s ease; }
+        #sidebar-left.collapsed { margin-left: -16rem; opacity: 0; pointer-events: none; }
+        #sidebar-right { transition: margin-right 0.2s ease, opacity 0.2s ease; }
+        #sidebar-right.collapsed { margin-right: -20rem; opacity: 0; pointer-events: none; }
+
+        /* Style de lecture */
+        .lecture-article {
+            font-family: 'Lora', Georgia, serif;
+            font-size: 1.125rem;
+            line-height: 1.85;
+            color: #1e293b;
+        }
+        .lecture-article img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+            margin: 1.5rem auto;
+            display: block;
+        }
+        .lecture-article a {
+            color: #2563eb;
+            text-decoration: underline;
+            text-decoration-color: #93c5fd;
+            text-underline-offset: 3px;
+            transition: text-decoration-color 0.15s;
+        }
+        .lecture-article a:hover {
+            text-decoration-color: #2563eb;
+        }
+        .lecture-article figcaption {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.8rem;
+            color: #64748b;
+            text-align: center;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body class="h-full bg-white text-slate-800">
+
+    <!-- Navbar -->
+    <nav class="h-12 border-b border-slate-200 flex items-center justify-between px-4 bg-white shrink-0">
+        <div class="flex items-center gap-2">
+            <button id="toggle-left-panel" class="text-slate-400 hover:text-slate-800" title="Afficher/masquer la bibliothèque">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+                </svg>
+            </button>
+            <span class="font-semibold text-lg tracking-tight">Hypostasia</span>
+        </div>
+        <button id="toggle-right-panel" class="text-slate-500 hover:text-slate-800 text-sm">
+            Extractions ▶
+        </button>
+    </nav>
+
+    <!-- Main layout -->
+    <div class="flex" style="height: calc(100vh - 3rem);">
+
+        <!-- Sidebar gauche — Arbre -->
+        <aside id="sidebar-left" class="w-64 shrink-0 border-r border-slate-200 overflow-y-auto bg-slate-50 p-3">
+            <!-- BIBLIOTHEQUE -->
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Bibliothèque</h2>
+                    <button onclick="document.getElementById('new-dossier-form').classList.toggle('hidden')"
+                            class="text-slate-400 hover:text-slate-700 text-lg leading-none" title="Nouveau dossier">+</button>
+                </div>
+                <form id="new-dossier-form" class="hidden mb-3"
+                      hx-post="/dossiers/" hx-target="#arbre" hx-swap="innerHTML">
+                    {% csrf_token %}
+                    <input type="text" name="name" placeholder="Nom du dossier"
+                           class="w-full text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400">
+                </form>
+                <div id="arbre" hx-get="/arbre/" hx-trigger="load" hx-swap="innerHTML">
+                    <p class="text-xs text-slate-400">Chargement…</p>
+                </div>
+            </div>
+
+            <!-- ANALYSEURS SYNTAXIQUES — en bas -->
+            <div class="mt-4 pt-3 border-t border-slate-300">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Analyseurs</h2>
+                    <button id="btn-new-analyseur"
+                            class="text-slate-400 hover:text-slate-700 text-lg leading-none" title="Nouvel analyseur">+</button>
+                </div>
+                <div id="analyseurs-list" hx-get="/api/analyseurs/" hx-trigger="load" hx-swap="innerHTML">
+                    <p class="text-xs text-slate-400">Chargement…</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Zone de lecture -->
+        <main id="zone-lecture" class="flex-1 overflow-y-auto p-8">
+            {% if analyseur_preloaded %}
+                {% include "hypostasis_extractor/analyseur_editor.html" with analyseur=analyseur_preloaded %}
+            {% elif page_preloaded %}
+                {% include "front/includes/lecture_principale.html" with page=page_preloaded %}
+            {% else %}
+                <div class="max-w-3xl mx-auto text-slate-500 text-sm">
+                    Sélectionnez une page pour commencer la lecture.
+                </div>
+            {% endif %}
+        </main>
+
+        <!-- Sidebar droite — Extractions (cachée par défaut) -->
+        <aside id="sidebar-right" class="w-80 shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-4 collapsed">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Extractions</h2>
+            <div id="panneau-extractions">
+                {% include "front/includes/panneau_extractions.html" %}
+            </div>
+        </aside>
+    </div>
+
+    {% include "front/includes/selection_menu.html" %}
+
+    <script>
+        // Toggle sidebar gauche
+        document.getElementById('toggle-left-panel').addEventListener('click', function() {
+            document.getElementById('sidebar-left').classList.toggle('collapsed');
+        });
+
+        // Toggle sidebar droite (+ collapse gauche à l'ouverture)
+        document.getElementById('toggle-right-panel').addEventListener('click', function() {
+            const right = document.getElementById('sidebar-right');
+            const left = document.getElementById('sidebar-left');
+            const opening = right.classList.contains('collapsed');
+            right.classList.toggle('collapsed');
+            if (opening) left.classList.add('collapsed');
+            this.textContent = right.classList.contains('collapsed') ? 'Extractions ▶' : '◀ Extractions';
+        });
+
+        // Expand/collapse dossiers (client-side) — clic sur la ligne entière
+        document.addEventListener('click', function(e) {
+            const row = e.target.closest('.dossier-toggle');
+            if (!row) return;
+            const node = row.closest('.dossier-node');
+            const arrow = node.querySelector('.tree-arrow');
+            const list = node.querySelector('.dossier-pages');
+            if (arrow) arrow.classList.toggle('open');
+            if (list) list.classList.toggle('hidden');
+        });
+
+        // Classer une page dans un dossier via SweetAlert
+        document.addEventListener('click', async function(e) {
+            const btn = e.target.closest('.btn-classer');
+            if (!btn) return;
+            e.preventDefault();
+            const pageId = btn.dataset.pageId;
+
+            const resp = await fetch('/dossiers/');
+            const dossiers = await resp.json();
+
+            if (Object.keys(dossiers).length === 0) {
+                Swal.fire({title: 'Aucun dossier', text: 'Créez d\'abord un dossier.', icon: 'info'});
+                return;
+            }
+
+            const options = {'': '— Aucun dossier —', ...dossiers};
+
+            const {value: dossierId, isDismissed} = await Swal.fire({
+                title: 'Déplacer vers…',
+                input: 'select',
+                inputOptions: options,
+                inputPlaceholder: 'Choisir un dossier',
+                showCancelButton: true,
+                cancelButtonText: 'Annuler',
+                confirmButtonText: 'Déplacer',
+            });
+
+            if (isDismissed) return;
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            const classerResp = await fetch(`/pages/${pageId}/classer/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+                body: JSON.stringify({dossier_id: dossierId || null}),
+            });
+
+            if (classerResp.ok) {
+                const arbreEl = document.getElementById('arbre');
+                arbreEl.innerHTML = await classerResp.text();
+                htmx.process(arbreEl);
+            }
+        });
+        // Creation d'un analyseur syntaxique via SweetAlert
+        document.getElementById('btn-new-analyseur').addEventListener('click', async function() {
+            const {value: formValues, isDismissed} = await Swal.fire({
+                title: 'Nouvel analyseur',
+                html: '<input id="swal-name" class="swal2-input" placeholder="Nom de l\'analyseur">',
+                focusConfirm: false,
+                showCancelButton: true,
+                cancelButtonText: 'Annuler',
+                confirmButtonText: 'Créer',
+                preConfirm: () => {
+                    const name = document.getElementById('swal-name').value.trim();
+                    if (!name) { Swal.showValidationMessage('Le nom est requis'); return false; }
+                    return {name: name};
+                }
+            });
+            if (isDismissed || !formValues) return;
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            const headers = {'Content-Type': 'application/json'};
+            if (csrfToken) headers['X-CSRFToken'] = csrfToken.value;
+
+            const resp = await fetch('/api/analyseurs/', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({name: formValues.name}),
+            });
+
+            if (resp.ok) {
+                // Refresh la liste sidebar
+                htmx.ajax('GET', '/api/analyseurs/', {target: '#analyseurs-list', swap: 'innerHTML'});
+                // Charger l'editeur dans zone-lecture
+                const html = await resp.text();
+                // Extraire l'ID depuis le HTML retourne pour charger l'editeur
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                const link = tempDiv.querySelector('[hx-get]');
+                if (link) {
+                    const url = link.getAttribute('hx-get');
+                    htmx.ajax('GET', url, {target: '#zone-lecture', swap: 'innerHTML'});
+                }
+            }
+        });
+    </script>
+
+    <!-- Menu contextuel de sélection de texte -->
+    <script>
+    (function() {
+        const menu = document.getElementById('selection-menu');
+        const zoneLecture = document.getElementById('zone-lecture');
+
+        // Afficher le menu quand l'utilisateur sélectionne du texte dans la zone de lecture
+        zoneLecture.addEventListener('mouseup', function(e) {
+            const selection = window.getSelection();
+            const text = selection.toString().trim();
+            if (!text) return;
+
+            // Positionner le menu à côté de la sélection
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            menu.style.display = 'flex';
+            menu.style.left = rect.left + (rect.width / 2) - 30 + 'px';
+            menu.style.top = rect.top - 44 + 'px';
+        });
+
+        // Cacher le menu au clic hors du menu
+        document.addEventListener('mousedown', function(e) {
+            if (!menu.contains(e.target)) {
+                menu.style.display = 'none';
+            }
+        });
+
+        // Envoyer l'extraction au serveur
+        function sendExtraction(endpoint) {
+            const text = window.getSelection().toString().trim();
+            if (!text) return;
+
+            const pageContainer = zoneLecture.querySelector('[data-page-id]');
+            const pageId = pageContainer ? pageContainer.dataset.pageId : null;
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            const headers = {'Content-Type': 'application/json'};
+            if (csrfToken) headers['X-CSRFToken'] = csrfToken.value;
+
+            fetch(endpoint, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({text: text, page_id: pageId}),
+            })
+            .then(r => r.json())
+            .then(data => console.log('[Extraction]', data))
+            .catch(err => console.error('[Extraction erreur]', err));
+
+            menu.style.display = 'none';
+        }
+
+        document.getElementById('btn-extraction-manuelle').addEventListener('click', function() {
+            sendExtraction('/extractions/manuelle/');
+        });
+
+        document.getElementById('btn-extraction-ia').addEventListener('click', function() {
+            sendExtraction('/extractions/ia/');
+        });
+    })();
+    </script>
+
+</body>
+</html>

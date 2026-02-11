@@ -1,0 +1,65 @@
+{# Partiel HTMX pour afficher les resultats d'un job #}
+
+{% if job.status == 'completed' and job.entities.all %}
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Entites Extraites ({{ job.entities.count }})</h5>
+    </div>
+    <div class="card-body p-2">
+        {% for entity in job.entities.all %}
+        <div class="card entity-card mb-2 border-secondary"
+             id="entity-row-{{ entity.id }}"
+             onclick="scrollToExtraction({{ entity.start_char }}, {{ entity.end_char }}, '{{ entity.extraction_text|escapejs|truncatechars:100 }}')">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="badge bg-info">{{ entity.extraction_class }}</span>
+                    <div>
+                        {% if entity.hypostasis_tag %}
+                        <span class="badge bg-success">{{ entity.hypostasis_tag.name }}</span>
+                        {% endif %}
+                        {% if entity.user_validated %}
+                        <span class="text-success">&#10003;</span>
+                        {% else %}
+                        <button
+                            hx-patch="/api/extracted-entities/{{ entity.id }}/validate/"
+                            hx-vals='{"user_validated": true}'
+                            hx-target="#entity-row-{{ entity.id }}"
+                            hx-swap="outerHTML"
+                            class="btn btn-sm btn-outline-success"
+                            onclick="event.stopPropagation()">
+                            Valider
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                <p class="mb-1 small">{{ entity.extraction_text|truncatechars:120 }}</p>
+                {% if entity.attributes %}
+                <small class="text-muted">
+                    {% for key, value in entity.attributes.items %}
+                    {{ key }}: {{ value }}{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                </small>
+                {% endif %}
+                <div class="text-muted" style="font-size: 0.7rem;">pos {{ entity.start_char }}-{{ entity.end_char }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% elif job.status == 'error' %}
+<div class="alert alert-danger">
+    <h5>Erreur lors de l'extraction</h5>
+    <p>{{ job.error_message }}</p>
+</div>
+{% elif job.status == 'processing' %}
+<div class="alert alert-info">
+    <div class="d-flex align-items-center">
+        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+        <span>Extraction en cours...</span>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-secondary">
+    <p class="mb-0">Aucun resultat. Lancez l'extraction pour voir les entites.</p>
+</div>
+{% endif %}

@@ -1,0 +1,8 @@
+{# Partiel HTMX pour une carte d'entite (apres validation) #}
+<span class="text-success">&#10003; Validee</span>
+{% if entity.hypostasis_tag %}
+<span class="badge bg-success ms-2">{{ entity.hypostasis_tag.name }}</span>
+{% endif %}
+{% if entity.user_notes %}
+<small class="text-muted d-block mt-1">{{ entity.user_notes }}</small>
+{% endif %}

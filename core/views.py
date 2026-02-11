@@ -16,6 +16,8 @@ from .serializers import (
 import random
 import re
 from .services import run_analysis_pipeline
+from hypostasis_extractor.models import ExtractionJob, ExtractionJobStatus, ExtractionExample, JobExampleMapping
+from hypostasis_extractor.services import run_langextract_job
 
 
 
@@ -75,10 +77,16 @@ class PageViewSet(viewsets.ModelViewSet):
             ).get(pk=instance.pk)
             all_hypostases = HypostasisTag.objects.all().order_by('name')
             all_themes = Theme.objects.all().order_by('name')
+            extraction_jobs = ExtractionJob.objects.filter(
+                page=instance
+            ).prefetch_related('entities__hypostasis_tag').order_by('-created_at')
+            latest_extraction = extraction_jobs.first()
             return Response({
                 'page': instance,
                 'all_hypostases': all_hypostases,
-                'all_themes': all_themes
+                'all_themes': all_themes,
+                'extraction_jobs': extraction_jobs,
+                'latest_extraction': latest_extraction,
             }, template_name='core/page_detail.html')
             
         serializer = self.get_serializer(instance)
@@ -129,6 +137,79 @@ class PageViewSet(viewsets.ModelViewSet):
             "status": "success",
             "arguments_count": page.arguments.count()
         }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], renderer_classes=[JSONRenderer, TemplateHTMLRenderer])
+    def extract(self, request, pk=None):
+        """
+        Lance une extraction LangExtract sur la page.
+        Cree un ExtractionJob et l'execute immediatement.
+        """
+        page = self.get_object()
+
+        prompt_description = request.data.get(
+            'prompt_description',
+            "Extraire les arguments rhetorique, les theses, les presupposes et les concepts cles du texte."
+        )
+
+        # Cherche un modele AI par defaut (Google/Gemini)
+        from core.models import AIModel, Provider
+        ai_model = AIModel.objects.filter(
+            provider=Provider.GOOGLE, is_active=True
+        ).first()
+        if not ai_model:
+            ai_model = AIModel.objects.filter(is_active=True).first()
+
+        job = ExtractionJob.objects.create(
+            page=page,
+            ai_model=ai_model,
+            name=f"Extraction LangExtract - {page.title or page.url[:50]}",
+            prompt_description=prompt_description,
+            status=ExtractionJobStatus.PENDING,
+        )
+
+        # Associe tous les exemples actifs au job
+        active_examples = ExtractionExample.objects.filter(is_active=True).order_by('id')
+        for order, example in enumerate(active_examples):
+            JobExampleMapping.objects.create(job=job, example=example, order=order)
+
+        try:
+            run_langextract_job(job, use_chunking=False, max_workers=1)
+        except Exception:
+            pass  # L'erreur est deja stockee dans job.status/error_message
+
+        if request.headers.get('HX-Request'):
+            response = Response(status=status.HTTP_200_OK)
+            response['HX-Redirect'] = request.build_absolute_uri(f'/api/pages/{page.id}/')
+            return response
+
+        job.refresh_from_db()
+        return Response({
+            "status": job.status,
+            "entities_count": job.entities_count,
+        })
+
+    @action(detail=True, methods=['get'])
+    def visualization(self, request, pk=None):
+        """
+        Retourne le HTML de visualisation LangExtract pour le dernier job complete.
+        """
+        page = self.get_object()
+        latest_job = ExtractionJob.objects.filter(
+            page=page, status=ExtractionJobStatus.COMPLETED
+        ).order_by('-created_at').first()
+
+        if not latest_job:
+            return Response(
+                {'error': 'Aucune extraction completee'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        from hypostasis_extractor.services import generate_visualization_html
+        html_content = generate_visualization_html(latest_job)
+        if hasattr(html_content, 'data'):
+            html_content = html_content.data
+
+        return HttpResponse(html_content, content_type='text/html')
 
     @action(detail=True, methods=['get'], renderer_classes=[TemplateHTMLRenderer])
     def sidebar(self, request, pk=None):

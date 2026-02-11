@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     'django_htmx',
     'corsheaders',
     'core',
+    'hypostasis_extractor',
+    'front',
 ]
 
 MIDDLEWARE = [
