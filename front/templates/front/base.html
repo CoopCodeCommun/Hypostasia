@@ -50,19 +50,56 @@
             margin-top: 0.5rem;
         }
 
-        /* Highlight pour scroll-to-extraction / Extraction highlight */
-        .highlight-extraction {
-            background-color: rgba(59, 130, 246, 0.2);
-            border-radius: 3px;
-            padding: 1px 0;
+        /* Variable de couleur pour les marqueurs d'extraction */
+        /* Changer --ancre-color pour modifier la couleur de tous les marqueurs */
+        /* / Extraction marker color variable */
+        :root {
+            --ancre-color: 59, 130, 246; /* bleu Tailwind blue-500, format RGB */
         }
-        .highlight-active {
-            animation: highlight-pulse 2.5s ease-out forwards;
+
+        /* Marqueur d'ancre d'extraction visible dans le texte */
+        /* / Visible extraction anchor marker in text */
+        .extraction-ancre {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: rgb(var(--ancre-color));
+            border-radius: 50%;
+            margin-right: 2px;
+            vertical-align: middle;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
         }
-        @keyframes highlight-pulse {
-            0%   { background-color: rgba(59, 130, 246, 0.4); box-shadow: 0 0 8px rgba(59, 130, 246, 0.3); }
-            70%  { background-color: rgba(59, 130, 246, 0.2); box-shadow: none; }
-            100% { background-color: rgba(59, 130, 246, 0.15); box-shadow: none; }
+        .extraction-ancre:hover {
+            opacity: 1;
+            transform: scale(1.4);
+            box-shadow: 0 0 6px rgba(var(--ancre-color), 0.5);
+        }
+
+        /* Ancre active (cliquee depuis le panneau droit) */
+        /* / Active anchor (clicked from right panel) */
+        .extraction-ancre.ancre-active {
+            opacity: 1;
+            transform: scale(1.6);
+            box-shadow: 0 0 10px rgba(var(--ancre-color), 0.6);
+            animation: ancre-pulse 2.5s ease-out forwards;
+        }
+        @keyframes ancre-pulse {
+            0%   { opacity: 1; transform: scale(1.6); box-shadow: 0 0 10px rgba(var(--ancre-color), 0.6); }
+            70%  { opacity: 0.8; transform: scale(1.2); box-shadow: 0 0 4px rgba(var(--ancre-color), 0.3); }
+            100% { opacity: 0.5; transform: scale(1); box-shadow: none; }
+        }
+
+        /* Carte d'extraction clignotante (cliquee depuis le texte) */
+        /* / Flashing extraction card (clicked from text) */
+        .carte-flash {
+            animation: carte-flash-pulse 2s ease-out forwards;
+        }
+        @keyframes carte-flash-pulse {
+            0%   { box-shadow: 0 0 0 3px rgba(var(--ancre-color), 0.5); background-color: rgba(219, 234, 254, 1); }
+            50%  { box-shadow: 0 0 0 3px rgba(var(--ancre-color), 0.3); background-color: rgba(219, 234, 254, 0.6); }
+            100% { box-shadow: none; background-color: white; }
         }
     </style>
 </head>
@@ -384,21 +421,18 @@
     })();
     </script>
 
-    <!-- Scroll + highlight vers extraction depuis le panneau droit -->
-    <!-- Utilise les ancres <span class="extraction-ancre"> injectees cote serveur -->
-    <!-- / Uses anchor spans injected server-side -->
+    <!-- Navigation bidirectionnelle : carte ↔ ancre dans le texte -->
+    <!-- Les ancres <span class="extraction-ancre"> sont injectees cote serveur -->
+    <!-- / Bidirectional navigation: card ↔ anchor in text -->
     <script>
     /**
-     * Scroll vers l'extraction et surligne le paragraphe parent.
-     * L'ancre est un <span class="extraction-ancre" data-extraction-id="N">
-     * injecte cote serveur dans le HTML de l'article.
-     * / Scroll to extraction and highlight parent paragraph.
-     * The anchor is a server-side injected span in the article HTML.
+     * Carte → Ancre : scroll vers l'ancre dans le texte et la met en surbrillance.
+     * / Card → Anchor: scroll to anchor in text and highlight it.
      */
     function scrollToExtraction(elementCarte) {
-        // Nettoyer les highlights precedents / Clean previous highlights
-        document.querySelectorAll('.highlight-active').forEach(function(el) {
-            el.classList.remove('highlight-active');
+        // Nettoyer les ancres actives precedentes / Clean previous active anchors
+        document.querySelectorAll('.extraction-ancre.ancre-active').forEach(function(el) {
+            el.classList.remove('ancre-active');
         });
 
         var extractionId = elementCarte.dataset.extractionId;
@@ -413,13 +447,66 @@
             return;
         }
 
-        // Remonter au paragraphe parent pour le highlight visuel
-        // / Walk up to parent paragraph for visual highlight
-        var paragraphe = ancre.closest('p, blockquote, li, td, h1, h2, h3, h4, h5, h6')
-                         || ancre.parentElement;
-        paragraphe.classList.add('highlight-active');
-        paragraphe.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Reset animation : retirer la classe, forcer un reflow, puis remettre
+        // Permet de relancer l'animation meme si on re-clique sur la meme carte
+        // / Reset animation: remove class, force reflow, then re-add
+        ancre.classList.remove('ancre-active');
+        void ancre.offsetWidth;
+        ancre.classList.add('ancre-active');
+        ancre.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+
+    /**
+     * Ancre → Carte : clic sur un marqueur dans le texte fait clignoter
+     * la carte correspondante dans le panneau droit et l'ouvre si ferme.
+     * / Anchor → Card: click on text marker flashes the corresponding card
+     * in the right panel and opens it if closed.
+     */
+    function scrollToCarteDepuisAncre(extractionId) {
+        // Ouvrir le panneau droit s'il est ferme / Open right panel if closed
+        ouvrirPanneauDroit();
+
+        // Nettoyer les cartes en flash precedentes / Clean previous flashing cards
+        document.querySelectorAll('.extraction-card.carte-flash').forEach(function(el) {
+            el.classList.remove('carte-flash');
+        });
+
+        var carte = document.querySelector(
+            '#extraction-results .extraction-card[data-extraction-id="' + extractionId + '"]'
+        );
+
+        if (!carte) {
+            console.warn('[scrollToCarteDepuisAncre] Carte introuvable pour extraction id=' + extractionId);
+            return;
+        }
+
+        // Reset animation pour re-clic sur le meme point bleu
+        // / Reset animation for re-click on same anchor
+        carte.classList.remove('carte-flash');
+        void carte.offsetWidth;
+        carte.classList.add('carte-flash');
+        carte.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // Delegation d'evenement : clic sur un marqueur d'ancre dans le texte
+    // / Event delegation: click on anchor marker in text
+    document.addEventListener('click', function(evenement) {
+        var ancre = evenement.target.closest('.extraction-ancre');
+        if (!ancre) return;
+        var extractionId = ancre.dataset.extractionId;
+        if (extractionId) {
+            scrollToCarteDepuisAncre(extractionId);
+        }
+    });
+
+    // Delegation d'evenement : clic sur une carte d'extraction dans le panneau droit
+    // Remplace le onclick inline pour survivre aux swaps HTMX
+    // / Event delegation: click on extraction card in right panel
+    document.addEventListener('click', function(evenement) {
+        var carte = evenement.target.closest('.extraction-card[data-extraction-id]');
+        if (!carte) return;
+        scrollToExtraction(carte);
+    });
     </script>
 
 </body>

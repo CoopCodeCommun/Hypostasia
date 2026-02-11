@@ -1,13 +1,10 @@
-// Popup logic
-// Popup logic
+// Popup logic — Recolte de contenu uniquement, pas d'analyse LLM
+// / Popup logic — Content harvesting only, no LLM analysis
 document.addEventListener('DOMContentLoaded', async () => {
-    const analyzeBtn = document.getElementById('analyzeBtn');
-    const status = document.getElementById('status');
-    const actionsDiv = document.getElementById('actions');
-    const viewArgsBtn = document.getElementById('viewArgsBtn');
-    const relaunchBtn = document.getElementById('relaunchBtn');
+    const recolterBtn = document.getElementById('recolterBtn');
+    const statusDiv = document.getElementById('status');
 
-    // Get configuration
+    // Recuperation de la configuration serveur / Get server config
     const config = await new Promise(resolve => {
         chrome.storage.sync.get({
             serverUrl: 'http://127.0.0.1:8000/'
@@ -16,198 +13,136 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const BASE_URL = config.serverUrl.endsWith('/') ? config.serverUrl : config.serverUrl + '/';
 
-    // Helper to set state
-    function setUIState(state, message) {
-        status.textContent = message;
-        status.className = state === 'error' ? 'error' : (state === 'success' ? 'success' : '');
+    console.debug('[Hypostasia] BASE_URL:', BASE_URL);
 
-        if (state === 'processing') {
-            analyzeBtn.disabled = true;
-            analyzeBtn.textContent = "Analyse en cours...";
-            actionsDiv.style.display = 'none';
-        } else if (state === 'initial') {
-            analyzeBtn.disabled = false;
-            analyzeBtn.textContent = "Récolter & Analyser";
-            actionsDiv.style.display = 'none';
-        } else if (state === 'completed' || state === 'error_retry') {
-            analyzeBtn.style.display = 'none'; // Hide main button once we know page exists
-            actionsDiv.style.display = 'block';
+    // --- Bouton principal : recolter le contenu de la page ---
+    // / Main button: harvest page content
+    recolterBtn.addEventListener('click', async () => {
+        recolterBtn.disabled = true;
+        recolterBtn.textContent = "Recolte...";
+        statusDiv.textContent = "";
+        statusDiv.className = "";
 
-            if (state === 'completed') {
-                viewArgsBtn.style.display = 'block';
-                relaunchBtn.textContent = "⚡ Relancer l'analyse";
-            } else {
-                viewArgsBtn.style.display = 'none';
-                relaunchBtn.textContent = "🔄 Réessayer l'analyse";
-            }
-        }
-    }
-
-    // Main Entry Point
-    analyzeBtn.addEventListener('click', async () => {
-        setUIState('processing', "Vérification de la page...");
         try {
-            await handleAnalysisFlow();
-        } catch (e) {
-            console.error(e);
-            setUIState('error', "Erreur: " + e.message);
-            analyzeBtn.disabled = false;
-            analyzeBtn.textContent = "Récolter & Analyser";
+            await recolterContenuPage();
+        } catch (erreur) {
+            console.error('[Hypostasia] Erreur recolte:', erreur);
+            statusDiv.textContent = erreur.message;
+            statusDiv.className = "error";
+            recolterBtn.disabled = false;
+            recolterBtn.textContent = "Recolter";
         }
     });
 
-    // Sub-actions
-    // Sub-actions
-    viewArgsBtn.addEventListener('click', async () => {
-        if (window.currentPageId) {
-            try {
-                // Fetch arguments HTML
-                status.textContent = "Récupération de la sidebar...";
-                // On appelle la nouvelle route qui renvoie du HTML
-                const res = await fetch(`${BASE_URL}api/pages/${window.currentPageId}/sidebar/`);
-                if (!res.ok) throw new Error("Erreur récupération sidebar");
-                const htmlContent = await res.text();
-
-                // Inject UI with HTML
-                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                await injectUI(tab.id, htmlContent);
-
-                window.close(); // Close popup
-            } catch (e) {
-                console.error(e);
-                status.textContent = "Erreur: " + e.message;
-                status.className = "error";
-            }
-        } else {
-            status.textContent = "Erreur: ID de page manquant.";
-            status.className = "error";
-        }
-    });
-
-    relaunchBtn.addEventListener('click', async () => {
-        status.textContent = "Relance de l'analyse...";
-        try {
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            // We need pageId. It should be stored or re-fetched.
-            if (window.currentPageId) {
-                await fetch(`${BASE_URL}api/pages/${window.currentPageId}/analyze/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({})
-                });
-                status.textContent = "Analyse lancée !";
-                setTimeout(() => window.close(), 1000);
-            } else {
-                throw new Error("ID de page perdu. Veuillez recharger.");
-            }
-        } catch (e) {
-            status.textContent = "Erreur: " + e.message;
-            status.className = "error";
-        }
-    });
-
-    // Core Logic
-    async function handleAnalysisFlow() {
+    /**
+     * Flux principal de recolte :
+     * 1. Verifier si la page existe deja sur le serveur
+     * 2. Si non, extraire le contenu via Readability et l'envoyer
+     * / Main harvesting flow:
+     * 1. Check if page already exists on server
+     * 2. If not, extract content via Readability and send it
+     */
+    async function recolterContenuPage() {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        const currentUrl = tab.url;
+        const url_courante = tab.url;
 
-        // 1. Check if page exists
-        const checkRes = await fetch(`${BASE_URL}api/pages/?url=${encodeURIComponent(currentUrl)}`, {
-            headers: { 'Accept': 'application/json' }
-        });
+        console.debug('[Hypostasia] URL courante:', url_courante);
 
-        if (!checkRes.ok) throw new Error("Erreur serveur (vérification)");
+        // 1. Verifier si la page existe deja / Check if page already exists
+        statusDiv.textContent = "Verification...";
+        const verification_response = await fetch(
+            `${BASE_URL}api/pages/?url=${encodeURIComponent(url_courante)}`,
+            { headers: { 'Accept': 'application/json' } }
+        );
 
-        const existingPages = await checkRes.json();
-
-        if (existingPages.length > 0) {
-            const page = existingPages[0];
-            window.currentPageId = page.id;
-
-            if (page.status === 'processing') {
-                setUIState('processing', "Analyse en cours côté serveur...");
-                return;
-            }
-
-            if (page.status === 'error') {
-                setUIState('error_retry', `Erreur précédente : ${page.error_message}`);
-                return;
-            }
-
-            // Completed / Pending
-            setUIState('completed', "Page déjà analysée.");
-            // We could fetch arg count here to be nice:
-            const argsRes = await fetch(`${BASE_URL}api/pages/${page.id}/arguments/`);
-            const args = await argsRes.json();
-            status.textContent = `${args.length} arguments disponibles.`;
-
-        } else {
-            // New Page
-            status.textContent = "Extraction du contenu...";
-
-            // Inject Readability then content script
-            await chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                files: ['lib/Readability.js', 'content.js']
-            });
-
-            const extractionResult = await chrome.scripting.executeScript({
-                target: { tabId: tab.id },
-                func: () => { return window.hypostasiaExtract(); }
-            });
-
-            const data = extractionResult[0].result;
-            if (data.error) throw new Error(data.error);
-
-            status.textContent = "Création de la page...";
-            const createRes = await fetch(`${BASE_URL}api/pages/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-
-            if (!createRes.ok) throw new Error("Erreur création page");
-            const newPage = await createRes.json();
-            window.currentPageId = newPage.id;
-
-            status.textContent = "Lancement de l'analyse...";
-            await fetch(`${BASE_URL}api/pages/${newPage.id}/analyze/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({})
-            });
-
-            status.textContent = "Analyse lancée !";
-            // We can close or switch to processing state
-            setUIState('processing', "Analyse lancée. Vous pouvez fermer.");
-            setTimeout(() => window.close(), 2000);
-        }
-    }
-
-    async function injectUI(tabId, args) {
-        // Ensure scripts are injected first.
-        // It's safe to re-inject (content.js has a guard)
-        try {
-            await chrome.scripting.executeScript({
-                target: { tabId: tabId },
-                files: ['lib/Readability.js', 'content.js']
-            });
-        } catch (e) {
-            console.warn("Script injection failed or already present:", e);
+        if (!verification_response.ok) {
+            throw new Error("Erreur serveur: " + verification_response.status);
         }
 
-        // Now trigger UI
+        const pages_existantes = await verification_response.json();
+        console.debug('[Hypostasia] Pages existantes:', pages_existantes.length);
+
+        if (pages_existantes.length > 0) {
+            // La page existe deja — on informe l'utilisateur
+            // / Page already exists — inform user
+            statusDiv.textContent = "Deja enregistree (id: " + pages_existantes[0].id + ")";
+            statusDiv.className = "success";
+            recolterBtn.disabled = false;
+            recolterBtn.textContent = "Recolter";
+            return;
+        }
+
+        // 2. Injecter Readability et extraire le contenu
+        // / Inject Readability and extract content
+        statusDiv.textContent = "Extraction...";
+        console.debug('[Hypostasia] Injection Readability');
+
         await chrome.scripting.executeScript({
-            target: { tabId: tabId },
-            func: (args) => {
-                if (window.hypostasiaInjectUI) {
-                    window.hypostasiaInjectUI(args);
-                } else {
-                    console.error("Hypostasia: injectUI not found even after injection attempt.");
-                }
-            },
-            args: [args]
+            target: { tabId: tab.id },
+            files: ['lib/Readability.js']
         });
-    }
 
+        // Fonction d'extraction injectee dans la page
+        // / Extraction function injected into the page
+        const resultat_extraction = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+                try {
+                    const document_clone = document.cloneNode(true);
+                    const article_readability = new Readability(document_clone).parse();
+
+                    if (!article_readability) {
+                        return { error: "Readability n'a pas pu extraire le contenu." };
+                    }
+
+                    return {
+                        url: window.location.href,
+                        title: article_readability.title || document.title,
+                        html_readability: article_readability.content || '',
+                        html_original: document.documentElement.outerHTML
+                    };
+                } catch (e) {
+                    return { error: e.message };
+                }
+            }
+        });
+
+        const donnees_extraites = resultat_extraction[0].result;
+        console.debug('[Hypostasia] Donnees extraites:', {
+            url: donnees_extraites.url,
+            title: donnees_extraites.title,
+            html_readability_length: donnees_extraites.html_readability?.length,
+            html_original_length: donnees_extraites.html_original?.length,
+        });
+
+        if (donnees_extraites.error) {
+            throw new Error(donnees_extraites.error);
+        }
+
+        // 3. Envoyer au serveur (stockage uniquement, pas d'analyse LLM)
+        // / Send to server (storage only, no LLM analysis)
+        statusDiv.textContent = "Envoi...";
+        console.debug('[Hypostasia] POST /api/pages/');
+
+        const creation_response = await fetch(`${BASE_URL}api/pages/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(donnees_extraites)
+        });
+
+        if (!creation_response.ok) {
+            const texte_erreur = await creation_response.text();
+            console.error('[Hypostasia] Erreur creation:', creation_response.status, texte_erreur);
+            throw new Error("Erreur creation (" + creation_response.status + ")");
+        }
+
+        const page_creee = await creation_response.json();
+        console.debug('[Hypostasia] Page creee:', page_creee.id);
+
+        // Succes / Success
+        statusDiv.textContent = "Page enregistree (id: " + page_creee.id + ")";
+        statusDiv.className = "success";
+        recolterBtn.textContent = "Recolte";
+        recolterBtn.disabled = false;
+    }
 });

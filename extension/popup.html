@@ -1,117 +1,53 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="UTF-8">
     <style>
         body {
-            width: 400px;
-            padding: 15px;
-            font-family: sans-serif;
-        }
-
-        h1 {
-            font-size: 18px;
-            margin-bottom: 10px;
-            color: #333;
-        }
-
-        button {
-            width: 100%;
+            width: 220px;
             padding: 10px;
-            background-color: #0d6efd;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #fafafa;
+        }
+
+        #recolterBtn {
+            width: 100%;
+            padding: 8px 12px;
+            background-color: #3b82f6;
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            font-weight: bold;
+            font-weight: 600;
+            font-size: 13px;
+            transition: background-color 0.15s;
         }
 
-        button:hover {
-            background-color: #0b5ed7;
+        #recolterBtn:hover {
+            background-color: #2563eb;
         }
 
-        button:disabled {
-            background-color: #ccc;
+        #recolterBtn:disabled {
+            background-color: #94a3b8;
             cursor: not-allowed;
         }
 
         #status {
-            margin-top: 10px;
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 10px;
+            margin-top: 6px;
+            font-size: 11px;
+            color: #64748b;
+            text-align: center;
+            min-height: 16px;
         }
 
-        .error {
-            color: #dc3545;
-        }
-
-        .success {
-            color: #198754;
-        }
-
-        #arguments-container {
-            display: none;
-            border-top: 1px solid #eee;
-            padding-top: 10px;
-        }
-
-        #arguments-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .arg-item {
-            padding: 8px;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 13px;
-        }
-
-        .arg-item p {
-            margin: 5px 0 0;
-            color: #333;
-        }
-
-        .badge {
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: white;
-            font-size: 10px;
-            text-transform: uppercase;
-            font-weight: bold;
-        }
-
-        .badge.pour {
-            background-color: #198754;
-        }
-
-        .badge.contre {
-            background-color: #dc3545;
-        }
-
-        .badge.neutre {
-            background-color: #6c757d;
-        }
+        #status.error { color: #ef4444; }
+        #status.success { color: #22c55e; }
     </style>
 </head>
-
 <body>
-    <h1>Hypostasia</h1>
-    <button id="analyzeBtn">Récolter & Analyser</button>
+    <button id="recolterBtn">Recolter</button>
     <div id="status"></div>
-    <div id="actions" style="display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
-        <button id="viewArgsBtn" style="background-color: #198754; margin-bottom: 10px; display: none;">👁️ Voir les
-            arguments</button>
-        <button id="relaunchBtn" style="background-color: #ffc107; color: #000; font-size: 11px;">⚡ Relancer
-            l'analyse</button>
-    </div>
-
-    <!-- No SweetAlert here anymore -->
     <script src="popup.js"></script>
 </body>
-
 </html>

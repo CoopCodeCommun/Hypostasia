@@ -41,12 +41,35 @@ class PageViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
 
     def get_serializer_class(self):
-        """Choix du sérialiseur selon l'action"""
+        """Choix du serialiseur selon l'action / Serializer choice by action"""
         if self.action == 'create':
             return PageCreateSerializer
         elif self.action == 'retrieve':
             return PageDetailSerializer
         return PageListSerializer
+
+    def create(self, request, *args, **kwargs):
+        """
+        Creation d'une Page avec log explicite des erreurs de validation.
+        / Page creation with explicit validation error logging.
+        """
+        import logging
+        logger = logging.getLogger('core')
+
+        serializer = self.get_serializer(data=request.data)
+
+        if not serializer.is_valid():
+            logger.warning(
+                "PageViewSet.create: erreurs de validation — %s",
+                serializer.errors,
+            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        page = serializer.save()
+        logger.info("PageViewSet.create: Page %d creee — url=%s", page.pk, page.url)
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -95,56 +118,19 @@ class PageViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], renderer_classes=[JSONRenderer, TemplateHTMLRenderer])
     def analyze(self, request, pk=None):
         """
-        [MOCK] Relance l'analyse IA de la page.
+        DESACTIVE — L'analyse se lance uniquement depuis le front Hypostasia.
+        / DISABLED — Analysis is only launched from the Hypostasia front.
         """
-        page = self.get_object()
-        
-        # [HTMX] State update (Mocking async behavior by doing it sync)
-        # In a real app, we would set status='processing', return 202, and HTMX would poll.
-        # Here we just block and return result.
-        
-        prompt_id = request.data.get('prompt_id')
-        if prompt_id:
-            prompt = Prompt.objects.filter(pk=prompt_id).first()
-        else:
-            prompt = Prompt.objects.filter(name="Analyse Standard Hypostasia").first()
-            if not prompt:
-                prompt = Prompt.objects.order_by('-created_at').first()
-        
-        if not prompt:
-            return Response(
-                {'error': 'Aucun Prompt trouvé. Créez un Prompt avant de lancer une analyse.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not prompt.default_model:
-            return Response(
-                {'error': f'Le Prompt "{prompt.name}" n\'a pas de modèle IA par défaut configuré.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        run_analysis_pipeline(page, prompt)
-        
-        # Reload relation
-        page = Page.objects.prefetch_related(
-            'blocks__arguments__comments__author',
-            'blocks__themes',
-            'blocks__reformulations'
-        ).get(pk=page.pk)
-
-        if request.headers.get('HX-Request'):
-            response = Response(status=status.HTTP_200_OK)
-            response['HX-Redirect'] = request.build_absolute_uri(f'/api/pages/{page.id}/')
-            return response
-
-        if request.accepted_renderer.format == 'html':
-             # Fallback for non-HTMX HTML requests (e.g. form submit)
-            return Response({'page': page}, template_name='core/includes/sidebar_items.html')
-
-        return Response({
-            "status": "success",
-            "arguments_count": page.arguments.count()
-        }, status=status.HTTP_200_OK)
+        import logging
+        logger = logging.getLogger('core')
+        logger.warning(
+            "analyze() appele sur Page %s — endpoint desactive, retour 410 Gone",
+            pk,
+        )
+        return Response(
+            {'error': 'Endpoint desactive. Lancez l\'analyse depuis le front Hypostasia.'},
+            status=status.HTTP_410_GONE,
+        )
 
     @action(detail=True, methods=['post'], renderer_classes=[JSONRenderer, TemplateHTMLRenderer])
     def extract(self, request, pk=None):

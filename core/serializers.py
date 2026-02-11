@@ -66,9 +66,14 @@ class PageListSerializer(serializers.ModelSerializer):
 
 class PageCreateSerializer(serializers.ModelSerializer):
     """
-    Sérialiseur pour la création d'une page.
-    Accepte une liste de 'blocks' pour créer les TextBlocks en même temps.
+    Serialiseur pour la creation d'une page (stockage uniquement, pas d'analyse).
+    Accepte une liste de 'blocks' pour creer les TextBlocks en meme temps.
+    Derive text_readability depuis html_readability pour garantir la coherence.
+    / Serializer for page creation (storage only, no analysis).
     """
+    # text_readability est derive cote serveur depuis html_readability
+    # / text_readability is derived server-side from html_readability
+    text_readability = serializers.CharField(required=False, allow_blank=True, default='')
     blocks = TextBlockSerializer(many=True, required=False)
     content_hash = serializers.CharField(read_only=True)
 
@@ -77,26 +82,55 @@ class PageCreateSerializer(serializers.ModelSerializer):
         fields = ['id', 'url', 'title', 'html_original', 'html_readability', 'text_readability', 'content_hash', 'blocks']
 
     def create(self, validated_data):
+        import hashlib
+        import logging
+        from front.utils import extraire_texte_depuis_html
+
+        logger = logging.getLogger('core')
+
         blocks_data = validated_data.pop('blocks', [])
+
+        url_page = validated_data.get('url', '(pas d\'url)')
+        logger.debug(
+            "PageCreateSerializer.create: url=%s html_readability=%d chars html_original=%d chars",
+            url_page,
+            len(validated_data.get('html_readability', '')),
+            len(validated_data.get('html_original', '')),
+        )
 
         # Deriver text_readability depuis html_readability (single source of truth)
         # Garantit la coherence entre les positions texte et le mapping HTML
         # pour l'annotation cote serveur (scroll-to-extraction).
         # / Derive text_readability from html_readability (single source of truth)
-        # Guarantees consistency between text positions and HTML mapping.
-        from front.utils import extraire_texte_depuis_html
         html_readability = validated_data.get('html_readability', '')
         if html_readability:
             validated_data['text_readability'] = extraire_texte_depuis_html(html_readability)
+            logger.debug(
+                "PageCreateSerializer.create: text_readability derive — %d chars",
+                len(validated_data['text_readability']),
+            )
 
         # Compute content_hash from text_readability
-        import hashlib
         text = validated_data.get('text_readability', '')
         validated_data['content_hash'] = hashlib.sha256(text.encode('utf-8')).hexdigest()
 
+        logger.debug(
+            "PageCreateSerializer.create: content_hash=%s — creation Page en base",
+            validated_data['content_hash'][:16],
+        )
+
         page = Page.objects.create(**validated_data)
+
+        logger.info(
+            "PageCreateSerializer.create: Page %d creee — url=%s text=%d chars blocks=%d",
+            page.pk, page.url, len(text), len(blocks_data),
+        )
+
         for block_data in blocks_data:
             TextBlock.objects.create(page=page, **block_data)
+
+        # Pas d'analyse LLM ici — l'analyse se lance depuis le front Hypostasia
+        # / No LLM analysis here — analysis is launched from the Hypostasia front
         return page
 
 class PageDetailSerializer(serializers.ModelSerializer):
