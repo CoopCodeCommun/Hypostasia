@@ -463,24 +463,34 @@ class AIModel(models.Model):
         - Les anciennes données restent fonctionnelles
         """
         if self.model_choice:
-            # Extrait le provider depuis le choix (format: PROVIDER_MODEL_NAME)
-            # / Extracts provider from choice (format: PROVIDER_MODEL_NAME)
-            provider_key = self.model_choice.split("_")[0].upper()
+            # Deduit le provider depuis la VALEUR du model_choice (ex: "gemini-2.5-flash")
+            # Les prefixes des valeurs identifient le provider :
+            #   gemini-* → Google, gpt-* → OpenAI, mistral-*/open-mistral-*/open-mixtral-* → Mistral,
+            #   sonar*/llama-* → Perplexity, claude-* → Anthropic, kimi-* → Moonshot, mock → Mock
+            # / Infer provider from model_choice VALUE (e.g. "gemini-2.5-flash")
+            choice_value = self.model_choice.lower()
 
-            # Mapping des préfixes vers les valeurs Provider
-            # / Mapping of prefixes to Provider values
-            provider_mapping = {
-                "GOOGLE": Provider.GOOGLE,
-                "OPENAI": Provider.OPENAI,
-                "MISTRAL": Provider.MISTRAL,
-                "PERPLEXITY": Provider.PERPLEXITY,
-                "ANTHROPIC": Provider.ANTHROPIC,
-                "MOONSHOT": Provider.MOONSHOT,
-                "MOCK": Provider.MOCK,
-            }
+            # Mapping des prefixes de valeur vers les providers
+            # Ordre important : les prefixes les plus specifiques d'abord
+            # / Mapping of value prefixes to providers
+            # Order matters: most specific prefixes first
+            prefix_to_provider = [
+                ("gemini-", Provider.GOOGLE),
+                ("gpt-", Provider.OPENAI),
+                ("open-mistral-", Provider.MISTRAL),
+                ("open-mixtral-", Provider.MISTRAL),
+                ("mistral-", Provider.MISTRAL),
+                ("sonar", Provider.PERPLEXITY),
+                ("llama-", Provider.PERPLEXITY),
+                ("claude-", Provider.ANTHROPIC),
+                ("kimi-", Provider.MOONSHOT),
+                ("mock", Provider.MOCK),
+            ]
 
-            if provider_key in provider_mapping:
-                self.provider = provider_mapping[provider_key]
+            for prefix, provider_value in prefix_to_provider:
+                if choice_value.startswith(prefix):
+                    self.provider = provider_value
+                    break
 
             # Le model_name technique est directement la valeur du choice
             # / The technical model_name is directly the choice value

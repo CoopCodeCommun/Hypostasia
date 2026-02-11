@@ -4,6 +4,7 @@ ViewSet DRF avec actions pour gerer les jobs d'extraction.
 """
 
 import json
+import logging
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -11,6 +12,8 @@ from django.http import HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+
+logger = logging.getLogger(__name__)
 
 
 def _saved_response():
@@ -65,6 +68,8 @@ from .serializers import (
     ExtractionAttributeSerializer,
     ExtractionAttributeUpdateSerializer,
     RunAnalyseurTestSerializer,
+    ValidateTestExtractionSerializer,
+    RejectTestExtractionSerializer,
 )
 from .services import run_langextract_job, generate_visualization_html, run_analyseur_test
 
@@ -401,7 +406,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         )
 
         from core.models import AIModel
-        active_ai_models = AIModel.objects.filter(is_active=True)
+        active_ai_models = AIModel.objects.filter(
+            api_key__isnull=False,
+        )
 
         # Contexte commun onglet/scroll
         active_tab = request.query_params.get('tab', 'prompt')
@@ -429,9 +436,11 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         serializer = AnalyseurSyntaxiqueCreateSerializer(data=request.data)
         if serializer.is_valid():
             analyseur = AnalyseurSyntaxique.objects.create(**serializer.validated_data)
+            logger.info("Analyseur cree: pk=%d name='%s'", analyseur.pk, analyseur.name)
             return render(request, 'hypostasis_extractor/includes/analyseur_item.html', {
                 'analyseur': analyseur
             }, status=status.HTTP_201_CREATED)
+        logger.warning("Analyseur create: validation echouee — %s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def partial_update(self, request, pk=None):
@@ -448,6 +457,7 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     def destroy(self, request, pk=None):
         """Suppression d'un analyseur / Delete an analyzer."""
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        logger.info("Analyseur supprime: pk=%d name='%s'", analyseur.pk, analyseur.name)
         analyseur.delete()
         # 200 au lieu de 204 : HTMX ignore le swap sur 204 No Content
         return HttpResponse(status=200)
@@ -698,15 +708,35 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['delete'])
     def delete_extraction(self, request, pk=None):
-        """Supprime une extraction / Delete an extraction."""
+        """
+        Supprime une extraction attendue.
+        Declenche un refresh des cartes de test si des TestRunExtraction
+        pointaient vers cette extraction (promoted_to_extraction).
+        / Delete an expected extraction.
+        Triggers a test card refresh if TestRunExtractions
+        pointed to this extraction (promoted_to_extraction).
+        """
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         extraction_id = request.data.get('extraction_id') or request.query_params.get('extraction_id')
         extraction = get_object_or_404(
-            ExampleExtraction.objects.filter(example__analyseur=analyseur),
+            ExampleExtraction.objects.select_related('example').filter(example__analyseur=analyseur),
             pk=extraction_id
         )
+
+        example_id = extraction.example_id
         extraction.delete()
-        return HttpResponse(status=200)
+
+        # Declenche un refresh du container de test pour cet exemple
+        # Les cartes "Obtenu" verront que promoted_to_extraction est devenu null (SET_NULL)
+        # / Trigger a test container refresh for this example
+        # "Obtained" cards will see that promoted_to_extraction became null (SET_NULL)
+        response = HttpResponse(status=200)
+        response['HX-Trigger'] = json.dumps({
+            'refreshTestResults': {
+                'exampleId': example_id,
+            }
+        })
+        return response
 
     # ---- Actions ExtractionAttribute ----
 
@@ -863,12 +893,16 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = RunAnalyseurTestSerializer(data=request.data)
         if not serializer.is_valid():
+            logger.warning("run_test: validation echouee — %s", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         example_id = serializer.validated_data['example_id']
         ai_model_id = serializer.validated_data['ai_model_id']
         example = get_object_or_404(AnalyseurExample, pk=example_id, analyseur=analyseur)
-        ai_model = get_object_or_404(AIModel, pk=ai_model_id, is_active=True)
+        ai_model = get_object_or_404(AIModel, pk=ai_model_id, api_key__isnull=False)
+
+        logger.info("run_test: analyseur=%d example=%d ai_model=%d (%s)",
+                    analyseur.pk, example.pk, ai_model.pk, ai_model.model_name)
 
         try:
             test_run = run_analyseur_test(analyseur, example, ai_model)
@@ -877,6 +911,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             # Pre-resoudre les extractions attendues de l'exemple
             expected_extractions = list(example.extractions.prefetch_related('attributes').all())
 
+            logger.info("run_test: succes — test_run=%d, %d extractions",
+                        test_run.pk, test_run.extractions_count)
+
             return render(request, 'hypostasis_extractor/includes/test_run_result.html', {
                 'test_run': test_run,
                 'test_extractions_with_attrs': test_extractions_with_attrs,
@@ -884,9 +921,13 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
                 'analyseur': analyseur,
             })
         except Exception as e:
-            return render(request, 'hypostasis_extractor/includes/test_run_error.html', {
-                'error': str(e),
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error("run_test: ERREUR analyseur=%d — %s", analyseur.pk, str(e), exc_info=True)
+            # Retourne JSON pour que le JS SweetAlert puisse parser l'erreur
+            # / Return JSON so the JS SweetAlert can parse the error
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['get'])
     def test_results(self, request, pk=None):
@@ -901,7 +942,7 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
         test_runs = AnalyseurTestRun.objects.filter(
             analyseur=analyseur, example_id=example_id
-        ).prefetch_related('extractions')
+        ).prefetch_related('extractions__promoted_to_extraction')
 
         # Pre-resoudre les attributs pour chaque test run
         test_runs_data = []
@@ -921,33 +962,209 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             'analyseur': analyseur,
         })
 
+    @action(detail=True, methods=['get'])
+    def expected_extractions(self, request, pk=None):
+        """
+        Retourne le bloc HTML des extractions attendues d'un exemple.
+        Utilise par le refresh HTMX apres validation d'une extraction de test.
+        / Returns the HTML block of expected extractions for an example.
+        Used by HTMX refresh after validating a test extraction.
+        """
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        example_id = request.query_params.get('example_id')
+        if not example_id:
+            return HttpResponse(status=400)
+
+        example = get_object_or_404(
+            AnalyseurExample.objects.prefetch_related('extractions__attributes'),
+            pk=example_id, analyseur=analyseur
+        )
+
+        return render(request, 'hypostasis_extractor/includes/extractions_block.html', {
+            'example': example,
+            'analyseur': analyseur,
+        })
+
     @action(detail=True, methods=['delete'])
     def delete_test_run(self, request, pk=None):
         """Supprime un test run / Delete a test run."""
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         test_run_id = request.data.get('test_run_id') or request.query_params.get('test_run_id')
         test_run = get_object_or_404(AnalyseurTestRun, pk=test_run_id, analyseur=analyseur)
+        logger.info("delete_test_run: pk=%d model=%s analyseur=%d",
+                    test_run.pk, test_run.ai_model_display_name, analyseur.pk)
         test_run.delete()
         return HttpResponse(status=200)
+
+    @action(detail=True, methods=['post'])
+    def validate_test_extraction(self, request, pk=None):
+        """
+        Valide une extraction obtenue : la copie comme ExampleExtraction attendue.
+        Utilise les CLES DE REFERENCE (premiere extraction humaine) et mappe
+        les VALEURS du LLM par position.
+        / Validate an obtained extraction: copy it as an expected ExampleExtraction.
+        Uses REFERENCE KEYS (first human extraction) and maps LLM VALUES by position.
+        """
+        from .models import TestRunExtractionAnnotation
+
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+
+        # Validation via serializer — verifie existence, pas deja validee,
+        # et correspondance du nombre d'attributs avec la reference
+        # / Validation via serializer — checks existence, not already validated,
+        # and attribute count matches reference
+        serializer = ValidateTestExtractionSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("validate_test_extraction: validation echouee — %s", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        test_extraction = serializer.validated_data['test_extraction']
+        reference_attribute_keys = serializer.validated_data['reference_attribute_keys']
+        example = test_extraction.test_run.example
+        logger.info("validate_test_extraction: extraction=%d class='%s' example=%d ref_keys=%s",
+                    test_extraction.pk, test_extraction.extraction_class, example.pk,
+                    reference_attribute_keys)
+
+        # Calcule l'order max des extractions existantes
+        # / Compute max order of existing extractions
+        max_order_result = example.extractions.aggregate(
+            max_order=db_models.Max('order')
+        )['max_order']
+        next_order = (max_order_result or 0) + 1
+
+        # Cree l'ExampleExtraction attendue / Create the expected ExampleExtraction
+        new_extraction = ExampleExtraction.objects.create(
+            example=example,
+            extraction_class=test_extraction.extraction_class,
+            extraction_text=test_extraction.extraction_text,
+            order=next_order,
+        )
+
+        # Mappe les valeurs LLM sur les cles de reference PAR POSITION
+        # Ex: reference = ["Hypostases", "Resume", "Statut", "Mots-cles"]
+        #     LLM values = ["Definition", "Le triptyque...", "Consensuel", "Triptyque, ..."]
+        # → attr 0: key="Hypostases" value="Definition"
+        # / Map LLM values to reference keys BY POSITION
+        llm_attribute_values = list((test_extraction.attributes or {}).values())
+
+        for attr_order, reference_key in enumerate(reference_attribute_keys):
+            # Valeur du LLM a cette position, ou vide si manquante
+            # / LLM value at this position, or empty if missing
+            llm_value = ""
+            if attr_order < len(llm_attribute_values):
+                llm_value = str(llm_attribute_values[attr_order])
+
+            ExtractionAttribute.objects.create(
+                extraction=new_extraction,
+                key=reference_key,
+                value=llm_value,
+                order=attr_order,
+            )
+
+        # Marque l'annotation / Mark the annotation
+        test_extraction.human_annotation = TestRunExtractionAnnotation.VALIDATED
+        test_extraction.promoted_to_extraction = new_extraction
+        test_extraction.save(update_fields=['human_annotation', 'promoted_to_extraction'])
+        logger.info("validate_test_extraction: promue en ExampleExtraction pk=%d avec %d attributs",
+                    new_extraction.pk, len(reference_attribute_keys))
+
+        _normalize_attribute_orders_for_analyseur(analyseur.pk)
+
+        # Retourne la carte annotee + le header HX-Trigger pour rafraichir
+        # le bloc des extractions attendues cote client
+        # / Return annotated card + HX-Trigger header to refresh
+        # the expected extractions block on the client side
+        response = render(request, 'hypostasis_extractor/includes/test_extraction_card.html', {
+            'resolved': _resolve_single_test_extraction(test_extraction),
+            'analyseur': analyseur,
+        })
+
+        # Declenche un evenement HTMX custom pour re-rendre le bloc attendu
+        # / Trigger a custom HTMX event to re-render the expected block
+        response['HX-Trigger-After-Swap'] = json.dumps({
+            'refreshExpectedExtractions': {
+                'exampleId': example.pk,
+            }
+        })
+        return response
+
+    @action(detail=True, methods=['post'])
+    def reject_test_extraction(self, request, pk=None):
+        """
+        Marque une extraction obtenue comme inappropriee.
+        / Mark an obtained extraction as inappropriate.
+        """
+        from .models import TestRunExtractionAnnotation
+
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+
+        # Validation via serializer / Validation via serializer
+        serializer = RejectTestExtractionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        extraction_id = serializer.validated_data['extraction_id']
+        note = serializer.validated_data['note']
+
+        test_extraction = get_object_or_404(
+            TestRunExtraction.objects.filter(test_run__analyseur=analyseur),
+            pk=extraction_id
+        )
+
+        test_extraction.human_annotation = TestRunExtractionAnnotation.REJECTED
+        test_extraction.annotation_note = note
+        test_extraction.save(update_fields=['human_annotation', 'annotation_note'])
+        logger.info("reject_test_extraction: extraction=%d rejetee, note='%s'",
+                    test_extraction.pk, note[:80] if note else '')
+
+        return render(request, 'hypostasis_extractor/includes/test_extraction_card.html', {
+            'resolved': _resolve_single_test_extraction(test_extraction),
+            'analyseur': analyseur,
+        })
+
+
+def _build_resolved_dict(test_extraction):
+    """
+    Construit le dict de contexte template pour une TestRunExtraction.
+    Inclut les attr_0..3 par position et le flag is_promotion_alive.
+    / Build the template context dict for a TestRunExtraction.
+    Includes attr_0..3 by position and the is_promotion_alive flag.
+    """
+    attrs = test_extraction.attributes or {}
+    values = list(attrs.values())
+
+    # Verifie si la FK promoted_to_extraction pointe encore vers un objet existant
+    # SET_NULL fait que le champ devient None si l'ExampleExtraction est supprimee
+    # / Check if promoted_to_extraction FK still points to an existing object
+    is_promotion_alive = (
+        test_extraction.human_annotation == 'validated'
+        and test_extraction.promoted_to_extraction_id is not None
+    )
+
+    return {
+        'extraction': test_extraction,
+        'attr_0': values[0] if len(values) > 0 else '',
+        'attr_1': values[1] if len(values) > 1 else '',
+        'attr_2': values[2] if len(values) > 2 else '',
+        'attr_3': values[3] if len(values) > 3 else '',
+        'is_promotion_alive': is_promotion_alive,
+    }
+
+
+def _resolve_single_test_extraction(test_extraction):
+    """
+    Resoud les attributs d'une seule TestRunExtraction pour le template.
+    / Resolve attributes for a single TestRunExtraction for the template.
+    """
+    return _build_resolved_dict(test_extraction)
 
 
 def _resolve_test_extraction_attrs(test_run):
     """
-    Pre-resoud les attributs JSON d'un TestRunExtraction en attr_0, attr_1, etc.
-    Conserve l'ordre d'insertion du dict JSON (= ordre retourne par LangExtract).
-    / Pre-resolve JSON attributes of a TestRunExtraction into attr_0, attr_1, etc.
-    Preserves JSON dict insertion order (= order returned by LangExtract).
+    Pre-resoud les attributs JSON de toutes les TestRunExtraction d'un test run.
+    / Pre-resolve JSON attributes of all TestRunExtractions of a test run.
     """
     resolved_extractions = []
-    for extraction in test_run.extractions.all():
-        attrs = extraction.attributes or {}
-        values = list(attrs.values())
-        resolved = {
-            'extraction': extraction,
-            'attr_0': values[0] if len(values) > 0 else '',
-            'attr_1': values[1] if len(values) > 1 else '',
-            'attr_2': values[2] if len(values) > 2 else '',
-            'attr_3': values[3] if len(values) > 3 else '',
-        }
-        resolved_extractions.append(resolved)
+    for extraction in test_run.extractions.select_related('promoted_to_extraction').all():
+        resolved_extractions.append(_build_resolved_dict(extraction))
     return resolved_extractions

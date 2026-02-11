@@ -132,3 +132,91 @@ CSRF_TRUSTED_ORIGINS = [
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+
+# =============================================================================
+# Logging — verbeux en console + fichier parsable par Claude Code
+# / Logging — verbose in console + file parsable by Claude Code
+# =============================================================================
+
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {name} {module}.{funcName}:{lineno} — {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+        'simple': {
+            'format': '[{asctime}] {levelname} {name} — {message}',
+            'style': '{',
+            'datefmt': '%H:%M:%S',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+            'level': 'DEBUG',
+        },
+        'file_extractor': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(LOG_DIR / 'extractor.log'),
+            'maxBytes': 5 * 1024 * 1024,  # 5 MB
+            'backupCount': 3,
+            'formatter': 'verbose',
+            'level': 'DEBUG',
+        },
+        'file_core': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(LOG_DIR / 'core.log'),
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 3,
+            'formatter': 'verbose',
+            'level': 'DEBUG',
+        },
+        'file_django': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(LOG_DIR / 'django.log'),
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 3,
+            'formatter': 'verbose',
+            'level': 'INFO',
+        },
+    },
+    'loggers': {
+        # Logger pour l'app hypostasis_extractor (views, services, etc.)
+        'hypostasis_extractor': {
+            'handlers': ['console', 'file_extractor'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        # Logger pour l'app core
+        'core': {
+            'handlers': ['console', 'file_core'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        # Logger pour l'app front
+        'front': {
+            'handlers': ['console', 'file_core'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        # Django interne (requetes, SQL, etc.)
+        'django': {
+            'handlers': ['console', 'file_django'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console', 'file_django'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}

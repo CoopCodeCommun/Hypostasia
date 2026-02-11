@@ -4,10 +4,13 @@ Wrapper autour de la librairie langextract pour s'integrer avec Hypostasia.
 """
 
 import time
+import logging
 import langextract as lx
 from typing import List, Dict, Optional
 
 from core.models import AIModel, Provider
+
+logger = logging.getLogger(__name__)
 
 
 def build_langextract_examples(job) -> List[lx.data.ExampleData]:
@@ -50,6 +53,7 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
     """
     Convertit une configuration AIModel en parametres pour LangExtract.
     """
+    logger.debug("resolve_model_params: provider=%s model=%s", ai_model.provider, ai_model.model_name)
     params = {
         'model_id': ai_model.model_name or 'gemini-2.5-flash',
     }
@@ -127,7 +131,8 @@ def run_langextract_job(job, use_chunking: bool = False, max_workers: int = 1):
         extract_params.update(model_params)
         
         # Execute l'extraction
-        print(f"LangExtract: Starting extraction for job {job.id}")
+        logger.info("run_langextract_job: lancement job=%d model=%s text_len=%d",
+                     job.id, extract_params.get('model_id', '?'), len(text_source))
         result = lx.extract(**extract_params)
         
         # Supprime les anciennes entites si re-extraction
@@ -164,14 +169,15 @@ def run_langextract_job(job, use_chunking: bool = False, max_workers: int = 1):
         job.processing_time_seconds = time.time() - start_time
         job.save()
         
-        print(f"LangExtract: Created {entities_created} entities in {job.processing_time_seconds:.2f}s")
+        logger.info("run_langextract_job: job=%d termine — %d entites en %.2fs",
+                     job.id, entities_created, job.processing_time_seconds)
         
         return entities_created, job.processing_time_seconds
         
     except Exception as e:
         # Gestion des erreurs
         error_msg = str(e)
-        print(f"LangExtract Error: {error_msg}")
+        logger.error("run_langextract_job: ERREUR job=%d — %s", job.id, error_msg, exc_info=True)
         
         job.status = ExtractionJobStatus.ERROR
         job.error_message = error_msg
@@ -218,10 +224,14 @@ def run_analyseur_test(analyseur, example, ai_model):
     )
 
     # 1. Construire le prompt snapshot / Build prompt snapshot
+    logger.info("run_analyseur_test: analyseur=%d example=%d ai_model=%s",
+                analyseur.pk, example.pk, ai_model.model_name)
     pieces_ordonnees = PromptPiece.objects.filter(
         analyseur=analyseur
     ).order_by('order')
     prompt_snapshot = "\n".join(piece.content for piece in pieces_ordonnees)
+    logger.debug("run_analyseur_test: prompt_snapshot=%d chars, %d pieces",
+                 len(prompt_snapshot), len(pieces_ordonnees))
 
     # 2. Construire les exemples few-shot SANS l'exemple teste (anti data-leakage)
     # / Build few-shot examples WITHOUT the tested example (anti data-leakage)
@@ -233,10 +243,13 @@ def run_analyseur_test(analyseur, example, ai_model):
 
     if not autres_exemples.exists():
         # Fallback : inclure l'exemple teste (LangExtract exige >= 1 exemple)
+        logger.warning("run_analyseur_test: aucun autre exemple — fallback sur l'exemple teste (anti data-leakage desactive)")
         autres_exemples = AnalyseurExample.objects.filter(
             pk=example.pk
         ).prefetch_related('extractions__attributes')
 
+    logger.debug("run_analyseur_test: %d exemples few-shot (excluant pk=%d)",
+                 autres_exemples.count(), example.pk)
     liste_exemples_langextract = []
     for exemple_django in autres_exemples:
         liste_extractions = []
@@ -283,7 +296,12 @@ def run_analyseur_test(analyseur, example, ai_model):
         }
         extract_params.update(model_params)
 
+        logger.info("run_analyseur_test: appel lx.extract() model=%s text_len=%d examples=%d",
+                    extract_params.get('model_id', '?'), len(example.example_text),
+                    len(liste_exemples_langextract))
         resultat = lx.extract(**extract_params)
+        logger.info("run_analyseur_test: LLM termine — %d extractions recues",
+                    len(resultat.extractions or []))
 
         # 6. Creer les TestRunExtraction
         for ordre, extraction in enumerate(resultat.extractions or []):
@@ -306,12 +324,15 @@ def run_analyseur_test(analyseur, example, ai_model):
             'text_length': len(example.example_text),
         }
         test_run.save()
+        logger.info("run_analyseur_test: test_run=%d COMPLETED — %d extractions en %.1fs",
+                    test_run.pk, test_run.extractions_count, test_run.processing_time_seconds)
 
     except Exception as e:
         test_run.status = ExtractionJobStatus.ERROR
         test_run.error_message = str(e)
         test_run.processing_time_seconds = time.time() - start_time
         test_run.save()
+        logger.error("run_analyseur_test: test_run=%d ERROR — %s", test_run.pk, str(e), exc_info=True)
         raise
 
     return test_run

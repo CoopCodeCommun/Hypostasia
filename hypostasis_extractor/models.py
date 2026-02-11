@@ -366,6 +366,12 @@ class AnalyseurTestRun(models.Model):
         return f"Test {self.ai_model_display_name} sur {self.example.name}"
 
 
+class TestRunExtractionAnnotation(models.TextChoices):
+    """Annotation humaine sur une extraction obtenue / Human annotation on an obtained extraction."""
+    VALIDATED = "validated", "Validee (ajoutee aux attendus)"
+    REJECTED = "rejected", "Inappropriee"
+
+
 class TestRunExtraction(models.Model):
     """
     Extraction obtenue lors d'un test run.
@@ -384,6 +390,28 @@ class TestRunExtraction(models.Model):
     end_pos = models.IntegerField(default=0)
     attributes = models.JSONField(default=dict, blank=True)
     order = models.PositiveIntegerField(default=0)
+
+    # Annotation humaine / Human annotation
+    human_annotation = models.CharField(
+        max_length=20,
+        choices=TestRunExtractionAnnotation.choices,
+        blank=True,
+        null=True,
+        help_text="Annotation humaine : validee ou inappropriee / Human annotation: validated or rejected"
+    )
+    annotation_note = models.TextField(
+        blank=True,
+        default="",
+        help_text="Note humaine optionnelle / Optional human note"
+    )
+    promoted_to_extraction = models.ForeignKey(
+        'ExampleExtraction',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='promoted_from',
+        help_text="ExampleExtraction creee si validee / ExampleExtraction created if validated"
+    )
 
     class Meta:
         ordering = ['order']

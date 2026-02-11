@@ -363,3 +363,106 @@ class RunAnalyseurTestSerializer(serializers.Serializer):
     """Valide les parametres pour lancer un test LLM sur un exemple."""
     example_id = serializers.IntegerField()
     ai_model_id = serializers.IntegerField()
+
+
+class ValidateTestExtractionSerializer(serializers.Serializer):
+    """
+    Valide qu'une TestRunExtraction peut etre promue en ExampleExtraction.
+    Verifie que les attributs JSON du LLM correspondent au schema de reference
+    (premiere extraction humaine de l'exemple).
+    / Validates that a TestRunExtraction can be promoted to ExampleExtraction.
+    Checks that LLM JSON attributes match the reference schema
+    (first human extraction of the example).
+    """
+    extraction_id = serializers.IntegerField()
+
+    def validate_extraction_id(self, value):
+        """Verifie que l'extraction existe / Check extraction exists."""
+        from .models import TestRunExtraction, TestRunExtractionAnnotation
+        try:
+            test_extraction = TestRunExtraction.objects.select_related(
+                'test_run__example'
+            ).get(pk=value)
+        except TestRunExtraction.DoesNotExist:
+            raise serializers.ValidationError(
+                "Extraction de test introuvable / Test extraction not found"
+            )
+
+        # Verifie pas deja validee AVEC une FK encore vivante
+        # Si la FK est null (extraction attendue supprimee), on autorise la re-validation
+        # / Check not already validated WITH a still-alive FK
+        # If FK is null (expected extraction deleted), allow re-validation
+        extraction_is_validated = (
+            test_extraction.human_annotation == TestRunExtractionAnnotation.VALIDATED
+        )
+        promotion_still_exists = (
+            test_extraction.promoted_to_extraction_id is not None
+        )
+        if extraction_is_validated and promotion_still_exists:
+            raise serializers.ValidationError(
+                "Extraction deja validee / Extraction already validated"
+            )
+
+        return value
+
+    def validate(self, data):
+        """
+        Verifie la correspondance des attributs avec le schema de reference.
+        Le schema de reference = les cles d'attributs de la premiere ExampleExtraction
+        construite a la main par un humain.
+        / Check attribute correspondence with the reference schema.
+        Reference schema = attribute keys of the first human-built ExampleExtraction.
+        """
+        from .models import TestRunExtraction
+
+        test_extraction = TestRunExtraction.objects.select_related(
+            'test_run__example'
+        ).get(pk=data['extraction_id'])
+
+        example = test_extraction.test_run.example
+
+        # Recupere la premiere extraction de reference (construite par un humain)
+        # / Get the first reference extraction (human-built)
+        reference_extraction = example.extractions.prefetch_related('attributes').first()
+
+        if not reference_extraction:
+            # Pas de reference → pas de contrainte, on accepte tel quel
+            # / No reference → no constraint, accept as-is
+            data['reference_attribute_keys'] = []
+            data['test_extraction'] = test_extraction
+            return data
+
+        # Cles de reference dans l'ordre / Reference keys in order
+        reference_attribute_keys = list(
+            reference_extraction.attributes.order_by('order').values_list('key', flat=True)
+        )
+
+        # Cles du LLM (ordre d'insertion du dict JSON)
+        llm_attributes = test_extraction.attributes or {}
+        llm_attribute_keys = list(llm_attributes.keys())
+
+        # Verification : le nombre de cles doit correspondre
+        # / Check: number of keys must match
+        nombre_cles_reference = len(reference_attribute_keys)
+        nombre_cles_llm = len(llm_attribute_keys)
+
+        if nombre_cles_llm != nombre_cles_reference:
+            raise serializers.ValidationError(
+                f"Le LLM a retourne {nombre_cles_llm} attributs, "
+                f"mais la reference en a {nombre_cles_reference}. "
+                f"Cles reference: {reference_attribute_keys}, "
+                f"Cles LLM: {llm_attribute_keys}"
+            )
+
+        data['reference_attribute_keys'] = reference_attribute_keys
+        data['test_extraction'] = test_extraction
+        return data
+
+
+class RejectTestExtractionSerializer(serializers.Serializer):
+    """
+    Valide le rejet d'une extraction de test.
+    / Validates rejection of a test extraction.
+    """
+    extraction_id = serializers.IntegerField()
+    note = serializers.CharField(required=False, allow_blank=True, default="")

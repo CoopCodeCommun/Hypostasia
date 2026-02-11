@@ -269,7 +269,7 @@ class TestRunExtractionInline(admin.TabularInline):
     """
     model = TestRunExtraction
     extra = 0
-    fields = ("order", "extraction_class", "extraction_text", "start_pos", "end_pos", "attributes")
+    fields = ("order", "extraction_class", "extraction_text", "start_pos", "end_pos", "attributes", "human_annotation", "annotation_note")
     readonly_fields = ("order", "extraction_class", "extraction_text", "start_pos", "end_pos", "attributes")
 
 
@@ -348,15 +348,16 @@ class TestRunExtractionAdmin(admin.ModelAdmin):
         "id",
         "extraction_class",
         "extraction_text_short",
+        "human_annotation",
         "test_run_model",
         "test_run_example",
         "start_pos",
         "end_pos",
         "order",
     )
-    list_filter = ("extraction_class", "test_run__ai_model_display_name", "test_run__analyseur")
-    search_fields = ("extraction_class", "extraction_text", "test_run__ai_model_display_name")
-    readonly_fields = ("test_run", "extraction_class", "extraction_text", "start_pos", "end_pos", "attributes", "order")
+    list_filter = ("extraction_class", "human_annotation", "test_run__ai_model_display_name", "test_run__analyseur")
+    search_fields = ("extraction_class", "extraction_text", "test_run__ai_model_display_name", "annotation_note")
+    readonly_fields = ("test_run", "extraction_class", "extraction_text", "start_pos", "end_pos", "attributes", "order", "promoted_to_extraction")
     list_select_related = ("test_run", "test_run__example")
 
     fieldsets = (
@@ -369,6 +370,10 @@ class TestRunExtractionAdmin(admin.ModelAdmin):
         ("Attributs", {
             "fields": ("attributes",),
             "description": "Attributs extraits par le LLM au format JSON.",
+        }),
+        ("Annotation humaine", {
+            "fields": ("human_annotation", "annotation_note", "promoted_to_extraction"),
+            "description": "Annotation humaine : validee (copiee en extraction attendue) ou rejetee.",
         }),
     )
 
