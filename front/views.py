@@ -12,6 +12,7 @@ from core.models import AIModel, Dossier, Page
 from hypostasis_extractor.models import AnalyseurSyntaxique, ExtractionJob
 from hypostasis_extractor.services import run_analyseur_on_page
 from .serializers import DossierCreateSerializer, ExtractionSerializer, PageClasserSerializer, RunAnalyseSerializer
+from .utils import annoter_html_avec_ancres
 
 logger = logging.getLogger(__name__)
 
@@ -81,12 +82,19 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Si un job existe, on recupere ses entites pour les afficher
         entites_existantes = None
+        html_annote = None
         if dernier_job_termine:
             entites_existantes = dernier_job_termine.entities.all()
+            # Annoter le HTML avec des ancres pour le scroll-to-extraction
+            # / Annotate HTML with anchors for scroll-to-extraction
+            html_annote = annoter_html_avec_ancres(
+                page.html_readability, page.text_readability, entites_existantes
+            )
 
         # Contexte commun pour les deux partials
         contexte_partage = {
             "page": page,
+            "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": dernier_job_termine,
             "entities": entites_existantes,
@@ -119,9 +127,10 @@ class LectureViewSet(viewsets.ViewSet):
             return HttpResponse(html_complet)
 
         # Acces direct (F5) → page complete avec le panneau pre-charge
-        # On passe aussi le job et les entites pour que le panneau affiche les resultats existants
+        # On passe aussi le job, les entites et le HTML annote
         return render(request, "front/base.html", {
             "page_preloaded": page,
+            "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": dernier_job_termine,
             "entities": entites_existantes,
@@ -170,10 +179,30 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Rendu du partial avec les cartes d'extraction
         toutes_les_entites_du_job = job_extraction.entities.all()
-        reponse = render(request, "front/includes/extraction_results.html", {
-            "job": job_extraction,
-            "entities": toutes_les_entites_du_job,
-        })
+
+        # Annoter le HTML avec des ancres pour le scroll-to-extraction
+        # / Annotate HTML with anchors for scroll-to-extraction
+        html_annote = annoter_html_avec_ancres(
+            page.html_readability, page.text_readability, toutes_les_entites_du_job
+        )
+
+        html_cartes = render_to_string(
+            "front/includes/extraction_results.html",
+            {"job": job_extraction, "entities": toutes_les_entites_du_job},
+            request=request,
+        )
+
+        # OOB swap pour mettre a jour #readability-content avec le HTML annote
+        # Le contenu de lecture est mis a jour en meme temps que les cartes d'extraction
+        # / OOB swap to update #readability-content with annotated HTML
+        html_readability_oob = (
+            '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
+            + (html_annote or page.html_readability)
+            + '</article>'
+        )
+
+        html_complet = html_cartes + html_readability_oob
+        reponse = HttpResponse(html_complet)
 
         # Declenche l'ouverture du panneau droit cote client via event HTMX
         reponse["HX-Trigger"] = "ouvrirPanneauDroit"

@@ -78,7 +78,17 @@ class PageCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         blocks_data = validated_data.pop('blocks', [])
-        
+
+        # Deriver text_readability depuis html_readability (single source of truth)
+        # Garantit la coherence entre les positions texte et le mapping HTML
+        # pour l'annotation cote serveur (scroll-to-extraction).
+        # / Derive text_readability from html_readability (single source of truth)
+        # Guarantees consistency between text positions and HTML mapping.
+        from front.utils import extraire_texte_depuis_html
+        html_readability = validated_data.get('html_readability', '')
+        if html_readability:
+            validated_data['text_readability'] = extraire_texte_depuis_html(html_readability)
+
         # Compute content_hash from text_readability
         import hashlib
         text = validated_data.get('text_readability', '')

@@ -49,6 +49,21 @@
             text-align: center;
             margin-top: 0.5rem;
         }
+
+        /* Highlight pour scroll-to-extraction / Extraction highlight */
+        .highlight-extraction {
+            background-color: rgba(59, 130, 246, 0.2);
+            border-radius: 3px;
+            padding: 1px 0;
+        }
+        .highlight-active {
+            animation: highlight-pulse 2.5s ease-out forwards;
+        }
+        @keyframes highlight-pulse {
+            0%   { background-color: rgba(59, 130, 246, 0.4); box-shadow: 0 0 8px rgba(59, 130, 246, 0.3); }
+            70%  { background-color: rgba(59, 130, 246, 0.2); box-shadow: none; }
+            100% { background-color: rgba(59, 130, 246, 0.15); box-shadow: none; }
+        }
     </style>
 </head>
 <body class="h-full bg-white text-slate-800" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
@@ -367,6 +382,44 @@
             sendExtraction('/extractions/ia/');
         });
     })();
+    </script>
+
+    <!-- Scroll + highlight vers extraction depuis le panneau droit -->
+    <!-- Utilise les ancres <span class="extraction-ancre"> injectees cote serveur -->
+    <!-- / Uses anchor spans injected server-side -->
+    <script>
+    /**
+     * Scroll vers l'extraction et surligne le paragraphe parent.
+     * L'ancre est un <span class="extraction-ancre" data-extraction-id="N">
+     * injecte cote serveur dans le HTML de l'article.
+     * / Scroll to extraction and highlight parent paragraph.
+     * The anchor is a server-side injected span in the article HTML.
+     */
+    function scrollToExtraction(elementCarte) {
+        // Nettoyer les highlights precedents / Clean previous highlights
+        document.querySelectorAll('.highlight-active').forEach(function(el) {
+            el.classList.remove('highlight-active');
+        });
+
+        var extractionId = elementCarte.dataset.extractionId;
+        if (!extractionId) return;
+
+        var ancre = document.querySelector(
+            '#readability-content .extraction-ancre[data-extraction-id="' + extractionId + '"]'
+        );
+
+        if (!ancre) {
+            console.warn('[scrollToExtraction] Ancre introuvable pour extraction id=' + extractionId);
+            return;
+        }
+
+        // Remonter au paragraphe parent pour le highlight visuel
+        // / Walk up to parent paragraph for visual highlight
+        var paragraphe = ancre.closest('p, blockquote, li, td, h1, h2, h3, h4, h5, h6')
+                         || ancre.parentElement;
+        paragraphe.classList.add('highlight-active');
+        paragraphe.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     </script>
 
 </body>

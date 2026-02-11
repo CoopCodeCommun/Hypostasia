@@ -16,7 +16,8 @@
         {# / Extract first 4 attributes from JSONField by key order #}
         {% entity_json_attrs entity as entity_attrs %}
         <div class="extraction-card bg-white rounded-lg border border-slate-200 p-3 hover:shadow-sm transition-shadow cursor-pointer"
-             onclick="scrollToExtraction({{ entity.start_char }}, {{ entity.end_char }}, '{{ entity.extraction_text|escapejs|truncatechars:80 }}')">
+             data-extraction-id="{{ entity.pk }}"
+             onclick="scrollToExtraction(this)">
 
             {% with attr_0=entity_attrs.0 attr_1=entity_attrs.1 text=entity.extraction_text attr_2=entity_attrs.2 attr_3=entity_attrs.3 %}
                 {% include "hypostasis_extractor/includes/_card_body.html" %}

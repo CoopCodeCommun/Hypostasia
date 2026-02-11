@@ -111,9 +111,17 @@ class PageViewSet(viewsets.ModelViewSet):
             if not prompt:
                 prompt = Prompt.objects.order_by('-created_at').first()
         
-        if not prompt or (prompt and not prompt.default_model):
-             # Simplify error handling for now -> return generic error or empty
-             pass 
+        if not prompt:
+            return Response(
+                {'error': 'Aucun Prompt trouvé. Créez un Prompt avant de lancer une analyse.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not prompt.default_model:
+            return Response(
+                {'error': f'Le Prompt "{prompt.name}" n\'a pas de modèle IA par défaut configuré.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         run_analysis_pipeline(page, prompt)
         
