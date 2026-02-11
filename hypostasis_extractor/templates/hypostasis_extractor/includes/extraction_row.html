@@ -1,0 +1,73 @@
+<!-- Une extraction attendue / An expected extraction -->
+<!-- is_first=True → cles editables (extraction de reference) -->
+<!-- is_first=False et extraction_count > 1 → cles readonly -->
+<div class="border border-slate-100 rounded-lg p-3 bg-slate-50 extraction-block" id="extraction-{{ extraction.id }}" data-extraction-id="{{ extraction.id }}">
+    <div class="flex items-center gap-2 mb-2">
+        <label class="text-xs text-slate-400 shrink-0">Classe:</label>
+        {% if not is_first and extraction_count > 1 %}
+        <input type="text" value="{{ extraction.extraction_class }}" id="ext-class-{{ extraction.id }}" readonly
+               class="ext-class w-32 text-xs font-mono border border-slate-100 rounded px-2 py-1 bg-slate-100 text-slate-500 cursor-not-allowed"
+               title="Classe heritee de l'extraction de reference">
+        {% else %}
+        <input type="text" value="{{ extraction.extraction_class }}" id="ext-class-{{ extraction.id }}"
+               class="ext-class w-32 text-xs font-mono border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+               placeholder="ex: these, objection">
+        {% endif %}
+        <label class="text-xs text-slate-400 shrink-0">Texte extrait:</label>
+        <input type="text" value="{{ extraction.extraction_text }}" id="ext-text-{{ extraction.id }}"
+               class="ext-text flex-1 text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+               placeholder="ex: L'energie nucleaire est fiable et pilotable">
+        <!-- Bouton apercu carte / Card preview button -->
+        <button type="button" class="text-xs bg-amber-400 text-amber-900 px-2 py-1 rounded hover:bg-amber-500 shrink-0"
+                onclick="document.getElementById('preview-modal-ext-{{ extraction.id }}').showModal()">
+            Apercu
+        </button>
+        <button type="button" class="text-red-400 hover:text-red-600 text-xs shrink-0"
+                hx-delete="/api/analyseurs/{{ analyseur.id }}/delete_extraction/?extraction_id={{ extraction.id }}"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-target="#extraction-{{ extraction.id }}"
+                hx-swap="delete"
+                hx-confirm="Supprimer ?">&times;</button>
+    </div>
+
+    <!-- Attributs — paires cle:valeur -->
+    <div class="ml-6 mt-1">
+        <label class="text-xs text-slate-400 italic">Attributs</label>
+        {% if is_first and extraction_count > 1 %}
+        <span class="text-[9px] text-blue-500 ml-1" title="Extraction de reference : ses cles seront copiees vers les autres">&#9733; reference</span>
+        {% elif extraction_count > 1 %}
+        <span class="text-[9px] text-amber-500 ml-1" title="Les cles sont heritees de la premiere extraction">&#128274; cles heritees</span>
+        {% endif %}
+        <div id="attributes-{{ extraction.id }}" class="space-y-1 mt-1">
+            {% for attr in extraction.attributes.all %}
+                {% if is_first or extraction_count <= 1 %}
+                    {% include "hypostasis_extractor/includes/attribute_row.html" with attribute=attr analyseur=analyseur keys_locked=0 show_reorder=True %}
+                {% else %}
+                    {% include "hypostasis_extractor/includes/attribute_row.html" with attribute=attr analyseur=analyseur keys_locked=extraction_count show_reorder=False %}
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% if is_first or not extraction_count or extraction_count <= 1 %}
+        <button type="button" class="text-xs text-slate-400 hover:text-slate-600 mt-1"
+                hx-post="/api/analyseurs/{{ analyseur.id }}/add_attribute/"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-vals='{"extraction_id": {{ extraction.id }}, "key": "", "value": ""}'
+                hx-target="#attributes-{{ extraction.id }}"
+                hx-swap="beforeend">
+            + attribut
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Modal apercu carte / Card preview modal -->
+    <dialog id="preview-modal-ext-{{ extraction.id }}" class="rounded-xl shadow-2xl p-0 backdrop:bg-black/30 max-w-sm w-full">
+        <div class="p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Apercu de la carte</h3>
+                <button type="button" class="text-slate-400 hover:text-slate-600 text-lg"
+                        onclick="document.getElementById('preview-modal-ext-{{ extraction.id }}').close()">&times;</button>
+            </div>
+            {% include "hypostasis_extractor/includes/extraction_card_preview.html" with card_extraction=extraction %}
+        </div>
+    </dialog>
+</div>

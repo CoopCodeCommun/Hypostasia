@@ -1,0 +1,128 @@
+<!-- Section Resultats de test LLM (collapsible) -->
+<!-- / LLM Test Results section (collapsible) -->
+<div class="ml-4 border-l-2 border-emerald-200 pl-3 mt-4">
+    <div class="flex items-center justify-between mb-2">
+        <label class="flex items-center gap-1 text-xs font-semibold text-emerald-600 uppercase tracking-wider cursor-pointer collapsible-toggle"
+               data-target="test-results-body-{{ example.id }}">
+            <span class="collapsible-chevron text-emerald-400">&#9654;</span>
+            Resultats de test
+            <span class="font-normal normal-case text-slate-400">— comparer les LLM sur cet exemple</span>
+        </label>
+    </div>
+
+    <div id="test-results-body-{{ example.id }}" class="hidden">
+        <!-- Formulaire de lancement / Launch form -->
+        <div class="flex items-center gap-2 mb-3">
+            <select id="test-model-select-{{ example.id }}" class="text-xs border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-400">
+                {% for ai_model in active_ai_models %}
+                <option value="{{ ai_model.id }}">{{ ai_model.provider }} / {{ ai_model.model_name }}</option>
+                {% empty %}
+                <option disabled>Aucun modele actif</option>
+                {% endfor %}
+            </select>
+            <button type="button"
+                    id="test-launch-btn-{{ example.id }}"
+                    class="test-launch-btn text-xs bg-emerald-500 text-white px-3 py-1 rounded hover:bg-emerald-600 inline-flex items-center gap-1"
+                    data-example-id="{{ example.id }}"
+                    hx-post="/api/analyseurs/{{ analyseur.id }}/run_test/"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='js:{
+                        "example_id": {{ example.id }},
+                        "ai_model_id": parseInt(document.getElementById("test-model-select-{{ example.id }}").value)
+                    }'
+                    hx-target="#test-results-container-{{ example.id }}"
+                    hx-swap="afterbegin"
+                    hx-indicator="#test-spinner-{{ example.id }}">
+                Lancer le test
+            </button>
+            <span id="test-spinner-{{ example.id }}" class="htmx-indicator text-xs text-emerald-500">
+                <svg class="animate-spin h-4 w-4 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Extraction en cours...
+            </span>
+        </div>
+
+        <!-- Container pour les resultats (charges via HTMX au deplier) -->
+        <div id="test-results-container-{{ example.id }}"
+             hx-get="/api/analyseurs/{{ analyseur.id }}/test_results/?example_id={{ example.id }}"
+             hx-trigger="intersect once"
+             hx-swap="innerHTML"
+             class="space-y-3">
+        </div>
+    </div>
+</div>
+
+<!-- Scripts : ecoute les evenements HTMX pour synchroniser les blocs attendu / obtenu -->
+<!-- / Scripts: listen for HTMX events to sync expected / obtained blocks -->
+<script>
+    (function() {
+        var exampleId = {{ example.id }};
+        var analyseurId = {{ analyseur.id }};
+        var launchBtn = document.getElementById('test-launch-btn-' + exampleId);
+
+        // Gestion des erreurs HTMX sur le bouton "Lancer le test" → SweetAlert
+        // / HTMX error handling on "Launch test" button → SweetAlert
+        if (launchBtn) {
+            launchBtn.addEventListener('htmx:responseError', function(event) {
+                var statusCode = event.detail.xhr.status;
+                var errorMessage = '';
+                try {
+                    // Tente de parser le JSON d'erreur DRF / Try to parse DRF error JSON
+                    var errorData = JSON.parse(event.detail.xhr.responseText);
+                    errorMessage = JSON.stringify(errorData, null, 2);
+                } catch(e) {
+                    errorMessage = event.detail.xhr.responseText || 'Erreur inconnue';
+                }
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erreur ' + statusCode,
+                    html: '<pre style="text-align:left;font-size:12px;max-height:300px;overflow:auto">' + errorMessage + '</pre>',
+                    confirmButtonColor: '#10b981'
+                });
+            });
+
+            // Erreur de connexion (serveur eteint, timeout, etc.)
+            // / Connection error (server down, timeout, etc.)
+            launchBtn.addEventListener('htmx:sendError', function(event) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Erreur de connexion',
+                    text: 'Impossible de contacter le serveur. Verifiez que le serveur Django tourne.',
+                    confirmButtonColor: '#10b981'
+                });
+            });
+        }
+
+        // Apres validation d'une carte obtenue → rafraichir le bloc des extractions attendues
+        // / After validating an obtained card → refresh expected extractions block
+        document.body.addEventListener('refreshExpectedExtractions', function(event) {
+            if (event.detail.exampleId !== exampleId) return;
+
+            var targetContainer = document.getElementById('extractions-' + exampleId);
+            if (!targetContainer) return;
+
+            htmx.ajax('GET',
+                '/api/analyseurs/' + analyseurId + '/expected_extractions/?example_id=' + exampleId,
+                {target: targetContainer, swap: 'innerHTML'}
+            );
+        });
+
+        // Apres suppression d'une extraction attendue → rafraichir les cartes de test
+        // pour que les cartes "Obtenu" detectent la FK supprimee (SET_NULL)
+        // / After deleting an expected extraction → refresh test cards
+        // so "Obtained" cards detect the deleted FK (SET_NULL)
+        document.body.addEventListener('refreshTestResults', function(event) {
+            if (event.detail.exampleId !== exampleId) return;
+
+            var testContainer = document.getElementById('test-results-container-' + exampleId);
+            if (!testContainer) return;
+
+            htmx.ajax('GET',
+                '/api/analyseurs/' + analyseurId + '/test_results/?example_id=' + exampleId,
+                {target: testContainer, swap: 'innerHTML'}
+            );
+        });
+    })();
+</script>

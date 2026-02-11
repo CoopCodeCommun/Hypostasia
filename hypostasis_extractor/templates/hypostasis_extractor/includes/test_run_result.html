@@ -1,0 +1,66 @@
+{% load extractor_tags %}
+<!-- Resultat d'un test run — collapsible, ferme par defaut -->
+<!-- / Test run result — collapsible, closed by default -->
+<div class="bg-emerald-50 rounded-lg border border-emerald-200 p-3" id="test-run-{{ test_run.id }}">
+    <!-- En-tete (toujours visible) avec toggle -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <button type="button" class="collapsible-toggle text-emerald-400 hover:text-emerald-600 text-xs shrink-0"
+                    data-target="test-run-body-{{ test_run.id }}">
+                <span class="collapsible-chevron">&#9654;</span>
+            </button>
+            <span class="text-xs font-semibold text-emerald-700">{{ test_run.ai_model_display_name }}</span>
+            <span class="text-[10px] text-slate-400">{{ test_run.created_at|date:"d/m/Y H:i" }}</span>
+            {% if test_run.processing_time_seconds %}
+            <span class="text-[10px] text-slate-400">{{ test_run.processing_time_seconds|floatformat:1 }}s</span>
+            {% endif %}
+            <span class="text-[10px] font-medium text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">
+                {{ test_run.extractions_count }} extraction{{ test_run.extractions_count|pluralize }}
+            </span>
+            {% if test_run.status == "error" %}
+            <span class="text-[10px] font-medium text-red-600 bg-red-100 px-1.5 py-0.5 rounded">Erreur</span>
+            {% endif %}
+        </div>
+        <button type="button" class="text-red-400 hover:text-red-600 text-sm shrink-0"
+                hx-delete="/api/analyseurs/{{ analyseur.id }}/delete_test_run/?test_run_id={{ test_run.id }}"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-target="#test-run-{{ test_run.id }}"
+                hx-swap="delete"
+                hx-confirm="Supprimer ce test ?">&times;</button>
+    </div>
+
+    <!-- Body collapsible (ferme par defaut) -->
+    <div id="test-run-body-{{ test_run.id }}" class="hidden mt-2">
+        {% if test_run.status == "error" %}
+        <div class="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2">
+            {{ test_run.error_message }}
+        </div>
+        {% else %}
+        <!-- Grille comparaison : Attendu vs Obtenu -->
+        <div class="grid grid-cols-2 gap-3">
+            <!-- Colonne attendue -->
+            <div>
+                <p class="text-[10px] font-semibold text-blue-500 uppercase tracking-wider mb-1">Attendu</p>
+                <div class="space-y-2">
+                    {% for extraction in expected_extractions %}
+                    {% include "hypostasis_extractor/includes/extraction_card_preview.html" with card_extraction=extraction %}
+                    {% empty %}
+                    <p class="text-xs text-slate-400 italic">Aucune extraction attendue.</p>
+                    {% endfor %}
+                </div>
+            </div>
+            <!-- Colonne obtenue -->
+            <div>
+                <p class="text-[10px] font-semibold text-emerald-500 uppercase tracking-wider mb-1">Obtenu</p>
+                <div class="space-y-2">
+                    {% for resolved in test_extractions_with_attrs %}
+                    {% include "hypostasis_extractor/includes/test_extraction_card.html" with resolved=resolved analyseur=analyseur %}
+                    {% empty %}
+                    <p class="text-xs text-slate-400 italic">Aucune extraction obtenue.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>

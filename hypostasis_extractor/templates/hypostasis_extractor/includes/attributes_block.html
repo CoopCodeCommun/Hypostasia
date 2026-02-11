@@ -1,0 +1,5 @@
+<!-- Bloc complet des attributs d'une extraction (re-rendu par reorder) -->
+<!-- / Full attributes block for an extraction (re-rendered by reorder) -->
+{% for attr in extraction.attributes.all %}
+    {% include "hypostasis_extractor/includes/attribute_row.html" with attribute=attr analyseur=analyseur keys_locked=keys_locked %}
+{% endfor %}

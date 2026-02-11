@@ -338,6 +338,118 @@ def run_analyseur_test(analyseur, example, ai_model):
     return test_run
 
 
+def run_analyseur_on_page(analyseur, page, ai_model):
+    """
+    Lance LangExtract sur une Page en utilisant un AnalyseurSyntaxique.
+    Cree un ExtractionJob + ExtractedEntity pour chaque resultat.
+    / Run LangExtract on a Page using an AnalyseurSyntaxique.
+    Creates ExtractionJob + ExtractedEntity for each result.
+    """
+    from .models import (
+        ExtractionJob, ExtractedEntity, ExtractionJobStatus,
+        PromptPiece, AnalyseurExample
+    )
+
+    # 1. Construire le prompt depuis les pieces / Build prompt from pieces
+    pieces_ordonnees = PromptPiece.objects.filter(
+        analyseur=analyseur
+    ).order_by('order')
+    prompt_snapshot = "\n".join(piece.content for piece in pieces_ordonnees)
+
+    # 2. Construire les exemples few-shot (TOUS) / Build all few-shot examples
+    tous_les_exemples = AnalyseurExample.objects.filter(
+        analyseur=analyseur
+    ).order_by('order').prefetch_related('extractions__attributes')
+
+    liste_exemples_langextract = []
+    for exemple_django in tous_les_exemples:
+        liste_extractions = []
+        for extraction_django in exemple_django.extractions.all():
+            dictionnaire_attributs = {}
+            for attribut in extraction_django.attributes.all():
+                dictionnaire_attributs[attribut.key] = attribut.value
+            liste_extractions.append(
+                lx.data.Extraction(
+                    extraction_class=extraction_django.extraction_class,
+                    extraction_text=extraction_django.extraction_text,
+                    attributes=dictionnaire_attributs,
+                )
+            )
+        liste_exemples_langextract.append(
+            lx.data.ExampleData(
+                text=exemple_django.example_text,
+                extractions=liste_extractions,
+            )
+        )
+
+    # 3. Resoudre les parametres du modele / Resolve model params
+    model_params = resolve_model_params(ai_model)
+
+    # 4. Creer le job / Create the job
+    job = ExtractionJob.objects.create(
+        page=page,
+        ai_model=ai_model,
+        name=f"Analyseur: {analyseur.name}",
+        prompt_description=prompt_snapshot,
+        status=ExtractionJobStatus.PROCESSING,
+    )
+
+    start_time = time.time()
+
+    try:
+        text_source = page.text_readability
+        if not text_source:
+            raise ValueError("La Page n'a pas de text_readability disponible")
+
+        extract_params = {
+            'text_or_documents': text_source,
+            'prompt_description': prompt_snapshot,
+            'examples': liste_exemples_langextract,
+        }
+        extract_params.update(model_params)
+
+        logger.info("run_analyseur_on_page: job=%d analyseur=%s model=%s text_len=%d",
+                     job.id, analyseur.name, extract_params.get('model_id', '?'), len(text_source))
+        resultat = lx.extract(**extract_params)
+
+        # 5. Creer les entites / Create entities
+        entities_created = 0
+        for extraction in resultat.extractions or []:
+            ci = extraction.char_interval
+            entity = ExtractedEntity.objects.create(
+                job=job,
+                extraction_class=extraction.extraction_class,
+                extraction_text=extraction.extraction_text,
+                start_char=ci.start_pos if ci else 0,
+                end_char=ci.end_pos if ci else 0,
+                attributes=extraction.attributes or {},
+            )
+            entities_created += 1
+            _try_map_to_hypostasis(entity)
+
+        job.status = ExtractionJobStatus.COMPLETED
+        job.entities_count = entities_created
+        job.processing_time_seconds = time.time() - start_time
+        job.raw_result = {
+            'extractions_count': entities_created,
+            'document_length': len(text_source),
+            'analyseur_id': analyseur.pk,
+        }
+        job.save()
+        logger.info("run_analyseur_on_page: job=%d COMPLETED — %d entites en %.1fs",
+                     job.id, entities_created, job.processing_time_seconds)
+
+    except Exception as e:
+        job.status = ExtractionJobStatus.ERROR
+        job.error_message = str(e)
+        job.processing_time_seconds = time.time() - start_time
+        job.save(update_fields=['status', 'error_message', 'processing_time_seconds'])
+        logger.error("run_analyseur_on_page: job=%d ERROR — %s", job.id, str(e), exc_info=True)
+        raise
+
+    return job
+
+
 def generate_visualization_html(job) -> str:
     """
     Genere le HTML de visualisation pour un job.

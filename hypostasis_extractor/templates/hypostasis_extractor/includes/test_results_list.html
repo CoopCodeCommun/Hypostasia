@@ -1,0 +1,5 @@
+{% for item in test_runs_data %}
+    {% include "hypostasis_extractor/includes/test_run_result.html" with test_run=item.test_run test_extractions_with_attrs=item.test_extractions_with_attrs expected_extractions=item.expected_extractions analyseur=analyseur %}
+{% empty %}
+    <p class="text-xs text-slate-400 italic">Aucun test lance pour cet exemple.</p>
+{% endfor %}

@@ -1,0 +1,18 @@
+<!-- Un item analyseur dans la sidebar gauche -->
+<!-- / One analyzer item in the left sidebar -->
+<div class="flex items-center justify-between py-1 px-2 rounded hover:bg-slate-200 cursor-pointer group"
+     hx-get="/api/analyseurs/{{ analyseur.id }}/"
+     hx-target="#zone-lecture"
+     hx-swap="innerHTML"
+     hx-push-url="true">
+    <span class="text-sm text-slate-700 truncate">{{ analyseur.name }}</span>
+    <button type="button" class="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 text-xs"
+            hx-delete="/api/analyseurs/{{ analyseur.id }}/"
+            hx-confirm="Supprimer cet analyseur ?"
+            hx-target="#analyseurs-list"
+            hx-swap="innerHTML"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            onclick="event.stopPropagation()">
+        &times;
+    </button>
+</div>

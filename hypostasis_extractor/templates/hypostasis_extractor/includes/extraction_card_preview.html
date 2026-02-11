@@ -1,0 +1,20 @@
+{% load extractor_tags %}
+<!-- Carte de resultat d'extraction — template partage entre front et editeur -->
+<!-- Contexte : card_extraction (ExampleExtraction) OU card_attr_0..3 + card_text -->
+<!-- / Extraction result card — shared template between front and editor -->
+
+<div class="extraction-card bg-white rounded-lg border border-slate-200 p-3 hover:shadow-sm transition-shadow">
+    {% if card_extraction %}
+        {% extraction_attr card_extraction 0 as val_0 %}
+        {% extraction_attr card_extraction 1 as val_1 %}
+        {% extraction_attr card_extraction 2 as val_2 %}
+        {% extraction_attr card_extraction 3 as val_3 %}
+        {% with attr_0=val_0 attr_1=val_1 text=card_extraction.extraction_text attr_2=val_2 attr_3=val_3 %}
+            {% include "hypostasis_extractor/includes/_card_body.html" %}
+        {% endwith %}
+    {% else %}
+        {% with attr_0=card_attr_0 attr_1=card_attr_1 text=card_text attr_2=card_attr_2 attr_3=card_attr_3 %}
+            {% include "hypostasis_extractor/includes/_card_body.html" %}
+        {% endwith %}
+    {% endif %}
+</div>

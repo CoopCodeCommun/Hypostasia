@@ -1,0 +1,44 @@
+<!-- Ligne attribut cle-valeur / Key-value attribute row -->
+<!-- show_reorder : affiche les boutons ▲ ▼ (seulement sur la 1ere extraction) -->
+<!-- keys_locked > 1 : cle en lecture seule (extractions non-reference) -->
+<div class="flex items-center gap-1 attr-row" data-attr-id="{{ attribute.id }}" data-attr-order="{{ attribute.order }}">
+    {% if show_reorder %}
+    <!-- Boutons reorder ▲ ▼ — seulement sur l'extraction de reference -->
+    <div class="flex flex-col gap-0">
+        <button type="button" class="text-[10px] text-slate-300 hover:text-slate-600 leading-none"
+                hx-patch="/api/analyseurs/{{ analyseur.id }}/reorder_attribute/"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-vals='{"attribute_id": {{ attribute.id }}, "direction": "up"}'
+                hx-target="#extractions-{{ attribute.extraction.example_id }}"
+                hx-swap="innerHTML">&#9650;</button>
+        <button type="button" class="text-[10px] text-slate-300 hover:text-slate-600 leading-none"
+                hx-patch="/api/analyseurs/{{ analyseur.id }}/reorder_attribute/"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-vals='{"attribute_id": {{ attribute.id }}, "direction": "down"}'
+                hx-target="#extractions-{{ attribute.extraction.example_id }}"
+                hx-swap="innerHTML">&#9660;</button>
+    </div>
+    {% endif %}
+    <!-- Numero d'ordre discret -->
+    <span class="text-[9px] text-slate-300 w-3 text-center shrink-0">{{ attribute.order }}</span>
+    {% if keys_locked and keys_locked > 1 %}
+    <input type="text" value="{{ attribute.key }}" readonly
+           class="attr-key w-24 text-xs font-mono border border-slate-100 rounded px-1 py-0.5 bg-slate-100 text-slate-500 cursor-not-allowed"
+           title="Cle partagee — modifiable sur l'extraction de reference">
+    {% else %}
+    <input type="text" value="{{ attribute.key }}"
+           class="attr-key w-24 text-xs font-mono border border-slate-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+           placeholder="ex: theme, mots cles, resume">
+    {% endif %}
+    <span class="text-xs text-slate-400">:</span>
+    <input type="text" value="{{ attribute.value }}"
+           class="attr-val flex-1 text-xs border border-slate-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+           placeholder="ex: energie, ecologie / frontieres, deep learning">
+    {% if not keys_locked or keys_locked <= 1 %}
+    <button type="button" class="text-red-400 hover:text-red-600 text-xs"
+            hx-delete="/api/analyseurs/{{ analyseur.id }}/delete_attribute/?attribute_id={{ attribute.id }}"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-target="closest .attr-row"
+            hx-swap="delete">&times;</button>
+    {% endif %}
+</div>

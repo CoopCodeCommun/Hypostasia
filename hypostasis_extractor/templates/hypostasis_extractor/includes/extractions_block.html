@@ -1,0 +1,9 @@
+<!-- Bloc complet de toutes les extractions d'un exemple (re-rendu par reorder) -->
+<!-- / Full block of all extractions for an example (re-rendered by reorder) -->
+{% with extraction_count=example.extractions.count %}
+{% for extraction in example.extractions.all %}
+    {% include "hypostasis_extractor/includes/extraction_row.html" with extraction=extraction analyseur=analyseur extraction_count=extraction_count is_first=forloop.first %}
+{% empty %}
+    <p class="text-xs text-slate-400 italic">Aucune extraction.</p>
+{% endfor %}
+{% endwith %}

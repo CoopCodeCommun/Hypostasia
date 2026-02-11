@@ -1,0 +1,38 @@
+{% load extractor_tags %}
+<!-- Corps interne de la carte d'extraction — recoit attr_0, attr_1, text, attr_2, attr_3 -->
+<!-- / Inner body of extraction card — receives attr_0, attr_1, text, attr_2, attr_3 -->
+
+<!-- Attribut 0 → tags indigo (splitter par virgule) -->
+{% if attr_0 %}
+<div class="flex flex-wrap gap-1 mb-2">
+    {% for tag in attr_0|split_comma %}
+    <span class="inline-block text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">{{ tag }}</span>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Attribut 1 → titre -->
+{% if attr_1 %}
+<p class="text-sm font-medium text-slate-800 mb-1.5 leading-snug">{{ attr_1 }}</p>
+{% endif %}
+
+<!-- Texte source extrait (tronque) -->
+{% if text %}
+<p class="text-xs text-slate-500 leading-relaxed line-clamp-3 mb-2">{{ text }}</p>
+{% endif %}
+
+<!-- Pied : attribut 2 (tag amber) -->
+{% if attr_2 %}
+<div class="mb-1">
+    <span class="text-[10px] font-semibold uppercase tracking-wide text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">{{ attr_2 }}</span>
+</div>
+{% endif %}
+
+<!-- Hashtags (attribut 3) sur une ligne separee pour eviter le debordement -->
+{% if attr_3 %}
+<div class="flex flex-wrap gap-1 mt-1">
+    {% for hashtag in attr_3|split_comma %}
+    <span class="text-[10px] text-slate-400">#{{ hashtag }}</span>
+    {% endfor %}
+</div>
+{% endif %}

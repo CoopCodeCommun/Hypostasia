@@ -37,6 +37,18 @@ class PageClasserSerializer(serializers.Serializer):
     )
 
 
+class RunAnalyseSerializer(serializers.Serializer):
+    """
+    Validation pour lancer une analyse via un analyseur syntaxique.
+    Validation for launching an analysis via a syntactic analyzer.
+    """
+    analyseur_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de l'analyseur est obligatoire / Analyzer ID is required",
+        },
+    )
+
+
 class ExtractionSerializer(serializers.Serializer):
     """
     Validation du texte selectionne pour une extraction (manuelle ou IA).

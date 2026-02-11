@@ -1,0 +1,44 @@
+{# Partial : contenu complet du panneau d'extractions #}
+{# Inclut le selecteur d'analyseur, le bouton Analyser, et la zone de resultats #}
+{# Charge via HTMX dans #panneau-extractions quand une page est ouverte #}
+
+{% if analyseurs_actifs %}
+{# --- Selecteur d'analyseur + bouton Analyser --- #}
+<div class="mb-4">
+    <select name="analyseur_id" id="analyseur-select-{{ page.pk }}"
+            class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 mb-2">
+        {% for analyseur in analyseurs_actifs %}
+        <option value="{{ analyseur.pk }}">{{ analyseur.name }}</option>
+        {% endfor %}
+    </select>
+
+    {# Le bouton envoie analyseur_id via hx-include du select ci-dessus #}
+    {# Le spinner s'affiche pendant que le serveur traite (htmx-indicator) #}
+    <button hx-post="/lire/{{ page.pk }}/analyser/"
+            hx-include="#analyseur-select-{{ page.pk }}"
+            hx-target="#zone-resultats-extraction"
+            hx-swap="innerHTML"
+            hx-indicator="#analyse-spinner-{{ page.pk }}"
+            class="w-full px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors flex items-center justify-center gap-2">
+        <span>Analyser</span>
+        <svg id="analyse-spinner-{{ page.pk }}"
+             class="htmx-indicator animate-spin h-4 w-4 text-white"
+             xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </button>
+</div>
+{% endif %}
+
+{# --- Zone de resultats : si des extractions existent deja, on les affiche --- #}
+{# --- Sinon un message invite a lancer une analyse --- #}
+<div id="zone-resultats-extraction">
+    {% if entities %}
+        {% include "front/includes/extraction_results.html" %}
+    {% else %}
+        <p class="text-xs text-slate-400 text-center py-4">
+            Choisissez un analyseur et cliquez sur Analyser.
+        </p>
+    {% endif %}
+</div>

@@ -1,0 +1,293 @@
+<!-- Editeur d'analyseur syntaxique — zone-lecture -->
+<!-- / Syntactic analyzer editor — reading zone -->
+<style>
+    /* Textareas auto-expansibles : pas de scrollbar, pas de resize manuel */
+    #analyseur-editor textarea {
+        overflow: hidden;
+        min-height: 2.5rem;
+        resize: none;
+    }
+</style>
+
+<div class="max-w-4xl mx-auto" id="analyseur-editor" data-analyseur-id="{{ analyseur.id }}">
+
+    <!-- En-tete avec nom et description editables -->
+    <div class="mb-6 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+        <div class="flex items-center gap-2 mb-3">
+            <input type="text" value="{{ analyseur.name }}" id="analyseur-name-{{ analyseur.id }}"
+                   class="text-xl font-bold flex-1 border-0 border-b-2 border-transparent focus:border-blue-400 focus:outline-none bg-transparent pb-1"
+                   placeholder="Nom de l'analyseur">
+            <button type="button" class="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 shrink-0"
+                    hx-patch="/api/analyseurs/{{ analyseur.id }}/"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='js:{"name": document.getElementById("analyseur-name-{{ analyseur.id }}").value}'
+                    hx-target="#save-feedback-name-{{ analyseur.id }}"
+                    hx-swap="innerHTML">Sauver</button>
+            <span id="save-feedback-name-{{ analyseur.id }}" class="text-xs text-green-600"></span>
+        </div>
+        <div class="flex items-start gap-2">
+            <textarea rows="1" id="analyseur-desc-{{ analyseur.id }}"
+                      class="flex-1 text-sm text-slate-500 border-0 border-b border-transparent focus:border-blue-400 focus:outline-none bg-transparent"
+                      placeholder="Description (optionnelle)">{{ analyseur.description }}</textarea>
+            <button type="button" class="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 shrink-0"
+                    hx-patch="/api/analyseurs/{{ analyseur.id }}/"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='js:{"description": document.getElementById("analyseur-desc-{{ analyseur.id }}").value}'
+                    hx-target="#save-feedback-desc-{{ analyseur.id }}"
+                    hx-swap="innerHTML">Sauver</button>
+            <span id="save-feedback-desc-{{ analyseur.id }}" class="text-xs text-green-600"></span>
+        </div>
+    </div>
+
+    <!-- Onglets Prompt / Exemples -->
+    <div class="border-b border-slate-200 mb-4">
+        <nav class="flex gap-4" id="analyseur-tabs">
+            <button type="button" class="tab-btn py-2 px-1 text-sm font-medium border-b-2
+                    {% if active_tab == 'exemples' %}border-transparent text-slate-500{% else %}border-blue-500 text-blue-600{% endif %}"
+                    data-tab="tab-prompt" data-push-url="/api/analyseurs/{{ analyseur.id }}/">
+                Prompt
+            </button>
+            <button type="button" class="tab-btn py-2 px-1 text-sm font-medium border-b-2
+                    {% if active_tab == 'exemples' %}border-blue-500 text-blue-600{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}"
+                    data-tab="tab-exemples" data-push-url="/api/analyseurs/{{ analyseur.id }}/?tab=exemples">
+                Exemples
+            </button>
+        </nav>
+    </div>
+
+    <!-- Contenu onglet Prompt -->
+    <div id="tab-prompt" class="tab-content {% if active_tab == 'exemples' %}hidden{% endif %}">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Morceaux de prompt</h3>
+            <button type="button" class="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                    hx-post="/api/analyseurs/{{ analyseur.id }}/add_piece/"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"name": "Nouveau morceau", "role": "instruction", "content": "", "order": 0}'
+                    hx-target="#pieces-list"
+                    hx-swap="beforeend">
+                + Ajouter
+            </button>
+        </div>
+        <div id="pieces-list" class="space-y-3">
+            {% for piece in analyseur.pieces.all %}
+                {% include "hypostasis_extractor/includes/piece_row.html" with piece=piece analyseur=analyseur %}
+            {% empty %}
+                <p class="text-xs text-slate-400 italic" id="pieces-empty">Aucun morceau de prompt.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Contenu onglet Exemples -->
+    <div id="tab-exemples" class="tab-content {% if active_tab != 'exemples' %}hidden{% endif %}">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Exemples few-shot</h3>
+            <button type="button" class="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600"
+                    hx-post="/api/analyseurs/{{ analyseur.id }}/add_example/"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-vals='{"name": "Nouvel exemple", "example_text": "", "order": 0}'
+                    hx-target="#examples-list"
+                    hx-swap="beforeend">
+                + Ajouter
+            </button>
+        </div>
+        <div id="examples-list" class="space-y-4">
+            {% for example in analyseur.examples.all %}
+                {% include "hypostasis_extractor/includes/example_card.html" with example=example analyseur=analyseur collapse_examples=collapse_examples %}
+            {% empty %}
+                <p class="text-xs text-slate-400 italic" id="examples-empty">Aucun exemple.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var editor = document.getElementById('analyseur-editor');
+    if (!editor) return;
+
+    // === Collapsible toggle (reduire/ouvrir des sections) ===
+    // Tous les elements avec class="collapsible-toggle" et data-target="id-cible"
+    // basculent la visibilite de l'element cible au clic.
+    editor.addEventListener('click', function(evt) {
+        var toggle = evt.target.closest('.collapsible-toggle');
+        if (!toggle) return;
+        var targetId = toggle.dataset.target;
+        if (!targetId) return;
+        var target = document.getElementById(targetId);
+        if (!target) return;
+
+        var estReduit = target.classList.toggle('hidden');
+
+        // Met a jour le chevron (triangle) s'il existe
+        var chevron = toggle.querySelector('.collapsible-chevron');
+        if (!chevron && toggle.classList.contains('collapsible-toggle')) {
+            // Le toggle lui-meme peut etre le bouton avec le chevron en innerHTML
+            if (toggle.innerHTML.trim() === '\u25BC' || toggle.innerHTML.trim() === '\u25B6') {
+                toggle.innerHTML = estReduit ? '\u25B6' : '\u25BC';
+                return;
+            }
+        }
+        if (chevron) {
+            chevron.innerHTML = estReduit ? '&#9654;' : '&#9660;';
+        }
+
+        // Auto-resize les textareas du bloc qui vient de s'ouvrir
+        // Auto-resize textareas in the block that just opened
+        if (!estReduit) {
+            target.querySelectorAll('textarea').forEach(function(ta) {
+                ta.style.height = 'auto';
+                ta.style.height = ta.scrollHeight + 'px';
+            });
+        }
+    });
+
+    // === Auto-resize textareas ===
+    function autoResizeOne(textarea) {
+        var zoneLecture = document.getElementById('zone-lecture');
+        var scrollTop = zoneLecture ? zoneLecture.scrollTop : 0;
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+        if (zoneLecture) zoneLecture.scrollTop = scrollTop;
+    }
+
+    function autoResizeAll() {
+        var zoneLecture = document.getElementById('zone-lecture');
+        var scrollTop = zoneLecture ? zoneLecture.scrollTop : 0;
+        editor.querySelectorAll('textarea').forEach(function(ta) {
+            ta.style.height = 'auto';
+            ta.style.height = ta.scrollHeight + 'px';
+        });
+        if (zoneLecture) zoneLecture.scrollTop = scrollTop;
+    }
+
+    // Event delegation : input sur textarea → auto-resize
+    editor.addEventListener('input', function(evt) {
+        if (evt.target.tagName === 'TEXTAREA') autoResizeOne(evt.target);
+    });
+
+    // === Onglets via event delegation ===
+    var tabNav = document.getElementById('analyseur-tabs');
+
+    function activateTab(tabId, pushUrl) {
+        if (!tabNav) return;
+        tabNav.querySelectorAll('.tab-btn').forEach(function(b) {
+            b.classList.remove('border-blue-500', 'text-blue-600');
+            b.classList.add('border-transparent', 'text-slate-500');
+        });
+        var activeBtn = tabNav.querySelector('[data-tab="' + tabId + '"]');
+        if (activeBtn) {
+            activeBtn.classList.remove('border-transparent', 'text-slate-500');
+            activeBtn.classList.add('border-blue-500', 'text-blue-600');
+        }
+        editor.querySelectorAll('.tab-content').forEach(function(c) { c.classList.add('hidden'); });
+        var target = document.getElementById(tabId);
+        if (target) target.classList.remove('hidden');
+        if (pushUrl && history.pushState) history.pushState(null, '', pushUrl);
+        autoResizeAll();
+    }
+
+    if (tabNav) {
+        tabNav.addEventListener('click', function(evt) {
+            var btn = evt.target.closest('.tab-btn');
+            if (!btn) return;
+            activateTab(btn.dataset.tab, btn.dataset.pushUrl);
+        });
+    }
+
+    // Scroll vers un element si scroll_to est present (passe par le contexte Django)
+    var scrollTarget = '{{ scroll_to|default:"" }}';
+    if (scrollTarget) {
+        setTimeout(function() {
+            var el = document.getElementById(scrollTarget);
+            if (el) el.scrollIntoView({behavior: 'smooth', block: 'center'});
+        }, 150);
+    }
+
+    // === Sauvegarde de toutes les extractions d'un exemple ===
+    // Event delegation sur boutons data-action="save-all-extractions"
+    editor.addEventListener('click', function(evt) {
+        var btn = evt.target.closest('[data-action="save-all-extractions"]');
+        if (!btn) return;
+
+        var exampleId = btn.dataset.exampleId;
+        var analyseurId = editor.dataset.analyseurId;
+
+        // Collecte toutes les extractions du conteneur #extractions-{exampleId}
+        var extractionsContainer = document.getElementById('extractions-' + exampleId);
+        if (!extractionsContainer) return;
+
+        var extractions = [];
+        extractionsContainer.querySelectorAll('.extraction-block').forEach(function(block) {
+            var extractionId = block.dataset.extractionId;
+            var extractionData = {
+                extraction_id: parseInt(extractionId),
+                extraction_class: block.querySelector('.ext-class').value,
+                extraction_text: block.querySelector('.ext-text').value,
+                attributes: []
+            };
+
+            var attrsContainer = document.getElementById('attributes-' + extractionId);
+            if (attrsContainer) {
+                attrsContainer.querySelectorAll('.attr-row').forEach(function(row) {
+                    extractionData.attributes.push({
+                        id: parseInt(row.dataset.attrId) || null,
+                        key: row.querySelector('.attr-key').value,
+                        value: row.querySelector('.attr-val').value,
+                        order: parseInt(row.dataset.attrOrder) || 0
+                    });
+                });
+            }
+
+            extractions.push(extractionData);
+        });
+
+        var payload = {
+            example_id: parseInt(exampleId),
+            extractions: extractions
+        };
+
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        var headers = {'Content-Type': 'application/json'};
+        if (csrfToken) headers['X-CSRFToken'] = csrfToken.value;
+
+        var feedbackEl = document.getElementById('save-feedback-example-extractions-' + exampleId);
+        feedbackEl.textContent = 'Enregistrement...';
+
+        fetch('/api/analyseurs/' + analyseurId + '/save_all_extractions/', {
+            method: 'PATCH',
+            headers: headers,
+            body: JSON.stringify(payload)
+        })
+        .then(function(resp) {
+            if (resp.ok) {
+                // Recharge l'editeur pour refleter les cles propagees
+                var reloadUrl = '/api/analyseurs/' + analyseurId + '/?tab=exemples&scroll_to=extractions-' + exampleId;
+                if (window.htmx) {
+                    htmx.ajax('GET', reloadUrl, {target: '#zone-lecture', swap: 'innerHTML'});
+                } else {
+                    window.location.href = reloadUrl;
+                }
+            } else {
+                feedbackEl.textContent = 'Erreur';
+                feedbackEl.classList.remove('text-green-600');
+                feedbackEl.classList.add('text-red-600');
+                setTimeout(function() { feedbackEl.textContent = ''; }, 2000);
+            }
+        });
+    });
+
+    // === Feedback auto-clear apres swap HTMX ===
+    editor.addEventListener('htmx:afterSwap', function(evt) {
+        var target = evt.detail.target;
+        if (target && target.id && target.id.startsWith('save-feedback-')) {
+            setTimeout(function() { target.textContent = ''; }, 2000);
+        }
+    });
+
+    // === Resize apres chaque swap HTMX (ajout d'elements) ===
+    editor.addEventListener('htmx:afterSettle', autoResizeAll);
+
+    // Resize initial
+    autoResizeAll();
+})();
+</script>

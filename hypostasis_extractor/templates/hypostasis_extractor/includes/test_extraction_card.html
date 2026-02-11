@@ -1,0 +1,77 @@
+{% load extractor_tags %}
+<!-- Carte d'extraction obtenue avec boutons d'annotation -->
+<!-- resolved.extraction = TestRunExtraction -->
+<!-- resolved.is_promotion_alive = True si la FK promoted_to_extraction existe encore -->
+<!-- / Obtained extraction card with annotation buttons -->
+<div class="relative" id="test-ext-{{ resolved.extraction.id }}">
+    <div class="extraction-card bg-white rounded-lg border p-3 hover:shadow-sm transition-shadow
+        {% if resolved.extraction.human_annotation == 'validated' and resolved.is_promotion_alive %}border-green-300 bg-green-50
+        {% elif resolved.extraction.human_annotation == 'validated' and not resolved.is_promotion_alive %}border-amber-300 bg-amber-50
+        {% elif resolved.extraction.human_annotation == 'rejected' %}border-red-300 bg-red-50 opacity-60
+        {% else %}border-slate-200{% endif %}">
+
+        {% with attr_0=resolved.attr_0 attr_1=resolved.attr_1 text=resolved.extraction.extraction_text attr_2=resolved.attr_2 attr_3=resolved.attr_3 %}
+            {% include "hypostasis_extractor/includes/_card_body.html" %}
+        {% endwith %}
+
+        <!-- Barre d'annotation / Annotation bar -->
+        <div class="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100">
+            {% if resolved.extraction.human_annotation == 'validated' and resolved.is_promotion_alive %}
+                <!-- Validee et l'extraction attendue existe toujours -->
+                <!-- / Validated and the expected extraction still exists -->
+                <span class="text-[10px] font-semibold text-green-600 inline-flex items-center gap-0.5">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    Ajoutee aux attendus
+                </span>
+
+            {% elif resolved.extraction.human_annotation == 'validated' and not resolved.is_promotion_alive %}
+                <!-- Validee mais l'extraction attendue a ete supprimee — on re-propose les boutons -->
+                <!-- / Validated but expected extraction was deleted — re-offer buttons -->
+                <span class="text-[10px] font-medium text-amber-600 inline-flex items-center gap-0.5 mr-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Attendu supprime
+                </span>
+                <button type="button" class="text-[10px] inline-flex items-center gap-0.5 text-green-600 hover:text-green-700 hover:bg-green-50 px-1.5 py-0.5 rounded border border-green-200 hover:border-green-300 transition-colors"
+                        hx-post="/api/analyseurs/{{ analyseur.id }}/validate_test_extraction/"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-vals='{"extraction_id": {{ resolved.extraction.id }}}'
+                        hx-target="#test-ext-{{ resolved.extraction.id }}"
+                        hx-swap="outerHTML">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    Re-valider
+                </button>
+
+            {% elif resolved.extraction.human_annotation == 'rejected' %}
+                <span class="text-[10px] font-semibold text-red-500 inline-flex items-center gap-0.5">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                    Inappropriee
+                </span>
+                {% if resolved.extraction.annotation_note %}
+                <span class="text-[10px] text-red-400 italic ml-1">{{ resolved.extraction.annotation_note }}</span>
+                {% endif %}
+
+            {% else %}
+                <!-- Pas encore annotee — boutons valider / rejeter -->
+                <!-- / Not yet annotated — validate / reject buttons -->
+                <button type="button" class="text-[10px] inline-flex items-center gap-0.5 text-green-600 hover:text-green-700 hover:bg-green-50 px-1.5 py-0.5 rounded border border-green-200 hover:border-green-300 transition-colors"
+                        hx-post="/api/analyseurs/{{ analyseur.id }}/validate_test_extraction/"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-vals='{"extraction_id": {{ resolved.extraction.id }}}'
+                        hx-target="#test-ext-{{ resolved.extraction.id }}"
+                        hx-swap="outerHTML">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    Valider
+                </button>
+                <button type="button" class="text-[10px] inline-flex items-center gap-0.5 text-red-400 hover:text-red-600 hover:bg-red-50 px-1.5 py-0.5 rounded border border-red-200 hover:border-red-300 transition-colors"
+                        hx-post="/api/analyseurs/{{ analyseur.id }}/reject_test_extraction/"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-vals='{"extraction_id": {{ resolved.extraction.id }}}'
+                        hx-target="#test-ext-{{ resolved.extraction.id }}"
+                        hx-swap="outerHTML">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    Inappropriee
+                </button>
+            {% endif %}
+        </div>
+    </div>
+</div>

@@ -1,13 +1,19 @@
 import json
+import logging
 
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404
-from rest_framework import viewsets
+from django.template.loader import render_to_string
+from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import Dossier, Page
-from .serializers import DossierCreateSerializer, ExtractionSerializer, PageClasserSerializer
+from core.models import AIModel, Dossier, Page
+from hypostasis_extractor.models import AnalyseurSyntaxique, ExtractionJob
+from hypostasis_extractor.services import run_analyseur_on_page
+from .serializers import DossierCreateSerializer, ExtractionSerializer, PageClasserSerializer, RunAnalyseSerializer
+
+logger = logging.getLogger(__name__)
 
 
 def _render_arbre(request):
@@ -47,29 +53,132 @@ class ArbreViewSet(viewsets.ViewSet):
 
 class LectureViewSet(viewsets.ViewSet):
     """
-    Partial HTMX — zone de lecture d'une page.
-    HTMX partial — reading zone for a page.
+    Partial HTMX — zone de lecture d'une page + action analyse.
+    HTMX partial — reading zone for a page + analyze action.
     """
+    permission_classes = [permissions.AllowAny]
 
     def retrieve(self, request, pk=None):
         """
         Lecture d'une page.
-        - Requete HTMX → partial lecture_principale
+        - Requete HTMX → partial lecture_principale + panneau analyse en OOB
         - Acces direct (F5) → page complete base.html avec lecture pre-chargee
-        / Page reading.
-        - HTMX request → lecture_principale partial
-        - Direct access (F5) → full base.html with pre-loaded reading
+
+        Quand c'est une requete HTMX, on renvoie deux morceaux de HTML :
+        1. Le contenu de lecture (qui remplace #zone-lecture)
+        2. Le panneau d'analyse en OOB swap (qui remplace #panneau-extractions)
+        Ca permet de mettre a jour le panneau droit sans JS.
         """
         page = get_object_or_404(Page, pk=pk)
+        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
+
+        # Recupere le dernier job d'extraction termine pour cette page
+        # pour afficher les resultats existants dans le panneau droit
+        dernier_job_termine = ExtractionJob.objects.filter(
+            page=page,
+            status="completed",
+        ).order_by("-created_at").first()
+
+        # Si un job existe, on recupere ses entites pour les afficher
+        entites_existantes = None
+        if dernier_job_termine:
+            entites_existantes = dernier_job_termine.entities.all()
+
+        # Contexte commun pour les deux partials
+        contexte_partage = {
+            "page": page,
+            "analyseurs_actifs": analyseurs_actifs,
+            "job": dernier_job_termine,
+            "entities": entites_existantes,
+        }
 
         if request.headers.get('HX-Request'):
-            return render(request, "front/includes/lecture_principale.html", {
-                "page": page,
-            })
+            # 1. Partial principal : contenu de lecture
+            html_lecture = render_to_string(
+                "front/includes/lecture_principale.html",
+                contexte_partage,
+                request=request,
+            )
 
+            # 2. Partial OOB : panneau d'analyse injecte dans le sidebar droit
+            # Le hx-swap-oob="innerHTML:#panneau-extractions" dit a HTMX :
+            # "remplace le contenu de #panneau-extractions avec ce HTML"
+            html_panneau_analyse = render_to_string(
+                "front/includes/panneau_analyse.html",
+                contexte_partage,
+                request=request,
+            )
+            html_panneau_oob = (
+                '<div id="panneau-extractions" hx-swap-oob="innerHTML:#panneau-extractions">'
+                + html_panneau_analyse
+                + '</div>'
+            )
+
+            # On concatene les deux morceaux : HTMX traite l'OOB automatiquement
+            html_complet = html_lecture + html_panneau_oob
+            return HttpResponse(html_complet)
+
+        # Acces direct (F5) → page complete avec le panneau pre-charge
+        # On passe aussi le job et les entites pour que le panneau affiche les resultats existants
         return render(request, "front/base.html", {
             "page_preloaded": page,
+            "analyseurs_actifs": analyseurs_actifs,
+            "job": dernier_job_termine,
+            "entities": entites_existantes,
         })
+
+    @action(detail=True, methods=["POST"])
+    def analyser(self, request, pk=None):
+        """
+        Lance une extraction LangExtract sur une page via un analyseur syntaxique.
+
+        Donnees recues : form-data HTMX avec analyseur_id (via hx-include du select).
+        Retourne le partial HTML des cartes d'extraction.
+        Envoie HX-Trigger: ouvrirPanneauDroit pour ouvrir le panneau droit cote client.
+        """
+        # Validation via serializer DRF sur request.data (form-data envoye par HTMX)
+        serializer = RunAnalyseSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("analyser: validation echouee — %s", serializer.errors)
+            return render(request, "front/includes/extraction_results.html", {
+                "error_message": str(serializer.errors),
+            })
+
+        page = get_object_or_404(Page, pk=pk)
+        analyseur = get_object_or_404(
+            AnalyseurSyntaxique, pk=serializer.validated_data["analyseur_id"]
+        )
+
+        # On prend le premier modele IA actif
+        ai_model_actif = AIModel.objects.filter(is_active=True).first()
+        if not ai_model_actif:
+            return render(request, "front/includes/extraction_results.html", {
+                "error_message": "Aucun modele IA actif configure. Activez un modele dans l'admin.",
+            })
+
+        # Lancement de l'extraction LangExtract
+        try:
+            job_extraction = run_analyseur_on_page(analyseur, page, ai_model_actif)
+        except Exception as exception_extraction:
+            logger.error(
+                "analyser: erreur extraction page=%s analyseur=%s — %s",
+                pk, analyseur.name, exception_extraction, exc_info=True,
+            )
+            return render(request, "front/includes/extraction_results.html", {
+                "error_message": str(exception_extraction),
+            })
+
+        # Rendu du partial avec les cartes d'extraction
+        toutes_les_entites_du_job = job_extraction.entities.all()
+        reponse = render(request, "front/includes/extraction_results.html", {
+            "job": job_extraction,
+            "entities": toutes_les_entites_du_job,
+        })
+
+        # Declenche l'ouverture du panneau droit cote client via event HTMX
+        reponse["HX-Trigger"] = "ouvrirPanneauDroit"
+
+        return reponse
 
 
 class DossierViewSet(viewsets.ViewSet):
@@ -115,14 +224,8 @@ class PageViewSet(viewsets.ViewSet):
         """
         page = get_object_or_404(Page, pk=pk)
 
-        # On accepte JSON ou form data
-        # Accept JSON or form data
-        if request.content_type == "application/json":
-            body_data = json.loads(request.body)
-        else:
-            body_data = request.POST
-
-        serializer = PageClasserSerializer(data=body_data)
+        # request.data gere automatiquement JSON et form-data via DRF
+        serializer = PageClasserSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         dossier_id = serializer.validated_data["dossier_id"]

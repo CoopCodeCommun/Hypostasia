@@ -16,7 +16,7 @@
         #sidebar-left { transition: margin-left 0.2s ease, opacity 0.2s ease; }
         #sidebar-left.collapsed { margin-left: -16rem; opacity: 0; pointer-events: none; }
         #sidebar-right { transition: margin-right 0.2s ease, opacity 0.2s ease; }
-        #sidebar-right.collapsed { margin-right: -20rem; opacity: 0; pointer-events: none; }
+        #sidebar-right.collapsed { margin-right: -32rem; opacity: 0; pointer-events: none; }
 
         /* Style de lecture */
         .lecture-article {
@@ -51,7 +51,7 @@
         }
     </style>
 </head>
-<body class="h-full bg-white text-slate-800">
+<body class="h-full bg-white text-slate-800" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
     <!-- Navbar -->
     <nav class="h-12 border-b border-slate-200 flex items-center justify-between px-4 bg-white shrink-0">
@@ -117,11 +117,17 @@
             {% endif %}
         </main>
 
-        <!-- Sidebar droite — Extractions (cachée par défaut) -->
-        <aside id="sidebar-right" class="w-80 shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-4 collapsed">
+        <!-- Sidebar droite — Panneau d'extractions (cache par defaut) -->
+        <!-- Le contenu entier est charge via HTMX par le controleur -->
+        <aside id="sidebar-right" class="w-[32rem] shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-4 collapsed">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Extractions</h2>
             <div id="panneau-extractions">
-                {% include "front/includes/panneau_extractions.html" %}
+                {% if page_preloaded and analyseurs_actifs %}
+                    {# Cas F5 sur une page : on pre-charge le selecteur et le bouton #}
+                    {% include "front/includes/panneau_analyse.html" with page=page_preloaded analyseurs_actifs=analyseurs_actifs %}
+                {% else %}
+                    <p class="text-xs text-slate-400">Selectionnez une page puis lancez une analyse.</p>
+                {% endif %}
             </div>
         </aside>
     </div>
@@ -238,6 +244,67 @@
                     htmx.ajax('GET', url, {target: '#zone-lecture', swap: 'innerHTML'});
                 }
             }
+        });
+    </script>
+
+    <script>
+        // --- Panneau droit : ouverture / fermeture ---
+        // Quand le controleur renvoie HX-Trigger: ouvrirPanneauDroit,
+        // on ouvre le panneau droit et on collapse le gauche.
+        function ouvrirPanneauDroit() {
+            var panneauDroit = document.getElementById('sidebar-right');
+            var panneauGauche = document.getElementById('sidebar-left');
+            var boutonToggle = document.getElementById('toggle-right-panel');
+            if (panneauDroit.classList.contains('collapsed')) {
+                panneauDroit.classList.remove('collapsed');
+                panneauGauche.classList.add('collapsed');
+                boutonToggle.textContent = '◀ Extractions';
+            }
+        }
+
+        // Ecoute l'evenement HTMX custom "ouvrirPanneauDroit"
+        // envoye par le controleur via HX-Trigger dans la reponse
+        document.body.addEventListener('ouvrirPanneauDroit', function() {
+            ouvrirPanneauDroit();
+        });
+
+        // --- Mode analyseur : cacher le panneau droit ---
+        // Quand on charge l'editeur d'analyseur dans la zone de lecture,
+        // on cache le bouton "Extractions" et on ferme le panneau droit.
+        function gererVisibilitePanneauDroit() {
+            var zoneLecture = document.getElementById('zone-lecture');
+            var boutonToggle = document.getElementById('toggle-right-panel');
+            var panneauDroit = document.getElementById('sidebar-right');
+            var contientEditeurAnalyseur = zoneLecture.querySelector('#analyseur-editor');
+
+            if (contientEditeurAnalyseur) {
+                // Mode editeur d'analyseur → on cache tout le panneau droit
+                panneauDroit.classList.add('collapsed');
+                boutonToggle.style.display = 'none';
+            } else {
+                // Mode lecture normale → on re-affiche le bouton
+                boutonToggle.style.display = '';
+            }
+        }
+
+        // Au chargement initial de la page
+        gererVisibilitePanneauDroit();
+
+        // Apres chaque swap HTMX dans la zone de lecture
+        document.getElementById('zone-lecture').addEventListener('htmx:afterSwap', function() {
+            gererVisibilitePanneauDroit();
+        });
+
+        // --- SweetAlert sur erreur HTMX ---
+        // Si une requete HTMX echoue (ex: 500, 403), on affiche l'erreur
+        document.body.addEventListener('htmx:responseError', function(evenement) {
+            var codeHttp = evenement.detail.xhr.status;
+            var texteErreur = evenement.detail.xhr.responseText || 'Erreur inconnue';
+            Swal.fire({
+                icon: 'error',
+                title: 'Erreur ' + codeHttp,
+                text: texteErreur.substring(0, 300),
+            });
         });
     </script>
 

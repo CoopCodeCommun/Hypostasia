@@ -1,0 +1,7 @@
+<!-- Liste des analyseurs syntaxiques pour la sidebar gauche -->
+<!-- / Syntactic analyzers list for left sidebar -->
+{% for analyseur in analyseurs %}
+    {% include "hypostasis_extractor/includes/analyseur_item.html" with analyseur=analyseur %}
+{% empty %}
+    <p class="text-xs text-slate-400 italic">Aucun analyseur.</p>
+{% endfor %}

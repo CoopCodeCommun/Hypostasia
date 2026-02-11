@@ -1,0 +1,38 @@
+{# Partial: Resultats d'extraction dans le panneau droit (light theme) #}
+{# Reutilise _card_body.html pour le meme rendu que l'editeur d'analyseur #}
+{# / Partial: Extraction results in right panel (light theme) #}
+{# / Reuses _card_body.html for same rendering as analyzer editor #}
+{% load extractor_tags %}
+<div class="space-y-3" id="extraction-results">
+    {% if error_message %}
+    <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+        <p class="text-sm text-red-600 font-medium">Erreur lors de l'extraction</p>
+        <p class="text-xs text-red-500 mt-1">{{ error_message|truncatechars:200 }}</p>
+    </div>
+
+    {% elif entities %}
+        {% for entity in entities %}
+        {# Extraire les 4 premiers attributs du JSONField par ordre de cle #}
+        {# / Extract first 4 attributes from JSONField by key order #}
+        {% entity_json_attrs entity as entity_attrs %}
+        <div class="extraction-card bg-white rounded-lg border border-slate-200 p-3 hover:shadow-sm transition-shadow cursor-pointer"
+             onclick="scrollToExtraction({{ entity.start_char }}, {{ entity.end_char }}, '{{ entity.extraction_text|escapejs|truncatechars:80 }}')">
+
+            {% with attr_0=entity_attrs.0 attr_1=entity_attrs.1 text=entity.extraction_text attr_2=entity_attrs.2 attr_3=entity_attrs.3 %}
+                {% include "hypostasis_extractor/includes/_card_body.html" %}
+            {% endwith %}
+
+            <div class="text-[10px] text-slate-400 mt-1">pos {{ entity.start_char }}-{{ entity.end_char }}</div>
+        </div>
+        {% empty %}
+        <div class="text-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-xl">
+            <p class="text-sm">Aucune entite extraite.</p>
+        </div>
+        {% endfor %}
+
+    {% else %}
+    <div class="text-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-xl">
+        <p class="text-sm">Lancez une analyse pour voir les resultats ici.</p>
+    </div>
+    {% endif %}
+</div>
