@@ -1,299 +1,210 @@
-# 📘 SPÉCIFICATION ULTRA-STRICTE POUR IA CODER — Plateforme d’Analyse Argumentative Augmentée
+# Guidelines — Hypostasia V3
 
-> Document normatif destiné à des **agents IA de génération de code**. Toute implémentation doit respecter **strictement** les contrats, schémas, endpoints, flux et contraintes ci-dessous.
-
----
-
-## 0. Principes directeurs (OBLIGATOIRES)
-
-- Architecture **monolithique Django + DRF + Templates**.
-- Aucune SPA. **HTMX uniquement** pour l’interactivité.
-- CSS **Bootstrap 5 uniquement**.
-- Extension navigateur en **WebExtension Manifest V3**.
-- LLM **stateless** : tout l’historique est stocké côté Django.
-- Tout échange réseau utilise **JSON strict typé**.
-- Toute entité IA est **traçable, versionnée et modifiable par l’utilisateur**.
-- Utilisation de **`uv`** pour la gestion de l'environnement et le lancement de commandes (ex: `uv run python manage.py runserver`).
+> Regles d'architecture, conventions de code et patterns obligatoires.
+> Ce document complete `CLAUDE.md` (specification stricte) avec les details pratiques d'implementation.
 
 ---
 
-## 1. Schéma des entités (CONTRATS DE DONNÉES)
+## 1. Architecture des apps Django
 
-### 1.1 Page (IMMUTABLE SUR L’HTML ORIGINAL)
+Le projet est organise en 3 apps avec des responsabilites distinctes :
 
-```json
-{
-  "id": int,
-  "url": string,
-  "html_original": string,
-  "html_readability": string,
-  "text_readability": string,
-  "content_hash": string,
-  "created_at": datetime,
-  "updated_at": datetime
-}
+| App | Responsabilite | Type de reponse |
+|-----|----------------|-----------------|
+| `core` | API JSON pour l'extension navigateur + modeles de donnees | JSON uniquement |
+| `front` | Interface de lecture 3 colonnes (HTMX partials) | HTML uniquement |
+| `hypostasis_extractor` | Pipeline LangExtract, analyseurs, tests LLM | HTML + JSON |
+
+### Separation des responsabilites
+
+- **`core/views.py`** ne sert que l'extension navigateur : `list()` et `create()` sur `PageViewSet`, plus `test_sidebar_view`. Aucun template de page complete.
+- **`front/views.py`** gere toute l'interface utilisateur web : arbre de dossiers, lecture, extractions manuelles/IA, configuration IA.
+- Les deux apps partagent les **modeles** de `core` mais jamais les **vues**.
+
+### Routing
+
 ```
+/                          → front:bibliotheque (page racine 3 colonnes)
+/arbre/                    → front:ArbreViewSet (arbre de dossiers HTMX)
+/lire/{id}/                → front:LectureViewSet (zone de lecture)
+/lire/{id}/analyser/       → front:LectureViewSet.analyser (extraction IA)
+/dossiers/                 → front:DossierViewSet (CRUD dossiers)
+/pages/{id}/classer/       → front:PageViewSet.classer (classer une page)
+/extractions/manuelle/     → front:ExtractionViewSet.manuelle
+/extractions/creer_manuelle/ → front:ExtractionViewSet.creer_manuelle
+/extractions/editer/       → front:ExtractionViewSet.editer
+/extractions/modifier/     → front:ExtractionViewSet.modifier
+/config-ia/status/         → front:ConfigurationIAViewSet.status
+/config-ia/toggle/         → front:ConfigurationIAViewSet.toggle
 
-Règles :
-- `html_original` ne doit **jamais être modifié** après création.
-- `content_hash` = SHA256 du `text_readability`.
-
----
-
-### 1.2 TextBlock (ANCRAGE DOM)
-
-```json
-{
-  "id": int,
-  "page": int,
-  "selector": string,
-  "start_offset": int,
-  "end_offset": int,
-  "text": string
-}
-```
-
-Règles :
-- `selector` doit être un **querySelector valide**.
-- Offsets relatifs à `textContent`.
-
----
-
-### 1.3 Argument
-
-```json
-{
-  "id": int,
-  "page": int,
-  "text_block": int|null,
-  "selector": string,
-  "start_offset": int,
-  "end_offset": int,
-  "text_original": string,
-  "summary": string,
-  "stance": "pour" | "contre" | "neutre",
-  "user_edited": boolean,
-  "created_at": datetime
-}
-```
-
-Règles :
-- `summary` est toujours généré par IA.
-- `user_edited = true` dès qu’un champ est modifié par un humain.
-
----
-
-### 1.4 Commentaire Argument
-
-```json
-{
-  "id": int,
-  "argument": int,
-  "author": int,
-  "comment": string,
-  "created_at": datetime
-}
+/api/pages/                → core:PageViewSet (extension navigateur)
+/api/test-sidebar/         → core:test_sidebar_view (extension sidebar)
+/api/analyseurs/           → hypostasis_extractor (analyseurs)
 ```
 
 ---
 
-### 1.5 Prompt
+## 2. Skill obligatoire : django-htmx-readable
 
-```json
-{
-  "id": int,
-  "name": string,
-  "description": string,
-  "created_at": datetime
-}
+Tout le code Django de ce projet suit le skill **`django-htmx-readable`** (voir `.claude/skills/django-htmx-readable/SKILL.md`). Ce skill impose des conventions strictes de lisibilite.
+
+### 2.1 ViewSets explicites
+
+```python
+# OUI — ViewSet explicite avec requetes ecrites a la main
+# YES — Explicit ViewSet with hand-written queries
+class MonViewSet(viewsets.ViewSet):
+    def list(self, request):
+        tous_les_objets = MonModele.objects.all()
+        return render(request, "mon_template.html", {"objets": tous_les_objets})
+
+# NON — ModelViewSet avec magie cachee
+# NO — ModelViewSet with hidden magic
+class MonViewSet(viewsets.ModelViewSet):  # INTERDIT / FORBIDDEN
+    queryset = MonModele.objects.all()
 ```
 
----
+**Regle** : `viewsets.ViewSet` toujours, `ModelViewSet` jamais. Chaque requete ORM est ecrite explicitement dans la methode.
 
-### 1.6 TextInput (BRIQUE DE PROMPT)
+### 2.2 Validation par DRF Serializers
 
-```json
-{
-  "id": int,
-  "prompt": int,
-  "name": string,
-  "role": "context" | "instruction" | "format",
-  "content": string,
-  "order": int
-}
+```python
+# OUI — Serializer DRF pour la validation
+# YES — DRF Serializer for validation
+serializer = MonSerializer(data=request.data)
+serializer.is_valid(raise_exception=True)
+donnees = serializer.validated_data
+
+# NON — Django Forms
+# NO — Django Forms
+form = MonForm(request.POST)  # INTERDIT / FORBIDDEN
 ```
 
----
+**Regle** : Jamais de `forms.Form` ou `forms.ModelForm`. Toute validation passe par `serializers.Serializer`.
 
-## 2. API REST STRICTE (DRF)
+### 2.3 Noms de variables verbeux
 
-### 2.1 Création d’une Page (POST UNIQUE)
+```python
+# OUI — on comprend ce que c'est en lisant le nom
+# YES — you understand what it is just by reading the name
+toutes_les_entites_du_job = job_extraction.entities.all()
+html_panneau_analyse = render_to_string("front/includes/panneau_analyse.html", contexte)
+dernier_job_termine = ExtractionJob.objects.filter(page=page, status="completed").first()
 
-`POST /api/pages/`
-
-```json
-{
-  "url": "https://site.fr/article",
-  "html_original": "<html>...</html>",
-  "html_readability": "<article>...</article>",
-  "text_readability": "texte brut",
-  "blocks": [
-    {
-      "selector": "article p:nth-of-type(3)",
-      "start_offset": 0,
-      "end_offset": 120,
-      "text": "bloc de texte"
-    }
-  ]
-}
+# NON — abbreviations cryptiques
+# NO — cryptic abbreviations
+ents = job.entities.all()
+html = render_to_string("t.html", ctx)
+j = ExtractionJob.objects.filter(page=p, status="completed").first()
 ```
 
-Règles serveur :
-- Si `url` existe déjà → **HTTP 409**.
-- Création atomique Page + TextBlocks.
+### 2.4 Commentaires bilingues FR/EN
 
----
+Chaque bloc de logique a un commentaire en francais suivi de sa traduction anglaise :
 
-### 2.2 Lancement analyse IA
-
-`POST /api/pages/{id}/analyze/`
-
-```json
-{
-  "prompt_id": 3
-}
+```python
+# Recupere le dernier job d'extraction termine pour cette page
+# / Retrieve the last completed extraction job for this page
+dernier_job_termine = ExtractionJob.objects.filter(
+    page=page, status="completed",
+).order_by("-created_at").first()
 ```
 
-Retour attendu :
+### 2.5 HTMX pour toute interactivite
 
-```json
-{
-  "status": "processing"
-}
-```
-
----
-
-### 2.3 Résultat d’analyse
-
-`GET /api/pages/{id}/arguments/`
-
-```json
-[
-  {
-    "id": 12,
-    "selector": "article p:nth-of-type(3)",
-    "start_offset": 12,
-    "end_offset": 54,
-    "summary": "Argument en faveur du nucléaire",
-    "stance": "pour"
-  }
-]
-```
-
----
-
-## 3. Pipeline IA OBLIGATOIRE
-
-1. Concaténation ordonnée des `TextInput` du Prompt.
-2. Insertion du `text_readability` comme variable.
-3. Appel LLM.
-4. Parsing **JSON strict**.
-5. Création des `Argument`.
-
-Aucun Argument ne peut exister sans Passage IA.
-
----
-
-## 4. Front Django (HTMX STRICT)
-
-### 4.1 Pages obligatoires
-
-- `/pages/`
-- `/pages/{id}/`
-- `/pages/{id}/readability/` (View interne)
-- `/pages/{id}/arguments/`
-- `/prompts/`
-
-### 4.2 Architecture API DRF
-- Utilisation de `ViewSets` pour standardiser les CRUD.
-- Actions explicites : `@action(detail=True, methods=['post']) def analyze(...)` au lieu de créer des vues séparées.
-- Sérialiseurs dédiés (ex: `ArgumentUpdateSerializer` pour limiter les champs modifiables par l'utilisateur).
-
-Toute interaction POST/PUT/PATCH doit être faite via **HTMX**.
-
----
-
-## 5. Extension Navigateur (OBLIGATOIRE)
-
-### 5.1 Capacités minimales
-
-- Bouton d’activation
-- Extraction DOM
-- Extraction Readability
-- Envoi POST `/api/pages/`
-- Polling `/api/pages/{id}/arguments/`
-
----
-
-### 5.2 Menu latéral injecté
-
-Structure DOM minimale :
+- Les ViewSets du front renvoient des **partials HTML**, jamais du JSON pour l'UI.
+- Les actions custom (`@action`) renvoient du HTML via `render()` ou `HttpResponse()`.
+- Les mises a jour multi-zones utilisent le pattern **OOB swap** (`hx-swap-oob`).
+- Le CSRF token est transmis via `hx-headers` sur le `<body>`.
 
 ```html
-<div id="argument-sidebar">
-  <ul>
-    <li data-selector="..." data-start="12">
-      Résumé argument
-    </li>
-  </ul>
+<!-- Pattern OOB : mise a jour de 2 zones en une seule reponse HTMX -->
+<!-- OOB pattern: update 2 zones in a single HTMX response -->
+<div id="zone-principale">contenu principal</div>
+<div id="zone-secondaire" hx-swap-oob="innerHTML:#zone-secondaire">
+    contenu secondaire mis a jour en meme temps
 </div>
 ```
 
-Fonctions obligatoires :
-- Scroll fluide
-- Surlignage du texte
-- Tooltip résumé
+### 2.6 Anti-patterns a eviter
+
+| Interdit | Faire a la place |
+|----------|------------------|
+| `ModelViewSet` + `get_queryset()` | `ViewSet` + requetes explicites |
+| Django Forms | DRF Serializers |
+| Reponses JSON pour l'UI | Partials HTML + HTMX |
+| Comprehensions complexes | Boucles for avec noms verbeux |
+| Decorateurs cachant la logique metier | Appels de methodes explicites |
+| `@action` qui renvoie du JSON pour l'UI | `@action` qui renvoie du HTML |
 
 ---
 
-## 6. Modification utilisateur d’un Argument
+## 3. Routing DRF avec DefaultRouter
 
-`PATCH /api/arguments/{id}/`
+Toutes les URLs sont generees par `DefaultRouter`. Jamais de `path()` manuel pour des vues DRF.
 
-```json
-{
-  "summary": "Nouvelle formulation utilisateur",
-  "stance": "contre"
-}
+```python
+from rest_framework.routers import DefaultRouter
+
+router = DefaultRouter()
+router.register(r"lire", LectureViewSet, basename="lire")
+router.register(r"dossiers", DossierViewSet, basename="dossier")
+
+urlpatterns = [
+    path("", include(router.urls)),
+]
 ```
 
-Règle serveur :
-- Met automatiquement `user_edited = true`.
+Les actions custom (`@action`) generent automatiquement leurs URLs :
+- `@action(detail=True)` → `/lire/{pk}/analyser/`
+- `@action(detail=False)` → `/extractions/manuelle/`
 
 ---
 
-## 7. Invalidation automatique
+## 4. Templates front
 
-Si :
-`hash(nouveau text_readability) != content_hash`
+```
+front/templates/front/
+├── bibliotheque.html              # Page complete 3 colonnes (shell)
+├── base.html                      # Page complete pour acces direct (F5)
+└── includes/                      # Partials HTMX
+    ├── arbre_dossiers.html        # Arbre de navigation
+    ├── lecture_principale.html     # Zone de lecture
+    ├── panneau_analyse.html       # Panneau droit (extractions)
+    ├── extraction_results.html    # Cartes d'extraction
+    ├── extraction_manuelle_form.html  # Formulaire extraction manuelle
+    └── config_ia_toggle.html      # Toggle IA on/off
+```
 
-Alors :
-- Tous les arguments passent au statut `invalidated = true` (champ à ajouter).
-
----
-
-## 8. Règles de Conformité IA
-
-Un agent IA de développement :
-- N’a pas le droit d’introduire de SPA.
-- N’a pas le droit d’enlever HTMX.
-- N’a pas le droit de supprimer les offsets DOM.
-- N’a pas le droit d’approximer les schémas JSON.
-
-Toute violation = implémentation NON CONFORME.
+Les templates de `core/` ne servent que l'extension navigateur (sidebar).
 
 ---
 
-✅ FIN DE LA SPÉCIFICATION ULTRA-STRICTE
+## 5. Commandes
 
+Toutes les commandes Django se lancent via `uv run` :
+
+```bash
+uv run python manage.py runserver
+uv run python manage.py migrate
+uv run python manage.py check
+```
+
+---
+
+## 6. CSS
+
+Le front utilise **Tailwind CSS** (via CDN). La specification `CLAUDE.md` mentionne Bootstrap 5, mais le code actuel utilise Tailwind partout. Continuer avec Tailwind pour la coherence.
+
+---
+
+## 7. Resume des regles
+
+1. `viewsets.ViewSet` explicite, jamais `ModelViewSet`
+2. `DefaultRouter` DRF, jamais `path()` manuel pour DRF
+3. `serializers.Serializer` DRF, jamais Django Forms
+4. HTMX pour toute interactivite, jamais de SPA
+5. Noms de variables verbeux et explicites
+6. Commentaires bilingues FR/EN
+7. `core` = API JSON extension, `front` = interface HTML HTMX
+8. `uv run` pour toutes les commandes
