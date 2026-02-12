@@ -3,17 +3,80 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const recolterBtn = document.getElementById('recolterBtn');
     const statusDiv = document.getElementById('status');
+    const serverUrlInput = document.getElementById('serverUrl');
 
-    // Recuperation de la configuration serveur / Get server config
+    // Charger l'adresse serveur depuis le storage / Load server URL from storage
     const config = await new Promise(resolve => {
         chrome.storage.sync.get({
             serverUrl: 'http://127.0.0.1:8000/'
         }, resolve);
     });
+    serverUrlInput.value = config.serverUrl;
 
-    const BASE_URL = config.serverUrl.endsWith('/') ? config.serverUrl : config.serverUrl + '/';
+    /**
+     * Nettoie et normalise l'URL serveur :
+     * - Ajoute http:// si pas de protocole
+     * - Retire tout ce qui depasse le host+port (path, query, fragment)
+     * - Garantit un / final
+     * / Sanitize and normalize server URL:
+     * - Add http:// if no protocol
+     * - Strip everything beyond host+port
+     * - Ensure trailing /
+     */
+    function sanitiserUrlServeur(url_brute) {
+        var url_nettoyee = url_brute.trim();
 
-    console.debug('[Hypostasia] BASE_URL:', BASE_URL);
+        if (!url_nettoyee) {
+            return 'http://127.0.0.1:8000/';
+        }
+
+        // Ajouter le protocole si absent / Add protocol if missing
+        if (!url_nettoyee.match(/^https?:\/\//)) {
+            url_nettoyee = 'http://' + url_nettoyee;
+        }
+
+        // Parser pour ne garder que origin (protocole + host + port)
+        // / Parse to keep only origin (protocol + host + port)
+        try {
+            var url_parsee = new URL(url_nettoyee);
+            url_nettoyee = url_parsee.origin + '/';
+        } catch (e) {
+            // URL invalide, on garde telle quelle avec un / final
+            // / Invalid URL, keep as-is with trailing /
+            if (!url_nettoyee.endsWith('/')) {
+                url_nettoyee = url_nettoyee + '/';
+            }
+        }
+
+        return url_nettoyee;
+    }
+
+    var saveUrlBtn = document.getElementById('saveUrlBtn');
+
+    // Sanitiser et sauvegarder au clic sur OK
+    // / Sanitize and save on OK click
+    function sauvegarderUrlServeur() {
+        var url_propre = sanitiserUrlServeur(serverUrlInput.value);
+        serverUrlInput.value = url_propre;
+        chrome.storage.sync.set({ serverUrl: url_propre });
+        console.debug('[Hypostasia] serverUrl sauvegarde:', url_propre);
+
+        // Feedback visuel bref / Brief visual feedback
+        saveUrlBtn.textContent = '✓';
+        setTimeout(function() { saveUrlBtn.textContent = 'OK'; }, 800);
+    }
+
+    saveUrlBtn.addEventListener('click', sauvegarderUrlServeur);
+
+    /**
+     * Recupere l'URL serveur courante depuis l'input
+     * / Get current server URL from input
+     */
+    function getBaseUrl() {
+        return sanitiserUrlServeur(serverUrlInput.value);
+    }
+
+    console.debug('[Hypostasia] BASE_URL:', getBaseUrl());
 
     // --- Bouton principal : recolter le contenu de la page ---
     // / Main button: harvest page content
@@ -51,7 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 1. Verifier si la page existe deja / Check if page already exists
         statusDiv.textContent = "Verification...";
         const verification_response = await fetch(
-            `${BASE_URL}api/pages/?url=${encodeURIComponent(url_courante)}`,
+            `${getBaseUrl()}api/pages/?url=${encodeURIComponent(url_courante)}`,
             { headers: { 'Accept': 'application/json' } }
         );
 
@@ -124,7 +187,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         statusDiv.textContent = "Envoi...";
         console.debug('[Hypostasia] POST /api/pages/');
 
-        const creation_response = await fetch(`${BASE_URL}api/pages/`, {
+        const creation_response = await fetch(`${getBaseUrl()}api/pages/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(donnees_extraites)

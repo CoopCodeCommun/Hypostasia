@@ -4,11 +4,28 @@
     <meta charset="UTF-8">
     <style>
         body {
-            width: 220px;
+            width: 240px;
             padding: 10px;
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background: #fafafa;
+        }
+
+        #serverUrl {
+            width: 100%;
+            padding: 5px 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #334155;
+            box-sizing: border-box;
+            margin-bottom: 8px;
+        }
+
+        #serverUrl:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
         }
 
         #recolterBtn {
@@ -46,6 +63,10 @@
     </style>
 </head>
 <body>
+    <div style="display: flex; gap: 4px; margin-bottom: 8px;">
+        <input type="text" id="serverUrl" placeholder="http://127.0.0.1:8000/" style="margin-bottom: 0; flex: 1;">
+        <button id="saveUrlBtn" style="width: auto; padding: 5px 8px; font-size: 11px; border-radius: 4px; background-color: #64748b;">OK</button>
+    </div>
     <button id="recolterBtn">Recolter</button>
     <div id="status"></div>
     <script src="popup.js"></script>
