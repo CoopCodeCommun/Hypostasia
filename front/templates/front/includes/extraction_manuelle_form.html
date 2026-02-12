@@ -1,0 +1,128 @@
+{# Partial : formulaire d'extraction manuelle (creation ET edition) #}
+{# Si `entity` est present → mode edition, sinon → mode creation #}
+{# Les attributs sont dynamiques : liste_attributs = [(cle, valeur), ...] #}
+{# / Partial: manual extraction form (create AND edit) #}
+{# / Attributes are dynamic: liste_attributs = [(key, value), ...] #}
+
+<div class="bg-{% if entity %}blue{% else %}white{% endif %}-50 rounded-lg border border-{% if entity %}blue{% else %}slate{% endif %}-200 p-4">
+    <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-semibold text-slate-700">
+            {% if entity %}Modifier l'extraction{% else %}Extraction manuelle{% endif %}
+        </h3>
+        {# Bouton aide (?) — ouvre le modal d'apercu / Help button — opens preview modal #}
+        <button type="button" onclick="document.getElementById('modal-aide-extraction').classList.remove('hidden')"
+                class="w-5 h-5 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-500 text-xs font-bold flex items-center justify-center transition-colors"
+                title="Aide : apercu de la carte">?</button>
+    </div>
+
+    {# Texte source (readonly, tronque) / Source text (readonly, truncated) #}
+    <p class="text-xs text-slate-500 bg-{% if entity %}white{% else %}slate-50{% endif %} rounded p-2 mb-3 line-clamp-3 italic">
+        {% if entity %}{{ entity.extraction_text|truncatechars:200 }}{% else %}{{ text|truncatechars:200 }}{% endif %}
+    </p>
+
+    <form hx-post="{% if entity %}/extractions/modifier/{% else %}/extractions/creer_manuelle/{% endif %}"
+          hx-target="#panneau-extractions"
+          hx-swap="innerHTML">
+        {% csrf_token %}
+
+        {% if entity %}
+            {# Mode edition : entity_id + page_id #}
+            <input type="hidden" name="entity_id" value="{{ entity.pk }}">
+            <input type="hidden" name="page_id" value="{{ page_id }}">
+        {% else %}
+            {# Mode creation : page_id + text + positions #}
+            <input type="hidden" name="page_id" value="{{ page_id }}">
+            <input type="hidden" name="text" value="{{ text }}">
+            <input type="hidden" name="start_char" value="{{ start_char }}">
+            <input type="hidden" name="end_char" value="{{ end_char }}">
+        {% endif %}
+
+        {# Boucle sur les attributs dynamiques (cle, valeur) #}
+        {# Chaque paire genere un hidden attr_key_N et un input attr_val_N #}
+        {# / Loop over dynamic attributes (key, value) #}
+        {% for nom_cle, valeur_attribut in liste_attributs %}
+            <input type="hidden" name="attr_key_{{ forloop.counter0 }}" value="{{ nom_cle }}">
+            <label class="block text-xs font-medium text-slate-600 mb-1">{{ nom_cle|capfirst }}</label>
+            <input type="text" name="attr_val_{{ forloop.counter0 }}" value="{{ valeur_attribut }}"
+                   placeholder="…"
+                   class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-400">
+        {% endfor %}
+
+        <div class="flex gap-2 mt-1">
+            <button type="submit"
+                    class="flex-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors">
+                {% if entity %}Enregistrer{% else %}Creer l'extraction{% endif %}
+            </button>
+            {# Bouton Annuler — recharge le panneau d'analyse complet / Cancel — reload full panel #}
+            <button type="button"
+                    hx-post="/extractions/panneau/"
+                    hx-target="#panneau-extractions"
+                    hx-swap="innerHTML"
+                    hx-vals='{"page_id": "{{ page_id }}"}'
+                    class="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded transition-colors">
+                Annuler
+            </button>
+        </div>
+    </form>
+</div>
+
+{# --- Modal d'aide : apercu de la carte d'extraction --- #}
+{# / Help modal: extraction card preview #}
+<div id="modal-aide-extraction" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+     onclick="if(event.target===this) this.classList.add('hidden')">
+    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-5" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-semibold text-slate-700">Apercu d'une carte</h3>
+            <button onclick="document.getElementById('modal-aide-extraction').classList.add('hidden')"
+                    class="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+        </div>
+
+        {# Carte d'exemple / Example card #}
+        <div class="bg-white rounded-lg border border-slate-200 p-3 mb-4">
+            {# attr_0 → pastilles indigo #}
+            <div class="flex flex-wrap gap-1 mb-2">
+                <span class="inline-block text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">philosophie</span>
+                <span class="inline-block text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">ethique</span>
+            </div>
+            {# attr_1 → titre gras #}
+            <p class="text-sm font-medium text-slate-800 mb-1.5 leading-snug">L'auteur defend une approche pragmatiste</p>
+            {# Texte source #}
+            <p class="text-xs text-slate-500 leading-relaxed line-clamp-3 mb-2">Le texte exact selectionne dans l'article apparait ici, tronque si necessaire...</p>
+            {# attr_2 → badge amber #}
+            <div class="mb-1">
+                <span class="text-[10px] font-semibold uppercase tracking-wide text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Important</span>
+            </div>
+            {# attr_3 → hashtags gris #}
+            <div class="flex flex-wrap gap-1 mt-1">
+                <span class="text-[10px] text-slate-400">#epistemologie</span>
+                <span class="text-[10px] text-slate-400">#methode</span>
+            </div>
+        </div>
+
+        {# Legende — correspond aux 4 positions d'attribut dans _card_body.html #}
+        {# / Legend — maps to the 4 attribute positions in _card_body.html #}
+        <div class="space-y-1.5 text-xs text-slate-500">
+            <div class="flex items-center gap-2">
+                <span class="inline-block text-[10px] font-medium uppercase px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">tag</span>
+                <span>→ attribut 1 (pastilles indigo, virgules)</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-slate-800">Titre</span>
+                <span>→ attribut 2 (texte gras)</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-semibold uppercase text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">badge</span>
+                <span>→ attribut 3 (pastille amber)</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] text-slate-400">#mot</span>
+                <span>→ attribut 4 (hashtags, virgules)</span>
+            </div>
+        </div>
+
+        <button onclick="document.getElementById('modal-aide-extraction').classList.add('hidden')"
+                class="w-full mt-4 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-colors">
+            Compris
+        </button>
+    </div>
+</div>

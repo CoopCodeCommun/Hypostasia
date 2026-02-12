@@ -1,0 +1,60 @@
+{# Partial : bouton toggle IA + selection modele #}
+{# Partial: AI toggle button + model selection #}
+{# Charge via HTMX dans #config-ia-zone #}
+
+{% if configuration.ai_active %}
+    {# IA active — bouton vert avec nom du modele / AI active — green button with model name #}
+    <button hx-post="/config-ia/toggle/"
+            hx-target="#config-ia-zone"
+            hx-swap="innerHTML"
+            class="w-full px-3 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded transition-colors flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+        </svg>
+        <span>IA active{% if configuration.ai_model %} — {{ configuration.ai_model.get_display_name }}{% endif %}</span>
+    </button>
+
+{% elif modeles_actifs.count == 0 %}
+    {# Aucun modele actif — bouton grise desactive / No active model — disabled grey button #}
+    <button disabled
+            class="w-full px-3 py-2 text-sm font-medium text-slate-400 bg-slate-200 rounded cursor-not-allowed flex items-center justify-center gap-2"
+            title="Aucun modele IA configure dans l'admin">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+        </svg>
+        <span>Aucun modele IA</span>
+    </button>
+
+{% elif modeles_actifs.count == 1 %}
+    {# Un seul modele — bouton gris simple / Single model — simple grey button #}
+    <button hx-post="/config-ia/toggle/"
+            hx-target="#config-ia-zone"
+            hx-swap="innerHTML"
+            class="w-full px-3 py-2 text-sm font-medium text-slate-600 bg-slate-200 hover:bg-slate-300 rounded transition-colors flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+        </svg>
+        <span>Activer l'IA</span>
+    </button>
+
+{% else %}
+    {# Plusieurs modeles — dropdown select + bouton / Multiple models — dropdown select + button #}
+    <div class="space-y-2">
+        <select name="model_id" id="config-ia-model-select"
+                class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400">
+            {% for modele in modeles_actifs %}
+            <option value="{{ modele.pk }}">{{ modele.get_display_name }}</option>
+            {% endfor %}
+        </select>
+        <button hx-post="/config-ia/select-model/"
+                hx-include="#config-ia-model-select"
+                hx-target="#config-ia-zone"
+                hx-swap="innerHTML"
+                class="w-full px-3 py-2 text-sm font-medium text-slate-600 bg-slate-200 hover:bg-slate-300 rounded transition-colors flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+            </svg>
+            <span>Activer l'IA</span>
+        </button>
+    </div>
+{% endif %}
