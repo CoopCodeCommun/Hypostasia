@@ -99,3 +99,28 @@ class ExtractionManuelleSerializer(serializers.Serializer):
     end_char = serializers.IntegerField()
     # Les attributs (attr_key_N / attr_val_N) sont lus dynamiquement dans la view
     # / Attributes (attr_key_N / attr_val_N) are read dynamically in the view
+
+
+class CommentaireExtractionSerializer(serializers.Serializer):
+    """
+    Validation pour la creation d'un commentaire sur une extraction.
+    Validation for creating a comment on an extraction.
+    """
+    entity_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de l'entite est obligatoire / Entity ID is required",
+        },
+    )
+    prenom = serializers.CharField(
+        max_length=100,
+        error_messages={
+            "required": "Le prenom est obligatoire / First name is required",
+            "blank": "Le prenom ne peut pas etre vide / First name cannot be blank",
+        },
+    )
+    commentaire = serializers.CharField(
+        error_messages={
+            "required": "Le commentaire est obligatoire / Comment is required",
+            "blank": "Le commentaire ne peut pas etre vide / Comment cannot be blank",
+        },
+    )

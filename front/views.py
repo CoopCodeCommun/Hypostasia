@@ -9,10 +9,10 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from core.models import AIModel, Configuration, Dossier, Page
-from hypostasis_extractor.models import AnalyseurSyntaxique, ExtractedEntity, ExtractionJob
+from hypostasis_extractor.models import AnalyseurSyntaxique, CommentaireExtraction, ExtractedEntity, ExtractionJob
 from hypostasis_extractor.services import run_analyseur_on_page
 from .serializers import (
-    DossierCreateSerializer, ExtractionManuelleSerializer,
+    CommentaireExtractionSerializer, DossierCreateSerializer, ExtractionManuelleSerializer,
     ExtractionSerializer, PageClasserSerializer, RunAnalyseSerializer, SelectModelSerializer,
 )
 from .utils import annoter_html_avec_ancres
@@ -628,6 +628,79 @@ class ExtractionViewSet(viewsets.ViewSet):
         html_complet = self._render_panneau_complet_avec_oob(request, page)
         reponse = HttpResponse(html_complet)
         reponse["HX-Trigger"] = "ouvrirPanneauDroit"
+        return reponse
+
+    @action(detail=False, methods=["GET"], url_path="fil_discussion")
+    def fil_discussion(self, request):
+        """
+        Affiche le fil de discussion (commentaires) pour une extraction.
+        Displays the discussion thread (comments) for an extraction.
+        """
+        entity_id = request.query_params.get("entity_id")
+        if not entity_id:
+            return HttpResponse("entity_id requis.", status=400)
+
+        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
+        tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
+
+        html_fil = render_to_string(
+            "front/includes/fil_discussion.html",
+            {
+                "entity": entite,
+                "commentaires": tous_les_commentaires,
+            },
+            request=request,
+        )
+
+        reponse = HttpResponse(html_fil)
+        # Declenche l'elargissement du panneau via event HTMX
+        # / Trigger panel widening via HTMX event
+        reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
+            "activerModeDebat": True,
+        })
+        return reponse
+
+    @action(detail=False, methods=["POST"], url_path="ajouter_commentaire")
+    def ajouter_commentaire(self, request):
+        """
+        Cree un commentaire sur une extraction et re-rend le fil de discussion.
+        Creates a comment on an extraction and re-renders the discussion thread.
+        """
+        serializer = CommentaireExtractionSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("ajouter_commentaire: validation echouee — %s", serializer.errors)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        donnees = serializer.validated_data
+        entite = get_object_or_404(ExtractedEntity, pk=donnees["entity_id"])
+
+        # Creer le commentaire / Create the comment
+        CommentaireExtraction.objects.create(
+            entity=entite,
+            prenom=donnees["prenom"],
+            commentaire=donnees["commentaire"],
+        )
+
+        # Re-rendre le fil complet / Re-render full thread
+        tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
+        html_fil = render_to_string(
+            "front/includes/fil_discussion.html",
+            {
+                "entity": entite,
+                "commentaires": tous_les_commentaires,
+            },
+            request=request,
+        )
+
+        reponse = HttpResponse(html_fil)
+        reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
+            "activerModeDebat": True,
+        })
         return reponse
 
     @action(detail=False, methods=["POST"])

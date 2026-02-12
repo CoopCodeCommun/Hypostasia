@@ -314,6 +314,35 @@ class ExtractionAttribute(models.Model):
         return f"{self.key}: {self.value[:50]}"
 
 
+class CommentaireExtraction(models.Model):
+    """
+    Commentaire sur une extraction — mode debat sans authentification.
+    Un utilisateur identifie par son prenom peut commenter une entite extraite.
+    / Comment on an extraction — debate mode without authentication.
+    A user identified by first name can comment on an extracted entity.
+    """
+    entity = models.ForeignKey(
+        ExtractedEntity,
+        on_delete=models.CASCADE,
+        related_name='commentaires',
+        help_text="Entite commentee / Commented entity",
+    )
+    prenom = models.CharField(
+        max_length=100,
+        help_text="Prenom de l'auteur du commentaire / Author first name",
+    )
+    commentaire = models.TextField(
+        help_text="Texte du commentaire / Comment text",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.prenom}: {self.commentaire[:50]}"
+
+
 # =============================================================================
 # Test & Benchmark LLM — Resultats de test sur les exemples
 # / LLM Test & Benchmark — Test results on examples

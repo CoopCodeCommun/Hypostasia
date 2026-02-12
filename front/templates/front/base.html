@@ -15,8 +15,9 @@
         .tree-arrow.open { transform: rotate(90deg); }
         #sidebar-left { transition: margin-left 0.2s ease, opacity 0.2s ease; }
         #sidebar-left.collapsed { margin-left: -16rem; opacity: 0; pointer-events: none; }
-        #sidebar-right { transition: margin-right 0.2s ease, opacity 0.2s ease; }
+        #sidebar-right { transition: margin-right 0.2s ease, opacity 0.2s ease, width 0.3s ease; }
         #sidebar-right.collapsed { margin-right: -32rem; opacity: 0; pointer-events: none; }
+        #sidebar-right.debat-mode { width: 70vw; }
 
         /* Style de lecture */
         .lecture-article {
@@ -326,6 +327,23 @@
         // envoye par le controleur via HX-Trigger dans la reponse
         document.body.addEventListener('ouvrirPanneauDroit', function() {
             ouvrirPanneauDroit();
+        });
+
+        // Mode debat : elargir le panneau droit a 70vw
+        // / Debate mode: widen right panel to 70vw
+        document.body.addEventListener('activerModeDebat', function() {
+            document.getElementById('sidebar-right').classList.add('debat-mode');
+        });
+
+        // Desactiver le mode debat quand on revient au panneau normal
+        // (detecte via htmx:afterSwap sur le panneau-extractions)
+        // / Deactivate debate mode when returning to normal panel
+        document.getElementById('sidebar-right').addEventListener('htmx:afterSwap', function() {
+            var panneauDroit = document.getElementById('sidebar-right');
+            var filDiscussion = document.getElementById('fil-discussion');
+            if (!filDiscussion) {
+                panneauDroit.classList.remove('debat-mode');
+            }
         });
 
         // --- Mode analyseur : cacher le panneau droit ---
