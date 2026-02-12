@@ -1,6 +1,7 @@
 import json
 import logging
 
+from django.db.models import Count
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.template.loader import render_to_string
@@ -31,6 +32,22 @@ def _render_arbre(request):
         "dossiers": all_dossiers,
         "pages_orphelines": pages_orphelines,
     })
+
+
+def _annoter_entites_avec_commentaires(queryset_entites):
+    """
+    Annote un queryset d'entites avec le nombre de commentaires.
+    Retourne (queryset_annote, set_ids_commentees).
+    / Annotate entity queryset with comment count.
+    Returns (annotated_queryset, set_of_commented_ids).
+    """
+    entites_annotees = queryset_entites.annotate(
+        nombre_commentaires=Count("commentaires"),
+    )
+    ids_commentees = set(
+        entites_annotees.filter(nombre_commentaires__gt=0).values_list("pk", flat=True)
+    )
+    return entites_annotees, ids_commentees
 
 
 def _get_ia_active():
@@ -175,14 +192,19 @@ class LectureViewSet(viewsets.ViewSet):
         ).order_by("-created_at").first()
 
         # Si un job existe, on recupere ses entites pour les afficher
+        # / If a job exists, retrieve its entities for display
         entites_existantes = None
         html_annote = None
+        ids_entites_commentees = set()
         if dernier_job_termine:
-            entites_existantes = dernier_job_termine.entities.all()
+            entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
+                dernier_job_termine.entities.all()
+            )
             # Annoter le HTML avec des ancres pour le scroll-to-extraction
             # / Annotate HTML with anchors for scroll-to-extraction
             html_annote = annoter_html_avec_ancres(
-                page.html_readability, page.text_readability, entites_existantes
+                page.html_readability, page.text_readability,
+                entites_existantes, ids_entites_commentees,
             )
 
         # Contexte commun pour les deux partials
@@ -279,12 +301,16 @@ class LectureViewSet(viewsets.ViewSet):
             })
 
         # Rendu du partial avec les cartes d'extraction
-        toutes_les_entites_du_job = job_extraction.entities.all()
+        # / Render partial with extraction cards
+        toutes_les_entites_du_job, ids_entites_commentees = _annoter_entites_avec_commentaires(
+            job_extraction.entities.all()
+        )
 
         # Annoter le HTML avec des ancres pour le scroll-to-extraction
         # / Annotate HTML with anchors for scroll-to-extraction
         html_annote = annoter_html_avec_ancres(
-            page.html_readability, page.text_readability, toutes_les_entites_du_job
+            page.html_readability, page.text_readability,
+            toutes_les_entites_du_job, ids_entites_commentees,
         )
 
         html_cartes = render_to_string(
@@ -398,13 +424,16 @@ class ExtractionViewSet(viewsets.ViewSet):
         tous_les_jobs_termines = ExtractionJob.objects.filter(
             page=page, status="completed",
         )
-        toutes_les_entites = ExtractedEntity.objects.filter(
-            job__in=tous_les_jobs_termines,
-        ).order_by("start_char")
+        toutes_les_entites, ids_entites_commentees = _annoter_entites_avec_commentaires(
+            ExtractedEntity.objects.filter(
+                job__in=tous_les_jobs_termines,
+            ).order_by("start_char")
+        )
 
         # Annoter le HTML / Annotate HTML
         html_annote = annoter_html_avec_ancres(
-            page.html_readability, page.text_readability, toutes_les_entites,
+            page.html_readability, page.text_readability,
+            toutes_les_entites, ids_entites_commentees,
         )
 
         # Dernier job pour le contexte du panneau / Latest job for panel context

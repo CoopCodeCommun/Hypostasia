@@ -162,7 +162,7 @@ def _rechercher_texte_dans_contenu(texte_cible, extraction_text, hint_position=N
     return None
 
 
-def annoter_html_avec_ancres(html_brut, text_readability, entites):
+def annoter_html_avec_ancres(html_brut, text_readability, entites, ids_entites_commentees=None):
     """
     Injecte des ancres <span class="extraction-ancre" data-extraction-id="N"></span>
     dans html_brut pour chaque entite.
@@ -262,9 +262,16 @@ def annoter_html_avec_ancres(html_brut, text_readability, entites):
 
     # 5. Inserer les ancres dans le HTML
     html_modifie = html_brut
+    # Set des IDs d'entites ayant des commentaires (pour colorer la pastille)
+    # / Set of entity IDs that have comments (to color the dot)
+    ids_commentees = ids_entites_commentees or set()
+
     for html_pos_insertion, entite_pk in insertions:
+        # Ajouter la classe "ancre-commentee" si l'entite a des commentaires
+        # / Add "ancre-commentee" class if entity has comments
+        classe_extra = " ancre-commentee" if entite_pk in ids_commentees else ""
         balise_ancre = (
-            f'<span class="extraction-ancre" data-extraction-id="{entite_pk}"></span>'
+            f'<span class="extraction-ancre{classe_extra}" data-extraction-id="{entite_pk}"></span>'
         )
         html_modifie = (
             html_modifie[:html_pos_insertion]

@@ -15,7 +15,7 @@
         {# Extraire les 4 premiers attributs du JSONField par ordre de cle #}
         {# / Extract first 4 attributes from JSONField by key order #}
         {% entity_json_attrs entity as entity_attrs %}
-        <div class="extraction-card bg-white rounded-lg border border-slate-200 p-3 hover:shadow-sm transition-shadow cursor-pointer relative group"
+        <div class="extraction-card bg-white rounded-lg border p-3 hover:shadow-sm transition-shadow cursor-pointer relative group {% if entity.nombre_commentaires %}border-amber-400{% else %}border-slate-200{% endif %}"
              data-extraction-id="{{ entity.pk }}">
 
             {# Boutons editer + commenter (visibles au hover) / Edit + comment buttons (visible on hover) #}
