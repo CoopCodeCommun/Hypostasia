@@ -13,11 +13,56 @@
         body { font-family: 'Inter', sans-serif; }
         .tree-arrow { transition: transform 0.15s ease; }
         .tree-arrow.open { transform: rotate(90deg); }
+        /* Desktop : sidebars en flex avec transition margin */
+        /* / Desktop: sidebars as flex items with margin transition */
         #sidebar-left { transition: margin-left 0.2s ease, opacity 0.2s ease; }
         #sidebar-left.collapsed { margin-left: -16rem; opacity: 0; pointer-events: none; }
         #sidebar-right { transition: margin-right 0.2s ease, opacity 0.2s ease, width 0.3s ease; }
         #sidebar-right.collapsed { margin-right: -32rem; opacity: 0; pointer-events: none; }
         #sidebar-right.debat-mode { width: 70vw; }
+
+        /* Mobile (<768px) : sidebars en overlay fixe plein ecran */
+        /* / Mobile (<768px): sidebars as fixed full-screen overlay */
+        @media (max-width: 767px) {
+            #sidebar-left {
+                position: fixed; top: 3rem; left: 0; bottom: 0;
+                width: 85vw; max-width: 20rem;
+                z-index: 40; margin-left: 0;
+                transform: translateX(-100%);
+                transition: transform 0.2s ease, opacity 0.2s ease;
+            }
+            #sidebar-left.collapsed {
+                margin-left: 0;
+                transform: translateX(-100%);
+                opacity: 0; pointer-events: none;
+            }
+            #sidebar-left:not(.collapsed) {
+                transform: translateX(0);
+                opacity: 1; pointer-events: auto;
+            }
+            #sidebar-right {
+                position: fixed; top: 3rem; right: 0; bottom: 0;
+                width: 100vw;
+                z-index: 40; margin-right: 0;
+                transform: translateX(100%);
+                transition: transform 0.2s ease, opacity 0.2s ease;
+            }
+            #sidebar-right.collapsed {
+                margin-right: 0;
+                transform: translateX(100%);
+                opacity: 0; pointer-events: none;
+            }
+            #sidebar-right:not(.collapsed) {
+                transform: translateX(0);
+                opacity: 1; pointer-events: auto;
+            }
+            #sidebar-right.debat-mode { width: 100vw; }
+            /* Fond assombri derriere les overlays mobile / Dark backdrop behind mobile overlays */
+            .mobile-backdrop {
+                position: fixed; inset: 0; top: 3rem;
+                background: rgba(0,0,0,0.3); z-index: 30;
+            }
+        }
 
         /* Style de lecture */
         .lecture-article {
@@ -135,7 +180,7 @@
     <div class="flex" style="height: calc(100vh - 3rem);">
 
         <!-- Sidebar gauche — Arbre -->
-        <aside id="sidebar-left" class="w-64 shrink-0 border-r border-slate-200 overflow-y-auto bg-slate-50 p-3 flex flex-col hidden md:flex">
+        <aside id="sidebar-left" class="w-64 shrink-0 border-r border-slate-200 overflow-y-auto bg-slate-50 p-3 flex flex-col">
             <!-- BIBLIOTHEQUE -->
             <div>
                 <div class="flex items-center justify-between mb-3">
@@ -190,7 +235,7 @@
 
         <!-- Sidebar droite — Panneau d'extractions (cache par defaut) -->
         <!-- Le contenu entier est charge via HTMX par le controleur -->
-        <aside id="sidebar-right" class="w-[32rem] shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-4 collapsed hidden md:block">
+        <aside id="sidebar-right" class="w-[32rem] shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-4 collapsed">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Extractions</h2>
             <div id="panneau-extractions">
                 {% if page_preloaded and analyseurs_actifs %}
@@ -206,9 +251,54 @@
     {% include "front/includes/selection_menu.html" %}
 
     <script>
+        // --- Helpers mobile : backdrop + detection ecran etroit ---
+        // / Mobile helpers: backdrop + narrow screen detection
+        function estMobile() { return window.innerWidth < 768; }
+
+        function montrerBackdropMobile() {
+            if (!estMobile()) return;
+            var existant = document.querySelector('.mobile-backdrop');
+            if (existant) return;
+            var backdrop = document.createElement('div');
+            backdrop.className = 'mobile-backdrop';
+            backdrop.addEventListener('click', function() {
+                // Fermer les deux panneaux / Close both panels
+                document.getElementById('sidebar-left').classList.add('collapsed');
+                document.getElementById('sidebar-right').classList.add('collapsed');
+                cacherBackdropMobile();
+                document.getElementById('toggle-right-panel').textContent = 'Extractions ▶';
+            });
+            document.body.appendChild(backdrop);
+        }
+
+        function cacherBackdropMobile() {
+            var backdrop = document.querySelector('.mobile-backdrop');
+            if (backdrop) backdrop.remove();
+        }
+
+        function gererBackdropMobile() {
+            if (!estMobile()) { cacherBackdropMobile(); return; }
+            var gaucheOuvert = !document.getElementById('sidebar-left').classList.contains('collapsed');
+            var droitOuvert = !document.getElementById('sidebar-right').classList.contains('collapsed');
+            if (gaucheOuvert || droitOuvert) montrerBackdropMobile();
+            else cacherBackdropMobile();
+        }
+
+        // Sur mobile, le sidebar gauche demarre ferme / On mobile, left sidebar starts closed
+        if (estMobile()) {
+            document.getElementById('sidebar-left').classList.add('collapsed');
+        }
+
         // Toggle sidebar gauche
         document.getElementById('toggle-left-panel').addEventListener('click', function() {
             document.getElementById('sidebar-left').classList.toggle('collapsed');
+            // Sur mobile, fermer le panneau droit si on ouvre le gauche
+            // / On mobile, close right panel when opening left
+            if (estMobile() && !document.getElementById('sidebar-left').classList.contains('collapsed')) {
+                document.getElementById('sidebar-right').classList.add('collapsed');
+                document.getElementById('toggle-right-panel').textContent = 'Extractions ▶';
+            }
+            gererBackdropMobile();
         });
 
         // Toggle sidebar droite (+ collapse gauche à l'ouverture)
@@ -219,6 +309,7 @@
             right.classList.toggle('collapsed');
             if (opening) left.classList.add('collapsed');
             this.textContent = right.classList.contains('collapsed') ? 'Extractions ▶' : '◀ Extractions';
+            gererBackdropMobile();
         });
 
         // Expand/collapse dossiers (client-side) — clic sur la ligne entière
@@ -330,6 +421,7 @@
                 panneauDroit.classList.remove('collapsed');
                 panneauGauche.classList.add('collapsed');
                 boutonToggle.textContent = '◀ Extractions';
+                gererBackdropMobile();
             }
         }
 
@@ -408,6 +500,15 @@
                 showConfirmButton: false,
                 timer: 2500,
             });
+        });
+
+        // --- Fermer le sidebar gauche sur mobile apres clic sur un lien ---
+        // / Close left sidebar on mobile after clicking a page link
+        document.getElementById('zone-lecture').addEventListener('htmx:beforeSwap', function() {
+            if (estMobile()) {
+                document.getElementById('sidebar-left').classList.add('collapsed');
+                cacherBackdropMobile();
+            }
         });
 
         // --- Indication de la page active dans l'arbre ---
