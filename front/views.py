@@ -356,14 +356,18 @@ class DossierViewSet(viewsets.ViewSet):
         serializer = DossierCreateSerializer(data=request.POST)
         if serializer.is_valid():
             Dossier.objects.create(name=serializer.validated_data["name"])
-        return _render_arbre(request)
+        reponse = _render_arbre(request)
+        reponse["HX-Trigger"] = json.dumps({"showToast": {"message": "Dossier cr\u00e9\u00e9"}})
+        return reponse
 
     def destroy(self, request, pk=None):
         # Suppression explicite du dossier puis retour de l'arbre
         # Explicit folder deletion then return updated tree
         dossier = get_object_or_404(Dossier, pk=pk)
         dossier.delete()
-        return _render_arbre(request)
+        reponse = _render_arbre(request)
+        reponse["HX-Trigger"] = json.dumps({"showToast": {"message": "Dossier supprim\u00e9"}})
+        return reponse
 
 
 class PageViewSet(viewsets.ViewSet):
@@ -575,7 +579,10 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         html_complet = self._render_panneau_complet_avec_oob(request, page)
         reponse = HttpResponse(html_complet)
-        reponse["HX-Trigger"] = "ouvrirPanneauDroit"
+        reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
+            "showToast": {"message": "Extraction cr\u00e9\u00e9e"},
+        })
         return reponse
 
     @action(detail=False, methods=["POST"])
@@ -656,7 +663,10 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         html_complet = self._render_panneau_complet_avec_oob(request, page)
         reponse = HttpResponse(html_complet)
-        reponse["HX-Trigger"] = "ouvrirPanneauDroit"
+        reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
+            "showToast": {"message": "Extraction modifi\u00e9e"},
+        })
         return reponse
 
     @action(detail=False, methods=["GET"], url_path="fil_discussion")
@@ -729,6 +739,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         reponse["HX-Trigger"] = json.dumps({
             "ouvrirPanneauDroit": True,
             "activerModeDebat": True,
+            "showToast": {"message": "Commentaire ajout\u00e9"},
         })
         return reponse
 

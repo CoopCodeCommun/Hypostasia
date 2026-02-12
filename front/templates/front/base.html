@@ -135,7 +135,7 @@
     <div class="flex" style="height: calc(100vh - 3rem);">
 
         <!-- Sidebar gauche — Arbre -->
-        <aside id="sidebar-left" class="w-64 shrink-0 border-r border-slate-200 overflow-y-auto bg-slate-50 p-3 flex flex-col">
+        <aside id="sidebar-left" class="w-64 shrink-0 border-r border-slate-200 overflow-y-auto bg-slate-50 p-3 flex flex-col hidden md:flex">
             <!-- BIBLIOTHEQUE -->
             <div>
                 <div class="flex items-center justify-between mb-3">
@@ -190,7 +190,7 @@
 
         <!-- Sidebar droite — Panneau d'extractions (cache par defaut) -->
         <!-- Le contenu entier est charge via HTMX par le controleur -->
-        <aside id="sidebar-right" class="w-[32rem] shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-4 collapsed">
+        <aside id="sidebar-right" class="w-[32rem] shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-4 collapsed hidden md:block">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Extractions</h2>
             <div id="panneau-extractions">
                 {% if page_preloaded and analyseurs_actifs %}
@@ -394,6 +394,41 @@
                 text: texteErreur.substring(0, 300),
             });
         });
+
+        // --- Toast de confirmation via HX-Trigger showToast ---
+        // Les vues envoient HX-Trigger: {"showToast": {"message": "...", "icon": "success"}}
+        // / Confirmation toast via HX-Trigger showToast
+        document.body.addEventListener('showToast', function(evenement) {
+            var detail = evenement.detail || {};
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: detail.icon || 'success',
+                title: detail.message || 'OK',
+                showConfirmButton: false,
+                timer: 2500,
+            });
+        });
+
+        // --- Indication de la page active dans l'arbre ---
+        // Apres chaque swap dans #zone-lecture, on surligne le lien correspondant
+        // / Active page indicator in tree after each swap in #zone-lecture
+        document.getElementById('zone-lecture').addEventListener('htmx:afterSwap', function() {
+            var conteneur = document.querySelector('#zone-lecture [data-page-id]');
+            if (!conteneur) return;
+            var pageIdActif = conteneur.dataset.pageId;
+
+            // Retirer la classe active de tous les liens / Remove active class from all links
+            document.querySelectorAll('#arbre .lien-page').forEach(function(lien) {
+                lien.classList.remove('bg-blue-50', 'text-blue-700', 'font-medium', 'rounded');
+            });
+
+            // Ajouter la classe active au lien correspondant / Add active class to matching link
+            var lienActif = document.querySelector('#arbre .lien-page[data-page-id="' + pageIdActif + '"]');
+            if (lienActif) {
+                lienActif.classList.add('bg-blue-50', 'text-blue-700', 'font-medium', 'rounded');
+            }
+        });
     </script>
 
     <!-- Menu contextuel de sélection de texte -->
@@ -408,12 +443,25 @@
             const text = selection.toString().trim();
             if (!text) return;
 
-            // Positionner le menu à côté de la sélection
+            // Positionner le menu a cote de la selection (viewport-safe)
+            // / Position menu next to selection (viewport-safe)
             const range = selection.getRangeAt(0);
             const rect = range.getBoundingClientRect();
             menu.style.display = 'flex';
-            menu.style.left = rect.left + (rect.width / 2) - 30 + 'px';
-            menu.style.top = rect.top - 44 + 'px';
+
+            // Gardes viewport : si trop haut → placer en dessous
+            // / Viewport guards: if too high → place below
+            var menuTop = rect.top - 44;
+            if (menuTop < 8) menuTop = rect.bottom + 8;
+            menu.style.top = menuTop + 'px';
+
+            // Gardes viewport : clamper horizontalement
+            // / Viewport guards: clamp horizontally
+            var menuWidth = menu.offsetWidth || 80;
+            var leftPos = rect.left + (rect.width / 2) - (menuWidth / 2);
+            if (leftPos + menuWidth > window.innerWidth - 8) leftPos = window.innerWidth - menuWidth - 8;
+            if (leftPos < 8) leftPos = 8;
+            menu.style.left = leftPos + 'px';
         });
 
         // Cacher le menu au clic hors du menu

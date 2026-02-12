@@ -16,7 +16,8 @@
         {# / Extract first 4 attributes from JSONField by key order #}
         {% entity_json_attrs entity as entity_attrs %}
         <div class="extraction-card bg-white rounded-lg border p-3 hover:shadow-sm transition-shadow cursor-pointer relative group {% if entity.nombre_commentaires %}border-amber-400{% else %}border-slate-200{% endif %}"
-             data-extraction-id="{{ entity.pk }}">
+             data-extraction-id="{{ entity.pk }}"
+             title="Position: {{ entity.start_char }}-{{ entity.end_char }}">
 
             {# Boutons editer + commenter (visibles au hover) / Edit + comment buttons (visible on hover) #}
             <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -46,7 +47,6 @@
                 {% include "hypostasis_extractor/includes/_card_body.html" %}
             {% endwith %}
 
-            <div class="text-[10px] text-slate-400 mt-1">pos {{ entity.start_char }}-{{ entity.end_char }}</div>
         </div>
         {% empty %}
         <div class="text-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-xl">

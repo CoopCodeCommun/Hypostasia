@@ -2,8 +2,9 @@
 {# Inclut le selecteur d'analyseur, le bouton Analyser, et la zone de resultats #}
 {# Charge via HTMX dans #panneau-extractions quand une page est ouverte #}
 
-{% if ia_active and analyseurs_actifs %}
-{# --- Selecteur d'analyseur + bouton Analyser --- #}
+{% if ia_active and analyseurs_actifs and not job %}
+{# --- Selecteur d'analyseur + bouton Analyser (cache si une analyse existe deja) --- #}
+{# --- Analyzer selector + Analyze button (hidden if analysis already exists) --- #}
 <div class="mb-4">
     <select name="analyseur_id" id="analyseur-select-{{ page.pk }}"
             class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 mb-2">

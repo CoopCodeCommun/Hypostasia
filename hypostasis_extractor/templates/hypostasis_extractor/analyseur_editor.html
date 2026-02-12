@@ -11,31 +11,35 @@
 
 <div class="max-w-4xl mx-auto" id="analyseur-editor" data-analyseur-id="{{ analyseur.id }}">
 
-    <!-- En-tete avec nom et description editables -->
+    <!-- Bouton retour vers la bibliotheque / Back button to library -->
+    <a href="/" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 mb-4">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
+        </svg>
+        Bibliotheque
+    </a>
+
+    <!-- En-tete avec nom et description editables (formulaire unique) -->
+    <!-- / Header with editable name and description (single form) -->
     <div class="mb-6 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
         <div class="flex items-center gap-2 mb-3">
             <input type="text" value="{{ analyseur.name }}" id="analyseur-name-{{ analyseur.id }}"
                    class="text-xl font-bold flex-1 border-0 border-b-2 border-transparent focus:border-blue-400 focus:outline-none bg-transparent pb-1"
                    placeholder="Nom de l'analyseur">
-            <button type="button" class="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 shrink-0"
-                    hx-patch="/api/analyseurs/{{ analyseur.id }}/"
-                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-vals='js:{"name": document.getElementById("analyseur-name-{{ analyseur.id }}").value}'
-                    hx-target="#save-feedback-name-{{ analyseur.id }}"
-                    hx-swap="innerHTML">Sauver</button>
-            <span id="save-feedback-name-{{ analyseur.id }}" class="text-xs text-green-600"></span>
         </div>
-        <div class="flex items-start gap-2">
+        <div class="flex items-start gap-2 mb-3">
             <textarea rows="1" id="analyseur-desc-{{ analyseur.id }}"
                       class="flex-1 text-sm text-slate-500 border-0 border-b border-transparent focus:border-blue-400 focus:outline-none bg-transparent"
                       placeholder="Description (optionnelle)">{{ analyseur.description }}</textarea>
+        </div>
+        <div class="flex items-center gap-2">
             <button type="button" class="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 shrink-0"
                     hx-patch="/api/analyseurs/{{ analyseur.id }}/"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                    hx-vals='js:{"description": document.getElementById("analyseur-desc-{{ analyseur.id }}").value}'
-                    hx-target="#save-feedback-desc-{{ analyseur.id }}"
+                    hx-vals='js:{"name": document.getElementById("analyseur-name-{{ analyseur.id }}").value, "description": document.getElementById("analyseur-desc-{{ analyseur.id }}").value}'
+                    hx-target="#save-feedback-header-{{ analyseur.id }}"
                     hx-swap="innerHTML">Sauver</button>
-            <span id="save-feedback-desc-{{ analyseur.id }}" class="text-xs text-green-600"></span>
+            <span id="save-feedback-header-{{ analyseur.id }}" class="text-xs text-green-600"></span>
         </div>
     </div>
 

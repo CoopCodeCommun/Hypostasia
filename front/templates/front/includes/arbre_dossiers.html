@@ -20,7 +20,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
                 </svg>
             </button>
-            <a href="#" class="text-sm text-slate-600 hover:text-blue-600 truncate block flex-1"
+            <a href="#" class="lien-page text-sm text-slate-600 hover:text-blue-600 truncate block flex-1"
+               data-page-id="{{ page.pk }}"
                hx-get="/lire/{{ page.pk }}/" hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true">
                 {{ page.title|default:page.domain|truncatechars:30 }}
             </a>
@@ -43,7 +44,8 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
             </svg>
         </button>
-        <a href="#" class="text-sm text-slate-600 hover:text-blue-600 truncate block flex-1"
+        <a href="#" class="lien-page text-sm text-slate-600 hover:text-blue-600 truncate block flex-1"
+           data-page-id="{{ page.pk }}"
            hx-get="/lire/{{ page.pk }}/" hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true">
             {{ page.title|default:page.domain|truncatechars:30 }}
         </a>
