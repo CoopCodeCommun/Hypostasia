@@ -124,7 +124,7 @@
     <div class="flex" style="height: calc(100vh - 3rem);">
 
         <!-- Sidebar gauche — Arbre -->
-        <aside id="sidebar-left" class="w-64 shrink-0 border-r border-slate-200 overflow-y-auto bg-slate-50 p-3">
+        <aside id="sidebar-left" class="w-64 shrink-0 border-r border-slate-200 overflow-y-auto bg-slate-50 p-3 flex flex-col">
             <!-- BIBLIOTHEQUE -->
             <div>
                 <div class="flex items-center justify-between mb-3">
@@ -143,8 +143,16 @@
                 </div>
             </div>
 
+            <!-- Spacer pour pousser IA + Analyseurs en bas -->
+            <div class="flex-1"></div>
+
+            <!-- BOUTON IA — charge via HTMX -->
+            <div id="config-ia-zone" class="pt-3 border-t border-slate-300"
+                 hx-get="/config-ia/status/" hx-trigger="load" hx-swap="innerHTML">
+            </div>
+
             <!-- ANALYSEURS SYNTAXIQUES — en bas -->
-            <div class="mt-4 pt-3 border-t border-slate-300">
+            <div class="mt-3 pt-3 border-t border-slate-300">
                 <div class="flex items-center justify-between mb-2">
                     <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Analyseurs</h2>
                     <button id="btn-new-analyseur"
@@ -412,12 +420,35 @@
         }
 
         document.getElementById('btn-extraction-manuelle').addEventListener('click', function() {
-            sendExtraction('/extractions/manuelle/');
+            const text = window.getSelection().toString().trim();
+            if (!text) return;
+
+            const pageContainer = zoneLecture.querySelector('[data-page-id]');
+            const pageId = pageContainer ? pageContainer.dataset.pageId : null;
+            if (!pageId) {
+                console.warn('[Extraction manuelle] Aucun data-page-id trouve');
+                return;
+            }
+
+            console.log('[Extraction manuelle] envoi text=' + text.substring(0, 50) + '… page_id=' + pageId);
+
+            // Envoyer en form-data via htmx.ajax (pas JSON)
+            // / Send as form-data via htmx.ajax (not JSON)
+            htmx.ajax('POST', '/extractions/manuelle/', {
+                target: '#panneau-extractions',
+                swap: 'innerHTML',
+                values: {text: text, page_id: pageId},
+            });
+
+            menu.style.display = 'none';
         });
 
-        document.getElementById('btn-extraction-ia').addEventListener('click', function() {
-            sendExtraction('/extractions/ia/');
-        });
+        var boutonExtractionIa = document.getElementById('btn-extraction-ia');
+        if (boutonExtractionIa) {
+            boutonExtractionIa.addEventListener('click', function() {
+                sendExtraction('/extractions/ia/');
+            });
+        }
     })();
     </script>
 
@@ -497,6 +528,28 @@
         if (extractionId) {
             scrollToCarteDepuisAncre(extractionId);
         }
+    });
+
+    // Delegation d'evenement : clic sur le bouton editer d'une carte
+    // Ouvre le formulaire d'edition inline via HTMX
+    // / Event delegation: click on card edit button, opens inline edit form via HTMX
+    document.addEventListener('click', function(evenement) {
+        var boutonEditer = evenement.target.closest('.btn-editer-extraction');
+        if (!boutonEditer) return;
+        evenement.stopPropagation();
+
+        var entityId = boutonEditer.dataset.entityId;
+        var pageId = boutonEditer.dataset.pageId;
+        console.log('[Edition extraction] entity_id=' + entityId + ' page_id=' + pageId);
+
+        // Remplacer la carte par le formulaire d'edition
+        // / Replace the card with the edit form
+        var carte = boutonEditer.closest('.extraction-card');
+        htmx.ajax('POST', '/extractions/editer/', {
+            target: carte,
+            swap: 'outerHTML',
+            values: {entity_id: entityId, page_id: pageId},
+        });
     });
 
     // Delegation d'evenement : clic sur une carte d'extraction dans le panneau droit

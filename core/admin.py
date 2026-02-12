@@ -1,8 +1,10 @@
 from django.contrib import admin
+from solo.admin import SingletonModelAdmin
 from .models import (
     Page,
     Argument,
     ArgumentComment,
+    Configuration,
     Prompt,
     TextInput,
     TextBlock,
@@ -18,6 +20,15 @@ from .models import (
 class HypostasisTagAdmin(admin.ModelAdmin):
     list_display = ("name", "description")
     search_fields = ("name", "description")
+
+
+@admin.register(Configuration)
+class ConfigurationAdmin(SingletonModelAdmin):
+    """
+    Admin singleton pour la configuration globale IA.
+    Singleton admin for global AI configuration.
+    """
+    fields = ("ai_active", "ai_model")
 
 
 @admin.register(AIModel)

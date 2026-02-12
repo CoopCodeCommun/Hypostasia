@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from solo.models import SingletonModel
 
 # Create your models here.
 
@@ -577,3 +578,29 @@ class TextInput(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.role})"
+
+
+class Configuration(SingletonModel):
+    """
+    Configuration singleton globale de l'application.
+    Global singleton configuration for the application.
+    Controle l'activation de l'IA et le modele actif.
+    / Controls AI activation and the active model.
+    """
+    ai_active = models.BooleanField(
+        default=False,
+        help_text="Active ou desactive l'IA globalement / Globally enable or disable AI",
+    )
+    ai_model = models.ForeignKey(
+        AIModel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Modele IA actuellement selectionne / Currently selected AI model",
+    )
+
+    class Meta:
+        verbose_name = "Configuration"
+
+    def __str__(self):
+        return "Configuration"

@@ -2,7 +2,7 @@
 {# Inclut le selecteur d'analyseur, le bouton Analyser, et la zone de resultats #}
 {# Charge via HTMX dans #panneau-extractions quand une page est ouverte #}
 
-{% if analyseurs_actifs %}
+{% if ia_active and analyseurs_actifs %}
 {# --- Selecteur d'analyseur + bouton Analyser --- #}
 <div class="mb-4">
     <select name="analyseur_id" id="analyseur-select-{{ page.pk }}"

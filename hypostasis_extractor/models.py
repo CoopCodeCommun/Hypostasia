@@ -91,6 +91,8 @@ class ExtractedEntity(models.Model):
     # Classification de l'entite (ex: "character", "probleme", "axiome")
     extraction_class = models.CharField(
         max_length=100,
+        blank=True,
+        default="",
         help_text="Classe/categorie de l'entite extraite"
     )
     

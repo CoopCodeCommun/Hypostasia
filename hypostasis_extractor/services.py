@@ -77,18 +77,30 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
     return params
 
 
+def _check_ia_active():
+    """
+    Verifie que l'IA est activee dans la configuration singleton.
+    Leve une RuntimeError si desactivee.
+    / Check AI is enabled in singleton config. Raises RuntimeError if disabled.
+    """
+    from core.models import Configuration
+    if not Configuration.get_solo().ai_active:
+        raise RuntimeError("IA desactivee. Activez l'IA depuis le panneau de gauche.")
+
+
 def run_langextract_job(job, use_chunking: bool = False, max_workers: int = 1):
     """
     Execute un job d'extraction avec LangExtract.
-    
+
     Args:
         job: Instance ExtractionJob
         use_chunking: Active le decoupage pour les longs documents
         max_workers: Nombre de workers paralleles
-    
+
     Returns:
         Tuple (nombre_entites_creees, temps_execution)
     """
+    _check_ia_active()
     from .models import ExtractedEntity, ExtractionJobStatus
     
     # Marque le job comme en cours
@@ -218,6 +230,7 @@ def run_analyseur_test(analyseur, example, ai_model):
     / Run LangExtract on an example's text, excluding that example from few-shot.
     Creates AnalyseurTestRun + TestRunExtraction for each result.
     """
+    _check_ia_active()
     from .models import (
         AnalyseurTestRun, TestRunExtraction, ExtractionJobStatus,
         PromptPiece, AnalyseurExample

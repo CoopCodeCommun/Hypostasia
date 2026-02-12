@@ -49,6 +49,18 @@ class RunAnalyseSerializer(serializers.Serializer):
     )
 
 
+class SelectModelSerializer(serializers.Serializer):
+    """
+    Validation pour la selection du modele IA actif.
+    Validation for selecting the active AI model.
+    """
+    model_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID du modele est obligatoire / Model ID is required",
+        },
+    )
+
+
 class ExtractionSerializer(serializers.Serializer):
     """
     Validation du texte selectionne pour une extraction (manuelle ou IA).
@@ -65,3 +77,25 @@ class ExtractionSerializer(serializers.Serializer):
         allow_null=True,
         default=None,
     )
+
+
+class ExtractionManuelleSerializer(serializers.Serializer):
+    """
+    Validation pour la creation d'une extraction manuelle.
+    Validation for creating a manual extraction.
+    """
+    text = serializers.CharField(
+        error_messages={
+            "required": "Le texte est obligatoire / Text is required",
+            "blank": "Le texte ne peut pas etre vide / Text cannot be blank",
+        },
+    )
+    page_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de la page est obligatoire / Page ID is required",
+        },
+    )
+    start_char = serializers.IntegerField()
+    end_char = serializers.IntegerField()
+    # Les attributs (attr_key_N / attr_val_N) sont lus dynamiquement dans la view
+    # / Attributes (attr_key_N / attr_val_N) are read dynamically in the view

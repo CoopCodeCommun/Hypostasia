@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_htmx',
     'corsheaders',
+    'solo',
     'core',
     'hypostasis_extractor',
     'front',

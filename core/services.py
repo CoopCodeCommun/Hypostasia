@@ -1,7 +1,7 @@
 import json
 import random
 import re
-from .models import Argument, TextInput, AIModel
+from .models import Argument, TextInput, AIModel, Configuration
 
 def run_analysis_pipeline(page, prompt):
     """
@@ -13,6 +13,13 @@ def run_analysis_pipeline(page, prompt):
     5. Save Arguments.
     """
     
+    # Guard : verifie que l'IA est activee / Check AI is enabled
+    if not Configuration.get_solo().ai_active:
+        page.status = "error"
+        page.error_message = "IA desactivee. Activez l'IA depuis le panneau de gauche."
+        page.save()
+        return 0
+
     # 0. Get AI Model Configuration
     ai_model = prompt.default_model
     if not ai_model:

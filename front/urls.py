@@ -12,6 +12,7 @@ router.register(r"lire", views.LectureViewSet, basename="lire")
 router.register(r"dossiers", views.DossierViewSet, basename="dossier")
 router.register(r"pages", views.PageViewSet, basename="page")
 router.register(r"extractions", views.ExtractionViewSet, basename="extraction")
+router.register(r"config-ia", views.ConfigurationIAViewSet, basename="config-ia")
 
 urlpatterns = [
     # La page racine reste un path explicite (pas de pk, pas de CRUD)

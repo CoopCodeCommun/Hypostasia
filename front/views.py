@@ -8,10 +8,13 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, Dossier, Page
-from hypostasis_extractor.models import AnalyseurSyntaxique, ExtractionJob
+from core.models import AIModel, Configuration, Dossier, Page
+from hypostasis_extractor.models import AnalyseurSyntaxique, ExtractedEntity, ExtractionJob
 from hypostasis_extractor.services import run_analyseur_on_page
-from .serializers import DossierCreateSerializer, ExtractionSerializer, PageClasserSerializer, RunAnalyseSerializer
+from .serializers import (
+    DossierCreateSerializer, ExtractionManuelleSerializer,
+    ExtractionSerializer, PageClasserSerializer, RunAnalyseSerializer, SelectModelSerializer,
+)
 from .utils import annoter_html_avec_ancres
 
 logger = logging.getLogger(__name__)
@@ -30,6 +33,95 @@ def _render_arbre(request):
     })
 
 
+def _get_ia_active():
+    """
+    Helper — retourne True si l'IA est activee dans la configuration singleton.
+    Helper — returns True if AI is enabled in singleton configuration.
+    """
+    return Configuration.get_solo().ai_active
+
+
+class ConfigurationIAViewSet(viewsets.ViewSet):
+    """
+    ViewSet pour la configuration IA (toggle on/off, selection du modele).
+    ViewSet for AI configuration (toggle on/off, model selection).
+    """
+
+    @action(detail=False, methods=["GET"])
+    def status(self, request):
+        """
+        Retourne le partial HTML du bouton IA (pour HTMX).
+        Returns the AI button HTML partial (for HTMX).
+        """
+        configuration = Configuration.get_solo()
+        modeles_actifs = AIModel.objects.filter(is_active=True)
+        return render(request, "front/includes/config_ia_toggle.html", {
+            "configuration": configuration,
+            "modeles_actifs": modeles_actifs,
+        })
+
+    @action(detail=False, methods=["POST"])
+    def toggle(self, request):
+        """
+        Active ou desactive l'IA. Si plusieurs modeles actifs et activation → renvoie un select.
+        Toggle AI on/off. If multiple active models and enabling → return a select.
+        """
+        configuration = Configuration.get_solo()
+        modeles_actifs = AIModel.objects.filter(is_active=True)
+
+        if configuration.ai_active:
+            # Desactivation / Deactivate
+            configuration.ai_active = False
+            configuration.ai_model = None
+            configuration.save()
+        else:
+            # Activation / Activate
+            if modeles_actifs.count() == 1:
+                # Un seul modele actif → activation directe
+                # Single active model → direct activation
+                configuration.ai_active = True
+                configuration.ai_model = modeles_actifs.first()
+                configuration.save()
+            elif modeles_actifs.count() > 1:
+                # Plusieurs modeles → on ne fait rien, le partial affiche le select
+                # Multiple models → do nothing, partial shows the select
+                pass
+            else:
+                # Aucun modele actif → on ne peut pas activer
+                # No active model → cannot activate
+                pass
+
+        # Re-fetch apres modification / Re-fetch after modification
+        configuration = Configuration.get_solo()
+        return render(request, "front/includes/config_ia_toggle.html", {
+            "configuration": configuration,
+            "modeles_actifs": modeles_actifs,
+        })
+
+    @action(detail=False, methods=["POST"], url_path="select-model")
+    def select_model(self, request):
+        """
+        Selectionne un modele IA et active l'IA.
+        Select an AI model and enable AI.
+        """
+        serializer = SelectModelSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        modele_choisi = get_object_or_404(
+            AIModel, pk=serializer.validated_data["model_id"], is_active=True
+        )
+        configuration = Configuration.get_solo()
+        configuration.ai_active = True
+        configuration.ai_model = modele_choisi
+        configuration.save()
+
+        modeles_actifs = AIModel.objects.filter(is_active=True)
+        return render(request, "front/includes/config_ia_toggle.html", {
+            "configuration": configuration,
+            "modeles_actifs": modeles_actifs,
+        })
+
+
 class BibliothequeViewSet(viewsets.ViewSet):
     """
     Page racine — shell 3 colonnes.
@@ -39,7 +131,9 @@ class BibliothequeViewSet(viewsets.ViewSet):
     def list(self, request):
         # La page principale est un template complet, pas un partial
         # Main page is a full template, not a partial
-        return render(request, "front/bibliotheque.html")
+        return render(request, "front/bibliotheque.html", {
+            "ia_active": _get_ia_active(),
+        })
 
 
 class ArbreViewSet(viewsets.ViewSet):
@@ -92,12 +186,14 @@ class LectureViewSet(viewsets.ViewSet):
             )
 
         # Contexte commun pour les deux partials
+        ia_active = _get_ia_active()
         contexte_partage = {
             "page": page,
             "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": dernier_job_termine,
             "entities": entites_existantes,
+            "ia_active": ia_active,
         }
 
         if request.headers.get('HX-Request'):
@@ -134,6 +230,7 @@ class LectureViewSet(viewsets.ViewSet):
             "analyseurs_actifs": analyseurs_actifs,
             "job": dernier_job_termine,
             "entities": entites_existantes,
+            "ia_active": ia_active,
         })
 
     @action(detail=True, methods=["POST"])
@@ -145,6 +242,10 @@ class LectureViewSet(viewsets.ViewSet):
         Retourne le partial HTML des cartes d'extraction.
         Envoie HX-Trigger: ouvrirPanneauDroit pour ouvrir le panneau droit cote client.
         """
+        # Guard : verifie que l'IA est activee / Check AI is enabled
+        if not _get_ia_active():
+            return HttpResponse("IA desactivee. Activez l'IA depuis le panneau de gauche.", status=403)
+
         # Validation via serializer DRF sur request.data (form-data envoye par HTMX)
         serializer = RunAnalyseSerializer(data=request.data)
         if not serializer.is_valid():
@@ -273,20 +374,261 @@ class ExtractionViewSet(viewsets.ViewSet):
     ViewSet for text extractions (manual and AI).
     """
 
+    def _get_or_create_job_manuel(self, page):
+        """
+        Retourne (ou cree) le job d'extraction manuelle pour une page.
+        Returns (or creates) the manual extraction job for a page.
+        """
+        job_manuel, _created = ExtractionJob.objects.get_or_create(
+            page=page,
+            name="Extractions manuelles",
+            defaults={"status": "completed", "ai_model": None},
+        )
+        return job_manuel
+
+    def _render_panneau_complet_avec_oob(self, request, page):
+        """
+        Re-rend le panneau d'analyse + OOB swap du readability-content annote.
+        Re-renders analysis panel + OOB swap of annotated readability-content.
+        """
+        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
+
+        # Toutes les entites de tous les jobs completed de la page
+        # / All entities from all completed jobs for the page
+        tous_les_jobs_termines = ExtractionJob.objects.filter(
+            page=page, status="completed",
+        )
+        toutes_les_entites = ExtractedEntity.objects.filter(
+            job__in=tous_les_jobs_termines,
+        ).order_by("start_char")
+
+        # Annoter le HTML / Annotate HTML
+        html_annote = annoter_html_avec_ancres(
+            page.html_readability, page.text_readability, toutes_les_entites,
+        )
+
+        # Dernier job pour le contexte du panneau / Latest job for panel context
+        dernier_job = tous_les_jobs_termines.order_by("-created_at").first()
+
+        html_panneau = render_to_string(
+            "front/includes/panneau_analyse.html",
+            {
+                "page": page,
+                "analyseurs_actifs": analyseurs_actifs,
+                "job": dernier_job,
+                "entities": toutes_les_entites,
+                "ia_active": _get_ia_active(),
+            },
+            request=request,
+        )
+
+        # OOB swap pour le contenu de lecture annote
+        # / OOB swap for annotated reading content
+        html_readability_oob = (
+            '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
+            + (html_annote or page.html_readability)
+            + '</article>'
+        )
+
+        return html_panneau + html_readability_oob
+
+    @action(detail=False, methods=["POST"])
+    def panneau(self, request):
+        """
+        Re-rend le panneau d'analyse complet pour une page (utilise par Annuler).
+        Re-renders the full analysis panel for a page (used by Cancel).
+        """
+        page_id = request.data.get("page_id")
+        if not page_id:
+            return HttpResponse("page_id requis.", status=400)
+        page = get_object_or_404(Page, pk=page_id)
+        html_complet = self._render_panneau_complet_avec_oob(request, page)
+        return HttpResponse(html_complet)
+
     @action(detail=False, methods=["POST"])
     def manuelle(self, request):
         """
-        Recoit le texte selectionne pour extraction manuelle.
-        Receives selected text for manual extraction.
+        Recoit le texte selectionne, calcule les positions, et renvoie le formulaire.
+        Receives selected text, computes positions, returns the form partial.
         """
+        logger.info(
+            "manuelle: content_type=%s data=%s",
+            request.content_type, dict(request.data),
+        )
         serializer = ExtractionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         validated_text = serializer.validated_data["text"]
         validated_page_id = serializer.validated_data.get("page_id")
-        print(f"[EXTRACTION MANUELLE] page={validated_page_id} texte={validated_text}")
 
-        return Response({"status": "ok"})
+        if not validated_page_id:
+            return HttpResponse("Aucune page selectionnee.", status=400)
+
+        page = get_object_or_404(Page, pk=validated_page_id)
+
+        # Calculer start_char dans text_readability cote serveur
+        # / Compute start_char in text_readability server-side
+        start_char = page.text_readability.find(validated_text)
+        if start_char == -1:
+            # Fallback : recherche soft (nbsp → espace)
+            start_char = page.text_readability.replace('\xa0', ' ').find(
+                validated_text.replace('\xa0', ' ')
+            )
+        end_char = start_char + len(validated_text) if start_char != -1 else 0
+        if start_char == -1:
+            start_char = 0
+
+        # Liste des 4 attributs vides pour le formulaire de creation
+        # / 4 empty attributes for the creation form
+        liste_attributs_creation = [
+            ("tags", ""),
+            ("titre", ""),
+            ("badge", ""),
+            ("hashtags", ""),
+        ]
+
+        html_formulaire = render_to_string(
+            "front/includes/extraction_manuelle_form.html",
+            {
+                "text": validated_text,
+                "page_id": page.pk,
+                "start_char": start_char,
+                "end_char": end_char,
+                "liste_attributs": liste_attributs_creation,
+            },
+            request=request,
+        )
+
+        reponse = HttpResponse(html_formulaire)
+        reponse["HX-Trigger"] = "ouvrirPanneauDroit"
+        return reponse
+
+    @action(detail=False, methods=["POST"], url_path="creer_manuelle")
+    def creer_manuelle(self, request):
+        """
+        Cree une ExtractedEntity manuelle et re-rend le panneau complet.
+        Creates a manual ExtractedEntity and re-renders the full panel.
+        """
+        logger.info(
+            "creer_manuelle: content_type=%s data=%s",
+            request.content_type, {k: str(v)[:80] for k, v in request.data.items()},
+        )
+        serializer = ExtractionManuelleSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("creer_manuelle: validation echouee — %s", serializer.errors)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        donnees = serializer.validated_data
+        page = get_object_or_404(Page, pk=donnees["page_id"])
+        job_manuel = self._get_or_create_job_manuel(page)
+
+        # Lire les paires cle/valeur dynamiques depuis le formulaire
+        # (meme pattern que modifier)
+        # / Read dynamic key/value pairs from form data (same pattern as modifier)
+        attributs_entite = {}
+        for index_attribut in range(10):
+            cle = request.data.get(f"attr_key_{index_attribut}", "").strip()
+            valeur = request.data.get(f"attr_val_{index_attribut}", "").strip()
+            if cle and valeur:
+                attributs_entite[cle] = valeur
+
+        ExtractedEntity.objects.create(
+            job=job_manuel,
+            extraction_class="",
+            extraction_text=donnees["text"],
+            start_char=donnees["start_char"],
+            end_char=donnees["end_char"],
+            attributes=attributs_entite,
+        )
+
+        html_complet = self._render_panneau_complet_avec_oob(request, page)
+        reponse = HttpResponse(html_complet)
+        reponse["HX-Trigger"] = "ouvrirPanneauDroit"
+        return reponse
+
+    @action(detail=False, methods=["POST"])
+    def editer(self, request):
+        """
+        Affiche le formulaire d'edition inline pour une extraction existante.
+        Displays the inline edit form for an existing extraction.
+        """
+        entity_id = request.data.get("entity_id")
+        page_id = request.data.get("page_id")
+        logger.info("editer: entity_id=%s page_id=%s", entity_id, page_id)
+
+        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
+        attributs = entite.attributes or {}
+
+        # Construire la liste des paires (cle, valeur) pour le template
+        # On garde l'ordre d'insertion du dict (Python 3.7+)
+        # En mode edition, on affiche les cles reelles de l'entite
+        # / Build list of (key, value) pairs for the template
+        # / In edit mode, display the entity's actual keys
+        liste_attributs = list(attributs.items())
+
+        # Pad a 4 elements pour avoir toujours 4 champs
+        # / Pad to 4 elements to always have 4 fields
+        noms_par_defaut = ["tags", "titre", "badge", "hashtags"]
+        while len(liste_attributs) < 4:
+            index_suivant = len(liste_attributs)
+            nom_defaut = noms_par_defaut[index_suivant] if index_suivant < len(noms_par_defaut) else f"attr_{index_suivant}"
+            liste_attributs.append((nom_defaut, ""))
+
+        html_formulaire = render_to_string(
+            "front/includes/extraction_manuelle_form.html",
+            {
+                "entity": entite,
+                "page_id": page_id,
+                "liste_attributs": liste_attributs,
+            },
+            request=request,
+        )
+        return HttpResponse(html_formulaire)
+
+    @action(detail=False, methods=["POST"])
+    def modifier(self, request):
+        """
+        Modifie une ExtractedEntity existante et re-rend le panneau complet.
+        Lit les paires (attr_key_N, attr_val_N) depuis le POST pour supporter
+        des cles dynamiques (ex: "Hypostases", "Resume" au lieu de "tags", "titre").
+        / Modifies an existing ExtractedEntity and re-renders the full panel.
+        / Reads (attr_key_N, attr_val_N) pairs from POST to support dynamic keys.
+        """
+        logger.info(
+            "modifier: content_type=%s data=%s",
+            request.content_type, {k: str(v)[:80] for k, v in request.data.items()},
+        )
+
+        entity_id = request.data.get("entity_id")
+        page_id = request.data.get("page_id")
+        if not entity_id or not page_id:
+            return HttpResponse("entity_id et page_id requis.", status=400)
+
+        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
+        page = get_object_or_404(Page, pk=page_id)
+
+        # Lire les paires cle/valeur dynamiques depuis le formulaire
+        # Le template envoie attr_key_0, attr_val_0, attr_key_1, attr_val_1, etc.
+        # / Read dynamic key/value pairs from form data
+        nouveaux_attributs = {}
+        for index_attribut in range(10):
+            cle = request.data.get(f"attr_key_{index_attribut}", "").strip()
+            valeur = request.data.get(f"attr_val_{index_attribut}", "").strip()
+            if cle and valeur:
+                nouveaux_attributs[cle] = valeur
+
+        entite.attributes = nouveaux_attributs
+        entite.save()
+
+        logger.info("modifier: entite pk=%s modifiee attrs=%s", entite.pk, list(nouveaux_attributs.keys()))
+
+        html_complet = self._render_panneau_complet_avec_oob(request, page)
+        reponse = HttpResponse(html_complet)
+        reponse["HX-Trigger"] = "ouvrirPanneauDroit"
+        return reponse
 
     @action(detail=False, methods=["POST"])
     def ia(self, request):
