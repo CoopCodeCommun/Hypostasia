@@ -44,7 +44,7 @@ Hypostasia-V3/
 
 | App | Role |
 |-----|------|
-| `core` | Modeles fondamentaux : Page, Dossier, TextBlock, Argument, AIModel, Prompt, HypostasisTag |
+| `core` | Modeles fondamentaux + API JSON pour l'extension navigateur (Page, Dossier, AIModel, etc.) |
 | `hypostasis_extractor` | Pipeline LangExtract : ExtractionJob, AnalyseurSyntaxique, TestRun, validation humaine |
 | `front` | Interface de lecture 3 colonnes, navigation HTMX, gestion dossiers/pages |
 
@@ -157,29 +157,22 @@ Les fichiers sont limites a **5 MB** avec 3 backups rotatifs.
 ### Endpoints principaux
 
 ```
-# Pages et arguments
+# API extension navigateur (core)
+GET    /api/pages/?url=...                  # Verifier si une page existe
 POST   /api/pages/                          # Creer une page avec blocs
-POST   /api/pages/{id}/analyze/             # Lancer l'analyse IA
-GET    /api/pages/{id}/arguments/           # Recuperer les arguments extraits
-PATCH  /api/arguments/{id}/                 # Modifier un argument (user_edited=true)
+GET    /api/test-sidebar/?url=...           # Sidebar extension
 
-# Extraction LangExtract
-GET    /api/extraction-jobs/                # Liste des jobs
-POST   /api/extraction-jobs/                # Creer un job
-POST   /api/extraction-jobs/{id}/run/       # Executer l'extraction
-GET    /api/extraction-jobs/{id}/visualization/  # HTML interactif
-
-# Analyseurs syntaxiques
+# Analyseurs syntaxiques (hypostasis_extractor)
 GET    /api/analyseurs/                     # Liste
 GET    /api/analyseurs/{id}/                # Editeur (HTML partial ou page complete)
 POST   /api/analyseurs/{id}/run_test/       # Lancer un test LLM
 GET    /api/analyseurs/{id}/test_results/   # Resultats de test
-POST   /api/analyseurs/{id}/validate_test_extraction/  # Valider → promouvoir
-POST   /api/analyseurs/{id}/reject_test_extraction/    # Rejeter une extraction
 
-# Interface lecture (HTMX)
+# Interface lecture (front — HTMX)
 GET    /                                    # Bibliotheque 3 colonnes
 GET    /lire/{id}/                          # Zone de lecture
+POST   /lire/{id}/analyser/                 # Lancer une extraction IA
+POST   /extractions/manuelle/               # Extraction manuelle de texte
 ```
 
 ## Documentation
@@ -187,13 +180,11 @@ GET    /lire/{id}/                          # Zone de lecture
 | Document | Description |
 |----------|-------------|
 | [CLAUDE.md](./CLAUDE.md) | Specification ultra-stricte pour agents IA (schemas, endpoints, contraintes) |
-| [GUIDELINES.md](./GUIDELINES.md) | Regles d'architecture et contrats de donnees |
-| [LangExtractReadMe.md](./LangExtractReadMe.md) | Documentation de la librairie LangExtract |
 | [hypostasis_extractor/README.md](./hypostasis_extractor/README.md) | Architecture de l'app d'extraction |
 
 ## Contribution
 
-Toute modification doit respecter les **[Guidelines](./GUIDELINES.md)** et les patterns decrits ci-dessus. Les agents IA doivent verifier la conformite avec les contrats d'interface (schemas JSON, endpoints HTMX, ViewSets explicites).
+Toute modification doit respecter les patterns decrits dans **[CLAUDE.md](./CLAUDE.md)** et ci-dessus. Les agents IA doivent verifier la conformite avec les contrats d'interface (schemas JSON, endpoints HTMX, ViewSets explicites).
 
 ---
 
