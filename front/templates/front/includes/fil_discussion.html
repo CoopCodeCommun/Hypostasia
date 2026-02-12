@@ -1,0 +1,62 @@
+{# Partial: Fil de discussion (mode debat) pour une extraction #}
+{# / Partial: Discussion thread (debate mode) for an extraction #}
+{% load extractor_tags %}
+<div id="fil-discussion" class="space-y-4">
+
+    {# Bouton fermer — revient au panneau normal / Close button — returns to normal panel #}
+    <div class="flex items-center justify-between">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Discussion</h3>
+        <button class="btn-fermer-discussion text-slate-400 hover:text-slate-700 text-sm"
+                hx-post="/extractions/panneau/"
+                hx-target="#panneau-extractions"
+                hx-swap="innerHTML"
+                hx-vals='{"page_id": "{{ entity.job.page_id }}"}'
+                title="Fermer le fil de discussion">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    {# Carte de l'extraction en en-tete / Extraction card as header #}
+    {% entity_json_attrs entity as entity_attrs %}
+    <div class="bg-white rounded-lg border border-slate-200 p-3">
+        {% with attr_0=entity_attrs.0 attr_1=entity_attrs.1 text=entity.extraction_text attr_2=entity_attrs.2 attr_3=entity_attrs.3 %}
+            {% include "hypostasis_extractor/includes/_card_body.html" %}
+        {% endwith %}
+        <div class="text-[10px] text-slate-400 mt-1">pos {{ entity.start_char }}-{{ entity.end_char }}</div>
+    </div>
+
+    {# Liste des commentaires / Comments list #}
+    <div id="liste-commentaires" class="space-y-3">
+        {% for commentaire in commentaires %}
+        <div class="bg-white rounded-lg border border-slate-100 p-3">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-sm font-medium text-slate-700">{{ commentaire.prenom }}</span>
+                <span class="text-[10px] text-slate-400">{{ commentaire.created_at|date:"d/m/Y H:i" }}</span>
+            </div>
+            <p class="text-sm text-slate-600 whitespace-pre-wrap">{{ commentaire.commentaire }}</p>
+        </div>
+        {% empty %}
+        <p class="text-xs text-slate-400 text-center py-2">Aucun commentaire pour le moment.</p>
+        {% endfor %}
+    </div>
+
+    {# Formulaire d'ajout de commentaire / Comment form #}
+    <form hx-post="/extractions/ajouter_commentaire/"
+          hx-target="#panneau-extractions"
+          hx-swap="innerHTML"
+          class="space-y-2 border-t border-slate-200 pt-3">
+        <input type="hidden" name="entity_id" value="{{ entity.pk }}">
+        <input type="text" name="prenom" placeholder="Votre prenom"
+               class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
+               required>
+        <textarea name="commentaire" rows="3" placeholder="Votre commentaire…"
+                  class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                  required></textarea>
+        <button type="submit"
+                class="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded px-3 py-1.5 transition-colors">
+            Envoyer
+        </button>
+    </form>
+</div>
