@@ -992,6 +992,33 @@ class ExtractionViewSet(viewsets.ViewSet):
         })
         return reponse
 
+    @action(detail=False, methods=["GET"], url_path="vue_commentaires")
+    def vue_commentaires(self, request):
+        """
+        Vue globale des commentaires en layout SMS-like pour une page.
+        Affiche toutes les extractions qui ont des commentaires, regroupees.
+        / Global SMS-like comments view for a page.
+        Shows all extractions that have comments, grouped together.
+        """
+        page_id = request.query_params.get("page_id")
+        if not page_id:
+            return HttpResponse("page_id requis.", status=400)
+
+        page = get_object_or_404(Page, pk=page_id)
+
+        # Recupere les entites ayant au moins un commentaire, triees par position
+        # / Retrieve entities with at least one comment, sorted by position
+        entites_avec_commentaires = ExtractedEntity.objects.filter(
+            job__page=page,
+            job__status="completed",
+            commentaires__isnull=False,
+        ).distinct().prefetch_related("commentaires").order_by("start_char")
+
+        return render(request, "front/includes/vue_commentaires.html", {
+            "page": page,
+            "entites_avec_commentaires": entites_avec_commentaires,
+        })
+
     @action(detail=False, methods=["POST"])
     def ia(self, request):
         """

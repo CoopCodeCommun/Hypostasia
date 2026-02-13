@@ -279,7 +279,15 @@
         <!-- Sidebar droite — Panneau d'extractions (cache par defaut) -->
         <!-- Le contenu entier est charge via HTMX par le controleur -->
         <aside id="sidebar-right" class="w-[32rem] shrink-0 border-l border-slate-200 overflow-y-auto bg-slate-50 p-4 collapsed">
-            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Extractions</h2>
+            {# Barre d'onglets du panneau droit / Right panel tab bar #}
+            <nav id="onglets-panneau" class="flex gap-1 mb-3">
+                <button class="onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium bg-white text-blue-600 border border-b-0 border-slate-200"
+                        data-onglet="extractions">Extractions</button>
+                <button class="onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                        data-onglet="commentaires">Commentaires</button>
+                <button class="onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium text-slate-300 cursor-not-allowed"
+                        data-onglet="questionnaire" disabled>Questionnaire</button>
+            </nav>
             <div id="panneau-extractions">
                 {% if page_preloaded and analyseurs_actifs %}
                     {# Cas F5 sur une page : on pre-charge le selecteur et le bouton #}
@@ -294,6 +302,47 @@
     {% include "front/includes/selection_menu.html" %}
 
     <script>
+        // --- Onglets du panneau droit ---
+        // / Right panel tabs handler
+        document.getElementById('onglets-panneau').addEventListener('click', function(event) {
+            var bouton = event.target.closest('.onglet-panneau:not([disabled])');
+            if (!bouton) return;
+
+            var ongletChoisi = bouton.dataset.onglet;
+
+            // Lire le page_id depuis la zone de lecture / Read page_id from reading zone
+            var elementPage = document.querySelector('#zone-lecture [data-page-id]');
+            if (!elementPage) {
+                // Afficher un toast si pas de page selectionnee / Show toast if no page selected
+                document.body.dispatchEvent(new CustomEvent('showToast', {
+                    detail: { message: 'Sélectionnez une page' }
+                }));
+                return;
+            }
+            var pageId = elementPage.dataset.pageId;
+
+            // Mise a jour des styles des onglets / Update tab styles
+            var tousLesOnglets = this.querySelectorAll('.onglet-panneau:not([disabled])');
+            tousLesOnglets.forEach(function(onglet) {
+                onglet.className = 'onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100';
+            });
+            bouton.className = 'onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium bg-white text-blue-600 border border-b-0 border-slate-200';
+
+            // Charger le contenu selon l'onglet / Load content based on tab
+            if (ongletChoisi === 'extractions') {
+                htmx.ajax('POST', '/extractions/panneau/', {
+                    target: '#panneau-extractions',
+                    swap: 'innerHTML',
+                    values: { page_id: pageId }
+                });
+            } else if (ongletChoisi === 'commentaires') {
+                htmx.ajax('GET', '/extractions/vue_commentaires/?page_id=' + pageId, {
+                    target: '#panneau-extractions',
+                    swap: 'innerHTML'
+                });
+            }
+        });
+
         // --- Helpers mobile : backdrop + detection ecran etroit ---
         // / Mobile helpers: backdrop + narrow screen detection
         function estMobile() { return window.innerWidth < 768; }
