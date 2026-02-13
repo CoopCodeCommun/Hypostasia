@@ -14,10 +14,16 @@
     <ul class="dossier-pages hidden ml-5 border-l border-slate-200 pl-2">
         {% for page in dossier.pages.all %}
         <li class="py-0.5 flex items-center gap-1 group">
-            <button class="btn-classer shrink-0 text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+            <button class="btn-classer shrink-0 text-slate-300 hover:text-blue-500 opacity-50 group-hover:opacity-100 transition-opacity"
                     data-page-id="{{ page.pk }}" title="Déplacer">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+                </svg>
+            </button>
+            <button class="btn-supprimer-page shrink-0 text-slate-300 hover:text-red-500 opacity-50 group-hover:opacity-100 transition-opacity"
+                    data-page-id="{{ page.pk }}" title="Supprimer">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
             <a href="#" class="lien-page text-sm text-slate-600 hover:text-blue-600 truncate block flex-1"
@@ -38,10 +44,16 @@
     <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Non classées</p>
     {% for page in pages_orphelines %}
     <div class="py-0.5 flex items-center gap-1 group">
-        <button class="btn-classer shrink-0 text-slate-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"
+        <button class="btn-classer shrink-0 text-slate-300 hover:text-blue-500 opacity-50 group-hover:opacity-100 transition-opacity"
                 data-page-id="{{ page.pk }}" title="Déplacer">
             <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+            </svg>
+        </button>
+        <button class="btn-supprimer-page shrink-0 text-slate-300 hover:text-red-500 opacity-50 group-hover:opacity-100 transition-opacity"
+                data-page-id="{{ page.pk }}" title="Supprimer">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>
         </button>
         <a href="#" class="lien-page text-sm text-slate-600 hover:text-blue-600 truncate block flex-1"

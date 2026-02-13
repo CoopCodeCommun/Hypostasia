@@ -41,6 +41,15 @@
                               d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
                     </svg>
                 </button>
+                <button class="btn-supprimer-extraction p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50"
+                        data-entity-id="{{ entity.pk }}"
+                        data-page-id="{{ entity.job.page_id }}"
+                        data-has-comments="{% if entity.nombre_commentaires %}true{% else %}false{% endif %}"
+                        title="Supprimer cette extraction">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
             </div>
 
             {% with attr_0=entity_attrs.0 attr_1=entity_attrs.1 text=entity.extraction_text attr_2=entity_attrs.2 attr_3=entity_attrs.3 %}
@@ -53,6 +62,13 @@
             <p class="text-sm">Aucune entite extraite.</p>
         </div>
         {% endfor %}
+
+        {% if entities %}
+        <button class="btn-supprimer-extractions-ia w-full mt-2 px-3 py-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                data-page-id="{{ entities.0.job.page_id }}">
+            Supprimer les extractions IA
+        </button>
+        {% endif %}
 
     {% else %}
     <div class="text-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-xl">

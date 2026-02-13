@@ -533,6 +533,22 @@ class PageViewSet(viewsets.ViewSet):
     """
 
     @action(detail=True, methods=["POST"])
+    def supprimer(self, request, pk=None):
+        """
+        Supprime une page et retourne l'arbre mis a jour.
+        Deletes a page and returns the updated tree.
+        """
+        page_a_supprimer = get_object_or_404(Page, pk=pk)
+        titre_page = page_a_supprimer.title or "Sans titre"
+        page_a_supprimer.delete()
+
+        reponse = _render_arbre(request)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": f"Page \u00ab {titre_page} \u00bb supprim\u00e9e"},
+        })
+        return reponse
+
+    @action(detail=True, methods=["POST"])
     def classer(self, request, pk=None):
         """
         Assigne une page a un dossier, retourne l'arbre mis a jour.
@@ -896,6 +912,83 @@ class ExtractionViewSet(viewsets.ViewSet):
             "ouvrirPanneauDroit": True,
             "activerModeDebat": True,
             "showToast": {"message": "Commentaire ajout\u00e9"},
+        })
+        return reponse
+
+    @action(detail=False, methods=["POST"], url_path="supprimer_entite")
+    def supprimer_entite(self, request):
+        """
+        Supprime une entite extraite (si pas de commentaires).
+        Deletes an extracted entity (if no comments).
+        """
+        entity_id = request.data.get("entity_id")
+        page_id = request.data.get("page_id")
+        if not entity_id or not page_id:
+            return HttpResponse("entity_id et page_id requis.", status=400)
+
+        entite_a_supprimer = get_object_or_404(ExtractedEntity, pk=entity_id)
+
+        # Verifier qu'il n'y a pas de commentaires / Check no comments exist
+        if CommentaireExtraction.objects.filter(entity=entite_a_supprimer).exists():
+            return HttpResponse("Impossible de supprimer une extraction qui a des commentaires.", status=400)
+
+        entite_a_supprimer.delete()
+
+        page = get_object_or_404(Page, pk=page_id)
+        html_complet = self._render_panneau_complet_avec_oob(request, page)
+        reponse = HttpResponse(html_complet)
+        reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
+            "showToast": {"message": "Extraction supprim\u00e9e"},
+        })
+        return reponse
+
+    @action(detail=False, methods=["POST"], url_path="supprimer_ia")
+    def supprimer_ia(self, request):
+        """
+        Supprime tous les jobs d'extraction IA (et leurs entites en cascade).
+        Les extractions manuelles sont conservees.
+        Deletes all AI extraction jobs (and their entities via cascade).
+        Manual extractions are preserved.
+        """
+        page_id = request.data.get("page_id")
+        if not page_id:
+            return HttpResponse("page_id requis.", status=400)
+
+        page = get_object_or_404(Page, pk=page_id)
+
+        # Supprimer les entites IA sans commentaires (pas les jobs entiers pour garder celles avec commentaires)
+        # / Delete AI entities without comments (not entire jobs, to keep commented ones)
+        entites_ia_sans_commentaires = ExtractedEntity.objects.filter(
+            job__page=page,
+            job__ai_model__isnull=False,
+        ).exclude(
+            commentaires__isnull=False,
+        )
+        nombre_entites_supprimees = entites_ia_sans_commentaires.count()
+        entites_ia_sans_commentaires.delete()
+
+        # Supprimer les jobs IA qui n'ont plus d'entites
+        # / Delete AI jobs that have no remaining entities
+        jobs_ia_vides = ExtractionJob.objects.filter(
+            page=page,
+            ai_model__isnull=False,
+        ).annotate(
+            nombre_entites=Count("entities"),
+        ).filter(nombre_entites=0)
+        nombre_jobs_supprimes = jobs_ia_vides.count()
+        jobs_ia_vides.delete()
+
+        logger.info(
+            "supprimer_ia: %d entites et %d jobs IA supprimes pour page pk=%s",
+            nombre_entites_supprimees, nombre_jobs_supprimes, page_id,
+        )
+
+        html_complet = self._render_panneau_complet_avec_oob(request, page)
+        reponse = HttpResponse(html_complet)
+        reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
+            "showToast": {"message": "Extractions IA supprim\u00e9es"},
         })
         return reponse
 

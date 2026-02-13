@@ -921,7 +921,107 @@
     document.addEventListener('click', function(evenement) {
         var carte = evenement.target.closest('.extraction-card[data-extraction-id]');
         if (!carte) return;
+        // Ne pas scroller si on clique sur un bouton d'action
+        // / Don't scroll if clicking an action button
+        if (evenement.target.closest('.btn-editer-extraction, .btn-commenter-extraction, .btn-supprimer-extraction')) return;
         scrollToExtraction(carte);
+    });
+
+    // --- Supprimer une page via SweetAlert ---
+    // / Delete a page via SweetAlert
+    document.addEventListener('click', async function(evenement) {
+        var bouton = evenement.target.closest('.btn-supprimer-page');
+        if (!bouton) return;
+        evenement.preventDefault();
+        evenement.stopPropagation();
+
+        var pageId = bouton.dataset.pageId;
+        var resultat = await Swal.fire({
+            title: 'Supprimer cette page ?',
+            text: 'Cette action est irréversible.',
+            icon: 'warning',
+            showCancelButton: true,
+            cancelButtonText: 'Annuler',
+            confirmButtonText: 'Supprimer',
+            confirmButtonColor: '#ef4444',
+        });
+        if (!resultat.isConfirmed) return;
+
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        var reponse = await fetch('/pages/' + pageId + '/supprimer/', {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken},
+        });
+        if (reponse.ok) {
+            var arbreEl = document.getElementById('arbre');
+            arbreEl.innerHTML = await reponse.text();
+            htmx.process(arbreEl);
+        }
+    });
+
+    // --- Supprimer une extraction individuelle via SweetAlert ---
+    // / Delete a single extraction via SweetAlert
+    document.addEventListener('click', async function(evenement) {
+        var bouton = evenement.target.closest('.btn-supprimer-extraction');
+        if (!bouton) return;
+        evenement.preventDefault();
+        evenement.stopPropagation();
+
+        var entityId = bouton.dataset.entityId;
+        var pageId = bouton.dataset.pageId;
+        var hasComments = bouton.dataset.hasComments === 'true';
+
+        if (hasComments) {
+            Swal.fire({
+                title: 'Suppression impossible',
+                text: 'Cette extraction a des commentaires. Supprimez-les d\'abord.',
+                icon: 'info',
+            });
+            return;
+        }
+
+        var resultat = await Swal.fire({
+            title: 'Supprimer cette extraction ?',
+            icon: 'warning',
+            showCancelButton: true,
+            cancelButtonText: 'Annuler',
+            confirmButtonText: 'Supprimer',
+            confirmButtonColor: '#ef4444',
+        });
+        if (!resultat.isConfirmed) return;
+
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        htmx.ajax('POST', '/extractions/supprimer_entite/', {
+            target: '#panneau-extractions',
+            swap: 'innerHTML',
+            values: {entity_id: entityId, page_id: pageId},
+        });
+    });
+
+    // --- Supprimer toutes les extractions IA via SweetAlert ---
+    // / Delete all AI extractions via SweetAlert
+    document.addEventListener('click', async function(evenement) {
+        var bouton = evenement.target.closest('.btn-supprimer-extractions-ia');
+        if (!bouton) return;
+        evenement.preventDefault();
+
+        var pageId = bouton.dataset.pageId;
+        var resultat = await Swal.fire({
+            title: 'Supprimer les extractions IA ?',
+            text: 'Les extractions manuelles seront conservées.',
+            icon: 'warning',
+            showCancelButton: true,
+            cancelButtonText: 'Annuler',
+            confirmButtonText: 'Supprimer',
+            confirmButtonColor: '#ef4444',
+        });
+        if (!resultat.isConfirmed) return;
+
+        htmx.ajax('POST', '/extractions/supprimer_ia/', {
+            target: '#panneau-extractions',
+            swap: 'innerHTML',
+            values: {page_id: pageId},
+        });
     });
     </script>
 
