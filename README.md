@@ -101,6 +101,27 @@ uv run celery -A hypostasia worker --loglevel=info
 - Interface : http://localhost:8000/
 - Admin Django : http://localhost:8000/admin/
 
+### Mise a jour en production (sans rebuild)
+
+Pour appliquer un changement rapidement sans reconstruire l'image Docker :
+
+```bash
+# Entrer dans le conteneur
+docker exec -it hypostasia_web bash
+
+# Recuperer les modifications
+cd /app && git pull
+
+# (Si pyproject.toml a change) reinstaller les dependances
+uv sync
+
+# (Si migrations ajoutees) appliquer les migrations
+uv run python manage.py migrate
+
+# Relancer les services via supervisord
+supervisorctl -c /app/supervisord.conf restart gunicorn celery_worker
+```
+
 ### Deploiement Docker
 
 Le conteneur utilise **supervisord** pour gerer gunicorn et le worker Celery dans un seul service.

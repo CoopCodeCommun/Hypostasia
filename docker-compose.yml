@@ -1,3 +1,16 @@
+# =============================================================================
+# DEV LOCAL (sans Docker) — 2 terminaux :
+#   Terminal 1 : uv run python manage.py runserver
+#   Terminal 2 : uv run celery -A hypostasia worker --loglevel=info
+#
+# PROD — mise a jour rapide via git pull dans le conteneur :
+#   docker exec -it hypostasia_web bash
+#   cd /app && git pull
+#   uv sync                                      # si pyproject.toml a change
+#   uv run python manage.py migrate              # si migrations ajoutees
+#   supervisorctl -c /app/supervisord.conf restart gunicorn celery_worker  # relancer les services
+# =============================================================================
+
 services:
   web:
     build: .
