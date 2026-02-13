@@ -36,6 +36,8 @@ Le projet est organise en 3 apps avec des responsabilites distinctes :
 /extractions/modifier/     → front:ExtractionViewSet.modifier
 /config-ia/status/         → front:ConfigurationIAViewSet.status
 /config-ia/toggle/         → front:ConfigurationIAViewSet.toggle
+/import/fichier/           → front:ImportViewSet.fichier (import document ou audio)
+/import/status/            → front:ImportViewSet.status (polling transcription audio)
 
 /api/pages/                → core:PageViewSet (extension navigateur)
 /api/test-sidebar/         → core:test_sidebar_view (extension sidebar)
@@ -173,7 +175,8 @@ front/templates/front/
     ├── panneau_analyse.html       # Panneau droit (extractions)
     ├── extraction_results.html    # Cartes d'extraction
     ├── extraction_manuelle_form.html  # Formulaire extraction manuelle
-    └── config_ia_toggle.html      # Toggle IA on/off
+    ├── config_ia_toggle.html      # Toggle IA on/off
+    └── transcription_en_cours.html # Polling HTMX transcription audio
 ```
 
 Les templates de `core/` ne servent que l'extension navigateur (sidebar).
@@ -188,6 +191,9 @@ Toutes les commandes Django se lancent via `uv run` :
 uv run python manage.py runserver
 uv run python manage.py migrate
 uv run python manage.py check
+
+# Worker Celery (requis pour la transcription audio)
+uv run celery -A hypostasia worker --loglevel=info
 ```
 
 ---
@@ -198,7 +204,46 @@ Le front utilise **Tailwind CSS** (via CDN). La specification `CLAUDE.md` mentio
 
 ---
 
-## 7. Resume des regles
+## 7. Celery et traitement asynchrone
+
+Les taches longues (transcription audio) sont traitees en asynchrone via Celery.
+
+### Infrastructure
+
+- **Broker** : SQLAlchemy + SQLite (`sqla+sqlite:///db/celery-broker.sqlite3`)
+- **Backend** : `django-db` (via `django-celery-results`)
+- **Config** : `hypostasia/celery.py` + namespace `CELERY_` dans `settings.py`
+- **Taches** : `front/tasks.py`
+
+### Pattern pour les taches Celery
+
+```python
+# OUI — @shared_task dans front/tasks.py
+# YES — @shared_task in front/tasks.py
+@shared_task(bind=True)
+def ma_tache_longue(self, job_id, chemin_fichier):
+    # Imports Django dans le corps de la tache (pas en haut du fichier)
+    from core.models import MonModele
+    # ...
+```
+
+### Import audio : flux complet
+
+1. `ImportViewSet.fichier()` detecte un fichier audio via `est_fichier_audio()`
+2. Sauvegarde le fichier dans `AUDIO_TEMP_DIR` (nom UUID)
+3. Cree une `Page` en status `processing` + un `TranscriptionJob`
+4. Lance `transcrire_audio_task.delay(job_id, chemin)`
+5. Retourne `transcription_en_cours.html` (polling HTMX toutes les 3s)
+6. `ImportViewSet.status()` est appele en polling, retourne le resultat quand termine
+
+### Supervisord (Docker)
+
+En production, `supervisord.conf` gere gunicorn + celery worker dans un seul conteneur.
+Le `start.sh` fait les migrations puis lance supervisord.
+
+---
+
+## 8. Resume des regles
 
 1. `viewsets.ViewSet` explicite, jamais `ModelViewSet`
 2. `DefaultRouter` DRF, jamais `path()` manuel pour DRF
@@ -208,3 +253,5 @@ Le front utilise **Tailwind CSS** (via CDN). La specification `CLAUDE.md` mentio
 6. Commentaires bilingues FR/EN
 7. `core` = API JSON extension, `front` = interface HTML HTMX
 8. `uv run` pour toutes les commandes
+9. Celery pour les taches longues (transcription audio), broker SQLite
+10. Supervisord en Docker pour gerer gunicorn + celery worker

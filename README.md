@@ -32,11 +32,15 @@ Hypostasia-V3/
 ├── core/                       # Modeles de donnees (Page, Argument, AIModel, Prompt)
 ├── hypostasis_extractor/       # Integration LangExtract + Analyseurs + Tests LLM
 ├── front/                      # Interface lecture 3 colonnes (HTMX partials)
-├── hypostasia/                 # Config Django (settings, urls, wsgi)
+│   ├── services/               # Services metier (conversion fichiers, transcription audio)
+│   └── tasks.py                # Taches Celery (transcription async)
+├── hypostasia/                 # Config Django (settings, urls, wsgi, celery)
 ├── logs/                       # Fichiers de logs (extractor.log, core.log, django.log)
 ├── tools/                      # Scripts utilitaires (test_langextract.py)
-├── Dockerfile                  # Build container
-├── docker-compose.yml          # Deploiement Nginx + Gunicorn
+├── Dockerfile                  # Build container (ffmpeg inclus)
+├── docker-compose.yml          # Deploiement Nginx + Gunicorn + Celery
+├── supervisord.conf            # Gestion des services (gunicorn + celery worker)
+├── start.sh                    # Script de demarrage (migrations + supervisord)
 └── CLAUDE.md                   # Specification stricte pour agents IA
 ```
 
@@ -75,7 +79,7 @@ cd Hypostasia/Hypostasia-V3
 uv sync
 
 # Creer les repertoires necessaires
-mkdir -p db logs staticfiles
+mkdir -p db logs staticfiles tmp/audio
 
 # Appliquer les migrations
 uv run python manage.py migrate
@@ -86,8 +90,11 @@ uv run python manage.py createsuperuser
 # (Optionnel) Charger les prompts et exemples de base
 uv run python seed_prompts.py
 
-# Lancer le serveur
+# Lancer le serveur Django
 uv run python manage.py runserver
+
+# Lancer le worker Celery (dans un second terminal)
+uv run celery -A hypostasia worker --loglevel=info
 ```
 
 **Acces :**
@@ -96,6 +103,8 @@ uv run python manage.py runserver
 
 ### Deploiement Docker
 
+Le conteneur utilise **supervisord** pour gerer gunicorn et le worker Celery dans un seul service.
+
 ```bash
 # Configurer les variables d'environnement
 cp .env.example .env  # editer avec vos cles API
@@ -103,9 +112,8 @@ cp .env.example .env  # editer avec vos cles API
 # Lancer les containers
 docker-compose up -d
 
-# Migrations + collecte des fichiers statiques
-docker-compose exec web uv run python manage.py migrate
-docker-compose exec web uv run python manage.py collectstatic --noinput
+# Les migrations et collectstatic sont lances automatiquement par start.sh
+# supervisord demarre gunicorn + celery worker
 ```
 
 ## Configuration des modeles LLM
@@ -126,6 +134,64 @@ Le provider est detecte automatiquement a partir du model_choice.
 | Mistral | Large, Medium, Small, Mixtral |
 | Perplexity | Sonar (Large, Small, Huge) |
 | Moonshot | Kimi K2.5, K1.5, K2 |
+
+## Transcription audio
+
+Hypostasia supporte l'import de fichiers audio avec transcription automatique et diarisation (identification des locuteurs). La transcription est asynchrone via **Celery**.
+
+### Prerequis
+
+- **ffmpeg** installe sur le systeme (pour le traitement audio, inclus dans le Dockerfile)
+- **Celery worker** en cours d'execution (traitement asynchrone)
+- Une **TranscriptionConfig** active dans l'admin Django
+
+### Formats audio supportes
+
+MP3, WAV, M4A, OGG, FLAC, WEBM, AAC, WMA, OPUS, AIFF
+
+### Configuration
+
+1. Creer une `TranscriptionConfig` dans `/admin/core/transcriptionconfig/`
+2. Choisir le provider (`voxtral` pour Mistral API, `mock` pour simulation)
+3. Pour Voxtral : renseigner la cle API Mistral et le modele (`mistral-small-latest`)
+4. Activer la config (`is_active = True`)
+
+### Celery : traitement asynchrone
+
+La transcription audio utilise Celery avec un broker SQLite (via SQLAlchemy). Pas de Redis requis.
+
+```bash
+# Developpement local : lancer le worker dans un second terminal
+uv run celery -A hypostasia worker --loglevel=info
+
+# Docker : supervisord gere automatiquement gunicorn + celery worker
+# Voir supervisord.conf pour la configuration des services
+docker-compose up -d
+```
+
+**Architecture Celery :**
+- **Broker** : `sqla+sqlite:///db/celery-broker.sqlite3` (pas de Redis)
+- **Backend de resultats** : `django-db` (via django-celery-results)
+- **Tache** : `front.tasks.transcrire_audio_task` (transcription + diarisation)
+- **Timeout** : 30 minutes par tache
+
+### Supervisord (Docker)
+
+En production (Docker), `supervisord` gere les deux services dans un seul conteneur :
+
+| Service | Commande | Logs |
+|---------|----------|------|
+| `gunicorn` | `uv run gunicorn hypostasia.wsgi:application --bind 0.0.0.0:8000 -w 3` | `logs/gunicorn.log` |
+| `celery_worker` | `uv run celery -A hypostasia worker --loglevel=info --concurrency=2` | `logs/celery_worker.log` |
+
+Le fichier `supervisord.conf` a la racine configure ces services.
+
+### Utilisation
+
+1. Cliquer sur "Importer un fichier ou audio" dans la sidebar gauche
+2. Selectionner un fichier audio
+3. L'interface affiche un indicateur de progression avec polling automatique (toutes les 3s)
+4. Une fois la transcription terminee, les blocs locuteurs s'affichent avec des couleurs distinctes et des timestamps (MM:SS)
 
 ## Logs
 
@@ -173,6 +239,8 @@ GET    /                                    # Bibliotheque 3 colonnes
 GET    /lire/{id}/                          # Zone de lecture
 POST   /lire/{id}/analyser/                 # Lancer une extraction IA
 POST   /extractions/manuelle/               # Extraction manuelle de texte
+POST   /import/fichier/                     # Import fichier (document ou audio)
+GET    /import/status/?page_id=...          # Polling transcription audio
 ```
 
 ## Documentation
@@ -191,5 +259,3 @@ Toute modification doit respecter les patterns decrits dans **[CLAUDE.md](./CLAU
 <div align="center">
 <sub>Hypostasia — decoder la couche argumentative du web</sub>
 </div>
-</content>
-</invoke>

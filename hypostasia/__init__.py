@@ -13,3 +13,9 @@ except RuntimeError:
     # Django est deja en train de se charger (reentrance) → on laisse faire
     # / Django is already loading (reentrant call) → let it proceed
     pass
+
+# Import Celery pour que l'app soit chargee au demarrage de Django
+# / Import Celery so the app is loaded at Django startup
+from .celery import celery_app
+
+__all__ = ("celery_app",)

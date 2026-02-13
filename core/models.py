@@ -5,6 +5,15 @@ from solo.models import SingletonModel
 # Create your models here.
 
 
+class SourceType(models.TextChoices):
+    """Type de source d'une Page (web, fichier importe ou audio transcrit).
+    / Source type for a Page (web, imported file or transcribed audio).
+    """
+    WEB = "web", "Page web"
+    FILE = "file", "Fichier importé"
+    AUDIO = "audio", "Audio transcrit"
+
+
 class PageStatus(models.TextChoices):
     """Statut de traitement d'une Page dans le pipeline d'analyse.
 
@@ -50,7 +59,23 @@ class Page(models.Model):
         related_name="pages",
         help_text="Dossier de classement (optionnel)",
     )
-    url = models.URLField(unique=True, help_text="URL canonique de la page analysée")
+    source_type = models.CharField(
+        max_length=10,
+        choices=SourceType.choices,
+        default=SourceType.WEB,
+        help_text="Type de source : page web ou fichier importé",
+    )
+    original_filename = models.CharField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Nom du fichier original (uniquement pour source_type='file')",
+    )
+    url = models.URLField(
+        blank=True,
+        null=True,
+        help_text="URL canonique de la page analysée (null pour les fichiers importés)",
+    )
     title = models.CharField(
         max_length=500,
         blank=True,
@@ -83,16 +108,28 @@ class Page(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["url"],
+                condition=models.Q(url__isnull=False),
+                name="unique_url_si_presente",
+            ),
+        ]
+
     def __str__(self):
-        return self.title if self.title else self.url
+        return self.title if self.title else (self.url or self.original_filename or "Page sans titre")
 
     @property
     def domain(self):
+        # Retourne le domaine de l'URL, ou "fichier" si pas d'URL
+        # / Returns the URL domain, or "fichier" if no URL
+        if not self.url:
+            return "fichier"
         from urllib.parse import urlparse
-
         try:
             return urlparse(self.url).netloc
-        except:
+        except Exception:
             return ""
 
     @property
@@ -307,25 +344,24 @@ class ArgumentComment(models.Model):
 
 
 class Provider(models.TextChoices):
-    """Fournisseur du modèle d'IA."""
+    """
+    Fournisseur du modèle d'IA pour LangExtract.
+    Seuls Google Gemini et OpenAI GPT sont supportés par LangExtract.
+    / AI model provider for LangExtract.
+    Only Google Gemini and OpenAI GPT are supported by LangExtract.
+    """
 
     MOCK = "mock", "Mock (Simulation)"
     GOOGLE = "google", "Google Gemini"
     OPENAI = "openai", "OpenAI GPT"
-    MISTRAL = "mistral", "Mistral AI"
-    PERPLEXITY = "perplexity", "Perplexity"
-    ANTHROPIC = "anthropic", "Anthropic Claude"
-    MOONSHOT = "moonshot", "Moonshot AI (Kimi)"
 
 
 class AIModelChoices(models.TextChoices):
     """
-    Liste unifiée des modèles AI principaux avec leur provider intégré.
-    / Unified list of main AI models with integrated provider.
-
-    Format: PROVIDER_MODEL_NAME = "technical_name", "Display Name (Provider)"
-    Permet de choisir un seul champ qui détermine automatiquement le provider.
-    / Allows selecting a single field that automatically determines the provider.
+    Liste des modèles AI supportés par LangExtract.
+    Seuls Google Gemini et OpenAI GPT sont supportés.
+    / List of AI models supported by LangExtract.
+    Only Google Gemini and OpenAI GPT are supported.
     """
 
     # Google / Gemini
@@ -342,63 +378,13 @@ class AIModelChoices(models.TextChoices):
     )
     GOOGLE_GEMINI_1_5_PRO = "gemini-1.5-pro", "Gemini 1.5 Pro (Google)"
     GOOGLE_GEMINI_1_5_FLASH = "gemini-1.5-flash", "Gemini 1.5 Flash (Google)"
-    GOOGLE_GEMINI_1_0_PRO = "gemini-1.0-pro", "Gemini 1.0 Pro (Google)"
 
-    # OpenAI / GPT (Nouvelle génération GPT-5.x + GPT-4.1)
-    OPENAI_GPT_5_2 = "gpt-5.2", "GPT-5.2 (OpenAI)"
-    OPENAI_GPT_5_MINI = "gpt-5-mini", "GPT-5 Mini (OpenAI)"
-    OPENAI_GPT_5_NANO = "gpt-5-nano", "GPT-5 Nano (OpenAI)"
-    OPENAI_GPT_4_1 = "gpt-4.1", "GPT-4.1 (OpenAI)"
-    OPENAI_GPT_4_1_MINI = "gpt-4.1-mini", "GPT-4.1 Mini (OpenAI)"
-    OPENAI_GPT_4_1_NANO = "gpt-4.1-nano", "GPT-4.1 Nano (OpenAI)"
+    # OpenAI / GPT
     OPENAI_GPT_4O = "gpt-4o", "GPT-4o (OpenAI)"
     OPENAI_GPT_4O_MINI = "gpt-4o-mini", "GPT-4o Mini (OpenAI)"
     OPENAI_GPT_4_TURBO = "gpt-4-turbo", "GPT-4 Turbo (OpenAI)"
-    OPENAI_GPT_4 = "gpt-4", "GPT-4 (OpenAI)"
-    OPENAI_GPT_3_5_TURBO = "gpt-3.5-turbo", "GPT-3.5 Turbo (OpenAI)"
-
-    # Mistral AI
-    MISTRAL_LARGE = "mistral-large-latest", "Mistral Large (Mistral)"
-    MISTRAL_MEDIUM = "mistral-medium-latest", "Mistral Medium (Mistral)"
-    MISTRAL_SMALL = "mistral-small-latest", "Mistral Small (Mistral)"
-    MISTRAL_7B = "open-mistral-7b", "Mistral 7B (Mistral)"
-    MISTRAL_8X7B = "open-mixtral-8x7b", "Mixtral 8x7B (Mistral)"
-    MISTRAL_8X22B = "open-mixtral-8x22b", "Mixtral 8x22B (Mistral)"
-
-    # Perplexity
-    PERPLEXITY_SONAR = "sonar", "Sonar (Perplexity)"
-    PERPLEXITY_SONAR_PRO = "sonar-pro", "Sonar Pro (Perplexity)"
-    PERPLEXITY_LLAMA_3_1 = (
-        "llama-3.1-sonar-large-128k-online",
-        "Llama 3.1 Sonar Large (Perplexity)",
-    )
-
-    # Anthropic / Claude (Nouvelle génération 4.x + Legacy 3.x)
-    ANTHROPIC_CLAUDE_OPUS_4_6 = "claude-opus-4-6", "Claude Opus 4.6 (Anthropic)"
-    ANTHROPIC_CLAUDE_SONNET_4_5 = "claude-sonnet-4-5", "Claude Sonnet 4.5 (Anthropic)"
-    ANTHROPIC_CLAUDE_HAIKU_4_5 = "claude-haiku-4-5", "Claude Haiku 4.5 (Anthropic)"
-    # Legacy models (conservés pour compatibilité)
-    ANTHROPIC_CLAUDE_3_5_SONNET = (
-        "claude-3-5-sonnet-20241022",
-        "Claude 3.5 Sonnet Legacy (Anthropic)",
-    )
-    ANTHROPIC_CLAUDE_3_OPUS = (
-        "claude-3-opus-20240229",
-        "Claude 3 Opus Legacy (Anthropic)",
-    )
-    ANTHROPIC_CLAUDE_3_SONNET = (
-        "claude-3-sonnet-20240229",
-        "Claude 3 Sonnet Legacy (Anthropic)",
-    )
-    ANTHROPIC_CLAUDE_3_HAIKU = (
-        "claude-3-haiku-20240307",
-        "Claude 3 Haiku Legacy (Anthropic)",
-    )
-
-    # Moonshot AI / Kimi
-    MOONSHOT_KIMI_K2_5 = "kimi-k2.5", "Kimi K2.5 (Moonshot AI)"
-    MOONSHOT_KIMI_K1_5 = "kimi-k1.5", "Kimi K1.5 (Moonshot AI)"
-    MOONSHOT_KIMI_K2 = "kimi-k2", "Kimi K2 (Moonshot AI)"
+    OPENAI_GPT_4_1 = "gpt-4.1", "GPT-4.1 (OpenAI)"
+    OPENAI_GPT_4_1_MINI = "gpt-4.1-mini", "GPT-4.1 Mini (OpenAI)"
 
     # Mock (Simulation)
     MOCK_DEFAULT = "mock", "Mock / Simulation"
@@ -465,26 +451,14 @@ class AIModel(models.Model):
         """
         if self.model_choice:
             # Deduit le provider depuis la VALEUR du model_choice (ex: "gemini-2.5-flash")
-            # Les prefixes des valeurs identifient le provider :
-            #   gemini-* → Google, gpt-* → OpenAI, mistral-*/open-mistral-*/open-mixtral-* → Mistral,
-            #   sonar*/llama-* → Perplexity, claude-* → Anthropic, kimi-* → Moonshot, mock → Mock
             # / Infer provider from model_choice VALUE (e.g. "gemini-2.5-flash")
             choice_value = self.model_choice.lower()
 
             # Mapping des prefixes de valeur vers les providers
-            # Ordre important : les prefixes les plus specifiques d'abord
             # / Mapping of value prefixes to providers
-            # Order matters: most specific prefixes first
             prefix_to_provider = [
                 ("gemini-", Provider.GOOGLE),
                 ("gpt-", Provider.OPENAI),
-                ("open-mistral-", Provider.MISTRAL),
-                ("open-mixtral-", Provider.MISTRAL),
-                ("mistral-", Provider.MISTRAL),
-                ("sonar", Provider.PERPLEXITY),
-                ("llama-", Provider.PERPLEXITY),
-                ("claude-", Provider.ANTHROPIC),
-                ("kimi-", Provider.MOONSHOT),
                 ("mock", Provider.MOCK),
             ]
 
@@ -604,3 +578,218 @@ class Configuration(SingletonModel):
 
     def __str__(self):
         return "Configuration"
+
+
+#### TRANSCRIPTION AUDIO ####
+
+
+class TranscriptionProvider(models.TextChoices):
+    """Fournisseur de transcription audio.
+    / Audio transcription provider.
+    """
+    VOXTRAL = "voxtral", "Voxtral (Mistral AI)"
+    MOCK = "mock", "Mock (Simulation)"
+
+
+class TranscriptionModelChoices(models.TextChoices):
+    """
+    Liste des modeles de transcription audio disponibles par provider.
+    / List of available audio transcription models per provider.
+
+    Format: PROVIDER_MODEL = "technical_name", "Display Name (Provider)"
+    Le provider est deduit automatiquement du prefixe de la valeur.
+    / Provider is automatically inferred from the value prefix.
+    """
+
+    # Voxtral / Mistral AI — endpoint dedie audio/transcriptions
+    # / Voxtral / Mistral AI — dedicated audio/transcriptions endpoint
+    VOXTRAL_MINI = "voxtral-mini-latest", "Voxtral Mini (Mistral AI)"
+
+    # Mistral AI — modeles multimodaux (chat.complete avec audio_url)
+    # / Mistral AI — multimodal models (chat.complete with audio_url)
+    MISTRAL_SMALL = "mistral-small-latest", "Mistral Small (Mistral AI)"
+    MISTRAL_LARGE = "mistral-large-latest", "Mistral Large (Mistral AI)"
+
+    # Mock (Simulation)
+    MOCK_DEFAULT = "mock", "Mock / Simulation"
+
+
+class TranscriptionConfig(models.Model):
+    """
+    Configuration d'un outil de transcription audio (pattern identique a AIModel).
+    / Audio transcription tool configuration (same pattern as AIModel).
+
+    ARCHITECTURE:
+    - model_choice: Champ unifie (ChoiceField avec tous les modeles de transcription)
+    - provider & model_name: Champs legacy synchronises automatiquement
+    / - model_choice: Unified field (ChoiceField with all transcription models)
+    / - provider & model_name: Legacy fields automatically synced
+    """
+    name = models.CharField(
+        max_length=100,
+        help_text="Nom d'affichage de la configuration de transcription",
+    )
+
+    # Champ unifie pour choisir modele + provider en un seul clic
+    # / Unified field to choose model + provider in one click
+    model_choice = models.CharField(
+        max_length=100,
+        choices=TranscriptionModelChoices.choices,
+        default=TranscriptionModelChoices.MOCK_DEFAULT,
+        help_text="Modele de transcription (determine automatiquement le provider)",
+    )
+
+    # Champs legacy synchronises automatiquement via save()
+    # / Legacy fields automatically synced via save()
+    provider = models.CharField(
+        max_length=50,
+        choices=TranscriptionProvider.choices,
+        default=TranscriptionProvider.MOCK,
+        help_text="[LEGACY] Fournisseur - deduit automatiquement du modele choisi",
+    )
+    model_name = models.CharField(
+        max_length=100,
+        default="mock",
+        help_text="[LEGACY] Nom technique - deduit automatiquement du modele choisi",
+    )
+
+    api_key = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Cle API Mistral (laisser vide pour Mock)",
+    )
+    language = models.CharField(
+        max_length=10,
+        default="fr",
+        help_text="Code langue pour la transcription (ex: fr, en)",
+    )
+    diarization_enabled = models.BooleanField(
+        default=True,
+        help_text="Activer la diarisation (identification des locuteurs)",
+    )
+    max_speakers = models.PositiveIntegerField(
+        default=5,
+        help_text="Nombre maximum de locuteurs a detecter",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Configuration active pour la transcription",
+    )
+
+    def save(self, *args, **kwargs):
+        """
+        Synchronise automatiquement provider et model_name depuis model_choice.
+        / Automatically synchronizes provider and model_name from model_choice.
+        """
+        if self.model_choice:
+            valeur_choix = self.model_choice.lower()
+
+            # Mapping des prefixes vers les providers
+            # Ordre important : les prefixes les plus specifiques d'abord
+            # / Mapping of prefixes to providers
+            # Order matters: most specific prefixes first
+            prefixes_vers_provider = [
+                ("voxtral-", TranscriptionProvider.VOXTRAL),
+                ("mistral-", TranscriptionProvider.VOXTRAL),
+                ("mock", TranscriptionProvider.MOCK),
+            ]
+
+            for prefixe, valeur_provider in prefixes_vers_provider:
+                if valeur_choix.startswith(prefixe):
+                    self.provider = valeur_provider
+                    break
+
+            # Le model_name technique est directement la valeur du choice
+            # / The technical model_name is directly the choice value
+            self.model_name = self.model_choice
+
+        super().save(*args, **kwargs)
+
+    def get_display_name(self):
+        """
+        Retourne le nom d'affichage officiel du modele de transcription.
+        / Returns the official display name of the transcription model.
+        """
+        if self.name:
+            return self.name
+        return dict(TranscriptionModelChoices.choices).get(self.model_choice, self.model_choice)
+
+    def __str__(self):
+        return f"{self.get_display_name()} [{self.get_provider_display()}]"
+
+    class Meta:
+        verbose_name = "Configuration de transcription"
+        verbose_name_plural = "Configurations de transcription"
+
+
+class TranscriptionJobStatus(models.TextChoices):
+    """Statut d'un job de transcription audio.
+    / Status of an audio transcription job.
+    """
+    PENDING = "pending", "En attente"
+    PROCESSING = "processing", "En cours"
+    COMPLETED = "completed", "Termine"
+    ERROR = "error", "Erreur"
+
+
+class TranscriptionJob(models.Model):
+    """
+    Job de transcription audio lie a une Page.
+    Suit la progression de la tache Celery et stocke le resultat brut.
+    / Audio transcription job linked to a Page.
+    Tracks Celery task progress and stores raw result.
+    """
+    page = models.ForeignKey(
+        Page,
+        on_delete=models.CASCADE,
+        related_name="transcription_jobs",
+        help_text="Page associee a cette transcription",
+    )
+    transcription_config = models.ForeignKey(
+        TranscriptionConfig,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="jobs",
+        help_text="Configuration de transcription utilisee",
+    )
+    celery_task_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="ID de la tache Celery associee",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=TranscriptionJobStatus.choices,
+        default=TranscriptionJobStatus.PENDING,
+        help_text="Statut actuel du job de transcription",
+    )
+    raw_result = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Resultat brut de la transcription (segments JSON)",
+    )
+    error_message = models.TextField(
+        blank=True,
+        help_text="Message d'erreur en cas d'echec",
+    )
+    audio_filename = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Nom du fichier audio original",
+    )
+    processing_time_seconds = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Duree de traitement en secondes",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"TranscriptionJob #{self.pk} — {self.get_status_display()} ({self.page})"
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Job de transcription"
+        verbose_name_plural = "Jobs de transcription"

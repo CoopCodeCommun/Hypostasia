@@ -1,7 +1,9 @@
 import json
 import logging
+from datetime import timedelta
 
 from django.db.models import Count
+from django.utils import timezone
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.template.loader import render_to_string
@@ -10,11 +12,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from core.models import AIModel, Configuration, Dossier, Page
-from hypostasis_extractor.models import AnalyseurSyntaxique, CommentaireExtraction, ExtractedEntity, ExtractionJob
-from hypostasis_extractor.services import run_analyseur_on_page
+from hypostasis_extractor.models import (
+    AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
+    ExtractedEntity, ExtractionJob, PromptPiece,
+)
 from .serializers import (
     CommentaireExtractionSerializer, DossierCreateSerializer, ExtractionManuelleSerializer,
-    ExtractionSerializer, PageClasserSerializer, RunAnalyseSerializer, SelectModelSerializer,
+    ExtractionSerializer, ImportFichierSerializer, PageClasserSerializer, RunAnalyseSerializer,
+    SelectModelSerializer, est_fichier_audio,
 )
 from .utils import annoter_html_avec_ancres
 
@@ -258,17 +263,38 @@ class LectureViewSet(viewsets.ViewSet):
     @action(detail=True, methods=["POST"])
     def analyser(self, request, pk=None):
         """
-        Lance une extraction LangExtract sur une page via un analyseur syntaxique.
-
-        Donnees recues : form-data HTMX avec analyseur_id (via hx-include du select).
-        Retourne le partial HTML des cartes d'extraction.
-        Envoie HX-Trigger: ouvrirPanneauDroit pour ouvrir le panneau droit cote client.
+        Lance une extraction LangExtract asynchrone sur une page via Celery.
+        - Si un job est deja en cours → renvoie le template de polling (pas de re-lancement)
+        - Sinon → cree un ExtractionJob, lance la tache Celery, renvoie le polling
+        / Launches an async LangExtract extraction on a page via Celery.
+        - If a job is already running → returns polling template (no re-launch)
+        - Otherwise → creates ExtractionJob, launches Celery task, returns polling
         """
         # Guard : verifie que l'IA est activee / Check AI is enabled
         if not _get_ia_active():
             return HttpResponse("IA desactivee. Activez l'IA depuis le panneau de gauche.", status=403)
 
+        page = get_object_or_404(Page, pk=pk)
+
+        # Guard anti-doublon : verifier s'il y a deja un job en cours pour cette page
+        # / Anti-duplicate guard: check if a job is already running for this page
+        job_en_cours = ExtractionJob.objects.filter(
+            page=page,
+            status__in=["pending", "processing"],
+        ).order_by("-created_at").first()
+
+        if job_en_cours:
+            # Un job est deja en cours → renvoyer le template de polling sans re-lancer
+            # / A job is already running → return polling template without re-launching
+            logger.info("analyser: job deja en cours pk=%s pour page=%s", job_en_cours.pk, pk)
+            reponse = render(request, "front/includes/analyse_en_cours.html", {
+                "page": page,
+            })
+            reponse["HX-Trigger"] = "ouvrirPanneauDroit"
+            return reponse
+
         # Validation via serializer DRF sur request.data (form-data envoye par HTMX)
+        # / Validation via DRF serializer on request.data (form-data sent by HTMX)
         serializer = RunAnalyseSerializer(data=request.data)
         if not serializer.is_valid():
             logger.warning("analyser: validation echouee — %s", serializer.errors)
@@ -276,65 +302,195 @@ class LectureViewSet(viewsets.ViewSet):
                 "error_message": str(serializer.errors),
             })
 
-        page = get_object_or_404(Page, pk=pk)
         analyseur = get_object_or_404(
             AnalyseurSyntaxique, pk=serializer.validated_data["analyseur_id"]
         )
 
-        # On prend le premier modele IA actif
-        ai_model_actif = AIModel.objects.filter(is_active=True).first()
+        # Utiliser le modele selectionne dans la configuration singleton (sidebar)
+        # / Use the model selected in the singleton configuration (sidebar)
+        configuration_ia = Configuration.get_solo()
+        ai_model_actif = configuration_ia.ai_model
         if not ai_model_actif:
             return render(request, "front/includes/extraction_results.html", {
-                "error_message": "Aucun modele IA actif configure. Activez un modele dans l'admin.",
+                "error_message": "Aucun modele IA selectionne. Choisissez un modele dans la sidebar.",
             })
 
-        # Lancement de l'extraction LangExtract
-        try:
-            job_extraction = run_analyseur_on_page(analyseur, page, ai_model_actif)
-        except Exception as exception_extraction:
-            logger.error(
-                "analyser: erreur extraction page=%s analyseur=%s — %s",
-                pk, analyseur.name, exception_extraction, exc_info=True,
-            )
-            return render(request, "front/includes/extraction_results.html", {
-                "error_message": str(exception_extraction),
+        # Construire le prompt snapshot depuis les pieces de l'analyseur
+        # / Build prompt snapshot from the analyzer's prompt pieces
+        pieces_ordonnees = PromptPiece.objects.filter(
+            analyseur=analyseur,
+        ).order_by("order")
+        prompt_snapshot = "\n".join(piece.content for piece in pieces_ordonnees)
+
+        # Serialiser les exemples few-shot pour stockage dans le job
+        # / Serialize few-shot examples for storage in the job
+        tous_les_exemples = AnalyseurExample.objects.filter(
+            analyseur=analyseur,
+        ).order_by("order").prefetch_related("extractions__attributes")
+
+        exemples_serialises = []
+        for exemple_django in tous_les_exemples:
+            liste_extractions = []
+            for extraction_django in exemple_django.extractions.all():
+                dictionnaire_attributs = {}
+                for attribut in extraction_django.attributes.all():
+                    dictionnaire_attributs[attribut.key] = attribut.value
+                liste_extractions.append({
+                    "extraction_class": extraction_django.extraction_class,
+                    "extraction_text": extraction_django.extraction_text,
+                    "attributes": dictionnaire_attributs,
+                })
+            exemples_serialises.append({
+                "text": exemple_django.example_text,
+                "extractions": liste_extractions,
             })
 
-        # Rendu du partial avec les cartes d'extraction
-        # / Render partial with extraction cards
-        toutes_les_entites_du_job, ids_entites_commentees = _annoter_entites_avec_commentaires(
-            job_extraction.entities.all()
+        # Creer le job d'extraction en status PENDING
+        # / Create extraction job in PENDING status
+        job_extraction = ExtractionJob.objects.create(
+            page=page,
+            ai_model=ai_model_actif,
+            name=f"Analyseur: {analyseur.name}",
+            prompt_description=prompt_snapshot,
+            status="pending",
+            raw_result={
+                "examples_data": exemples_serialises,
+                "analyseur_id": analyseur.pk,
+            },
         )
 
-        # Annoter le HTML avec des ancres pour le scroll-to-extraction
-        # / Annotate HTML with anchors for scroll-to-extraction
-        html_annote = annoter_html_avec_ancres(
-            page.html_readability, page.text_readability,
-            toutes_les_entites_du_job, ids_entites_commentees,
+        # Lancer la tache Celery en arriere-plan
+        # / Launch the Celery task in background
+        from front.tasks import analyser_page_task
+        analyser_page_task.delay(job_extraction.pk)
+
+        logger.info(
+            "analyser: job pk=%s cree pour page=%s analyseur=%s — tache Celery lancee",
+            job_extraction.pk, pk, analyseur.name,
         )
 
-        html_cartes = render_to_string(
-            "front/includes/extraction_results.html",
-            {"job": job_extraction, "entities": toutes_les_entites_du_job},
-            request=request,
-        )
-
-        # OOB swap pour mettre a jour #readability-content avec le HTML annote
-        # Le contenu de lecture est mis a jour en meme temps que les cartes d'extraction
-        # / OOB swap to update #readability-content with annotated HTML
-        html_readability_oob = (
-            '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
-            + (html_annote or page.html_readability)
-            + '</article>'
-        )
-
-        html_complet = html_cartes + html_readability_oob
-        reponse = HttpResponse(html_complet)
-
-        # Declenche l'ouverture du panneau droit cote client via event HTMX
+        # Retourner le template de polling
+        # / Return the polling template
+        reponse = render(request, "front/includes/analyse_en_cours.html", {
+            "page": page,
+        })
         reponse["HX-Trigger"] = "ouvrirPanneauDroit"
-
         return reponse
+
+    @action(detail=True, methods=["GET"])
+    def analyse_status(self, request, pk=None):
+        """
+        Endpoint de polling HTMX pour suivre la progression d'une analyse IA.
+        - pending/processing → renvoie le partial de polling (hx-trigger="every 3s")
+        - completed → renvoie extraction_results + OOB readability (arrete le polling)
+        - error → renvoie un message d'erreur (arrete le polling)
+        / HTMX polling endpoint to track AI analysis progress.
+        """
+        page = get_object_or_404(Page, pk=pk)
+
+        # Verifier s'il y a un job en cours / Check for in-progress job
+        job_en_cours = ExtractionJob.objects.filter(
+            page=page,
+            status__in=["pending", "processing"],
+        ).order_by("-created_at").first()
+
+        if job_en_cours:
+            # Timeout : si le job est bloque depuis plus de 5 minutes → erreur
+            # / Timeout: if job stuck for more than 5 minutes → error
+            delai_max_polling = timedelta(minutes=5)
+            age_du_job = timezone.now() - job_en_cours.created_at
+            if age_du_job > delai_max_polling:
+                logger.warning(
+                    "analyse_status: job pk=%s bloque depuis %s — timeout",
+                    job_en_cours.pk, age_du_job,
+                )
+                job_en_cours.status = "error"
+                job_en_cours.error_message = (
+                    "Timeout : l'analyse n'a pas repondu apres 5 minutes. "
+                    "Verifiez que le worker Celery tourne."
+                )
+                job_en_cours.save(update_fields=["status", "error_message"])
+                return render(request, "front/includes/extraction_results.html", {
+                    "error_message": job_en_cours.error_message,
+                })
+
+            # Toujours en cours → renvoyer le partial de polling
+            # / Still processing → return polling partial
+            return render(request, "front/includes/analyse_en_cours.html", {
+                "page": page,
+            })
+
+        # Recuperer le dernier job termine OU en erreur (le plus recent des deux)
+        # / Get the latest completed OR error job (whichever is more recent)
+        dernier_job_termine = ExtractionJob.objects.filter(
+            page=page,
+            status="completed",
+        ).order_by("-created_at").first()
+
+        dernier_job_erreur = ExtractionJob.objects.filter(
+            page=page,
+            status="error",
+        ).order_by("-created_at").first()
+
+        # Comparer les timestamps : si un job error est plus recent que le completed,
+        # afficher l'erreur (cas : re-analyse echouee apres une analyse reussie)
+        # / Compare timestamps: if an error job is more recent than completed,
+        # show the error (case: failed re-analysis after a successful one)
+        if dernier_job_erreur and dernier_job_termine:
+            if dernier_job_erreur.created_at > dernier_job_termine.created_at:
+                # L'erreur est plus recente → afficher l'erreur
+                # / Error is more recent → show error
+                message_erreur = dernier_job_erreur.error_message or "Erreur inconnue"
+                return render(request, "front/includes/extraction_results.html", {
+                    "error_message": message_erreur,
+                })
+
+        if dernier_job_termine:
+            # Termine → renvoyer les resultats d'extraction + OOB readability
+            # / Completed → return extraction results + OOB readability
+            toutes_les_entites_du_job, ids_entites_commentees = _annoter_entites_avec_commentaires(
+                dernier_job_termine.entities.all()
+            )
+
+            html_annote = annoter_html_avec_ancres(
+                page.html_readability, page.text_readability,
+                toutes_les_entites_du_job, ids_entites_commentees,
+            )
+
+            html_cartes = render_to_string(
+                "front/includes/extraction_results.html",
+                {"job": dernier_job_termine, "entities": toutes_les_entites_du_job},
+                request=request,
+            )
+
+            # OOB swap pour mettre a jour #readability-content avec le HTML annote
+            # / OOB swap to update #readability-content with annotated HTML
+            html_readability_oob = (
+                '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
+                + (html_annote or page.html_readability)
+                + '</article>'
+            )
+
+            html_complet = html_cartes + html_readability_oob
+            reponse = HttpResponse(html_complet)
+            reponse["HX-Trigger"] = json.dumps({
+                "ouvrirPanneauDroit": True,
+                "showToast": {"message": "Analyse termin\u00e9e"},
+            })
+            return reponse
+
+        if dernier_job_erreur:
+            # Erreur sans aucun job completed → afficher l'erreur
+            # / Error with no completed job → show error
+            message_erreur = dernier_job_erreur.error_message or "Erreur inconnue"
+            return render(request, "front/includes/extraction_results.html", {
+                "error_message": message_erreur,
+            })
+
+        # Fallback : aucun job trouve / Fallback: no job found
+        return render(request, "front/includes/extraction_results.html", {
+            "error_message": "Aucun job d'analyse trouv\u00e9.",
+        })
 
 
 class DossierViewSet(viewsets.ViewSet):
@@ -757,3 +913,352 @@ class ExtractionViewSet(viewsets.ViewSet):
         print(f"[EXTRACTION IA] page={validated_page_id} texte={validated_text}")
 
         return Response({"status": "ok"})
+
+
+class ImportViewSet(viewsets.ViewSet):
+    """
+    ViewSet pour l'import de fichiers (documents + audio).
+    Convertit le fichier en HTML/texte et cree une Page.
+    Les fichiers audio sont traites en async via Celery.
+    / ViewSet for file import (documents + audio).
+    Converts the file to HTML/text and creates a Page.
+    Audio files are processed asynchronously via Celery.
+    """
+
+    @action(detail=False, methods=["POST"])
+    def fichier(self, request):
+        """
+        Importe un fichier. Branche vers le pipeline audio si c'est un fichier audio,
+        sinon pipeline synchrone pour les documents.
+        / Imports a file. Branches to audio pipeline if audio file,
+        otherwise synchronous pipeline for documents.
+        """
+        # Validation via serializer DRF
+        # / Validation via DRF serializer
+        serializer = ImportFichierSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("import fichier: validation echouee — %s", serializer.errors)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        fichier_uploade = serializer.validated_data["fichier"]
+        nom_fichier = fichier_uploade.name
+
+        # Aiguillage : audio → pipeline async, document → pipeline synchrone
+        # / Routing: audio → async pipeline, document → synchronous pipeline
+        if est_fichier_audio(nom_fichier):
+            return self._importer_fichier_audio(request, serializer)
+        else:
+            return self._importer_fichier_document(request, serializer)
+
+    def _importer_fichier_audio(self, request, serializer):
+        """
+        Pipeline d'import audio : sauvegarde temp, cree Page en processing,
+        lance la tache Celery, retourne le template de polling.
+        / Audio import pipeline: save temp, create Page as processing,
+        launch Celery task, return polling template.
+        """
+        import os
+        import uuid
+        from django.conf import settings
+        from core.models import TranscriptionConfig, TranscriptionJob
+
+        fichier_uploade = serializer.validated_data["fichier"]
+        titre_personnalise = serializer.validated_data.get("titre", "")
+        dossier_id = serializer.validated_data.get("dossier_id")
+        nom_fichier = fichier_uploade.name
+        extension_fichier = os.path.splitext(nom_fichier)[1].lower()
+
+        # Sauvegarder le fichier audio dans AUDIO_TEMP_DIR avec un nom unique
+        # / Save audio file to AUDIO_TEMP_DIR with a unique name
+        nom_unique = f"{uuid.uuid4().hex}{extension_fichier}"
+        chemin_fichier_audio = str(settings.AUDIO_TEMP_DIR / nom_unique)
+
+        with open(chemin_fichier_audio, "wb") as destination:
+            for morceau in fichier_uploade.chunks():
+                destination.write(morceau)
+
+        logger.info(
+            "import audio: fichier sauvegarde %s (%s)",
+            chemin_fichier_audio, nom_fichier,
+        )
+
+        # Determiner le titre et le dossier
+        # / Determine title and folder
+        nom_sans_extension = os.path.splitext(nom_fichier)[0]
+        titre_final = titre_personnalise.strip() if titre_personnalise.strip() else nom_sans_extension
+        dossier_assigne = None
+        if dossier_id:
+            dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
+
+        # Creer la Page en status "processing" avec un placeholder HTML
+        # / Create Page in "processing" status with a placeholder HTML
+        page_audio = Page.objects.create(
+            source_type="audio",
+            original_filename=nom_fichier,
+            url=None,
+            title=titre_final,
+            html_original="",
+            html_readability='<p class="text-slate-400 italic">Transcription en cours...</p>',
+            text_readability="",
+            content_hash="",
+            status="processing",
+            dossier=dossier_assigne,
+        )
+
+        # Recuperer la config de transcription active (ou None pour mock)
+        # / Get active transcription config (or None for mock)
+        config_transcription_active = TranscriptionConfig.objects.filter(
+            is_active=True,
+        ).first()
+
+        # Creer le TranscriptionJob
+        # / Create the TranscriptionJob
+        job_transcription = TranscriptionJob.objects.create(
+            page=page_audio,
+            transcription_config=config_transcription_active,
+            audio_filename=nom_fichier,
+            status="pending",
+        )
+
+        # Lancer la tache Celery en arriere-plan
+        # / Launch the Celery task in background
+        from front.tasks import transcrire_audio_task
+        resultat_tache = transcrire_audio_task.delay(job_transcription.pk, chemin_fichier_audio)
+
+        # Stocker l'ID Celery dans le job
+        # / Store Celery ID in the job
+        job_transcription.celery_task_id = resultat_tache.id
+        job_transcription.save(update_fields=["celery_task_id"])
+
+        logger.info(
+            "import audio: page pk=%s job pk=%s celery_id=%s",
+            page_audio.pk, job_transcription.pk, resultat_tache.id,
+        )
+
+        # Retourner le template de polling + OOB arbre
+        # / Return polling template + OOB tree
+        html_polling = render_to_string(
+            "front/includes/transcription_en_cours.html",
+            {"page": page_audio},
+            request=request,
+        )
+
+        # OOB swap : arbre de dossiers mis a jour
+        # / OOB swap: updated folder tree
+        html_arbre_oob = render_to_string(
+            "front/includes/arbre_dossiers.html",
+            {
+                "dossiers": Dossier.objects.prefetch_related("pages").all(),
+                "pages_orphelines": Page.objects.filter(dossier__isnull=True).order_by("-created_at"),
+            },
+            request=request,
+        )
+        html_arbre_oob = (
+            '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
+            + html_arbre_oob
+            + '</div>'
+        )
+
+        html_complet = html_polling + html_arbre_oob
+        reponse = HttpResponse(html_complet)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": "Transcription lanc\u00e9e..."},
+        })
+        return reponse
+
+    def _importer_fichier_document(self, request, serializer):
+        """
+        Pipeline d'import synchrone pour les documents (PDF, DOCX, etc.).
+        / Synchronous import pipeline for documents (PDF, DOCX, etc.).
+        """
+        import hashlib
+        from front.services.conversion_fichiers import convertir_fichier_en_html
+
+        fichier_uploade = serializer.validated_data["fichier"]
+        titre_personnalise = serializer.validated_data.get("titre", "")
+        dossier_id = serializer.validated_data.get("dossier_id")
+        nom_fichier = fichier_uploade.name
+
+        # Conversion du fichier en HTML + texte
+        # / Convert file to HTML + text
+        try:
+            html_readability, text_readability, titre_extrait = convertir_fichier_en_html(
+                fichier_uploade, nom_fichier,
+            )
+        except ValueError as erreur_conversion:
+            logger.error("import fichier: erreur conversion — %s", erreur_conversion)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur de conversion: {erreur_conversion}</p>',
+                status=400,
+            )
+        except Exception as erreur_inattendue:
+            logger.error("import fichier: erreur inattendue — %s", erreur_inattendue, exc_info=True)
+            return HttpResponse(
+                '<p class="text-sm text-red-500">Erreur inattendue lors de la conversion du fichier.</p>',
+                status=500,
+            )
+
+        # Determiner le titre final et le dossier
+        # / Determine final title and folder
+        titre_final = titre_personnalise.strip() if titre_personnalise.strip() else titre_extrait
+        dossier_assigne = None
+        if dossier_id:
+            dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
+
+        # Calculer le hash du contenu pour content_hash
+        # / Compute content hash
+        hash_contenu = hashlib.sha256(text_readability.encode("utf-8")).hexdigest()
+
+        # Creer la Page avec source_type='file'
+        # / Create the Page with source_type='file'
+        page_importee = Page.objects.create(
+            source_type="file",
+            original_filename=nom_fichier,
+            url=None,
+            title=titre_final,
+            html_original=html_readability,
+            html_readability=html_readability,
+            text_readability=text_readability,
+            content_hash=hash_contenu,
+            dossier=dossier_assigne,
+        )
+
+        logger.info(
+            "import fichier: page pk=%s creee depuis '%s' (%d chars HTML)",
+            page_importee.pk, nom_fichier, len(html_readability),
+        )
+
+        # Rendu du partial de lecture + OOB arbre et panneau
+        # / Render reading partial + OOB tree and panel
+        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
+        ia_active = _get_ia_active()
+        contexte_partage = {
+            "page": page_importee,
+            "html_annote": None,
+            "analyseurs_actifs": analyseurs_actifs,
+            "job": None,
+            "entities": None,
+            "ia_active": ia_active,
+        }
+
+        html_lecture = render_to_string(
+            "front/includes/lecture_principale.html",
+            contexte_partage,
+            request=request,
+        )
+
+        # OOB swap : arbre de dossiers mis a jour
+        # / OOB swap: updated folder tree
+        html_arbre_oob = render_to_string(
+            "front/includes/arbre_dossiers.html",
+            {
+                "dossiers": Dossier.objects.prefetch_related("pages").all(),
+                "pages_orphelines": Page.objects.filter(dossier__isnull=True).order_by("-created_at"),
+            },
+            request=request,
+        )
+        html_arbre_oob = (
+            '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
+            + html_arbre_oob
+            + '</div>'
+        )
+
+        # OOB swap : panneau d'analyse reinitialise
+        # / OOB swap: reset analysis panel
+        html_panneau_oob = render_to_string(
+            "front/includes/panneau_analyse.html",
+            contexte_partage,
+            request=request,
+        )
+        html_panneau_oob = (
+            '<div id="panneau-extractions" hx-swap-oob="innerHTML:#panneau-extractions">'
+            + html_panneau_oob
+            + '</div>'
+        )
+
+        html_complet = html_lecture + html_arbre_oob + html_panneau_oob
+        reponse = HttpResponse(html_complet)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": "Fichier import\u00e9"},
+        })
+        return reponse
+
+    @action(detail=False, methods=["GET"])
+    def status(self, request):
+        """
+        Endpoint de polling HTMX pour suivre la progression d'une transcription audio.
+        - pending/processing → renvoie le partial de polling (hx-trigger="every 3s")
+        - completed → renvoie lecture_principale + OOB panneau (arrete le polling)
+        - error → renvoie un message d'erreur (arrete le polling)
+        / HTMX polling endpoint to track audio transcription progress.
+        - pending/processing → returns polling partial (hx-trigger="every 3s")
+        - completed → returns lecture_principale + OOB panel (stops polling)
+        - error → returns error message (stops polling)
+        """
+        page_id = request.query_params.get("page_id")
+        if not page_id:
+            return HttpResponse("page_id requis.", status=400)
+
+        page = get_object_or_404(Page, pk=page_id)
+
+        if page.status in ("pending", "processing"):
+            # Toujours en cours → renvoyer le partial de polling
+            # / Still processing → return polling partial
+            return render(request, "front/includes/transcription_en_cours.html", {
+                "page": page,
+            })
+
+        elif page.status == "completed":
+            # Termine → renvoyer le contenu de lecture normal
+            # / Completed → return normal reading content
+            analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
+            ia_active = _get_ia_active()
+            contexte_partage = {
+                "page": page,
+                "html_annote": None,
+                "analyseurs_actifs": analyseurs_actifs,
+                "job": None,
+                "entities": None,
+                "ia_active": ia_active,
+            }
+
+            html_lecture = render_to_string(
+                "front/includes/lecture_principale.html",
+                contexte_partage,
+                request=request,
+            )
+
+            # OOB swap : panneau d'analyse
+            # / OOB swap: analysis panel
+            html_panneau_oob = render_to_string(
+                "front/includes/panneau_analyse.html",
+                contexte_partage,
+                request=request,
+            )
+            html_panneau_oob = (
+                '<div id="panneau-extractions" hx-swap-oob="innerHTML:#panneau-extractions">'
+                + html_panneau_oob
+                + '</div>'
+            )
+
+            html_complet = html_lecture + html_panneau_oob
+            reponse = HttpResponse(html_complet)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {"message": "Transcription termin\u00e9e"},
+            })
+            return reponse
+
+        else:
+            # Erreur → afficher le message d'erreur (arrete le polling)
+            # / Error → display error message (stops polling)
+            message_erreur = page.error_message or "Erreur inconnue lors de la transcription."
+            return HttpResponse(
+                f'<div class="max-w-3xl mx-auto p-6">'
+                f'<div class="bg-red-50 border border-red-200 rounded-lg p-4">'
+                f'<h3 class="text-red-700 font-semibold mb-2">Erreur de transcription</h3>'
+                f'<p class="text-red-600 text-sm">{message_erreur}</p>'
+                f'</div></div>',
+            )

@@ -52,28 +52,45 @@ def build_langextract_examples(job) -> List[lx.data.ExampleData]:
 def resolve_model_params(ai_model: AIModel) -> Dict:
     """
     Convertit une configuration AIModel en parametres pour LangExtract.
+    Pour Mistral, utilise le provider OpenAI avec base_url Mistral API
+    (l'API Mistral est compatible OpenAI).
+    / Converts an AIModel config into LangExtract parameters.
+    For Mistral, uses the OpenAI provider with Mistral API base_url
+    (Mistral API is OpenAI-compatible).
     """
     logger.debug("resolve_model_params: provider=%s model=%s", ai_model.provider, ai_model.model_name)
     params = {
         'model_id': ai_model.model_name or 'gemini-2.5-flash',
     }
-    
+
     # Configuration specifique par provider
+    # / Provider-specific configuration
     if ai_model.provider == Provider.GOOGLE:
         # Utilise la cle API stockee ou celle de l'environnement
+        # / Use stored API key or environment variable
         if ai_model.api_key:
             params['api_key'] = ai_model.api_key
-    
+
     elif ai_model.provider == Provider.OPENAI:
         params['api_key'] = ai_model.api_key
         # OpenAI necessite des parametres specifiques dans LangExtract
+        # / OpenAI requires specific params in LangExtract
         params['fence_output'] = True
         params['use_schema_constraints'] = False
-    
+
     elif ai_model.provider == Provider.MOCK:
         # Pour le mock, on utilise un provider qui existe
+        # / For mock, use an existing provider
         params['model_id'] = 'gemini-2.5-flash'
-    
+
+    else:
+        # LangExtract ne supporte que Google Gemini et OpenAI GPT
+        # / LangExtract only supports Google Gemini and OpenAI GPT
+        raise ValueError(
+            f"Le provider '{ai_model.provider}' n'est pas supporté par LangExtract. "
+            f"Seuls Google (Gemini) et OpenAI (GPT) sont disponibles pour l'extraction."
+        )
+
     return params
 
 

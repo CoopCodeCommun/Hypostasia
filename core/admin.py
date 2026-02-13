@@ -13,6 +13,8 @@ from .models import (
     Reformulation,
     HypostasisTag,
     Dossier,
+    TranscriptionConfig,
+    TranscriptionJob,
 )
 
 
@@ -137,3 +139,31 @@ class TextInputAdmin(admin.ModelAdmin):
     list_display = ("name", "prompt", "role", "order")
     list_filter = ("prompt", "role")
     ordering = ("prompt", "order")
+
+
+@admin.register(TranscriptionConfig)
+class TranscriptionConfigAdmin(admin.ModelAdmin):
+    """
+    Admin pour la configuration des outils de transcription audio.
+    / Admin for audio transcription tool configuration.
+    """
+    list_display = ("name", "model_choice", "provider", "language", "diarization_enabled", "is_active")
+    list_filter = ("provider", "is_active", "diarization_enabled")
+    fields = ("name", "model_choice", "api_key", "language", "diarization_enabled", "max_speakers", "is_active", "provider", "model_name")
+    readonly_fields = ("provider", "model_name")
+
+
+@admin.register(TranscriptionJob)
+class TranscriptionJobAdmin(admin.ModelAdmin):
+    """
+    Admin pour les jobs de transcription audio.
+    / Admin for audio transcription jobs.
+    """
+    list_display = ("pk", "page", "status", "audio_filename", "processing_time_seconds", "created_at")
+    list_filter = ("status",)
+    readonly_fields = ("celery_task_id", "raw_result", "processing_time_seconds", "created_at", "updated_at")
+    fields = (
+        "page", "transcription_config", "celery_task_id", "status",
+        "audio_filename", "error_message", "raw_result",
+        "processing_time_seconds", "created_at", "updated_at",
+    )

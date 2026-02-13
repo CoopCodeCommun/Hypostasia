@@ -1,18 +1,13 @@
 <!-- Un item analyseur dans la sidebar gauche -->
+<!-- Clic simple = selectionner pour l'analyse, double-clic = ouvrir l'editeur -->
 <!-- / One analyzer item in the left sidebar -->
-<div class="flex items-center justify-between py-1 px-2 rounded hover:bg-slate-200 cursor-pointer group"
-     hx-get="/api/analyseurs/{{ analyseur.id }}/"
-     hx-target="#zone-lecture"
-     hx-swap="innerHTML"
-     hx-push-url="true">
-    <span class="text-sm text-slate-700 truncate">{{ analyseur.name }}</span>
-    <button type="button" class="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 text-xs"
-            hx-delete="/api/analyseurs/{{ analyseur.id }}/"
-            hx-confirm="Supprimer cet analyseur ?"
-            hx-target="#analyseurs-list"
-            hx-swap="innerHTML"
-            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-            onclick="event.stopPropagation()">
-        &times;
-    </button>
+<!-- Single click = select for analysis, double-click = open editor -->
+<div class="analyseur-item flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors
+            {% if analyseur_selectionne_id == analyseur.id %}bg-indigo-100 text-indigo-700{% else %}hover:bg-slate-200 text-slate-700{% endif %}"
+     data-analyseur-id="{{ analyseur.id }}"
+     data-analyseur-name="{{ analyseur.name }}">
+    <!-- Pastille de selection / Selection dot -->
+    <span class="w-2 h-2 rounded-full shrink-0
+                {% if analyseur_selectionne_id == analyseur.id %}bg-indigo-500{% else %}bg-slate-300{% endif %}"></span>
+    <span class="text-sm truncate">{{ analyseur.name }}</span>
 </div>

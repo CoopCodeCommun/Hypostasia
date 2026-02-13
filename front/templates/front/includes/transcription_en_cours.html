@@ -1,0 +1,46 @@
+<!-- Partial HTMX : polling de transcription audio en cours -->
+<!-- / HTMX partial: polling for audio transcription in progress -->
+<!-- Ce template se recharge automatiquement toutes les 3s via hx-trigger -->
+<!-- / This template auto-reloads every 3s via hx-trigger -->
+<div class="max-w-3xl mx-auto p-8"
+     hx-get="/import/status/?page_id={{ page.pk }}"
+     hx-trigger="every 3s"
+     hx-target="#zone-lecture"
+     hx-swap="innerHTML"
+     data-page-id="{{ page.pk }}">
+
+    <div class="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
+        <!-- Icone micro animee / Animated microphone icon -->
+        <div class="mb-4 flex justify-center">
+            <svg class="w-12 h-12 text-blue-500 animate-pulse" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+            </svg>
+        </div>
+
+        <h3 class="text-lg font-semibold text-slate-700 mb-2">Transcription en cours...</h3>
+        <p class="text-sm text-slate-500 mb-4">
+            Le fichier <span class="font-medium">{{ page.original_filename }}</span> est en cours de transcription.
+        </p>
+
+        <!-- Barre de progression indeterminee / Indeterminate progress bar -->
+        <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+            <div class="bg-blue-500 h-1.5 rounded-full animate-indeterminate"></div>
+        </div>
+
+        <p class="text-xs text-slate-400 mt-3">
+            Cette page se met a jour automatiquement.
+        </p>
+    </div>
+</div>
+
+<style>
+    @keyframes indeterminate {
+        0% { transform: translateX(-100%); width: 40%; }
+        50% { transform: translateX(100%); width: 60%; }
+        100% { transform: translateX(300%); width: 40%; }
+    }
+    .animate-indeterminate {
+        animation: indeterminate 2s ease-in-out infinite;
+    }
+</style>

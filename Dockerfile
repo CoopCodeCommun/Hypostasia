@@ -1,7 +1,7 @@
 FROM ghcr.io/astral-sh/uv:python3.13-trixie
 
 # Install git for cloning
-RUN apt-get update && apt-get upgrade -y && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y && apt-get install -y git curl ffmpeg && rm -rf /var/lib/apt/lists/*
 
 
 RUN useradd -ms /bin/bash hypostasia

@@ -1,4 +1,4 @@
-<!-- Carte exemple few-shot / Few-shot example card -->
+<!-- Carte entrainement few-shot / Few-shot training card -->
 <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4" id="example-{{ example.id }}">
     <!-- En-tete (toujours visible) avec toggle pour reduire le body -->
     <div class="flex items-center gap-2 mb-3">
@@ -8,7 +8,7 @@
         </button>
         <input type="text" value="{{ example.name }}" id="example-name-{{ example.id }}"
                class="flex-1 text-sm font-semibold border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
-               placeholder="Nom de l'exemple">
+               placeholder="Nom de l'entrainement">
         <button type="button" class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 shrink-0"
                 hx-patch="/api/analyseurs/{{ analyseur.id }}/update_example/"
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
@@ -25,10 +25,10 @@
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                 hx-target="#example-{{ example.id }}"
                 hx-swap="delete"
-                hx-confirm="Supprimer cet exemple ?">&times;</button>
+                hx-confirm="Supprimer cet entrainement ?">&times;</button>
     </div>
 
-    <!-- Body complet de l'exemple (collapsible) -->
+    <!-- Body complet de l'entrainement (collapsible) -->
     <div id="example-body-{{ example.id }}">
 
     <!-- Texte source complet (collapsible) -->
@@ -132,7 +132,7 @@
         </div><!-- fin expected-extractions-body -->
     </div>
 
-    <!-- Section Resultats de test (collapsible) -->
+    <!-- Section Resultats d'entrainement (collapsible) -->
     {% include "hypostasis_extractor/includes/test_results_section.html" with example=example analyseur=analyseur %}
 
     </div><!-- fin example-body -->

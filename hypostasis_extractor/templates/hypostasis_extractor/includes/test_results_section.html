@@ -1,12 +1,12 @@
-<!-- Section Resultats de test LLM (collapsible) -->
-<!-- / LLM Test Results section (collapsible) -->
+<!-- Section Resultats d'entrainement LLM (collapsible) -->
+<!-- / LLM Training Results section (collapsible) -->
 <div class="ml-4 border-l-2 border-emerald-200 pl-3 mt-4">
     <div class="flex items-center justify-between mb-2">
         <label class="flex items-center gap-1 text-xs font-semibold text-emerald-600 uppercase tracking-wider cursor-pointer collapsible-toggle"
                data-target="test-results-body-{{ example.id }}">
             <span class="collapsible-chevron text-emerald-400">&#9654;</span>
-            Resultats de test
-            <span class="font-normal normal-case text-slate-400">— comparer les LLM sur cet exemple</span>
+            Resultats d'entrainement
+            <span class="font-normal normal-case text-slate-400">— comparer les LLM sur cet entrainement</span>
         </label>
     </div>
 
@@ -33,14 +33,14 @@
                     hx-target="#test-results-container-{{ example.id }}"
                     hx-swap="afterbegin"
                     hx-indicator="#test-spinner-{{ example.id }}">
-                Lancer le test
+                Lancer l'entrainement
             </button>
             <span id="test-spinner-{{ example.id }}" class="htmx-indicator text-xs text-emerald-500">
                 <svg class="animate-spin h-4 w-4 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                 </svg>
-                Extraction en cours...
+                Entrainement en cours...
             </span>
         </div>
 
@@ -62,8 +62,8 @@
         var analyseurId = {{ analyseur.id }};
         var launchBtn = document.getElementById('test-launch-btn-' + exampleId);
 
-        // Gestion des erreurs HTMX sur le bouton "Lancer le test" → SweetAlert
-        // / HTMX error handling on "Launch test" button → SweetAlert
+        // Gestion des erreurs HTMX sur le bouton "Lancer l'entrainement" → SweetAlert
+        // / HTMX error handling on "Launch training" button → SweetAlert
         if (launchBtn) {
             launchBtn.addEventListener('htmx:responseError', function(event) {
                 var statusCode = event.detail.xhr.status;

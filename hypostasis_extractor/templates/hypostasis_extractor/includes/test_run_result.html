@@ -1,6 +1,6 @@
 {% load extractor_tags %}
-<!-- Resultat d'un test run — collapsible, ferme par defaut -->
-<!-- / Test run result — collapsible, closed by default -->
+<!-- Resultat d'un entrainement — collapsible, ferme par defaut -->
+<!-- / Training run result — collapsible, closed by default -->
 <div class="bg-emerald-50 rounded-lg border border-emerald-200 p-3" id="test-run-{{ test_run.id }}">
     <!-- En-tete (toujours visible) avec toggle -->
     <div class="flex items-center justify-between">
@@ -26,7 +26,7 @@
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                 hx-target="#test-run-{{ test_run.id }}"
                 hx-swap="delete"
-                hx-confirm="Supprimer ce test ?">&times;</button>
+                hx-confirm="Supprimer cet entrainement ?">&times;</button>
     </div>
 
     <!-- Body collapsible (ferme par defaut) -->

@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="container py-4">
-    <h1 class="mb-4">Exemples Few-Shot</h1>
+    <h1 class="mb-4">Entrainements Few-Shot</h1>
     
     <div class="row">
         {% for example in examples %}
@@ -16,7 +16,7 @@
                     <p class="text-muted">{{ example.description }}</p>
                     {% endif %}
                     
-                    <h6>Texte d'exemple:</h6>
+                    <h6>Texte d'entrainement:</h6>
                     <blockquote class="blockquote bg-light p-3 rounded">
                         <p class="mb-0 small">{{ example.example_text|truncatechars:200 }}</p>
                     </blockquote>
@@ -46,7 +46,7 @@
         {% empty %}
         <div class="col-12">
             <div class="alert alert-info">
-                Aucun exemple cree. Executez <code>python seed_prompts.py</code> pour creer les exemples par defaut.
+                Aucun entrainement cree. Executez <code>python seed_prompts.py</code> pour creer les entrainements par defaut.
             </div>
         </div>
         {% endfor %}

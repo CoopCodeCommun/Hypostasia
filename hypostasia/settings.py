@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django_htmx',
     'corsheaders',
     'solo',
+    'django_celery_results',
     'core',
     'hypostasis_extractor',
     'front',
@@ -133,6 +134,30 @@ CSRF_TRUSTED_ORIGINS = [
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+
+# =============================================================================
+# Celery — broker et backend via django-db (SQLite, pas de Redis)
+# / Celery — broker and backend via django-db (SQLite, no Redis)
+# =============================================================================
+
+# Broker : SQLAlchemy + SQLite (pas de Redis requis)
+# / Broker: SQLAlchemy + SQLite (no Redis required)
+CELERY_BROKER_URL = f"sqla+sqlite:///{BASE_DIR / 'db' / 'celery-broker.sqlite3'}"
+CELERY_RESULT_BACKEND = "django-db"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes max par tache / 30 min max per task
+
+
+# =============================================================================
+# Repertoire temporaire pour les fichiers audio en attente de transcription
+# / Temporary directory for audio files awaiting transcription
+# =============================================================================
+
+AUDIO_TEMP_DIR = BASE_DIR / "tmp" / "audio"
+AUDIO_TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # =============================================================================

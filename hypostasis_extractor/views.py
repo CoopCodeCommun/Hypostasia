@@ -5,11 +5,14 @@ ViewSet DRF avec actions pour gerer les jobs d'extraction.
 
 import json
 import logging
+from datetime import timedelta
+
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.http import HttpResponse
 from django.shortcuts import render, get_object_or_404
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 
@@ -71,7 +74,7 @@ from .serializers import (
     ValidateTestExtractionSerializer,
     RejectTestExtractionSerializer,
 )
-from .services import run_langextract_job, generate_visualization_html, run_analyseur_test
+from .services import run_langextract_job, generate_visualization_html
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -884,10 +887,12 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def run_test(self, request, pk=None):
         """
-        Lance un test LangExtract sur un exemple avec un AIModel choisi.
-        Retourne le partiel HTML du resultat.
-        / Run a LangExtract test on an example with a chosen AIModel.
-        Returns the HTML partial of the result.
+        Lance un entrainement LangExtract asynchrone sur un exemple via Celery.
+        - Si un entrainement est deja en cours pour cet exemple → renvoie le polling
+        - Sinon → cree un AnalyseurTestRun, lance la tache Celery, renvoie le polling
+        / Launches an async LangExtract training on an example via Celery.
+        - If training already running for this example → returns polling
+        - Otherwise → creates AnalyseurTestRun, launches Celery task, returns polling
         """
         from core.models import AIModel
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
@@ -901,18 +906,110 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         example = get_object_or_404(AnalyseurExample, pk=example_id, analyseur=analyseur)
         ai_model = get_object_or_404(AIModel, pk=ai_model_id, api_key__isnull=False)
 
-        logger.info("run_test: analyseur=%d example=%d ai_model=%d (%s)",
-                    analyseur.pk, example.pk, ai_model.pk, ai_model.model_name)
+        # Guard anti-doublon : verifier s'il y a deja un entrainement en cours pour cet exemple
+        # / Anti-duplicate guard: check if training already running for this example
+        test_run_en_cours = AnalyseurTestRun.objects.filter(
+            analyseur=analyseur,
+            example=example,
+            status__in=["pending", "processing"],
+        ).first()
 
-        try:
-            test_run = run_analyseur_test(analyseur, example, ai_model)
-            # Pre-resoudre les attributs par index pour chaque extraction du test
+        if test_run_en_cours:
+            logger.info(
+                "run_test: entrainement deja en cours test_run=%s pour example=%s",
+                test_run_en_cours.pk, example.pk,
+            )
+            return render(request, 'hypostasis_extractor/includes/entrainement_en_cours.html', {
+                'test_run': test_run_en_cours,
+                'analyseur': analyseur,
+            })
+
+        # Construire le prompt snapshot depuis les pieces de l'analyseur
+        # / Build prompt snapshot from analyzer's prompt pieces
+        pieces_ordonnees = PromptPiece.objects.filter(
+            analyseur=analyseur,
+        ).order_by("order")
+        prompt_snapshot = "\n".join(piece.content for piece in pieces_ordonnees)
+
+        # Creer le test run en status PENDING
+        # / Create test run in PENDING status
+        nom_modele_affichage = f"{ai_model.provider} / {ai_model.model_name}"
+        test_run = AnalyseurTestRun.objects.create(
+            analyseur=analyseur,
+            example=example,
+            ai_model=ai_model,
+            ai_model_display_name=nom_modele_affichage,
+            prompt_snapshot=prompt_snapshot,
+            status="pending",
+        )
+
+        # Lancer la tache Celery en arriere-plan
+        # / Launch the Celery task in background
+        from hypostasis_extractor.tasks import entrainer_analyseur_task
+        entrainer_analyseur_task.delay(test_run.pk)
+
+        logger.info(
+            "run_test: test_run pk=%s cree pour analyseur=%s example=%s model=%s — tache Celery lancee",
+            test_run.pk, analyseur.pk, example.pk, ai_model.model_name,
+        )
+
+        # Retourner le template de polling
+        # / Return the polling template
+        return render(request, 'hypostasis_extractor/includes/entrainement_en_cours.html', {
+            'test_run': test_run,
+            'analyseur': analyseur,
+        })
+
+    @action(detail=True, methods=['get'])
+    def test_run_status(self, request, pk=None):
+        """
+        Endpoint de polling HTMX pour suivre la progression d'un entrainement.
+        - pending/processing → renvoie le partial de polling (hx-trigger="every 3s")
+        - completed → renvoie test_run_result.html (arrete le polling)
+        - error → renvoie test_run_error.html (arrete le polling)
+        / HTMX polling endpoint to track training progress.
+        """
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        test_run_id = request.query_params.get('test_run_id')
+        if not test_run_id:
+            return HttpResponse("test_run_id requis.", status=400)
+
+        test_run = get_object_or_404(AnalyseurTestRun, pk=test_run_id, analyseur=analyseur)
+
+        if test_run.status in ("pending", "processing"):
+            # Timeout : si l'entrainement est bloque depuis plus de 5 minutes → erreur
+            # / Timeout: if training stuck for more than 5 minutes → error
+            delai_max_polling = timedelta(minutes=5)
+            age_du_test_run = timezone.now() - test_run.created_at
+            if age_du_test_run > delai_max_polling:
+                logger.warning(
+                    "test_run_status: test_run pk=%s bloque depuis %s — timeout",
+                    test_run.pk, age_du_test_run,
+                )
+                test_run.status = "error"
+                test_run.error_message = (
+                    "Timeout : l'entrainement n'a pas repondu apres 5 minutes. "
+                    "Verifiez que le worker Celery tourne."
+                )
+                test_run.save(update_fields=["status", "error_message"])
+                return render(request, 'hypostasis_extractor/includes/test_run_error.html', {
+                    'error': test_run.error_message,
+                })
+
+            # Toujours en cours → renvoyer le partial de polling
+            # / Still processing → return polling partial
+            return render(request, 'hypostasis_extractor/includes/entrainement_en_cours.html', {
+                'test_run': test_run,
+                'analyseur': analyseur,
+            })
+
+        if test_run.status == "completed":
+            # Termine → renvoyer le resultat complet du test run
+            # / Completed → return full test run result
             test_extractions_with_attrs = _resolve_test_extraction_attrs(test_run)
-            # Pre-resoudre les extractions attendues de l'exemple
-            expected_extractions = list(example.extractions.prefetch_related('attributes').all())
-
-            logger.info("run_test: succes — test_run=%d, %d extractions",
-                        test_run.pk, test_run.extractions_count)
+            expected_extractions = list(
+                test_run.example.extractions.prefetch_related('attributes').all()
+            )
 
             return render(request, 'hypostasis_extractor/includes/test_run_result.html', {
                 'test_run': test_run,
@@ -920,14 +1017,11 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
                 'expected_extractions': expected_extractions,
                 'analyseur': analyseur,
             })
-        except Exception as e:
-            logger.error("run_test: ERREUR analyseur=%d — %s", analyseur.pk, str(e), exc_info=True)
-            # Retourne JSON pour que le JS SweetAlert puisse parser l'erreur
-            # / Return JSON so the JS SweetAlert can parse the error
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+
+        # Error → renvoyer le message d'erreur / Error → return error message
+        return render(request, 'hypostasis_extractor/includes/test_run_error.html', {
+            'error': test_run.error_message or "Erreur inconnue",
+        })
 
     @action(detail=True, methods=['get'])
     def test_results(self, request, pk=None):

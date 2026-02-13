@@ -1,22 +1,18 @@
 {# Partial : contenu complet du panneau d'extractions #}
-{# Inclut le selecteur d'analyseur, le bouton Analyser, et la zone de resultats #}
-{# Charge via HTMX dans #panneau-extractions quand une page est ouverte #}
+{# L'analyseur est selectionne dans la sidebar gauche (input#analyseur-selectionne-id) #}
+{# / Partial: full extraction panel content #}
+{# / Analyzer is selected in left sidebar (input#analyseur-selectionne-id) #}
 
 {% if ia_active and analyseurs_actifs and not job %}
-{# --- Selecteur d'analyseur + bouton Analyser (cache si une analyse existe deja) --- #}
-{# --- Analyzer selector + Analyze button (hidden if analysis already exists) --- #}
+{# --- Bouton Analyser (l'analyseur vient de la sidebar gauche) --- #}
+{# --- Analyze button (analyzer comes from the left sidebar) --- #}
 <div class="mb-4">
-    <select name="analyseur_id" id="analyseur-select-{{ page.pk }}"
-            class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 mb-2">
-        {% for analyseur in analyseurs_actifs %}
-        <option value="{{ analyseur.pk }}">{{ analyseur.name }}</option>
-        {% endfor %}
-    </select>
-
-    {# Le bouton envoie analyseur_id via hx-include du select ci-dessus #}
-    {# Le spinner s'affiche pendant que le serveur traite (htmx-indicator) #}
+    {# Le bouton lit l'analyseur_id depuis le champ cache de la sidebar #}
+    {# hx-include envoie la valeur du hidden input avec la requete POST #}
+    {# / The button reads analyseur_id from the sidebar hidden field #}
+    {# / hx-include sends the hidden input value with the POST request #}
     <button hx-post="/lire/{{ page.pk }}/analyser/"
-            hx-include="#analyseur-select-{{ page.pk }}"
+            hx-include="#analyseur-selectionne-id"
             hx-target="#zone-resultats-extraction"
             hx-swap="innerHTML"
             hx-indicator="#analyse-spinner-{{ page.pk }}"
@@ -39,7 +35,7 @@
         {% include "front/includes/extraction_results.html" %}
     {% else %}
         <p class="text-xs text-slate-400 text-center py-4">
-            Choisissez un analyseur et cliquez sur Analyser.
+            Selectionnez un analyseur a gauche puis cliquez sur Analyser.
         </p>
     {% endif %}
 </div>

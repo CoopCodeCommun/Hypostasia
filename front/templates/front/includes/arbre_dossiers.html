@@ -23,7 +23,7 @@
             <a href="#" class="lien-page text-sm text-slate-600 hover:text-blue-600 truncate block flex-1"
                data-page-id="{{ page.pk }}"
                hx-get="/lire/{{ page.pk }}/" hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true">
-                {{ page.title|default:page.domain|truncatechars:30 }}
+                {% if page.source_type == 'audio' %}<span class="text-slate-400 mr-0.5" title="Audio transcrit">🎙️</span>{% elif page.source_type == 'file' %}<span class="text-slate-400 mr-0.5" title="Fichier importé">📄</span>{% endif %}{{ page.title|default:page.domain|truncatechars:30 }}
             </a>
         </li>
         {% empty %}
@@ -47,7 +47,7 @@
         <a href="#" class="lien-page text-sm text-slate-600 hover:text-blue-600 truncate block flex-1"
            data-page-id="{{ page.pk }}"
            hx-get="/lire/{{ page.pk }}/" hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true">
-            {{ page.title|default:page.domain|truncatechars:30 }}
+            {% if page.source_type == 'file' %}<span class="text-slate-400 mr-0.5" title="Fichier importé">📄</span>{% endif %}{{ page.title|default:page.domain|truncatechars:30 }}
         </a>
     </div>
     {% endfor %}

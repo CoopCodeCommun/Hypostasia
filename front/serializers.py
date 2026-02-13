@@ -1,4 +1,66 @@
+import os
+
 from rest_framework import serializers
+
+# Extensions de fichiers autorisees pour l'import
+# / Allowed file extensions for import
+EXTENSIONS_AUTORISEES = [".pdf", ".docx", ".md", ".txt", ".pptx", ".xlsx"]
+
+# Extensions audio autorisees (tous les formats ffmpeg courants)
+# / Allowed audio extensions (all common ffmpeg formats)
+EXTENSIONS_AUDIO_AUTORISEES = [
+    ".mp3", ".wav", ".m4a", ".ogg", ".flac",
+    ".webm", ".aac", ".wma", ".opus", ".aiff",
+]
+
+# Toutes les extensions acceptees (documents + audio)
+# / All accepted extensions (documents + audio)
+TOUTES_LES_EXTENSIONS = EXTENSIONS_AUTORISEES + EXTENSIONS_AUDIO_AUTORISEES
+
+TAILLE_MAX_FICHIER = 50 * 1024 * 1024  # 50 MB
+
+
+def est_fichier_audio(nom_fichier):
+    """
+    Verifie si un fichier est un fichier audio d'apres son extension.
+    / Checks if a file is an audio file based on its extension.
+    """
+    extension = os.path.splitext(nom_fichier)[1].lower()
+    return extension in EXTENSIONS_AUDIO_AUTORISEES
+
+
+class ImportFichierSerializer(serializers.Serializer):
+    """
+    Validation pour l'import d'un fichier a convertir en Page.
+    / Validation for importing a file to convert into a Page.
+    """
+    fichier = serializers.FileField(
+        error_messages={
+            "required": "Le fichier est obligatoire / File is required",
+        },
+    )
+    titre = serializers.CharField(required=False, allow_blank=True, default="")
+    dossier_id = serializers.IntegerField(required=False, allow_null=True, default=None)
+
+    def validate_fichier(self, fichier_uploade):
+        # Valider l'extension du fichier
+        # / Validate file extension
+        nom_fichier = fichier_uploade.name or ""
+        extension = os.path.splitext(nom_fichier)[1].lower()
+        if extension not in TOUTES_LES_EXTENSIONS:
+            raise serializers.ValidationError(
+                f"Extension '{extension}' non supportee. Extensions acceptees : {', '.join(TOUTES_LES_EXTENSIONS)}"
+            )
+
+        # Valider la taille du fichier
+        # / Validate file size
+        if fichier_uploade.size > TAILLE_MAX_FICHIER:
+            taille_mo = fichier_uploade.size / (1024 * 1024)
+            raise serializers.ValidationError(
+                f"Fichier trop volumineux ({taille_mo:.1f} Mo). Maximum : 50 Mo."
+            )
+
+        return fichier_uploade
 
 
 class DossierCreateSerializer(serializers.Serializer):
