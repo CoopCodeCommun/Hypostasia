@@ -1,0 +1,40 @@
+<!-- Une piece de prompt questionnaire editable / An editable questionnaire prompt piece -->
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4" id="qp-piece-{{ piece.id }}">
+    <div class="flex items-center gap-2 mb-2">
+        <!-- Bouton toggle pour reduire/ouvrir le contenu du prompt -->
+        <button type="button" class="collapsible-toggle text-slate-400 hover:text-slate-600 text-xs shrink-0" data-target="qp-piece-body-{{ piece.id }}">&#9660;</button>
+        <input type="text" value="{{ piece.name }}" id="qp-piece-name-{{ piece.id }}"
+               class="flex-1 text-sm font-medium border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+               placeholder="Nom du morceau">
+        <select id="qp-piece-role-{{ piece.id }}"
+                class="text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+            <option value="definition" {% if piece.role == "definition" %}selected{% endif %}>Definition</option>
+            <option value="instruction" {% if piece.role == "instruction" %}selected{% endif %}>Instruction</option>
+            <option value="format" {% if piece.role == "format" %}selected{% endif %}>Format</option>
+            <option value="context" {% if piece.role == "context" %}selected{% endif %}>Contexte</option>
+        </select>
+        <button type="button" class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 shrink-0"
+                hx-patch="/api/questionnaire-prompts/{{ prompt_questionnaire.id }}/update_piece/"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-vals='js:{
+                    "piece_id": {{ piece.id }},
+                    "name": document.getElementById("qp-piece-name-{{ piece.id }}").value,
+                    "role": document.getElementById("qp-piece-role-{{ piece.id }}").value,
+                    "content": document.getElementById("qp-piece-content-{{ piece.id }}").value
+                }'
+                hx-target="#save-feedback-qp-piece-{{ piece.id }}"
+                hx-swap="innerHTML">Sauver</button>
+        <span id="save-feedback-qp-piece-{{ piece.id }}" class="text-xs text-green-600"></span>
+        <button type="button" class="text-red-400 hover:text-red-600 text-sm shrink-0"
+                hx-delete="/api/questionnaire-prompts/{{ prompt_questionnaire.id }}/remove_piece/?piece_id={{ piece.id }}"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-target="#qp-piece-{{ piece.id }}"
+                hx-swap="delete"
+                hx-confirm="Supprimer ce morceau ?">&times;</button>
+    </div>
+    <div id="qp-piece-body-{{ piece.id }}">
+        <textarea rows="1" id="qp-piece-content-{{ piece.id }}"
+                  class="w-full text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 font-mono"
+                  placeholder="Contenu du prompt…">{{ piece.content }}</textarea>
+    </div>
+</div>

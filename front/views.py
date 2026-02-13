@@ -11,15 +11,15 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, Configuration, Dossier, Page
+from core.models import AIModel, Configuration, Dossier, Page, Question, ReponseQuestion
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
     ExtractedEntity, ExtractionJob, PromptPiece,
 )
 from .serializers import (
     CommentaireExtractionSerializer, DossierCreateSerializer, ExtractionManuelleSerializer,
-    ExtractionSerializer, ImportFichierSerializer, PageClasserSerializer, RunAnalyseSerializer,
-    SelectModelSerializer, est_fichier_audio,
+    ExtractionSerializer, ImportFichierSerializer, PageClasserSerializer, QuestionSerializer,
+    ReponseQuestionSerializer, RunAnalyseSerializer, SelectModelSerializer, est_fichier_audio,
 )
 from .utils import annoter_html_avec_ancres
 
@@ -1382,3 +1382,96 @@ class ImportViewSet(viewsets.ViewSet):
                 f'<p class="text-red-600 text-sm">{message_erreur}</p>'
                 f'</div></div>',
             )
+
+
+class QuestionnaireViewSet(viewsets.ViewSet):
+    """
+    ViewSet pour le questionnaire — questions et reponses liees a une page.
+    / ViewSet for the questionnaire — questions and answers linked to a page.
+    """
+
+    def _render_questionnaire(self, request, page):
+        """
+        Helper — rend le partial du questionnaire pour une page.
+        / Helper — renders the questionnaire partial for a page.
+        """
+        toutes_les_questions = Question.objects.filter(
+            page=page,
+        ).prefetch_related("reponses").order_by("-created_at")
+
+        return render(request, "front/includes/vue_questionnaire.html", {
+            "page": page,
+            "toutes_les_questions": toutes_les_questions,
+        })
+
+    def list(self, request):
+        """
+        Affiche le questionnaire pour une page (GET avec ?page_id=...).
+        / Displays the questionnaire for a page (GET with ?page_id=...).
+        """
+        page_id = request.query_params.get("page_id")
+        if not page_id:
+            return HttpResponse("page_id requis.", status=400)
+
+        page = get_object_or_404(Page, pk=page_id)
+        return self._render_questionnaire(request, page)
+
+    @action(detail=False, methods=["POST"], url_path="poser_question")
+    def poser_question(self, request):
+        """
+        Cree une nouvelle question sur une page et re-rend le questionnaire.
+        / Creates a new question on a page and re-renders the questionnaire.
+        """
+        serializer = QuestionSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("poser_question: validation echouee — %s", serializer.errors)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        donnees = serializer.validated_data
+        page = get_object_or_404(Page, pk=donnees["page_id"])
+
+        # Creer la question / Create the question
+        Question.objects.create(
+            page=page,
+            prenom=donnees["prenom"],
+            texte_question=donnees["texte_question"],
+        )
+
+        reponse = self._render_questionnaire(request, page)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": "Question ajout\u00e9e"},
+        })
+        return reponse
+
+    @action(detail=False, methods=["POST"])
+    def repondre(self, request):
+        """
+        Cree une reponse a une question et re-rend le questionnaire.
+        / Creates an answer to a question and re-renders the questionnaire.
+        """
+        serializer = ReponseQuestionSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("repondre: validation echouee — %s", serializer.errors)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        donnees = serializer.validated_data
+        question = get_object_or_404(Question, pk=donnees["question_id"])
+
+        # Creer la reponse / Create the answer
+        ReponseQuestion.objects.create(
+            question=question,
+            prenom=donnees["prenom"],
+            texte_reponse=donnees["texte_reponse"],
+        )
+
+        reponse_http = self._render_questionnaire(request, question.page)
+        reponse_http["HX-Trigger"] = json.dumps({
+            "showToast": {"message": "R\u00e9ponse ajout\u00e9e"},
+        })
+        return reponse_http

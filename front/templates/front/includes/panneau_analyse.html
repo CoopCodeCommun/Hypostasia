@@ -1,16 +1,18 @@
 {# Partial : contenu complet du panneau d'extractions #}
-{# L'analyseur est selectionne dans la sidebar gauche (input#analyseur-selectionne-id) #}
+{# L'analyseur est choisi via un select dans ce panneau #}
 {# / Partial: full extraction panel content #}
-{# / Analyzer is selected in left sidebar (input#analyseur-selectionne-id) #}
+{# / Analyzer is chosen via a select in this panel #}
 
 {% if ia_active and analyseurs_actifs and not job %}
-{# --- Bouton Analyser (l'analyseur vient de la sidebar gauche) --- #}
-{# --- Analyze button (analyzer comes from the left sidebar) --- #}
-<div class="mb-4">
-    {# Le bouton lit l'analyseur_id depuis le champ cache de la sidebar #}
-    {# hx-include envoie la valeur du hidden input avec la requete POST #}
-    {# / The button reads analyseur_id from the sidebar hidden field #}
-    {# / hx-include sends the hidden input value with the POST request #}
+{# --- Selecteur d'analyseur + Bouton Analyser --- #}
+{# --- Analyzer selector + Analyze button --- #}
+<div class="mb-4 space-y-2">
+    <select id="analyseur-selectionne-id" name="analyseur_id"
+            class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400">
+        {% for analyseur in analyseurs_actifs %}
+            <option value="{{ analyseur.id }}" {% if analyseur.id == analyseur_id %}selected{% endif %}>{{ analyseur.name }}</option>
+        {% endfor %}
+    </select>
     <button hx-post="/lire/{{ page.pk }}/analyser/"
             hx-include="#analyseur-selectionne-id"
             hx-target="#zone-resultats-extraction"
@@ -35,7 +37,7 @@
         {% include "front/includes/extraction_results.html" %}
     {% else %}
         <p class="text-xs text-slate-400 text-center py-4">
-            Selectionnez un analyseur a gauche puis cliquez sur Analyser.
+            Choisissez un analyseur puis cliquez sur Analyser.
         </p>
     {% endif %}
 </div>

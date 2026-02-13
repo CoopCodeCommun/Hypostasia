@@ -14,6 +14,7 @@ router.register(r"pages", views.PageViewSet, basename="page")
 router.register(r"extractions", views.ExtractionViewSet, basename="extraction")
 router.register(r"config-ia", views.ConfigurationIAViewSet, basename="config-ia")
 router.register(r"import", views.ImportViewSet, basename="import")
+router.register(r"questionnaire", views.QuestionnaireViewSet, basename="questionnaire")
 
 urlpatterns = [
     # La page racine reste un path explicite (pas de pk, pas de CRUD)

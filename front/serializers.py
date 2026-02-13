@@ -186,3 +186,53 @@ class CommentaireExtractionSerializer(serializers.Serializer):
             "blank": "Le commentaire ne peut pas etre vide / Comment cannot be blank",
         },
     )
+
+
+class QuestionSerializer(serializers.Serializer):
+    """
+    Validation pour la creation d'une question sur une page.
+    Validation for creating a question on a page.
+    """
+    page_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de la page est obligatoire / Page ID is required",
+        },
+    )
+    prenom = serializers.CharField(
+        max_length=100,
+        error_messages={
+            "required": "Le prenom est obligatoire / First name is required",
+            "blank": "Le prenom ne peut pas etre vide / First name cannot be blank",
+        },
+    )
+    texte_question = serializers.CharField(
+        error_messages={
+            "required": "La question est obligatoire / Question is required",
+            "blank": "La question ne peut pas etre vide / Question cannot be blank",
+        },
+    )
+
+
+class ReponseQuestionSerializer(serializers.Serializer):
+    """
+    Validation pour la creation d'une reponse a une question.
+    Validation for creating an answer to a question.
+    """
+    question_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de la question est obligatoire / Question ID is required",
+        },
+    )
+    prenom = serializers.CharField(
+        max_length=100,
+        error_messages={
+            "required": "Le prenom est obligatoire / First name is required",
+            "blank": "Le prenom ne peut pas etre vide / First name cannot be blank",
+        },
+    )
+    texte_reponse = serializers.CharField(
+        error_messages={
+            "required": "La reponse est obligatoire / Answer is required",
+            "blank": "La reponse ne peut pas etre vide / Answer cannot be blank",
+        },
+    )

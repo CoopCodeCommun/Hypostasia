@@ -254,19 +254,30 @@
                 </div>
             </div>
 
+            <!-- QUESTIONNAIRE PROMPTS — en bas -->
+            <!-- / QUESTIONNAIRE PROMPTS — at bottom -->
+            <div class="mt-3 pt-3 border-t border-slate-300">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Questionnaires</h2>
+                    <button id="btn-new-questionnaire-prompt"
+                            class="text-slate-400 hover:text-slate-700 text-lg leading-none" title="Nouveau prompt questionnaire">+</button>
+                </div>
+                <div id="questionnaire-prompts-list" hx-get="/api/questionnaire-prompts/" hx-trigger="load" hx-swap="innerHTML">
+                    <p class="text-xs text-slate-400">Chargement…</p>
+                </div>
+            </div>
+
             <!-- Espacement en bas pour ne pas coller au bord -->
             <!-- / Bottom spacing to avoid sticking to edge -->
             <div class="h-4 shrink-0"></div>
-
-            <!-- Input cache : stocke l'ID de l'analyseur selectionne dans la sidebar -->
-            <!-- / Hidden input: stores the selected analyzer ID from sidebar -->
-            <input type="hidden" id="analyseur-selectionne-id" name="analyseur_id" value="">
         </aside>
 
         <!-- Zone de lecture -->
         <main id="zone-lecture" class="flex-1 overflow-y-auto p-8">
             {% if analyseur_preloaded %}
                 {% include "hypostasis_extractor/analyseur_editor.html" with analyseur=analyseur_preloaded %}
+            {% elif questionnaire_prompt_preloaded %}
+                {% include "hypostasis_extractor/questionnaire_editor.html" with prompt_questionnaire=questionnaire_prompt_preloaded %}
             {% elif page_preloaded %}
                 {% include "front/includes/lecture_principale.html" with page=page_preloaded %}
             {% else %}
@@ -285,8 +296,8 @@
                         data-onglet="extractions">Extractions</button>
                 <button class="onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100"
                         data-onglet="commentaires">Commentaires</button>
-                <button class="onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium text-slate-300 cursor-not-allowed"
-                        data-onglet="questionnaire" disabled>Questionnaire</button>
+                <button class="onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                        data-onglet="questionnaire">Questionnaire</button>
             </nav>
             <div id="panneau-extractions">
                 {% if page_preloaded and analyseurs_actifs %}
@@ -337,6 +348,11 @@
                 });
             } else if (ongletChoisi === 'commentaires') {
                 htmx.ajax('GET', '/extractions/vue_commentaires/?page_id=' + pageId, {
+                    target: '#panneau-extractions',
+                    swap: 'innerHTML'
+                });
+            } else if (ongletChoisi === 'questionnaire') {
+                htmx.ajax('GET', '/questionnaire/?page_id=' + pageId, {
                     target: '#panneau-extractions',
                     swap: 'innerHTML'
                 });
@@ -457,77 +473,8 @@
                 htmx.process(arbreEl);
             }
         });
-        // --- Selection d'analyseur dans la sidebar gauche ---
-        // Clic simple = selectionner l'analyseur (surbrillance + stockage ID)
-        // Double-clic = ouvrir l'editeur de l'analyseur dans la zone de lecture
-        // / Single click = select analyzer (highlight + store ID)
-        // / Double-click = open analyzer editor in reading zone
-        (function() {
-            var timerClicSimple = null;
-
-            document.getElementById('analyseurs-list').addEventListener('click', function(evenement) {
-                var itemAnalyseur = evenement.target.closest('.analyseur-item');
-                if (!itemAnalyseur) return;
-
-                // Annuler le timer precedent si double-clic rapide
-                // / Cancel previous timer if quick double-click
-                if (timerClicSimple) {
-                    clearTimeout(timerClicSimple);
-                    timerClicSimple = null;
-                    return;
-                }
-
-                // Attendre 250ms pour distinguer clic simple du double-clic
-                // / Wait 250ms to distinguish single from double click
-                timerClicSimple = setTimeout(function() {
-                    timerClicSimple = null;
-                    var analyseurId = itemAnalyseur.dataset.analyseurId;
-
-                    // Stocker l'ID dans le champ cache / Store ID in hidden field
-                    document.getElementById('analyseur-selectionne-id').value = analyseurId;
-
-                    // Mettre a jour la surbrillance visuelle / Update visual highlight
-                    document.querySelectorAll('#analyseurs-list .analyseur-item').forEach(function(item) {
-                        item.classList.remove('bg-indigo-100', 'text-indigo-700');
-                        item.classList.add('hover:bg-slate-200', 'text-slate-700');
-                        var pastille = item.querySelector('span.rounded-full');
-                        if (pastille) {
-                            pastille.classList.remove('bg-indigo-500');
-                            pastille.classList.add('bg-slate-300');
-                        }
-                    });
-                    itemAnalyseur.classList.remove('hover:bg-slate-200', 'text-slate-700');
-                    itemAnalyseur.classList.add('bg-indigo-100', 'text-indigo-700');
-                    var pastilleActive = itemAnalyseur.querySelector('span.rounded-full');
-                    if (pastilleActive) {
-                        pastilleActive.classList.remove('bg-slate-300');
-                        pastilleActive.classList.add('bg-indigo-500');
-                    }
-                }, 250);
-            });
-
-            // Double-clic : ouvrir l'editeur de l'analyseur dans la zone de lecture
-            // / Double-click: open analyzer editor in reading zone
-            document.getElementById('analyseurs-list').addEventListener('dblclick', function(evenement) {
-                var itemAnalyseur = evenement.target.closest('.analyseur-item');
-                if (!itemAnalyseur) return;
-                var analyseurId = itemAnalyseur.dataset.analyseurId;
-                htmx.ajax('GET', '/api/analyseurs/' + analyseurId + '/', {
-                    target: '#zone-lecture',
-                    swap: 'innerHTML',
-                    pushUrl: true,
-                });
-            });
-
-            // Auto-selectionner le premier analyseur au chargement de la liste
-            // / Auto-select the first analyzer when the list loads
-            document.getElementById('analyseurs-list').addEventListener('htmx:afterSwap', function() {
-                var premierItem = document.querySelector('#analyseurs-list .analyseur-item');
-                if (premierItem && !document.getElementById('analyseur-selectionne-id').value) {
-                    premierItem.click();
-                }
-            });
-        })();
+        // --- Les items analyseur et questionnaire utilisent hx-get directement ---
+        // / Analyzer and questionnaire items use hx-get directly
 
         // --- Import de fichier ---
         // Ecoute le changement sur l'input file et envoie le fichier au serveur
@@ -633,6 +580,49 @@
                 // Charger l'editeur dans zone-lecture
                 const html = await resp.text();
                 // Extraire l'ID depuis le HTML retourne pour charger l'editeur
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+                const link = tempDiv.querySelector('[hx-get]');
+                if (link) {
+                    const url = link.getAttribute('hx-get');
+                    htmx.ajax('GET', url, {target: '#zone-lecture', swap: 'innerHTML'});
+                }
+            }
+        });
+
+        // Creation d'un prompt questionnaire via SweetAlert
+        // / Create a questionnaire prompt via SweetAlert
+        document.getElementById('btn-new-questionnaire-prompt').addEventListener('click', async function() {
+            const {value: formValues, isDismissed} = await Swal.fire({
+                title: 'Nouveau prompt questionnaire',
+                html: '<input id="swal-qp-name" class="swal2-input" placeholder="Nom du prompt">',
+                focusConfirm: false,
+                showCancelButton: true,
+                cancelButtonText: 'Annuler',
+                confirmButtonText: 'Créer',
+                preConfirm: () => {
+                    const name = document.getElementById('swal-qp-name').value.trim();
+                    if (!name) { Swal.showValidationMessage('Le nom est requis'); return false; }
+                    return {name: name};
+                }
+            });
+            if (isDismissed || !formValues) return;
+
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            const headers = {'Content-Type': 'application/json'};
+            if (csrfToken) headers['X-CSRFToken'] = csrfToken.value;
+
+            const resp = await fetch('/api/questionnaire-prompts/', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({name: formValues.name}),
+            });
+
+            if (resp.ok) {
+                // Refresh la liste sidebar / Refresh sidebar list
+                htmx.ajax('GET', '/api/questionnaire-prompts/', {target: '#questionnaire-prompts-list', swap: 'innerHTML'});
+                // Charger l'editeur dans zone-lecture / Load editor in reading zone
+                const html = await resp.text();
                 const tempDiv = document.createElement('div');
                 tempDiv.innerHTML = html;
                 const link = tempDiv.querySelector('[hx-get]');

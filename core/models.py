@@ -793,3 +793,69 @@ class TranscriptionJob(models.Model):
         ordering = ["-created_at"]
         verbose_name = "Job de transcription"
         verbose_name_plural = "Jobs de transcription"
+
+
+# =============================================================================
+# Questionnaire — Questions et reponses liees a une Page
+# / Questionnaire — Questions and answers linked to a Page
+# =============================================================================
+
+
+class Question(models.Model):
+    """
+    Question posee sur une page (texte). Pas d'authentification requise,
+    l'auteur est identifie par son prenom (meme pattern que CommentaireExtraction).
+    / Question asked about a page (text). No authentication required,
+    the author is identified by first name (same pattern as CommentaireExtraction).
+    """
+    page = models.ForeignKey(
+        Page,
+        on_delete=models.CASCADE,
+        related_name="questions",
+        help_text="Page a laquelle cette question se rapporte / Page this question relates to",
+    )
+    prenom = models.CharField(
+        max_length=100,
+        help_text="Prenom de l'auteur de la question / Author first name",
+    )
+    texte_question = models.TextField(
+        help_text="Texte de la question / Question text",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Question"
+        verbose_name_plural = "Questions"
+
+    def __str__(self):
+        return f"{self.prenom}: {self.texte_question[:60]}"
+
+
+class ReponseQuestion(models.Model):
+    """
+    Reponse a une question — meme pattern sans authentification (prenom).
+    / Answer to a question — same pattern without authentication (first name).
+    """
+    question = models.ForeignKey(
+        Question,
+        on_delete=models.CASCADE,
+        related_name="reponses",
+        help_text="Question a laquelle cette reponse repond / Question this answer replies to",
+    )
+    prenom = models.CharField(
+        max_length=100,
+        help_text="Prenom de l'auteur de la reponse / Author first name",
+    )
+    texte_reponse = models.TextField(
+        help_text="Texte de la reponse / Answer text",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "Reponse"
+        verbose_name_plural = "Reponses"
+
+    def __str__(self):
+        return f"{self.prenom}: {self.texte_reponse[:60]}"

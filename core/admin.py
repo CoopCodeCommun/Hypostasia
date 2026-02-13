@@ -15,6 +15,8 @@ from .models import (
     Dossier,
     TranscriptionConfig,
     TranscriptionJob,
+    Question,
+    ReponseQuestion,
 )
 
 
@@ -167,3 +169,37 @@ class TranscriptionJobAdmin(admin.ModelAdmin):
         "audio_filename", "error_message", "raw_result",
         "processing_time_seconds", "created_at", "updated_at",
     )
+
+
+class ReponseQuestionInline(admin.TabularInline):
+    model = ReponseQuestion
+    extra = 0
+    fields = ("prenom", "texte_reponse", "created_at")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(Question)
+class QuestionAdmin(admin.ModelAdmin):
+    """
+    Admin pour les questions sur les pages.
+    / Admin for questions on pages.
+    """
+    list_display = ("prenom", "texte_question_courte", "page", "created_at")
+    list_filter = ("page",)
+    search_fields = ("prenom", "texte_question")
+    inlines = [ReponseQuestionInline]
+
+    def texte_question_courte(self, obj):
+        return obj.texte_question[:80]
+    texte_question_courte.short_description = "Question"
+
+
+@admin.register(ReponseQuestion)
+class ReponseQuestionAdmin(admin.ModelAdmin):
+    """
+    Admin pour les reponses aux questions.
+    / Admin for answers to questions.
+    """
+    list_display = ("prenom", "question", "created_at")
+    list_filter = ("question__page",)
+    search_fields = ("prenom", "texte_reponse")

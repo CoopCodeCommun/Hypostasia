@@ -1,0 +1,7 @@
+<!-- Liste des prompts questionnaire pour la sidebar gauche -->
+<!-- / Questionnaire prompts list for left sidebar -->
+{% for prompt_questionnaire in questionnaire_prompts %}
+    {% include "hypostasis_extractor/includes/questionnaire_item.html" with prompt_questionnaire=prompt_questionnaire %}
+{% empty %}
+    <p class="text-xs text-slate-400 italic">Aucun prompt questionnaire.</p>
+{% endfor %}

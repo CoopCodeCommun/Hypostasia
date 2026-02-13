@@ -7,7 +7,8 @@ from django.contrib import admin
 from .models import (
     ExtractionJob, ExtractedEntity, ExtractionExample, JobExampleMapping,
     AnalyseurSyntaxique, PromptPiece, AnalyseurExample, ExampleExtraction, ExtractionAttribute,
-    AnalyseurTestRun, TestRunExtraction
+    AnalyseurTestRun, TestRunExtraction,
+    QuestionnairePrompt, QuestionnairePromptPiece,
 )
 
 
@@ -390,6 +391,24 @@ class TestRunExtractionAdmin(admin.ModelAdmin):
         return obj.test_run.example.name if obj.test_run.example else "—"
     test_run_example.short_description = "Exemple"
     test_run_example.admin_order_field = "test_run__example__name"
+
+
+# =============================================================================
+# Admin pour les Questionnaire Prompts
+# =============================================================================
+
+class QuestionnairePromptPieceInline(admin.TabularInline):
+    model = QuestionnairePromptPiece
+    extra = 1
+    fields = ("name", "role", "content", "order")
+
+
+@admin.register(QuestionnairePrompt)
+class QuestionnairePromptAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_active", "inclure_extractions", "inclure_texte_original", "created_at", "updated_at")
+    list_filter = ("is_active", "inclure_extractions", "inclure_texte_original")
+    search_fields = ("name", "description")
+    inlines = [QuestionnairePromptPieceInline]
 
 
 # Note: JobExampleMapping n'a pas besoin d'un @admin.register separe

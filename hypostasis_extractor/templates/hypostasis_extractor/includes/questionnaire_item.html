@@ -1,0 +1,10 @@
+<!-- Un item prompt questionnaire dans la sidebar gauche -->
+<!-- / One questionnaire prompt item in the left sidebar -->
+<div class="questionnaire-prompt-item flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors hover:bg-slate-200 text-slate-700"
+     hx-get="/api/questionnaire-prompts/{{ prompt_questionnaire.id }}/"
+     hx-target="#zone-lecture"
+     hx-swap="innerHTML"
+     hx-push-url="/api/questionnaire-prompts/{{ prompt_questionnaire.id }}/">
+    <span class="w-2 h-2 rounded-full shrink-0 bg-slate-300"></span>
+    <span class="text-sm truncate">{{ prompt_questionnaire.name }}</span>
+</div>

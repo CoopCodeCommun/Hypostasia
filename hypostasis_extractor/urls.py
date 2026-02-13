@@ -11,6 +11,7 @@ router.register(r'extraction-jobs', views.ExtractionJobViewSet, basename='extrac
 router.register(r'extracted-entities', views.ExtractedEntityViewSet, basename='extracted-entity')
 router.register(r'extraction-examples', views.ExtractionExampleViewSet, basename='extraction-example')
 router.register(r'analyseurs', views.AnalyseurSyntaxiqueViewSet, basename='analyseur')
+router.register(r'questionnaire-prompts', views.QuestionnairePromptViewSet, basename='questionnaire-prompt')
 
 urlpatterns = [
     path('', include(router.urls)),

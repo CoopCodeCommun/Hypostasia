@@ -314,6 +314,77 @@ class ExtractionAttribute(models.Model):
         return f"{self.key}: {self.value[:50]}"
 
 
+# =============================================================================
+# Questionnaire Prompt — Prompts configurables pour generation de questions IA
+# / Questionnaire Prompt — Configurable prompts for AI question generation
+# =============================================================================
+
+class QuestionnairePrompt(models.Model):
+    """
+    Prompt configurable pour generer des questions via LLM.
+    Compose de morceaux de prompt ordonnes, avec options d'injection de contexte.
+    / Configurable prompt for generating questions via LLM.
+    Composed of ordered prompt pieces, with context injection options.
+    """
+    name = models.CharField(max_length=200, help_text="Nom du prompt questionnaire")
+    description = models.TextField(blank=True, help_text="Description du prompt")
+    is_active = models.BooleanField(default=True)
+
+    # Options d'injection de contexte dans le prompt avant envoi au LLM
+    # / Context injection options in the prompt before sending to LLM
+    inclure_extractions = models.BooleanField(
+        default=False,
+        help_text="Injecter les extractions dans le contexte du prompt / Inject extractions into prompt context"
+    )
+    inclure_texte_original = models.BooleanField(
+        default=False,
+        help_text="Injecter le texte original dans le contexte du prompt / Inject original text into prompt context"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.name
+
+
+class QuestionnairePromptPiece(models.Model):
+    """
+    Morceau de prompt ordonne, lie a un QuestionnairePrompt.
+    Roles possibles : definition, instruction, format, context.
+    / Ordered prompt piece, linked to a QuestionnairePrompt.
+    Possible roles: definition, instruction, format, context.
+    """
+    class RoleChoices(models.TextChoices):
+        DEFINITION = "definition", "Définition"
+        INSTRUCTION = "instruction", "Instruction"
+        FORMAT = "format", "Format"
+        CONTEXT = "context", "Contexte"
+
+    questionnaire_prompt = models.ForeignKey(
+        QuestionnairePrompt,
+        on_delete=models.CASCADE,
+        related_name='pieces'
+    )
+    name = models.CharField(max_length=200, help_text="Nom du morceau de prompt")
+    role = models.CharField(
+        max_length=20,
+        choices=RoleChoices.choices,
+        default=RoleChoices.INSTRUCTION
+    )
+    content = models.TextField(help_text="Contenu du morceau de prompt")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return f"[{self.role}] {self.name}"
+
+
 class CommentaireExtraction(models.Model):
     """
     Commentaire sur une extraction — mode debat sans authentification.
