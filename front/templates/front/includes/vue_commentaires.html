@@ -1,0 +1,50 @@
+{# Partial: Vue globale des commentaires en layout SMS-like #}
+{# / Partial: Global comments view in SMS-like layout #}
+{% load extractor_tags %}
+
+{% if entites_avec_commentaires %}
+<div class="space-y-6">
+    {% for entite in entites_avec_commentaires %}
+    {# Bloc cliquable — bascule vers le fil de discussion de l'extraction #}
+    {# / Clickable block — switches to the extraction's discussion thread #}
+    <div class="space-y-2 cursor-pointer hover:opacity-80 transition-opacity"
+         hx-get="/extractions/fil_discussion/?entity_id={{ entite.pk }}"
+         hx-target="#panneau-extractions"
+         hx-swap="innerHTML">
+
+        {# Extraction a gauche (style SMS envoyeur) / Extraction on the left (sender SMS style) #}
+        <div class="mr-12">
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p class="text-sm text-blue-900 font-medium leading-snug">{{ entite.extraction_text|truncatewords:30 }}</p>
+                {% entity_json_attrs entite as entite_attrs %}
+                {% if entite_attrs.0 %}
+                <p class="text-xs text-blue-600 mt-1">{{ entite_attrs.0.0 }}: {{ entite_attrs.0.1 }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Commentaires a droite (style SMS reponse) / Comments on the right (reply SMS style) #}
+        {% for commentaire in entite.commentaires.all %}
+        <div class="ml-12">
+            <div class="bg-white border border-slate-200 rounded-lg p-3">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-semibold text-slate-700">{{ commentaire.prenom }}</span>
+                    <span class="text-[10px] text-slate-400">{{ commentaire.created_at|date:"d/m H:i" }}</span>
+                </div>
+                <p class="text-sm text-slate-600 whitespace-pre-wrap">{{ commentaire.commentaire }}</p>
+            </div>
+        </div>
+        {% endfor %}
+
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="flex flex-col items-center justify-center py-12 text-center">
+    <svg class="w-10 h-10 text-slate-300 mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.068.157 2.148.279 3.238.364.466.037.893.281 1.153.671L12 21l2.652-3.978c.26-.39.687-.634 1.153-.671 1.09-.085 2.17-.207 3.238-.364 1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/>
+    </svg>
+    <p class="text-sm text-slate-400">Aucun commentaire pour le moment.</p>
+    <p class="text-xs text-slate-300 mt-1">Les commentaires apparaitront ici.</p>
+</div>
+{% endif %}
