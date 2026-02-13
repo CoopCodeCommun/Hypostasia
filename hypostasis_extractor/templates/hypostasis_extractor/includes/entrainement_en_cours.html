@@ -1,0 +1,23 @@
+<!-- Partial HTMX : polling d'entrainement en cours -->
+<!-- / HTMX partial: polling for training in progress -->
+<!-- Ce template se recharge automatiquement toutes les 3s via hx-trigger -->
+<!-- / This template auto-reloads every 3s via hx-trigger -->
+<div id="test-run-{{ test_run.id }}"
+     class="bg-emerald-50 rounded-lg border border-emerald-200 p-3"
+     hx-get="/api/analyseurs/{{ analyseur.id }}/test_run_status/?test_run_id={{ test_run.id }}"
+     hx-trigger="every 3s"
+     hx-target="#test-run-{{ test_run.id }}"
+     hx-swap="outerHTML">
+
+    <div class="flex items-center gap-2">
+        <!-- Spinner anime / Animated spinner -->
+        <svg class="animate-spin h-4 w-4 text-emerald-500 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span class="text-xs font-medium text-emerald-600">Entrainement en cours...</span>
+        {% if test_run.ai_model_display_name %}
+        <span class="text-xs text-slate-400">{{ test_run.ai_model_display_name }}</span>
+        {% endif %}
+    </div>
+</div>
