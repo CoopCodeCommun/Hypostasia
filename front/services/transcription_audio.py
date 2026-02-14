@@ -2,6 +2,9 @@
 Service de transcription audio avec diarisation pour Hypostasia.
 / Audio transcription service with diarization for Hypostasia.
 
+Utilise l'endpoint dedie client.audio.transcriptions.complete() de Mistral.
+/ Uses the dedicated client.audio.transcriptions.complete() endpoint from Mistral.
+
 Supporte : Voxtral (Mistral API) et Mock (simulation).
 Retourne des segments par locuteur avec timestamps.
 / Supports: Voxtral (Mistral API) and Mock (simulation).
@@ -29,14 +32,18 @@ COULEURS_LOCUTEURS = [
 ]
 
 
-def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription):
+def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max_locuteurs=5):
     """
-    Transcrit un fichier audio via l'API Mistral (Voxtral).
-    / Transcribes an audio file via the Mistral API (Voxtral).
+    Transcrit un fichier audio via l'API Mistral (endpoint audio.transcriptions).
+    / Transcribes an audio file via the Mistral API (audio.transcriptions endpoint).
+
+    Utilise l'endpoint dedie avec diarisation native et timestamps par segment.
+    / Uses the dedicated endpoint with native diarization and segment timestamps.
 
     Args:
         chemin_fichier_audio: Chemin absolu vers le fichier audio (str)
         config_transcription: Instance de TranscriptionConfig
+        max_locuteurs: Nombre maximum de locuteurs attendus (int)
 
     Returns:
         list[dict] — segments au format [{speaker, start, end, text}, ...]
@@ -44,73 +51,58 @@ def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription):
     from mistralai import Mistral
 
     logger.info(
-        "transcrire_audio_via_voxtral: fichier=%s modele=%s langue=%s",
-        chemin_fichier_audio, config_transcription.model_name, config_transcription.language,
+        "transcrire_audio_via_voxtral: fichier=%s modele=%s langue=%s max_locuteurs=%d",
+        chemin_fichier_audio, config_transcription.model_name,
+        config_transcription.language, max_locuteurs,
     )
 
     client_mistral = Mistral(api_key=config_transcription.api_key)
 
-    # Upload du fichier audio vers l'API Mistral
-    # / Upload audio file to Mistral API
+    # Determiner si la diarisation est activee dans la config
+    # / Determine if diarization is enabled in the config
+    diarisation_activee = config_transcription.diarization_enabled
+
+    # Appel a l'endpoint de transcription dedie (pas chat.complete)
+    # / Call the dedicated transcription endpoint (not chat.complete)
     with open(chemin_fichier_audio, "rb") as fichier_audio:
-        fichier_uploade = client_mistral.files.upload(
+        reponse_transcription = client_mistral.audio.transcriptions.complete(
+            model=config_transcription.model_name,
             file={
                 "content": fichier_audio,
                 "file_name": chemin_fichier_audio.split("/")[-1],
             },
-            purpose="audio",
+            language=config_transcription.language,
+            diarize=diarisation_activee,
+            timestamp_granularities=["segment"],
         )
 
-    # Recuperer l'URL signee du fichier uploade
-    # / Get the signed URL of the uploaded file
-    url_fichier_signe = client_mistral.files.get_signed_url(file_id=fichier_uploade.id)
+    # Convertir les segments de la reponse en format interne
+    # / Convert response segments to internal format
+    segments_transcrits = []
 
-    # Appel au modele de transcription avec diarisation
-    # / Call the transcription model with diarization
-    reponse_transcription = client_mistral.chat.complete(
-        model=config_transcription.model_name,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "input_audio",
-                        "input_audio": url_fichier_signe.url,
-                    },
-                    {
-                        "type": "text",
-                        "text": (
-                            f"Transcris cet audio en {config_transcription.language}. "
-                            "Pour chaque segment, identifie le locuteur et donne les timestamps. "
-                            "Retourne UNIQUEMENT un JSON valide au format: "
-                            '[{"speaker": "Locuteur 1", "start": 0.0, "end": 5.2, "text": "..."}, ...] '
-                            "Sans markdown, sans explication, juste le JSON."
-                        ),
-                    },
-                ],
+    if reponse_transcription.segments:
+        for segment_api in reponse_transcription.segments:
+            # speaker_id est None si diarize=False
+            # / speaker_id is None if diarize=False
+            identifiant_locuteur = getattr(segment_api, "speaker_id", None)
+            nom_locuteur = identifiant_locuteur if identifiant_locuteur else "Locuteur"
+
+            segment_interne = {
+                "speaker": nom_locuteur,
+                "start": segment_api.start,
+                "end": segment_api.end,
+                "text": segment_api.text.strip(),
             }
-        ],
-    )
-
-    # Parser la reponse JSON du modele
-    # / Parse the model's JSON response
-    contenu_reponse = reponse_transcription.choices[0].message.content
-    logger.debug("transcrire_audio_via_voxtral: reponse brute=%s", contenu_reponse[:500])
-
-    import json
-    # Nettoyer la reponse (enlever les backticks markdown si presents)
-    # / Clean the response (remove markdown backticks if present)
-    contenu_nettoye = contenu_reponse.strip()
-    if contenu_nettoye.startswith("```"):
-        # Retirer le premier bloc ```json ou ``` et le dernier ```
-        # / Remove first ```json or ``` block and last ```
-        lignes = contenu_nettoye.split("\n")
-        lignes = lignes[1:]  # enlever la premiere ligne ```json
-        if lignes and lignes[-1].strip() == "```":
-            lignes = lignes[:-1]
-        contenu_nettoye = "\n".join(lignes)
-
-    segments_transcrits = json.loads(contenu_nettoye)
+            segments_transcrits.append(segment_interne)
+    else:
+        # Pas de segments mais du texte brut — creer un segment unique
+        # / No segments but raw text — create a single segment
+        segments_transcrits.append({
+            "speaker": "Locuteur",
+            "start": 0.0,
+            "end": 0.0,
+            "text": reponse_transcription.text,
+        })
 
     logger.info(
         "transcrire_audio_via_voxtral: %d segments transcrits",
@@ -119,7 +111,7 @@ def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription):
     return segments_transcrits
 
 
-def transcrire_audio_mock(chemin_fichier_audio, config_transcription):
+def transcrire_audio_mock(chemin_fichier_audio, config_transcription, max_locuteurs=5):
     """
     Transcription factice pour le developpement et les tests.
     / Mock transcription for development and testing.
@@ -127,6 +119,7 @@ def transcrire_audio_mock(chemin_fichier_audio, config_transcription):
     Args:
         chemin_fichier_audio: Chemin absolu vers le fichier audio (str)
         config_transcription: Instance de TranscriptionConfig
+        max_locuteurs: Nombre maximum de locuteurs attendus (int)
 
     Returns:
         list[dict] — segments factices
@@ -146,6 +139,57 @@ def transcrire_audio_mock(chemin_fichier_audio, config_transcription):
     ]
 
     return segments_factices
+
+
+def calculer_duree_audio(chemin_fichier_audio):
+    """
+    Calcule la duree d'un fichier audio en secondes.
+    Essaie mutagen d'abord, puis ffprobe en fallback.
+    / Computes the duration of an audio file in seconds.
+    Tries mutagen first, then ffprobe as fallback.
+
+    Args:
+        chemin_fichier_audio: Chemin absolu vers le fichier audio (str)
+
+    Returns:
+        float — duree en secondes (0.0 si impossible a determiner)
+    """
+    import mutagen
+
+    # Tentative 1 : mutagen (rapide, supporte la plupart des formats)
+    # / Attempt 1: mutagen (fast, supports most formats)
+    try:
+        info_audio = mutagen.File(chemin_fichier_audio)
+        if info_audio and info_audio.info and info_audio.info.length > 0:
+            logger.debug("calculer_duree_audio: mutagen OK — %.1fs", info_audio.info.length)
+            return info_audio.info.length
+    except Exception as erreur_mutagen:
+        logger.debug("calculer_duree_audio: mutagen a echoue — %s", erreur_mutagen)
+
+    # Tentative 2 : ffprobe en fallback (supporte tous les formats)
+    # / Attempt 2: ffprobe as fallback (supports all formats)
+    import subprocess
+    try:
+        resultat_ffprobe = subprocess.run(
+            [
+                "ffprobe", "-v", "quiet",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                chemin_fichier_audio,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if resultat_ffprobe.returncode == 0 and resultat_ffprobe.stdout.strip():
+            duree_ffprobe = float(resultat_ffprobe.stdout.strip())
+            logger.debug("calculer_duree_audio: ffprobe OK — %.1fs", duree_ffprobe)
+            return duree_ffprobe
+    except (subprocess.TimeoutExpired, FileNotFoundError, ValueError) as erreur_ffprobe:
+        logger.warning("calculer_duree_audio: ffprobe a echoue — %s", erreur_ffprobe)
+
+    logger.warning("calculer_duree_audio: impossible de determiner la duree de %s", chemin_fichier_audio)
+    return 0.0
 
 
 def construire_html_diarise(segments_transcrits):

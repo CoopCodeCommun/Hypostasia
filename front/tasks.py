@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True)
-def transcrire_audio_task(self, job_id, chemin_fichier_audio):
+def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5):
     """
     Tache Celery : transcrit un fichier audio et met a jour la Page associee.
     / Celery task: transcribes an audio file and updates the associated Page.
@@ -65,12 +65,12 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio):
         # / Dispatch based on config provider
         if config_transcription and config_transcription.provider == "voxtral":
             segments_transcrits = transcrire_audio_via_voxtral(
-                chemin_fichier_audio, config_transcription,
+                chemin_fichier_audio, config_transcription, max_locuteurs,
             )
         else:
             # Mock par defaut / Mock by default
             segments_transcrits = transcrire_audio_mock(
-                chemin_fichier_audio, config_transcription,
+                chemin_fichier_audio, config_transcription, max_locuteurs,
             )
 
         # Construire le HTML colore et le texte brut

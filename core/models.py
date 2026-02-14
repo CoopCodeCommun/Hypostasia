@@ -769,6 +769,41 @@ class TranscriptionConfig(models.Model):
             return self.name
         return dict(TranscriptionModelChoices.choices).get(self.model_choice, self.model_choice)
 
+    # Tarification par minute en USD
+    # Sources : https://mistral.ai/news/voxtral-transcribe-2
+    # / Pricing per minute in USD
+    TARIFS_PAR_MINUTE_USD = {
+        # Voxtral Mini — batch transcription
+        "voxtral-mini-latest": 0.003,
+        # Mistral Small — multimodal chat (tarif audio approximatif)
+        # / Mistral Small — multimodal chat (approximate audio rate)
+        "mistral-small-latest": 0.005,
+        # Mistral Large — multimodal chat (tarif audio approximatif)
+        # / Mistral Large — multimodal chat (approximate audio rate)
+        "mistral-large-latest": 0.01,
+        # Mock — gratuit / Mock — free
+        "mock": 0.0,
+    }
+
+    def cout_par_minute_usd(self):
+        """
+        Retourne le cout en USD par minute de transcription.
+        Si le modele n'est pas dans la table, retourne 0.0.
+        / Returns the cost in USD per minute of transcription.
+        If the model is not in the table, returns 0.0.
+        """
+        nom_technique = (self.model_name or self.model_choice).lower()
+        return self.TARIFS_PAR_MINUTE_USD.get(nom_technique, 0.0)
+
+    def estimer_cout_euros(self, duree_secondes, taux_usd_eur=0.92):
+        """
+        Estime le cout en euros pour une duree audio donnee en secondes.
+        / Estimates cost in euros for a given audio duration in seconds.
+        """
+        duree_minutes = duree_secondes / 60.0
+        cout_usd = duree_minutes * self.cout_par_minute_usd()
+        return cout_usd * taux_usd_eur
+
     def __str__(self):
         return f"{self.get_display_name()} [{self.get_provider_display()}]"
 

@@ -1370,7 +1370,11 @@ class ImportViewSet(viewsets.ViewSet):
         # Lancer la tache Celery en arriere-plan
         # / Launch the Celery task in background
         from front.tasks import transcrire_audio_task
-        resultat_tache = transcrire_audio_task.delay(job_transcription.pk, chemin_fichier_audio)
+        # Nombre max de locuteurs depuis la config / Max speakers from config
+        max_locuteurs_config = config_transcription_active.max_speakers if config_transcription_active else 5
+        resultat_tache = transcrire_audio_task.delay(
+            job_transcription.pk, chemin_fichier_audio, max_locuteurs_config,
+        )
 
         # Stocker l'ID Celery dans le job
         # / Store Celery ID in the job
@@ -1606,6 +1610,198 @@ class ImportViewSet(viewsets.ViewSet):
                 f'<p class="text-red-600 text-sm">{message_erreur}</p>'
                 f'</div></div>',
             )
+
+
+    @action(detail=False, methods=["POST"], url_path="previsualiser_audio")
+    def previsualiser_audio(self, request):
+        """
+        Recoit le fichier audio, le sauvegarde en temp, calcule la duree,
+        et retourne un partial de confirmation avec estimation de cout.
+        / Receives the audio file, saves it temporarily, computes duration,
+        and returns a confirmation partial with cost estimate.
+        """
+        import os
+        import uuid
+        from django.conf import settings
+        from core.models import TranscriptionConfig
+
+        # Validation via serializer DRF
+        # / Validation via DRF serializer
+        serializer = ImportFichierSerializer(data=request.data)
+        if not serializer.is_valid():
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        fichier_uploade = serializer.validated_data["fichier"]
+        nom_fichier = fichier_uploade.name
+        extension_fichier = os.path.splitext(nom_fichier)[1].lower()
+
+        # Sauvegarder le fichier audio dans AUDIO_TEMP_DIR avec un nom unique
+        # / Save audio file to AUDIO_TEMP_DIR with a unique name
+        nom_unique = f"{uuid.uuid4().hex}{extension_fichier}"
+        chemin_fichier_audio = str(settings.AUDIO_TEMP_DIR / nom_unique)
+
+        with open(chemin_fichier_audio, "wb") as destination:
+            for morceau in fichier_uploade.chunks():
+                destination.write(morceau)
+
+        # Calculer la duree du fichier audio (mutagen + ffprobe fallback)
+        # / Compute audio file duration (mutagen + ffprobe fallback)
+        from front.services.transcription_audio import calculer_duree_audio
+        duree_secondes = calculer_duree_audio(chemin_fichier_audio)
+
+        # Recuperer la config de transcription active
+        # / Get active transcription config
+        config_transcription = TranscriptionConfig.objects.filter(is_active=True).first()
+
+        # Calcul du cout estime en euros
+        # / Compute estimated cost in euros
+        cout_estime_euros = 0.0
+        if config_transcription:
+            cout_estime_euros = config_transcription.estimer_cout_euros(duree_secondes)
+
+        # Formater la duree en minutes:secondes pour affichage
+        # / Format duration as minutes:seconds for display
+        minutes_duree = int(duree_secondes // 60)
+        secondes_restantes = int(duree_secondes % 60)
+        duree_formatee = f"{minutes_duree}:{secondes_restantes:02d}"
+
+        # Taille du fichier en Mo / File size in MB
+        taille_fichier_mo = os.path.getsize(chemin_fichier_audio) / (1024 * 1024)
+
+        # Nombre max de locuteurs : valeur par defaut depuis la config ou 5
+        # / Max speakers count: default from config or 5
+        max_locuteurs_defaut = config_transcription.max_speakers if config_transcription else 5
+
+        return render(request, "front/includes/confirmation_audio.html", {
+            "nom_fichier": nom_fichier,
+            "chemin_fichier_temp": nom_unique,
+            "duree_formatee": duree_formatee,
+            "duree_secondes": round(duree_secondes, 1),
+            "taille_fichier_mo": round(taille_fichier_mo, 2),
+            "config_transcription": config_transcription,
+            "cout_estime_euros": cout_estime_euros,
+            "choix_max_locuteurs": range(1, 11),
+            "max_locuteurs_defaut": max_locuteurs_defaut,
+        })
+
+    @action(detail=False, methods=["POST"], url_path="confirmer_audio")
+    def confirmer_audio(self, request):
+        """
+        Lance la transcription d'un fichier audio deja sauvegarde en temp.
+        Recoit le nom du fichier temp (pas le fichier lui-meme).
+        / Launches transcription of an already temp-saved audio file.
+        Receives the temp file name (not the file itself).
+        """
+        import os
+        from django.conf import settings
+        from core.models import TranscriptionConfig, TranscriptionJob
+
+        nom_fichier_temp = request.data.get("chemin_fichier_temp", "")
+        nom_fichier_original = request.data.get("nom_fichier", "Fichier audio")
+        titre_personnalise = request.data.get("titre", "")
+        dossier_id = request.data.get("dossier_id")
+
+        # Nombre max de locuteurs choisi par l'utilisateur (defaut: 5)
+        # / Max speakers count chosen by the user (default: 5)
+        try:
+            max_locuteurs = int(request.data.get("max_speakers", 5))
+            max_locuteurs = max(1, min(max_locuteurs, 10))
+        except (ValueError, TypeError):
+            max_locuteurs = 5
+
+        if not nom_fichier_temp:
+            return HttpResponse("Fichier temporaire introuvable.", status=400)
+
+        chemin_fichier_audio = str(settings.AUDIO_TEMP_DIR / nom_fichier_temp)
+        if not os.path.exists(chemin_fichier_audio):
+            return HttpResponse("Le fichier temporaire a expire ou n'existe plus.", status=400)
+
+        # Determiner le titre et le dossier
+        # / Determine title and folder
+        nom_sans_extension = os.path.splitext(nom_fichier_original)[0]
+        titre_final = titre_personnalise.strip() if titre_personnalise.strip() else nom_sans_extension
+        dossier_assigne = None
+        if dossier_id:
+            dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
+
+        # Creer la Page en status "processing"
+        # / Create Page in "processing" status
+        page_audio = Page.objects.create(
+            source_type="audio",
+            original_filename=nom_fichier_original,
+            url=None,
+            title=titre_final,
+            html_original="",
+            html_readability='<p class="text-slate-400 italic">Transcription en cours...</p>',
+            text_readability="",
+            content_hash="",
+            status="processing",
+            dossier=dossier_assigne,
+        )
+
+        # Recuperer la config de transcription active (ou None pour mock)
+        # / Get active transcription config (or None for mock)
+        config_transcription_active = TranscriptionConfig.objects.filter(
+            is_active=True,
+        ).first()
+
+        # Creer le TranscriptionJob
+        # / Create the TranscriptionJob
+        job_transcription = TranscriptionJob.objects.create(
+            page=page_audio,
+            transcription_config=config_transcription_active,
+            audio_filename=nom_fichier_original,
+            status="pending",
+        )
+
+        # Lancer la tache Celery en arriere-plan
+        # / Launch the Celery task in background
+        from front.tasks import transcrire_audio_task
+        resultat_tache = transcrire_audio_task.delay(
+            job_transcription.pk, chemin_fichier_audio, max_locuteurs,
+        )
+
+        # Stocker l'ID Celery dans le job
+        # / Store Celery ID in the job
+        job_transcription.celery_task_id = resultat_tache.id
+        job_transcription.save(update_fields=["celery_task_id"])
+
+        logger.info(
+            "confirmer_audio: page pk=%s job pk=%s celery_id=%s",
+            page_audio.pk, job_transcription.pk, resultat_tache.id,
+        )
+
+        # Retourner le template de polling + OOB arbre
+        # / Return polling template + OOB tree
+        html_polling = render_to_string(
+            "front/includes/transcription_en_cours.html",
+            {"page": page_audio},
+            request=request,
+        )
+
+        html_arbre_oob = render_to_string(
+            "front/includes/arbre_dossiers.html",
+            {
+                "dossiers": Dossier.objects.prefetch_related("pages").all(),
+                "pages_orphelines": Page.objects.filter(dossier__isnull=True).order_by("-created_at"),
+            },
+            request=request,
+        )
+        html_arbre_oob = (
+            '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
+            + html_arbre_oob
+            + '</div>'
+        )
+
+        html_complet = html_polling + html_arbre_oob
+        reponse = HttpResponse(html_complet)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": "Transcription lancée..."},
+        })
+        return reponse
 
 
 class QuestionnaireViewSet(viewsets.ViewSet):

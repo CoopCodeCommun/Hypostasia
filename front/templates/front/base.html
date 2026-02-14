@@ -477,8 +477,36 @@
         // / Analyzer and questionnaire items use hx-get directly
 
         // --- Import de fichier ---
-        // Ecoute le changement sur l'input file et envoie le fichier au serveur
-        // / Listen to file input change and send the file to the server
+        // Si audio → affiche confirmation avec cout, sinon → import direct
+        // / If audio → show confirmation with cost, otherwise → direct import
+        var EXTENSIONS_AUDIO = ['.mp3','.wav','.m4a','.ogg','.flac','.webm','.aac','.wma','.opus','.aiff'];
+
+        function estFichierAudio(nomFichier) {
+            var ext = nomFichier.toLowerCase().match(/\.[^.]+$/);
+            return ext && EXTENSIONS_AUDIO.indexOf(ext[0]) !== -1;
+        }
+
+        // Fonction utilitaire : traite une reponse HTML avec OOB swaps
+        // / Utility: process HTML response with OOB swaps
+        function traiterReponseAvecOob(htmlComplet) {
+            var conteneur = document.createElement('div');
+            conteneur.innerHTML = htmlComplet;
+            conteneur.querySelectorAll('[hx-swap-oob]').forEach(function(elementOob) {
+                var attributOob = elementOob.getAttribute('hx-swap-oob');
+                var selecteur = attributOob.split(':')[1];
+                if (selecteur) {
+                    var cible = document.querySelector(selecteur);
+                    if (cible) {
+                        cible.innerHTML = elementOob.innerHTML;
+                        htmx.process(cible);
+                    }
+                }
+                elementOob.remove();
+            });
+            document.getElementById('zone-lecture').innerHTML = conteneur.innerHTML;
+            htmx.process(document.getElementById('zone-lecture'));
+        }
+
         document.getElementById('input-import-fichier').addEventListener('change', function() {
             var inputFichier = this;
             var fichierSelectionne = inputFichier.files[0];
@@ -492,7 +520,13 @@
             if (csrfToken) headers['X-CSRFToken'] = csrfToken.value;
             headers['HX-Request'] = 'true';
 
-            fetch('/import/fichier/', {
+            // Aiguillage : audio → previsualisation, document → import direct
+            // / Routing: audio → preview, document → direct import
+            var urlImport = estFichierAudio(fichierSelectionne.name)
+                ? '/import/previsualiser_audio/'
+                : '/import/fichier/';
+
+            fetch(urlImport, {
                 method: 'POST',
                 headers: headers,
                 body: formulaireDonnees,
@@ -504,37 +538,20 @@
                     });
                 }
                 return reponse.text().then(function(htmlComplet) {
-                    // Extraire et traiter les elements OOB manuellement
-                    // / Extract and process OOB elements manually
-                    var conteneur = document.createElement('div');
-                    conteneur.innerHTML = htmlComplet;
-
-                    // Traiter les swaps OOB (arbre + panneau)
-                    // / Process OOB swaps (tree + panel)
-                    conteneur.querySelectorAll('[hx-swap-oob]').forEach(function(elementOob) {
-                        var attributOob = elementOob.getAttribute('hx-swap-oob');
-                        var selecteur = attributOob.split(':')[1];
-                        if (selecteur) {
-                            var cible = document.querySelector(selecteur);
-                            if (cible) {
-                                cible.innerHTML = elementOob.innerHTML;
-                                htmx.process(cible);
-                            }
-                        }
-                        elementOob.remove();
-                    });
-
-                    // Le reste va dans zone-lecture
-                    // / The rest goes into zone-lecture
-                    document.getElementById('zone-lecture').innerHTML = conteneur.innerHTML;
-                    htmx.process(document.getElementById('zone-lecture'));
-
-                    // Declencher le toast manuellement depuis HX-Trigger
-                    // / Trigger the toast manually from HX-Trigger
-                    Swal.fire({
-                        toast: true, position: 'top-end', icon: 'success',
-                        title: 'Fichier import\u00e9', showConfirmButton: false, timer: 2500,
-                    });
+                    if (estFichierAudio(fichierSelectionne.name)) {
+                        // Audio : afficher la confirmation dans zone-lecture
+                        // / Audio: show confirmation in zone-lecture
+                        document.getElementById('zone-lecture').innerHTML = htmlComplet;
+                        htmx.process(document.getElementById('zone-lecture'));
+                    } else {
+                        // Document : traiter les OOB + toast
+                        // / Document: process OOB + toast
+                        traiterReponseAvecOob(htmlComplet);
+                        Swal.fire({
+                            toast: true, position: 'top-end', icon: 'success',
+                            title: 'Fichier importé', showConfirmButton: false, timer: 2500,
+                        });
+                    }
                 });
             })
             .catch(function(erreur) {
@@ -1091,6 +1108,64 @@
             target: '#panneau-extractions',
             swap: 'innerHTML',
             values: {page_id: pageId, analyseur_id: selectAnalyseur.value},
+        });
+    });
+
+    // --- Confirmation transcription audio ---
+    // Bouton Confirmer : lance la transcription via POST /import/confirmer_audio/
+    // Bouton Annuler : vide la zone-lecture
+    // / Confirm button: launches transcription via POST /import/confirmer_audio/
+    // / Cancel button: clears zone-lecture
+    document.addEventListener('click', function(evenement) {
+        // Annuler la transcription / Cancel transcription
+        var boutonAnnulerTranscription = evenement.target.closest('.btn-annuler-transcription');
+        if (boutonAnnulerTranscription) {
+            var zoneConfirmation = document.getElementById('confirmation-audio');
+            if (zoneConfirmation) zoneConfirmation.closest('.max-w-xl').remove();
+            return;
+        }
+
+        // Confirmer la transcription / Confirm transcription
+        var boutonConfirmerTranscription = evenement.target.closest('.btn-confirmer-transcription');
+        if (!boutonConfirmerTranscription) return;
+
+        var cheminTemp = boutonConfirmerTranscription.dataset.cheminTemp;
+        var nomFichier = boutonConfirmerTranscription.dataset.nomFichier;
+
+        // Recuperer le nombre max de locuteurs choisi par l'utilisateur
+        // / Get the max speakers count chosen by the user
+        var selectMaxLocuteurs = document.getElementById('max-speakers-select');
+        var maxLocuteurs = selectMaxLocuteurs ? selectMaxLocuteurs.value : '5';
+
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        var headers = {'Content-Type': 'application/x-www-form-urlencoded'};
+        if (csrfToken) headers['X-CSRFToken'] = csrfToken.value;
+        headers['HX-Request'] = 'true';
+
+        fetch('/import/confirmer_audio/', {
+            method: 'POST',
+            headers: headers,
+            body: 'chemin_fichier_temp=' + encodeURIComponent(cheminTemp)
+                + '&nom_fichier=' + encodeURIComponent(nomFichier)
+                + '&max_speakers=' + encodeURIComponent(maxLocuteurs),
+        })
+        .then(function(reponse) {
+            if (!reponse.ok) {
+                return reponse.text().then(function(texte) {
+                    document.getElementById('zone-lecture').innerHTML = texte;
+                });
+            }
+            return reponse.text().then(function(htmlComplet) {
+                traiterReponseAvecOob(htmlComplet);
+                Swal.fire({
+                    toast: true, position: 'top-end', icon: 'info',
+                    title: 'Transcription lancée...', showConfirmButton: false, timer: 2500,
+                });
+            });
+        })
+        .catch(function(erreur) {
+            console.error('[Confirmer audio]', erreur);
+            Swal.fire({icon: 'error', title: 'Erreur', text: 'Erreur lors du lancement de la transcription.'});
         });
     });
     </script>
