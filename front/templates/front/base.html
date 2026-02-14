@@ -1062,6 +1062,37 @@
             values: {page_id: pageId},
         });
     });
+
+    // --- Promouvoir les extractions en donnees d'entrainement ---
+    // Le bouton charge le formulaire via HTMX (GET /extractions/formulaire_promouvoir/)
+    // Les boutons Confirmer/Annuler du partial sont geres ici par delegation
+    // / The button loads the form via HTMX (GET /extractions/formulaire_promouvoir/)
+    // / Confirm/Cancel buttons in the partial are handled here via delegation
+    document.addEventListener('click', function(evenement) {
+        // Bouton Annuler : vide la zone du formulaire
+        // / Cancel button: clear the form zone
+        var boutonAnnuler = evenement.target.closest('.btn-annuler-promotion');
+        if (boutonAnnuler) {
+            var zoneFormulaire = document.getElementById('zone-promouvoir-entrainement');
+            if (zoneFormulaire) zoneFormulaire.innerHTML = '';
+            return;
+        }
+
+        // Bouton Confirmer : envoie le POST avec les valeurs du select
+        // / Confirm button: send POST with select values
+        var boutonConfirmer = evenement.target.closest('.btn-confirmer-promotion');
+        if (!boutonConfirmer) return;
+
+        var pageId = boutonConfirmer.dataset.pageId;
+        var selectAnalyseur = document.getElementById('select-analyseur-promotion');
+        if (!selectAnalyseur || !selectAnalyseur.value) return;
+
+        htmx.ajax('POST', '/extractions/promouvoir_entrainement/', {
+            target: '#panneau-extractions',
+            swap: 'innerHTML',
+            values: {page_id: pageId, analyseur_id: selectAnalyseur.value},
+        });
+    });
     </script>
 
 </body>

@@ -68,6 +68,13 @@
                 data-page-id="{{ entities.0.job.page_id }}">
             Supprimer les extractions IA
         </button>
+        <button class="w-full mt-2 px-3 py-2 text-sm text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+                hx-get="/extractions/formulaire_promouvoir/?page_id={{ entities.0.job.page_id }}"
+                hx-target="#zone-promouvoir-entrainement"
+                hx-swap="innerHTML">
+            Ajouter dans les données d'entraînement
+        </button>
+        <div id="zone-promouvoir-entrainement"></div>
         {% endif %}
 
     {% else %}

@@ -213,6 +213,23 @@ class QuestionSerializer(serializers.Serializer):
     )
 
 
+class PromouvoirEntrainementSerializer(serializers.Serializer):
+    """
+    Validation pour promouvoir les extractions d'une page en exemple d'entrainement.
+    Validation for promoting a page's extractions into a training example.
+    """
+    page_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de la page est obligatoire / Page ID is required",
+        },
+    )
+    analyseur_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de l'analyseur est obligatoire / Analyzer ID is required",
+        },
+    )
+
+
 class ReponseQuestionSerializer(serializers.Serializer):
     """
     Validation pour la creation d'une reponse a une question.

@@ -494,6 +494,61 @@ class AIModel(models.Model):
         """
         return self.model_name or self.model_choice
 
+    # Tarification par million de tokens (input, output) en USD
+    # Sources : https://ai.google.dev/gemini-api/docs/pricing
+    #           https://openai.com/api/pricing/
+    # / Pricing per million tokens (input, output) in USD
+    TARIFS_PAR_MILLION_TOKENS = {
+        # Google Gemini — prix input/output par million de tokens
+        # / Google Gemini — input/output price per million tokens
+        "gemini-2.5-pro": (1.25, 10.00),
+        "gemini-2.5-flash": (0.15, 0.60),
+        "gemini-2.5-flash-lite": (0.075, 0.30),
+        "gemini-2.0-flash": (0.10, 0.40),
+        "gemini-2.0-flash-lite": (0.075, 0.30),
+        "gemini-1.5-pro": (1.25, 5.00),
+        "gemini-1.5-flash": (0.075, 0.30),
+        # OpenAI GPT — prix input/output par million de tokens
+        # / OpenAI GPT — input/output price per million tokens
+        "gpt-4o": (2.50, 10.00),
+        "gpt-4o-mini": (0.15, 0.60),
+        "gpt-4-turbo": (10.00, 30.00),
+        "gpt-4.1": (2.00, 8.00),
+        "gpt-4.1-mini": (0.40, 1.60),
+        # Mock — gratuit / Mock — free
+        "mock": (0.0, 0.0),
+    }
+
+    def cout_par_million_tokens(self):
+        """
+        Retourne le tuple (cout_input, cout_output) en USD par million de tokens.
+        Si le modele n'est pas dans la table, retourne (0.0, 0.0).
+        / Returns the (input_cost, output_cost) tuple in USD per million tokens.
+        If the model is not in the table, returns (0.0, 0.0).
+        """
+        nom_technique = self.technical_model_name.lower()
+        return self.TARIFS_PAR_MILLION_TOKENS.get(nom_technique, (0.0, 0.0))
+
+    def estimer_cout_euros(self, nombre_tokens_input, nombre_tokens_output_estime=0, taux_usd_eur=0.92):
+        """
+        Estime le cout en euros pour un nombre de tokens donne.
+        Le nombre de tokens output est estime a 20% de l'input par defaut si non fourni.
+        / Estimates cost in euros for a given number of tokens.
+        Output token count defaults to 20% of input if not provided.
+        """
+        cout_input_usd, cout_output_usd = self.cout_par_million_tokens()
+
+        if nombre_tokens_output_estime == 0:
+            nombre_tokens_output_estime = int(nombre_tokens_input * 0.20)
+
+        cout_total_usd = (
+            (nombre_tokens_input / 1_000_000) * cout_input_usd
+            + (nombre_tokens_output_estime / 1_000_000) * cout_output_usd
+        )
+
+        cout_total_euros = cout_total_usd * taux_usd_eur
+        return cout_total_euros
+
     def __str__(self):
         return f"{self.get_display_name()} [{self.get_provider_display()}]"
 

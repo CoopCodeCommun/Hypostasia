@@ -14,11 +14,13 @@ from rest_framework.response import Response
 from core.models import AIModel, Configuration, Dossier, Page, Question, ReponseQuestion
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
+    ExampleExtraction, ExtractionAttribute,
     ExtractedEntity, ExtractionJob, PromptPiece,
 )
 from .serializers import (
     CommentaireExtractionSerializer, DossierCreateSerializer, ExtractionManuelleSerializer,
-    ExtractionSerializer, ImportFichierSerializer, PageClasserSerializer, QuestionSerializer,
+    ExtractionSerializer, ImportFichierSerializer, PageClasserSerializer,
+    PromouvoirEntrainementSerializer, QuestionSerializer,
     ReponseQuestionSerializer, RunAnalyseSerializer, SelectModelSerializer, est_fichier_audio,
 )
 from .utils import annoter_html_avec_ancres
@@ -258,6 +260,93 @@ class LectureViewSet(viewsets.ViewSet):
             "job": dernier_job_termine,
             "entities": entites_existantes,
             "ia_active": ia_active,
+        })
+
+    @action(detail=True, methods=["GET"], url_path="previsualiser_analyse")
+    def previsualiser_analyse(self, request, pk=None):
+        """
+        Construit le prompt complet (pieces + exemples + texte source) et retourne
+        un partial de confirmation avec : estimation tokens, cout, bouton voir prompt.
+        / Builds the full prompt (pieces + examples + source text) and returns
+        a confirmation partial with: token estimate, cost, view prompt button.
+        """
+        page = get_object_or_404(Page, pk=pk)
+
+        # Recupere l'analyseur depuis le query param
+        # / Get analyzer from query param
+        analyseur_id = request.query_params.get("analyseur_id")
+        if not analyseur_id:
+            return HttpResponse("analyseur_id requis.", status=400)
+
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
+
+        # Recupere le modele IA actif depuis la configuration singleton
+        # / Get active AI model from singleton configuration
+        configuration_ia = Configuration.get_solo()
+        modele_ia_actif = configuration_ia.ai_model
+        if not modele_ia_actif:
+            return HttpResponse("Aucun modèle IA sélectionné.", status=400)
+
+        # Construit le prompt complet depuis les pieces de l'analyseur
+        # / Build full prompt from analyzer pieces
+        pieces_ordonnees = PromptPiece.objects.filter(
+            analyseur=analyseur,
+        ).order_by("order")
+        texte_prompt_pieces = "\n".join(piece.content for piece in pieces_ordonnees)
+
+        # Serialise les exemples few-shot en texte lisible
+        # / Serialize few-shot examples as readable text
+        tous_les_exemples = AnalyseurExample.objects.filter(
+            analyseur=analyseur,
+        ).order_by("order").prefetch_related("extractions__attributes")
+
+        texte_exemples = ""
+        for exemple in tous_les_exemples:
+            texte_exemples += f"\n--- Exemple : {exemple.name} ---\n"
+            texte_exemples += f"Texte source :\n{exemple.example_text[:500]}...\n" if len(exemple.example_text) > 500 else f"Texte source :\n{exemple.example_text}\n"
+            for extraction in exemple.extractions.all():
+                texte_exemples += f"\n  [{extraction.extraction_class}] {extraction.extraction_text}\n"
+                for attribut in extraction.attributes.all():
+                    texte_exemples += f"    {attribut.key}: {attribut.value}\n"
+
+        # Texte source de la page (sera envoye au LLM)
+        # / Source text from the page (will be sent to the LLM)
+        texte_source_page = page.text_readability or ""
+
+        # Assemblage du prompt complet tel qu'il sera envoye au LLM
+        # / Assembly of the full prompt as it will be sent to the LLM
+        prompt_complet = (
+            f"{texte_prompt_pieces}\n\n"
+            f"=== EXEMPLES FEW-SHOT ===\n{texte_exemples}\n\n"
+            f"=== TEXTE A ANALYSER ===\n{texte_source_page}"
+        )
+
+        # Comptage des tokens via tiktoken (tokenizer cl100k_base, universel)
+        # / Token counting via tiktoken (cl100k_base tokenizer, universal)
+        import tiktoken
+        encodeur_tokens = tiktoken.get_encoding("cl100k_base")
+        nombre_tokens_input = len(encodeur_tokens.encode(prompt_complet))
+
+        # Estimation du nombre de tokens output (20% de l'input)
+        # / Estimate output token count (20% of input)
+        nombre_tokens_output_estime = int(nombre_tokens_input * 0.20)
+
+        # Estimation du cout en euros via la methode du modele
+        # / Cost estimate in euros via the model method
+        cout_estime_euros = modele_ia_actif.estimer_cout_euros(
+            nombre_tokens_input, nombre_tokens_output_estime
+        )
+
+        return render(request, "front/includes/confirmation_analyse.html", {
+            "page": page,
+            "analyseur": analyseur,
+            "modele_ia": modele_ia_actif,
+            "nombre_tokens_input": nombre_tokens_input,
+            "nombre_tokens_output_estime": nombre_tokens_output_estime,
+            "cout_estime_euros": cout_estime_euros,
+            "prompt_complet": prompt_complet,
+            "nombre_exemples": tous_les_exemples.count(),
+            "nombre_pieces": pieces_ordonnees.count(),
         })
 
     @action(detail=True, methods=["POST"])
@@ -989,6 +1078,141 @@ class ExtractionViewSet(viewsets.ViewSet):
         reponse["HX-Trigger"] = json.dumps({
             "ouvrirPanneauDroit": True,
             "showToast": {"message": "Extractions IA supprim\u00e9es"},
+        })
+        return reponse
+
+    @action(detail=False, methods=["GET"], url_path="formulaire_promouvoir")
+    def formulaire_promouvoir(self, request):
+        """
+        Retourne le partial HTML du formulaire de promotion en entrainement.
+        Charge la liste des analyseurs actifs cote serveur.
+        / Returns the HTML partial for the training promotion form.
+        Loads the active analyzers list server-side.
+        """
+        page_id = request.query_params.get("page_id")
+        if not page_id:
+            return HttpResponse("page_id requis.", status=400)
+
+        page = get_object_or_404(Page, pk=page_id)
+        tous_les_analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
+
+        return render(request, "front/includes/modale_promouvoir_entrainement.html", {
+            "page": page,
+            "analyseurs_actifs": tous_les_analyseurs_actifs,
+        })
+
+    @action(detail=False, methods=["POST"], url_path="promouvoir_entrainement")
+    def promouvoir_entrainement(self, request):
+        """
+        Promeut les extractions IA d'une page en exemple d'entrainement few-shot.
+        Le texte de la page devient le texte source de l'exemple.
+        Chaque extraction devient une ExampleExtraction attendue avec ses attributs.
+        / Promotes a page's AI extractions into a few-shot training example.
+        The page text becomes the example source text.
+        Each extraction becomes an expected ExampleExtraction with its attributes.
+        """
+        # Validation des parametres via serializer DRF
+        # / Validate parameters via DRF serializer
+        serializer = PromouvoirEntrainementSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("promouvoir_entrainement: validation echouee — %s", serializer.errors)
+            return HttpResponse("Parametres invalides.", status=400)
+
+        page_id = serializer.validated_data["page_id"]
+        analyseur_id = serializer.validated_data["analyseur_id"]
+
+        page = get_object_or_404(Page, pk=page_id)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
+
+        # Recupere toutes les entites IA de la page (jobs completed avec ai_model)
+        # / Retrieve all AI entities from the page (completed jobs with ai_model)
+        toutes_les_entites_ia = ExtractedEntity.objects.filter(
+            job__page=page,
+            job__status="completed",
+            job__ai_model__isnull=False,
+        ).order_by("start_char")
+
+        if not toutes_les_entites_ia.exists():
+            return HttpResponse("Aucune extraction IA a promouvoir.", status=400)
+
+        # Calcule l'order du nouvel exemple (max + 1)
+        # / Compute order for the new example (max + 1)
+        dernier_order_exemple = analyseur.examples.aggregate(
+            max_order=Count("id"),
+        )["max_order"] or 0
+
+        # Cree le nouvel exemple d'entrainement avec le texte de la page
+        # / Create the new training example with the page's text
+        nouvel_exemple = AnalyseurExample.objects.create(
+            analyseur=analyseur,
+            name=page.title[:200] if page.title else f"Exemple depuis page {page.pk}",
+            example_text=page.text_readability or "",
+            order=dernier_order_exemple,
+        )
+
+        # Determine les cles d'attributs de reference :
+        # 1. Depuis la premiere extraction du dernier exemple existant de cet analyseur
+        # 2. Sinon, cles par defaut
+        # / Determine reference attribute keys:
+        # 1. From the first extraction of the last existing example of this analyzer
+        # 2. Otherwise, default keys
+        CLES_ATTRIBUTS_PAR_DEFAUT = ["Hypostase", "Résumé", "Status", "Mots clés"]
+        cles_attributs_reference = CLES_ATTRIBUTS_PAR_DEFAUT
+
+        dernier_exemple_existant = analyseur.examples.exclude(
+            pk=nouvel_exemple.pk,
+        ).prefetch_related("extractions__attributes").order_by("-order").first()
+
+        if dernier_exemple_existant:
+            premiere_extraction_reference = dernier_exemple_existant.extractions.first()
+            if premiere_extraction_reference:
+                cles_depuis_reference = list(
+                    premiere_extraction_reference.attributes.order_by("order").values_list("key", flat=True)
+                )
+                if cles_depuis_reference:
+                    cles_attributs_reference = cles_depuis_reference
+
+        # Cree une ExampleExtraction attendue pour chaque entite IA
+        # / Create an expected ExampleExtraction for each AI entity
+        for numero_entite, entite in enumerate(toutes_les_entites_ia):
+            nouvelle_extraction_attendue = ExampleExtraction.objects.create(
+                example=nouvel_exemple,
+                extraction_class=entite.extraction_class or "",
+                extraction_text=entite.extraction_text or "",
+                order=numero_entite,
+            )
+
+            # Mappe les valeurs du JSONField attributes sur les cles de reference
+            # / Map JSONField attribute values onto reference keys
+            dictionnaire_attributs_entite = entite.attributes or {}
+            liste_valeurs_entite = list(dictionnaire_attributs_entite.values())
+
+            for numero_attribut, cle_reference in enumerate(cles_attributs_reference):
+                # Valeur de l'entite a cette position, ou vide si absente
+                # / Entity value at this position, or empty if missing
+                valeur_attribut = ""
+                if numero_attribut < len(liste_valeurs_entite):
+                    valeur_attribut = str(liste_valeurs_entite[numero_attribut])
+
+                ExtractionAttribute.objects.create(
+                    extraction=nouvelle_extraction_attendue,
+                    key=cle_reference,
+                    value=valeur_attribut,
+                    order=numero_attribut,
+                )
+
+        logger.info(
+            "promouvoir_entrainement: exemple pk=%d cree avec %d extractions pour analyseur pk=%d",
+            nouvel_exemple.pk, toutes_les_entites_ia.count(), analyseur.pk,
+        )
+
+        # Retourne le panneau mis a jour + toast de succes
+        # / Return updated panel + success toast
+        html_complet = self._render_panneau_complet_avec_oob(request, page)
+        reponse = HttpResponse(html_complet)
+        reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
+            "showToast": {"message": f"Ajouté comme entrainement dans {analyseur.name}"},
         })
         return reponse
 

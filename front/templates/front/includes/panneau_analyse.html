@@ -13,12 +13,15 @@
             <option value="{{ analyseur.id }}" {% if analyseur.id == analyseur_id %}selected{% endif %}>{{ analyseur.name }}</option>
         {% endfor %}
     </select>
-    <button hx-post="/lire/{{ page.pk }}/analyser/"
+    {# Le bouton charge d'abord la confirmation (estimation tokens/cout) #}
+    {# / The button first loads the confirmation (token/cost estimate) #}
+    <button class="btn-previsualiser-analyse w-full px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors flex items-center justify-center gap-2"
+            data-page-id="{{ page.pk }}"
+            hx-get="/lire/{{ page.pk }}/previsualiser_analyse/"
             hx-include="#analyseur-selectionne-id"
             hx-target="#zone-resultats-extraction"
             hx-swap="innerHTML"
-            hx-indicator="#analyse-spinner-{{ page.pk }}"
-            class="w-full px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors flex items-center justify-center gap-2">
+            hx-indicator="#analyse-spinner-{{ page.pk }}">
         <span>Analyser</span>
         <svg id="analyse-spinner-{{ page.pk }}"
              class="htmx-indicator animate-spin h-4 w-4 text-white"
