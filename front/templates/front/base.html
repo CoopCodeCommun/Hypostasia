@@ -516,9 +516,6 @@
             formulaireDonnees.append('fichier', fichierSelectionne);
 
             var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-            var headers = {};
-            if (csrfToken) headers['X-CSRFToken'] = csrfToken.value;
-            headers['HX-Request'] = 'true';
 
             // Aiguillage : audio → previsualisation, document → import direct
             // / Routing: audio → preview, document → direct import
@@ -526,38 +523,82 @@
                 ? '/import/previsualiser_audio/'
                 : '/import/fichier/';
 
-            fetch(urlImport, {
-                method: 'POST',
-                headers: headers,
-                body: formulaireDonnees,
-            })
-            .then(function(reponse) {
-                if (!reponse.ok) {
-                    return reponse.text().then(function(texte) {
-                        document.getElementById('zone-lecture').innerHTML = texte;
-                    });
+            // Afficher la barre de progression dans zone-lecture
+            // / Show progress bar in zone-lecture
+            var zoneLecture = document.getElementById('zone-lecture');
+            zoneLecture.innerHTML = ''
+                + '<div class="max-w-xl mx-auto p-6">'
+                + '  <div class="bg-white rounded-lg border border-blue-200 p-4 space-y-3">'
+                + '    <div class="flex items-center gap-2">'
+                + '      <svg class="w-5 h-5 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">'
+                + '        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>'
+                + '        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>'
+                + '      </svg>'
+                + '      <span class="text-sm font-medium text-slate-700">Envoi en cours\u2026</span>'
+                + '      <span id="upload-pourcentage" class="text-xs text-slate-500 ml-auto">0%</span>'
+                + '    </div>'
+                + '    <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">'
+                + '      <div id="upload-barre" class="bg-blue-500 h-2 rounded-full transition-all duration-200" style="width: 0%"></div>'
+                + '    </div>'
+                + '    <p id="upload-detail" class="text-xs text-slate-400">' + fichierSelectionne.name + '</p>'
+                + '  </div>'
+                + '</div>';
+
+            // Utiliser XMLHttpRequest pour suivre la progression de l'upload
+            // / Use XMLHttpRequest to track upload progress
+            var requeteUpload = new XMLHttpRequest();
+            requeteUpload.open('POST', urlImport);
+
+            if (csrfToken) requeteUpload.setRequestHeader('X-CSRFToken', csrfToken.value);
+            requeteUpload.setRequestHeader('HX-Request', 'true');
+
+            // Progression de l'upload / Upload progress
+            requeteUpload.upload.addEventListener('progress', function(evenementProgression) {
+                if (evenementProgression.lengthComputable) {
+                    var pourcentage = Math.round((evenementProgression.loaded / evenementProgression.total) * 100);
+                    var barreProgression = document.getElementById('upload-barre');
+                    var textePourcentage = document.getElementById('upload-pourcentage');
+                    if (barreProgression) barreProgression.style.width = pourcentage + '%';
+                    if (textePourcentage) textePourcentage.textContent = pourcentage + '%';
+
+                    // Quand l'envoi est termine, afficher le spinner d'analyse
+                    // / When upload is done, show analysis spinner
+                    if (pourcentage >= 100) {
+                        var detailUpload = document.getElementById('upload-detail');
+                        if (detailUpload) detailUpload.textContent = 'Analyse du fichier\u2026';
+                    }
                 }
-                return reponse.text().then(function(htmlComplet) {
+            });
+
+            requeteUpload.addEventListener('load', function() {
+                if (requeteUpload.status >= 200 && requeteUpload.status < 300) {
+                    var htmlComplet = requeteUpload.responseText;
                     if (estFichierAudio(fichierSelectionne.name)) {
                         // Audio : afficher la confirmation dans zone-lecture
                         // / Audio: show confirmation in zone-lecture
-                        document.getElementById('zone-lecture').innerHTML = htmlComplet;
-                        htmx.process(document.getElementById('zone-lecture'));
+                        zoneLecture.innerHTML = htmlComplet;
+                        htmx.process(zoneLecture);
                     } else {
                         // Document : traiter les OOB + toast
                         // / Document: process OOB + toast
                         traiterReponseAvecOob(htmlComplet);
                         Swal.fire({
                             toast: true, position: 'top-end', icon: 'success',
-                            title: 'Fichier importé', showConfirmButton: false, timer: 2500,
+                            title: 'Fichier import\u00e9', showConfirmButton: false, timer: 2500,
                         });
                     }
-                });
-            })
-            .catch(function(erreur) {
-                console.error('[Import fichier]', erreur);
-                Swal.fire({icon: 'error', title: 'Erreur', text: 'Erreur lors de l\'import du fichier.'});
+                } else {
+                    zoneLecture.innerHTML = requeteUpload.responseText;
+                }
             });
+
+            requeteUpload.addEventListener('error', function() {
+                console.error('[Import fichier] erreur reseau');
+                Swal.fire({icon: 'error', title: 'Erreur', text: 'Erreur lors de l\'envoi du fichier.'});
+                zoneLecture.innerHTML = '';
+            });
+
+            requeteUpload.send(formulaireDonnees);
 
             // Reset l'input pour permettre de reimporter le meme fichier
             // / Reset input to allow reimporting the same file
@@ -1132,10 +1173,12 @@
         var cheminTemp = boutonConfirmerTranscription.dataset.cheminTemp;
         var nomFichier = boutonConfirmerTranscription.dataset.nomFichier;
 
-        // Recuperer le nombre max de locuteurs choisi par l'utilisateur
-        // / Get the max speakers count chosen by the user
+        // Recuperer les options choisies par l'utilisateur
+        // / Get the options chosen by the user
         var selectMaxLocuteurs = document.getElementById('max-speakers-select');
         var maxLocuteurs = selectMaxLocuteurs ? selectMaxLocuteurs.value : '5';
+        var selectLangue = document.getElementById('langue-audio-select');
+        var langueAudio = selectLangue ? selectLangue.value : '';
 
         var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
         var headers = {'Content-Type': 'application/x-www-form-urlencoded'};
@@ -1147,7 +1190,8 @@
             headers: headers,
             body: 'chemin_fichier_temp=' + encodeURIComponent(cheminTemp)
                 + '&nom_fichier=' + encodeURIComponent(nomFichier)
-                + '&max_speakers=' + encodeURIComponent(maxLocuteurs),
+                + '&max_speakers=' + encodeURIComponent(maxLocuteurs)
+                + '&language=' + encodeURIComponent(langueAudio),
         })
         .then(function(reponse) {
             if (!reponse.ok) {

@@ -1370,10 +1370,12 @@ class ImportViewSet(viewsets.ViewSet):
         # Lancer la tache Celery en arriere-plan
         # / Launch the Celery task in background
         from front.tasks import transcrire_audio_task
-        # Nombre max de locuteurs depuis la config / Max speakers from config
+        # Nombre max de locuteurs et langue depuis la config
+        # / Max speakers and language from config
         max_locuteurs_config = config_transcription_active.max_speakers if config_transcription_active else 5
+        langue_config = config_transcription_active.language if config_transcription_active else "fr"
         resultat_tache = transcrire_audio_task.delay(
-            job_transcription.pk, chemin_fichier_audio, max_locuteurs_config,
+            job_transcription.pk, chemin_fichier_audio, max_locuteurs_config, langue_config,
         )
 
         # Stocker l'ID Celery dans le job
@@ -1671,9 +1673,10 @@ class ImportViewSet(viewsets.ViewSet):
         # Taille du fichier en Mo / File size in MB
         taille_fichier_mo = os.path.getsize(chemin_fichier_audio) / (1024 * 1024)
 
-        # Nombre max de locuteurs : valeur par defaut depuis la config ou 5
-        # / Max speakers count: default from config or 5
+        # Valeurs par defaut depuis la config (locuteurs et langue)
+        # / Default values from config (speakers and language)
         max_locuteurs_defaut = config_transcription.max_speakers if config_transcription else 5
+        langue_defaut = config_transcription.language if config_transcription else "fr"
 
         return render(request, "front/includes/confirmation_audio.html", {
             "nom_fichier": nom_fichier,
@@ -1685,6 +1688,7 @@ class ImportViewSet(viewsets.ViewSet):
             "cout_estime_euros": cout_estime_euros,
             "choix_max_locuteurs": range(1, 11),
             "max_locuteurs_defaut": max_locuteurs_defaut,
+            "langue_defaut": langue_defaut,
         })
 
     @action(detail=False, methods=["POST"], url_path="confirmer_audio")
@@ -1711,6 +1715,10 @@ class ImportViewSet(viewsets.ViewSet):
             max_locuteurs = max(1, min(max_locuteurs, 10))
         except (ValueError, TypeError):
             max_locuteurs = 5
+
+        # Langue de l'audio choisie par l'utilisateur (vide = detection auto)
+        # / Audio language chosen by the user (empty = auto-detect)
+        langue_audio = request.data.get("language", "").strip()
 
         if not nom_fichier_temp:
             return HttpResponse("Fichier temporaire introuvable.", status=400)
@@ -1761,7 +1769,7 @@ class ImportViewSet(viewsets.ViewSet):
         # / Launch the Celery task in background
         from front.tasks import transcrire_audio_task
         resultat_tache = transcrire_audio_task.delay(
-            job_transcription.pk, chemin_fichier_audio, max_locuteurs,
+            job_transcription.pk, chemin_fichier_audio, max_locuteurs, langue_audio,
         )
 
         # Stocker l'ID Celery dans le job

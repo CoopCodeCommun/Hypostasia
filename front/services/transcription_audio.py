@@ -32,28 +32,37 @@ COULEURS_LOCUTEURS = [
 ]
 
 
-def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max_locuteurs=5):
+def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max_locuteurs=5, langue=""):
     """
     Transcrit un fichier audio via l'API Mistral (endpoint audio.transcriptions).
     / Transcribes an audio file via the Mistral API (audio.transcriptions endpoint).
 
     Utilise l'endpoint dedie avec diarisation native et timestamps par segment.
+    Note : les parametres language et timestamp_granularities sont incompatibles
+    dans l'API Mistral — on privilegie language quand il est specifie.
     / Uses the dedicated endpoint with native diarization and segment timestamps.
+    Note: language and timestamp_granularities are incompatible in the Mistral API
+    — we prioritize language when specified.
 
     Args:
         chemin_fichier_audio: Chemin absolu vers le fichier audio (str)
         config_transcription: Instance de TranscriptionConfig
         max_locuteurs: Nombre maximum de locuteurs attendus (int)
+        langue: Code langue ISO (str, vide = detection automatique)
 
     Returns:
         list[dict] — segments au format [{speaker, start, end, text}, ...]
     """
     from mistralai import Mistral
 
+    # Utiliser la langue choisie par l'utilisateur, ou celle de la config, ou vide (auto)
+    # / Use user-chosen language, or config language, or empty (auto-detect)
+    langue_effective = langue or ""
+
     logger.info(
         "transcrire_audio_via_voxtral: fichier=%s modele=%s langue=%s max_locuteurs=%d",
         chemin_fichier_audio, config_transcription.model_name,
-        config_transcription.language, max_locuteurs,
+        langue_effective or "auto", max_locuteurs,
     )
 
     client_mistral = Mistral(api_key=config_transcription.api_key)
@@ -62,18 +71,33 @@ def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max
     # / Determine if diarization is enabled in the config
     diarisation_activee = config_transcription.diarization_enabled
 
+    # Construire les parametres de l'appel API
+    # language et timestamp_granularities sont incompatibles dans l'API Mistral
+    # / Build API call parameters
+    # language and timestamp_granularities are incompatible in the Mistral API
+    parametres_transcription = {
+        "model": config_transcription.model_name,
+        "diarize": diarisation_activee,
+    }
+
+    if langue_effective:
+        # Quand la langue est specifiee, on ne peut pas utiliser timestamp_granularities
+        # / When language is specified, we cannot use timestamp_granularities
+        parametres_transcription["language"] = langue_effective
+    else:
+        # Sans langue, on active les timestamps par segment
+        # / Without language, we enable segment timestamps
+        parametres_transcription["timestamp_granularities"] = ["segment"]
+
     # Appel a l'endpoint de transcription dedie (pas chat.complete)
     # / Call the dedicated transcription endpoint (not chat.complete)
     with open(chemin_fichier_audio, "rb") as fichier_audio:
         reponse_transcription = client_mistral.audio.transcriptions.complete(
-            model=config_transcription.model_name,
             file={
                 "content": fichier_audio,
                 "file_name": chemin_fichier_audio.split("/")[-1],
             },
-            language=config_transcription.language,
-            diarize=diarisation_activee,
-            timestamp_granularities=["segment"],
+            **parametres_transcription,
         )
 
     # Convertir les segments de la reponse en format interne
@@ -111,7 +135,7 @@ def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max
     return segments_transcrits
 
 
-def transcrire_audio_mock(chemin_fichier_audio, config_transcription, max_locuteurs=5):
+def transcrire_audio_mock(chemin_fichier_audio, config_transcription, max_locuteurs=5, langue=""):
     """
     Transcription factice pour le developpement et les tests.
     / Mock transcription for development and testing.
@@ -120,6 +144,7 @@ def transcrire_audio_mock(chemin_fichier_audio, config_transcription, max_locute
         chemin_fichier_audio: Chemin absolu vers le fichier audio (str)
         config_transcription: Instance de TranscriptionConfig
         max_locuteurs: Nombre maximum de locuteurs attendus (int)
+        langue: Code langue ISO (str, non utilise en mock)
 
     Returns:
         list[dict] — segments factices

@@ -36,14 +36,39 @@
             </div>
         </div>
 
-        {# Nombre de locuteurs max / Max speakers count #}
-        <div class="bg-slate-50 rounded p-3 text-xs text-slate-600">
-            <label for="max-speakers-select" class="block font-medium text-slate-700 mb-1">Nombre max de locuteurs</label>
-            <select id="max-speakers-select" class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                {% for i in choix_max_locuteurs %}
-                    <option value="{{ i }}" {% if i == max_locuteurs_defaut %}selected{% endif %}>{{ i }} locuteur{{ i|pluralize }}</option>
-                {% endfor %}
-            </select>
+        {# Options de transcription / Transcription options #}
+        <div class="bg-slate-50 rounded p-3 text-xs text-slate-600 space-y-3">
+
+            {# Langue de l'audio / Audio language #}
+            <div>
+                <label for="langue-audio-select" class="block font-medium text-slate-700 mb-1">Langue de l'audio</label>
+                <select id="langue-audio-select" class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <option value="" {% if not langue_defaut %}selected{% endif %}>Détection automatique</option>
+                    <option value="fr" {% if langue_defaut == "fr" %}selected{% endif %}>Français</option>
+                    <option value="en" {% if langue_defaut == "en" %}selected{% endif %}>English</option>
+                    <option value="de" {% if langue_defaut == "de" %}selected{% endif %}>Deutsch</option>
+                    <option value="es" {% if langue_defaut == "es" %}selected{% endif %}>Español</option>
+                    <option value="it" {% if langue_defaut == "it" %}selected{% endif %}>Italiano</option>
+                    <option value="pt" {% if langue_defaut == "pt" %}selected{% endif %}>Português</option>
+                    <option value="nl" {% if langue_defaut == "nl" %}selected{% endif %}>Nederlands</option>
+                    <option value="ja" {% if langue_defaut == "ja" %}selected{% endif %}>日本語</option>
+                    <option value="zh" {% if langue_defaut == "zh" %}selected{% endif %}>中文</option>
+                    <option value="ar" {% if langue_defaut == "ar" %}selected{% endif %}>العربية</option>
+                    <option value="ru" {% if langue_defaut == "ru" %}selected{% endif %}>Русский</option>
+                    <option value="ko" {% if langue_defaut == "ko" %}selected{% endif %}>한국어</option>
+                    <option value="hi" {% if langue_defaut == "hi" %}selected{% endif %}>हिन्दी</option>
+                </select>
+            </div>
+
+            {# Nombre de locuteurs max / Max speakers count #}
+            <div>
+                <label for="max-speakers-select" class="block font-medium text-slate-700 mb-1">Nombre max de locuteurs</label>
+                <select id="max-speakers-select" class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    {% for i in choix_max_locuteurs %}
+                        <option value="{{ i }}" {% if i == max_locuteurs_defaut %}selected{% endif %}>{{ i }} locuteur{{ i|pluralize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
 
         {# Estimation cout / Cost estimate #}
