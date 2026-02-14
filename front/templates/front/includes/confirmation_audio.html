@@ -1,0 +1,71 @@
+{# Partial : confirmation avant lancement d'une transcription audio #}
+{# Affiche la duree, le modele, le cout estime #}
+{# / Partial: confirmation before launching audio transcription #}
+{# / Shows duration, model, estimated cost #}
+
+<div class="max-w-xl mx-auto p-6">
+    <div class="bg-white rounded-lg border border-blue-200 p-4 space-y-3" id="confirmation-audio">
+
+        {# En-tete / Header #}
+        <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/>
+            </svg>
+            <h3 class="text-sm font-semibold text-slate-800">Confirmer la transcription</h3>
+        </div>
+
+        {# Infos resume / Summary info #}
+        <div class="bg-slate-50 rounded p-3 space-y-1.5 text-xs text-slate-600">
+            <div class="flex justify-between">
+                <span>Fichier</span>
+                <span class="font-medium text-slate-800 truncate ml-2 max-w-[200px]">{{ nom_fichier }}</span>
+            </div>
+            <div class="flex justify-between">
+                <span>Durée</span>
+                <span class="font-medium text-slate-800">{{ duree_formatee }} ({{ duree_secondes }}s)</span>
+            </div>
+            <div class="flex justify-between">
+                <span>Taille</span>
+                <span class="font-medium text-slate-800">{{ taille_fichier_mo }} Mo</span>
+            </div>
+            <div class="flex justify-between">
+                <span>Modèle</span>
+                <span class="font-medium text-slate-800">
+                    {% if config_transcription %}{{ config_transcription.get_display_name }}{% else %}Mock (simulation){% endif %}
+                </span>
+            </div>
+        </div>
+
+        {# Nombre de locuteurs max / Max speakers count #}
+        <div class="bg-slate-50 rounded p-3 text-xs text-slate-600">
+            <label for="max-speakers-select" class="block font-medium text-slate-700 mb-1">Nombre max de locuteurs</label>
+            <select id="max-speakers-select" class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                {% for i in choix_max_locuteurs %}
+                    <option value="{{ i }}" {% if i == max_locuteurs_defaut %}selected{% endif %}>{{ i }} locuteur{{ i|pluralize }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {# Estimation cout / Cost estimate #}
+        <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs">
+            <div class="flex justify-between text-amber-900">
+                <span class="font-semibold">Coût estimé</span>
+                <span class="font-bold">~{{ cout_estime_euros|floatformat:5 }} €</span>
+            </div>
+        </div>
+
+        {# Boutons d'action / Action buttons #}
+        <div class="flex gap-2 pt-1">
+            <button type="button"
+                    class="btn-confirmer-transcription flex-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                    data-chemin-temp="{{ chemin_fichier_temp }}"
+                    data-nom-fichier="{{ nom_fichier }}">
+                Lancer la transcription
+            </button>
+            <button type="button"
+                    class="btn-annuler-transcription flex-1 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-colors">
+                Annuler
+            </button>
+        </div>
+    </div>
+</div>
