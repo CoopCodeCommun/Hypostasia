@@ -81,12 +81,14 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
         hash_contenu = hashlib.sha256(texte_brut.encode("utf-8")).hexdigest()
 
         # Mettre a jour la Page / Update the Page
+        page_associee.transcription_raw = segments_transcrits
         page_associee.html_readability = html_diarise
         page_associee.text_readability = texte_brut
         page_associee.content_hash = hash_contenu
         page_associee.status = PageStatus.COMPLETED
         page_associee.save(update_fields=[
-            "html_readability", "text_readability", "content_hash", "status",
+            "transcription_raw", "html_readability", "text_readability",
+            "content_hash", "status",
         ])
 
         # Mettre a jour le Job / Update the Job

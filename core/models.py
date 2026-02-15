@@ -95,6 +95,14 @@ class Page(models.Model):
         max_length=64, blank=True, help_text="SHA256 hex du `text_readability`"
     )  # SHA256 hex digest
 
+    # Donnees brutes de transcription audio (segments JSON du modele)
+    # / Raw audio transcription data (model JSON segments)
+    transcription_raw = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Segments JSON bruts de la transcription audio (immuable apres creation)",
+    )
+
     status = models.CharField(
         max_length=20,
         choices=PageStatus.choices,

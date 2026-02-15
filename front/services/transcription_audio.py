@@ -72,21 +72,31 @@ def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max
     diarisation_activee = config_transcription.diarization_enabled
 
     # Construire les parametres de l'appel API
-    # language et timestamp_granularities sont incompatibles dans l'API Mistral
+    # Contraintes Mistral :
+    #   - diarize=True exige timestamp_granularities=["segment"]
+    #   - language et timestamp_granularities sont incompatibles
+    # Donc : quand diarize=True, on envoie toujours les timestamps et jamais language
     # / Build API call parameters
-    # language and timestamp_granularities are incompatible in the Mistral API
+    # Mistral constraints:
+    #   - diarize=True requires timestamp_granularities=["segment"]
+    #   - language and timestamp_granularities are incompatible
+    # So: when diarize=True, always send timestamps and never language
     parametres_transcription = {
         "model": config_transcription.model_name,
         "diarize": diarisation_activee,
     }
 
-    if langue_effective:
-        # Quand la langue est specifiee, on ne peut pas utiliser timestamp_granularities
-        # / When language is specified, we cannot use timestamp_granularities
+    if diarisation_activee:
+        # Diarisation active : timestamps obligatoires, language interdit
+        # / Diarization on: timestamps required, language forbidden
+        parametres_transcription["timestamp_granularities"] = ["segment"]
+    elif langue_effective:
+        # Pas de diarisation, langue specifiee : pas de timestamps
+        # / No diarization, language specified: no timestamps
         parametres_transcription["language"] = langue_effective
     else:
-        # Sans langue, on active les timestamps par segment
-        # / Without language, we enable segment timestamps
+        # Pas de diarisation, detection auto : timestamps par segment
+        # / No diarization, auto-detect: segment timestamps
         parametres_transcription["timestamp_granularities"] = ["segment"]
 
     # Appel a l'endpoint de transcription dedie (pas chat.complete)
@@ -220,7 +230,9 @@ def calculer_duree_audio(chemin_fichier_audio):
 def construire_html_diarise(segments_transcrits):
     """
     Construit le HTML colore par locuteur et le texte brut a partir des segments.
+    Regroupe les segments consecutifs du meme locuteur en un seul bloc.
     / Builds speaker-colored HTML and plain text from transcription segments.
+    Groups consecutive segments from the same speaker into a single block.
 
     Args:
         segments_transcrits: list[dict] avec {speaker, start, end, text}
@@ -242,22 +254,48 @@ def construire_html_diarise(segments_transcrits):
             index_locuteur % len(COULEURS_LOCUTEURS)
         ]
 
-    # Construire le HTML pour chaque segment
-    # / Build HTML for each segment
+    # Regrouper les segments consecutifs du meme locuteur
+    # / Group consecutive segments from the same speaker
+    groupes_locuteurs = []
+    for segment in segments_transcrits:
+        nom_locuteur = segment.get("speaker", "Inconnu")
+        texte_segment = segment.get("text", "").strip()
+        debut_secondes = segment.get("start", 0.0)
+        fin_secondes = segment.get("end", 0.0)
+
+        if not texte_segment:
+            continue
+
+        # Si le locuteur est le meme que le groupe precedent, on ajoute la phrase
+        # / If speaker is the same as previous group, append the sentence
+        if groupes_locuteurs and groupes_locuteurs[-1]["speaker"] == nom_locuteur:
+            groupe_courant = groupes_locuteurs[-1]
+            groupe_courant["phrases"].append(texte_segment)
+            groupe_courant["end"] = fin_secondes
+        else:
+            # Nouveau locuteur : creer un nouveau groupe
+            # / New speaker: create a new group
+            groupes_locuteurs.append({
+                "speaker": nom_locuteur,
+                "start": debut_secondes,
+                "end": fin_secondes,
+                "phrases": [texte_segment],
+            })
+
+    # Construire le HTML et le texte brut a partir des groupes
+    # / Build HTML and plain text from groups
     blocs_html = []
     parties_texte_brut = []
 
-    for segment in segments_transcrits:
-        nom_locuteur = segment.get("speaker", "Inconnu")
-        debut_secondes = segment.get("start", 0.0)
-        fin_secondes = segment.get("end", 0.0)
-        texte_segment = segment.get("text", "")
+    for groupe in groupes_locuteurs:
+        nom_locuteur = groupe["speaker"]
         couleur_locuteur = correspondance_couleurs.get(nom_locuteur, "#6b7280")
+        timestamp_debut = _formater_timestamp(groupe["start"])
+        timestamp_fin = _formater_timestamp(groupe["end"])
 
-        # Formater les timestamps en MM:SS
-        # / Format timestamps as MM:SS
-        timestamp_debut = _formater_timestamp(debut_secondes)
-        timestamp_fin = _formater_timestamp(fin_secondes)
+        # Chaque phrase sur sa propre ligne avec <br>
+        # / Each sentence on its own line with <br>
+        texte_html = "<br>\n".join(groupe["phrases"])
 
         bloc_html = (
             f'<div class="speaker-block mb-4 pl-4 border-l-4 rounded-r" '
@@ -265,16 +303,17 @@ def construire_html_diarise(segments_transcrits):
             f'<div class="flex items-center gap-2 mb-1">'
             f'<span class="font-semibold text-sm" style="color: {couleur_locuteur};">'
             f'{nom_locuteur}</span>'
-            f'<span class="text-xs text-slate-400">{timestamp_debut} - {timestamp_fin}</span>'
+            f'<span class="text-xs text-slate-400">{timestamp_debut} — {timestamp_fin}</span>'
             f'</div>'
-            f'<p class="text-slate-700 leading-relaxed">{texte_segment}</p>'
+            f'<p class="text-slate-700 leading-relaxed">{texte_html}</p>'
             f'</div>'
         )
         blocs_html.append(bloc_html)
 
-        # Texte brut avec marqueur locuteur
-        # / Plain text with speaker marker
-        parties_texte_brut.append(f"[{nom_locuteur} {timestamp_debut}] {texte_segment}")
+        # Texte brut : toutes les phrases du groupe jointes par des retours a la ligne
+        # / Plain text: all group sentences joined by newlines
+        texte_brut_groupe = "\n".join(groupe["phrases"])
+        parties_texte_brut.append(f"[{nom_locuteur} {timestamp_debut}]\n{texte_brut_groupe}")
 
     html_complet = "\n".join(blocs_html)
     texte_brut_complet = "\n\n".join(parties_texte_brut)
