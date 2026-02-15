@@ -15,4 +15,5 @@ uv run manage.py collectstatic --noinput
 mkdir -p /app/logs /app/tmp/audio
 
 echo "Starting services via supervisord (gunicorn + celery worker)..."
-uv run supervisord -c /app/supervisord.conf
+uv run supervisord -c /app/supervisord.conf &
+tail -f /app/logs/*
