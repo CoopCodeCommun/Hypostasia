@@ -52,8 +52,9 @@
         {% endwith %}
     </div>
 
-    {# === 2. Reformulation (pleine largeur) === #}
-    {# / === 2. Reformulation (full width) === #}
+    {# === 2. Reformulation (pleine largeur) — masquee si debat clos === #}
+    {# / === 2. Reformulation (full width) — hidden if debate closed === #}
+    {% if not entity.restitution_page %}
     <div id="zone-reformulation-{{ entity.pk }}">
         {% if entity.reformulation_en_cours %}
             <div hx-get="/extractions/fil_discussion/?entity_id={{ entity.pk }}"
@@ -129,6 +130,7 @@
             {% endif %}
         {% endif %}
     </div>
+    {% endif %}
 
     {# === 3. Commentaires — layout SMS (propre = droite, autres = gauche) === #}
     {# / === 3. Comments — SMS layout (own = right, others = left) === #}
@@ -150,24 +152,68 @@
         {% endfor %}
     </div>
 
-    {# Formulaire d'ajout de commentaire / Comment form #}
-    <form hx-post="/extractions/ajouter_commentaire/"
-          hx-target="#panneau-extractions"
-          hx-swap="innerHTML"
-          class="space-y-2 border-t border-slate-200 pt-3"
-          id="formulaire-commentaire">
-        <input type="hidden" name="entity_id" value="{{ entity.pk }}">
-        <input type="text" name="prenom" placeholder="Votre prenom"
-               class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
-               required>
-        <textarea name="commentaire" rows="3" placeholder="Votre commentaire…"
-                  class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
-                  required></textarea>
-        <button type="submit"
-                class="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded px-3 py-1.5 transition-colors">
-            Envoyer
-        </button>
-    </form>
+    {% if entity.restitution_page %}
+        {# === 4. Debat clos — restitution effectuee === #}
+        {# / === 4. Debate closed — restitution done === #}
+        <div id="debat-clos-{{ entity.pk }}" class="border-t border-slate-200 pt-3 mt-1">
+            <div class="bg-violet-50 border border-violet-200 rounded-lg p-3">
+                <div class="flex items-center gap-1.5 mb-2">
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-violet-500 shrink-0"></span>
+                    <span class="text-xs font-bold text-violet-700 uppercase tracking-wider">Debat restitue</span>
+                    <span class="text-[10px] text-violet-400 ml-auto">{{ entity.restitution_date|date:"d/m/Y H:i" }}</span>
+                </div>
+                <p class="text-xs text-violet-600 mb-2">Les commentaires sont clos. Une nouvelle version a ete creee.</p>
+                {% if entity.restitution_texte %}
+                <p id="texte-restitution-{{ entity.pk }}" class="text-sm text-violet-900 whitespace-pre-wrap leading-relaxed bg-violet-100 rounded p-2 mb-2">{{ entity.restitution_texte }}</p>
+                {% endif %}
+                <a id="lien-restitution-{{ entity.pk }}"
+                   href="#"
+                   hx-get="/lire/{{ entity.restitution_page.pk }}/"
+                   hx-target="#zone-lecture"
+                   hx-swap="innerHTML"
+                   hx-push-url="true"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-violet-600 hover:bg-violet-700 rounded transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/>
+                    </svg>
+                    Voir la version {{ entity.restitution_page.version_number }}{% if entity.restitution_page.version_label %} — {{ entity.restitution_page.version_label }}{% endif %}
+                </a>
+            </div>
+        </div>
+    {% else %}
+        {# Formulaire d'ajout de commentaire / Comment form #}
+        <form hx-post="/extractions/ajouter_commentaire/"
+              hx-target="#panneau-extractions"
+              hx-swap="innerHTML"
+              class="space-y-2 border-t border-slate-200 pt-3"
+              id="formulaire-commentaire">
+            <input type="hidden" name="entity_id" value="{{ entity.pk }}">
+            <input type="text" name="prenom" placeholder="Votre prenom"
+                   class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                   required>
+            <textarea name="commentaire" rows="3" placeholder="Votre commentaire…"
+                      class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
+                      required></textarea>
+            <button type="submit"
+                    class="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded px-3 py-1.5 transition-colors">
+                Envoyer
+            </button>
+        </form>
+
+        {# === 5. Restitution du debat — creer une nouvelle version du texte === #}
+        {# / === 5. Debate restitution — create a new text version === #}
+        <div class="border-t border-slate-200 pt-3 mt-3">
+            <div id="zone-restitution-{{ entity.pk }}">
+                <button id="btn-restituer-{{ entity.pk }}"
+                        class="w-full px-3 py-2 text-xs font-bold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-dashed border-violet-300 rounded transition-colors uppercase tracking-wider"
+                        hx-get="/extractions/formulaire_restitution/?entity_id={{ entity.pk }}"
+                        hx-target="#zone-restitution-{{ entity.pk }}"
+                        hx-swap="innerHTML">
+                    Restituer le debat
+                </button>
+            </div>
+        </div>
+    {% endif %}
 </div>
 
 <script>

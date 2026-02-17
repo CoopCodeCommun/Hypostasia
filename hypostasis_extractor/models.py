@@ -160,6 +160,27 @@ class ExtractedEntity(models.Model):
         help_text="Message d'erreur de la derniere reformulation / Last reformulation error message",
     )
 
+    # Restitution : lie cette extraction a une version de page creee par restitution du debat
+    # / Restitution: links this extraction to a page version created by debate restitution
+    restitution_page = models.ForeignKey(
+        "core.Page",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="restitutions_source",
+        help_text="Page version creee par restitution de ce debat / Page version created by restituting this debate",
+    )
+    restitution_texte = models.TextField(
+        blank=True,
+        default="",
+        help_text="Texte de la restitution du debat / Debate restitution text",
+    )
+    restitution_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Date de la restitution / Restitution date",
+    )
+
     # Validation utilisateur
     user_validated = models.BooleanField(
         default=False,

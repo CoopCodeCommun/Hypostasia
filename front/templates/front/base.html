@@ -20,6 +20,7 @@
         #sidebar-right { transition: margin-right 0.2s ease, opacity 0.2s ease, width 0.3s ease; }
         #sidebar-right.collapsed { margin-right: -32rem; opacity: 0; pointer-events: none; }
         #sidebar-right.debat-mode { width: 70vw; }
+        #sidebar-right.debat-mode.collapsed { margin-right: -70vw; }
 
         /* Mobile (<768px) : sidebars en overlay fixe plein ecran */
         /* / Mobile (<768px): sidebars as fixed full-screen overlay */
@@ -141,6 +142,27 @@
         .extraction-ancre.ancre-commentee:hover {
             opacity: 1;
             box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+        }
+
+        /* Bloc de restitution avec pastille violette / Restitution block with violet badge */
+        /* Pastille d'ancre de restitution — couleur violette (meme pattern que extraction-ancre) */
+        /* / Restitution anchor dot — violet color (same pattern as extraction-ancre) */
+        .restitution-ancre {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: rgb(139, 92, 246);
+            border-radius: 50%;
+            margin: 0 3px;
+            vertical-align: middle;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+        }
+        .restitution-ancre:hover {
+            opacity: 1;
+            transform: scale(1.4);
+            box-shadow: 0 0 6px rgba(139, 92, 246, 0.5);
         }
 
         /* Ancre active (cliquee depuis le panneau droit) */
@@ -395,12 +417,18 @@
         });
 
         // Toggle sidebar droite (+ collapse gauche à l'ouverture)
+        // Retire le mode debat au collapse pour eviter un espace residuel
+        // / Remove debate mode on collapse to avoid residual space
         document.getElementById('toggle-right-panel').addEventListener('click', function() {
             const right = document.getElementById('sidebar-right');
             const left = document.getElementById('sidebar-left');
             const opening = right.classList.contains('collapsed');
             right.classList.toggle('collapsed');
-            if (opening) left.classList.add('collapsed');
+            if (opening) {
+                left.classList.add('collapsed');
+            } else {
+                right.classList.remove('debat-mode');
+            }
             this.textContent = right.classList.contains('collapsed') ? 'Extractions ▶' : '◀ Extractions';
             gererBackdropMobile();
         });
@@ -946,6 +974,29 @@
         if (extractionId) {
             scrollToCarteDepuisAncre(extractionId);
         }
+    });
+
+    // Delegation d'evenement : clic sur une pastille de restitution (violette)
+    // Navigue vers la page source et ouvre le fil de discussion de l'extraction d'origine
+    // / Event delegation: click on restitution anchor (violet dot)
+    // Navigates to source page and opens the original extraction's discussion thread
+    document.addEventListener('click', function(evenement) {
+        var ancreRestitution = evenement.target.closest('.restitution-ancre');
+        if (!ancreRestitution) return;
+
+        var sourceEntityId = ancreRestitution.dataset.sourceEntityId;
+        var sourcePageId = ancreRestitution.dataset.sourcePageId;
+        if (!sourceEntityId || !sourcePageId) return;
+
+        // Navigue vers la page source via HTMX
+        // / Navigate to source page via HTMX
+        htmx.ajax('GET', '/lire/' + sourcePageId + '/', {target: '#zone-lecture', swap: 'innerHTML'});
+
+        // Ouvre le fil de discussion de l'extraction source (apres un court delai pour laisser la page charger)
+        // / Open source extraction's discussion thread (after short delay to let page load)
+        setTimeout(function() {
+            htmx.ajax('GET', '/extractions/fil_discussion/?entity_id=' + sourceEntityId, {target: '#panneau-extractions', swap: 'innerHTML'});
+        }, 500);
     });
 
     // Delegation d'evenement : clic sur le bouton editer d'une carte

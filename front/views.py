@@ -1,9 +1,11 @@
+import hashlib
 import json
 import logging
 from datetime import timedelta
 
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 from django.utils import timezone
+from django.utils.html import escape, strip_tags
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.template.loader import render_to_string
@@ -34,8 +36,14 @@ def _render_arbre(request):
     Helper interne — renvoie le partial HTML de l'arbre de dossiers.
     Internal helper — returns the folder tree HTML partial.
     """
-    all_dossiers = Dossier.objects.prefetch_related("pages").all()
-    pages_orphelines = Page.objects.filter(dossier__isnull=True).order_by("-created_at")
+    # Exclure les restitutions de l'arbre (ne montrer que les pages racines)
+    # / Exclude restitutions from tree (only show root pages)
+    pages_racines_seulement = Prefetch(
+        "pages",
+        queryset=Page.objects.filter(parent_page__isnull=True),
+    )
+    all_dossiers = Dossier.objects.prefetch_related(pages_racines_seulement).all()
+    pages_orphelines = Page.objects.filter(dossier__isnull=True, parent_page__isnull=True).order_by("-created_at")
     return render(request, "front/includes/arbre_dossiers.html", {
         "dossiers": all_dossiers,
         "pages_orphelines": pages_orphelines,
@@ -224,6 +232,11 @@ class LectureViewSet(viewsets.ViewSet):
                 entites_existantes, ids_entites_commentees,
             )
 
+        # Recupere toutes les versions de cette page (racine + restitutions)
+        # / Retrieve all versions of this page (root + restitutions)
+        toutes_les_versions = page.toutes_les_versions
+        page_racine = page.page_racine
+
         # Contexte commun pour les deux partials
         ia_active = _get_ia_active()
         contexte_partage = {
@@ -233,6 +246,8 @@ class LectureViewSet(viewsets.ViewSet):
             "job": dernier_job_termine,
             "entities": entites_existantes,
             "ia_active": ia_active,
+            "versions": toutes_les_versions,
+            "page_racine": page_racine,
         }
 
         if request.headers.get('HX-Request'):
@@ -270,6 +285,8 @@ class LectureViewSet(viewsets.ViewSet):
             "job": dernier_job_termine,
             "entities": entites_existantes,
             "ia_active": ia_active,
+            "versions": toutes_les_versions,
+            "page_racine": page_racine,
         })
 
     @action(detail=True, methods=["GET"], url_path="previsualiser_analyse")
@@ -1484,6 +1501,120 @@ class ExtractionViewSet(viewsets.ViewSet):
             "page": page,
             "entity": entite,
         })
+
+    @action(detail=False, methods=["GET"], url_path="formulaire_restitution")
+    def formulaire_restitution(self, request):
+        """
+        Renvoie le formulaire inline pour restituer un debat en nouvelle version.
+        / Returns the inline form to restitute a debate as a new version.
+        """
+        entity_id = request.query_params.get("entity_id")
+        if not entity_id:
+            return HttpResponse("entity_id requis.", status=400)
+        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
+        return render(request, "front/includes/formulaire_restitution.html", {
+            "entity": entite,
+        })
+
+    @action(detail=False, methods=["POST"], url_path="creer_restitution")
+    def creer_restitution(self, request):
+        """
+        Cree une nouvelle version de la page avec le texte de restitution insere.
+        Le texte est balise avec une ancre violette renvoyant vers l'extraction source.
+        / Creates a new page version with the restitution text inserted.
+        The text is tagged with a violet anchor linking back to the source extraction.
+        """
+        from .serializers import RestitutionDebatSerializer
+
+        serializer = RestitutionDebatSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        donnees = serializer.validated_data
+
+        entite_source = get_object_or_404(ExtractedEntity, pk=donnees["entity_id"])
+        page_source = entite_source.job.page
+        page_racine = page_source.page_racine
+
+        texte_restitution_brut = donnees["texte_restitution"]
+        label_version = donnees.get("version_label", "")
+
+        # Echappement du texte utilisateur pour prevenir les injections XSS
+        # / Escape user text to prevent XSS injection
+        texte_restitution_echappe = escape(texte_restitution_brut)
+
+        # Balise de restitution : pastille violette inline (meme pattern que extraction-ancre)
+        # suivie du texte dans un <p>, le tout dans un <div> pour le regroupement
+        # / Restitution tag: inline violet dot (same pattern as extraction-ancre)
+        # followed by text in a <p>, all wrapped in a <div> for grouping
+        balise_restitution = (
+            f'<div id="restitution-bloc-{entite_source.pk}">'
+            f'<p>'
+            f'<span class="restitution-ancre" '
+            f'data-source-entity-id="{entite_source.pk}" '
+            f'data-source-page-id="{page_source.pk}">'
+            f'</span>'
+            f'{texte_restitution_echappe}'
+            f'</p>'
+            f'</div>'
+        )
+
+        # Cherche une version existante (restitution) de la page racine
+        # Si elle existe, on y ajoute le bloc. Sinon, on en cree une vierge.
+        # / Look for an existing restitution version of the root page.
+        # If it exists, append the block. Otherwise, create a blank one.
+        version_restitution_existante = Page.objects.filter(
+            parent_page=page_racine,
+        ).order_by("-version_number").first()
+
+        if version_restitution_existante:
+            # Ajoute le bloc de restitution a la version existante
+            # / Append the restitution block to the existing version
+            version_restitution_existante.html_readability += "\n" + balise_restitution
+            version_restitution_existante.html_original = version_restitution_existante.html_readability
+            version_restitution_existante.text_readability = strip_tags(version_restitution_existante.html_readability)
+            version_restitution_existante.content_hash = hashlib.sha256(
+                version_restitution_existante.text_readability.encode("utf-8")
+            ).hexdigest()
+            if label_version:
+                version_restitution_existante.version_label = label_version
+            version_restitution_existante.save(update_fields=[
+                "html_readability", "html_original", "text_readability",
+                "content_hash", "version_label",
+            ])
+            page_cible = version_restitution_existante
+        else:
+            # Cree une version vierge contenant uniquement le bloc de restitution
+            # / Create a blank version containing only the restitution block
+            prochain_numero = 2
+            texte_brut = strip_tags(balise_restitution)
+            hash_contenu = hashlib.sha256(texte_brut.encode("utf-8")).hexdigest()
+            titre_restitution = page_racine.title or "Sans titre"
+
+            page_cible = Page.objects.create(
+                parent_page=page_racine,
+                version_number=prochain_numero,
+                version_label=label_version or "Restitutions",
+                dossier=page_racine.dossier,
+                source_type=page_racine.source_type,
+                url=None,
+                title=titre_restitution,
+                html_original=balise_restitution,
+                html_readability=balise_restitution,
+                text_readability=texte_brut,
+                content_hash=hash_contenu,
+            )
+
+        # Clot le debat : marque l'entite comme restituee avec lien vers la page cible
+        # / Close the debate: mark entity as restituted with link to target page
+        entite_source.restitution_page = page_cible
+        entite_source.restitution_texte = texte_restitution_brut
+        entite_source.restitution_date = timezone.now()
+        entite_source.save(update_fields=["restitution_page", "restitution_texte", "restitution_date"])
+
+        # Redirige vers la lecture de la version de restitution via HX-Redirect
+        # / Redirect to the restitution version reading via HX-Redirect
+        reponse = HttpResponse(status=204)
+        reponse["HX-Redirect"] = f"/lire/{page_cible.pk}/"
+        return reponse
 
     @action(detail=False, methods=["POST"])
     def ia(self, request):

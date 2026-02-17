@@ -51,6 +51,24 @@ class Page(models.Model):
     - Les `TextBlock` liés ancrent les passages dans le DOM.
     """
 
+    parent_page = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="restitutions",
+        help_text="Page originale dont celle-ci est une restitution / Original page this is a restitution of",
+    )
+    version_number = models.PositiveIntegerField(
+        default=1,
+        help_text="Numero de version (1 = original) / Version number (1 = original)",
+    )
+    version_label = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Label descriptif de cette version / Descriptive label for this version",
+    )
     dossier = models.ForeignKey(
         "Dossier",
         on_delete=models.SET_NULL,
@@ -151,6 +169,27 @@ class Page(models.Model):
         if match:
             return match.group(1)
         return None
+
+    @property
+    def page_racine(self):
+        """Remonte jusqu'a la page sans parent (racine de la chaine de restitutions).
+        / Walks up to the root page (no parent) of the restitution chain.
+        """
+        page_courante = self
+        while page_courante.parent_page is not None:
+            page_courante = page_courante.parent_page
+        return page_courante
+
+    @property
+    def toutes_les_versions(self):
+        """QuerySet de toutes les versions (racine + restitutions), triees par version_number.
+        / QuerySet of all versions (root + restitutions), ordered by version_number.
+        """
+        racine = self.page_racine
+        from django.db.models import Q
+        return Page.objects.filter(
+            Q(pk=racine.pk) | Q(parent_page=racine)
+        ).order_by("version_number")
 
 
 class HypostasisTag(models.Model):

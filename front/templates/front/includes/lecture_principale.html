@@ -1,7 +1,32 @@
 <div class="max-w-3xl mx-auto" data-page-id="{{ page.pk }}">
     <h1 class="text-2xl font-bold text-slate-900 mb-1" style="font-family: 'Inter', sans-serif;">{{ page.title|default:"Sans titre" }}</h1>
     <a href="{{ page.url }}" target="_blank" rel="noopener"
-       class="text-xs text-slate-400 hover:text-blue-500 mb-8 block truncate">{{ page.url }}</a>
+       class="text-xs text-slate-400 hover:text-blue-500 mb-4 block truncate">{{ page.url }}</a>
+
+    {# Menu switcher de versions — visible uniquement si plusieurs versions existent #}
+    {# Version switcher menu — visible only if multiple versions exist #}
+    {% if versions|length > 1 %}
+    <div id="switcher-versions" class="flex items-center gap-1.5 mb-4 flex-wrap">
+        {% for version in versions %}
+            {% if version.pk == page.pk %}
+                <span id="pill-version-{{ version.pk }}" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-600 text-white">
+                    V{{ version.version_number }}{% if version.version_label %} — {{ version.version_label }}{% endif %}
+                </span>
+            {% else %}
+                <a id="pill-version-{{ version.pk }}"
+                   href="#"
+                   hx-get="/lire/{{ version.pk }}/"
+                   hx-target="#zone-lecture"
+                   hx-swap="innerHTML"
+                   hx-push-url="true"
+                   class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                    V{{ version.version_number }}{% if version.version_label %} — {{ version.version_label }}{% endif %}
+                </a>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <article id="readability-content" class="lecture-article prose prose-slate prose-lg max-w-none
                     prose-headings:font-semibold prose-headings:text-slate-900
                     prose-p:mb-5 prose-p:mt-0
