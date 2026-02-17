@@ -233,38 +233,24 @@
                 </label>
             </div>
 
-            <!-- Spacer pour pousser IA + Analyseurs en bas -->
+            <!-- Spacer pour pousser le lien config en bas -->
             <div class="flex-1"></div>
 
-            <!-- BOUTON IA — charge via HTMX -->
-            <div id="config-ia-zone" class="pt-3 border-t border-slate-300"
-                 hx-get="/config-ia/status/" hx-trigger="load" hx-swap="innerHTML">
-            </div>
-
-            <!-- ANALYSEURS SYNTAXIQUES — en bas -->
-            <!-- / SYNTACTIC ANALYZERS — at bottom -->
-            <div class="mt-3 pt-3 border-t border-slate-300">
-                <div class="flex items-center justify-between mb-2">
-                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Analyseurs</h2>
-                    <button id="btn-new-analyseur"
-                            class="text-slate-400 hover:text-slate-700 text-lg leading-none" title="Nouvel analyseur">+</button>
-                </div>
-                <div id="analyseurs-list" hx-get="/api/analyseurs/" hx-trigger="load" hx-swap="innerHTML">
-                    <p class="text-xs text-slate-400">Chargement…</p>
-                </div>
-            </div>
-
-            <!-- QUESTIONNAIRE PROMPTS — en bas -->
-            <!-- / QUESTIONNAIRE PROMPTS — at bottom -->
-            <div class="mt-3 pt-3 border-t border-slate-300">
-                <div class="flex items-center justify-between mb-2">
-                    <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Questionnaires</h2>
-                    <button id="btn-new-questionnaire-prompt"
-                            class="text-slate-400 hover:text-slate-700 text-lg leading-none" title="Nouveau prompt questionnaire">+</button>
-                </div>
-                <div id="questionnaire-prompts-list" hx-get="/api/questionnaire-prompts/" hx-trigger="load" hx-swap="innerHTML">
-                    <p class="text-xs text-slate-400">Chargement…</p>
-                </div>
+            <!-- Lien vers la configuration LLM -->
+            <!-- / Link to LLM configuration -->
+            <div class="pt-3 border-t border-slate-300">
+                <a href="/api/analyseurs/"
+                   hx-get="/api/analyseurs/"
+                   hx-target="#zone-lecture"
+                   hx-swap="innerHTML"
+                   hx-push-url="/api/analyseurs/"
+                   class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded transition-colors cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span>Configurer les LLM</span>
+                </a>
             </div>
 
             <!-- Espacement en bas pour ne pas coller au bord -->
@@ -274,10 +260,10 @@
 
         <!-- Zone de lecture -->
         <main id="zone-lecture" class="flex-1 overflow-y-auto p-8">
-            {% if analyseur_preloaded %}
+            {% if configuration_llm_preloaded %}
+                {% include "hypostasis_extractor/configuration_llm.html" %}
+            {% elif analyseur_preloaded %}
                 {% include "hypostasis_extractor/analyseur_editor.html" with analyseur=analyseur_preloaded %}
-            {% elif questionnaire_prompt_preloaded %}
-                {% include "hypostasis_extractor/questionnaire_editor.html" with prompt_questionnaire=questionnaire_prompt_preloaded %}
             {% elif page_preloaded %}
                 {% include "front/includes/lecture_principale.html" with page=page_preloaded %}
             {% else %}
@@ -295,9 +281,7 @@
                 <button class="onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium bg-white text-blue-600 border border-b-0 border-slate-200"
                         data-onglet="extractions">Extractions</button>
                 <button class="onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100"
-                        data-onglet="commentaires">Commentaires</button>
-                <button class="onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100"
-                        data-onglet="questionnaire">Questionnaire</button>
+                        data-onglet="commentaires">Tous les commentaires</button>
             </nav>
             <div id="panneau-extractions">
                 {% if page_preloaded and analyseurs_actifs %}
@@ -341,18 +325,19 @@
 
             // Charger le contenu selon l'onglet / Load content based on tab
             if (ongletChoisi === 'extractions') {
+                // Desactiver le mode debat quand on revient aux extractions
+                // / Deactivate debate mode when returning to extractions
+                document.getElementById('sidebar-right').classList.remove('debat-mode');
                 htmx.ajax('POST', '/extractions/panneau/', {
                     target: '#panneau-extractions',
                     swap: 'innerHTML',
                     values: { page_id: pageId }
                 });
             } else if (ongletChoisi === 'commentaires') {
+                // Activer le mode debat pour la vue commentaires
+                // / Activate debate mode for comments view
+                document.getElementById('sidebar-right').classList.add('debat-mode');
                 htmx.ajax('GET', '/extractions/vue_commentaires/?page_id=' + pageId, {
-                    target: '#panneau-extractions',
-                    swap: 'innerHTML'
-                });
-            } else if (ongletChoisi === 'questionnaire') {
-                htmx.ajax('GET', '/questionnaire/?page_id=' + pageId, {
                     target: '#panneau-extractions',
                     swap: 'innerHTML'
                 });
@@ -473,8 +458,8 @@
                 htmx.process(arbreEl);
             }
         });
-        // --- Les items analyseur et questionnaire utilisent hx-get directement ---
-        // / Analyzer and questionnaire items use hx-get directly
+        // --- Les items analyseur utilisent hx-get directement ---
+        // / Analyzer items use hx-get directly
 
         // --- Import de fichier ---
         // Si audio → affiche confirmation avec cout, sinon → import direct
@@ -605,88 +590,58 @@
             inputFichier.value = '';
         });
 
-        // Creation d'un analyseur syntaxique via SweetAlert
-        document.getElementById('btn-new-analyseur').addEventListener('click', async function() {
-            const {value: formValues, isDismissed} = await Swal.fire({
+        // Creation d'un analyseur syntaxique via SweetAlert (delegation d'evenement)
+        // Le bouton #btn-new-analyseur est dans la vue config LLM, chargee dynamiquement
+        // / Analyzer creation via SweetAlert (event delegation)
+        // / The #btn-new-analyseur button is in the LLM config view, loaded dynamically
+        document.addEventListener('click', async function(evenement) {
+            var boutonNouvelAnalyseur = evenement.target.closest('#btn-new-analyseur');
+            if (!boutonNouvelAnalyseur) return;
+
+            var htmlFormulaire = ''
+                + '<input id="swal-name" class="swal2-input" placeholder="Nom de l\'analyseur">'
+                + '<select id="swal-type" class="swal2-select" style="margin-top:0.5rem">'
+                + '  <option value="analyser">Analyser</option>'
+                + '  <option value="reformuler">Reformuler</option>'
+                + '  <option value="restituer">Restituer</option>'
+                + '</select>';
+
+            var resultatSwal = await Swal.fire({
                 title: 'Nouvel analyseur',
-                html: '<input id="swal-name" class="swal2-input" placeholder="Nom de l\'analyseur">',
+                html: htmlFormulaire,
                 focusConfirm: false,
                 showCancelButton: true,
                 cancelButtonText: 'Annuler',
                 confirmButtonText: 'Créer',
-                preConfirm: () => {
-                    const name = document.getElementById('swal-name').value.trim();
-                    if (!name) { Swal.showValidationMessage('Le nom est requis'); return false; }
-                    return {name: name};
+                preConfirm: function() {
+                    var nom = document.getElementById('swal-name').value.trim();
+                    var typeAnalyseur = document.getElementById('swal-type').value;
+                    if (!nom) { Swal.showValidationMessage('Le nom est requis'); return false; }
+                    return {name: nom, type_analyseur: typeAnalyseur};
                 }
             });
-            if (isDismissed || !formValues) return;
+            if (resultatSwal.isDismissed || !resultatSwal.value) return;
 
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-            const headers = {'Content-Type': 'application/json'};
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            var headers = {'Content-Type': 'application/json'};
             if (csrfToken) headers['X-CSRFToken'] = csrfToken.value;
 
-            const resp = await fetch('/api/analyseurs/', {
+            var reponseCreation = await fetch('/api/analyseurs/', {
                 method: 'POST',
                 headers: headers,
-                body: JSON.stringify({name: formValues.name}),
+                body: JSON.stringify({name: resultatSwal.value.name, type_analyseur: resultatSwal.value.type_analyseur}),
             });
 
-            if (resp.ok) {
-                // Refresh la liste sidebar
-                htmx.ajax('GET', '/api/analyseurs/', {target: '#analyseurs-list', swap: 'innerHTML'});
-                // Charger l'editeur dans zone-lecture
-                const html = await resp.text();
-                // Extraire l'ID depuis le HTML retourne pour charger l'editeur
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = html;
-                const link = tempDiv.querySelector('[hx-get]');
-                if (link) {
-                    const url = link.getAttribute('hx-get');
-                    htmx.ajax('GET', url, {target: '#zone-lecture', swap: 'innerHTML'});
-                }
-            }
-        });
-
-        // Creation d'un prompt questionnaire via SweetAlert
-        // / Create a questionnaire prompt via SweetAlert
-        document.getElementById('btn-new-questionnaire-prompt').addEventListener('click', async function() {
-            const {value: formValues, isDismissed} = await Swal.fire({
-                title: 'Nouveau prompt questionnaire',
-                html: '<input id="swal-qp-name" class="swal2-input" placeholder="Nom du prompt">',
-                focusConfirm: false,
-                showCancelButton: true,
-                cancelButtonText: 'Annuler',
-                confirmButtonText: 'Créer',
-                preConfirm: () => {
-                    const name = document.getElementById('swal-qp-name').value.trim();
-                    if (!name) { Swal.showValidationMessage('Le nom est requis'); return false; }
-                    return {name: name};
-                }
-            });
-            if (isDismissed || !formValues) return;
-
-            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-            const headers = {'Content-Type': 'application/json'};
-            if (csrfToken) headers['X-CSRFToken'] = csrfToken.value;
-
-            const resp = await fetch('/api/questionnaire-prompts/', {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify({name: formValues.name}),
-            });
-
-            if (resp.ok) {
-                // Refresh la liste sidebar / Refresh sidebar list
-                htmx.ajax('GET', '/api/questionnaire-prompts/', {target: '#questionnaire-prompts-list', swap: 'innerHTML'});
-                // Charger l'editeur dans zone-lecture / Load editor in reading zone
-                const html = await resp.text();
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = html;
-                const link = tempDiv.querySelector('[hx-get]');
-                if (link) {
-                    const url = link.getAttribute('hx-get');
-                    htmx.ajax('GET', url, {target: '#zone-lecture', swap: 'innerHTML'});
+            if (reponseCreation.ok) {
+                // Charger l'editeur du nouvel analyseur dans zone-lecture
+                // / Load the new analyzer's editor in reading zone
+                var htmlReponse = await reponseCreation.text();
+                var conteneurTemp = document.createElement('div');
+                conteneurTemp.innerHTML = htmlReponse;
+                var lienEditeur = conteneurTemp.querySelector('[hx-get]');
+                if (lienEditeur) {
+                    var urlEditeur = lienEditeur.getAttribute('hx-get');
+                    htmx.ajax('GET', urlEditeur, {target: '#zone-lecture', swap: 'innerHTML'});
                 }
             }
         });
@@ -721,12 +676,14 @@
         });
 
         // Desactiver le mode debat quand on revient au panneau normal
-        // (detecte via htmx:afterSwap sur le panneau-extractions)
+        // Ne desactive que si ni fil-discussion ni vue-commentaires ne sont presents
         // / Deactivate debate mode when returning to normal panel
+        // Only deactivate if neither discussion thread nor comments view are present
         document.getElementById('sidebar-right').addEventListener('htmx:afterSwap', function() {
             var panneauDroit = document.getElementById('sidebar-right');
             var filDiscussion = document.getElementById('fil-discussion');
-            if (!filDiscussion) {
+            var vueCommentaires = document.getElementById('vue-commentaires-global');
+            if (!filDiscussion && !vueCommentaires) {
                 panneauDroit.classList.remove('debat-mode');
             }
         });
@@ -739,9 +696,10 @@
             var boutonToggle = document.getElementById('toggle-right-panel');
             var panneauDroit = document.getElementById('sidebar-right');
             var contientEditeurAnalyseur = zoneLecture.querySelector('#analyseur-editor');
+            var contientConfigLlm = zoneLecture.querySelector('#configuration-llm');
 
-            if (contientEditeurAnalyseur) {
-                // Mode editeur d'analyseur → on cache tout le panneau droit
+            if (contientEditeurAnalyseur || contientConfigLlm) {
+                // Mode editeur d'analyseur ou config LLM → on cache tout le panneau droit
                 panneauDroit.classList.add('collapsed');
                 boutonToggle.style.display = 'none';
             } else {

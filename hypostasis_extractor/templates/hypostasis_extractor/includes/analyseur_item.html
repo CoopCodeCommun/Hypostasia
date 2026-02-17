@@ -5,6 +5,7 @@
      hx-target="#zone-lecture"
      hx-swap="innerHTML"
      hx-push-url="/api/analyseurs/{{ analyseur.id }}/">
-    <span class="w-2 h-2 rounded-full shrink-0 bg-slate-300"></span>
+    <span class="w-2 h-2 rounded-full shrink-0 {% if analyseur.type_analyseur == 'analyser' %}bg-blue-400{% elif analyseur.type_analyseur == 'reformuler' %}bg-amber-400{% else %}bg-green-400{% endif %}"></span>
     <span class="text-sm truncate">{{ analyseur.name }}</span>
+    <span class="text-[10px] text-slate-400 ml-auto shrink-0">{{ analyseur.get_type_analyseur_display }}</span>
 </div>

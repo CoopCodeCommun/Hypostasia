@@ -21,7 +21,8 @@ from .serializers import (
     CommentaireExtractionSerializer, DossierCreateSerializer, ExtractionManuelleSerializer,
     ExtractionSerializer, ImportFichierSerializer, PageClasserSerializer,
     PromouvoirEntrainementSerializer, QuestionSerializer,
-    ReponseQuestionSerializer, RunAnalyseSerializer, SelectModelSerializer, est_fichier_audio,
+    ReponseQuestionSerializer, RunAnalyseSerializer, RunReformulationSerializer,
+    SelectModelSerializer, est_fichier_audio,
 )
 from .utils import annoter_html_avec_ancres
 
@@ -153,8 +154,17 @@ class BibliothequeViewSet(viewsets.ViewSet):
     """
 
     def list(self, request):
-        # La page principale est un template complet, pas un partial
-        # Main page is a full template, not a partial
+        # Requete HTMX → retourne le contenu par defaut de zone-lecture
+        # / HTMX request → return default zone-lecture content
+        if request.headers.get('HX-Request'):
+            return HttpResponse(
+                '<div class="max-w-3xl mx-auto text-slate-500 text-sm">'
+                'Sélectionnez une page pour commencer la lecture.'
+                '</div>'
+            )
+
+        # Acces direct → page complete
+        # / Direct access → full page
         return render(request, "front/bibliotheque.html", {
             "ia_active": _get_ia_active(),
         })
@@ -189,7 +199,7 @@ class LectureViewSet(viewsets.ViewSet):
         Ca permet de mettre a jour le panneau droit sans JS.
         """
         page = get_object_or_404(Page, pk=pk)
-        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
+        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
 
         # Recupere le dernier job d'extraction termine pour cette page
         # pour afficher les resultats existants dans le panneau droit
@@ -682,7 +692,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         Re-rend le panneau d'analyse + OOB swap du readability-content annote.
         Re-renders analysis panel + OOB swap of annotated readability-content.
         """
-        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
+        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
 
         # Toutes les entites de tous les jobs completed de la page
         # / All entities from all completed jobs for the page
@@ -943,11 +953,20 @@ class ExtractionViewSet(viewsets.ViewSet):
         entite = get_object_or_404(ExtractedEntity, pk=entity_id)
         tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
 
+        # Contexte reformulation : IA active + analyseurs de type reformuler
+        # / Reformulation context: AI active + reformuler-type analyzers
+        ia_active = _get_ia_active()
+        analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="reformuler",
+        ).exists()
+
         html_fil = render_to_string(
             "front/includes/fil_discussion.html",
             {
                 "entity": entite,
                 "commentaires": tous_les_commentaires,
+                "ia_active": ia_active,
+                "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
             },
             request=request,
         )
@@ -985,6 +1004,12 @@ class ExtractionViewSet(viewsets.ViewSet):
             commentaire=donnees["commentaire"],
         )
 
+        # Contexte reformulation / Reformulation context
+        ia_active = _get_ia_active()
+        analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="reformuler",
+        ).exists()
+
         # Re-rendre le fil complet / Re-render full thread
         tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
         html_fil = render_to_string(
@@ -992,6 +1017,8 @@ class ExtractionViewSet(viewsets.ViewSet):
             {
                 "entity": entite,
                 "commentaires": tous_les_commentaires,
+                "ia_active": ia_active,
+                "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
             },
             request=request,
         )
@@ -1220,15 +1247,59 @@ class ExtractionViewSet(viewsets.ViewSet):
     def vue_commentaires(self, request):
         """
         Vue globale des commentaires en layout SMS-like pour une page.
-        Affiche toutes les extractions qui ont des commentaires, regroupees.
+        Chaque extraction affiche son texte original, sa reformulation (si existante),
+        puis ses commentaires. Le bouton Reformuler apparait par extraction.
+        Detecte les reformulations bloquees (timeout 5 min) et les reset.
         / Global SMS-like comments view for a page.
-        Shows all extractions that have comments, grouped together.
+        Each extraction shows its original text, its reformulation (if any),
+        then its comments. The Reformulate button appears per extraction.
+        Detects stuck reformulations (5 min timeout) and resets them.
         """
         page_id = request.query_params.get("page_id")
         if not page_id:
             return HttpResponse("page_id requis.", status=400)
 
         page = get_object_or_404(Page, pk=page_id)
+
+        # Timeout : detecte les reformulations bloquees depuis plus de 5 minutes
+        # et les remet en etat stable avec un message d'erreur
+        # / Timeout: detect reformulations stuck for more than 5 minutes
+        # and reset them to stable state with an error message
+        delai_max_reformulation = timedelta(minutes=5)
+        entites_bloquees = ExtractedEntity.objects.filter(
+            job__page=page,
+            reformulation_en_cours=True,
+            reformulation_lancee_a__isnull=False,
+            reformulation_lancee_a__lt=timezone.now() - delai_max_reformulation,
+        )
+        nombre_entites_resetees = entites_bloquees.count()
+        if nombre_entites_resetees > 0:
+            entites_bloquees.update(
+                reformulation_en_cours=False,
+                reformulation_erreur="Timeout : la reformulation n'a pas repondu apres 5 minutes. Verifiez que le worker Celery tourne.",
+            )
+            logger.warning(
+                "vue_commentaires: %d reformulation(s) bloquee(s) resetee(s) pour page=%s",
+                nombre_entites_resetees, page_id,
+            )
+
+        # Timeout fallback : si reformulation_lancee_a est null mais en_cours=True
+        # depuis trop longtemps (pas de timestamp = legacy), reset aussi
+        # / Timeout fallback: if reformulation_lancee_a is null but en_cours=True
+        entites_bloquees_sans_timestamp = ExtractedEntity.objects.filter(
+            job__page=page,
+            reformulation_en_cours=True,
+            reformulation_lancee_a__isnull=True,
+        )
+        if entites_bloquees_sans_timestamp.exists():
+            entites_bloquees_sans_timestamp.update(
+                reformulation_en_cours=False,
+                reformulation_erreur="Reformulation interrompue (pas de timestamp). Relancez la reformulation.",
+            )
+            logger.warning(
+                "vue_commentaires: reformulation(s) sans timestamp resetee(s) pour page=%s",
+                page_id,
+            )
 
         # Recupere les entites ayant au moins un commentaire, triees par position
         # / Retrieve entities with at least one comment, sorted by position
@@ -1238,9 +1309,180 @@ class ExtractionViewSet(viewsets.ViewSet):
             commentaires__isnull=False,
         ).distinct().prefetch_related("commentaires").order_by("start_char")
 
-        return render(request, "front/includes/vue_commentaires.html", {
+        # Verifie si des analyseurs de type reformuler existent et si l'IA est active
+        # / Check if reformuler-type analyzers exist and if AI is active
+        analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="reformuler",
+        ).exists()
+
+        html_vue_commentaires = render_to_string(
+            "front/includes/vue_commentaires.html",
+            {
+                "page": page,
+                "entites_avec_commentaires": entites_avec_commentaires,
+                "ia_active": _get_ia_active(),
+                "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
+            },
+            request=request,
+        )
+
+        reponse = HttpResponse(html_vue_commentaires)
+        # Declenche le mode debat pour elargir le panneau / Trigger debate mode to widen panel
+        reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
+            "activerModeDebat": True,
+        })
+        return reponse
+
+    @action(detail=False, methods=["GET"], url_path="choisir_reformulateur")
+    def choisir_reformulateur(self, request):
+        """
+        Liste les analyseurs actifs de type 'reformuler' pour une extraction.
+        / Lists active analyzers of type 'reformuler' for an extraction.
+        """
+        entity_id = request.query_params.get("entity_id")
+        if not entity_id:
+            return HttpResponse("entity_id requis.", status=400)
+
+        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
+
+        # Recupere les analyseurs actifs de type reformuler
+        # / Retrieve active analyzers of type reformuler
+        analyseurs_reformuler = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="reformuler",
+        )
+
+        return render(request, "front/includes/choisir_reformulateur.html", {
+            "entity": entite,
+            "page": entite.job.page,
+            "analyseurs_reformuler": analyseurs_reformuler,
+        })
+
+    @action(detail=False, methods=["POST"], url_path="previsualiser_reformulation")
+    def previsualiser_reformulation(self, request):
+        """
+        Construit le prompt complet de reformulation pour une extraction
+        et retourne un partial de confirmation avec estimation tokens et cout.
+        / Builds the full reformulation prompt for an extraction
+        and returns a confirmation partial with token and cost estimates.
+        """
+        entity_id = request.data.get("entity_id")
+        analyseur_id = request.data.get("analyseur_id")
+        if not entity_id or not analyseur_id:
+            return HttpResponse("entity_id et analyseur_id requis.", status=400)
+
+        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
+
+        # Recupere le modele IA actif depuis la configuration singleton
+        # / Get active AI model from singleton configuration
+        configuration_ia = Configuration.get_solo()
+        modele_ia_actif = configuration_ia.ai_model
+        if not modele_ia_actif:
+            return HttpResponse("Aucun modèle IA sélectionné.", status=400)
+
+        # Construit le prompt depuis les pieces de l'analyseur
+        # / Build prompt from analyzer pieces
+        pieces_ordonnees = PromptPiece.objects.filter(
+            analyseur=analyseur,
+        ).order_by("order")
+        texte_prompt_pieces = "\n".join(piece.content for piece in pieces_ordonnees)
+
+        # Texte de l'extraction a reformuler / Extraction text to reformulate
+        texte_a_reformuler = entite.extraction_text
+
+        # Assemblage du prompt complet
+        # / Full prompt assembly
+        prompt_complet = f"{texte_prompt_pieces}\n\n=== TEXTE A REFORMULER ===\n{texte_a_reformuler}"
+
+        # Comptage des tokens via tiktoken
+        # / Token counting via tiktoken
+        import tiktoken
+        encodeur_tokens = tiktoken.get_encoding("cl100k_base")
+        nombre_tokens_input = len(encodeur_tokens.encode(prompt_complet))
+        nombre_tokens_output_estime = int(nombre_tokens_input * 0.50)
+
+        # Estimation du cout / Cost estimate
+        cout_estime_euros = modele_ia_actif.estimer_cout_euros(
+            nombre_tokens_input, nombre_tokens_output_estime
+        )
+
+        return render(request, "front/includes/confirmation_reformulation.html", {
+            "entity": entite,
+            "page": entite.job.page,
+            "analyseur": analyseur,
+            "modele_ia": modele_ia_actif,
+            "nombre_tokens_input": nombre_tokens_input,
+            "nombre_tokens_output_estime": nombre_tokens_output_estime,
+            "cout_estime_euros": cout_estime_euros,
+            "prompt_complet": prompt_complet,
+            "nombre_pieces": pieces_ordonnees.count(),
+        })
+
+    @action(detail=False, methods=["POST"])
+    def reformuler(self, request):
+        """
+        Lance une reformulation asynchrone sur une extraction via Celery.
+        Stocke le resultat dans entity.texte_reformule.
+        / Launches an async reformulation on an extraction via Celery.
+        Stores the result in entity.texte_reformule.
+        """
+        # Guard : verifie que l'IA est activee / Check AI is enabled
+        if not _get_ia_active():
+            return HttpResponse("IA desactivee.", status=403)
+
+        serializer = RunReformulationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return HttpResponse(f"Erreur: {serializer.errors}", status=400)
+
+        entite = get_object_or_404(ExtractedEntity, pk=serializer.validated_data["entity_id"])
+        analyseur = get_object_or_404(
+            AnalyseurSyntaxique, pk=serializer.validated_data["analyseur_id"]
+        )
+        page = entite.job.page
+
+        # Guard anti-doublon : verifie si une reformulation est deja en cours
+        # avec un timeout de securite pour eviter le blocage permanent
+        # / Anti-duplicate guard: check if a reformulation is already in progress
+        # with a safety timeout to avoid permanent blocking
+        if entite.reformulation_en_cours:
+            # Verifie si la reformulation est bloquee (timeout 5 min)
+            # / Check if reformulation is stuck (5 min timeout)
+            delai_max = timedelta(minutes=5)
+            if entite.reformulation_lancee_a and (timezone.now() - entite.reformulation_lancee_a) > delai_max:
+                # Timeout atteint → reset et permettre un re-lancement
+                # / Timeout reached → reset and allow re-launch
+                logger.warning(
+                    "reformuler: timeout detecte pour entity=%s — reset",
+                    entite.pk,
+                )
+                entite.reformulation_en_cours = False
+                entite.reformulation_erreur = "Timeout : reformulation precedente bloquee, relancez."
+                entite.save(update_fields=["reformulation_en_cours", "reformulation_erreur"])
+            else:
+                return render(request, "front/includes/reformulation_en_cours.html", {
+                    "page": page,
+                    "entity": entite,
+                })
+
+        # Marquer comme en cours avec timestamp / Mark as in progress with timestamp
+        entite.reformulation_en_cours = True
+        entite.reformulation_lancee_a = timezone.now()
+        entite.reformulation_erreur = ""
+        entite.save(update_fields=["reformulation_en_cours", "reformulation_lancee_a", "reformulation_erreur"])
+
+        # Lancer la tache Celery / Launch Celery task
+        from front.tasks import reformuler_entite_task
+        reformuler_entite_task.delay(entite.pk, analyseur.pk)
+
+        logger.info(
+            "reformuler: entity pk=%s analyseur=%s — tache Celery lancee",
+            entite.pk, analyseur.name,
+        )
+
+        return render(request, "front/includes/reformulation_en_cours.html", {
             "page": page,
-            "entites_avec_commentaires": entites_avec_commentaires,
+            "entity": entite,
         })
 
     @action(detail=False, methods=["POST"])
@@ -1483,7 +1725,7 @@ class ImportViewSet(viewsets.ViewSet):
 
         # Rendu du partial de lecture + OOB arbre et panneau
         # / Render reading partial + OOB tree and panel
-        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
+        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
         ia_active = _get_ia_active()
         contexte_partage = {
             "page": page_importee,
@@ -1564,7 +1806,7 @@ class ImportViewSet(viewsets.ViewSet):
         elif page.status == "completed":
             # Termine → renvoyer le contenu de lecture normal
             # / Completed → return normal reading content
-            analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
+            analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
             ia_active = _get_ia_active()
             contexte_partage = {
                 "page": page,

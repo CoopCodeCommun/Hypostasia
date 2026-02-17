@@ -1,64 +1,104 @@
-{# Partial: Vue globale des commentaires en layout SMS-like #}
-{# / Partial: Global comments view in SMS-like layout #}
+{# Partial: Vue globale des commentaires — lecture seule, clic extraction = ouvre fil de discussion #}
+{# / Partial: Global comments view — read-only, click extraction = opens discussion thread #}
 {% load extractor_tags %}
 
 {% if entites_avec_commentaires %}
-<div class="space-y-6">
+<div id="vue-commentaires-global" class="space-y-6">
     {% for entite in entites_avec_commentaires %}
     {% entity_json_attrs entite as entite_attrs %}
     <div class="space-y-2">
 
-        {# Extraction a gauche — clic = scroll vers l'ancre dans le texte original #}
-        {# / Extraction on the left — click = scroll to anchor in original text #}
-        <div class="mr-12">
-            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 cursor-pointer hover:bg-blue-100 transition-colors"
-                 data-extraction-id="{{ entite.pk }}"
-                 onclick="scrollToExtraction(this)">
-                {% if entite_attrs.1 %}
-                <p class="text-sm text-blue-900 font-medium leading-snug">{{ entite_attrs.1 }}</p>
-                {% else %}
-                <p class="text-sm text-blue-900 font-medium leading-snug">{{ entite.extraction_text|truncatewords:20 }}</p>
-                {% endif %}
-                {% if entite_attrs.0 %}
-                <div class="flex flex-wrap gap-1 mt-1.5">
-                    {% for tag in entite_attrs.0|split_comma %}
-                    <span class="text-[10px] font-medium uppercase px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600">{{ tag }}</span>
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
+        {# === 1. Carte extraction complete (cliquable → ouvre fil de discussion) === #}
+        {# / === 1. Full extraction card (clickable → opens discussion thread) === #}
+        <div class="extraction-card bg-white rounded-lg border p-3 hover:shadow-sm transition-shadow cursor-pointer relative group border-amber-400"
+             data-extraction-id="{{ entite.pk }}"
+             hx-get="/extractions/fil_discussion/?entity_id={{ entite.pk }}"
+             hx-target="#panneau-extractions"
+             hx-swap="innerHTML"
+             title="Position: {{ entite.start_char }}-{{ entite.end_char }}">
+
+            {% with attr_0=entite_attrs.0 attr_1=entite_attrs.1 text=entite.extraction_text attr_2=entite_attrs.2 attr_3=entite_attrs.3 %}
+                {% include "hypostasis_extractor/includes/_card_body.html" %}
+            {% endwith %}
         </div>
 
-        {# Commentaires a droite (style SMS reponse) / Comments on the right (reply SMS style) #}
-        {% for commentaire in entite.commentaires.all %}
-        <div class="ml-12">
-            <div class="bg-white border border-slate-200 rounded-lg p-3">
-                <div class="flex items-center justify-between mb-1">
-                    <span class="text-xs font-semibold text-slate-700">{{ commentaire.prenom }}</span>
-                    <span class="text-[10px] text-slate-400">{{ commentaire.created_at|date:"d/m H:i" }}</span>
+        {# === 2. Reformulation en lecture seule (pleine largeur) === #}
+        {# / === 2. Read-only reformulation (full width) === #}
+        {% if entite.reformulation_en_cours %}
+            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-500 animate-pulse shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+                </svg>
+                <span class="text-xs text-emerald-700 font-medium">Reformulation en cours...</span>
+            </div>
+
+        {% elif entite.reformulation_erreur %}
+            <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                <div class="flex items-start gap-2">
+                    <svg class="w-4 h-4 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+                    </svg>
+                    <div class="flex-1">
+                        <p class="text-xs font-medium text-red-700 mb-0.5">Erreur de reformulation</p>
+                        <p class="text-[10px] text-red-600">{{ entite.reformulation_erreur|truncatewords:30 }}</p>
+                    </div>
                 </div>
-                <p class="text-sm text-slate-600 whitespace-pre-wrap">{{ commentaire.commentaire }}</p>
+            </div>
+
+        {% elif entite.texte_reformule %}
+            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                <div class="flex items-center gap-1.5 mb-1.5">
+                    <svg class="w-3.5 h-3.5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+                    </svg>
+                    <span class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">{{ entite.reformule_par }}</span>
+                </div>
+                <p class="text-sm text-emerald-900 whitespace-pre-wrap leading-relaxed">{{ entite.texte_reformule }}</p>
+            </div>
+        {% endif %}
+
+        {# === 3. Commentaires — layout SMS (propre = droite, autres = gauche) === #}
+        {# / === 3. Comments — SMS layout (own = right, others = left) === #}
+        {% for commentaire in entite.commentaires.all %}
+        <div class="commentaire-bulle-global" data-prenom="{{ commentaire.prenom }}">
+            <div class="mr-12 commentaire-container-autre">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-slate-700">{{ commentaire.prenom }}</span>
+                        <span class="text-[10px] text-slate-400">{{ commentaire.created_at|date:"d/m H:i" }}</span>
+                    </div>
+                    <p class="text-sm text-slate-600 whitespace-pre-wrap">{{ commentaire.commentaire }}</p>
+                </div>
             </div>
         </div>
         {% endfor %}
 
-        {# Bouton repondre — ouvre le fil de discussion classique #}
-        {# / Reply button — opens the classic discussion thread #}
-        <div class="ml-12 mt-1">
-            <button class="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1"
-                    hx-get="/extractions/fil_discussion/?entity_id={{ entite.pk }}"
-                    hx-target="#panneau-extractions"
-                    hx-swap="innerHTML">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a5 5 0 015 5v6M3 10l6-6M3 10l6 6"></path>
-                </svg>
-                Repondre
-            </button>
-        </div>
-
     </div>
     {% endfor %}
 </div>
+
+<script>
+(function() {
+    // Layout SMS : positionne les commentaires propres a droite
+    // / SMS layout: position own comments on the right
+    var prenomUtilisateur = localStorage.getItem('hypo_prenom');
+    if (prenomUtilisateur) {
+        document.querySelectorAll('.commentaire-bulle-global').forEach(function(bulle) {
+            if (bulle.dataset.prenom === prenomUtilisateur) {
+                var conteneur = bulle.querySelector('.commentaire-container-autre');
+                if (conteneur) {
+                    conteneur.className = 'ml-12 commentaire-container-propre';
+                    var carte = conteneur.querySelector('div');
+                    if (carte) {
+                        carte.className = 'bg-white border border-slate-200 rounded-lg p-3';
+                    }
+                }
+            }
+        });
+    }
+})();
+</script>
+
 {% else %}
 <div class="flex flex-col items-center justify-center py-12 text-center">
     <svg class="w-10 h-10 text-slate-300 mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">

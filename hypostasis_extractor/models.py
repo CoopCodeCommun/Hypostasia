@@ -62,6 +62,13 @@ class ExtractionJob(models.Model):
         help_text="Resultat brut de LangExtract (JSON)"
     )
     
+    # Flag de reformulation : distingue les jobs de reformulation des jobs d'analyse
+    # / Reformulation flag: distinguishes reformulation jobs from analysis jobs
+    est_reformulation = models.BooleanField(
+        default=False,
+        help_text="True si ce job est une reformulation (pas une extraction classique)",
+    )
+
     # Statistiques
     entities_count = models.PositiveIntegerField(default=0)
     processing_time_seconds = models.FloatField(blank=True, null=True)
@@ -125,6 +132,34 @@ class ExtractedEntity(models.Model):
         help_text="Tag hypostasia associe (si mapping automatique reussi)"
     )
     
+    # Reformulation : texte reformule par un analyseur de type "reformuler"
+    # / Reformulation: text reformulated by a "reformuler" type analyzer
+    texte_reformule = models.TextField(
+        blank=True,
+        default="",
+        help_text="Texte reformule par un analyseur / Reformulated text by an analyzer",
+    )
+    reformule_par = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Nom de l'analyseur qui a reformule / Name of the reformulating analyzer",
+    )
+    reformulation_en_cours = models.BooleanField(
+        default=False,
+        help_text="True si une reformulation est en cours / True if reformulation is in progress",
+    )
+    reformulation_lancee_a = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp du lancement de la reformulation (pour timeout) / Reformulation start timestamp (for timeout)",
+    )
+    reformulation_erreur = models.TextField(
+        blank=True,
+        default="",
+        help_text="Message d'erreur de la derniere reformulation / Last reformulation error message",
+    )
+
     # Validation utilisateur
     user_validated = models.BooleanField(
         default=False,
@@ -190,12 +225,43 @@ class AnalyseurSyntaxique(models.Model):
     """
     Analyseur syntaxique configurable pour l'extraction LangExtract.
     Compose de morceaux de prompt ordonnes et d'exemples few-shot.
+    Le champ 'type_analyseur' determine le role de l'analyseur dans l'interface.
     / Configurable syntactic analyzer for LangExtract extraction.
     Composed of ordered prompt pieces and few-shot examples.
+    The 'type_analyseur' field determines the analyzer's role in the UI.
     """
+
+    # Types d'analyseur disponibles
+    # / Available analyzer types
+    class TypeAnalyseur(models.TextChoices):
+        ANALYSER = "analyser", "Analyser"
+        REFORMULER = "reformuler", "Reformuler"
+        RESTITUER = "restituer", "Restituer"
+
     name = models.CharField(max_length=200, help_text="Nom de l'analyseur")
     description = models.TextField(blank=True, help_text="Description de l'analyseur")
     is_active = models.BooleanField(default=True)
+
+    # Type d'analyseur : determine les fonctionnalites disponibles dans l'interface
+    # / Analyzer type: determines which features are available in the UI
+    type_analyseur = models.CharField(
+        max_length=20,
+        choices=TypeAnalyseur.choices,
+        default=TypeAnalyseur.ANALYSER,
+        help_text="Type d'analyseur : analyser, reformuler ou restituer",
+    )
+
+    # Options d'injection de contexte dans le prompt avant envoi au LLM
+    # / Context injection options in the prompt before sending to LLM
+    inclure_extractions = models.BooleanField(
+        default=False,
+        help_text="Injecter les extractions dans le contexte du prompt / Inject extractions into prompt context",
+    )
+    inclure_texte_original = models.BooleanField(
+        default=False,
+        help_text="Injecter le texte original dans le contexte du prompt / Inject original text into prompt context",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -312,77 +378,6 @@ class ExtractionAttribute(models.Model):
 
     def __str__(self):
         return f"{self.key}: {self.value[:50]}"
-
-
-# =============================================================================
-# Questionnaire Prompt — Prompts configurables pour generation de questions IA
-# / Questionnaire Prompt — Configurable prompts for AI question generation
-# =============================================================================
-
-class QuestionnairePrompt(models.Model):
-    """
-    Prompt configurable pour generer des questions via LLM.
-    Compose de morceaux de prompt ordonnes, avec options d'injection de contexte.
-    / Configurable prompt for generating questions via LLM.
-    Composed of ordered prompt pieces, with context injection options.
-    """
-    name = models.CharField(max_length=200, help_text="Nom du prompt questionnaire")
-    description = models.TextField(blank=True, help_text="Description du prompt")
-    is_active = models.BooleanField(default=True)
-
-    # Options d'injection de contexte dans le prompt avant envoi au LLM
-    # / Context injection options in the prompt before sending to LLM
-    inclure_extractions = models.BooleanField(
-        default=False,
-        help_text="Injecter les extractions dans le contexte du prompt / Inject extractions into prompt context"
-    )
-    inclure_texte_original = models.BooleanField(
-        default=False,
-        help_text="Injecter le texte original dans le contexte du prompt / Inject original text into prompt context"
-    )
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['-updated_at']
-
-    def __str__(self):
-        return self.name
-
-
-class QuestionnairePromptPiece(models.Model):
-    """
-    Morceau de prompt ordonne, lie a un QuestionnairePrompt.
-    Roles possibles : definition, instruction, format, context.
-    / Ordered prompt piece, linked to a QuestionnairePrompt.
-    Possible roles: definition, instruction, format, context.
-    """
-    class RoleChoices(models.TextChoices):
-        DEFINITION = "definition", "Définition"
-        INSTRUCTION = "instruction", "Instruction"
-        FORMAT = "format", "Format"
-        CONTEXT = "context", "Contexte"
-
-    questionnaire_prompt = models.ForeignKey(
-        QuestionnairePrompt,
-        on_delete=models.CASCADE,
-        related_name='pieces'
-    )
-    name = models.CharField(max_length=200, help_text="Nom du morceau de prompt")
-    role = models.CharField(
-        max_length=20,
-        choices=RoleChoices.choices,
-        default=RoleChoices.INSTRUCTION
-    )
-    content = models.TextField(help_text="Contenu du morceau de prompt")
-    order = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ['order']
-
-    def __str__(self):
-        return f"[{self.role}] {self.name}"
 
 
 class CommentaireExtraction(models.Model):

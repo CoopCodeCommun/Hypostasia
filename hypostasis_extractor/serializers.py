@@ -9,7 +9,6 @@ from rest_framework import serializers
 from .models import (
     ExtractionJob, ExtractedEntity, ExtractionExample, JobExampleMapping,
     AnalyseurSyntaxique, PromptPiece, AnalyseurExample, ExampleExtraction, ExtractionAttribute,
-    QuestionnairePrompt, QuestionnairePromptPiece,
 )
 
 
@@ -223,6 +222,10 @@ class AnalyseurSyntaxiqueCreateSerializer(serializers.Serializer):
     """Creation d'un analyseur / Create an analyzer."""
     name = serializers.CharField(max_length=200)
     description = serializers.CharField(required=False, allow_blank=True, default="")
+    type_analyseur = serializers.ChoiceField(
+        choices=AnalyseurSyntaxique.TypeAnalyseur.choices,
+        default=AnalyseurSyntaxique.TypeAnalyseur.ANALYSER,
+    )
 
     def validate_name(self, value):
         return sanitize_text(value)
@@ -236,6 +239,12 @@ class AnalyseurSyntaxiqueUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=200, required=False)
     description = serializers.CharField(required=False, allow_blank=True)
     is_active = serializers.BooleanField(required=False)
+    type_analyseur = serializers.ChoiceField(
+        choices=AnalyseurSyntaxique.TypeAnalyseur.choices,
+        required=False,
+    )
+    inclure_extractions = serializers.BooleanField(required=False)
+    inclure_texte_original = serializers.BooleanField(required=False)
 
     def validate_name(self, value):
         return sanitize_text(value)
@@ -469,62 +478,3 @@ class RejectTestExtractionSerializer(serializers.Serializer):
     note = serializers.CharField(required=False, allow_blank=True, default="")
 
 
-# =============================================================================
-# Serializers pour les Questionnaire Prompts
-# / Serializers for Questionnaire Prompts
-# =============================================================================
-
-class QuestionnairePromptCreateSerializer(serializers.Serializer):
-    """Creation d'un prompt questionnaire / Create a questionnaire prompt."""
-    name = serializers.CharField(max_length=200)
-    description = serializers.CharField(required=False, allow_blank=True, default="")
-
-    def validate_name(self, value):
-        return sanitize_text(value)
-
-    def validate_description(self, value):
-        return sanitize_text(value)
-
-
-class QuestionnairePromptUpdateSerializer(serializers.Serializer):
-    """Mise a jour partielle d'un prompt questionnaire (auto-save) / Partial update."""
-    name = serializers.CharField(max_length=200, required=False)
-    description = serializers.CharField(required=False, allow_blank=True)
-    is_active = serializers.BooleanField(required=False)
-    inclure_extractions = serializers.BooleanField(required=False)
-    inclure_texte_original = serializers.BooleanField(required=False)
-
-    def validate_name(self, value):
-        return sanitize_text(value)
-
-    def validate_description(self, value):
-        return sanitize_text(value)
-
-
-class QuestionnairePromptPieceCreateSerializer(serializers.Serializer):
-    """Creation d'une piece de prompt questionnaire / Create a questionnaire prompt piece."""
-    name = serializers.CharField(max_length=200)
-    role = serializers.ChoiceField(choices=QuestionnairePromptPiece.RoleChoices.choices, default="instruction")
-    content = serializers.CharField(allow_blank=True, default="")
-    order = serializers.IntegerField(default=0)
-
-    def validate_name(self, value):
-        return sanitize_text(value)
-
-    def validate_content(self, value):
-        return sanitize_text(value)
-
-
-class QuestionnairePromptPieceUpdateSerializer(serializers.Serializer):
-    """Mise a jour partielle d'une piece questionnaire (auto-save) / Partial update."""
-    piece_id = serializers.IntegerField()
-    name = serializers.CharField(max_length=200, required=False)
-    role = serializers.ChoiceField(choices=QuestionnairePromptPiece.RoleChoices.choices, required=False)
-    content = serializers.CharField(required=False, allow_blank=True)
-    order = serializers.IntegerField(required=False)
-
-    def validate_name(self, value):
-        return sanitize_text(value)
-
-    def validate_content(self, value):
-        return sanitize_text(value)

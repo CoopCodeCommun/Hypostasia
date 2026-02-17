@@ -51,7 +51,6 @@ from .models import (
     ExtractionJob, ExtractedEntity, ExtractionExample,
     AnalyseurSyntaxique, PromptPiece, AnalyseurExample, ExampleExtraction, ExtractionAttribute,
     AnalyseurTestRun, TestRunExtraction,
-    QuestionnairePrompt, QuestionnairePromptPiece,
 )
 from .serializers import (
     ExtractionJobListSerializer,
@@ -74,10 +73,6 @@ from .serializers import (
     RunAnalyseurTestSerializer,
     ValidateTestExtractionSerializer,
     RejectTestExtractionSerializer,
-    QuestionnairePromptCreateSerializer,
-    QuestionnairePromptUpdateSerializer,
-    QuestionnairePromptPieceCreateSerializer,
-    QuestionnairePromptPieceUpdateSerializer,
 )
 from .services import run_langextract_job, generate_visualization_html
 
@@ -391,10 +386,29 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     # ---- CRUD Analyseur ----
 
     def list(self, request):
-        """Liste des analyseurs — retourne HTML partial pour sidebar."""
-        analyseurs_list = AnalyseurSyntaxique.objects.filter(is_active=True)
-        return render(request, 'hypostasis_extractor/analyseur_list.html', {
-            'analyseurs': analyseurs_list
+        """
+        Liste des analyseurs — vue de configuration LLM.
+        - Requete HTMX → partial dans zone-lecture
+        - Acces direct (F5) → page complete base.html
+        / Analyzers list — LLM configuration view.
+        - HTMX request → partial in reading zone
+        - Direct access (F5) → full base.html page
+        """
+        tous_les_analyseurs = AnalyseurSyntaxique.objects.filter(is_active=True)
+        contexte_configuration = {
+            'analyseurs': tous_les_analyseurs,
+        }
+
+        # Requete HTMX → partial seulement
+        # / HTMX request → partial only
+        if request.headers.get('HX-Request'):
+            return render(request, 'hypostasis_extractor/configuration_llm.html', contexte_configuration)
+
+        # Acces direct (F5) → page complete avec vue pre-chargee
+        # / Direct access (F5) → full page with pre-loaded view
+        return render(request, 'front/base.html', {
+            'configuration_llm_preloaded': True,
+            **contexte_configuration,
         })
 
     def retrieve(self, request, pk=None):
@@ -1269,128 +1283,3 @@ def _resolve_test_extraction_attrs(test_run):
     return resolved_extractions
 
 
-# =============================================================================
-# ViewSet pour les Questionnaire Prompts
-# / ViewSet for Questionnaire Prompts
-# =============================================================================
-
-@method_decorator(csrf_exempt, name='dispatch')
-class QuestionnairePromptViewSet(viewsets.ViewSet):
-    """
-    ViewSet pour gerer les prompts de questionnaire configurables.
-    CRUD complet + actions pour les pieces de prompt.
-    / ViewSet for managing configurable questionnaire prompts.
-    Full CRUD + actions for prompt pieces.
-    """
-
-    permission_classes = [permissions.AllowAny]
-
-    # ---- CRUD QuestionnairePrompt ----
-
-    def list(self, request):
-        """Liste des prompts questionnaire — retourne HTML partial pour sidebar."""
-        tous_les_prompts_questionnaire = QuestionnairePrompt.objects.filter(is_active=True)
-        return render(request, 'hypostasis_extractor/questionnaire_prompt_list.html', {
-            'questionnaire_prompts': tous_les_prompts_questionnaire
-        })
-
-    def retrieve(self, request, pk=None):
-        """
-        Detail d'un prompt questionnaire.
-        - Requete HTMX → retourne le partial editeur (zone-lecture)
-        - Acces direct (F5, lien) → retourne la page complete base.html avec editeur pre-charge
-        / Questionnaire prompt detail.
-        - HTMX request → returns editor partial (zone-lecture)
-        - Direct access (F5, link) → returns full base.html with pre-loaded editor
-        """
-        prompt_questionnaire = get_object_or_404(
-            QuestionnairePrompt.objects.prefetch_related('pieces'),
-            pk=pk
-        )
-
-        editor_context = {
-            'prompt_questionnaire': prompt_questionnaire,
-        }
-
-        # Requete HTMX → partial seulement
-        # / HTMX request → partial only
-        if request.headers.get('HX-Request'):
-            return render(request, 'hypostasis_extractor/questionnaire_editor.html', editor_context)
-
-        # Acces direct (F5) → page complete avec editeur pre-charge
-        # / Direct access (F5) → full page with pre-loaded editor
-        return render(request, 'front/base.html', {
-            'questionnaire_prompt_preloaded': prompt_questionnaire,
-            **editor_context,
-        })
-
-    def create(self, request):
-        """Creation d'un prompt questionnaire / Create a questionnaire prompt."""
-        serializer = QuestionnairePromptCreateSerializer(data=request.data)
-        if serializer.is_valid():
-            nouveau_prompt_questionnaire = QuestionnairePrompt.objects.create(**serializer.validated_data)
-            logger.info("QuestionnairePrompt cree: pk=%d name='%s'", nouveau_prompt_questionnaire.pk, nouveau_prompt_questionnaire.name)
-            return render(request, 'hypostasis_extractor/includes/questionnaire_item.html', {
-                'prompt_questionnaire': nouveau_prompt_questionnaire
-            }, status=status.HTTP_201_CREATED)
-        logger.warning("QuestionnairePrompt create: validation echouee — %s", serializer.errors)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def partial_update(self, request, pk=None):
-        """Mise a jour partielle (auto-save) / Partial update (auto-save)."""
-        prompt_questionnaire = get_object_or_404(QuestionnairePrompt, pk=pk)
-        serializer = QuestionnairePromptUpdateSerializer(data=request.data)
-        if serializer.is_valid():
-            for nom_champ, valeur_champ in serializer.validated_data.items():
-                setattr(prompt_questionnaire, nom_champ, valeur_champ)
-            prompt_questionnaire.save()
-            return _saved_response()
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def destroy(self, request, pk=None):
-        """Suppression d'un prompt questionnaire / Delete a questionnaire prompt."""
-        prompt_questionnaire = get_object_or_404(QuestionnairePrompt, pk=pk)
-        logger.info("QuestionnairePrompt supprime: pk=%d name='%s'", prompt_questionnaire.pk, prompt_questionnaire.name)
-        prompt_questionnaire.delete()
-        # 200 au lieu de 204 : HTMX ignore le swap sur 204 No Content
-        # / 200 instead of 204: HTMX ignores swap on 204 No Content
-        return HttpResponse(status=200)
-
-    # ---- Actions QuestionnairePromptPiece ----
-
-    @action(detail=True, methods=['post'])
-    def add_piece(self, request, pk=None):
-        """Ajoute une piece de prompt questionnaire / Add a questionnaire prompt piece."""
-        prompt_questionnaire = get_object_or_404(QuestionnairePrompt, pk=pk)
-        serializer = QuestionnairePromptPieceCreateSerializer(data=request.data)
-        if serializer.is_valid():
-            nouvelle_piece = QuestionnairePromptPiece.objects.create(
-                questionnaire_prompt=prompt_questionnaire, **serializer.validated_data
-            )
-            return render(request, 'hypostasis_extractor/includes/questionnaire_piece_row.html', {
-                'piece': nouvelle_piece, 'prompt_questionnaire': prompt_questionnaire
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['patch'])
-    def update_piece(self, request, pk=None):
-        """Mise a jour partielle d'une piece (auto-save) / Partial update."""
-        get_object_or_404(QuestionnairePrompt, pk=pk)
-        serializer = QuestionnairePromptPieceUpdateSerializer(data=request.data)
-        if serializer.is_valid():
-            piece_id = serializer.validated_data.pop('piece_id')
-            piece_a_modifier = get_object_or_404(QuestionnairePromptPiece, pk=piece_id, questionnaire_prompt_id=pk)
-            for nom_champ, valeur_champ in serializer.validated_data.items():
-                setattr(piece_a_modifier, nom_champ, valeur_champ)
-            piece_a_modifier.save()
-            return _saved_response()
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=True, methods=['delete'], url_path='remove_piece')
-    def delete_piece(self, request, pk=None):
-        """Supprime une piece de prompt questionnaire / Delete a questionnaire prompt piece."""
-        get_object_or_404(QuestionnairePrompt, pk=pk)
-        piece_id = request.data.get('piece_id') or request.query_params.get('piece_id')
-        piece_a_supprimer = get_object_or_404(QuestionnairePromptPiece, pk=piece_id, questionnaire_prompt_id=pk)
-        piece_a_supprimer.delete()
-        return HttpResponse(status=200)

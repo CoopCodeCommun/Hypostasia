@@ -142,6 +142,143 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
 
 
 @shared_task(bind=True)
+def reformuler_entite_task(self, entity_id, analyseur_id):
+    """
+    Tache Celery : reformule le texte d'une ExtractedEntity via un analyseur de type reformuler.
+    Appelle le LLM directement (pas LangExtract) et stocke le resultat dans entity.texte_reformule.
+    En cas d'erreur (exception, crash, timeout), l'entite est remise en etat stable.
+    / Celery task: reformulates an ExtractedEntity's text via a reformuler-type analyzer.
+    Calls the LLM directly (not LangExtract) and stores the result in entity.texte_reformule.
+    On error (exception, crash, timeout), the entity is reset to a stable state.
+    """
+    from core.models import Configuration
+    from hypostasis_extractor.models import (
+        AnalyseurSyntaxique, ExtractedEntity, PromptPiece,
+    )
+
+    debut_traitement = time.time()
+
+    # Charger l'entite — si introuvable, rien a faire
+    # / Load entity — if not found, nothing to do
+    try:
+        entite = ExtractedEntity.objects.get(pk=entity_id)
+    except ExtractedEntity.DoesNotExist:
+        logger.error("reformuler_entite_task: entity_id=%s introuvable", entity_id)
+        return
+
+    # Charger l'analyseur — si introuvable, reset l'entite et sortir
+    # / Load analyzer — if not found, reset entity and exit
+    try:
+        analyseur = AnalyseurSyntaxique.objects.get(pk=analyseur_id)
+    except AnalyseurSyntaxique.DoesNotExist:
+        logger.error("reformuler_entite_task: analyseur_id=%s introuvable", analyseur_id)
+        entite.reformulation_en_cours = False
+        entite.reformulation_erreur = f"Analyseur introuvable (id={analyseur_id})"
+        entite.save(update_fields=["reformulation_en_cours", "reformulation_erreur"])
+        return
+
+    try:
+        # Recuperer le modele IA actif / Get active AI model
+        configuration = Configuration.get_solo()
+        modele_ia = configuration.ai_model
+        if not modele_ia:
+            raise ValueError("Aucun modele IA selectionne dans la configuration")
+
+        # Construire le prompt depuis les pieces de l'analyseur
+        # / Build prompt from analyzer pieces
+        pieces_ordonnees = PromptPiece.objects.filter(
+            analyseur=analyseur,
+        ).order_by("order")
+        texte_prompt = "\n".join(piece.content for piece in pieces_ordonnees)
+
+        if not texte_prompt.strip():
+            raise ValueError(f"L'analyseur '{analyseur.name}' n'a aucune piece de prompt")
+
+        # Texte source a reformuler : le texte de l'extraction
+        # / Source text to reformulate: the extraction text
+        texte_a_reformuler = entite.extraction_text
+        if not texte_a_reformuler.strip():
+            raise ValueError("Le texte de l'extraction est vide")
+
+        # Assemblage du message complet / Full message assembly
+        message_complet = f"{texte_prompt}\n\n=== TEXTE A REFORMULER ===\n{texte_a_reformuler}"
+
+        logger.info(
+            "reformuler_entite_task: entity=%s analyseur=%s model=%s text_len=%d",
+            entity_id, analyseur.name, modele_ia.model_name, len(texte_a_reformuler),
+        )
+
+        # Appel au LLM selon le provider / Call LLM based on provider
+        texte_reformule = _appeler_llm_reformulation(modele_ia, message_complet)
+
+        if not texte_reformule or not texte_reformule.strip():
+            raise ValueError("Le LLM a retourne une reponse vide")
+
+        # Succes : stocker le resultat et remettre l'entite en etat stable
+        # / Success: store result and reset entity to stable state
+        entite.texte_reformule = texte_reformule.strip()
+        entite.reformule_par = analyseur.name
+        entite.reformulation_en_cours = False
+        entite.reformulation_erreur = ""
+        entite.save(update_fields=[
+            "texte_reformule", "reformule_par",
+            "reformulation_en_cours", "reformulation_erreur",
+        ])
+
+        duree = time.time() - debut_traitement
+        logger.info(
+            "reformuler_entite_task: termine entity=%s en %.1fs — %d chars",
+            entity_id, duree, len(texte_reformule),
+        )
+
+    except Exception as erreur_reformulation:
+        # Erreur : remettre l'entite en etat stable + stocker le message d'erreur
+        # / Error: reset entity to stable state + store error message
+        message_erreur = str(erreur_reformulation)[:500]
+        logger.error(
+            "reformuler_entite_task: erreur entity=%s — %s",
+            entity_id, message_erreur, exc_info=True,
+        )
+        entite.reformulation_en_cours = False
+        entite.reformulation_erreur = message_erreur
+        entite.save(update_fields=["reformulation_en_cours", "reformulation_erreur"])
+
+
+def _appeler_llm_reformulation(modele_ia, message_complet):
+    """
+    Appelle le LLM pour une reformulation (texte libre, pas extraction).
+    Supporte Google Gemini et OpenAI GPT.
+    / Calls the LLM for reformulation (free text, not extraction).
+    Supports Google Gemini and OpenAI GPT.
+    """
+    from core.models import Provider
+
+    if modele_ia.provider == Provider.GOOGLE:
+        import google.generativeai as genai
+        if modele_ia.api_key:
+            genai.configure(api_key=modele_ia.api_key)
+        modele_genai = genai.GenerativeModel(modele_ia.model_name)
+        reponse = modele_genai.generate_content(message_complet)
+        return reponse.text
+
+    elif modele_ia.provider == Provider.OPENAI:
+        from openai import OpenAI
+        client = OpenAI(api_key=modele_ia.api_key)
+        reponse = client.chat.completions.create(
+            model=modele_ia.model_name,
+            messages=[{"role": "user", "content": message_complet}],
+        )
+        return reponse.choices[0].message.content
+
+    elif modele_ia.provider == Provider.MOCK:
+        # Mock : retourne un texte factice / Mock: return dummy text
+        return f"[MOCK] Reformulation de : {message_complet[:200]}..."
+
+    else:
+        raise ValueError(f"Provider '{modele_ia.provider}' non supporte pour la reformulation")
+
+
+@shared_task(bind=True)
 def analyser_page_task(self, job_id):
     """
     Tache Celery : lance l'extraction LangExtract sur une Page via un ExtractionJob.
