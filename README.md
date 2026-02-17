@@ -22,6 +22,12 @@ Hypostasia est un ecosysteme logiciel qui extrait, analyse et reinjecte visuelle
 - **Analyseurs configurables** — Prompts composables, exemples few-shot, attributs flexibles
 - **Benchmark LLM** — Tester et comparer les modeles cote a cote sur les memes exemples
 - **Validation humaine** — Workflow d'annotation : valider, rejeter, promouvoir les extractions
+- **Commentaires et debat** — Fil de discussion par extraction (layout SMS), reformulation IA
+- **Restitution du debat** — Clot un debat et genere une nouvelle version du texte avec tracabilite (pastille violette)
+- **Questions / Reponses** — Systeme de Q&A par page, sans authentification (identification par prenom)
+- **Import multi-format** — PDF, DOCX, PPTX, XLSX, Markdown, fichiers texte
+- **Transcription audio** — Import audio avec diarisation (identification des locuteurs) via Celery
+- **Configuration IA dynamique** — Toggle on/off, selection du modele, estimation des couts par appel
 - **Interface 3 colonnes** — Arbre de dossiers, zone de lecture, panneau d'extraction
 - **Zero SPA** — 100% server-rendered avec HTMX pour l'interactivite
 
@@ -214,6 +220,45 @@ Le fichier `supervisord.conf` a la racine configure ces services.
 3. L'interface affiche un indicateur de progression avec polling automatique (toutes les 3s)
 4. Une fois la transcription terminee, les blocs locuteurs s'affichent avec des couleurs distinctes et des timestamps (MM:SS)
 
+## Commentaires, debat et restitution
+
+Chaque extraction peut etre commentee via un fil de discussion (layout SMS). Le debat suit un cycle de vie complet :
+
+### Fil de discussion
+
+1. Cliquer sur une extraction dans le panneau droit (ou sur sa pastille dans le texte)
+2. Le panneau s'elargit en mode debat (70vw)
+3. Saisir un prenom et un commentaire — le prenom est memorise en localStorage
+4. Les commentaires s'affichent en layout SMS (propres a droite, autres a gauche)
+
+### Reformulation IA
+
+Depuis le fil de discussion, cliquer sur "Reformuler" pour lancer une reformulation IA du texte de l'extraction. Le resultat s'affiche dans un encart vert sous la carte d'extraction.
+
+### Restitution du debat
+
+La restitution cree une nouvelle version du texte original a partir du resume d'un debat :
+
+1. Depuis le fil de discussion, cliquer sur **"Restituer le debat"** (`#btn-restituer-{id}`)
+2. Remplir le formulaire de restitution (`#formulaire-restitution`)
+3. A la validation :
+   - Si une version de restitution existe deja, le texte est ajoute a la fin
+   - Sinon, une nouvelle version vierge est creee avec uniquement la restitution
+   - Les commentaires de l'extraction sont clos (formulaire masque)
+   - L'extraction affiche le bloc "Debat restitue" avec un lien vers la version
+4. Sur la nouvelle version, chaque bloc de restitution porte une **pastille violette** (`span.restitution-ancre`)
+5. Cliquer sur la pastille violette ramene a la page source et ouvre le debat d'origine
+
+### Versionnage des pages
+
+Les versions sont gerees par une FK self-referentielle `parent_page` sur le modele `Page`. Quand plusieurs versions existent, un switcher de pills apparait en en-tete de la zone de lecture (`#switcher-versions`).
+
+| Pastille | Couleur | Signification |
+|----------|---------|---------------|
+| `span.extraction-ancre` | Bleue | Extraction |
+| `span.extraction-ancre.ancre-commentee` | Orange | Extraction avec commentaires |
+| `span.restitution-ancre` | Violette | Texte de restitution d'un debat |
+
 ## Logs
 
 Le systeme de logging ecrit en parallele dans la **console** et dans des **fichiers rotatifs** (`logs/`).
@@ -258,10 +303,33 @@ GET    /api/analyseurs/{id}/test_results/   # Resultats de test
 # Interface lecture (front — HTMX)
 GET    /                                    # Bibliotheque 3 colonnes
 GET    /lire/{id}/                          # Zone de lecture
+GET    /lire/{id}/previsualiser_analyse/    # Confirmation avant extraction IA
 POST   /lire/{id}/analyser/                 # Lancer une extraction IA
-POST   /extractions/manuelle/               # Extraction manuelle de texte
 POST   /import/fichier/                     # Import fichier (document ou audio)
 GET    /import/status/?page_id=...          # Polling transcription audio
+
+# Extractions et debat (front — HTMX)
+POST   /extractions/manuelle/               # Extraction manuelle de texte
+POST   /extractions/creer_manuelle/         # Creer l'extraction manuelle
+POST   /extractions/panneau/                # Re-rend le panneau d'analyse
+GET    /extractions/fil_discussion/         # Fil de discussion d'une extraction
+POST   /extractions/ajouter_commentaire/    # Ajouter un commentaire
+GET    /extractions/vue_commentaires/       # Vue globale des commentaires
+GET    /extractions/choisir_reformulateur/  # Choisir un analyseur de reformulation
+POST   /extractions/reformuler/             # Lancer une reformulation IA
+GET    /extractions/formulaire_restitution/ # Formulaire de restitution du debat
+POST   /extractions/creer_restitution/      # Creer une restitution (nouvelle version)
+POST   /extractions/supprimer_entite/       # Supprimer une extraction
+POST   /extractions/promouvoir_entrainement/ # Promouvoir en donnees d'entrainement
+
+# Configuration IA (front — HTMX)
+GET    /config-ia/status/                   # Bouton toggle IA
+POST   /config-ia/toggle/                   # Activer/desactiver l'IA
+POST   /config-ia/select-model/             # Selectionner un modele
+
+# Questions / Reponses (front — HTMX)
+POST   /questions/poser_question/           # Poser une question sur une page
+POST   /questions/repondre/                 # Repondre a une question
 ```
 
 ## Documentation
