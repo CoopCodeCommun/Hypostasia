@@ -2,7 +2,7 @@
 
 # Hypostasia V3
 
-**Plateforme d'analyse argumentative et d'extraction structuree, augmentee par IA.**
+**Plateforme pedagogique d'analyse argumentative, de debat structure et d'amendement de textes — augmentee par IA en toute transparence.**
 
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![Django 6.0](https://img.shields.io/badge/django-6.0-092E20?logo=django&logoColor=white)](https://djangoproject.com)
@@ -14,7 +14,23 @@
 
 ---
 
-Hypostasia est un ecosysteme logiciel qui extrait, analyse et reinjecte visuellement la couche argumentative du web. Grace a une extension navigateur et un backend Django, il revele les structures logiques sous-jacentes ("Hypostases") de n'importe quelle page web.
+## En bref
+
+Hypostasia est un outil pedagogique concu pour **lire, annoter, debattre et amender des textes de maniere collaborative**. Il s'adresse aussi bien a des groupes de travail, des classes ou des ateliers d'ecriture qu'a des equipes de recherche.
+
+**Tout peut se faire sans IA.** L'extraction de passages, les commentaires, les debats et la redaction de restitutions fonctionnent entierement a la main. L'IA est une option a chaque etape — jamais une obligation.
+
+Quand l'IA est sollicitee, **tout est transparent** : le prompt complet est visible, le nombre de tokens et le cout sont estimes avant chaque appel, et le modele utilise est affiche. L'utilisateur voit exactement ce qui est envoye au LLM, ce qu'il recoit, et peut toujours modifier le resultat avant de le valider. C'est aussi, en soi, **un outil pedagogique sur l'utilisation de l'IA** : comprendre ce qu'on lui envoie, ce qu'elle produit, et ce qu'on en fait.
+
+Le cycle de travail typique est :
+
+1. **Importer** un texte (page web, PDF, DOCX, audio transcrit)
+2. **Extraire** des passages cles — manuellement ou via un analyseur IA configurable
+3. **Debattre** chaque extraction dans un fil de discussion (commentaires, reformulation)
+4. **Restituer** le debat en une synthese — redigee a la main ou assistee par IA
+5. **Amender** le texte original : chaque restitution cree une nouvelle version tracee
+
+Chaque etape produit des artefacts visibles et tracables. Les versions successives d'un texte sont liees entre elles, et les pastilles colorees dans le texte permettent de remonter a la source de chaque annotation ou restitution.
 
 ## Fonctionnalites principales
 
@@ -24,6 +40,7 @@ Hypostasia est un ecosysteme logiciel qui extrait, analyse et reinjecte visuelle
 - **Validation humaine** — Workflow d'annotation : valider, rejeter, promouvoir les extractions
 - **Commentaires et debat** — Fil de discussion par extraction (layout SMS), reformulation IA
 - **Restitution du debat** — Clot un debat et genere une nouvelle version du texte avec tracabilite (pastille violette)
+- **Restitution IA** — Generation automatique du texte de restitution via un analyseur de type "restituer" (prompt, tokens et cout visibles avant lancement)
 - **Questions / Reponses** — Systeme de Q&A par page, sans authentification (identification par prenom)
 - **Import multi-format** — PDF, DOCX, PPTX, XLSX, Markdown, fichiers texte
 - **Transcription audio** — Import audio avec diarisation (identification des locuteurs) via Celery
@@ -39,7 +56,7 @@ Hypostasia-V3/
 ├── hypostasis_extractor/       # Integration LangExtract + Analyseurs + Tests LLM
 ├── front/                      # Interface lecture 3 colonnes (HTMX partials)
 │   ├── services/               # Services metier (conversion fichiers, transcription audio)
-│   └── tasks.py                # Taches Celery (transcription async)
+│   └── tasks.py                # Taches Celery (transcription, reformulation, restitution IA)
 ├── hypostasia/                 # Config Django (settings, urls, wsgi, celery)
 ├── logs/                       # Fichiers de logs (extractor.log, core.log, django.log)
 ├── tools/                      # Scripts utilitaires (test_langextract.py)
@@ -199,7 +216,7 @@ docker-compose up -d
 **Architecture Celery :**
 - **Broker** : `sqla+sqlite:///db/celery-broker.sqlite3` (pas de Redis)
 - **Backend de resultats** : `django-db` (via django-celery-results)
-- **Tache** : `front.tasks.transcrire_audio_task` (transcription + diarisation)
+- **Taches** : `transcrire_audio_task` (transcription), `reformuler_entite_task` (reformulation IA), `restituer_debat_task` (restitution IA), `analyser_page_task` (extraction LangExtract)
 - **Timeout** : 30 minutes par tache
 
 ### Supervisord (Docker)
@@ -237,10 +254,12 @@ Depuis le fil de discussion, cliquer sur "Reformuler" pour lancer une reformulat
 
 ### Restitution du debat
 
-La restitution cree une nouvelle version du texte original a partir du resume d'un debat :
+La restitution cree une nouvelle version du texte original a partir du resume d'un debat. Le texte de restitution peut etre redige manuellement ou genere par IA.
 
 1. Depuis le fil de discussion, cliquer sur **"Restituer le debat"** (`#btn-restituer-{id}`)
-2. Remplir le formulaire de restitution (`#formulaire-restitution`)
+2. Dans le modal, deux options :
+   - **Redaction manuelle** : saisir directement le texte dans le textarea
+   - **Bouton "IA"** (violet) : choisir un analyseur de type `restituer`, visualiser le prompt complet avec estimation tokens/cout, puis lancer la generation. Le texte genere pre-remplit le textarea et reste modifiable avant validation.
 3. A la validation :
    - Si une version de restitution existe deja, le texte est ajoute a la fin
    - Sinon, une nouvelle version vierge est creee avec uniquement la restitution
@@ -316,7 +335,12 @@ GET    /extractions/fil_discussion/         # Fil de discussion d'une extraction
 POST   /extractions/ajouter_commentaire/    # Ajouter un commentaire
 GET    /extractions/vue_commentaires/       # Vue globale des commentaires
 GET    /extractions/choisir_reformulateur/  # Choisir un analyseur de reformulation
+POST   /extractions/previsualiser_reformulation/ # Confirmation tokens/cout reformulation
 POST   /extractions/reformuler/             # Lancer une reformulation IA
+GET    /extractions/choisir_restituteur/    # Choisir un analyseur de restitution IA
+POST   /extractions/previsualiser_restitution/ # Confirmation tokens/cout restitution IA
+POST   /extractions/generer_restitution/    # Lancer une restitution IA (Celery)
+GET    /extractions/restitution_ia_status/  # Polling restitution IA en cours
 POST   /extractions/creer_restitution/      # Creer une restitution (nouvelle version)
 POST   /extractions/supprimer_entite/       # Supprimer une extraction
 POST   /extractions/promouvoir_entrainement/ # Promouvoir en donnees d'entrainement
@@ -345,5 +369,5 @@ Toute modification doit respecter les patterns decrits dans **[CLAUDE.md](./CLAU
 ---
 
 <div align="center">
-<sub>Hypostasia — decoder la couche argumentative du web</sub>
+<sub>Hypostasia — lire, annoter, debattre et amender des textes, avec ou sans IA</sub>
 </div>
