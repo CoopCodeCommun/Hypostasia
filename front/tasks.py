@@ -279,6 +279,122 @@ def _appeler_llm_reformulation(modele_ia, message_complet):
 
 
 @shared_task(bind=True)
+def restituer_debat_task(self, entity_id, analyseur_id):
+    """
+    Tache Celery : genere une restitution IA du debat pour une ExtractedEntity.
+    Assemble le prompt + extraction + commentaires + reformulation, appelle le LLM,
+    et stocke le resultat dans entity.texte_restitution_ia.
+    / Celery task: generates an AI restitution of the debate for an ExtractedEntity.
+    Assembles prompt + extraction + comments + reformulation, calls LLM,
+    and stores the result in entity.texte_restitution_ia.
+    """
+    from core.models import Configuration
+    from hypostasis_extractor.models import (
+        AnalyseurSyntaxique, CommentaireExtraction, ExtractedEntity, PromptPiece,
+    )
+
+    debut_traitement = time.time()
+
+    # Charger l'entite — si introuvable, rien a faire
+    # / Load entity — if not found, nothing to do
+    try:
+        entite = ExtractedEntity.objects.get(pk=entity_id)
+    except ExtractedEntity.DoesNotExist:
+        logger.error("restituer_debat_task: entity_id=%s introuvable", entity_id)
+        return
+
+    # Charger l'analyseur — si introuvable, reset l'entite et sortir
+    # / Load analyzer — if not found, reset entity and exit
+    try:
+        analyseur = AnalyseurSyntaxique.objects.get(pk=analyseur_id)
+    except AnalyseurSyntaxique.DoesNotExist:
+        logger.error("restituer_debat_task: analyseur_id=%s introuvable", analyseur_id)
+        entite.restitution_ia_en_cours = False
+        entite.restitution_ia_erreur = f"Analyseur introuvable (id={analyseur_id})"
+        entite.save(update_fields=["restitution_ia_en_cours", "restitution_ia_erreur"])
+        return
+
+    try:
+        # Recuperer le modele IA actif / Get active AI model
+        configuration = Configuration.get_solo()
+        modele_ia = configuration.ai_model
+        if not modele_ia:
+            raise ValueError("Aucun modele IA selectionne dans la configuration")
+
+        # Construire le prompt depuis les pieces de l'analyseur
+        # / Build prompt from analyzer pieces
+        pieces_ordonnees = PromptPiece.objects.filter(
+            analyseur=analyseur,
+        ).order_by("order")
+        texte_prompt = "\n".join(piece.content for piece in pieces_ordonnees)
+
+        if not texte_prompt.strip():
+            raise ValueError(f"L'analyseur '{analyseur.name}' n'a aucune piece de prompt")
+
+        # Texte source : l'extraction / Source text: the extraction
+        texte_extraction = entite.extraction_text
+        if not texte_extraction.strip():
+            raise ValueError("Le texte de l'extraction est vide")
+
+        # Commentaires du debat / Debate comments
+        tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
+        lignes_commentaires = []
+        for commentaire in tous_les_commentaires:
+            lignes_commentaires.append(f"{commentaire.prenom}: {commentaire.commentaire}")
+        texte_commentaires = "\n".join(lignes_commentaires)
+
+        # Reformulation existante si disponible / Existing reformulation if available
+        texte_reformulation = entite.texte_reformule or ""
+
+        # Assemblage du message complet / Full message assembly
+        message_complet = texte_prompt
+        message_complet += f"\n\n=== EXTRACTION SOURCE ===\n{texte_extraction}"
+        if texte_commentaires:
+            message_complet += f"\n\n=== COMMENTAIRES DU DEBAT ===\n{texte_commentaires}"
+        if texte_reformulation:
+            message_complet += f"\n\n=== REFORMULATION ===\n{texte_reformulation}"
+
+        logger.info(
+            "restituer_debat_task: entity=%s analyseur=%s model=%s msg_len=%d",
+            entity_id, analyseur.name, modele_ia.model_name, len(message_complet),
+        )
+
+        # Appel au LLM / Call LLM
+        texte_restitution = _appeler_llm_reformulation(modele_ia, message_complet)
+
+        if not texte_restitution or not texte_restitution.strip():
+            raise ValueError("Le LLM a retourne une reponse vide")
+
+        # Succes : stocker le resultat et remettre l'entite en etat stable
+        # / Success: store result and reset entity to stable state
+        entite.texte_restitution_ia = texte_restitution.strip()
+        entite.restitution_ia_en_cours = False
+        entite.restitution_ia_erreur = ""
+        entite.save(update_fields=[
+            "texte_restitution_ia",
+            "restitution_ia_en_cours", "restitution_ia_erreur",
+        ])
+
+        duree = time.time() - debut_traitement
+        logger.info(
+            "restituer_debat_task: termine entity=%s en %.1fs — %d chars",
+            entity_id, duree, len(texte_restitution),
+        )
+
+    except Exception as erreur_restitution:
+        # Erreur : remettre l'entite en etat stable + stocker le message d'erreur
+        # / Error: reset entity to stable state + store error message
+        message_erreur = str(erreur_restitution)[:500]
+        logger.error(
+            "restituer_debat_task: erreur entity=%s — %s",
+            entity_id, message_erreur, exc_info=True,
+        )
+        entite.restitution_ia_en_cours = False
+        entite.restitution_ia_erreur = message_erreur
+        entite.save(update_fields=["restitution_ia_en_cours", "restitution_ia_erreur"])
+
+
+@shared_task(bind=True)
 def analyser_page_task(self, job_id):
     """
     Tache Celery : lance l'extraction LangExtract sur une Page via un ExtractionJob.

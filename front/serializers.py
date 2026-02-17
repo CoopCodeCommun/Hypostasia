@@ -247,6 +247,23 @@ class RunReformulationSerializer(serializers.Serializer):
     )
 
 
+class RunRestitutionSerializer(serializers.Serializer):
+    """
+    Validation pour lancer une restitution IA sur une extraction specifique.
+    Validation for launching an AI restitution on a specific extraction.
+    """
+    entity_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de l'entite est obligatoire / Entity ID is required",
+        },
+    )
+    analyseur_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de l'analyseur est obligatoire / Analyzer ID is required",
+        },
+    )
+
+
 class ReponseQuestionSerializer(serializers.Serializer):
     """
     Validation pour la creation d'une reponse a une question.

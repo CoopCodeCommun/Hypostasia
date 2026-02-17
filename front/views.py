@@ -24,7 +24,7 @@ from .serializers import (
     ExtractionSerializer, ImportFichierSerializer, PageClasserSerializer,
     PromouvoirEntrainementSerializer, QuestionSerializer,
     ReponseQuestionSerializer, RunAnalyseSerializer, RunReformulationSerializer,
-    SelectModelSerializer, est_fichier_audio,
+    RunRestitutionSerializer, SelectModelSerializer, est_fichier_audio,
 )
 from .utils import annoter_html_avec_ancres
 
@@ -970,11 +970,14 @@ class ExtractionViewSet(viewsets.ViewSet):
         entite = get_object_or_404(ExtractedEntity, pk=entity_id)
         tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
 
-        # Contexte reformulation : IA active + analyseurs de type reformuler
-        # / Reformulation context: AI active + reformuler-type analyzers
+        # Contexte reformulation + restitution : IA active + analyseurs disponibles
+        # / Reformulation + restitution context: AI active + available analyzers
         ia_active = _get_ia_active()
         analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
             is_active=True, type_analyseur="reformuler",
+        ).exists()
+        analyseurs_restituer_existent = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="restituer",
         ).exists()
 
         html_fil = render_to_string(
@@ -984,6 +987,7 @@ class ExtractionViewSet(viewsets.ViewSet):
                 "commentaires": tous_les_commentaires,
                 "ia_active": ia_active,
                 "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
+                "analyseurs_restituer_existent": analyseurs_restituer_existent,
             },
             request=request,
         )
@@ -1021,10 +1025,13 @@ class ExtractionViewSet(viewsets.ViewSet):
             commentaire=donnees["commentaire"],
         )
 
-        # Contexte reformulation / Reformulation context
+        # Contexte reformulation + restitution / Reformulation + restitution context
         ia_active = _get_ia_active()
         analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
             is_active=True, type_analyseur="reformuler",
+        ).exists()
+        analyseurs_restituer_existent = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="restituer",
         ).exists()
 
         # Re-rendre le fil complet / Re-render full thread
@@ -1036,6 +1043,7 @@ class ExtractionViewSet(viewsets.ViewSet):
                 "commentaires": tous_les_commentaires,
                 "ia_active": ia_active,
                 "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
+                "analyseurs_restituer_existent": analyseurs_restituer_existent,
             },
             request=request,
         )
@@ -1326,10 +1334,13 @@ class ExtractionViewSet(viewsets.ViewSet):
             commentaires__isnull=False,
         ).distinct().prefetch_related("commentaires").order_by("start_char")
 
-        # Verifie si des analyseurs de type reformuler existent et si l'IA est active
-        # / Check if reformuler-type analyzers exist and if AI is active
+        # Verifie si des analyseurs de type reformuler/restituer existent et si l'IA est active
+        # / Check if reformuler/restituer-type analyzers exist and if AI is active
         analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
             is_active=True, type_analyseur="reformuler",
+        ).exists()
+        analyseurs_restituer_existent = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="restituer",
         ).exists()
 
         html_vue_commentaires = render_to_string(
@@ -1339,6 +1350,7 @@ class ExtractionViewSet(viewsets.ViewSet):
                 "entites_avec_commentaires": entites_avec_commentaires,
                 "ia_active": _get_ia_active(),
                 "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
+                "analyseurs_restituer_existent": analyseurs_restituer_existent,
             },
             request=request,
         )
@@ -1502,19 +1514,247 @@ class ExtractionViewSet(viewsets.ViewSet):
             "entity": entite,
         })
 
-    @action(detail=False, methods=["GET"], url_path="formulaire_restitution")
-    def formulaire_restitution(self, request):
+    @action(detail=False, methods=["GET"], url_path="choisir_restituteur")
+    def choisir_restituteur(self, request):
         """
-        Renvoie le formulaire inline pour restituer un debat en nouvelle version.
-        / Returns the inline form to restitute a debate as a new version.
+        Liste les analyseurs actifs de type 'restituer' pour une extraction.
+        / Lists active analyzers of type 'restituer' for an extraction.
         """
         entity_id = request.query_params.get("entity_id")
         if not entity_id:
             return HttpResponse("entity_id requis.", status=400)
+
         entite = get_object_or_404(ExtractedEntity, pk=entity_id)
-        return render(request, "front/includes/formulaire_restitution.html", {
+
+        # Recupere les analyseurs actifs de type restituer
+        # / Retrieve active analyzers of type restituer
+        analyseurs_restituer = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="restituer",
+        )
+
+        return render(request, "front/includes/choisir_restituteur.html", {
+            "entity": entite,
+            "page": entite.job.page,
+            "analyseurs_restituer": analyseurs_restituer,
+        })
+
+    @action(detail=False, methods=["POST"], url_path="previsualiser_restitution")
+    def previsualiser_restitution(self, request):
+        """
+        Construit le prompt complet de restitution IA pour une extraction
+        et retourne un partial de confirmation avec estimation tokens et cout.
+        / Builds the full AI restitution prompt for an extraction
+        and returns a confirmation partial with token and cost estimates.
+        """
+        entity_id = request.data.get("entity_id")
+        analyseur_id = request.data.get("analyseur_id")
+        if not entity_id or not analyseur_id:
+            return HttpResponse("entity_id et analyseur_id requis.", status=400)
+
+        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
+
+        # Recupere le modele IA actif depuis la configuration singleton
+        # / Get active AI model from singleton configuration
+        configuration_ia = Configuration.get_solo()
+        modele_ia_actif = configuration_ia.ai_model
+        if not modele_ia_actif:
+            return HttpResponse("Aucun modele IA selectionne.", status=400)
+
+        # Construit le prompt depuis les pieces de l'analyseur
+        # / Build prompt from analyzer pieces
+        pieces_ordonnees = PromptPiece.objects.filter(
+            analyseur=analyseur,
+        ).order_by("order")
+        texte_prompt_pieces = "\n".join(piece.content for piece in pieces_ordonnees)
+
+        # Texte de l'extraction source / Source extraction text
+        texte_extraction = entite.extraction_text
+
+        # Commentaires du debat / Debate comments
+        tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
+        lignes_commentaires = []
+        for commentaire in tous_les_commentaires:
+            lignes_commentaires.append(f"{commentaire.prenom}: {commentaire.commentaire}")
+        texte_commentaires = "\n".join(lignes_commentaires)
+
+        # Reformulation existante si disponible / Existing reformulation if available
+        texte_reformulation = entite.texte_reformule or ""
+
+        # Assemblage du prompt complet
+        # / Full prompt assembly
+        prompt_complet = texte_prompt_pieces
+        prompt_complet += f"\n\n=== EXTRACTION SOURCE ===\n{texte_extraction}"
+        if texte_commentaires:
+            prompt_complet += f"\n\n=== COMMENTAIRES DU DEBAT ===\n{texte_commentaires}"
+        if texte_reformulation:
+            prompt_complet += f"\n\n=== REFORMULATION ===\n{texte_reformulation}"
+
+        # Comptage des tokens via tiktoken
+        # / Token counting via tiktoken
+        import tiktoken
+        encodeur_tokens = tiktoken.get_encoding("cl100k_base")
+        nombre_tokens_input = len(encodeur_tokens.encode(prompt_complet))
+        nombre_tokens_output_estime = int(nombre_tokens_input * 0.50)
+
+        # Estimation du cout / Cost estimate
+        cout_estime_euros = modele_ia_actif.estimer_cout_euros(
+            nombre_tokens_input, nombre_tokens_output_estime
+        )
+
+        return render(request, "front/includes/confirmation_restitution.html", {
+            "entity": entite,
+            "page": entite.job.page,
+            "analyseur": analyseur,
+            "modele_ia": modele_ia_actif,
+            "nombre_tokens_input": nombre_tokens_input,
+            "nombre_tokens_output_estime": nombre_tokens_output_estime,
+            "cout_estime_euros": cout_estime_euros,
+            "prompt_complet": prompt_complet,
+            "nombre_pieces": pieces_ordonnees.count(),
+        })
+
+    @action(detail=False, methods=["POST"], url_path="generer_restitution")
+    def generer_restitution(self, request):
+        """
+        Lance une restitution IA asynchrone sur une extraction via Celery.
+        / Launches an async AI restitution on an extraction via Celery.
+        """
+        # Guard : verifie que l'IA est activee / Check AI is enabled
+        if not _get_ia_active():
+            return HttpResponse("IA desactivee.", status=403)
+
+        serializer = RunRestitutionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return HttpResponse(f"Erreur: {serializer.errors}", status=400)
+
+        entite = get_object_or_404(ExtractedEntity, pk=serializer.validated_data["entity_id"])
+        analyseur = get_object_or_404(
+            AnalyseurSyntaxique, pk=serializer.validated_data["analyseur_id"]
+        )
+
+        # Guard anti-doublon : verifie si une restitution IA est deja en cours
+        # avec un timeout de securite pour eviter le blocage permanent
+        # / Anti-duplicate guard: check if an AI restitution is already in progress
+        # with a safety timeout to avoid permanent blocking
+        if entite.restitution_ia_en_cours:
+            delai_max = timedelta(minutes=5)
+            if entite.restitution_ia_lancee_a and (timezone.now() - entite.restitution_ia_lancee_a) > delai_max:
+                # Timeout atteint → reset et permettre un re-lancement
+                # / Timeout reached → reset and allow re-launch
+                logger.warning(
+                    "generer_restitution: timeout detecte pour entity=%s — reset",
+                    entite.pk,
+                )
+                entite.restitution_ia_en_cours = False
+                entite.restitution_ia_erreur = "Timeout : restitution precedente bloquee, relancez."
+                entite.save(update_fields=["restitution_ia_en_cours", "restitution_ia_erreur"])
+            else:
+                return render(request, "front/includes/restitution_ia_en_cours.html", {
+                    "entity": entite,
+                })
+
+        # Marquer comme en cours avec timestamp / Mark as in progress with timestamp
+        entite.restitution_ia_en_cours = True
+        entite.restitution_ia_lancee_a = timezone.now()
+        entite.restitution_ia_erreur = ""
+        entite.save(update_fields=["restitution_ia_en_cours", "restitution_ia_lancee_a", "restitution_ia_erreur"])
+
+        # Lancer la tache Celery / Launch Celery task
+        from front.tasks import restituer_debat_task
+        restituer_debat_task.delay(entite.pk, analyseur.pk)
+
+        logger.info(
+            "generer_restitution: entity pk=%s analyseur=%s — tache Celery lancee",
+            entite.pk, analyseur.name,
+        )
+
+        return render(request, "front/includes/restitution_ia_en_cours.html", {
             "entity": entite,
         })
+
+    @action(detail=False, methods=["GET"], url_path="restitution_ia_status")
+    def restitution_ia_status(self, request):
+        """
+        Polling : verifie l'etat de la restitution IA pour une extraction.
+        Si terminee → renvoie le texte + JS pour pre-remplir le textarea du modal.
+        Si en cours → re-renvoie le partial de polling.
+        Si erreur → message d'erreur + bouton reessayer.
+        / Polling: checks the AI restitution status for an extraction.
+        If done → returns text + JS to pre-fill the modal textarea.
+        If in progress → re-sends the polling partial.
+        If error → error message + retry button.
+        """
+        entity_id = request.query_params.get("entity_id")
+        if not entity_id:
+            return HttpResponse("entity_id requis.", status=400)
+
+        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
+
+        # En cours → re-renvoie le polling / In progress → re-send polling
+        if entite.restitution_ia_en_cours:
+            return render(request, "front/includes/restitution_ia_en_cours.html", {
+                "entity": entite,
+            })
+
+        # Erreur → message d'erreur / Error → error message
+        if entite.restitution_ia_erreur:
+            ia_active = _get_ia_active()
+            analyseurs_restituer_existent = AnalyseurSyntaxique.objects.filter(
+                is_active=True, type_analyseur="restituer",
+            ).exists()
+            html_erreur = (
+                '<div class="bg-red-50 border border-red-200 rounded-lg p-3">'
+                '<div class="flex items-start gap-2">'
+                '<svg class="w-4 h-4 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">'
+                '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>'
+                '</svg>'
+                '<div class="flex-1">'
+                '<p class="text-xs font-medium text-red-700 mb-0.5">Erreur de restitution IA</p>'
+                f'<p class="text-[10px] text-red-600">{escape(entite.restitution_ia_erreur[:200])}</p>'
+                '</div>'
+                '</div>'
+                '</div>'
+            )
+            if ia_active and analyseurs_restituer_existent:
+                html_erreur += (
+                    '<div class="mt-1">'
+                    f'<button class="text-[10px] text-red-500 hover:text-red-700 font-medium flex items-center gap-1"'
+                    f' hx-get="/extractions/choisir_restituteur/?entity_id={entite.pk}"'
+                    f' hx-target="#zone-restitution-ia-{entite.pk}"'
+                    f' hx-swap="innerHTML">'
+                    '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">'
+                    '<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/>'
+                    '</svg>'
+                    'Reessayer'
+                    '</button>'
+                    '</div>'
+                )
+            return HttpResponse(html_erreur)
+
+        # Termine avec texte → renvoie le resultat + JS pour pre-remplir le textarea
+        # / Done with text → return result + JS to pre-fill the textarea
+        if entite.texte_restitution_ia:
+            texte_echappe_js = entite.texte_restitution_ia.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
+            html_succes = (
+                '<div class="bg-violet-50 border border-violet-200 rounded-lg p-3">'
+                '<div class="flex items-center gap-1.5 mb-1.5">'
+                '<svg class="w-3.5 h-3.5 text-violet-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">'
+                '<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>'
+                '</svg>'
+                '<span class="text-[10px] font-semibold text-violet-600 uppercase tracking-wide">Restitution IA generee</span>'
+                '</div>'
+                '<p class="text-xs text-violet-700">Le texte a ete pre-rempli dans le champ ci-dessous. Modifiez-le si necessaire.</p>'
+                '</div>'
+                '<script>'
+                f"var textarea = document.getElementById('textarea-texte-restitution');"
+                f"if (textarea) {{ textarea.value = '{texte_echappe_js}'; }}"
+                '</script>'
+            )
+            return HttpResponse(html_succes)
+
+        # Aucun texte et pas en cours → zone vide / No text and not in progress → empty zone
+        return HttpResponse("")
 
     @action(detail=False, methods=["POST"], url_path="creer_restitution")
     def creer_restitution(self, request):

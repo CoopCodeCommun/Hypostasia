@@ -181,6 +181,28 @@ class ExtractedEntity(models.Model):
         help_text="Date de la restitution / Restitution date",
     )
 
+    # Restitution IA : generation automatique du texte de restitution via LLM
+    # / AI Restitution: automatic generation of restitution text via LLM
+    restitution_ia_en_cours = models.BooleanField(
+        default=False,
+        help_text="True si une restitution IA est en cours / True if AI restitution is in progress",
+    )
+    restitution_ia_lancee_a = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp du lancement de la restitution IA (pour timeout) / AI restitution start timestamp (for timeout)",
+    )
+    restitution_ia_erreur = models.TextField(
+        blank=True,
+        default="",
+        help_text="Message d'erreur de la derniere restitution IA / Last AI restitution error message",
+    )
+    texte_restitution_ia = models.TextField(
+        blank=True,
+        default="",
+        help_text="Texte de restitution genere par l'IA / AI-generated restitution text",
+    )
+
     # Validation utilisateur
     user_validated = models.BooleanField(
         default=False,

@@ -317,7 +317,6 @@ POST   /extractions/ajouter_commentaire/    # Ajouter un commentaire
 GET    /extractions/vue_commentaires/       # Vue globale des commentaires
 GET    /extractions/choisir_reformulateur/  # Choisir un analyseur de reformulation
 POST   /extractions/reformuler/             # Lancer une reformulation IA
-GET    /extractions/formulaire_restitution/ # Formulaire de restitution du debat
 POST   /extractions/creer_restitution/      # Creer une restitution (nouvelle version)
 POST   /extractions/supprimer_entite/       # Supprimer une extraction
 POST   /extractions/promouvoir_entrainement/ # Promouvoir en donnees d'entrainement
