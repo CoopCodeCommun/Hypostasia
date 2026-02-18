@@ -1,0 +1,81 @@
+{# Partial : selection d'un analyseur de type restituer pour une extraction #}
+{# / Partial: selection of a restituer-type analyzer for an extraction #}
+
+<div class="bg-white rounded-lg border border-violet-200 p-3 space-y-2" id="selection-restituteur">
+
+    {# En-tete / Header #}
+    <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-violet-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+        </svg>
+        <h3 class="text-xs font-semibold text-slate-800">Choisir un restituteur IA</h3>
+    </div>
+
+    {# Liste des analyseurs restituer / List of restituer analyzers #}
+    {% if analyseurs_restituer %}
+    <div class="space-y-1">
+        {% for analyseur in analyseurs_restituer %}
+        <label class="flex items-start gap-2 p-1.5 rounded hover:bg-violet-50 cursor-pointer transition-colors">
+            <input type="radio" name="analyseur_restituer_id" value="{{ analyseur.id }}"
+                   class="mt-0.5 text-violet-600 focus:ring-violet-500"
+                   {% if forloop.first %}checked{% endif %}>
+            <div>
+                <span class="text-xs font-medium text-slate-800">{{ analyseur.name }}</span>
+                {% if analyseur.description %}
+                <p class="text-[10px] text-slate-500 mt-0.5">{{ analyseur.description|truncatewords:15 }}</p>
+                {% endif %}
+            </div>
+        </label>
+        {% endfor %}
+    </div>
+
+    {# Boutons / Buttons #}
+    <div class="flex gap-2 pt-1">
+        <button type="button"
+                class="btn-suivant-restitution flex-1 px-2 py-1 text-xs font-medium text-white bg-violet-600 hover:bg-violet-700 rounded transition-colors"
+                data-entity-id="{{ entity.pk }}">
+            Suivant
+        </button>
+        <button type="button"
+                class="btn-annuler-restitution-ia flex-1 px-2 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-colors"
+                data-entity-id="{{ entity.pk }}">
+            Annuler
+        </button>
+    </div>
+    {% else %}
+    <p class="text-xs text-slate-500">Aucun analyseur de type "restituer" n'est actif.</p>
+    {% endif %}
+</div>
+
+<script>
+(function() {
+    // Bouton Suivant → previsualiser la restitution
+    // / Next button → preview restitution
+    var boutonSuivant = document.querySelector('.btn-suivant-restitution');
+    if (boutonSuivant) {
+        boutonSuivant.addEventListener('click', function() {
+            var radioSelectionne = document.querySelector('input[name="analyseur_restituer_id"]:checked');
+            if (!radioSelectionne) return;
+            var entityId = this.dataset.entityId;
+            var analyseurId = radioSelectionne.value;
+
+            htmx.ajax('POST', '/extractions/previsualiser_restitution/', {
+                target: '#zone-restitution-ia-' + entityId,
+                swap: 'innerHTML',
+                values: {entity_id: entityId, analyseur_id: analyseurId},
+            });
+        });
+    }
+
+    // Bouton Annuler → vide la zone IA
+    // / Cancel button → clear the AI zone
+    var boutonAnnuler = document.querySelector('.btn-annuler-restitution-ia');
+    if (boutonAnnuler) {
+        boutonAnnuler.addEventListener('click', function() {
+            var entityId = this.dataset.entityId;
+            var zone = document.getElementById('zone-restitution-ia-' + entityId);
+            if (zone) zone.innerHTML = '';
+        });
+    }
+})();
+</script>

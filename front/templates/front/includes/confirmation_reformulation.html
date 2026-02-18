@@ -1,0 +1,112 @@
+{# Partial : confirmation avant lancement d'une reformulation sur une extraction #}
+{# / Partial: confirmation before launching a reformulation on an extraction #}
+
+<div class="bg-white rounded-lg border border-emerald-200 p-3 space-y-2" id="confirmation-reformulation">
+
+    {# En-tete / Header #}
+    <div class="flex items-center gap-2">
+        <svg class="w-4 h-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+        </svg>
+        <h3 class="text-xs font-semibold text-slate-800">Confirmer la reformulation</h3>
+    </div>
+
+    {# Infos resume / Summary info #}
+    <div class="bg-slate-50 rounded p-2 space-y-1 text-[11px] text-slate-600">
+        <div class="flex justify-between">
+            <span>Reformulateur</span>
+            <span class="font-medium text-slate-800">{{ analyseur.name }}</span>
+        </div>
+        <div class="flex justify-between">
+            <span>Modele IA</span>
+            <span class="font-medium text-slate-800">{{ modele_ia.get_display_name }}</span>
+        </div>
+    </div>
+
+    {# Estimation tokens et cout / Token and cost estimate #}
+    <div class="bg-amber-50 border border-amber-200 rounded p-2 space-y-1 text-[11px]">
+        <div class="flex justify-between text-amber-800">
+            <span>Tokens input</span>
+            <span class="font-bold">{{ nombre_tokens_input|floatformat:0 }}</span>
+        </div>
+        <div class="flex justify-between text-amber-700">
+            <span>Tokens output (~50%)</span>
+            <span class="font-medium">~{{ nombre_tokens_output_estime|floatformat:0 }}</span>
+        </div>
+        <div class="flex justify-between text-amber-900 border-t border-amber-200 pt-1 mt-1">
+            <span class="font-semibold">Cout estime</span>
+            <span class="font-bold">~{{ cout_estime_euros|floatformat:5 }} &euro;</span>
+        </div>
+    </div>
+
+    {# Bouton pour voir le prompt complet #}
+    {# / Button to view the full prompt #}
+    <button type="button"
+            class="btn-voir-prompt-reformulation w-full text-[10px] text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border border-slate-200 rounded px-2 py-1 transition-colors">
+        Voir le prompt complet
+    </button>
+
+    {# Zone cachee du prompt complet #}
+    {# / Hidden full prompt zone #}
+    <div id="zone-prompt-reformulation-{{ entity.pk }}" class="hidden">
+        <div class="bg-slate-900 text-slate-100 rounded p-3 max-h-48 overflow-y-auto text-[10px] font-mono whitespace-pre-wrap leading-relaxed">{{ prompt_complet }}</div>
+    </div>
+
+    {# Boutons d'action / Action buttons #}
+    <div class="flex gap-2 pt-1">
+        <button type="button"
+                class="btn-lancer-reformulation flex-1 px-2 py-1 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded transition-colors"
+                data-entity-id="{{ entity.pk }}"
+                data-analyseur-id="{{ analyseur.id }}">
+            Lancer
+        </button>
+        <button type="button"
+                class="btn-annuler-reformulation flex-1 px-2 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-colors"
+                data-entity-id="{{ entity.pk }}"
+                data-page-id="{{ page.pk }}">
+            Annuler
+        </button>
+    </div>
+</div>
+
+<script>
+(function() {
+    // Toggle du prompt complet / Toggle full prompt visibility
+    var boutonVoirPrompt = document.querySelector('.btn-voir-prompt-reformulation');
+    var zonePrompt = document.getElementById('zone-prompt-reformulation-{{ entity.pk }}');
+    if (boutonVoirPrompt && zonePrompt) {
+        boutonVoirPrompt.addEventListener('click', function() {
+            var estCache = zonePrompt.classList.toggle('hidden');
+            boutonVoirPrompt.textContent = estCache ? 'Voir le prompt complet' : 'Masquer le prompt';
+        });
+    }
+
+    // Bouton Lancer → POST /extractions/reformuler/
+    // / Launch button → POST /extractions/reformuler/
+    var boutonLancer = document.querySelector('.btn-lancer-reformulation');
+    if (boutonLancer) {
+        boutonLancer.addEventListener('click', function() {
+            var entityId = this.dataset.entityId;
+            var analyseurId = this.dataset.analyseurId;
+            htmx.ajax('POST', '/extractions/reformuler/', {
+                target: '#zone-reformulation-' + entityId,
+                swap: 'innerHTML',
+                values: {entity_id: entityId, analyseur_id: analyseurId},
+            });
+        });
+    }
+
+    // Bouton Annuler → recharge la vue commentaires
+    // / Cancel button → reload comments view
+    var boutonAnnuler = document.querySelector('.btn-annuler-reformulation');
+    if (boutonAnnuler) {
+        boutonAnnuler.addEventListener('click', function() {
+            var pageId = this.dataset.pageId;
+            htmx.ajax('GET', '/extractions/vue_commentaires/?page_id=' + pageId, {
+                target: '#panneau-extractions',
+                swap: 'innerHTML',
+            });
+        });
+    }
+})();
+</script>

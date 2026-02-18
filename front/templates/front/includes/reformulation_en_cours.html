@@ -1,0 +1,13 @@
+{# Partial HTMX : polling de reformulation en cours pour une extraction #}
+{# / HTMX partial: polling for reformulation in progress on an extraction #}
+<div hx-get="/extractions/vue_commentaires/?page_id={{ page.pk }}"
+     hx-trigger="every 3s"
+     hx-target="#panneau-extractions"
+     hx-swap="innerHTML">
+    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-2">
+        <svg class="w-4 h-4 text-emerald-500 animate-pulse shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+        </svg>
+        <span class="text-xs text-emerald-700 font-medium">Reformulation en cours...</span>
+    </div>
+</div>
