@@ -289,6 +289,26 @@ class ReponseQuestionSerializer(serializers.Serializer):
     )
 
 
+class RechercheSemantiqueSerializer(serializers.Serializer):
+    """
+    Validation pour la recherche semantique dans un dossier.
+    Validation for semantic search within a folder.
+    """
+    dossier_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID du dossier est obligatoire / Folder ID is required",
+        },
+    )
+    q = serializers.CharField(
+        min_length=2,
+        error_messages={
+            "required": "Le texte de recherche est obligatoire / Search text is required",
+            "blank": "Le texte de recherche ne peut pas etre vide / Search text cannot be blank",
+            "min_length": "Minimum 2 caracteres / Minimum 2 characters",
+        },
+    )
+
+
 class RestitutionDebatSerializer(serializers.Serializer):
     """
     Validation pour la creation d'une restitution depuis un debat d'extraction.

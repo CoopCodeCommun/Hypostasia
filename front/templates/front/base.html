@@ -214,9 +214,21 @@
             </button>
             <span class="font-semibold text-lg tracking-tight">Hypostasia</span>
         </div>
-        <button id="toggle-right-panel" class="text-slate-500 hover:text-slate-800 text-sm">
-            Extractions ▶
-        </button>
+        <!-- Barre de recherche semantique / Semantic search bar -->
+        <div class="flex items-center gap-2">
+            <div id="navbar-recherche" class="relative">
+                <input type="text" id="input-recherche-semantique"
+                       placeholder="Recherche sémantique…"
+                       class="w-48 md:w-64 text-sm border border-slate-200 rounded-full px-3 py-1 pl-8 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 bg-slate-50"
+                       autocomplete="off">
+                <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+                </svg>
+            </div>
+            <button id="toggle-right-panel" class="text-slate-500 hover:text-slate-800 text-sm">
+                Extractions ▶
+            </button>
+        </div>
     </nav>
 
     <!-- Main layout -->
@@ -1221,6 +1233,90 @@
             Swal.fire({icon: 'error', title: 'Erreur', text: 'Erreur lors du lancement de la transcription.'});
         });
     });
+    </script>
+
+    <!-- Reindexation d'un dossier pour la recherche semantique -->
+    <!-- / Folder reindexation for semantic search -->
+    <script>
+    document.addEventListener('click', function(evenement) {
+        var boutonReindexer = evenement.target.closest('.btn-reindexer-dossier');
+        if (!boutonReindexer) return;
+        evenement.preventDefault();
+        evenement.stopPropagation();
+
+        var dossierId = boutonReindexer.dataset.dossierId;
+        if (!dossierId) return;
+
+        htmx.ajax('POST', '/extractions/reindexer_dossier/', {
+            values: { dossier_id: dossierId },
+        });
+    });
+    </script>
+
+    <!-- Recherche semantique depuis la navbar -->
+    <!-- / Semantic search from navbar -->
+    <script>
+    (function() {
+        var inputRecherche = document.getElementById('input-recherche-semantique');
+        var timerRecherche = null;
+
+        // Detecter le dossier_id de la page actuellement ouverte
+        // / Detect folder_id of the currently open page
+        function getDossierIdActuel() {
+            var elementPage = document.querySelector('#zone-lecture [data-page-id]');
+            if (!elementPage) return null;
+            var dossierId = elementPage.dataset.dossierId;
+            return dossierId || null;
+        }
+
+        // Lancer la recherche apres un delai de frappe (debounce 400ms)
+        // / Trigger search after typing delay (debounce 400ms)
+        inputRecherche.addEventListener('input', function() {
+            clearTimeout(timerRecherche);
+            var texteRecherche = this.value.trim();
+
+            if (texteRecherche.length < 2) return;
+
+            var dossierId = getDossierIdActuel();
+            if (!dossierId) {
+                Swal.fire({
+                    toast: true, position: 'top-end', icon: 'info',
+                    title: 'Ouvrez une page dans un dossier pour rechercher',
+                    showConfirmButton: false, timer: 2500,
+                });
+                return;
+            }
+
+            timerRecherche = setTimeout(function() {
+                // Ouvrir le panneau droit et charger les resultats
+                // / Open right panel and load results
+                ouvrirPanneauDroit();
+                htmx.ajax('GET', '/extractions/recherche_semantique/?dossier_id=' + dossierId + '&q=' + encodeURIComponent(texteRecherche), {
+                    target: '#panneau-extractions',
+                    swap: 'innerHTML',
+                });
+            }, 400);
+        });
+
+        // Lancer la recherche sur Entree / Trigger search on Enter
+        inputRecherche.addEventListener('keydown', function(evenement) {
+            if (evenement.key !== 'Enter') return;
+            evenement.preventDefault();
+            clearTimeout(timerRecherche);
+
+            var texteRecherche = this.value.trim();
+            if (texteRecherche.length < 2) return;
+
+            var dossierId = getDossierIdActuel();
+            if (!dossierId) return;
+
+            ouvrirPanneauDroit();
+            htmx.ajax('GET', '/extractions/recherche_semantique/?dossier_id=' + dossierId + '&q=' + encodeURIComponent(texteRecherche), {
+                target: '#panneau-extractions',
+                swap: 'innerHTML',
+            });
+        });
+    })();
     </script>
 
 </body>

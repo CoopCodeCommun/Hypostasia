@@ -1,4 +1,4 @@
-<div class="max-w-3xl mx-auto" data-page-id="{{ page.pk }}">
+<div class="max-w-3xl mx-auto" data-page-id="{{ page.pk }}" data-dossier-id="{{ page.dossier_id|default:'' }}">
     <h1 class="text-2xl font-bold text-slate-900 mb-1" style="font-family: 'Inter', sans-serif;">{{ page.title|default:"Sans titre" }}</h1>
     <a href="{{ page.url }}" target="_blank" rel="noopener"
        class="text-xs text-slate-400 hover:text-blue-500 mb-4 block truncate">{{ page.url }}</a>

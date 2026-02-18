@@ -22,7 +22,7 @@ from hypostasis_extractor.models import (
 from .serializers import (
     CommentaireExtractionSerializer, DossierCreateSerializer, ExtractionManuelleSerializer,
     ExtractionSerializer, ImportFichierSerializer, PageClasserSerializer,
-    PromouvoirEntrainementSerializer, QuestionSerializer,
+    PromouvoirEntrainementSerializer, QuestionSerializer, RechercheSemantiqueSerializer,
     ReponseQuestionSerializer, RunAnalyseSerializer, RunReformulationSerializer,
     RunRestitutionSerializer, SelectModelSerializer, est_fichier_audio,
 )
@@ -1854,6 +1854,81 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / Redirect to the restitution version reading via HX-Redirect
         reponse = HttpResponse(status=204)
         reponse["HX-Redirect"] = f"/lire/{page_cible.pk}/"
+        return reponse
+
+    @action(detail=False, methods=["GET"], url_path="recherche_semantique")
+    def recherche_semantique(self, request):
+        """
+        Recherche semantique dans un dossier via Zvec.
+        Si pas de parametre 'q' → renvoie le formulaire vide.
+        Si 'q' present → renvoie les resultats en partial HTMX.
+        / Semantic search within a folder via Zvec.
+        If no 'q' parameter → returns the empty form.
+        If 'q' present → returns results as HTMX partial.
+        """
+        dossier_id_param = request.GET.get("dossier_id")
+        texte_recherche = request.GET.get("q", "").strip()
+
+        # Si pas de query, renvoyer le formulaire vide
+        # / If no query, return empty form
+        if not texte_recherche or not dossier_id_param:
+            return render(request, "front/includes/recherche_semantique.html", {
+                "dossier_id": dossier_id_param,
+                "resultats": [],
+                "query": "",
+            })
+
+        # Valider les parametres / Validate parameters
+        from .serializers import RechercheSemantiqueSerializer
+        serializer = RechercheSemantiqueSerializer(data={
+            "dossier_id": dossier_id_param,
+            "q": texte_recherche,
+        })
+        serializer.is_valid(raise_exception=True)
+        dossier_id_valide = serializer.validated_data["dossier_id"]
+        texte_recherche_valide = serializer.validated_data["q"]
+
+        # Lancer la recherche vectorielle / Run vector search
+        from .services.recherche_vectorielle import rechercher
+        resultats_recherche = rechercher(
+            dossier_id=dossier_id_valide,
+            texte_requete=texte_recherche_valide,
+            top_k=10,
+        )
+
+        return render(request, "front/includes/resultats_recherche.html", {
+            "dossier_id": dossier_id_valide,
+            "resultats": resultats_recherche,
+            "query": texte_recherche_valide,
+        })
+
+    @action(detail=False, methods=["POST"], url_path="reindexer_dossier")
+    def reindexer_dossier(self, request):
+        """
+        Lance la tache Celery de reindexation d'un dossier.
+        Retourne un toast de confirmation.
+        / Launches the Celery reindexation task for a folder.
+        Returns a confirmation toast.
+        """
+        dossier_id_param = request.data.get("dossier_id")
+        if not dossier_id_param:
+            return HttpResponse("ID du dossier manquant", status=400)
+
+        dossier_existant = get_object_or_404(Dossier, pk=dossier_id_param)
+
+        # Lancer la tache Celery / Launch Celery task
+        from .tasks import indexer_dossier_task
+        indexer_dossier_task.delay(dossier_existant.pk)
+
+        reponse = HttpResponse(
+            f'<p class="text-sm text-green-600">Indexation du dossier « {escape(dossier_existant.name)} » lancée.</p>'
+        )
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {
+                "message": f"Indexation du dossier « {dossier_existant.name} » lancée",
+                "icon": "success",
+            }
+        })
         return reponse
 
     @action(detail=False, methods=["POST"])

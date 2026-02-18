@@ -395,6 +395,104 @@ def restituer_debat_task(self, entity_id, analyseur_id):
 
 
 @shared_task(bind=True)
+def indexer_dossier_task(self, dossier_id):
+    """
+    Tache Celery : reindexe toutes les ExtractedEntity d'un dossier dans sa collection Zvec.
+    Supprime la collection existante puis reindexe tout.
+    / Celery task: reindexes all ExtractedEntity of a folder in its Zvec collection.
+    Deletes existing collection then reindexes everything.
+    """
+    from core.models import Dossier
+    from hypostasis_extractor.models import ExtractedEntity
+    from front.services.recherche_vectorielle import (
+        _get_modele_embedding, _get_ou_creer_collection, CHEMIN_BASE_ZVEC,
+    )
+    import zvec
+    import shutil
+
+    debut_traitement = time.time()
+
+    # Verifier que le dossier existe / Verify folder exists
+    try:
+        dossier = Dossier.objects.get(pk=dossier_id)
+    except Dossier.DoesNotExist:
+        logger.error("indexer_dossier_task: dossier_id=%s introuvable", dossier_id)
+        return
+
+    logger.info("indexer_dossier_task: demarrage dossier=%s '%s'", dossier_id, dossier.name)
+
+    # Supprimer l'ancienne collection si elle existe
+    # / Delete old collection if it exists
+    chemin_collection = os.path.join(CHEMIN_BASE_ZVEC, f"dossier_{dossier_id}")
+    if os.path.exists(chemin_collection):
+        shutil.rmtree(chemin_collection)
+        logger.debug("indexer_dossier_task: ancienne collection supprimee %s", chemin_collection)
+
+    # Recuperer toutes les entites du dossier dont le job est completed
+    # / Get all entities in folder with completed jobs
+    toutes_les_entites_du_dossier = ExtractedEntity.objects.filter(
+        job__page__dossier_id=dossier_id,
+        job__status="completed",
+    ).select_related("job__page")
+
+    nombre_total_entites = toutes_les_entites_du_dossier.count()
+    if nombre_total_entites == 0:
+        logger.info("indexer_dossier_task: dossier=%s — aucune entite a indexer", dossier_id)
+        return
+
+    # Charger le modele d'embedding une seule fois / Load embedding model once
+    modele = _get_modele_embedding()
+
+    # Creer la collection / Create collection
+    collection = _get_ou_creer_collection(dossier_id)
+
+    # Indexer par batch / Index in batches
+    nombre_indexees = 0
+    batch_documents = []
+    TAILLE_BATCH = 100
+
+    for entite in toutes_les_entites_du_dossier.iterator():
+        texte_a_encoder = entite.extraction_text or ""
+        if not texte_a_encoder.strip():
+            continue
+
+        vecteur_embedding = modele.encode(texte_a_encoder).tolist()
+        page_de_entite = entite.job.page
+
+        document_a_inserer = zvec.Doc(
+            id=str(entite.pk),
+            vectors={"embedding": vecteur_embedding},
+            fields={
+                "page_id": str(page_de_entite.pk),
+                "page_title": page_de_entite.title or "",
+                "extraction_class": entite.extraction_class or "",
+                "extraction_text": texte_a_encoder[:500],
+            },
+        )
+        batch_documents.append(document_a_inserer)
+        nombre_indexees += 1
+
+        # Inserer le batch quand il atteint la taille cible
+        # / Insert batch when it reaches target size
+        if len(batch_documents) >= TAILLE_BATCH:
+            collection.insert(batch_documents)
+            batch_documents = []
+
+    # Inserer le dernier batch restant / Insert remaining batch
+    if batch_documents:
+        collection.insert(batch_documents)
+
+    # Optimiser les index pour les futures recherches / Optimize indexes for future searches
+    collection.optimize()
+
+    duree_traitement = time.time() - debut_traitement
+    logger.info(
+        "indexer_dossier_task: termine dossier=%s — %d entites indexees en %.1fs",
+        dossier_id, nombre_indexees, duree_traitement,
+    )
+
+
+@shared_task(bind=True)
 def analyser_page_task(self, job_id):
     """
     Tache Celery : lance l'extraction LangExtract sur une Page via un ExtractionJob.
