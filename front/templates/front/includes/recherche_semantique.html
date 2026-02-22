@@ -1,0 +1,41 @@
+<!-- Formulaire de recherche semantique dans un dossier -->
+<!-- / Semantic search form within a folder -->
+<div id="recherche-semantique" class="space-y-3">
+    <h3 class="text-sm font-semibold text-slate-600 uppercase tracking-wider">Recherche sémantique</h3>
+
+    <form hx-get="/extractions/recherche_semantique/"
+          hx-target="#resultats-recherche"
+          hx-swap="innerHTML"
+          hx-indicator="#recherche-spinner"
+          class="flex gap-2">
+        {% if dossier_id %}
+            <input type="hidden" name="dossier_id" value="{{ dossier_id }}">
+        {% endif %}
+        <input type="text" name="q" value="{{ query }}"
+               placeholder="Rechercher dans le dossier…"
+               class="flex-1 text-sm border border-slate-300 rounded px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+               autocomplete="off">
+        <button type="submit"
+                class="px-3 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+            </svg>
+        </button>
+    </form>
+
+    <!-- Spinner de chargement / Loading spinner -->
+    <div id="recherche-spinner" class="htmx-indicator flex items-center gap-2 text-sm text-slate-400">
+        <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        Recherche en cours…
+    </div>
+
+    <!-- Zone des resultats / Results zone -->
+    <div id="resultats-recherche">
+        {% if resultats %}
+            {% include "front/includes/resultats_recherche.html" %}
+        {% endif %}
+    </div>
+</div>

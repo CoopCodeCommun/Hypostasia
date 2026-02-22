@@ -74,13 +74,16 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
             )
 
         # Construire le HTML colore et le texte brut
+        # (construire_html_diarise accepte un dict ou une list)
         # / Build colored HTML and plain text
+        # (construire_html_diarise accepts a dict or a list)
         html_diarise, texte_brut = construire_html_diarise(segments_transcrits)
 
         # Calculer le hash du contenu / Compute content hash
         hash_contenu = hashlib.sha256(texte_brut.encode("utf-8")).hexdigest()
 
-        # Mettre a jour la Page / Update the Page
+        # Stocker le dict complet (model + text + segments) dans transcription_raw
+        # / Store the full dict (model + text + segments) in transcription_raw
         page_associee.transcription_raw = segments_transcrits
         page_associee.html_readability = html_diarise
         page_associee.text_readability = texte_brut

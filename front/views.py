@@ -1,6 +1,7 @@
 import hashlib
 import json
 import logging
+import os
 from datetime import timedelta
 
 from django.db.models import Count, Prefetch
@@ -20,11 +21,13 @@ from hypostasis_extractor.models import (
     ExtractedEntity, ExtractionJob, PromptPiece,
 )
 from .serializers import (
-    CommentaireExtractionSerializer, DossierCreateSerializer, ExtractionManuelleSerializer,
-    ExtractionSerializer, ImportFichierSerializer, PageClasserSerializer,
-    PromouvoirEntrainementSerializer, QuestionSerializer,
-    ReponseQuestionSerializer, RunAnalyseSerializer, RunReformulationSerializer,
-    RunRestitutionSerializer, SelectModelSerializer, est_fichier_audio,
+    CommentaireExtractionSerializer, DossierCreateSerializer, EditerBlocSerializer,
+    ExtractionManuelleSerializer, ExtractionSerializer, ImportFichierSerializer,
+    PageClasserSerializer, PromouvoirEntrainementSerializer, QuestionSerializer,
+    RenommerLocuteurSerializer, ReponseQuestionSerializer,
+    RunAnalyseSerializer, RunReformulationSerializer,
+    RunRestitutionSerializer, SelectModelSerializer, SupprimerBlocSerializer,
+    est_fichier_audio, est_fichier_json,
 )
 from .utils import annoter_html_avec_ancres
 
@@ -606,6 +609,368 @@ class LectureViewSet(viewsets.ViewSet):
         # Fallback : aucun job trouve / Fallback: no job found
         return render(request, "front/includes/extraction_results.html", {
             "error_message": "Aucun job d'analyse trouv\u00e9.",
+        })
+
+    @action(detail=True, methods=["GET"], url_path="formulaire_renommer_locuteur")
+    def formulaire_renommer_locuteur(self, request, pk=None):
+        """
+        Retourne le partial modal pour renommer un locuteur.
+        / Returns the modal partial for renaming a speaker.
+        """
+        page = get_object_or_404(Page, pk=pk)
+        ancien_nom = request.query_params.get("speaker", "")
+        index_bloc = request.query_params.get("block_index", "0")
+
+        return render(request, "front/includes/modal_renommer_locuteur.html", {
+            "page": page,
+            "ancien_nom": ancien_nom,
+            "index_bloc": index_bloc,
+        })
+
+    @action(detail=True, methods=["POST"], url_path="renommer_locuteur")
+    def renommer_locuteur(self, request, pk=None):
+        """
+        Renomme un locuteur dans la transcription (transcription_raw + html/text_readability).
+        / Renames a speaker in the transcription (transcription_raw + html/text_readability).
+        """
+        from .services.transcription_audio import construire_html_diarise
+
+        page = get_object_or_404(Page, pk=pk)
+
+        # Valider les donnees du formulaire / Validate form data
+        serializer_renommage = RenommerLocuteurSerializer(data=request.data)
+        serializer_renommage.is_valid(raise_exception=True)
+        donnees_validees = serializer_renommage.validated_data
+
+        ancien_nom_locuteur = donnees_validees["ancien_nom"]
+        nouveau_nom_locuteur = donnees_validees["nouveau_nom"]
+        portee_renommage = donnees_validees["portee"]
+        index_bloc_cible = donnees_validees.get("index_bloc", 0)
+
+        # Charger la transcription brute / Load raw transcription
+        transcription_brute = page.transcription_raw or {}
+        segments_existants = transcription_brute.get("segments", [])
+
+        if not segments_existants:
+            return HttpResponse("Aucune transcription trouvee.", status=400)
+
+        # Appliquer le renommage selon la portee
+        # / Apply renaming based on scope
+        if portee_renommage == "tous":
+            # Renommer toutes les occurrences de ce locuteur
+            # / Rename all occurrences of this speaker
+            for segment in segments_existants:
+                if segment.get("speaker") == ancien_nom_locuteur:
+                    segment["speaker"] = nouveau_nom_locuteur
+        else:
+            # Reconstruire les groupes pour identifier le bloc cible
+            # / Rebuild groups to identify the target block
+            index_groupe_courant = -1
+            index_segment_debut_bloc = None
+            index_segment_fin_bloc = None
+            dernier_locuteur = None
+
+            for index_segment, segment in enumerate(segments_existants):
+                nom_segment = segment.get("speaker", "Inconnu")
+                if nom_segment != dernier_locuteur:
+                    index_groupe_courant += 1
+                    dernier_locuteur = nom_segment
+
+                    # Quand on trouve le debut du bloc suivant, on note la fin du bloc cible
+                    # / When we find the start of the next block, note the end of the target block
+                    if index_segment_debut_bloc is not None and index_segment_fin_bloc is None:
+                        if index_groupe_courant > index_bloc_cible and nom_segment != ancien_nom_locuteur:
+                            # On est dans un nouveau groupe different — le bloc cible est termine
+                            # mais on ne coupe que pour "ce_bloc_seul"
+                            pass
+
+                    if index_groupe_courant == index_bloc_cible:
+                        index_segment_debut_bloc = index_segment
+
+            # Identifier les segments du bloc cible (groupe contigu)
+            # / Identify segments of the target block (contiguous group)
+            if index_segment_debut_bloc is not None:
+                # Trouver la fin du groupe contigu pour le bloc cible
+                # / Find the end of the contiguous group for the target block
+                index_segment_fin_bloc = index_segment_debut_bloc
+                for index_parcours in range(index_segment_debut_bloc + 1, len(segments_existants)):
+                    if segments_existants[index_parcours].get("speaker") == ancien_nom_locuteur:
+                        index_segment_fin_bloc = index_parcours
+                    else:
+                        break
+
+                if portee_renommage == "ce_bloc_seul":
+                    # Renommer uniquement les segments du bloc contigu cible
+                    # / Rename only the segments of the target contiguous block
+                    for index_segment in range(index_segment_debut_bloc, index_segment_fin_bloc + 1):
+                        if segments_existants[index_segment].get("speaker") == ancien_nom_locuteur:
+                            segments_existants[index_segment]["speaker"] = nouveau_nom_locuteur
+                else:
+                    # ce_bloc_et_suivants : renommer a partir du bloc cible
+                    # / ce_bloc_et_suivants: rename from the target block onward
+                    for index_segment in range(index_segment_debut_bloc, len(segments_existants)):
+                        if segments_existants[index_segment].get("speaker") == ancien_nom_locuteur:
+                            segments_existants[index_segment]["speaker"] = nouveau_nom_locuteur
+
+        # Sauvegarder la transcription modifiee / Save modified transcription
+        transcription_brute["segments"] = segments_existants
+        page.transcription_raw = transcription_brute
+
+        # Reconstruire le HTML et le texte brut / Rebuild HTML and plain text
+        html_reconstruit, texte_reconstruit = construire_html_diarise(segments_existants)
+        page.html_readability = html_reconstruit
+        page.text_readability = texte_reconstruit
+        page.save()
+
+        # Retourner le partial de lecture mis a jour / Return updated reading partial
+        toutes_les_versions = page.toutes_les_versions
+        page_racine = page.page_racine
+
+        return render(request, "front/includes/lecture_principale.html", {
+            "page": page,
+            "versions": toutes_les_versions,
+            "page_racine": page_racine,
+        })
+
+    @action(detail=True, methods=["GET"], url_path="formulaire_editer_bloc")
+    def formulaire_editer_bloc(self, request, pk=None):
+        """
+        Retourne le partial inline qui remplace le bloc de transcription par un textarea.
+        Conserve l'en-tete du bloc (nom, couleur, timestamps) pour une transition naturelle.
+        / Returns the inline partial that replaces the transcription block with a textarea.
+        Preserves the block header (name, color, timestamps) for a natural transition.
+        """
+        from .services.transcription_audio import COULEURS_LOCUTEURS, _formater_timestamp
+
+        page = get_object_or_404(Page, pk=pk)
+        index_bloc = int(request.query_params.get("block_index", "0"))
+
+        # Extraire le texte et les metadonnees du bloc cible depuis transcription_raw
+        # / Extract text and metadata of the target block from transcription_raw
+        transcription_brute = page.transcription_raw or {}
+        segments_existants = transcription_brute.get("segments", [])
+
+        # Reconstruire les groupes pour trouver les phrases et metadonnees du bloc cible
+        # / Rebuild groups to find the target block's sentences and metadata
+        index_groupe_courant = -1
+        dernier_locuteur = None
+        phrases_bloc_cible = []
+        nom_locuteur_bloc = "Inconnu"
+        timestamp_debut_bloc = 0.0
+        timestamp_fin_bloc = 0.0
+
+        # Collecter les locuteurs uniques pour calculer la couleur
+        # / Collect unique speakers to compute color
+        locuteurs_uniques = []
+
+        for segment in segments_existants:
+            nom_segment = segment.get("speaker", "Inconnu")
+            texte_segment = segment.get("text", "").strip()
+            if not texte_segment:
+                continue
+
+            # Tracking des locuteurs uniques pour l'index de couleur
+            # / Track unique speakers for color index
+            if nom_segment not in locuteurs_uniques:
+                locuteurs_uniques.append(nom_segment)
+
+            if nom_segment != dernier_locuteur:
+                index_groupe_courant += 1
+                dernier_locuteur = nom_segment
+
+            if index_groupe_courant == index_bloc:
+                phrases_bloc_cible.append(texte_segment)
+                nom_locuteur_bloc = nom_segment
+                if len(phrases_bloc_cible) == 1:
+                    timestamp_debut_bloc = segment.get("start", 0.0)
+                timestamp_fin_bloc = segment.get("end", 0.0)
+
+        texte_bloc = "\n".join(phrases_bloc_cible)
+
+        # Calculer le nombre de lignes pour dimensionner le textarea
+        # / Calculate line count to size the textarea
+        nombre_lignes = max(3, len(phrases_bloc_cible) + 1)
+
+        # Retrouver la couleur du locuteur / Find the speaker's color
+        index_couleur_locuteur = locuteurs_uniques.index(nom_locuteur_bloc) if nom_locuteur_bloc in locuteurs_uniques else 0
+        couleur_locuteur = COULEURS_LOCUTEURS[index_couleur_locuteur % len(COULEURS_LOCUTEURS)]
+
+        return render(request, "front/includes/editer_bloc_inline.html", {
+            "page": page,
+            "index_bloc": index_bloc,
+            "texte_bloc": texte_bloc,
+            "nombre_lignes": nombre_lignes,
+            "nom_locuteur": nom_locuteur_bloc,
+            "couleur_locuteur": couleur_locuteur,
+            "timestamp_debut": _formater_timestamp(timestamp_debut_bloc),
+            "timestamp_fin": _formater_timestamp(timestamp_fin_bloc),
+        })
+
+    @action(detail=True, methods=["POST"], url_path="editer_bloc")
+    def editer_bloc(self, request, pk=None):
+        """
+        Modifie le texte d'un bloc de transcription.
+        / Edits the text of a transcription block.
+        """
+        from .services.transcription_audio import construire_html_diarise
+
+        page = get_object_or_404(Page, pk=pk)
+
+        # Valider les donnees du formulaire / Validate form data
+        serializer_edition = EditerBlocSerializer(data=request.data)
+        serializer_edition.is_valid(raise_exception=True)
+        donnees_validees = serializer_edition.validated_data
+
+        index_bloc_cible = donnees_validees["index_bloc"]
+        nouveau_texte_brut = donnees_validees["nouveau_texte"]
+
+        # Charger la transcription brute / Load raw transcription
+        transcription_brute = page.transcription_raw or {}
+        segments_existants = transcription_brute.get("segments", [])
+
+        if not segments_existants:
+            return HttpResponse("Aucune transcription trouvee.", status=400)
+
+        # Identifier les indices des segments du bloc cible
+        # / Identify segment indices of the target block
+        index_groupe_courant = -1
+        dernier_locuteur = None
+        indices_segments_bloc = []
+
+        for index_segment, segment in enumerate(segments_existants):
+            nom_segment = segment.get("speaker", "Inconnu")
+            texte_segment = segment.get("text", "").strip()
+            if not texte_segment:
+                continue
+            if nom_segment != dernier_locuteur:
+                index_groupe_courant += 1
+                dernier_locuteur = nom_segment
+            if index_groupe_courant == index_bloc_cible:
+                indices_segments_bloc.append(index_segment)
+
+        if not indices_segments_bloc:
+            return HttpResponse("Bloc introuvable.", status=400)
+
+        # Decouper le nouveau texte en lignes (une par segment)
+        # / Split new text into lines (one per segment)
+        nouvelles_lignes = [ligne.strip() for ligne in nouveau_texte_brut.split("\n") if ligne.strip()]
+
+        if not nouvelles_lignes:
+            return HttpResponse("Le texte ne peut pas etre vide.", status=400)
+
+        # Remplacer les segments du bloc par les nouvelles lignes
+        # On garde le speaker et les timestamps du premier et dernier segment
+        # / Replace block segments with new lines
+        # Keep speaker and timestamps from first and last segment
+        premier_segment = segments_existants[indices_segments_bloc[0]]
+        dernier_segment = segments_existants[indices_segments_bloc[-1]]
+        nom_locuteur_bloc = premier_segment.get("speaker", "Inconnu")
+        timestamp_debut_bloc = premier_segment.get("start", 0.0)
+        timestamp_fin_bloc = dernier_segment.get("end", 0.0)
+
+        # Construire les nouveaux segments / Build new segments
+        nouveaux_segments_bloc = []
+        nombre_nouvelles_lignes = len(nouvelles_lignes)
+        duree_totale_bloc = timestamp_fin_bloc - timestamp_debut_bloc
+
+        for index_ligne, ligne in enumerate(nouvelles_lignes):
+            # Repartir les timestamps proportionnellement
+            # / Distribute timestamps proportionally
+            debut_ligne = timestamp_debut_bloc + (duree_totale_bloc * index_ligne / nombre_nouvelles_lignes)
+            fin_ligne = timestamp_debut_bloc + (duree_totale_bloc * (index_ligne + 1) / nombre_nouvelles_lignes)
+            nouveaux_segments_bloc.append({
+                "speaker": nom_locuteur_bloc,
+                "start": round(debut_ligne, 2),
+                "end": round(fin_ligne, 2),
+                "text": ligne,
+            })
+
+        # Remplacer dans la liste des segments / Replace in the segment list
+        premier_indice = indices_segments_bloc[0]
+        dernier_indice = indices_segments_bloc[-1]
+        segments_existants[premier_indice:dernier_indice + 1] = nouveaux_segments_bloc
+
+        # Sauvegarder et reconstruire / Save and rebuild
+        transcription_brute["segments"] = segments_existants
+        page.transcription_raw = transcription_brute
+
+        html_reconstruit, texte_reconstruit = construire_html_diarise(segments_existants)
+        page.html_readability = html_reconstruit
+        page.text_readability = texte_reconstruit
+        page.save()
+
+        toutes_les_versions = page.toutes_les_versions
+        page_racine = page.page_racine
+
+        return render(request, "front/includes/lecture_principale.html", {
+            "page": page,
+            "versions": toutes_les_versions,
+            "page_racine": page_racine,
+        })
+
+    @action(detail=True, methods=["POST"], url_path="supprimer_bloc")
+    def supprimer_bloc(self, request, pk=None):
+        """
+        Supprime un bloc entier de la transcription.
+        / Deletes an entire block from the transcription.
+        """
+        from .services.transcription_audio import construire_html_diarise
+
+        page = get_object_or_404(Page, pk=pk)
+
+        # Valider les donnees / Validate data
+        serializer_suppression = SupprimerBlocSerializer(data=request.data)
+        serializer_suppression.is_valid(raise_exception=True)
+        index_bloc_cible = serializer_suppression.validated_data["index_bloc"]
+
+        # Charger la transcription brute / Load raw transcription
+        transcription_brute = page.transcription_raw or {}
+        segments_existants = transcription_brute.get("segments", [])
+
+        if not segments_existants:
+            return HttpResponse("Aucune transcription trouvee.", status=400)
+
+        # Identifier les indices des segments du bloc cible
+        # / Identify segment indices of the target block
+        index_groupe_courant = -1
+        dernier_locuteur = None
+        indices_segments_a_supprimer = []
+
+        for index_segment, segment in enumerate(segments_existants):
+            nom_segment = segment.get("speaker", "Inconnu")
+            texte_segment = segment.get("text", "").strip()
+            if not texte_segment:
+                continue
+            if nom_segment != dernier_locuteur:
+                index_groupe_courant += 1
+                dernier_locuteur = nom_segment
+            if index_groupe_courant == index_bloc_cible:
+                indices_segments_a_supprimer.append(index_segment)
+
+        if not indices_segments_a_supprimer:
+            return HttpResponse("Bloc introuvable.", status=400)
+
+        # Supprimer les segments du bloc (en ordre inverse pour garder les indices)
+        # / Delete block segments (in reverse order to preserve indices)
+        for index_a_supprimer in reversed(indices_segments_a_supprimer):
+            segments_existants.pop(index_a_supprimer)
+
+        # Sauvegarder et reconstruire / Save and rebuild
+        transcription_brute["segments"] = segments_existants
+        page.transcription_raw = transcription_brute
+
+        html_reconstruit, texte_reconstruit = construire_html_diarise(segments_existants)
+        page.html_readability = html_reconstruit
+        page.text_readability = texte_reconstruit
+        page.save()
+
+        toutes_les_versions = page.toutes_les_versions
+        page_racine = page.page_racine
+
+        return render(request, "front/includes/lecture_principale.html", {
+            "page": page,
+            "versions": toutes_les_versions,
+            "page_racine": page_racine,
         })
 
 
@@ -1903,12 +2268,149 @@ class ImportViewSet(viewsets.ViewSet):
         fichier_uploade = serializer.validated_data["fichier"]
         nom_fichier = fichier_uploade.name
 
-        # Aiguillage : audio → pipeline async, document → pipeline synchrone
-        # / Routing: audio → async pipeline, document → synchronous pipeline
-        if est_fichier_audio(nom_fichier):
+        # Aiguillage : JSON → transcription pre-traitee, audio → async, document → synchrone
+        # / Routing: JSON → pre-processed transcription, audio → async, document → synchronous
+        if est_fichier_json(nom_fichier):
+            return self._importer_fichier_json(request, serializer)
+        elif est_fichier_audio(nom_fichier):
             return self._importer_fichier_audio(request, serializer)
         else:
             return self._importer_fichier_document(request, serializer)
+
+    def _importer_fichier_json(self, request, serializer):
+        """
+        Pipeline d'import pour les fichiers JSON de transcription pre-traitee (ex: Voxtral).
+        Le JSON doit contenir une cle 'segments' (list de dicts avec speaker/start/end/text).
+        Stocke le JSON complet dans transcription_raw et genere le HTML diarise.
+        / Import pipeline for pre-processed transcription JSON files (e.g. Voxtral).
+        The JSON must contain a 'segments' key (list of dicts with speaker/start/end/text).
+        Stores the full JSON in transcription_raw and generates diarized HTML.
+        """
+        import hashlib
+        from front.services.transcription_audio import construire_html_diarise
+
+        fichier_uploade = serializer.validated_data["fichier"]
+        titre_personnalise = serializer.validated_data.get("titre", "")
+        dossier_id = serializer.validated_data.get("dossier_id")
+        nom_fichier = fichier_uploade.name
+
+        # Lire et parser le contenu JSON
+        # / Read and parse JSON content
+        try:
+            contenu_brut = fichier_uploade.read().decode("utf-8")
+            donnees_json = json.loads(contenu_brut)
+        except (UnicodeDecodeError, json.JSONDecodeError) as erreur_json:
+            logger.warning("import JSON: parsing echoue — %s", erreur_json)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: fichier JSON invalide ({erreur_json})</p>',
+                status=400,
+            )
+
+        # Valider la structure : doit contenir 'segments' (list)
+        # / Validate structure: must contain 'segments' (list)
+        if not isinstance(donnees_json, dict) or "segments" not in donnees_json:
+            return HttpResponse(
+                '<p class="text-sm text-red-500">Erreur: le JSON doit contenir une clé "segments"</p>',
+                status=400,
+            )
+
+        liste_segments = donnees_json["segments"]
+        if not isinstance(liste_segments, list) or len(liste_segments) == 0:
+            return HttpResponse(
+                '<p class="text-sm text-red-500">Erreur: "segments" doit être une liste non vide</p>',
+                status=400,
+            )
+
+        # Construire le HTML colore par locuteur et le texte brut
+        # / Build speaker-colored HTML and plain text
+        html_diarise, texte_brut = construire_html_diarise(donnees_json)
+
+        # Calculer le hash du contenu / Compute content hash
+        hash_contenu = hashlib.sha256(texte_brut.encode("utf-8")).hexdigest()
+
+        # Determiner le titre final et le dossier
+        # / Determine final title and folder
+        nom_sans_extension = os.path.splitext(nom_fichier)[0]
+        titre_final = titre_personnalise.strip() if titre_personnalise.strip() else nom_sans_extension
+        dossier_assigne = None
+        if dossier_id:
+            dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
+
+        # Creer la Page avec source_type='audio' et le JSON complet en transcription_raw
+        # / Create Page with source_type='audio' and full JSON in transcription_raw
+        page_importee = Page.objects.create(
+            source_type="audio",
+            original_filename=nom_fichier,
+            url=None,
+            title=titre_final,
+            html_original="",
+            html_readability=html_diarise,
+            text_readability=texte_brut,
+            content_hash=hash_contenu,
+            transcription_raw=donnees_json,
+            status="completed",
+            dossier=dossier_assigne,
+        )
+
+        logger.info(
+            "import JSON: page pk=%s creee depuis '%s' (%d segments)",
+            page_importee.pk, nom_fichier, len(liste_segments),
+        )
+
+        # Rendu du partial de lecture + OOB arbre et panneau (meme pattern que document)
+        # / Render reading partial + OOB tree and panel (same pattern as document)
+        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
+        ia_active = _get_ia_active()
+        contexte_partage = {
+            "page": page_importee,
+            "html_annote": None,
+            "analyseurs_actifs": analyseurs_actifs,
+            "job": None,
+            "entities": None,
+            "ia_active": ia_active,
+        }
+
+        html_lecture = render_to_string(
+            "front/includes/lecture_principale.html",
+            contexte_partage,
+            request=request,
+        )
+
+        # OOB swap : arbre de dossiers mis a jour
+        # / OOB swap: updated folder tree
+        html_arbre_oob = render_to_string(
+            "front/includes/arbre_dossiers.html",
+            {
+                "dossiers": Dossier.objects.prefetch_related("pages").all(),
+                "pages_orphelines": Page.objects.filter(dossier__isnull=True).order_by("-created_at"),
+            },
+            request=request,
+        )
+        html_arbre_oob = (
+            '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
+            + html_arbre_oob
+            + '</div>'
+        )
+
+        # OOB swap : panneau d'analyse reinitialise
+        # / OOB swap: reset analysis panel
+        html_panneau_oob = render_to_string(
+            "front/includes/panneau_analyse.html",
+            contexte_partage,
+            request=request,
+        )
+        html_panneau_oob = (
+            '<div id="panneau-extractions" hx-swap-oob="innerHTML:#panneau-extractions">'
+            + html_panneau_oob
+            + '</div>'
+        )
+
+        html_complet = html_lecture + html_arbre_oob + html_panneau_oob
+        reponse = HttpResponse(html_complet)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": "Transcription JSON importée"},
+        })
+        return reponse
 
     def _importer_fichier_audio(self, request, serializer):
         """

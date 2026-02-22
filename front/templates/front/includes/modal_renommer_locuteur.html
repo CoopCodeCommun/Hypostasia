@@ -1,0 +1,65 @@
+{# Modal de renommage d'un locuteur dans une transcription audio #}
+{# / Modal for renaming a speaker in an audio transcription #}
+<div id="modal-renommer-locuteur" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+    <form class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm space-y-4"
+          hx-post="/lire/{{ page.pk }}/renommer_locuteur/"
+          hx-target="#zone-lecture"
+          hx-swap="innerHTML">
+        {% csrf_token %}
+
+        <h3 class="text-lg font-semibold text-slate-800">Renommer le locuteur</h3>
+
+        {# Ancien nom (lecture seule + champ cache) #}
+        {# / Old name (read-only + hidden field) #}
+        <div>
+            <label class="block text-sm text-slate-500 mb-1">Nom actuel</label>
+            <p class="text-sm font-medium text-slate-700">{{ ancien_nom }}</p>
+            <input type="hidden" name="ancien_nom" value="{{ ancien_nom }}">
+            <input type="hidden" name="index_bloc" value="{{ index_bloc }}">
+        </div>
+
+        {# Nouveau nom #}
+        {# / New name #}
+        <div>
+            <label for="input-nouveau-nom" class="block text-sm text-slate-500 mb-1">Nouveau nom</label>
+            <input type="text" id="input-nouveau-nom" name="nouveau_nom"
+                   value="{{ ancien_nom }}" autofocus
+                   class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        </div>
+
+        {# Portee du renommage : ce bloc et suivants (defaut), uniquement ce bloc, ou tous #}
+        {# / Renaming scope: this block and following (default), only this block, or all #}
+        <fieldset class="space-y-2">
+            <legend class="text-sm text-slate-500">Portée</legend>
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="radio" name="portee" value="ce_bloc_et_suivants" checked
+                       class="text-blue-600 focus:ring-blue-400">
+                Ce bloc et les suivants
+            </label>
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="radio" name="portee" value="ce_bloc_seul"
+                       class="text-blue-600 focus:ring-blue-400">
+                Uniquement ce bloc
+            </label>
+            <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input type="radio" name="portee" value="tous"
+                       class="text-blue-600 focus:ring-blue-400">
+                Toutes les occurrences
+            </label>
+        </fieldset>
+
+        {# Boutons d'action #}
+        {# / Action buttons #}
+        <div class="flex justify-end gap-2 pt-2">
+            <button type="button"
+                    onclick="document.getElementById('modal-renommer-locuteur').remove()"
+                    class="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">
+                Annuler
+            </button>
+            <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700">
+                Renommer
+            </button>
+        </div>
+    </form>
+</div>

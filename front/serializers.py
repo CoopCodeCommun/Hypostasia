@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 # Extensions de fichiers autorisees pour l'import
 # / Allowed file extensions for import
-EXTENSIONS_AUTORISEES = [".pdf", ".docx", ".md", ".txt", ".pptx", ".xlsx"]
+EXTENSIONS_AUTORISEES = [".pdf", ".docx", ".md", ".txt", ".pptx", ".xlsx", ".json"]
 
 # Extensions audio autorisees (tous les formats ffmpeg courants)
 # / Allowed audio extensions (all common ffmpeg formats)
@@ -27,6 +27,15 @@ def est_fichier_audio(nom_fichier):
     """
     extension = os.path.splitext(nom_fichier)[1].lower()
     return extension in EXTENSIONS_AUDIO_AUTORISEES
+
+
+def est_fichier_json(nom_fichier):
+    """
+    Verifie si un fichier est un fichier JSON d'apres son extension.
+    / Checks if a file is a JSON file based on its extension.
+    """
+    extension = os.path.splitext(nom_fichier)[1].lower()
+    return extension == ".json"
 
 
 class ImportFichierSerializer(serializers.Serializer):
@@ -285,6 +294,90 @@ class ReponseQuestionSerializer(serializers.Serializer):
         error_messages={
             "required": "La reponse est obligatoire / Answer is required",
             "blank": "La reponse ne peut pas etre vide / Answer cannot be blank",
+        },
+    )
+
+
+class RenommerLocuteurSerializer(serializers.Serializer):
+    """
+    Validation pour le renommage d'un locuteur dans une transcription audio.
+    Validation for renaming a speaker in an audio transcription.
+    """
+    ancien_nom = serializers.CharField(
+        error_messages={
+            "required": "L'ancien nom du locuteur est obligatoire / Old speaker name is required",
+            "blank": "L'ancien nom ne peut pas etre vide / Old name cannot be blank",
+        },
+    )
+    nouveau_nom = serializers.CharField(
+        max_length=100,
+        error_messages={
+            "required": "Le nouveau nom est obligatoire / New name is required",
+            "blank": "Le nouveau nom ne peut pas etre vide / New name cannot be blank",
+        },
+    )
+    portee = serializers.ChoiceField(
+        choices=["ce_bloc_et_suivants", "ce_bloc_seul", "tous"],
+        default="ce_bloc_et_suivants",
+        error_messages={
+            "required": "La portee est obligatoire / Scope is required",
+        },
+    )
+    index_bloc = serializers.IntegerField(required=False, default=0)
+
+    def validate_nouveau_nom(self, valeur):
+        """
+        Nettoie le nouveau nom — supprime les espaces et balises HTML.
+        / Clean new name — strip whitespace and HTML tags.
+        """
+        import bleach
+        nom_nettoye = bleach.clean(valeur, tags=[], strip=True).strip()
+        if not nom_nettoye:
+            raise serializers.ValidationError(
+                "Le nom ne peut pas etre vide apres nettoyage / Name cannot be empty after sanitization"
+            )
+        return nom_nettoye
+
+
+class EditerBlocSerializer(serializers.Serializer):
+    """
+    Validation pour l'edition du texte d'un bloc de transcription.
+    Validation for editing the text of a transcription block.
+    """
+    index_bloc = serializers.IntegerField(
+        error_messages={
+            "required": "L'index du bloc est obligatoire / Block index is required",
+        },
+    )
+    nouveau_texte = serializers.CharField(
+        error_messages={
+            "required": "Le texte est obligatoire / Text is required",
+            "blank": "Le texte ne peut pas etre vide / Text cannot be blank",
+        },
+    )
+
+    def validate_nouveau_texte(self, valeur):
+        """
+        Sanitize le texte — supprime toute balise HTML.
+        / Sanitize text — strip all HTML tags.
+        """
+        import bleach
+        texte_nettoye = bleach.clean(valeur, tags=[], strip=True).strip()
+        if not texte_nettoye:
+            raise serializers.ValidationError(
+                "Le texte ne peut pas etre vide apres nettoyage / Text cannot be empty after sanitization"
+            )
+        return texte_nettoye
+
+
+class SupprimerBlocSerializer(serializers.Serializer):
+    """
+    Validation pour la suppression d'un bloc de transcription.
+    Validation for deleting a transcription block.
+    """
+    index_bloc = serializers.IntegerField(
+        error_messages={
+            "required": "L'index du bloc est obligatoire / Block index is required",
         },
     )
 

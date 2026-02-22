@@ -251,7 +251,7 @@
                     </svg>
                     <span>Importer un fichier ou audio</span>
                     <input type="file" class="hidden" id="input-import-fichier"
-                           accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
+                           accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
                 </label>
             </div>
 
@@ -974,6 +974,223 @@
         if (extractionId) {
             scrollToCarteDepuisAncre(extractionId);
         }
+    });
+
+    // Delegation d'evenement : clic sur un nom de locuteur pour le renommer
+    // / Event delegation: click on speaker name to rename it
+    document.addEventListener('click', function(evenement) {
+        var nomLocuteur = evenement.target.closest('.speaker-name');
+        if (!nomLocuteur) return;
+
+        var elementPage = document.querySelector('#zone-lecture [data-page-id]');
+        if (!elementPage) return;
+        var pageId = elementPage.dataset.pageId;
+
+        var speakerName = nomLocuteur.dataset.speaker;
+        var blockIndex = nomLocuteur.dataset.blockIndex || '0';
+
+        var urlFormulaire = '/lire/' + pageId + '/formulaire_renommer_locuteur/'
+            + '?speaker=' + encodeURIComponent(speakerName)
+            + '&block_index=' + encodeURIComponent(blockIndex);
+
+        htmx.ajax('GET', urlFormulaire, {
+            target: '#zone-modal-locuteur',
+            swap: 'innerHTML',
+        });
+    });
+
+    // --- Edition inline des blocs de transcription ---
+    // Sauvegarde auto : on submit le formulaire ouvert quand on clique en dehors
+    // ou quand on ouvre un autre bloc. Le bloc precedent se sauve et se ferme.
+    // / Inline block editing —
+    // Auto-save: submit the open form when clicking outside
+    // or when opening another block. The previous block saves and closes.
+
+    /**
+     * Soumet le formulaire d'edition inline ouvert (s'il existe).
+     * Retourne true si un formulaire a ete soumis, false sinon.
+     * / Submits the open inline editing form (if any).
+     * Returns true if a form was submitted, false otherwise.
+     */
+    function sauvegarderBlocEditionOuvert() {
+        var formulaireOuvert = document.querySelector('.formulaire-edition-bloc');
+        if (!formulaireOuvert) return false;
+
+        // Declencher le submit HTMX du formulaire ouvert
+        // / Trigger HTMX submit of the open form
+        htmx.trigger(formulaireOuvert, 'submit');
+        return true;
+    }
+
+    // --- Distinction clic simple vs selection de texte ---
+    // On enregistre la position et le timestamp au mousedown.
+    // Au mouseup, si la souris n'a pas bouge et qu'il n'y a pas de selection,
+    // c'est un clic simple → on ouvre l'edition inline.
+    // Sinon c'est une selection de texte → on laisse le menu d'extraction agir.
+    // / Simple click vs text selection distinction —
+    // Record position and timestamp on mousedown.
+    // On mouseup, if mouse hasn't moved and there's no selection,
+    // it's a simple click → open inline editing.
+    // Otherwise it's text selection → let extraction menu handle it.
+    var positionMousedownBloc = null;
+
+    document.addEventListener('mousedown', function(evenement) {
+        var paragraphe = evenement.target.closest('.texte-bloc-cliquable');
+        if (!paragraphe) {
+            positionMousedownBloc = null;
+            return;
+        }
+        positionMousedownBloc = {
+            x: evenement.clientX,
+            y: evenement.clientY,
+            blockIndex: paragraphe.dataset.blockIndex,
+        };
+    });
+
+    document.addEventListener('mouseup', function(evenement) {
+        if (!positionMousedownBloc) return;
+
+        var infosMousedown = positionMousedownBloc;
+        positionMousedownBloc = null;
+
+        // Verifier que le mouseup est aussi sur un bloc cliquable
+        // / Check that mouseup is also on a clickable block
+        var paragrapheRelache = evenement.target.closest('.texte-bloc-cliquable');
+        if (!paragrapheRelache) return;
+        if (paragrapheRelache.dataset.blockIndex !== infosMousedown.blockIndex) return;
+
+        // Calculer la distance parcourue par la souris (en pixels)
+        // Si > 5px, c'est un drag/selection, pas un clic
+        // / Calculate mouse travel distance (in pixels)
+        // If > 5px, it's a drag/selection, not a click
+        var distanceParcourue = Math.sqrt(
+            Math.pow(evenement.clientX - infosMousedown.x, 2)
+            + Math.pow(evenement.clientY - infosMousedown.y, 2)
+        );
+        if (distanceParcourue > 5) return;
+
+        // Verifier qu'il n'y a pas de texte selectionne
+        // / Check that no text is selected
+        var selectionActive = window.getSelection();
+        var texteSelectionne = selectionActive ? selectionActive.toString().trim() : '';
+        if (texteSelectionne.length > 0) return;
+
+        // C'est un clic simple sans selection → ouvrir l'edition inline
+        // / It's a simple click without selection → open inline editing
+        var elementPage = document.querySelector('#zone-lecture [data-page-id]');
+        if (!elementPage) return;
+        var pageId = elementPage.dataset.pageId;
+        var blockIndex = infosMousedown.blockIndex || '0';
+
+        // Sauvegarder le bloc en cours d'edition s'il y en a un
+        // / Save the currently editing block if there is one
+        var formulaireExistant = document.querySelector('.formulaire-edition-bloc');
+        if (formulaireExistant) {
+            htmx.trigger(formulaireExistant, 'submit');
+            // Attendre que le swap HTMX soit termine avant d'ouvrir le nouveau
+            // / Wait for HTMX swap to finish before opening the new one
+            setTimeout(function() {
+                ouvrirEditionBloc(pageId, blockIndex);
+            }, 300);
+            return;
+        }
+
+        ouvrirEditionBloc(pageId, blockIndex);
+    });
+
+    /**
+     * Ouvre le formulaire d'edition inline pour un bloc donne.
+     * / Opens the inline editing form for a given block.
+     */
+    function ouvrirEditionBloc(pageId, blockIndex) {
+        var urlFormulaire = '/lire/' + pageId + '/formulaire_editer_bloc/'
+            + '?block_index=' + encodeURIComponent(blockIndex);
+
+        // Remplacer le bloc entier par le formulaire inline
+        // / Replace the entire block with the inline form
+        htmx.ajax('GET', urlFormulaire, {
+            target: '#speaker-block-' + blockIndex,
+            swap: 'outerHTML',
+        });
+    }
+
+    // Clic en dehors d'un bloc en edition → sauvegarde auto et fermeture
+    // On ignore les clics sur les elements du formulaire lui-meme,
+    // sur les boutons d'action, et sur les modals SweetAlert
+    // / Click outside an editing block → auto-save and close
+    // Ignore clicks on the form itself, action buttons, and SweetAlert modals
+    document.addEventListener('mousedown', function(evenement) {
+        var formulaireOuvert = document.querySelector('.formulaire-edition-bloc');
+        if (!formulaireOuvert) return;
+
+        // Si le clic est dans le formulaire, on ne fait rien
+        // / If click is inside the form, do nothing
+        if (formulaireOuvert.contains(evenement.target)) return;
+
+        // Si le clic est sur un autre bloc cliquable, le listener ci-dessus gere deja
+        // / If click is on another clickable block, the listener above handles it
+        if (evenement.target.closest('.texte-bloc-cliquable')) return;
+
+        // Si le clic est sur un modal SweetAlert, on ne fait rien
+        // / If click is on a SweetAlert modal, do nothing
+        if (evenement.target.closest('.swal2-container')) return;
+
+        // Si le clic est sur un nom de locuteur (renommage), sauvegarder d'abord
+        // / If click is on a speaker name (rename), save first
+        if (evenement.target.closest('.speaker-name')) {
+            sauvegarderBlocEditionOuvert();
+            return;
+        }
+
+        // Clic ailleurs → sauvegarde auto
+        // / Click elsewhere → auto-save
+        sauvegarderBlocEditionOuvert();
+    });
+
+    // Delegation d'evenement : annuler l'edition inline d'un bloc (recharge la page)
+    // / Event delegation: cancel inline block editing (reload the page)
+    document.addEventListener('click', function(evenement) {
+        var boutonAnnuler = evenement.target.closest('.btn-annuler-edition-bloc');
+        if (!boutonAnnuler) return;
+
+        var elementPage = document.querySelector('#zone-lecture [data-page-id]');
+        if (!elementPage) return;
+        var pageId = elementPage.dataset.pageId;
+
+        // Recharger la lecture complete pour restaurer le bloc original
+        // / Reload the full reading to restore the original block
+        htmx.ajax('GET', '/lire/' + pageId + '/', {
+            target: '#zone-lecture',
+            swap: 'innerHTML',
+        });
+    });
+
+    // Delegation d'evenement : clic sur le bouton supprimer un bloc (avec confirmation SweetAlert)
+    // / Event delegation: click on delete block button (with SweetAlert confirmation)
+    document.addEventListener('click', async function(evenement) {
+        var boutonSupprimer = evenement.target.closest('.btn-supprimer-bloc');
+        if (!boutonSupprimer) return;
+        evenement.preventDefault();
+
+        var pageId = boutonSupprimer.dataset.pageId;
+        var blockIndex = boutonSupprimer.dataset.blockIndex;
+
+        var resultat = await Swal.fire({
+            title: 'Supprimer ce bloc ?',
+            text: 'Cette action est irréversible.',
+            icon: 'warning',
+            showCancelButton: true,
+            cancelButtonText: 'Annuler',
+            confirmButtonText: 'Supprimer',
+            confirmButtonColor: '#ef4444',
+        });
+        if (!resultat.isConfirmed) return;
+
+        htmx.ajax('POST', '/lire/' + pageId + '/supprimer_bloc/', {
+            target: '#zone-lecture',
+            swap: 'innerHTML',
+            values: { index_bloc: blockIndex },
+        });
     });
 
     // Delegation d'evenement : clic sur une pastille de restitution (violette)

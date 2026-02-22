@@ -42,8 +42,8 @@ Chaque etape produit des artefacts visibles et tracables. Les versions successiv
 - **Restitution du debat** — Clot un debat et genere une nouvelle version du texte avec tracabilite (pastille violette)
 - **Restitution IA** — Generation automatique du texte de restitution via un analyseur de type "restituer" (prompt, tokens et cout visibles avant lancement)
 - **Questions / Reponses** — Systeme de Q&A par page, sans authentification (identification par prenom)
-- **Import multi-format** — PDF, DOCX, PPTX, XLSX, Markdown, fichiers texte
-- **Transcription audio** — Import audio avec diarisation (identification des locuteurs) via Celery
+- **Import multi-format** — PDF, DOCX, PPTX, XLSX, Markdown, fichiers texte, JSON de transcription pre-traitee
+- **Transcription audio** — Import audio avec diarisation (identification des locuteurs) via Celery, ou import direct de fichiers JSON Voxtral
 - **Configuration IA dynamique** — Toggle on/off, selection du modele, estimation des couts par appel
 - **Interface 3 colonnes** — Arbre de dossiers, zone de lecture, panneau d'extraction
 - **Zero SPA** — 100% server-rendered avec HTMX pour l'interactivite
@@ -189,9 +189,11 @@ Hypostasia supporte l'import de fichiers audio avec transcription automatique et
 - **Celery worker** en cours d'execution (traitement asynchrone)
 - Une **TranscriptionConfig** active dans l'admin Django
 
-### Formats audio supportes
+### Formats supportes
 
-MP3, WAV, M4A, OGG, FLAC, WEBM, AAC, WMA, OPUS, AIFF
+**Audio** : MP3, WAV, M4A, OGG, FLAC, WEBM, AAC, WMA, OPUS, AIFF
+
+**JSON de transcription** : fichiers `.json` au format Voxtral (`{"model": "...", "text": "...", "segments": [...]}`). Permet d'importer une transcription deja realisee sans relancer l'API — utile pour le partage ou le re-traitement.
 
 ### Configuration
 
@@ -233,9 +235,9 @@ Le fichier `supervisord.conf` a la racine configure ces services.
 ### Utilisation
 
 1. Cliquer sur "Importer un fichier ou audio" dans la sidebar gauche
-2. Selectionner un fichier audio
-3. L'interface affiche un indicateur de progression avec polling automatique (toutes les 3s)
-4. Une fois la transcription terminee, les blocs locuteurs s'affichent avec des couleurs distinctes et des timestamps (MM:SS)
+2. Selectionner un fichier audio ou un fichier JSON de transcription
+3. **Audio** : l'interface affiche un indicateur de progression avec polling automatique (toutes les 3s). Une fois la transcription terminee, les blocs locuteurs s'affichent avec des couleurs distinctes et des timestamps (MM:SS)
+4. **JSON** : la transcription est importee instantanement (pas de Celery), le HTML colore est genere a partir des segments
 
 ## Commentaires, debat et restitution
 

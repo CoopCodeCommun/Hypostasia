@@ -37,4 +37,8 @@
                     prose-table:text-sm prose-th:bg-slate-100">
         {{ html_annote|default:page.html_readability|safe }}
     </article>
+
+    {# Zone ou le modal de renommage de locuteur sera injecte via HTMX #}
+    {# / Zone where the speaker renaming modal will be injected via HTMX #}
+    <div id="zone-modal-locuteur"></div>
 </div>

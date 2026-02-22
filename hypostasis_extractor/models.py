@@ -80,7 +80,8 @@ class ExtractionJob(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"{self.name} sur {self.page.url[:50]}..."
+        url_page = (self.page.url or "")[:50] if self.page else "page supprimée"
+        return f"{self.name} sur {url_page}..."
 
 
 class ExtractedEntity(models.Model):

@@ -1,0 +1,59 @@
+{# Edition inline du texte d'un bloc — remplace le speaker-block entier #}
+{# / Inline text editing — replaces the entire speaker-block #}
+<div id="speaker-block-{{ index_bloc }}" class="speaker-block mb-4 pl-4 border-l-4 rounded-r"
+     style="border-color: {{ couleur_locuteur }};">
+    {# En-tete du bloc (nom + timestamps) identique a l'original #}
+    {# / Block header (name + timestamps) identical to the original #}
+    <div class="flex items-center gap-2 mb-1">
+        <span class="font-semibold text-sm" style="color: {{ couleur_locuteur }};">
+            {{ nom_locuteur }}
+        </span>
+        <span class="text-xs text-slate-400">{{ timestamp_debut }} — {{ timestamp_fin }}</span>
+    </div>
+
+    {# Formulaire inline a la place du paragraphe de texte #}
+    {# La classe formulaire-edition-bloc permet au JS de detecter un formulaire ouvert #}
+    {# / Inline form replacing the text paragraph #}
+    {# The formulaire-edition-bloc class lets JS detect an open form #}
+    <form class="formulaire-edition-bloc"
+          hx-post="/lire/{{ page.pk }}/editer_bloc/"
+          hx-target="#zone-lecture"
+          hx-swap="innerHTML">
+        {% csrf_token %}
+        <input type="hidden" name="index_bloc" value="{{ index_bloc }}">
+
+        <textarea name="nouveau_texte"
+                  rows="{{ nombre_lignes }}"
+                  autofocus
+                  class="w-full border border-slate-200 rounded px-1 -mx-1 py-1 text-slate-700 leading-relaxed
+                         focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-300
+                         resize-y bg-white"
+                  style="font-family: 'Lora', Georgia, serif; font-size: 1.125rem; line-height: 1.85;">{{ texte_bloc }}</textarea>
+
+        {# Boutons sous le textarea : Supprimer a gauche, Annuler + Valider a droite #}
+        {# Texte d'aide entre les deux groupes de boutons #}
+        {# / Buttons below textarea: Delete on left, Cancel + Validate on right #}
+        {# Help text between both button groups #}
+        <div class="flex items-center justify-between mt-1.5">
+            <button type="button"
+                    class="btn-supprimer-bloc text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                    data-page-id="{{ page.pk }}"
+                    data-block-index="{{ index_bloc }}">
+                Supprimer le bloc
+            </button>
+            <div class="flex items-center gap-3">
+                <span class="text-[11px] text-slate-400 italic hidden sm:inline">Cliquez ailleurs pour sauvegarder</span>
+                <button type="button"
+                        class="btn-annuler-edition-bloc text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded transition-colors"
+                        data-page-id="{{ page.pk }}"
+                        data-block-index="{{ index_bloc }}">
+                    Annuler
+                </button>
+                <button type="submit"
+                        class="text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded transition-colors">
+                    Valider
+                </button>
+            </div>
+        </div>
+    </form>
+</div>

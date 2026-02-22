@@ -13,6 +13,7 @@ Returns per-speaker segments with timestamps.
 
 import logging
 import time
+from html import escape as html_escape
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max
         langue: Code langue ISO (str, vide = detection automatique)
 
     Returns:
-        list[dict] — segments au format [{speaker, start, end, text}, ...]
+        dict — {"model": str, "text": str, "segments": [{speaker, start, end, text}, ...]}
     """
     from mistralai import Mistral
 
@@ -138,11 +139,22 @@ def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max
             "text": reponse_transcription.text,
         })
 
+    # Construire le dict complet au format Voxtral (model + text + segments)
+    # / Build the full Voxtral-format dict (model + text + segments)
+    texte_complet = reponse_transcription.text or " ".join(
+        segment["text"] for segment in segments_transcrits
+    )
+    resultat_complet = {
+        "model": config_transcription.model_name,
+        "text": texte_complet,
+        "segments": segments_transcrits,
+    }
+
     logger.info(
         "transcrire_audio_via_voxtral: %d segments transcrits",
         len(segments_transcrits),
     )
-    return segments_transcrits
+    return resultat_complet
 
 
 def transcrire_audio_mock(chemin_fichier_audio, config_transcription, max_locuteurs=5, langue=""):
@@ -157,7 +169,7 @@ def transcrire_audio_mock(chemin_fichier_audio, config_transcription, max_locute
         langue: Code langue ISO (str, non utilise en mock)
 
     Returns:
-        list[dict] — segments factices
+        dict — {"model": str, "text": str, "segments": [{speaker, start, end, text}, ...]}
     """
     logger.info("transcrire_audio_mock: simulation pour %s", chemin_fichier_audio)
 
@@ -173,7 +185,14 @@ def transcrire_audio_mock(chemin_fichier_audio, config_transcription, max_locute
         {"speaker": "Locuteur 1", "start": 55.0, "end": 65.3, "text": "Pour conclure, je dirais que nous n'en sommes qu'au debut. Les outils comme Voxtral ouvrent la voie a une comprehension toujours plus fine du langage parle."},
     ]
 
-    return segments_factices
+    # Concatener le texte complet / Concatenate full text
+    texte_complet = " ".join(segment["text"] for segment in segments_factices)
+
+    return {
+        "model": "mock-transcription",
+        "text": texte_complet,
+        "segments": segments_factices,
+    }
 
 
 def calculer_duree_audio(chemin_fichier_audio):
@@ -235,11 +254,22 @@ def construire_html_diarise(segments_transcrits):
     Groups consecutive segments from the same speaker into a single block.
 
     Args:
-        segments_transcrits: list[dict] avec {speaker, start, end, text}
+        segments_transcrits: dict avec {model, text, segments} OU list[dict] avec {speaker, start, end, text}
 
     Returns:
         tuple (html_blocs_locuteurs, texte_brut)
     """
+    # Extraction intelligente : si l'input est un dict avec 'segments', extraire la liste
+    # / Smart extraction: if input is a dict with 'segments', extract the list
+    if isinstance(segments_transcrits, dict) and "segments" in segments_transcrits:
+        segments_transcrits = segments_transcrits["segments"]
+
+    # Normaliser les segments : Voxtral brut utilise 'speaker_id' au lieu de 'speaker'
+    # / Normalize segments: raw Voxtral uses 'speaker_id' instead of 'speaker'
+    for segment in segments_transcrits:
+        if "speaker" not in segment and "speaker_id" in segment:
+            segment["speaker"] = segment["speaker_id"] or "Locuteur"
+
     # Mapper chaque locuteur unique a une couleur
     # / Map each unique speaker to a color
     locuteurs_uniques = []
@@ -287,25 +317,38 @@ def construire_html_diarise(segments_transcrits):
     blocs_html = []
     parties_texte_brut = []
 
-    for groupe in groupes_locuteurs:
+    for index_bloc, groupe in enumerate(groupes_locuteurs):
         nom_locuteur = groupe["speaker"]
         couleur_locuteur = correspondance_couleurs.get(nom_locuteur, "#6b7280")
         timestamp_debut = _formater_timestamp(groupe["start"])
         timestamp_fin = _formater_timestamp(groupe["end"])
 
-        # Chaque phrase sur sa propre ligne avec <br>
-        # / Each sentence on its own line with <br>
-        texte_html = "<br>\n".join(groupe["phrases"])
+        # Chaque phrase est echappee HTML puis jointe par <br>
+        # / Each sentence is HTML-escaped then joined with <br>
+        phrases_echappees = [html_escape(phrase) for phrase in groupe["phrases"]]
+        texte_html = "<br>\n".join(phrases_echappees)
 
+        # Echapper le nom du locuteur pour eviter les injections XSS
+        # / Escape speaker name to prevent XSS injection
+        nom_locuteur_echappe = html_escape(nom_locuteur)
+
+        # Le nom du locuteur est cliquable pour permettre le renommage
+        # Le paragraphe de texte est cliquable pour passer en mode edition inline
+        # / Speaker name is clickable to allow renaming
+        # / Text paragraph is clickable to switch to inline edit mode
         bloc_html = (
-            f'<div class="speaker-block mb-4 pl-4 border-l-4 rounded-r" '
+            f'<div id="speaker-block-{index_bloc}" class="speaker-block mb-4 pl-4 border-l-4 rounded-r" '
             f'style="border-color: {couleur_locuteur};">'
             f'<div class="flex items-center gap-2 mb-1">'
-            f'<span class="font-semibold text-sm" style="color: {couleur_locuteur};">'
-            f'{nom_locuteur}</span>'
+            f'<span class="speaker-name font-semibold text-sm cursor-pointer hover:underline" '
+            f'style="color: {couleur_locuteur};" '
+            f'data-speaker="{nom_locuteur_echappe}" data-block-index="{index_bloc}">'
+            f'{nom_locuteur_echappe}</span>'
             f'<span class="text-xs text-slate-400">{timestamp_debut} — {timestamp_fin}</span>'
             f'</div>'
-            f'<p class="text-slate-700 leading-relaxed">{texte_html}</p>'
+            f'<p class="texte-bloc-cliquable text-slate-700 leading-relaxed cursor-text hover:bg-slate-50 '
+            f'rounded px-1 -mx-1 transition-colors" '
+            f'data-block-index="{index_bloc}">{texte_html}</p>'
             f'</div>'
         )
         blocs_html.append(bloc_html)
