@@ -209,14 +209,8 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
     """
     Annote les tags conteneurs du HTML avec des attributs data-extraction-ids
     et des classes CSS pour afficher des barres verticales colorees en marge.
-
-    Au lieu d'injecter des <span> inline (qui interferent avec l'edition),
-    on ajoute des classes et attributs sur le tag conteneur englobant
-    (<p>, <div>, <blockquote>, etc.).
     / Annotate HTML container tags with data-extraction-ids attributes
     and CSS classes to display colored vertical margin bars.
-    Instead of injecting inline <span>s (which interfere with editing),
-    we add classes and attributes on the enclosing container tag.
     """
     if not html_brut or not entites:
         return html_brut

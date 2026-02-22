@@ -114,12 +114,13 @@
         }
 
         /* Bloc contenant au moins une extraction — barre bleue en marge gauche */
+        /* Pas de margin negatif : la barre prend de l'espace reel pour rester visible sur mobile */
         /* / Block containing at least one extraction — blue left margin bar */
+        /* No negative margin: the bar takes real space to remain visible on mobile */
         .bloc-avec-extraction {
             position: relative;
             border-left: 3px solid rgb(59, 130, 246);
             padding-left: 12px;
-            margin-left: -15px;
             cursor: pointer;
             transition: border-color 0.15s, background-color 0.15s;
         }
@@ -948,9 +949,13 @@
     }
 
     // Delegation d'evenement : clic sur un bloc avec barre d'extraction dans le texte
-    // Ne se declenche PAS si on clique dans un input/textarea (edition inline)
+    // Sur les pages audio (.texte-bloc-cliquable), le clic sur le texte ouvre l'editeur inline.
+    // On ne declenche scrollToCarteDepuisBloc QUE si le clic est sur la barre gauche (zone < 15px)
+    // ou si le bloc n'est PAS un .texte-bloc-cliquable (page web classique).
     // / Event delegation: click on block with extraction bar in text
-    // Does NOT trigger if clicking inside an input/textarea (inline editing)
+    // On audio pages (.texte-bloc-cliquable), clicking text opens the inline editor.
+    // We only trigger scrollToCarteDepuisBloc if the click is on the left bar area (< 15px)
+    // or if the block is NOT a .texte-bloc-cliquable (regular web page).
     document.addEventListener('click', function(evenement) {
         // Ignorer les clics dans les zones d'edition inline
         // / Ignore clicks inside inline editing areas
@@ -959,9 +964,22 @@
         var bloc = evenement.target.closest('.bloc-avec-extraction');
         if (!bloc) return;
         var extractionIds = bloc.dataset.extractionIds;
-        if (extractionIds) {
-            scrollToCarteDepuisBloc(extractionIds);
+        if (!extractionIds) return;
+
+        // Si le bloc est aussi un texte-bloc-cliquable (page audio),
+        // ne declencher que si le clic est sur la barre gauche (zone de marge)
+        // / If the block is also a texte-bloc-cliquable (audio page),
+        // only trigger if the click is on the left bar area (margin zone)
+        var estBlocAudio = bloc.classList.contains('texte-bloc-cliquable');
+        if (estBlocAudio) {
+            var rectBloc = bloc.getBoundingClientRect();
+            var clicRelatifX = evenement.clientX - rectBloc.left;
+            // La barre fait 3px + padding 12px = zone de ~15px depuis le bord gauche
+            // / The bar is 3px + padding 12px = ~15px zone from the left edge
+            if (clicRelatifX > 15) return;
         }
+
+        scrollToCarteDepuisBloc(extractionIds);
     });
 
     // --- Edition inline du titre de la page ---
@@ -1138,6 +1156,20 @@
             positionMousedownBloc = null;
             return;
         }
+
+        // Si le clic est sur la barre d'extraction (zone gauche < 15px), ne pas ouvrir l'editeur
+        // La barre sera geree par le handler de clic .bloc-avec-extraction
+        // / If click is on the extraction bar (left zone < 15px), don't open editor
+        // The bar will be handled by the .bloc-avec-extraction click handler
+        if (paragraphe.classList.contains('bloc-avec-extraction')) {
+            var rectParagraphe = paragraphe.getBoundingClientRect();
+            var clicRelatifX = evenement.clientX - rectParagraphe.left;
+            if (clicRelatifX <= 15) {
+                positionMousedownBloc = null;
+                return;
+            }
+        }
+
         positionMousedownBloc = {
             x: evenement.clientX,
             y: evenement.clientY,
