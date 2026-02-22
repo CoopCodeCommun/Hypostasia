@@ -2,11 +2,10 @@
 Utilitaires pour l'annotation HTML cote serveur.
 / Server-side HTML annotation utilities.
 
-Principe : on annote les tags conteneurs (<p>, <div>, <blockquote>, etc.)
-avec des attributs data-extraction-ids et des classes CSS pour afficher
-des barres verticales colorees en marge gauche.
-/ Principle: annotate container tags with data-extraction-ids attributes
-and CSS classes to display colored vertical bars in the left margin.
+Principe : on enveloppe le texte exact de chaque extraction dans un <span>
+avec classe hl-extraction et data-extraction-id pour surlignage inline + pastille en marge.
+/ Principle: wrap the exact extraction text in a <span> with hl-extraction class
+and data-extraction-id for inline highlighting + margin dot.
 
 Principe cle : text_readability = texte_extrait.strip()
 Les positions des entites (start_char/end_char) sont relatives a text_readability.
@@ -163,54 +162,34 @@ def _rechercher_texte_dans_contenu(texte_cible, extraction_text, hint_position=N
     return None
 
 
-def _trouver_tag_conteneur_englobant(html_brut, html_pos):
+def _trouver_position_html_mapped(pos_texte, mapping_debut):
     """
-    Depuis une position dans le HTML, remonte pour trouver le tag conteneur englobant.
-    Retourne (debut_tag, fin_chevron_ouvrant) ou None si introuvable.
-    Tags reconnus : p, div, blockquote, li, h1-h6, td, section, article.
-    / From a position in HTML, scan backwards to find the enclosing container tag.
-    Returns (tag_start, opening_chevron_end) or None if not found.
+    Trouve la position HTML correspondant a pos_texte dans le mapping.
+    Si pos_texte n'est pas exactement dans le mapping, prend la position mappee la plus proche (inferieure).
+    Retourne la position HTML ou None.
+    / Find the HTML position for pos_texte in the mapping.
+    If not exactly in the mapping, take the closest lower mapped position.
+    Returns the HTML position or None.
     """
-    # Tags HTML reconnus comme conteneurs de texte
-    # / HTML tags recognized as text containers
-    tags_conteneurs = {
-        'p', 'div', 'blockquote', 'li',
-        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-        'td', 'section', 'article',
-    }
+    if pos_texte in mapping_debut:
+        return mapping_debut[pos_texte]
 
-    # Scanner en arriere pour trouver le '<' d'ouverture du tag englobant
-    # / Scan backwards to find the '<' of the enclosing opening tag
-    pos = html_pos - 1
-    while pos >= 0:
-        if html_brut[pos] == '<':
-            # Verifier que c'est un tag ouvrant (pas </xxx>)
-            # / Check it's an opening tag (not </xxx>)
-            if pos + 1 < len(html_brut) and html_brut[pos + 1] == '/':
-                pos -= 1
-                continue
-
-            # Extraire le nom du tag / Extract tag name
-            match_tag = re.match(r'<(\w+)', html_brut[pos:])
-            if match_tag:
-                nom_tag = match_tag.group(1).lower()
-                if nom_tag in tags_conteneurs:
-                    # Trouver la fin du chevron ouvrant '>'
-                    # / Find the end of the opening chevron '>'
-                    fin_chevron = html_brut.find('>', pos)
-                    if fin_chevron != -1:
-                        return (pos, fin_chevron)
-        pos -= 1
+    # Prendre la position mappee la plus proche (inferieure)
+    # / Take the closest lower mapped position
+    positions_inferieures = [p for p in mapping_debut if p <= pos_texte]
+    if positions_inferieures:
+        pos_proche = max(positions_inferieures)
+        return mapping_debut[pos_proche]
 
     return None
 
 
 def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_commentees=None):
     """
-    Annote les tags conteneurs du HTML avec des attributs data-extraction-ids
-    et des classes CSS pour afficher des barres verticales colorees en marge.
-    / Annotate HTML container tags with data-extraction-ids attributes
-    and CSS classes to display colored vertical margin bars.
+    Annote le HTML en enveloppant le texte exact de chaque extraction
+    dans un <span class="hl-extraction"> pour surlignage inline + pastille en marge.
+    / Annotate HTML by wrapping exact extraction text in
+    <span class="hl-extraction"> for inline highlighting + margin dot.
     """
     if not html_brut or not entites:
         return html_brut
@@ -224,16 +203,13 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
     # / Calculate offset: text_readability = texte_extrait.strip()
     leading_offset = _calculer_leading_offset(texte_extrait)
 
-    # 3. Pour chaque entite, trouver la position HTML puis le tag conteneur
-    # / For each entity, find HTML position then the container tag
+    # 3. Pour chaque entite, calculer les positions HTML de debut et fin du span
+    # / For each entity, compute HTML start and end positions for the span
     ids_commentees = ids_entites_commentees or set()
 
-    # Dictionnaire : (debut_tag, fin_chevron) → set d'IDs d'entites
-    # / Dict: (tag_start, chevron_end) → set of entity IDs
-    conteneurs_trouves = {}
-    # Meme chose pour savoir si le conteneur a des entites commentees
-    # / Same for tracking if container has commented entities
-    conteneurs_avec_commentaire = {}
+    # Liste des insertions : (html_pos_debut, html_pos_fin, entite_pk, a_commentaire)
+    # / List of insertions: (html_start, html_end, entity_pk, has_comment)
+    insertions_spans = []
 
     for entite in entites:
         entite_pk = entite.pk
@@ -242,112 +218,85 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
         extraction_text = entite.extraction_text or ''
 
         positions_valides = (start_char > 0 or end_char > 0) and end_char > start_char
-        html_pos_insertion = None
+        pos_debut_texte = None
+        pos_fin_texte = None
 
         if positions_valides:
             # Convertir position text_readability → position texte_extrait
             # / Convert text_readability position → texte_extrait position
-            pos_extrait = start_char + leading_offset
+            pos_debut_extrait = start_char + leading_offset
+            pos_fin_extrait = end_char + leading_offset
 
             # Verifier la coherence : le texte doit COMMENCER a cette position
             # / Sanity check: text must START at this position
             if extraction_text and len(extraction_text) > 5:
-                texte_a_position = texte_extrait[pos_extrait:pos_extrait + 30].replace('\xa0', ' ')
+                texte_a_position = texte_extrait[pos_debut_extrait:pos_debut_extrait + 30].replace('\xa0', ' ')
                 debut_attendu = extraction_text[:15].replace('\xa0', ' ')
                 if debut_attendu and not texte_a_position.startswith(debut_attendu):
                     positions_valides = False
 
-            if positions_valides and pos_extrait in mapping_debut:
-                html_pos_insertion = mapping_debut[pos_extrait]
+            if positions_valides:
+                pos_debut_texte = pos_debut_extrait
+                pos_fin_texte = pos_fin_extrait
 
-        if html_pos_insertion is None:
-            # Fallback : recherche textuelle dans texte_extrait
-            # / Fallback: text search in texte_extrait
+        # Fallback : recherche textuelle dans texte_extrait
+        # / Fallback: text search in texte_extrait
+        if pos_debut_texte is None:
             pos_trouvee = _rechercher_texte_dans_contenu(
                 texte_extrait, extraction_text,
-                hint_position=start_char + leading_offset if positions_valides else None,
+                hint_position=start_char + leading_offset if (start_char > 0 or end_char > 0) else None,
             )
-            if pos_trouvee is not None and pos_trouvee in mapping_debut:
-                html_pos_insertion = mapping_debut[pos_trouvee]
-            elif pos_trouvee is not None:
-                # Position trouvee mais pas exactement dans le mapping
-                # Prendre la position mappee la plus proche (inferieure)
-                # / Found position not in mapping, take closest lower mapped position
-                positions_inferieures = [p for p in mapping_debut if p <= pos_trouvee]
-                if positions_inferieures:
-                    pos_proche = max(positions_inferieures)
-                    html_pos_insertion = mapping_debut[pos_proche]
+            if pos_trouvee is not None:
+                pos_debut_texte = pos_trouvee
+                pos_fin_texte = pos_trouvee + len(extraction_text)
 
-        if html_pos_insertion is None:
+        if pos_debut_texte is None:
             logger.warning(
                 "annoter_html: texte introuvable pour entite pk=%s — '%s'",
                 entite_pk, extraction_text[:60],
             )
             continue
 
-        # Trouver le tag conteneur englobant cette position
-        # / Find the container tag enclosing this position
-        resultat_conteneur = _trouver_tag_conteneur_englobant(html_brut, html_pos_insertion)
-        if resultat_conteneur is None:
+        # Convertir positions texte → positions HTML via le mapping
+        # / Convert text positions → HTML positions via mapping
+        html_pos_debut = _trouver_position_html_mapped(pos_debut_texte, mapping_debut)
+        html_pos_fin = _trouver_position_html_mapped(pos_fin_texte, mapping_debut)
+
+        if html_pos_debut is None or html_pos_fin is None:
             logger.warning(
-                "annoter_html: tag conteneur introuvable pour entite pk=%s",
+                "annoter_html: mapping HTML introuvable pour entite pk=%s",
                 entite_pk,
             )
             continue
 
-        # Regrouper les entites par conteneur (un meme bloc peut contenir plusieurs extractions)
-        # / Group entities by container (a single block can contain multiple extractions)
-        position_conteneur = resultat_conteneur
-        if position_conteneur not in conteneurs_trouves:
-            conteneurs_trouves[position_conteneur] = set()
-            conteneurs_avec_commentaire[position_conteneur] = False
+        a_commentaire = entite_pk in ids_commentees
+        insertions_spans.append((html_pos_debut, html_pos_fin, entite_pk, a_commentaire))
 
-        conteneurs_trouves[position_conteneur].add(entite_pk)
-        if entite_pk in ids_commentees:
-            conteneurs_avec_commentaire[position_conteneur] = True
-
-    if not conteneurs_trouves:
+    if not insertions_spans:
         return html_brut
 
-    # 4. Trier par position decroissante pour modifier de la fin vers le debut
-    # / Sort by descending position to modify from end to start
-    conteneurs_tries = sorted(conteneurs_trouves.keys(), key=lambda t: t[0], reverse=True)
+    # 4. Trier par position decroissante (fin → debut) pour ne pas decaler les positions
+    # On trie d'abord par html_pos_fin decroissant, puis html_pos_debut decroissant
+    # / Sort by descending position (end → start) to avoid offset shifting
+    insertions_spans.sort(key=lambda t: (t[1], t[0]), reverse=True)
 
-    # 5. Injecter les attributs dans chaque tag conteneur
-    # / Inject attributes into each container tag
+    # 5. Injecter les spans dans le HTML
+    # / Inject spans into HTML
     html_modifie = html_brut
-    for (debut_tag, fin_chevron) in conteneurs_tries:
-        ids_entites = conteneurs_trouves[(debut_tag, fin_chevron)]
-        a_commentaire = conteneurs_avec_commentaire[(debut_tag, fin_chevron)]
-
-        # Construire la liste des IDs separee par des virgules
-        # / Build comma-separated ID list
-        ids_str = ",".join(str(pk) for pk in sorted(ids_entites))
-
-        # Determiner les classes a ajouter / Determine classes to add
-        classe_barre = "bloc-avec-extraction"
+    for (html_pos_debut, html_pos_fin, entite_pk, a_commentaire) in insertions_spans:
+        # Construire la classe CSS du span
+        # / Build the span CSS class
+        classe_span = "hl-extraction"
         if a_commentaire:
-            classe_barre += " bloc-avec-commentaire"
+            classe_span += " hl-commentee"
 
-        # Extraire le tag ouvrant actuel / Extract current opening tag
-        tag_ouvrant = html_modifie[debut_tag:fin_chevron + 1]
+        span_ouvrant = f'<span class="{classe_span}" data-extraction-id="{entite_pk}">'
+        span_fermant = '</span>'
 
-        # Injecter class et data-extraction-ids dans le tag
-        # / Inject class and data-extraction-ids into the tag
-        if 'class="' in tag_ouvrant:
-            # Ajouter aux classes existantes / Append to existing classes
-            tag_modifie = tag_ouvrant.replace(
-                'class="',
-                f'class="{classe_barre} ',
-            )
-        else:
-            # Inserer apres le nom du tag / Insert after tag name
-            tag_modifie = tag_ouvrant.replace('>', f' class="{classe_barre}">', 1)
-
-        # Ajouter data-extraction-ids / Add data-extraction-ids
-        tag_modifie = tag_modifie.replace('>', f' data-extraction-ids="{ids_str}">', 1)
-
-        html_modifie = html_modifie[:debut_tag] + tag_modifie + html_modifie[fin_chevron + 1:]
+        # Inserer le span fermant d'abord (position plus loin), puis le span ouvrant
+        # / Insert closing span first (further position), then opening span
+        html_modifie = html_modifie[:html_pos_fin] + span_fermant + html_modifie[html_pos_fin:]
+        html_modifie = html_modifie[:html_pos_debut] + span_ouvrant + html_modifie[html_pos_debut:]
 
     return html_modifie
 

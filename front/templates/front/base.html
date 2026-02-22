@@ -113,50 +113,86 @@
             --ancre-color: 59, 130, 246; /* bleu Tailwind blue-500, format RGB */
         }
 
-        /* Bloc contenant au moins une extraction — barre bleue en marge gauche */
-        /* Pas de margin negatif : la barre prend de l'espace reel pour rester visible sur mobile */
-        /* / Block containing at least one extraction — blue left margin bar */
-        /* No negative margin: the bar takes real space to remain visible on mobile */
-        .bloc-avec-extraction {
+        /* Les conteneurs de texte doivent etre position:relative pour ancrer les pastilles */
+        /* / Text containers must be position:relative to anchor the dots */
+        #readability-content p,
+        #readability-content div,
+        #readability-content blockquote,
+        #readability-content li,
+        #readability-content h1, #readability-content h2, #readability-content h3,
+        #readability-content h4, #readability-content h5, #readability-content h6 {
             position: relative;
-            border-left: 3px solid rgb(59, 130, 246);
-            padding-left: 12px;
+        }
+
+        /* Surlignage du texte extrait — pas de fond par defaut, visible seulement au clic */
+        /* / Inline highlight of extracted text — no default background, visible only on click */
+        .hl-extraction {
+            border-radius: 2px;
+            transition: background-color 0.15s;
+        }
+
+        /* Icone en marge gauche — positionnee par rapport au paragraphe parent */
+        /* Zone cliquable 24x24, icone Lucide (ISC license) 18x18 centree */
+        /* / Icon in left margin — positioned relative to the parent paragraph */
+        /* Clickable zone 24x24, Lucide icon (ISC license) 18x18 centered */
+        .hl-extraction::before {
+            content: '';
+            position: absolute;
+            left: -32px;
+            margin-top: 0.05em;
+            width: 24px;
+            height: 24px;
             cursor: pointer;
-            transition: border-color 0.15s, background-color 0.15s;
+            background-size: 18px 18px;
+            background-position: center;
+            background-repeat: no-repeat;
+            border-radius: 4px;
+            transition: background-color 0.15s;
+            /* Icone guillemets Lucide "quote" — extraction par defaut (bleu) */
+            /* / Lucide "quote" icon — default extraction (blue) */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z'/%3E%3Cpath d='M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z'/%3E%3C/svg%3E");
         }
-        .bloc-avec-extraction:hover {
-            background-color: rgba(59, 130, 246, 0.04);
-        }
-
-        /* Bloc avec extraction commentee — barre orange */
-        /* / Block with commented extraction — orange bar */
-        .bloc-avec-commentaire {
-            border-left-color: rgb(245, 158, 11);
-        }
-        .bloc-avec-commentaire:hover {
-            background-color: rgba(245, 158, 11, 0.04);
+        .hl-extraction:hover::before {
+            background-color: rgba(59, 130, 246, 0.1);
         }
 
-        /* Bloc avec restitution — barre violette */
-        /* / Block with restitution — violet bar */
-        .bloc-avec-restitution {
-            border-left-color: rgb(139, 92, 246);
+        /* Extraction commentee — icone bulle Lucide "message-circle" (orange) */
+        /* / Commented extraction — Lucide "message-circle" icon (orange) */
+        .hl-extraction.hl-commentee::before {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719'/%3E%3C/svg%3E");
         }
-        .bloc-avec-restitution:hover {
-            background-color: rgba(139, 92, 246, 0.04);
+        .hl-extraction.hl-commentee:hover::before {
+            background-color: rgba(245, 158, 11, 0.1);
         }
 
-        /* Bloc actif (clique depuis le panneau droit) */
-        /* / Active block (clicked from right panel) */
-        .bloc-avec-extraction.ancre-active {
-            border-left-width: 4px;
-            background-color: rgba(59, 130, 246, 0.08);
-            animation: barre-pulse 2.5s ease-out forwards;
+        /* Extraction restitution — icone signet Lucide "bookmark" (violet) */
+        /* / Restitution extraction — Lucide "bookmark" icon (violet) */
+        .hl-extraction.hl-restitution::before {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z'/%3E%3C/svg%3E");
         }
-        @keyframes barre-pulse {
-            0%   { background-color: rgba(59, 130, 246, 0.12); }
-            70%  { background-color: rgba(59, 130, 246, 0.04); }
-            100% { background-color: transparent; border-left-width: 3px; }
+        .hl-extraction.hl-restitution:hover::before {
+            background-color: rgba(139, 92, 246, 0.1);
+        }
+
+        /* Surlignage actif quand on clique depuis le panneau droit ou depuis la pastille */
+        /* / Active highlight when clicked from right panel or from the dot */
+        .hl-extraction.ancre-active {
+            background-color: rgba(59, 130, 246, 0.15);
+            animation: hl-pulse 2.5s ease-out forwards;
+        }
+        .hl-extraction.hl-commentee.ancre-active {
+            background-color: rgba(245, 158, 11, 0.15);
+            animation: hl-pulse-orange 2.5s ease-out forwards;
+        }
+        @keyframes hl-pulse {
+            0%   { background-color: rgba(59, 130, 246, 0.25); }
+            70%  { background-color: rgba(59, 130, 246, 0.1); }
+            100% { background-color: transparent; }
+        }
+        @keyframes hl-pulse-orange {
+            0%   { background-color: rgba(245, 158, 11, 0.25); }
+            70%  { background-color: rgba(245, 158, 11, 0.1); }
+            100% { background-color: transparent; }
         }
 
         /* Carte d'extraction clignotante (cliquee depuis le texte) */
@@ -883,44 +919,44 @@
     <!-- / Bidirectional navigation: card ↔ margin bar in text -->
     <script>
     /**
-     * Carte → Bloc : scroll vers le bloc annote dans le texte et le met en surbrillance.
-     * / Card → Block: scroll to annotated block in text and highlight it.
+     * Carte → Span : scroll vers le span surligne dans le texte et le met en surbrillance.
+     * / Card → Span: scroll to highlighted span in text and highlight it.
      */
     function scrollToExtraction(elementCarte) {
-        // Nettoyer les blocs actifs precedents / Clean previous active blocks
-        document.querySelectorAll('.bloc-avec-extraction.ancre-active').forEach(function(el) {
+        // Nettoyer les spans actifs precedents / Clean previous active spans
+        document.querySelectorAll('.hl-extraction.ancre-active').forEach(function(el) {
             el.classList.remove('ancre-active');
         });
 
         var extractionId = elementCarte.dataset.extractionId;
         if (!extractionId) return;
 
-        // Chercher le bloc conteneur qui contient cet ID d'extraction
-        // / Find the container block that contains this extraction ID
-        var bloc = document.querySelector(
-            '#readability-content .bloc-avec-extraction[data-extraction-ids*="' + extractionId + '"]'
+        // Chercher le span qui contient cet ID d'extraction
+        // / Find the span that contains this extraction ID
+        var spanExtraction = document.querySelector(
+            '#readability-content .hl-extraction[data-extraction-id="' + extractionId + '"]'
         );
 
-        if (!bloc) {
-            console.warn('[scrollToExtraction] Bloc introuvable pour extraction id=' + extractionId);
+        if (!spanExtraction) {
+            console.warn('[scrollToExtraction] Span introuvable pour extraction id=' + extractionId);
             return;
         }
 
         // Reset animation : retirer la classe, forcer un reflow, puis remettre
         // / Reset animation: remove class, force reflow, then re-add
-        bloc.classList.remove('ancre-active');
-        void bloc.offsetWidth;
-        bloc.classList.add('ancre-active');
-        bloc.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        spanExtraction.classList.remove('ancre-active');
+        void spanExtraction.offsetWidth;
+        spanExtraction.classList.add('ancre-active');
+        spanExtraction.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     /**
-     * Bloc → Carte : clic sur un bloc annote fait clignoter
+     * Span → Carte : clic sur un span surligne fait clignoter
      * la carte correspondante dans le panneau droit et l'ouvre si ferme.
-     * / Block → Card: click on annotated block flashes the corresponding card
+     * / Span → Card: click on highlighted span flashes the corresponding card
      * in the right panel and opens it if closed.
      */
-    function scrollToCarteDepuisBloc(extractionIds) {
+    function scrollToCarteDepuisBloc(extractionId) {
         // Ouvrir le panneau droit s'il est ferme / Open right panel if closed
         ouvrirPanneauDroit();
 
@@ -929,15 +965,12 @@
             el.classList.remove('carte-flash');
         });
 
-        // Prendre le premier ID d'extraction du bloc / Take first extraction ID from block
-        var premierIdExtraction = extractionIds.split(',')[0].trim();
-
         var carte = document.querySelector(
-            '#extraction-results .extraction-card[data-extraction-id="' + premierIdExtraction + '"]'
+            '#extraction-results .extraction-card[data-extraction-id="' + extractionId + '"]'
         );
 
         if (!carte) {
-            console.warn('[scrollToCarteDepuisBloc] Carte introuvable pour extraction id=' + premierIdExtraction);
+            console.warn('[scrollToCarteDepuisBloc] Carte introuvable pour extraction id=' + extractionId);
             return;
         }
 
@@ -948,39 +981,47 @@
         carte.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    // Delegation d'evenement : clic sur un bloc avec barre d'extraction dans le texte
-    // Sur les pages audio (.texte-bloc-cliquable), le clic sur le texte ouvre l'editeur inline.
-    // On ne declenche scrollToCarteDepuisBloc QUE si le clic est sur la barre gauche (zone < 15px)
-    // ou si le bloc n'est PAS un .texte-bloc-cliquable (page web classique).
-    // / Event delegation: click on block with extraction bar in text
-    // On audio pages (.texte-bloc-cliquable), clicking text opens the inline editor.
-    // We only trigger scrollToCarteDepuisBloc if the click is on the left bar area (< 15px)
-    // or if the block is NOT a .texte-bloc-cliquable (regular web page).
-    document.addEventListener('click', function(evenement) {
-        // Ignorer les clics dans les zones d'edition inline
-        // / Ignore clicks inside inline editing areas
-        if (evenement.target.closest('input, textarea, [contenteditable]')) return;
+    // --- Detection de clic sur icone d'extraction (zone marge gauche) ---
+    // Le mousedown en phase capture detecte le clic dans la zone icone,
+    // bloque la propagation (empeche l'editeur inline), et declenche directement
+    // la navigation vers la carte + surlignage du texte.
+    // / Capture phase mousedown detects click in icon zone,
+    // blocks propagation (prevents inline editor), and directly triggers
+    // card navigation + text highlighting.
+    document.addEventListener('mousedown', function(evenement) {
+        var spanExtraction = evenement.target.closest('.hl-extraction');
+        if (!spanExtraction) return;
 
-        var bloc = evenement.target.closest('.bloc-avec-extraction');
-        if (!bloc) return;
-        var extractionIds = bloc.dataset.extractionIds;
-        if (!extractionIds) return;
+        var paragrapheParent = spanExtraction.closest('p, div, blockquote, li, h1, h2, h3, h4, h5, h6');
+        if (!paragrapheParent) return;
 
-        // Si le bloc est aussi un texte-bloc-cliquable (page audio),
-        // ne declencher que si le clic est sur la barre gauche (zone de marge)
-        // / If the block is also a texte-bloc-cliquable (audio page),
-        // only trigger if the click is on the left bar area (margin zone)
-        var estBlocAudio = bloc.classList.contains('texte-bloc-cliquable');
-        if (estBlocAudio) {
-            var rectBloc = bloc.getBoundingClientRect();
-            var clicRelatifX = evenement.clientX - rectBloc.left;
-            // La barre fait 3px + padding 12px = zone de ~15px depuis le bord gauche
-            // / The bar is 3px + padding 12px = ~15px zone from the left edge
-            if (clicRelatifX > 15) return;
-        }
+        var rectParagraphe = paragrapheParent.getBoundingClientRect();
+        var clicRelatifX = evenement.clientX - rectParagraphe.left;
 
-        scrollToCarteDepuisBloc(extractionIds);
-    });
+        // Zone de l'icone : x < 0 par rapport au bord gauche du paragraphe
+        // / Icon zone: x < 0 relative to paragraph left edge
+        if (clicRelatifX >= 0) return;
+
+        var extractionId = spanExtraction.dataset.extractionId;
+        if (!extractionId) return;
+
+        // Bloquer la propagation pour empecher l'editeur inline
+        // / Stop propagation to prevent inline editor
+        evenement.stopPropagation();
+
+        // Surligner le texte extrait (comme quand on clique depuis le panneau droit)
+        // / Highlight extracted text (same as clicking from right panel)
+        document.querySelectorAll('.hl-extraction.ancre-active').forEach(function(el) {
+            el.classList.remove('ancre-active');
+        });
+        spanExtraction.classList.remove('ancre-active');
+        void spanExtraction.offsetWidth;
+        spanExtraction.classList.add('ancre-active');
+
+        // Naviguer vers la carte dans le panneau droit
+        // / Navigate to card in right panel
+        scrollToCarteDepuisBloc(extractionId);
+    }, true);
 
     // --- Edition inline du titre de la page ---
     // Clic sur le titre → remplace par un input, sauvegarde au blur/Entree, annule a Echap
@@ -1155,19 +1196,6 @@
         if (!paragraphe) {
             positionMousedownBloc = null;
             return;
-        }
-
-        // Si le clic est sur la barre d'extraction (zone gauche < 15px), ne pas ouvrir l'editeur
-        // La barre sera geree par le handler de clic .bloc-avec-extraction
-        // / If click is on the extraction bar (left zone < 15px), don't open editor
-        // The bar will be handled by the .bloc-avec-extraction click handler
-        if (paragraphe.classList.contains('bloc-avec-extraction')) {
-            var rectParagraphe = paragraphe.getBoundingClientRect();
-            var clicRelatifX = evenement.clientX - rectParagraphe.left;
-            if (clicRelatifX <= 15) {
-                positionMousedownBloc = null;
-                return;
-            }
         }
 
         positionMousedownBloc = {
