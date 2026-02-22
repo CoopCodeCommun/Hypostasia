@@ -108,75 +108,54 @@
         }
 
         /* Variable de couleur pour les marqueurs d'extraction */
-        /* Changer --ancre-color pour modifier la couleur de tous les marqueurs */
         /* / Extraction marker color variable */
         :root {
             --ancre-color: 59, 130, 246; /* bleu Tailwind blue-500, format RGB */
         }
 
-        /* Marqueur d'ancre d'extraction visible dans le texte */
-        /* / Visible extraction anchor marker in text */
-        .extraction-ancre {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background-color: rgb(var(--ancre-color));
-            border-radius: 50%;
-            margin-right: 2px;
-            vertical-align: middle;
+        /* Bloc contenant au moins une extraction — barre bleue en marge gauche */
+        /* / Block containing at least one extraction — blue left margin bar */
+        .bloc-avec-extraction {
+            position: relative;
+            border-left: 3px solid rgb(59, 130, 246);
+            padding-left: 12px;
+            margin-left: -15px;
             cursor: pointer;
-            opacity: 0.5;
-            transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+            transition: border-color 0.15s, background-color 0.15s;
         }
-        .extraction-ancre:hover {
-            opacity: 1;
-            transform: scale(1.4);
-            box-shadow: 0 0 6px rgba(var(--ancre-color), 0.5);
+        .bloc-avec-extraction:hover {
+            background-color: rgba(59, 130, 246, 0.04);
         }
 
-        /* Pastille d'ancre commentee — couleur ambre / Commented anchor dot — amber color */
-        .extraction-ancre.ancre-commentee {
-            background-color: rgb(245, 158, 11);
-            opacity: 0.7;
+        /* Bloc avec extraction commentee — barre orange */
+        /* / Block with commented extraction — orange bar */
+        .bloc-avec-commentaire {
+            border-left-color: rgb(245, 158, 11);
         }
-        .extraction-ancre.ancre-commentee:hover {
-            opacity: 1;
-            box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
-        }
-
-        /* Bloc de restitution avec pastille violette / Restitution block with violet badge */
-        /* Pastille d'ancre de restitution — couleur violette (meme pattern que extraction-ancre) */
-        /* / Restitution anchor dot — violet color (same pattern as extraction-ancre) */
-        .restitution-ancre {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background-color: rgb(139, 92, 246);
-            border-radius: 50%;
-            margin: 0 3px;
-            vertical-align: middle;
-            cursor: pointer;
-            opacity: 0.7;
-            transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
-        }
-        .restitution-ancre:hover {
-            opacity: 1;
-            transform: scale(1.4);
-            box-shadow: 0 0 6px rgba(139, 92, 246, 0.5);
+        .bloc-avec-commentaire:hover {
+            background-color: rgba(245, 158, 11, 0.04);
         }
 
-        /* Ancre active (cliquee depuis le panneau droit) */
-        /* / Active anchor (clicked from right panel) */
-        .extraction-ancre.ancre-active {
-            opacity: 1;
-            transform: scale(1.6);
-            box-shadow: 0 0 10px rgba(var(--ancre-color), 0.6);
-            animation: ancre-pulse 2.5s ease-out forwards;
+        /* Bloc avec restitution — barre violette */
+        /* / Block with restitution — violet bar */
+        .bloc-avec-restitution {
+            border-left-color: rgb(139, 92, 246);
         }
-        @keyframes ancre-pulse {
-            0%   { opacity: 1; transform: scale(1.6); box-shadow: 0 0 10px rgba(var(--ancre-color), 0.6); }
-            70%  { opacity: 0.8; transform: scale(1.2); box-shadow: 0 0 4px rgba(var(--ancre-color), 0.3); }
-            100% { opacity: 0.5; transform: scale(1); box-shadow: none; }
+        .bloc-avec-restitution:hover {
+            background-color: rgba(139, 92, 246, 0.04);
+        }
+
+        /* Bloc actif (clique depuis le panneau droit) */
+        /* / Active block (clicked from right panel) */
+        .bloc-avec-extraction.ancre-active {
+            border-left-width: 4px;
+            background-color: rgba(59, 130, 246, 0.08);
+            animation: barre-pulse 2.5s ease-out forwards;
+        }
+        @keyframes barre-pulse {
+            0%   { background-color: rgba(59, 130, 246, 0.12); }
+            70%  { background-color: rgba(59, 130, 246, 0.04); }
+            100% { background-color: transparent; border-left-width: 3px; }
         }
 
         /* Carte d'extraction clignotante (cliquee depuis le texte) */
@@ -898,48 +877,49 @@
     })();
     </script>
 
-    <!-- Navigation bidirectionnelle : carte ↔ ancre dans le texte -->
-    <!-- Les ancres <span class="extraction-ancre"> sont injectees cote serveur -->
-    <!-- / Bidirectional navigation: card ↔ anchor in text -->
+    <!-- Navigation bidirectionnelle : carte ↔ barre dans le texte -->
+    <!-- Les tags conteneurs sont annotes avec data-extraction-ids cote serveur -->
+    <!-- / Bidirectional navigation: card ↔ margin bar in text -->
     <script>
     /**
-     * Carte → Ancre : scroll vers l'ancre dans le texte et la met en surbrillance.
-     * / Card → Anchor: scroll to anchor in text and highlight it.
+     * Carte → Bloc : scroll vers le bloc annote dans le texte et le met en surbrillance.
+     * / Card → Block: scroll to annotated block in text and highlight it.
      */
     function scrollToExtraction(elementCarte) {
-        // Nettoyer les ancres actives precedentes / Clean previous active anchors
-        document.querySelectorAll('.extraction-ancre.ancre-active').forEach(function(el) {
+        // Nettoyer les blocs actifs precedents / Clean previous active blocks
+        document.querySelectorAll('.bloc-avec-extraction.ancre-active').forEach(function(el) {
             el.classList.remove('ancre-active');
         });
 
         var extractionId = elementCarte.dataset.extractionId;
         if (!extractionId) return;
 
-        var ancre = document.querySelector(
-            '#readability-content .extraction-ancre[data-extraction-id="' + extractionId + '"]'
+        // Chercher le bloc conteneur qui contient cet ID d'extraction
+        // / Find the container block that contains this extraction ID
+        var bloc = document.querySelector(
+            '#readability-content .bloc-avec-extraction[data-extraction-ids*="' + extractionId + '"]'
         );
 
-        if (!ancre) {
-            console.warn('[scrollToExtraction] Ancre introuvable pour extraction id=' + extractionId);
+        if (!bloc) {
+            console.warn('[scrollToExtraction] Bloc introuvable pour extraction id=' + extractionId);
             return;
         }
 
         // Reset animation : retirer la classe, forcer un reflow, puis remettre
-        // Permet de relancer l'animation meme si on re-clique sur la meme carte
         // / Reset animation: remove class, force reflow, then re-add
-        ancre.classList.remove('ancre-active');
-        void ancre.offsetWidth;
-        ancre.classList.add('ancre-active');
-        ancre.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        bloc.classList.remove('ancre-active');
+        void bloc.offsetWidth;
+        bloc.classList.add('ancre-active');
+        bloc.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     /**
-     * Ancre → Carte : clic sur un marqueur dans le texte fait clignoter
+     * Bloc → Carte : clic sur un bloc annote fait clignoter
      * la carte correspondante dans le panneau droit et l'ouvre si ferme.
-     * / Anchor → Card: click on text marker flashes the corresponding card
+     * / Block → Card: click on annotated block flashes the corresponding card
      * in the right panel and opens it if closed.
      */
-    function scrollToCarteDepuisAncre(extractionId) {
+    function scrollToCarteDepuisBloc(extractionIds) {
         // Ouvrir le panneau droit s'il est ferme / Open right panel if closed
         ouvrirPanneauDroit();
 
@@ -948,31 +928,39 @@
             el.classList.remove('carte-flash');
         });
 
+        // Prendre le premier ID d'extraction du bloc / Take first extraction ID from block
+        var premierIdExtraction = extractionIds.split(',')[0].trim();
+
         var carte = document.querySelector(
-            '#extraction-results .extraction-card[data-extraction-id="' + extractionId + '"]'
+            '#extraction-results .extraction-card[data-extraction-id="' + premierIdExtraction + '"]'
         );
 
         if (!carte) {
-            console.warn('[scrollToCarteDepuisAncre] Carte introuvable pour extraction id=' + extractionId);
+            console.warn('[scrollToCarteDepuisBloc] Carte introuvable pour extraction id=' + premierIdExtraction);
             return;
         }
 
-        // Reset animation pour re-clic sur le meme point bleu
-        // / Reset animation for re-click on same anchor
+        // Reset animation pour re-clic / Reset animation for re-click
         carte.classList.remove('carte-flash');
         void carte.offsetWidth;
         carte.classList.add('carte-flash');
         carte.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    // Delegation d'evenement : clic sur un marqueur d'ancre dans le texte
-    // / Event delegation: click on anchor marker in text
+    // Delegation d'evenement : clic sur un bloc avec barre d'extraction dans le texte
+    // Ne se declenche PAS si on clique dans un input/textarea (edition inline)
+    // / Event delegation: click on block with extraction bar in text
+    // Does NOT trigger if clicking inside an input/textarea (inline editing)
     document.addEventListener('click', function(evenement) {
-        var ancre = evenement.target.closest('.extraction-ancre');
-        if (!ancre) return;
-        var extractionId = ancre.dataset.extractionId;
-        if (extractionId) {
-            scrollToCarteDepuisAncre(extractionId);
+        // Ignorer les clics dans les zones d'edition inline
+        // / Ignore clicks inside inline editing areas
+        if (evenement.target.closest('input, textarea, [contenteditable]')) return;
+
+        var bloc = evenement.target.closest('.bloc-avec-extraction');
+        if (!bloc) return;
+        var extractionIds = bloc.dataset.extractionIds;
+        if (extractionIds) {
+            scrollToCarteDepuisBloc(extractionIds);
         }
     });
 

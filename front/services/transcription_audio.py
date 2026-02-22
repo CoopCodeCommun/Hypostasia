@@ -337,8 +337,7 @@ def construire_html_diarise(segments_transcrits):
         # / Speaker name is clickable to allow renaming
         # / Text paragraph is clickable to switch to inline edit mode
         bloc_html = (
-            f'<div id="speaker-block-{index_bloc}" class="speaker-block mb-4 pl-4 border-l-4 rounded-r" '
-            f'style="border-color: {couleur_locuteur};">'
+            f'<div id="speaker-block-{index_bloc}" class="speaker-block mb-4 pl-4 rounded-r">'
             f'<div class="flex items-center gap-2 mb-1">'
             f'<span class="speaker-name font-semibold text-sm cursor-pointer hover:underline" '
             f'style="color: {couleur_locuteur};" '

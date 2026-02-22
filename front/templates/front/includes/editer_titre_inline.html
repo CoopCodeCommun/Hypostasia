@@ -1,0 +1,14 @@
+{# Formulaire d'edition inline du titre de la page #}
+{# / Inline title editing form #}
+<form id="formulaire-edition-titre"
+      class="formulaire-edition-titre mb-1"
+      hx-post="/lire/{{ page.pk }}/modifier_titre/"
+      hx-target="#zone-lecture"
+      hx-swap="innerHTML">
+    <input type="text"
+           name="nouveau_titre"
+           value="{{ page.title|default:'' }}"
+           class="w-full text-2xl font-bold text-slate-900 bg-transparent border-b-2 border-blue-400 outline-none py-0.5"
+           style="font-family: 'Inter', sans-serif;"
+           autofocus>
+</form>

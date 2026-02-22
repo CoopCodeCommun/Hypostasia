@@ -29,7 +29,7 @@ from .serializers import (
     RunRestitutionSerializer, SelectModelSerializer, SupprimerBlocSerializer,
     est_fichier_audio, est_fichier_json,
 )
-from .utils import annoter_html_avec_ancres
+from .utils import annoter_html_avec_barres
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +230,7 @@ class LectureViewSet(viewsets.ViewSet):
             )
             # Annoter le HTML avec des ancres pour le scroll-to-extraction
             # / Annotate HTML with anchors for scroll-to-extraction
-            html_annote = annoter_html_avec_ancres(
+            html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
             )
@@ -328,7 +328,7 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 dernier_job_termine.entities.all()
             )
-            html_annote = annoter_html_avec_ancres(
+            html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
             )
@@ -764,7 +764,7 @@ class LectureViewSet(viewsets.ViewSet):
                 dernier_job_termine.entities.all()
             )
 
-            html_annote = annoter_html_avec_ancres(
+            html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 toutes_les_entites_du_job, ids_entites_commentees,
             )
@@ -1092,11 +1092,27 @@ class LectureViewSet(viewsets.ViewSet):
         page.text_readability = texte_reconstruit
         page.save()
 
+        # Re-annoter le HTML avec les barres d'extraction si un job existe
+        # / Re-annotate HTML with extraction bars if a job exists
+        html_annote = None
+        dernier_job_termine = ExtractionJob.objects.filter(
+            page=page, status="completed",
+        ).order_by("-created_at").first()
+        if dernier_job_termine:
+            entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
+                dernier_job_termine.entities.all()
+            )
+            html_annote = annoter_html_avec_barres(
+                page.html_readability, page.text_readability,
+                entites_existantes, ids_entites_commentees,
+            )
+
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
 
         return render(request, "front/includes/lecture_principale.html", {
             "page": page,
+            "html_annote": html_annote,
             "versions": toutes_les_versions,
             "page_racine": page_racine,
         })
@@ -1157,11 +1173,27 @@ class LectureViewSet(viewsets.ViewSet):
         page.text_readability = texte_reconstruit
         page.save()
 
+        # Re-annoter le HTML avec les barres d'extraction si un job existe
+        # / Re-annotate HTML with extraction bars if a job exists
+        html_annote = None
+        dernier_job_termine = ExtractionJob.objects.filter(
+            page=page, status="completed",
+        ).order_by("-created_at").first()
+        if dernier_job_termine:
+            entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
+                dernier_job_termine.entities.all()
+            )
+            html_annote = annoter_html_avec_barres(
+                page.html_readability, page.text_readability,
+                entites_existantes, ids_entites_commentees,
+            )
+
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
 
         return render(request, "front/includes/lecture_principale.html", {
             "page": page,
+            "html_annote": html_annote,
             "versions": toutes_les_versions,
             "page_racine": page_racine,
         })
@@ -1281,7 +1313,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         )
 
         # Annoter le HTML / Annotate HTML
-        html_annote = annoter_html_avec_ancres(
+        html_annote = annoter_html_avec_barres(
             page.html_readability, page.text_readability,
             toutes_les_entites, ids_entites_commentees,
         )
