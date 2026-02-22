@@ -113,6 +113,15 @@ class Page(models.Model):
         max_length=64, blank=True, help_text="SHA256 hex du `text_readability`"
     )  # SHA256 hex digest
 
+    # Fichier source original uploade (audio, document, JSON)
+    # / Original uploaded source file (audio, document, JSON)
+    source_file = models.FileField(
+        upload_to="sources/",
+        null=True,
+        blank=True,
+        help_text="Fichier source original (audio, document ou JSON uploade)",
+    )
+
     # Donnees brutes de transcription audio (segments JSON du modele)
     # / Raw audio transcription data (model JSON segments)
     transcription_raw = models.JSONField(

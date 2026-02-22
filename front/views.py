@@ -7,7 +7,7 @@ from datetime import timedelta
 from django.db.models import Count, Prefetch
 from django.utils import timezone
 from django.utils.html import escape, strip_tags
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.template.loader import render_to_string
 from rest_framework import permissions, viewsets
@@ -23,8 +23,8 @@ from hypostasis_extractor.models import (
 from .serializers import (
     CommentaireExtractionSerializer, DossierCreateSerializer, EditerBlocSerializer,
     ExtractionManuelleSerializer, ExtractionSerializer, ImportFichierSerializer,
-    PageClasserSerializer, PromouvoirEntrainementSerializer, QuestionSerializer,
-    RenommerLocuteurSerializer, ReponseQuestionSerializer,
+    ModifierTitrePageSerializer, PageClasserSerializer, PromouvoirEntrainementSerializer,
+    QuestionSerializer, RenommerLocuteurSerializer, ReponseQuestionSerializer,
     RunAnalyseSerializer, RunReformulationSerializer,
     RunRestitutionSerializer, SelectModelSerializer, SupprimerBlocSerializer,
     est_fichier_audio, est_fichier_json,
@@ -291,6 +291,199 @@ class LectureViewSet(viewsets.ViewSet):
             "versions": toutes_les_versions,
             "page_racine": page_racine,
         })
+
+    @action(detail=True, methods=["POST"], url_path="modifier_titre")
+    def modifier_titre(self, request, pk=None):
+        """
+        Modifie le titre d'une page (edition inline).
+        Retourne le partial lecture_principale mis a jour.
+        / Modifies a page's title (inline editing).
+        Returns the updated lecture_principale partial.
+        """
+        page = get_object_or_404(Page, pk=pk)
+
+        # Validation via serializer DRF
+        # / Validation via DRF serializer
+        serializer_titre = ModifierTitrePageSerializer(data=request.data)
+        serializer_titre.is_valid(raise_exception=True)
+        nouveau_titre = serializer_titre.validated_data["nouveau_titre"]
+
+        # Mise a jour du titre de la page
+        # / Update the page title
+        page.title = nouveau_titre
+        page.save(update_fields=["title"])
+        logger.info("modifier_titre: page pk=%s titre='%s'", page.pk, nouveau_titre)
+
+        # Rendu du partial de lecture (meme logique que retrieve)
+        # / Render reading partial (same logic as retrieve)
+        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
+        dernier_job_termine = ExtractionJob.objects.filter(
+            page=page, status="completed",
+        ).order_by("-created_at").first()
+
+        entites_existantes = None
+        html_annote = None
+        ids_entites_commentees = set()
+        if dernier_job_termine:
+            entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
+                dernier_job_termine.entities.all()
+            )
+            html_annote = annoter_html_avec_ancres(
+                page.html_readability, page.text_readability,
+                entites_existantes, ids_entites_commentees,
+            )
+
+        toutes_les_versions = page.toutes_les_versions
+        contexte_partage = {
+            "page": page,
+            "html_annote": html_annote,
+            "analyseurs_actifs": analyseurs_actifs,
+            "job": dernier_job_termine,
+            "entities": entites_existantes,
+            "ia_active": _get_ia_active(),
+            "versions": toutes_les_versions,
+            "page_racine": page.page_racine,
+        }
+
+        html_lecture = render_to_string(
+            "front/includes/lecture_principale.html",
+            contexte_partage,
+            request=request,
+        )
+
+        # OOB swap : arbre mis a jour (le titre peut apparaitre dans l'arbre)
+        # / OOB swap: updated tree (title may appear in the tree)
+        html_arbre_oob = render_to_string(
+            "front/includes/arbre_dossiers.html",
+            {
+                "dossiers": Dossier.objects.prefetch_related("pages").all(),
+                "pages_orphelines": Page.objects.filter(dossier__isnull=True, parent_page__isnull=True).order_by("-created_at"),
+            },
+            request=request,
+        )
+        html_arbre_oob = (
+            '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
+            + html_arbre_oob
+            + '</div>'
+        )
+
+        reponse = HttpResponse(html_lecture + html_arbre_oob)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": "Titre modifi\u00e9"},
+        })
+        return reponse
+
+    @action(detail=True, methods=["GET"], url_path="telecharger_source")
+    def telecharger_source(self, request, pk=None):
+        """
+        Telecharge la source originale de la page selon son type.
+        - audio + source_file → FileResponse du fichier audio
+        - audio sans source_file → transcription_raw en JSON
+        - file + source_file → FileResponse du document
+        - web → html_original en .html
+        / Downloads the original source of the page based on its type.
+        """
+        page = get_object_or_404(Page, pk=pk)
+
+        if page.source_type == "audio":
+            if page.source_file:
+                # Renvoyer le fichier audio original
+                # / Return the original audio file
+                nom_telechargement = page.original_filename or "audio.mp3"
+                return FileResponse(
+                    page.source_file.open("rb"),
+                    as_attachment=True,
+                    filename=nom_telechargement,
+                )
+            elif page.transcription_raw:
+                # Pas de fichier source → renvoyer le JSON brut de la transcription
+                # / No source file → return raw transcription JSON
+                contenu_json = json.dumps(page.transcription_raw, ensure_ascii=False, indent=2)
+                nom_fichier_json = f"{page.title or 'transcription'}.json"
+                reponse = HttpResponse(contenu_json, content_type="application/json")
+                reponse["Content-Disposition"] = f'attachment; filename="{nom_fichier_json}"'
+                return reponse
+            else:
+                return HttpResponse("Aucune source disponible.", status=404)
+
+        elif page.source_type == "file":
+            if page.source_file:
+                # Renvoyer le document original
+                # / Return the original document
+                nom_telechargement = page.original_filename or "document"
+                return FileResponse(
+                    page.source_file.open("rb"),
+                    as_attachment=True,
+                    filename=nom_telechargement,
+                )
+            else:
+                return HttpResponse("Aucune source disponible.", status=404)
+
+        elif page.source_type == "web":
+            # Renvoyer le HTML original de la page web
+            # / Return the original HTML of the web page
+            nom_fichier_html = f"{page.title or 'page'}.html"
+            reponse = HttpResponse(page.html_original, content_type="text/html; charset=utf-8")
+            reponse["Content-Disposition"] = f'attachment; filename="{nom_fichier_html}"'
+            return reponse
+
+        return HttpResponse("Type de source inconnu.", status=400)
+
+    @action(detail=True, methods=["GET"], url_path="exporter")
+    def exporter(self, request, pk=None):
+        """
+        Exporte le contenu d'une page en JSON ou Markdown.
+        Query param : ?type_export=json|markdown
+        ('format' est reserve par DRF pour la negociation de contenu)
+        / Exports a page's content as JSON or Markdown.
+        """
+        page = get_object_or_404(Page, pk=pk)
+        format_export = request.query_params.get("type_export", "markdown")
+
+        if page.source_type == "audio":
+            if format_export == "json":
+                # Renvoyer transcription_raw en JSON telechargeable (re-importable)
+                # / Return transcription_raw as downloadable JSON (re-importable)
+                donnees_export = page.transcription_raw or {"segments": []}
+                contenu_json = json.dumps(donnees_export, ensure_ascii=False, indent=2)
+                nom_fichier = f"{page.title or 'transcription'}.json"
+                reponse = HttpResponse(contenu_json, content_type="application/json")
+                reponse["Content-Disposition"] = f'attachment; filename="{nom_fichier}"'
+                return reponse
+            else:
+                # Markdown : construire [Locuteur HH:MM]\nTexte depuis les segments
+                # / Markdown: build [Speaker HH:MM]\nText from segments
+                donnees_transcription = page.transcription_raw or {}
+                liste_segments = donnees_transcription.get("segments", [])
+                lignes_markdown = [f"# {page.title or 'Transcription'}\n"]
+
+                for segment in liste_segments:
+                    locuteur = segment.get("speaker", "Inconnu")
+                    debut_secondes = segment.get("start", 0)
+                    # Convertir les secondes en HH:MM:SS
+                    # / Convert seconds to HH:MM:SS
+                    heures = int(debut_secondes // 3600)
+                    minutes = int((debut_secondes % 3600) // 60)
+                    secondes = int(debut_secondes % 60)
+                    horodatage = f"{heures:02d}:{minutes:02d}:{secondes:02d}"
+                    texte_segment = segment.get("text", "").strip()
+                    lignes_markdown.append(f"**[{locuteur} {horodatage}]**")
+                    lignes_markdown.append(f"{texte_segment}\n")
+
+                contenu_markdown = "\n".join(lignes_markdown)
+                nom_fichier = f"{page.title or 'transcription'}.md"
+                reponse = HttpResponse(contenu_markdown, content_type="text/markdown; charset=utf-8")
+                reponse["Content-Disposition"] = f'attachment; filename="{nom_fichier}"'
+                return reponse
+
+        else:
+            # Pages web ou documents : export Markdown du texte lisible
+            # / Web pages or documents: Markdown export of readable text
+            contenu_markdown = f"# {page.title or 'Document'}\n\n{page.text_readability}"
+            nom_fichier = f"{page.title or 'document'}.md"
+            reponse = HttpResponse(contenu_markdown, content_type="text/markdown; charset=utf-8")
+            reponse["Content-Disposition"] = f'attachment; filename="{nom_fichier}"'
+            return reponse
 
     @action(detail=True, methods=["GET"], url_path="previsualiser_analyse")
     def previsualiser_analyse(self, request, pk=None):
@@ -2336,6 +2529,11 @@ class ImportViewSet(viewsets.ViewSet):
         if dossier_id:
             dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
 
+        # Sauvegarder le fichier JSON original dans source_file
+        # / Save the original JSON file in source_file
+        from django.core.files.base import ContentFile
+        contenu_fichier_source = ContentFile(contenu_brut.encode("utf-8"), name=nom_fichier)
+
         # Creer la Page avec source_type='audio' et le JSON complet en transcription_raw
         # / Create Page with source_type='audio' and full JSON in transcription_raw
         page_importee = Page.objects.create(
@@ -2350,6 +2548,7 @@ class ImportViewSet(viewsets.ViewSet):
             transcription_raw=donnees_json,
             status="completed",
             dossier=dossier_assigne,
+            source_file=contenu_fichier_source,
         )
 
         logger.info(
@@ -2452,6 +2651,10 @@ class ImportViewSet(viewsets.ViewSet):
         if dossier_id:
             dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
 
+        # Sauvegarder le fichier audio dans source_file
+        # / Save the audio file in source_file
+        fichier_uploade.seek(0)
+
         # Creer la Page en status "processing" avec un placeholder HTML
         # / Create Page in "processing" status with a placeholder HTML
         page_audio = Page.objects.create(
@@ -2465,6 +2668,7 @@ class ImportViewSet(viewsets.ViewSet):
             content_hash="",
             status="processing",
             dossier=dossier_assigne,
+            source_file=fichier_uploade,
         )
 
         # Recuperer la config de transcription active (ou None pour mock)
@@ -2577,6 +2781,10 @@ class ImportViewSet(viewsets.ViewSet):
         # / Compute content hash
         hash_contenu = hashlib.sha256(text_readability.encode("utf-8")).hexdigest()
 
+        # Sauvegarder le fichier original dans source_file
+        # / Save original file in source_file
+        fichier_uploade.seek(0)
+
         # Creer la Page avec source_type='file'
         # / Create the Page with source_type='file'
         page_importee = Page.objects.create(
@@ -2589,6 +2797,7 @@ class ImportViewSet(viewsets.ViewSet):
             text_readability=text_readability,
             content_hash=hash_contenu,
             dossier=dossier_assigne,
+            source_file=fichier_uploade,
         )
 
         logger.info(
@@ -2850,6 +3059,12 @@ class ImportViewSet(viewsets.ViewSet):
         if dossier_id:
             dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
 
+        # Sauvegarder le fichier audio dans source_file depuis le fichier temp
+        # / Save the audio file in source_file from the temp file
+        from django.core.files.base import File as DjangoFile
+        fichier_audio_pour_source = open(chemin_fichier_audio, "rb")
+        fichier_django_source = DjangoFile(fichier_audio_pour_source, name=nom_fichier_original)
+
         # Creer la Page en status "processing"
         # / Create Page in "processing" status
         page_audio = Page.objects.create(
@@ -2863,7 +3078,9 @@ class ImportViewSet(viewsets.ViewSet):
             content_hash="",
             status="processing",
             dossier=dossier_assigne,
+            source_file=fichier_django_source,
         )
+        fichier_audio_pour_source.close()
 
         # Recuperer la config de transcription active (ou None pour mock)
         # / Get active transcription config (or None for mock)

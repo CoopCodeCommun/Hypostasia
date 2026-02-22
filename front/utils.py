@@ -206,16 +206,18 @@ def annoter_html_avec_ancres(html_brut, text_readability, entites, ids_entites_c
             # / Convert text_readability position → texte_extrait position
             pos_extrait = start_char + leading_offset
 
-            # Verifier la coherence : le texte a cette position doit correspondre
-            # / Sanity check: text at this position should match
+            # Verifier la coherence : le texte doit COMMENCER a cette position
+            # (pas juste etre present quelque part dans les 30 chars suivants)
+            # / Sanity check: text must START at this position
+            # (not just appear somewhere in the next 30 chars)
             if extraction_text and len(extraction_text) > 5:
-                texte_a_position = texte_extrait[pos_extrait:pos_extrait + 30]
-                debut_attendu = extraction_text[:30].replace('\xa0', ' ')
-                debut_trouve = texte_a_position[:30].replace('\xa0', ' ')
-                if debut_attendu[:15] and debut_attendu[:15] not in debut_trouve:
-                    # Le leading_offset ne suffit pas (donnees pre-existantes incoherentes)
-                    # On fallback sur la recherche textuelle
-                    # / leading_offset mismatch (legacy inconsistent data), fallback to text search
+                texte_a_position = texte_extrait[pos_extrait:pos_extrait + 30].replace('\xa0', ' ')
+                debut_attendu = extraction_text[:15].replace('\xa0', ' ')
+                if debut_attendu and not texte_a_position.startswith(debut_attendu):
+                    # Le texte ne commence pas a la position attendue → fallback textuel
+                    # Cas typique : pages audio ou text_readability et html textContent divergent
+                    # / Text doesn't start at expected position → text search fallback
+                    # Typical case: audio pages where text_readability and html textContent diverge
                     positions_valides = False
 
             if positions_valides and pos_extrait in mapping_debut:

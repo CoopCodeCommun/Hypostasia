@@ -976,6 +976,116 @@
         }
     });
 
+    // --- Edition inline du titre de la page ---
+    // Clic sur le titre → remplace par un input, sauvegarde au blur/Entree, annule a Echap
+    // / Inline title editing —
+    // Click on title → replace with input, save on blur/Enter, cancel on Escape
+    document.addEventListener('click', function(evenement) {
+        var titrePage = evenement.target.closest('.titre-page-cliquable');
+        if (!titrePage) return;
+
+        // Ne pas ouvrir si un formulaire de titre est deja ouvert
+        // / Don't open if a title form is already open
+        if (document.querySelector('.formulaire-edition-titre')) return;
+
+        var pageId = titrePage.dataset.pageId;
+        var titreActuel = titrePage.textContent.trim();
+
+        // Remplacer le h1 par un input inline
+        // / Replace h1 with inline input
+        var formulaireTitre = document.createElement('form');
+        formulaireTitre.className = 'formulaire-edition-titre mb-1';
+        formulaireTitre.setAttribute('hx-post', '/lire/' + pageId + '/modifier_titre/');
+        formulaireTitre.setAttribute('hx-target', '#zone-lecture');
+        formulaireTitre.setAttribute('hx-swap', 'innerHTML');
+        htmx.process(formulaireTitre);
+
+        var inputTitre = document.createElement('input');
+        inputTitre.type = 'text';
+        inputTitre.name = 'nouveau_titre';
+        inputTitre.value = titreActuel;
+        inputTitre.className = 'w-full text-2xl font-bold text-slate-900 bg-transparent border-b-2 border-blue-400 outline-none py-0.5';
+        inputTitre.style.fontFamily = "'Inter', sans-serif";
+
+        formulaireTitre.appendChild(inputTitre);
+        titrePage.replaceWith(formulaireTitre);
+        inputTitre.focus();
+        inputTitre.select();
+
+        // Entree → soumettre / Enter → submit
+        inputTitre.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                htmx.trigger(formulaireTitre, 'submit');
+            } else if (e.key === 'Escape') {
+                // Echap → annuler, recharger la page
+                // / Escape → cancel, reload the page
+                htmx.ajax('GET', '/lire/' + pageId + '/', {
+                    target: '#zone-lecture',
+                    swap: 'innerHTML',
+                });
+            }
+        });
+    });
+
+    // Clic en dehors du formulaire de titre → sauvegarde auto
+    // / Click outside title form → auto-save
+    document.addEventListener('mousedown', function(evenement) {
+        var formulaireTitre = document.querySelector('.formulaire-edition-titre');
+        if (!formulaireTitre) return;
+        if (formulaireTitre.contains(evenement.target)) return;
+
+        htmx.trigger(formulaireTitre, 'submit');
+    });
+
+    // --- Fermer les menus dropdown d'export au clic en dehors ---
+    // / Close export dropdown menus on outside click
+    document.addEventListener('click', function(evenement) {
+        if (evenement.target.closest('[title="Exporter"]')) return;
+        if (evenement.target.closest('.btn-copier-markdown')) return;
+        document.querySelectorAll('[title="Exporter"] + div').forEach(function(menu) {
+            menu.classList.add('hidden');
+        });
+    });
+
+    // --- Copier le contenu Markdown dans le presse-papier ---
+    // / Copy Markdown content to clipboard
+    document.addEventListener('click', function(evenement) {
+        var boutonCopier = evenement.target.closest('.btn-copier-markdown');
+        if (!boutonCopier) return;
+
+        var pageId = boutonCopier.dataset.pageId;
+        var urlExportMarkdown = '/lire/' + pageId + '/exporter/?type_export=markdown';
+
+        // Fermer le menu dropdown / Close the dropdown menu
+        var menuDropdown = boutonCopier.closest('[title="Exporter"] + div') || boutonCopier.closest('.hidden, div');
+        if (menuDropdown) menuDropdown.classList.add('hidden');
+
+        // Recuperer le contenu Markdown depuis l'endpoint existant
+        // / Fetch Markdown content from the existing endpoint
+        fetch(urlExportMarkdown)
+            .then(function(reponse) {
+                if (!reponse.ok) throw new Error('Erreur ' + reponse.status);
+                return reponse.text();
+            })
+            .then(function(contenuMarkdown) {
+                return navigator.clipboard.writeText(contenuMarkdown);
+            })
+            .then(function() {
+                Swal.fire({
+                    toast: true, position: 'top-end', icon: 'success',
+                    title: 'Markdown copié', showConfirmButton: false, timer: 2000,
+                });
+            })
+            .catch(function(erreur) {
+                console.error('[Copier Markdown]', erreur);
+                Swal.fire({
+                    toast: true, position: 'top-end', icon: 'error',
+                    title: 'Erreur lors de la copie', showConfirmButton: false, timer: 2500,
+                });
+            });
+    });
+
     // Delegation d'evenement : clic sur un nom de locuteur pour le renommer
     // / Event delegation: click on speaker name to rename it
     document.addEventListener('click', function(evenement) {

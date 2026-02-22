@@ -135,6 +135,11 @@ CSRF_TRUSTED_ORIGINS = [
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Media files (fichiers source uploades)
+# / Media files (uploaded source files)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / "media"
+
 
 # =============================================================================
 # Celery — broker et backend via django-db (SQLite, pas de Redis)

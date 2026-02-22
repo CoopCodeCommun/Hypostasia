@@ -382,6 +382,33 @@ class SupprimerBlocSerializer(serializers.Serializer):
     )
 
 
+class ModifierTitrePageSerializer(serializers.Serializer):
+    """
+    Validation pour la modification inline du titre d'une page.
+    Validation for inline modification of a page title.
+    """
+    nouveau_titre = serializers.CharField(
+        max_length=500,
+        error_messages={
+            "required": "Le titre est obligatoire / Title is required",
+            "blank": "Le titre ne peut pas etre vide / Title cannot be blank",
+        },
+    )
+
+    def validate_nouveau_titre(self, valeur):
+        """
+        Sanitize le titre — supprime toute balise HTML.
+        / Sanitize title — strip all HTML tags.
+        """
+        import bleach
+        titre_nettoye = bleach.clean(valeur, tags=[], strip=True).strip()
+        if not titre_nettoye:
+            raise serializers.ValidationError(
+                "Le titre ne peut pas etre vide apres nettoyage / Title cannot be empty after sanitization"
+            )
+        return titre_nettoye
+
+
 class RestitutionDebatSerializer(serializers.Serializer):
     """
     Validation pour la creation d'une restitution depuis un debat d'extraction.
