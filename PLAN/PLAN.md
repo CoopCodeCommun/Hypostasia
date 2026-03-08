@@ -149,98 +149,106 @@ mais de la donner a voir pour que les participants et le facilitateur puissent d
 
 ### Vue d'ensemble de l'interface cible
 
-**Mode lecture normal** — le texte est au centre, les annotations en marge :
+**1. Mode lecture normal** — le texte est au centre, les annotations en marge :
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│ [☰]  Titre du document        [Dashboard ▾] [Analyser] [E] [L] [⚙]│
-│  ↑                                ↑            ↑        ↑   ↑     │
-│  arbre                        consensus     lancer   drawer focus  │
-│  overlay                      (Etape 1.4)   extract.  vue   mode   │
-│  (T)                                        IA       liste  lecture │
-├───────────────────────────────────────────────────────────────┬────┤
-│ 📊 Depuis votre derniere visite : 2 → CONSENSUEL, 3 comm. [✕]│    │
-│    (bandeau de notification — Etape 1.16)                     │    │
-├───────────────────────────────────────────────────────────────┤    │
-│                                                               │ m  │
-│   L'intelligence artificielle souleve des                     │ a  │
-│   questions fondamentales sur l'avenir du                     │ r  │
-│   travail creatif.                                            │ g  │
-│                                                               │ e  │
-│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │    │
-│  ░ Plusieurs participants ont exprime des inquietudes     ░   │ ●  │
-│  ░ quant a la disparition des metiers creatifs.           ░   │ ↑  │
-│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │ pastille
-│  ↑ surlignage hl-extraction (clic ou J/K pour deplier)       │ coloree
-│                                                               │ par  │
-│   ┌────────────────────────────────────────────────────────┐  │ statut
-│   │ CONJECTURE              B612 gras uppercase  [▴]      │  │    │
-│   │                         couleur famille Speculatif     │  │    │
-│   │ L'IA va transformer     B612 Mono 14pt                 │  │    │
-│   │ les metiers creatifs    (typo-machine = "l'IA a dit")  │  │    │
-│   │ en metiers de                                          │  │    │
-│   │ supervision.                                           │  │    │
-│   │                                                        │  │    │
-│   │ « Je pense que dans     Lora italique 16pt             │  │    │
-│   │   5 ans, on ne          (typo-citation = "un humain    │  │    │
-│   │   dessinera plus »       a ecrit ca")                  │  │    │
-│   │                                                        │  │    │
-│   │ ● DISCUTE  #ia #metiers                    📎 2  💬 3  │  │    │
-│   │   ↑ badge statut colore (Etape 1.4)                    │  │    │
-│   │                                                        │  │    │
-│   │ ── Commentaires ──────────────────────────────         │  │    │
-│   │ Marie :               Srisakdi 20pt bleu               │  │    │
-│   │ Trop reducteur, il y  Srisakdi 16pt bleu               │  │    │
-│   │ a des metiers ou la   (typo-lecteur = "quelqu'un       │  │    │
-│   │ main reste essentielle  reagit maintenant")             │  │    │
-│   └────────────────────────────────────────────────────────┘  │    │
-│   ↑ carte inline depliee sous le passage (Etape 1.3 bis)     │    │
-│                                                               │    │
-│   En revanche, le secteur juridique semble                    │    │
-│   mieux prepare, avec des outils deja                         │ ●● │
-│   operationnels dans les cabinets.                            │    │
-│                                                               │    │
-│   Le consensus se forme autour de l'idee                      │    │
-│   que la regulation est necessaire.                           │ ○  │
-│                                                               │    │
-└───────────────────────────────────────────────────────────────┴────┘
+┌──────────────────────────────────────────────────────────────┐
+│  [☰]  Titre du document    [Dashboard ▾] [Analyser] [E] [L] │
+│   ①                            ②            ③       ④  ⑤   │
+├──────────────────────────────────────────────────────┬───────┤
+│  Depuis votre derniere visite :                      │       │
+│  2 extractions → CONSENSUEL · 3 commentaires    [✕]  │       │
+│  ⑥                                                   │       │
+├──────────────────────────────────────────────────────┤ marge │
+│                                                      │       │
+│  L'intelligence artificielle souleve des             │       │
+│  questions fondamentales sur l'avenir du             │       │
+│  travail creatif.                                    │       │
+│                                                      │       │
+│  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │       │
+│  ▓ Plusieurs participants ont exprime des        ▓   │  ●    │
+│  ▓ inquietudes quant a la disparition des        ▓   │  ⑧    │
+│  ▓ metiers creatifs.                             ▓   │       │
+│  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │       │
+│  ⑦                                                   │       │
+│                                                      │       │
+│  ┌────────────────────────────────────────────────┐  │       │
+│  │  CONJECTURE                          [replier] │  │       │
+│  │                                                │  │       │
+│  │  L'IA va transformer les metiers creatifs      │  │       │
+│  │  en metiers de supervision.                    │  │       │
+│  │                                                │  │       │
+│  │  « Je pense que dans 5 ans, on ne              │  │       │
+│  │    dessinera plus, on pilotera »               │  │       │
+│  │                                                │  │       │
+│  │  ● DISCUTE   #ia #metiers       📎 2   💬 3   │  │       │
+│  │                                                │  │       │
+│  │  ── Commentaires ───────────────────────────── │  │       │
+│  │  Marie :                                       │  │       │
+│  │  Trop reducteur, il y a des metiers ou la      │  │       │
+│  │  main humaine reste essentielle.               │  │       │
+│  └────────────────────────────────────────────────┘  │       │
+│  ⑨                                                   │       │
+│                                                      │       │
+│  En revanche, le secteur juridique semble            │       │
+│  mieux prepare, avec des outils deja                 │  ●●   │
+│  operationnels dans les cabinets.                    │       │
+│                                                      │       │
+│  Le consensus se forme autour de l'idee              │       │
+│  que la regulation est necessaire.                   │  ○    │
+│                                                      │       │
+└──────────────────────────────────────────────────────┴───────┘
+```
 
 Legende :
- ● pastille coloree = statut de debat (vert ○ consensuel, rouge ● discutable,
-   ambre ● discute, orange ● controverse) — Etape 1.4
- ░░ surlignage = passage extrait, fond colore si heat map active — Etape 1.15
- 3 polices = 3 provenances : machine (B612 Mono) / citation (Lora) / lecteur (Srisakdi)
-```
 
-**Avec le drawer vue liste ouvert** (touche E) — vision facilitateur :
+| # | Element | Etape | Description |
+|---|---------|-------|-------------|
+| ① | `[☰]` Arbre | 1.3 bis | Arbre de dossiers en overlay (touche `T`) |
+| ② | Dashboard | 1.4 | Compteurs de consensus, barre de progression, bloquants |
+| ③ | Analyser | 1.8 | Lance l'extraction IA sur le document |
+| ④ | `[E]` Drawer | 1.3 bis | Overlay a droite avec toutes les cartes en liste (touche `E`) |
+| ⑤ | `[L]` Focus | 1.11 | Mode lecture pure — masque pastilles et surlignage (touche `L`) |
+| ⑥ | Bandeau | 1.16 | Notifications de progression depuis la derniere visite |
+| ⑦ | Surlignage | 1.10 | Passage extrait (`hl-extraction`). Fond colore si heat map active (1.15) |
+| ⑧ | Pastille | 1.4 | Couleur = statut de debat (vert ○, rouge ●, ambre ●, orange ●). Clic = deplie la carte |
+| ⑨ | Carte inline | 1.3 bis | Extraction depliee sous le passage, avec 3 niveaux typographiques |
+
+Les 3 polices dans la carte = 3 provenances :
+- **CONJECTURE** → B612 gras (label d'hypostase, colore par famille)
+- **Resume IA** → B612 Mono (texte machine : "l'IA a dit ca")
+- **« Citation »** → Lora italique (texte humain source : "un humain a ecrit ca")
+- **Marie** → Srisakdi bleu (intervention lecteur : "quelqu'un reagit maintenant")
+
+**2. Avec le drawer vue liste ouvert** (touche `E`) — vision facilitateur :
 
 ```
-┌─────────────────────────────────────┬──────────────────────────────┐
-│                                     │ ≡ 12 extractions        [✕]  │
-│  Texte de l'article                 │ Tri: [Position ▾]  Filtre: ▾ │
-│  toujours visible                   │                              │
-│  en dessous, avec pastilles         │ ┌──────────────────────────┐ │
-│  de marge                           │ │ CONJECTURE    ● DISCUTE  │ │
-│                                     │ │ L'IA va transformer...   │ │
-│                                     │ │ 💬 3  📎 2  ━━━ (dense)  │ │
-│                                     │ └──────────────────────────┘ │
-│                                     │ ┌──────────────────────────┐ │
-│                                     │ │ LOI           ○ CONSENS. │ │
-│                                     │ │ La loi d'Amara...        │ │
-│                                     │ │ 💬 1  ── (leger)         │ │
-│                                     │ └──────────────────────────┘ │
-│                                     │ ┌──────────────────────────┐ │
-│                                     │ │ PHENOMENE     ● DISCUTAB │ │
-│                                     │ │ Le marche de l'IA...     │ │
-│                                     │ └──────────────────────────┘ │
-│                                     │                              │
-│                                     │ Curation : 3 masquees        │
-│                                     │ [Voir masquees]              │
-│                                     │                              │
-│                                     │ ── Dashboard rapide ──       │
-│                                     │ ⚫ 8 CS  ▶ 2 DSC  ▷ 1 DS   │
-│                                     │ ████████░░░  71% consensus   │
-└─────────────────────────────────────┴──────────────────────────────┘
+┌──────────────────────────────────┬───────────────────────────────┐
+│                                  │  12 extractions          [✕]  │
+│  Texte de l'article              │  Tri: [Position ▾] Filtre: ▾  │
+│  toujours visible                │                               │
+│  en dessous, avec les            │  ┌───────────────────────────┐│
+│  pastilles de marge              │  │ CONJECTURE     ● DISCUTE  ││
+│                                  │  │ L'IA va transformer...    ││
+│                                  │  │ 💬 3  📎 2               ││
+│                                  │  └───────────────────────────┘│
+│                                  │  ┌───────────────────────────┐│
+│                                  │  │ LOI            ○ CONSENS. ││
+│                                  │  │ La loi d'Amara...         ││
+│                                  │  │ 💬 1                      ││
+│                                  │  └───────────────────────────┘│
+│                                  │  ┌───────────────────────────┐│
+│                                  │  │ PHENOMENE      ● DISCUTAB ││
+│                                  │  │ Le marche de l'IA...      ││
+│                                  │  └───────────────────────────┘│
+│                                  │                               │
+│                                  │  Curation : 3 masquees        │
+│                                  │  [Voir masquees]               │
+│                                  │                               │
+│                                  │  ── Dashboard ──               │
+│                                  │  ⚫ 8 CS  ▶ 2 DSC  ▷ 1 DS    │
+│                                  │  ████████░░░░  71% consensus   │
+└──────────────────────────────────┴───────────────────────────────┘
 ```
 
 ### Introduction

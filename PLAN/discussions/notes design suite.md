@@ -1,4 +1,3 @@
-
 ❯ Analyse tout le plan ! donne moi des remarques et idée !
 
 ∴ Thinking…
