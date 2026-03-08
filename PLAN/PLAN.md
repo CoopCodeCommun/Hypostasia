@@ -145,7 +145,103 @@ mais de la donner a voir pour que les participants et le facilitateur puissent d
 
 ---
 
-## TL;DR — Sommaire executif et decisions impactantes
+## Resume — Vue d'ensemble en quelques lignes (tout est detaille plus bas)
+
+### Vue d'ensemble de l'interface cible
+
+**Mode lecture normal** — le texte est au centre, les annotations en marge :
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ [☰]  Titre du document        [Dashboard ▾] [Analyser] [E] [L] [⚙]│
+│  ↑                                ↑            ↑        ↑   ↑     │
+│  arbre                        consensus     lancer   drawer focus  │
+│  overlay                      (Etape 1.4)   extract.  vue   mode   │
+│  (T)                                        IA       liste  lecture │
+├───────────────────────────────────────────────────────────────┬────┤
+│ 📊 Depuis votre derniere visite : 2 → CONSENSUEL, 3 comm. [✕]│    │
+│    (bandeau de notification — Etape 1.16)                     │    │
+├───────────────────────────────────────────────────────────────┤    │
+│                                                               │ m  │
+│   L'intelligence artificielle souleve des                     │ a  │
+│   questions fondamentales sur l'avenir du                     │ r  │
+│   travail creatif.                                            │ g  │
+│                                                               │ e  │
+│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │    │
+│  ░ Plusieurs participants ont exprime des inquietudes     ░   │ ●  │
+│  ░ quant a la disparition des metiers creatifs.           ░   │ ↑  │
+│  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │ pastille
+│  ↑ surlignage hl-extraction (clic ou J/K pour deplier)       │ coloree
+│                                                               │ par  │
+│   ┌────────────────────────────────────────────────────────┐  │ statut
+│   │ CONJECTURE              B612 gras uppercase  [▴]      │  │    │
+│   │                         couleur famille Speculatif     │  │    │
+│   │ L'IA va transformer     B612 Mono 14pt                 │  │    │
+│   │ les metiers creatifs    (typo-machine = "l'IA a dit")  │  │    │
+│   │ en metiers de                                          │  │    │
+│   │ supervision.                                           │  │    │
+│   │                                                        │  │    │
+│   │ « Je pense que dans     Lora italique 16pt             │  │    │
+│   │   5 ans, on ne          (typo-citation = "un humain    │  │    │
+│   │   dessinera plus »       a ecrit ca")                  │  │    │
+│   │                                                        │  │    │
+│   │ ● DISCUTE  #ia #metiers                    📎 2  💬 3  │  │    │
+│   │   ↑ badge statut colore (Etape 1.4)                    │  │    │
+│   │                                                        │  │    │
+│   │ ── Commentaires ──────────────────────────────         │  │    │
+│   │ Marie :               Srisakdi 20pt bleu               │  │    │
+│   │ Trop reducteur, il y  Srisakdi 16pt bleu               │  │    │
+│   │ a des metiers ou la   (typo-lecteur = "quelqu'un       │  │    │
+│   │ main reste essentielle  reagit maintenant")             │  │    │
+│   └────────────────────────────────────────────────────────┘  │    │
+│   ↑ carte inline depliee sous le passage (Etape 1.3 bis)     │    │
+│                                                               │    │
+│   En revanche, le secteur juridique semble                    │    │
+│   mieux prepare, avec des outils deja                         │ ●● │
+│   operationnels dans les cabinets.                            │    │
+│                                                               │    │
+│   Le consensus se forme autour de l'idee                      │    │
+│   que la regulation est necessaire.                           │ ○  │
+│                                                               │    │
+└───────────────────────────────────────────────────────────────┴────┘
+
+Legende :
+ ● pastille coloree = statut de debat (vert ○ consensuel, rouge ● discutable,
+   ambre ● discute, orange ● controverse) — Etape 1.4
+ ░░ surlignage = passage extrait, fond colore si heat map active — Etape 1.15
+ 3 polices = 3 provenances : machine (B612 Mono) / citation (Lora) / lecteur (Srisakdi)
+```
+
+**Avec le drawer vue liste ouvert** (touche E) — vision facilitateur :
+
+```
+┌─────────────────────────────────────┬──────────────────────────────┐
+│                                     │ ≡ 12 extractions        [✕]  │
+│  Texte de l'article                 │ Tri: [Position ▾]  Filtre: ▾ │
+│  toujours visible                   │                              │
+│  en dessous, avec pastilles         │ ┌──────────────────────────┐ │
+│  de marge                           │ │ CONJECTURE    ● DISCUTE  │ │
+│                                     │ │ L'IA va transformer...   │ │
+│                                     │ │ 💬 3  📎 2  ━━━ (dense)  │ │
+│                                     │ └──────────────────────────┘ │
+│                                     │ ┌──────────────────────────┐ │
+│                                     │ │ LOI           ○ CONSENS. │ │
+│                                     │ │ La loi d'Amara...        │ │
+│                                     │ │ 💬 1  ── (leger)         │ │
+│                                     │ └──────────────────────────┘ │
+│                                     │ ┌──────────────────────────┐ │
+│                                     │ │ PHENOMENE     ● DISCUTAB │ │
+│                                     │ │ Le marche de l'IA...     │ │
+│                                     │ └──────────────────────────┘ │
+│                                     │                              │
+│                                     │ Curation : 3 masquees        │
+│                                     │ [Voir masquees]              │
+│                                     │                              │
+│                                     │ ── Dashboard rapide ──       │
+│                                     │ ⚫ 8 CS  ▶ 2 DSC  ▷ 1 DS   │
+│                                     │ ████████░░░  71% consensus   │
+└─────────────────────────────────────┴──────────────────────────────┘
+```
 
 ### Introduction
 Hypostasia est un outil de gestion de debat et de connaissance. Son cycle fondamental :
