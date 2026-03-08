@@ -1,0 +1,203 @@
+Attend deux seconde, a la relecture, je me rend compte qu'on considère le layout 3 colonne comme sacré. Mais c'est juste une tentative d'UX dans
+ un POC/MVP. Ça peut bouger.
+Si tes compétences d'UX designer critique sur l'outil pensent que ça doit bouger, je suis preneur pour qu'on continue à faire bouger des lignes.
+Qu'en penses tu ?
+
+∴ Thinking…
+
+  The user is asking me to critically evaluate the 3-column layout as a UX designer. Let me think deeply about this.
+
+  The current layout is:
+  - Left: folder tree (navigation)
+  - Center: reading zone (main content)
+  - Right: extraction panel (analysis)
+
+  Let me think about what Hypostasia actually does and whether 3 columns is the right approach...
+
+  The core workflow is: Lecture → Extraction → Commentaire → Débat → Synthèse → Nouvelle version
+
+  Let me think about what the user actually does at each stage:
+
+  1. Import/Browse - Finding/selecting a document → needs the tree
+
+  2. Reading - The user needs full width for comfortable reading, not cramped columns
+  3. Extraction - Running AI extraction or manual → needs text + results side by side
+  4. Commenting - Adding comments to extractions → needs extraction card + comment form
+  5. Debating - Seeing all comments, statuses → needs overview of extractions
+  6. Synthesizing - Writing new version from extractions → needs sources + writing space
+  7. Alignment - Cross-document comparison → needs matrix view
+
+  The 3-column layout tries to show everything at once, but the user doesn't actually need all three columns simultaneously. Different stages of
+  the workflow have different spatial requirements, and forcing everything into three columns creates compromises at each stage.
+
+  When I map out the actual usage patterns, the tree column sits idle most of the time. Users pick a document and then focus on working within
+  it—the tree is only needed during that initial selection phase. Keeping it visible constantly wastes valuable horizontal space that could go
+  toward reading or analysis. On smaller screens especially, this becomes a real constraint since reading needs width and analysis needs a side
+  panel, and they're competing for the same limited space. We already recognized this tension when designing overlays for smaller devices, so maybe
+   the solution isn't trying to fit everything at once, but rethinking when each view actually needs to be visible.
+
+  I'm exploring different layout paradigms that could resolve this conflict—collapsible sidebars that hide by default, full-width reading with
+  on-demand annotation panels, icon-based activity switching like VS Code, or even adaptive layouts that shift based on what the user is currently
+  doing.
+
+  But the deeper issue is that the three-column layout creates a false sense of simultaneity when attention actually flows sequentially from tree
+  to text to extractions. The real trade-off is whether spatial proximity helps (faster glancing) or hurts (cramped, cognitively overwhelming). For
+   Hypostasia, the text readability is non-negotiable—it needs proper line length and breathing room—while extractions need to stay contextually
+  linked to their source passages, and the tree serves a different purpose entirely.
+
+  Maybe the solution isn't a fixed layout but a flexible one: keep the tree as a collapsible overlay for quick navigation, give the text full width
+   as the primary focus, and let extractions appear as a right panel or inline annotations when needed. This is essentially what the responsive
+  design already does on smaller screens, so the question becomes whether that should be the standard everywhere rather than just a fallback. On
+  larger monitors there's definitely value in having everything visible at once, but that convenience shouldn't come at the cost of readability or
+  cognitive load.
+
+  The real issue isn't the three-column structure itself—it's that the tree sits unused most of the time, the extraction panel floats disconnected
+  from the text it references, and you're forced to juggle three information sources simultaneously. The extraction panel problem is particularly
+  worth solving: seeing a card in one zone while having to manually locate it in the text creates unnecessary friction, even with
+  scroll-to-highlight helping bridge that gap.
+
+  What if extractions lived closer to the reading experience instead? Margin annotations with inline expansion—click a marker in the text and the
+  extraction card opens right there, pushing content down—would feel more natural, similar to how annotation tools like Hypothesis work. But that
+  creates a new problem: you lose the overview of all extractions at once. The solution might be a hybrid approach where annotations live inline by
+   default with margin markers, a drawer slides in on demand to show the full extraction list, and clicking a specific extraction focuses the view
+  on just that passage with its full card. This feels like it's heading toward something that actually matches how people read and annotate.
+
+  The honest critique is that the three-column layout works but isn't optimal—the tree shouldn't be permanent, the extraction panel should be
+  something you pull up when needed, and the default should be immersive reading with subtle markers. That said, this is a fundamental
+  architectural decision that ripples through the entire plan, and the current layout does work as a familiar pattern.
+
+  I'm leaning toward recommending the tree be collapsible by default and the extraction panel feel equally natural in both overlay and persistent
+  modes, rather than redesigning everything from scratch. The three-column approach is a solid MVP foundation that can evolve.
+
+  But actually, let me push harder since they're asking for honest critique. The core loop here is reading text, seeing what's been extracted,
+  reacting to it, then synthesizing—almost like reading a book with marginalia in the margins.
+
+  Sketching out a layout where the document text is the main focus and extracted passages appear as annotations alongside it...
+
+  The margin shows indicator dots that reveal extraction status at a glance, and clicking one expands the card inline below that section. This
+  follows the classical marginalia pattern—keeping the reading experience front and center while maintaining context for each extraction. The
+  tradeoff is that scanning all extractions at once becomes harder since they're distributed through the text rather than consolidated in one view,
+   though a toggle could show them all in a list when needed.
+
+  I'm realizing I should frame this as a design direction worth exploring rather than a mandate. The user asked me to push back on the layout if I
+  saw issues, but he also cares about pragmatism and not overcomplicating things. The real insight is that the tree shouldn't live as a permanent
+  column—it's navigation, not workspace—and the extraction panel should feel like an integrated tool rather than a fixed fixture. A full redesign
+  isn't necessary; this can evolve naturally from what's already planned.
+
+● Bonne question. Laisse-moi mettre ma casquette de critique UX et regarder ça honnêtement.
+
+  Le layout 3 colonnes : ce qui marche et ce qui grince
+
+  Ce que le 3 colonnes fait bien
+
+  C'est un pattern connu (mail client, IDE) — les utilisateurs comprennent immédiatement la structure. Arbre = navigation, centre = contenu, droite
+   = outils. Pas d'apprentissage nécessaire.
+
+  Les vrais problèmes
+
+  1. L'arbre est une colonne permanente pour un usage ponctuel
+
+  L'arbre sert à choisir un document. Une fois le document ouvert, l'arbre est inutile pendant 90% de la session. Pourtant il mange 16rem de
+  largeur en permanence. C'est comme garder le menu du restaurant sur la table pendant tout le repas.
+
+  2. Le panneau d'extractions crée un split-attention
+
+  Le problème fondamental : la carte d'extraction est à droite, le passage qu'elle référence est au centre. L'utilisateur fait en permanence des
+  allers-retours visuels gauche-droite. Le scroll-to-highlight aide, mais ça reste deux zones séparées pour une information qui est
+  contextuellement liée.
+
+  Imagine un livre avec des annotations : tu ne mets pas les annotations dans un cahier séparé à côté du livre. Tu les mets dans la marge du livre,
+   à côté du passage concerné.
+
+  3. La compétition spatiale est un symptôme, pas le problème
+
+  On a passé du temps sur l'Étape 1.8 à résoudre "comment faire rentrer 3 colonnes sur 13 pouces" avec des overlays. Mais la question de fond est :
+   pourquoi 3 colonnes sont-elles nécessaires en même temps ? La réponse honnête : elles ne le sont presque jamais. L'utilisateur est soit en train
+   de naviguer (arbre), soit de lire (texte), soit d'analyser (extractions). Rarement les trois simultanément.
+
+  L'alternative : le lecteur avec marginalia
+
+  Le modèle mental naturel pour Hypostasia, c'est un livre annoté, pas un IDE. L'utilisateur lit un texte et voit les réactions/analyses en
+  contexte. La proposition :
+
+  ┌──────────────────────────────────────────────────────────┐
+  │ [☰]  Charte IA — Compte-rendu v2          [Analyser] [⚙]│
+  │  ↑                                                       │
+  │  arbre en overlay                                        │
+  ├───────────────────────────────────────────────────┬──────┤
+  │                                                   │ marge│
+  │   L'intelligence artificielle souleve des         │      │
+  │   questions fondamentales sur l'avenir du          │  ●   │ ← DISCUTE
+  │   travail creatif. Plusieurs participants          │      │
+  │   ont exprime des inquietudes.                     │      │
+  │                                                   │      │
+  │   ┌─────────────────────────────────────────────┐ │      │
+  │   │ CONJECTURE                                  │ │      │
+  │   │ L'IA va transformer les metiers creatifs    │ │      │
+  │   │ en metiers de supervision.                  │ │      │
+  │   │ « Je pense que dans 5 ans, on ne dessinera  │ │      │
+  │   │   plus, on pilotera »                       │ │      │
+  │   │ ● DISCUTE  #ia #metiers    💬 3    📎 2    │ │      │
+  │   │                                     [▾]     │ │      │
+  │   └─────────────────────────────────────────────┘ │      │
+  │                                                   │      │
+  │   En revanche, le secteur juridique semble        │      │
+  │   mieux prepare, avec des outils deja             │  ●●  │ ← 2 extractions
+  │   operationnels dans les cabinets.                │      │
+  │                                                   │      │
+  │   Le consensus se forme autour de l'idee          │      │
+  │   que la regulation est necessaire mais           │  ○   │ ← CONSENSUEL
+  │   ne doit pas freiner l'innovation.               │      │
+  │                                                   │      │
+  └───────────────────────────────────────────────────┴──────┘
+
+  Principe : le texte occupe toute la largeur. Dans la marge droite (étroite, ~3rem), des pastilles colorées indiquent les extractions et leur
+  statut. Au clic sur une pastille, la carte s'ouvre inline, entre les paragraphes, juste sous le passage concerné. Elle pousse le texte vers le
+  bas.
+
+  Ce que ça change concrètement
+
+  ┌──────────────────────┬──────────────────────────────────────┬───────────────────────────────────────────────────────────────┐
+  │        Aspect        │          Layout 3 colonnes           │                  Layout lecteur + marginalia                  │
+  ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ Lecture              │ Compressée entre 2 sidebars          │ Pleine largeur, confort optimal                               │
+  ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ Extractions          │ Dans un panneau séparé à droite      │ Inline sous le passage, contextuelles                         │
+  ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ Arbre                │ Colonne permanente à gauche          │ Overlay sur demande (☰ ou touche T)                           │
+  ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ Scan des extractions │ Scroll dans le panneau droit         │ Minimap en marge (pastilles colorées)                         │
+  ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ Vue d'ensemble       │ Le panneau montre toutes les cartes  │ Toggle "Vue liste" pour voir toutes les extractions d'un coup │
+  ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ 13"                  │ Overlay forcé, bidouille             │ Layout natif, pas de bidouille                                │
+  ├──────────────────────┼──────────────────────────────────────┼───────────────────────────────────────────────────────────────┤
+  │ Mobile               │ Layout complètement différent (1.14) │ Même logique, juste le bottom sheet au lieu de l'inline       │
+  └──────────────────────┴──────────────────────────────────────┴───────────────────────────────────────────────────────────────┘
+
+  Le tradeoff honnête
+
+  Le panneau droit a un avantage réel : la vue d'ensemble. Quand tu veux scanner "où en est le débat", scroller une liste de cartes est rapide. En
+  mode inline, tu ne vois que les cartes dépliées — les autres sont des points dans la marge.
+
+  Solutions :
+  - La minimap (pastilles en marge) donne la vue d'ensemble spatiale "où sont les extractions et dans quel état"
+  - Le dashboard de consensus (Étape 1.4) donne la vue d'ensemble statistique "combien sont consensuelles"
+  - Un toggle "Vue extractions" peut afficher temporairement toutes les cartes en liste (comme l'actuel panneau, mais en mode plein écran ou
+  overlay, pas en colonne permanente)
+
+  Ma recommandation
+
+  L'arbre ne devrait jamais être une colonne permanente. C'est de la navigation, pas du contexte de travail. Overlay/hamburger partout, même sur
+  27". C'est un changement simple et net.
+
+  Le panneau d'extractions : c'est la question difficile. Je pense que le layout lecteur + marginalia est meilleur pour le cas d'usage académique
+  (lecture augmentée, annotation de corpus, le cœur de cible). Mais le panneau-liste est meilleur pour le facilitateur qui gère un débat (vue
+  d'ensemble, tri, curation).
+
+  L'approche pragmatique : les deux modes coexistent. Le mode par défaut est le lecteur avec marginalia (inline). Un toggle (ou la touche E) ouvre
+  le panneau d'extractions en overlay pour le travail de gestion. Ce n'est pas si différent de ce que le PLAN prévoit déjà — c'est un changement de
+   défaut (inline first) plutôt qu'un changement d'architecture.
+
+  Qu'est-ce que tu en penses ? Est-ce que cette direction te parle, ou tu veux qu'on reste sur le 3 colonnes classique et qu'on se concentre sur
+  les optimisations déjà prévues ?

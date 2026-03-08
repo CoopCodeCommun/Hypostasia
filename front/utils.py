@@ -184,6 +184,23 @@ def _trouver_position_html_mapped(pos_texte, mapping_debut):
     return None
 
 
+def _est_dans_tag_html(html_brut, position):
+    """
+    Verifie si une position dans le HTML tombe a l'interieur d'un tag <...>.
+    Remonte en arriere pour trouver le dernier '<' ou '>' avant la position.
+    Si c'est '<', on est dans un tag. Si c'est '>', on est dans du texte.
+    / Check if a position in HTML falls inside a <...> tag.
+    Scan backwards for the last '<' or '>' before position.
+    If '<', we're inside a tag. If '>', we're in text content.
+    """
+    for i in range(position - 1, -1, -1):
+        if html_brut[i] == '>':
+            return False
+        if html_brut[i] == '<':
+            return True
+    return False
+
+
 def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_commentees=None):
     """
     Annote le HTML en enveloppant le texte exact de chaque extraction
@@ -212,7 +229,9 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
     insertions_spans = []
 
     for entite in entites:
-        entite_pk = entite.pk
+        # Securite : s'assurer que le pk est un entier (evite toute injection HTML)
+        # / Safety: ensure pk is an integer (prevents any HTML injection)
+        entite_pk = int(entite.pk)
         start_char = entite.start_char
         end_char = entite.end_char
         extraction_text = entite.extraction_text or ''
@@ -265,6 +284,23 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
         if html_pos_debut is None or html_pos_fin is None:
             logger.warning(
                 "annoter_html: mapping HTML introuvable pour entite pk=%s",
+                entite_pk,
+            )
+            continue
+
+        # Garde defensive : verifier que les positions ne tombent pas dans un tag HTML
+        # Le mapping ne devrait jamais pointer dans un tag, mais on verifie par securite
+        # / Defensive guard: verify positions don't fall inside an HTML tag
+        # The mapping should never point inside a tag, but we check for safety
+        if html_pos_debut > 0 and _est_dans_tag_html(html_brut, html_pos_debut):
+            logger.warning(
+                "annoter_html: position debut dans un tag HTML pour entite pk=%s",
+                entite_pk,
+            )
+            continue
+        if html_pos_fin > 0 and _est_dans_tag_html(html_brut, html_pos_fin):
+            logger.warning(
+                "annoter_html: position fin dans un tag HTML pour entite pk=%s",
                 entite_pk,
             )
             continue
