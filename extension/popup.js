@@ -4,6 +4,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const recolterBtn = document.getElementById('recolterBtn');
     const statusDiv = document.getElementById('status');
     const serverUrlInput = document.getElementById('serverUrl');
+    const indicateur_point = document.getElementById('serverStatusDot');
+    const indicateur_texte = document.getElementById('serverStatusText');
 
     // Charger l'adresse serveur depuis le storage / Load server URL from storage
     const config = await new Promise(resolve => {
@@ -51,6 +53,104 @@ document.addEventListener('DOMContentLoaded', async () => {
         return url_nettoyee;
     }
 
+    /**
+     * Normalise une URL de page pour la comparaison :
+     * - Retire les parametres UTM (utm_source, utm_medium, utm_campaign, etc.)
+     * - Retire le fragment (#...)
+     * - Retire le trailing slash
+     * / Normalize a page URL for comparison:
+     * - Remove UTM parameters (utm_source, utm_medium, utm_campaign, etc.)
+     * - Remove fragment (#...)
+     * - Remove trailing slash
+     */
+    function normaliserUrlPage(url_brute) {
+        try {
+            var url_parsee = new URL(url_brute);
+
+            // Retirer le fragment / Remove fragment
+            url_parsee.hash = '';
+
+            // Retirer les parametres UTM et de tracking courants
+            // / Remove UTM and common tracking parameters
+            var parametres_tracking = [
+                'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+                'fbclid', 'gclid', 'ref', 'mc_cid', 'mc_eid',
+            ];
+            parametres_tracking.forEach(function(param) {
+                url_parsee.searchParams.delete(param);
+            });
+
+            var url_normalisee = url_parsee.toString();
+
+            // Retirer le trailing slash (sauf si l'URL est juste l'origin + /)
+            // / Remove trailing slash (unless URL is just origin + /)
+            if (url_normalisee.endsWith('/') && url_parsee.pathname !== '/') {
+                url_normalisee = url_normalisee.slice(0, -1);
+            }
+
+            return url_normalisee;
+        } catch (e) {
+            // URL invalide, retourner telle quelle
+            // / Invalid URL, return as-is
+            return url_brute;
+        }
+    }
+
+    /**
+     * Calcule le hash SHA-256 d'une chaine de texte.
+     * Utilise l'API Web Crypto disponible dans les extensions Chrome.
+     * / Compute SHA-256 hash of a text string.
+     * / Uses the Web Crypto API available in Chrome extensions.
+     */
+    async function calculerHashContenu(texte) {
+        var donnees_encodees = new TextEncoder().encode(texte);
+        var buffer_hash = await crypto.subtle.digest('SHA-256', donnees_encodees);
+        var tableau_octets = Array.from(new Uint8Array(buffer_hash));
+        var hash_hexadecimal = tableau_octets.map(function(octet) {
+            return octet.toString(16).padStart(2, '0');
+        }).join('');
+        return hash_hexadecimal;
+    }
+
+    /**
+     * Extrait le texte brut depuis du HTML (retire les balises).
+     * Utilise un DOMParser cote extension pour mimer le comportement serveur.
+     * / Extract plain text from HTML (strip tags).
+     * / Uses DOMParser on the extension side to mimic server behavior.
+     */
+    function extraireTexteBrut(html) {
+        var parser = new DOMParser();
+        var document_parse = parser.parseFromString(html, 'text/html');
+        return document_parse.body.textContent || '';
+    }
+
+    // --- Indicateur de statut serveur / Server status indicator ---
+
+    /**
+     * Verifie si le serveur est joignable via un appel GET /api/pages/
+     * et met a jour l'indicateur visuel dans la popup.
+     * / Check if the server is reachable via GET /api/pages/
+     * / and update the visual indicator in the popup.
+     */
+    async function verifierStatutServeur() {
+        try {
+            var reponse = await fetch(getBaseUrl() + 'api/pages/', {
+                headers: { 'Accept': 'application/json' },
+                signal: AbortSignal.timeout(3000),
+            });
+            if (reponse.ok) {
+                indicateur_point.className = 'online';
+                indicateur_texte.textContent = 'Serveur connecte';
+            } else {
+                indicateur_point.className = 'offline';
+                indicateur_texte.textContent = 'Serveur erreur (' + reponse.status + ')';
+            }
+        } catch (erreur) {
+            indicateur_point.className = 'offline';
+            indicateur_texte.textContent = 'Serveur hors ligne';
+        }
+    }
+
     var saveUrlBtn = document.getElementById('saveUrlBtn');
 
     // Sanitiser et sauvegarder au clic sur OK
@@ -64,6 +164,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Feedback visuel bref / Brief visual feedback
         saveUrlBtn.textContent = '✓';
         setTimeout(function() { saveUrlBtn.textContent = 'OK'; }, 800);
+
+        // Re-verifier le statut avec la nouvelle URL
+        // / Re-check status with the new URL
+        verifierStatutServeur();
     }
 
     saveUrlBtn.addEventListener('click', sauvegarderUrlServeur);
@@ -77,6 +181,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     console.debug('[Hypostasia] BASE_URL:', getBaseUrl());
+
+    // Verifier le statut au chargement de la popup
+    // / Check status on popup load
+    verifierStatutServeur();
 
     // --- Bouton principal : recolter le contenu de la page ---
     // / Main button: harvest page content
@@ -99,22 +207,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /**
      * Flux principal de recolte :
-     * 1. Verifier si la page existe deja sur le serveur
-     * 2. Si non, extraire le contenu via Readability et l'envoyer
+     * 1. Normaliser l'URL et verifier si la page existe deja sur le serveur
+     * 2. Si non, extraire le contenu via Readability, calculer le content_hash et l'envoyer
+     * 3. Le serveur verifie le doublon par URL normalisee et par content_hash
      * / Main harvesting flow:
-     * 1. Check if page already exists on server
-     * 2. If not, extract content via Readability and send it
+     * 1. Normalize URL and check if page already exists on server
+     * 2. If not, extract content via Readability, compute content_hash and send it
+     * 3. Server checks for duplicates by normalized URL and content_hash
      */
     async function recolterContenuPage() {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         const url_courante = tab.url;
+        const url_normalisee = normaliserUrlPage(url_courante);
 
         console.debug('[Hypostasia] URL courante:', url_courante);
+        console.debug('[Hypostasia] URL normalisee:', url_normalisee);
 
-        // 1. Verifier si la page existe deja / Check if page already exists
+        // 1. Verifier si la page existe deja (par URL normalisee)
+        // / Check if page already exists (by normalized URL)
         statusDiv.textContent = "Verification...";
         const verification_response = await fetch(
-            `${getBaseUrl()}api/pages/?url=${encodeURIComponent(url_courante)}`,
+            `${getBaseUrl()}api/pages/?url=${encodeURIComponent(url_normalisee)}`,
             { headers: { 'Accept': 'application/json' } }
         );
 
@@ -182,7 +295,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             throw new Error(donnees_extraites.error);
         }
 
-        // 3. Envoyer au serveur (stockage uniquement, pas d'analyse LLM)
+        // 3. Normaliser l'URL et calculer le content_hash cote extension
+        // / Normalize the URL and compute content_hash on the extension side
+        donnees_extraites.url = url_normalisee;
+
+        var texte_brut_pour_hash = extraireTexteBrut(donnees_extraites.html_readability);
+        var content_hash_calcule = await calculerHashContenu(texte_brut_pour_hash);
+        donnees_extraites.content_hash = content_hash_calcule;
+
+        console.debug('[Hypostasia] content_hash:', content_hash_calcule.substring(0, 16) + '...');
+
+        // 4. Envoyer au serveur (stockage uniquement, pas d'analyse LLM)
         // / Send to server (storage only, no LLM analysis)
         statusDiv.textContent = "Envoi...";
         console.debug('[Hypostasia] POST /api/pages/');
@@ -196,6 +319,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!creation_response.ok) {
             const texte_erreur = await creation_response.text();
             console.error('[Hypostasia] Erreur creation:', creation_response.status, texte_erreur);
+
+            // Gerer le cas de doublon detecte par content_hash (409 Conflict)
+            // / Handle duplicate detected by content_hash (409 Conflict)
+            if (creation_response.status === 409) {
+                var donnees_conflit = JSON.parse(texte_erreur);
+                statusDiv.textContent = "Contenu identique deja enregistre (id: " + donnees_conflit.existing_page_id + ")";
+                statusDiv.className = "success";
+                recolterBtn.disabled = false;
+                recolterBtn.textContent = "Recolter";
+                return;
+            }
+
             throw new Error("Erreur creation (" + creation_response.status + ")");
         }
 

@@ -94,6 +94,57 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
     return params
 
 
+def _construire_exemples_langextract(analyseur, exclude_example_pk=None):
+    """
+    Construit la liste des exemples LangExtract depuis un AnalyseurSyntaxique.
+    Optionnellement exclut un exemple (anti data-leakage pour les tests).
+    / Build LangExtract examples list from an AnalyseurSyntaxique.
+    Optionally excludes an example (anti data-leakage for tests).
+    """
+    from .models import AnalyseurExample
+
+    # Recuperer tous les exemples de l'analyseur, avec prefetch des extractions et attributs
+    # / Fetch all analyzer examples, with prefetch of extractions and attributes
+    queryset_exemples = AnalyseurExample.objects.filter(
+        analyseur=analyseur,
+    ).order_by("order").prefetch_related("extractions__attributes")
+
+    if exclude_example_pk is not None:
+        # Anti data-leakage : exclure l'exemple teste, SAUF s'il est le seul
+        # / Anti data-leakage: exclude tested example, UNLESS it's the only one
+        queryset_exemples_filtres = queryset_exemples.exclude(pk=exclude_example_pk)
+        if not queryset_exemples_filtres.exists():
+            logger.warning(
+                "_construire_exemples_langextract: aucun autre exemple — "
+                "fallback sur l'exemple teste (anti data-leakage desactive)"
+            )
+            queryset_exemples_filtres = queryset_exemples.filter(pk=exclude_example_pk)
+        queryset_exemples = queryset_exemples_filtres
+
+    liste_exemples_langextract = []
+    for exemple_django in queryset_exemples:
+        liste_extractions = []
+        for extraction_django in exemple_django.extractions.all():
+            dictionnaire_attributs = {}
+            for attribut in extraction_django.attributes.all():
+                dictionnaire_attributs[attribut.key] = attribut.value
+            liste_extractions.append(
+                lx.data.Extraction(
+                    extraction_class=extraction_django.extraction_class,
+                    extraction_text=extraction_django.extraction_text,
+                    attributes=dictionnaire_attributs,
+                )
+            )
+        liste_exemples_langextract.append(
+            lx.data.ExampleData(
+                text=exemple_django.example_text,
+                extractions=liste_extractions,
+            )
+        )
+
+    return liste_exemples_langextract
+
+
 def _check_ia_active():
     """
     Verifie que l'IA est activee dans la configuration singleton.
@@ -250,7 +301,7 @@ def run_analyseur_test(analyseur, example, ai_model):
     _check_ia_active()
     from .models import (
         AnalyseurTestRun, TestRunExtraction, ExtractionJobStatus,
-        PromptPiece, AnalyseurExample
+        PromptPiece,
     )
 
     # 1. Construire le prompt snapshot / Build prompt snapshot
@@ -265,41 +316,11 @@ def run_analyseur_test(analyseur, example, ai_model):
 
     # 2. Construire les exemples few-shot SANS l'exemple teste (anti data-leakage)
     # / Build few-shot examples WITHOUT the tested example (anti data-leakage)
-    # Anti data-leakage : exclure l'exemple teste, SAUF s'il est le seul
-    # / Anti data-leakage: exclude tested example, UNLESS it's the only one
-    autres_exemples = AnalyseurExample.objects.filter(
-        analyseur=analyseur
-    ).exclude(pk=example.pk).order_by('order').prefetch_related('extractions__attributes')
-
-    if not autres_exemples.exists():
-        # Fallback : inclure l'exemple teste (LangExtract exige >= 1 exemple)
-        logger.warning("run_analyseur_test: aucun autre exemple — fallback sur l'exemple teste (anti data-leakage desactive)")
-        autres_exemples = AnalyseurExample.objects.filter(
-            pk=example.pk
-        ).prefetch_related('extractions__attributes')
-
+    liste_exemples_langextract = _construire_exemples_langextract(
+        analyseur, exclude_example_pk=example.pk,
+    )
     logger.debug("run_analyseur_test: %d exemples few-shot (excluant pk=%d)",
-                 autres_exemples.count(), example.pk)
-    liste_exemples_langextract = []
-    for exemple_django in autres_exemples:
-        liste_extractions = []
-        for extraction_django in exemple_django.extractions.all():
-            dictionnaire_attributs = {}
-            for attribut in extraction_django.attributes.all():
-                dictionnaire_attributs[attribut.key] = attribut.value
-            liste_extractions.append(
-                lx.data.Extraction(
-                    extraction_class=extraction_django.extraction_class,
-                    extraction_text=extraction_django.extraction_text,
-                    attributes=dictionnaire_attributs,
-                )
-            )
-        liste_exemples_langextract.append(
-            lx.data.ExampleData(
-                text=exemple_django.example_text,
-                extractions=liste_extractions,
-            )
-        )
+                 len(liste_exemples_langextract), example.pk)
 
     # 3. Resoudre les parametres du modele / Resolve model params
     model_params = resolve_model_params(ai_model)
@@ -377,7 +398,7 @@ def run_analyseur_on_page(analyseur, page, ai_model):
     """
     from .models import (
         ExtractionJob, ExtractedEntity, ExtractionJobStatus,
-        PromptPiece, AnalyseurExample
+        PromptPiece,
     )
 
     # 1. Construire le prompt depuis les pieces / Build prompt from pieces
@@ -386,31 +407,9 @@ def run_analyseur_on_page(analyseur, page, ai_model):
     ).order_by('order')
     prompt_snapshot = "\n".join(piece.content for piece in pieces_ordonnees)
 
-    # 2. Construire les exemples few-shot (TOUS) / Build all few-shot examples
-    tous_les_exemples = AnalyseurExample.objects.filter(
-        analyseur=analyseur
-    ).order_by('order').prefetch_related('extractions__attributes')
-
-    liste_exemples_langextract = []
-    for exemple_django in tous_les_exemples:
-        liste_extractions = []
-        for extraction_django in exemple_django.extractions.all():
-            dictionnaire_attributs = {}
-            for attribut in extraction_django.attributes.all():
-                dictionnaire_attributs[attribut.key] = attribut.value
-            liste_extractions.append(
-                lx.data.Extraction(
-                    extraction_class=extraction_django.extraction_class,
-                    extraction_text=extraction_django.extraction_text,
-                    attributes=dictionnaire_attributs,
-                )
-            )
-        liste_exemples_langextract.append(
-            lx.data.ExampleData(
-                text=exemple_django.example_text,
-                extractions=liste_extractions,
-            )
-        )
+    # 2. Construire les exemples few-shot (TOUS) via la fonction commune
+    # / Build all few-shot examples via the shared function
+    liste_exemples_langextract = _construire_exemples_langextract(analyseur)
 
     # 3. Resoudre les parametres du modele / Resolve model params
     model_params = resolve_model_params(ai_model)

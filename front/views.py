@@ -21,12 +21,15 @@ from hypostasis_extractor.models import (
     ExtractedEntity, ExtractionJob, PromptPiece,
 )
 from .serializers import (
-    CommentaireExtractionSerializer, DossierCreateSerializer, EditerBlocSerializer,
+    CommentaireExtractionSerializer, DossierCreateSerializer, DossierRenommerSerializer,
+    EditerBlocSerializer,
     ExtractionManuelleSerializer, ExtractionSerializer, ImportFichierSerializer,
-    ModifierTitrePageSerializer, PageClasserSerializer, PromouvoirEntrainementSerializer,
+    ModifierCommentaireSerializer, ModifierTitrePageSerializer,
+    PageClasserSerializer, PromouvoirEntrainementSerializer,
     QuestionSerializer, RenommerLocuteurSerializer, ReponseQuestionSerializer,
     RunAnalyseSerializer, RunReformulationSerializer,
-    RunRestitutionSerializer, SelectModelSerializer, SupprimerBlocSerializer,
+    RunRestitutionSerializer, SelectModelSerializer,
+    SupprimerBlocSerializer, SupprimerCommentaireSerializer,
     est_fichier_audio, est_fichier_json,
 )
 from .utils import annoter_html_avec_barres
@@ -634,31 +637,10 @@ class LectureViewSet(viewsets.ViewSet):
         ).order_by("order")
         prompt_snapshot = "\n".join(piece.content for piece in pieces_ordonnees)
 
-        # Serialiser les exemples few-shot pour stockage dans le job
-        # / Serialize few-shot examples for storage in the job
-        tous_les_exemples = AnalyseurExample.objects.filter(
-            analyseur=analyseur,
-        ).order_by("order").prefetch_related("extractions__attributes")
-
-        exemples_serialises = []
-        for exemple_django in tous_les_exemples:
-            liste_extractions = []
-            for extraction_django in exemple_django.extractions.all():
-                dictionnaire_attributs = {}
-                for attribut in extraction_django.attributes.all():
-                    dictionnaire_attributs[attribut.key] = attribut.value
-                liste_extractions.append({
-                    "extraction_class": extraction_django.extraction_class,
-                    "extraction_text": extraction_django.extraction_text,
-                    "attributes": dictionnaire_attributs,
-                })
-            exemples_serialises.append({
-                "text": exemple_django.example_text,
-                "extractions": liste_extractions,
-            })
-
-        # Creer le job d'extraction en status PENDING
-        # / Create extraction job in PENDING status
+        # Creer le job d'extraction en status PENDING (l'analyseur_id suffit,
+        # la tache Celery reconstruira les exemples depuis la DB)
+        # / Create extraction job in PENDING status (analyseur_id is enough,
+        # the Celery task will rebuild examples from DB)
         job_extraction = ExtractionJob.objects.create(
             page=page,
             ai_model=ai_model_actif,
@@ -666,7 +648,6 @@ class LectureViewSet(viewsets.ViewSet):
             prompt_description=prompt_snapshot,
             status="pending",
             raw_result={
-                "examples_data": exemples_serialises,
                 "analyseur_id": analyseur.pk,
             },
         )
@@ -1223,12 +1204,55 @@ class DossierViewSet(viewsets.ViewSet):
         return reponse
 
     def destroy(self, request, pk=None):
-        # Suppression explicite du dossier puis retour de l'arbre
-        # Explicit folder deletion then return updated tree
-        dossier = get_object_or_404(Dossier, pk=pk)
-        dossier.delete()
+        """
+        Supprime un dossier. Si le dossier contient des pages, elles deviennent orphelines
+        (dossier=null) grace au on_delete=SET_NULL du modele.
+        / Deletes a folder. If the folder contains pages, they become orphans
+        (dossier=null) thanks to the on_delete=SET_NULL on the model.
+        """
+        dossier_a_supprimer = get_object_or_404(Dossier, pk=pk)
+        nombre_pages_dans_dossier = Page.objects.filter(
+            dossier=dossier_a_supprimer, parent_page__isnull=True,
+        ).count()
+
+        nom_dossier = dossier_a_supprimer.name
+        dossier_a_supprimer.delete()
+
+        # Message adapte selon que le dossier contenait des pages ou non
+        # / Message adapted depending on whether folder contained pages or not
+        if nombre_pages_dans_dossier > 0:
+            message_toast = f"Dossier \u00ab {nom_dossier} \u00bb supprim\u00e9 — {nombre_pages_dans_dossier} page(s) reclassee(s) en orphelines"
+        else:
+            message_toast = f"Dossier \u00ab {nom_dossier} \u00bb supprim\u00e9"
+
         reponse = _render_arbre(request)
-        reponse["HX-Trigger"] = json.dumps({"showToast": {"message": "Dossier supprim\u00e9"}})
+        reponse["HX-Trigger"] = json.dumps({"showToast": {"message": message_toast}})
+        return reponse
+
+    @action(detail=True, methods=["POST"])
+    def renommer(self, request, pk=None):
+        """
+        Renomme un dossier et retourne l'arbre mis a jour.
+        / Renames a folder and returns the updated tree.
+        """
+        dossier_a_renommer = get_object_or_404(Dossier, pk=pk)
+
+        serializer = DossierRenommerSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("renommer dossier: validation echouee — %s", serializer.errors)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        nouveau_nom = serializer.validated_data["nouveau_nom"]
+        dossier_a_renommer.name = nouveau_nom
+        dossier_a_renommer.save(update_fields=["name"])
+
+        reponse = _render_arbre(request)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": f"Dossier renomm\u00e9 en \u00ab {nouveau_nom} \u00bb"},
+        })
         return reponse
 
 
@@ -1643,6 +1667,99 @@ class ExtractionViewSet(viewsets.ViewSet):
             "ouvrirPanneauDroit": True,
             "activerModeDebat": True,
             "showToast": {"message": "Commentaire ajout\u00e9"},
+        })
+        return reponse
+
+    def _re_rendre_fil_discussion(self, request, entite):
+        """
+        Helper : re-rend le fil de discussion complet pour une entite.
+        / Helper: re-renders the full discussion thread for an entity.
+        """
+        ia_active = _get_ia_active()
+        analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="reformuler",
+        ).exists()
+        analyseurs_restituer_existent = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="restituer",
+        ).exists()
+
+        tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
+        html_fil = render_to_string(
+            "front/includes/fil_discussion.html",
+            {
+                "entity": entite,
+                "commentaires": tous_les_commentaires,
+                "ia_active": ia_active,
+                "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
+                "analyseurs_restituer_existent": analyseurs_restituer_existent,
+            },
+            request=request,
+        )
+        return html_fil
+
+    @action(detail=False, methods=["POST"], url_path="modifier_commentaire")
+    def modifier_commentaire(self, request):
+        """
+        Modifie le texte d'un commentaire existant et re-rend le fil de discussion.
+        / Edits an existing comment's text and re-renders the discussion thread.
+        """
+        serializer = ModifierCommentaireSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("modifier_commentaire: validation echouee — %s", serializer.errors)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        donnees = serializer.validated_data
+        commentaire_a_modifier = get_object_or_404(
+            CommentaireExtraction, pk=donnees["commentaire_id"],
+        )
+
+        # Mettre a jour le texte du commentaire / Update the comment text
+        commentaire_a_modifier.commentaire = donnees["commentaire"]
+        commentaire_a_modifier.save(update_fields=["commentaire"])
+
+        entite = commentaire_a_modifier.entity
+        html_fil = self._re_rendre_fil_discussion(request, entite)
+
+        reponse = HttpResponse(html_fil)
+        reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
+            "activerModeDebat": True,
+            "showToast": {"message": "Commentaire modifi\u00e9"},
+        })
+        return reponse
+
+    @action(detail=False, methods=["POST"], url_path="supprimer_commentaire")
+    def supprimer_commentaire(self, request):
+        """
+        Supprime un commentaire et re-rend le fil de discussion.
+        / Deletes a comment and re-renders the discussion thread.
+        """
+        serializer = SupprimerCommentaireSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("supprimer_commentaire: validation echouee — %s", serializer.errors)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        donnees = serializer.validated_data
+        commentaire_a_supprimer = get_object_or_404(
+            CommentaireExtraction, pk=donnees["commentaire_id"],
+        )
+
+        entite = commentaire_a_supprimer.entity
+        commentaire_a_supprimer.delete()
+
+        html_fil = self._re_rendre_fil_discussion(request, entite)
+
+        reponse = HttpResponse(html_fil)
+        reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
+            "activerModeDebat": True,
+            "showToast": {"message": "Commentaire supprim\u00e9"},
         })
         return reponse
 

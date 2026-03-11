@@ -53,7 +53,7 @@ class PageCreateSerializer(serializers.ModelSerializer):
         required=False, allow_blank=True, default=""
     )
     blocks = TextBlockSerializer(many=True, required=False)
-    content_hash = serializers.CharField(read_only=True)
+    content_hash = serializers.CharField(required=False, allow_blank=True, default="")
 
     class Meta:
         model = Page

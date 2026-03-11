@@ -7,7 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Configurer le bouton
     const btn = document.getElementById('btn-analyze');
     if (parentUrl && btn) {
-        const targetUrl = `http://127.0.0.1:8000/api/test-sidebar/?url=${encodeURIComponent(parentUrl)}`;
+        // Utilise l'endpoint de production /api/sidebar/ au lieu de test-sidebar
+        // / Uses the production endpoint /api/sidebar/ instead of test-sidebar
+        const targetUrl = `http://127.0.0.1:8000/api/sidebar/?url=${encodeURIComponent(parentUrl)}`;
 
         btn.addEventListener('click', () => {
             const loader = document.getElementById('ag-loading');

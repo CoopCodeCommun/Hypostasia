@@ -409,6 +409,72 @@ class ModifierTitrePageSerializer(serializers.Serializer):
         return titre_nettoye
 
 
+class DossierRenommerSerializer(serializers.Serializer):
+    """
+    Validation pour le renommage d'un dossier.
+    Validation for renaming a folder.
+    """
+    nouveau_nom = serializers.CharField(
+        max_length=200,
+        error_messages={
+            "required": "Le nouveau nom est obligatoire / New name is required",
+            "blank": "Le nom ne peut pas etre vide / Name cannot be blank",
+        },
+    )
+
+    def validate_nouveau_nom(self, valeur):
+        # Nettoyage du nom — on enleve les espaces et les balises HTML
+        # / Clean name — strip whitespace and HTML tags
+        import bleach
+        nom_nettoye = bleach.clean(valeur, tags=[], strip=True).strip()
+        if not nom_nettoye:
+            raise serializers.ValidationError(
+                "Le nom ne peut pas etre vide apres nettoyage / Name cannot be empty after sanitization"
+            )
+        return nom_nettoye
+
+
+class ModifierCommentaireSerializer(serializers.Serializer):
+    """
+    Validation pour la modification d'un commentaire sur une extraction.
+    Validation for editing a comment on an extraction.
+    """
+    commentaire_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID du commentaire est obligatoire / Comment ID is required",
+        },
+    )
+    commentaire = serializers.CharField(
+        error_messages={
+            "required": "Le commentaire est obligatoire / Comment is required",
+            "blank": "Le commentaire ne peut pas etre vide / Comment cannot be blank",
+        },
+    )
+
+    def validate_commentaire(self, valeur):
+        # Sanitize le commentaire — supprime toute balise HTML
+        # / Sanitize comment — strip all HTML tags
+        import bleach
+        texte_nettoye = bleach.clean(valeur, tags=[], strip=True).strip()
+        if not texte_nettoye:
+            raise serializers.ValidationError(
+                "Le commentaire ne peut pas etre vide apres nettoyage / Comment cannot be empty after sanitization"
+            )
+        return texte_nettoye
+
+
+class SupprimerCommentaireSerializer(serializers.Serializer):
+    """
+    Validation pour la suppression d'un commentaire sur une extraction.
+    Validation for deleting a comment on an extraction.
+    """
+    commentaire_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID du commentaire est obligatoire / Comment ID is required",
+        },
+    )
+
+
 class RestitutionDebatSerializer(serializers.Serializer):
     """
     Validation pour la creation d'une restitution depuis un debat d'extraction.

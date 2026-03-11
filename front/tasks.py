@@ -406,9 +406,11 @@ def analyser_page_task(self, job_id):
     The job must already exist in PENDING status with page, ai_model and prompt_description filled.
     """
     from hypostasis_extractor.models import (
-        ExtractionJob, ExtractedEntity, ExtractionJobStatus,
+        AnalyseurSyntaxique, ExtractionJob, ExtractedEntity, ExtractionJobStatus,
     )
-    from hypostasis_extractor.services import resolve_model_params, _try_map_to_hypostasis
+    from hypostasis_extractor.services import (
+        _construire_exemples_langextract, resolve_model_params, _try_map_to_hypostasis,
+    )
     import langextract as lx
 
     debut_traitement = time.time()
@@ -442,27 +444,14 @@ def analyser_page_task(self, job_id):
         if not texte_source:
             raise ValueError("La Page n'a pas de text_readability disponible")
 
-        # Reconstruire les exemples few-shot depuis le prompt_description du job
-        # Le job stocke deja le prompt_snapshot et les exemples sont passes via raw_result
-        # / Rebuild few-shot examples from job's stored data
-        exemples_serialises = (job_extraction.raw_result or {}).get("examples_data", [])
-        liste_exemples_langextract = []
-        for exemple_dict in exemples_serialises:
-            liste_extractions = []
-            for ext_dict in exemple_dict.get("extractions", []):
-                liste_extractions.append(
-                    lx.data.Extraction(
-                        extraction_class=ext_dict.get("extraction_class", ""),
-                        extraction_text=ext_dict.get("extraction_text", ""),
-                        attributes=ext_dict.get("attributes", {}),
-                    )
-                )
-            liste_exemples_langextract.append(
-                lx.data.ExampleData(
-                    text=exemple_dict.get("text", ""),
-                    extractions=liste_extractions,
-                )
-            )
+        # Construire les exemples few-shot depuis l'analyseur stocke dans raw_result
+        # / Build few-shot examples from the analyzer stored in raw_result
+        analyseur_id = (job_extraction.raw_result or {}).get("analyseur_id")
+        if analyseur_id:
+            analyseur = AnalyseurSyntaxique.objects.get(pk=analyseur_id)
+            liste_exemples_langextract = _construire_exemples_langextract(analyseur)
+        else:
+            liste_exemples_langextract = []
 
         # Resoudre les parametres du modele / Resolve model params
         if job_extraction.ai_model:

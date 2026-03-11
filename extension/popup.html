@@ -60,12 +60,36 @@
 
         #status.error { color: #ef4444; }
         #status.success { color: #22c55e; }
+
+        #serverStatus {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+
+        #serverStatusDot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #94a3b8;
+            flex-shrink: 0;
+        }
+
+        #serverStatusDot.online { background-color: #22c55e; }
+        #serverStatusDot.offline { background-color: #ef4444; }
     </style>
 </head>
 <body>
     <div style="display: flex; gap: 4px; margin-bottom: 8px;">
         <input type="text" id="serverUrl" placeholder="http://127.0.0.1:8000/" style="margin-bottom: 0; flex: 1;">
         <button id="saveUrlBtn" style="width: auto; padding: 5px 8px; font-size: 11px; border-radius: 4px; background-color: #64748b;">OK</button>
+    </div>
+    <div id="serverStatus">
+        <span id="serverStatusDot"></span>
+        <span id="serverStatusText">Verification...</span>
     </div>
     <button id="recolterBtn">Recolter</button>
     <div id="status"></div>
