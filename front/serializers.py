@@ -517,3 +517,26 @@ class RestitutionDebatSerializer(serializers.Serializer):
         """
         import bleach
         return bleach.clean(valeur, tags=[], strip=True).strip()
+
+
+class ChangerStatutSerializer(serializers.Serializer):
+    """
+    Validation pour le changement de statut de debat d'une extraction.
+    / Validation for changing the debate status of an extraction.
+    """
+    entity_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de l'entite est obligatoire / Entity ID is required",
+        },
+    )
+    page_id = serializers.IntegerField(
+        error_messages={
+            "required": "L'ID de la page est obligatoire / Page ID is required",
+        },
+    )
+    nouveau_statut = serializers.ChoiceField(
+        choices=["consensuel", "discutable", "discute", "controverse"],
+        error_messages={
+            "required": "Le nouveau statut est obligatoire / New status is required",
+        },
+    )

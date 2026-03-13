@@ -32,6 +32,21 @@ COULEURS_LOCUTEURS = [
     "#6366f1",  # indigo-500
 ]
 
+# Fonds pales correspondant a chaque couleur de locuteur (opacite ~10%)
+# / Pale backgrounds matching each speaker color (opacity ~10%)
+FONDS_PALES_LOCUTEURS = [
+    "#eff6ff",  # blue-50
+    "#fef2f2",  # red-50
+    "#ecfdf5",  # emerald-50
+    "#fffbeb",  # amber-50
+    "#f5f3ff",  # violet-50
+    "#fdf2f8",  # pink-50
+    "#ecfeff",  # cyan-50
+    "#fff7ed",  # orange-50
+    "#f0fdfa",  # teal-50
+    "#eef2ff",  # indigo-50
+]
+
 
 def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max_locuteurs=5, langue=""):
     """
@@ -279,10 +294,16 @@ def construire_html_diarise(segments_transcrits):
             locuteurs_uniques.append(nom_locuteur)
 
     correspondance_couleurs = {}
+    correspondance_fonds = {}
+    correspondance_index = {}
     for index_locuteur, nom_locuteur in enumerate(locuteurs_uniques):
         correspondance_couleurs[nom_locuteur] = COULEURS_LOCUTEURS[
             index_locuteur % len(COULEURS_LOCUTEURS)
         ]
+        correspondance_fonds[nom_locuteur] = FONDS_PALES_LOCUTEURS[
+            index_locuteur % len(FONDS_PALES_LOCUTEURS)
+        ]
+        correspondance_index[nom_locuteur] = index_locuteur
 
     # Regrouper les segments consecutifs du meme locuteur
     # / Group consecutive segments from the same speaker
@@ -313,15 +334,30 @@ def construire_html_diarise(segments_transcrits):
             })
 
     # Construire le HTML et le texte brut a partir des groupes
+    # Insere des marqueurs temporels toutes les 5 minutes
     # / Build HTML and plain text from groups
+    # / Insert time markers every 5 minutes
     blocs_html = []
     parties_texte_brut = []
+    prochain_marqueur_5min = 300  # 5 minutes en secondes / 5 minutes in seconds
 
     for index_bloc, groupe in enumerate(groupes_locuteurs):
         nom_locuteur = groupe["speaker"]
         couleur_locuteur = correspondance_couleurs.get(nom_locuteur, "#6b7280")
+        fond_pale_locuteur = correspondance_fonds.get(nom_locuteur, "#f8fafc")
+        index_locuteur = correspondance_index.get(nom_locuteur, 0)
         timestamp_debut = _formater_timestamp(groupe["start"])
         timestamp_fin = _formater_timestamp(groupe["end"])
+
+        # Inserer un marqueur temporel si on a depasse le seuil de 5 min
+        # / Insert a time marker if we passed the 5-min threshold
+        while groupe["start"] >= prochain_marqueur_5min:
+            marqueur_temps = _formater_timestamp(prochain_marqueur_5min)
+            blocs_html.append(
+                f'<div class="marqueur-temporel" data-time="{prochain_marqueur_5min}">'
+                f'<span>{marqueur_temps}</span></div>'
+            )
+            prochain_marqueur_5min += 300
 
         # Chaque phrase est echappee HTML puis jointe par <br>
         # / Each sentence is HTML-escaped then joined with <br>
@@ -337,7 +373,10 @@ def construire_html_diarise(segments_transcrits):
         # / Speaker name is clickable to allow renaming
         # / Text paragraph is clickable to switch to inline edit mode
         bloc_html = (
-            f'<div id="speaker-block-{index_bloc}" class="speaker-block mb-4 pl-4 rounded-r">'
+            f'<div id="speaker-block-{index_bloc}" class="speaker-block mb-2 pl-4 rounded-r" '
+            f'data-speaker="{nom_locuteur_echappe}" data-speaker-index="{index_locuteur}" '
+            f'data-start="{groupe["start"]}" data-end="{groupe["end"]}" '
+            f'style="background-color: {fond_pale_locuteur}; border-left: 3px solid {couleur_locuteur};">'
             f'<div class="flex items-center gap-2 mb-1">'
             f'<span class="speaker-name font-semibold text-sm cursor-pointer hover:underline" '
             f'style="color: {couleur_locuteur};" '
@@ -363,11 +402,172 @@ def construire_html_diarise(segments_transcrits):
     return html_complet, texte_brut_complet
 
 
+def construire_widgets_audio(transcription_raw, entites_extraction=None):
+    """
+    Construit les widgets audio : filtre par locuteur et timeline horizontale.
+    / Builds audio widgets: speaker filter and horizontal timeline.
+
+    Args:
+        transcription_raw: dict avec {model, text, segments} OU list[dict]
+        entites_extraction: queryset d'entites (optionnel, pour les points d'extraction)
+
+    Returns:
+        tuple (html_filtre_locuteurs, html_timeline)
+    """
+    # Extraction intelligente : si l'input est un dict avec 'segments', extraire la liste
+    # / Smart extraction: if input is a dict with 'segments', extract the list
+    segments = transcription_raw
+    if isinstance(segments, dict) and "segments" in segments:
+        segments = segments["segments"]
+
+    if not segments:
+        return "", ""
+
+    # Normaliser les segments
+    # / Normalize segments
+    for segment in segments:
+        if "speaker" not in segment and "speaker_id" in segment:
+            segment["speaker"] = segment["speaker_id"] or "Locuteur"
+
+    # Mapper les locuteurs uniques
+    # / Map unique speakers
+    locuteurs_uniques = []
+    for segment in segments:
+        nom_locuteur = segment.get("speaker", "Inconnu")
+        if nom_locuteur not in locuteurs_uniques:
+            locuteurs_uniques.append(nom_locuteur)
+
+    # Regrouper les segments consecutifs (meme logique que construire_html_diarise)
+    # / Group consecutive segments (same logic as construire_html_diarise)
+    groupes_locuteurs = []
+    for segment in segments:
+        nom_locuteur = segment.get("speaker", "Inconnu")
+        texte_segment = segment.get("text", "").strip()
+        debut_secondes = segment.get("start", 0.0)
+        fin_secondes = segment.get("end", 0.0)
+        if not texte_segment:
+            continue
+        if groupes_locuteurs and groupes_locuteurs[-1]["speaker"] == nom_locuteur:
+            groupes_locuteurs[-1]["phrases"].append(texte_segment)
+            groupes_locuteurs[-1]["end"] = fin_secondes
+        else:
+            groupes_locuteurs.append({
+                "speaker": nom_locuteur,
+                "start": debut_secondes,
+                "end": fin_secondes,
+                "phrases": [texte_segment],
+            })
+
+    if not groupes_locuteurs:
+        return "", ""
+
+    # Duree totale de l'audio
+    # / Total audio duration
+    duree_totale = max(groupe["end"] for groupe in groupes_locuteurs)
+    if duree_totale <= 0:
+        return "", ""
+
+    # --- Filtre locuteurs : pilules cliquables ---
+    # / --- Speaker filter: clickable pills ---
+    pilules_html = [
+        '<button class="pilule-locuteur pilule-active" data-speaker-filter="tous">Tous</button>'
+    ]
+    for index_locuteur, nom_locuteur in enumerate(locuteurs_uniques):
+        couleur_locuteur = COULEURS_LOCUTEURS[index_locuteur % len(COULEURS_LOCUTEURS)]
+        nom_echappe = html_escape(nom_locuteur)
+        pilules_html.append(
+            f'<button class="pilule-locuteur" data-speaker-filter="{nom_echappe}">'
+            f'<span class="pilule-pastille" style="background-color: {couleur_locuteur};"></span>'
+            f'{nom_echappe}</button>'
+        )
+    html_filtre_locuteurs = (
+        '<div id="filtre-locuteurs" class="filtre-locuteurs">'
+        + "".join(pilules_html)
+        + '</div>'
+    )
+
+    # --- Timeline audio : barre horizontale avec segments colores ---
+    # / --- Audio timeline: horizontal bar with colored segments ---
+    segments_timeline_html = []
+    for index_bloc, groupe in enumerate(groupes_locuteurs):
+        nom_locuteur = groupe["speaker"]
+        index_locuteur = locuteurs_uniques.index(nom_locuteur)
+        couleur_locuteur = COULEURS_LOCUTEURS[index_locuteur % len(COULEURS_LOCUTEURS)]
+        nom_echappe = html_escape(nom_locuteur)
+
+        # Calcul de la largeur proportionnelle
+        # / Calculate proportional width
+        duree_groupe = groupe["end"] - groupe["start"]
+        pourcentage_largeur = (duree_groupe / duree_totale) * 100
+
+        # Apercu du texte pour le tooltip (30 premiers caracteres)
+        # / Text preview for tooltip (first 30 chars)
+        apercu_texte = " ".join(groupe["phrases"])[:30]
+        if len(" ".join(groupe["phrases"])) > 30:
+            apercu_texte += "…"
+        apercu_echappe = html_escape(apercu_texte)
+        timestamp_debut = _formater_timestamp(groupe["start"])
+
+        segments_timeline_html.append(
+            f'<div class="timeline-segment" '
+            f'data-speaker="{nom_echappe}" data-block-index="{index_bloc}" '
+            f'data-start="{groupe["start"]}" data-end="{groupe["end"]}" '
+            f'style="width: {pourcentage_largeur:.2f}%; background-color: {couleur_locuteur};" '
+            f'title="{nom_echappe} {timestamp_debut} — {apercu_echappe}"></div>'
+        )
+
+    # Points d'extraction sur la timeline (si entites fournies)
+    # / Extraction dots on timeline (if entities provided)
+    dots_extraction_html = ""
+    if entites_extraction:
+        # Calcul du texte brut total pour l'interpolation position char → temps
+        # / Calculate total plain text for char→time position interpolation
+        texte_brut_total = " ".join(
+            " ".join(groupe["phrases"]) for groupe in groupes_locuteurs
+        )
+        longueur_texte_total = len(texte_brut_total) if texte_brut_total else 1
+
+        dots_html_parties = []
+        for entite in entites_extraction:
+            texte_entite = getattr(entite, "source_text", "") or ""
+            if not texte_entite:
+                continue
+            # Trouver la position approximative dans le texte brut
+            # / Find approximate position in plain text
+            position_char = texte_brut_total.find(texte_entite[:50])
+            if position_char < 0:
+                continue
+            # Interpolation position → pourcentage horizontal
+            # / Interpolate position → horizontal percentage
+            pourcentage_position = (position_char / longueur_texte_total) * 100
+            dots_html_parties.append(
+                f'<div class="timeline-extraction-dot" '
+                f'style="left: {pourcentage_position:.1f}%;" '
+                f'title="{html_escape(texte_entite[:40])}"></div>'
+            )
+        if dots_html_parties:
+            dots_extraction_html = "".join(dots_html_parties)
+
+    html_timeline = (
+        '<div id="timeline-audio" class="timeline-audio">'
+        '<div class="timeline-segments">'
+        + "".join(segments_timeline_html)
+        + '</div>'
+        + (f'<div class="timeline-extraction-dots">{dots_extraction_html}</div>' if dots_extraction_html else '')
+        + '</div>'
+    )
+
+    return html_filtre_locuteurs, html_timeline
+
+
 def _formater_timestamp(secondes):
     """
-    Formate un nombre de secondes en MM:SS.
-    / Formats a number of seconds as MM:SS.
+    Formate un nombre de secondes en MM:SS ou H:MM:SS si >= 1 heure.
+    / Formats a number of seconds as MM:SS or H:MM:SS if >= 1 hour.
     """
-    minutes = int(secondes // 60)
+    heures = int(secondes // 3600)
+    minutes = int((secondes % 3600) // 60)
     secondes_restantes = int(secondes % 60)
+    if heures > 0:
+        return f"{heures}:{minutes:02d}:{secondes_restantes:02d}"
     return f"{minutes:02d}:{secondes_restantes:02d}"

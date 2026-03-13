@@ -210,6 +210,25 @@ class ExtractedEntity(models.Model):
         help_text="Validee par un utilisateur humain"
     )
     user_notes = models.TextField(blank=True, help_text="Notes de validation")
+
+    # Statut du debat sur cette extraction
+    # / Debate status for this extraction
+    STATUT_DEBAT_CHOICES = [
+        ("consensuel", "Consensuel"),
+        ("discutable", "Discutable"),
+        ("discute", "Discuté"),
+        ("controverse", "Controversé"),
+    ]
+
+    statut_debat = models.CharField(
+        max_length=20,
+        choices=STATUT_DEBAT_CHOICES,
+        default="discutable",
+    )
+
+    # Extraction masquee par curation
+    # / Extraction hidden by curation
+    masquee = models.BooleanField(default=False)
     
     created_at = models.DateTimeField(auto_now_add=True)
     

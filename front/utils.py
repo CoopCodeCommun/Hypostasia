@@ -306,7 +306,8 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
             continue
 
         a_commentaire = entite_pk in ids_commentees
-        insertions_spans.append((html_pos_debut, html_pos_fin, entite_pk, a_commentaire))
+        statut_debat = entite.statut_debat or "discutable"
+        insertions_spans.append((html_pos_debut, html_pos_fin, entite_pk, a_commentaire, statut_debat))
 
     if not insertions_spans:
         return html_brut
@@ -319,14 +320,14 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
     # 5. Injecter les spans dans le HTML
     # / Inject spans into HTML
     html_modifie = html_brut
-    for (html_pos_debut, html_pos_fin, entite_pk, a_commentaire) in insertions_spans:
+    for (html_pos_debut, html_pos_fin, entite_pk, a_commentaire, statut_debat) in insertions_spans:
         # Construire la classe CSS du span
         # / Build the span CSS class
         classe_span = "hl-extraction"
         if a_commentaire:
             classe_span += " hl-commentee"
 
-        span_ouvrant = f'<span class="{classe_span}" data-extraction-id="{entite_pk}">'
+        span_ouvrant = f'<span class="{classe_span}" data-extraction-id="{entite_pk}" data-statut="{statut_debat}">'
         span_fermant = '</span>'
 
         # Inserer le span fermant d'abord (position plus loin), puis le span ouvrant

@@ -16,7 +16,7 @@
     {# Le bouton charge d'abord la confirmation (estimation tokens/cout) #}
     {# / The button first loads the confirmation (token/cost estimate) #}
     <button class="btn-previsualiser-analyse w-full px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors flex items-center justify-center gap-2"
-            data-page-id="{{ page.pk }}"
+            data-page-id="{{ page.pk }}" data-testid="panneau-btn-analyser"
             hx-get="/lire/{{ page.pk }}/previsualiser_analyse/"
             hx-include="#analyseur-selectionne-id"
             hx-target="#zone-resultats-extraction"
@@ -24,7 +24,7 @@
             hx-indicator="#analyse-spinner-{{ page.pk }}">
         <span>Analyser</span>
         <svg id="analyse-spinner-{{ page.pk }}"
-             class="htmx-indicator animate-spin h-4 w-4 text-white"
+             class="htmx-indicator animate-spin h-4 w-4 text-white" role="status" aria-hidden="true"
              xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -35,12 +35,16 @@
 
 {# --- Zone de resultats : si des extractions existent deja, on les affiche --- #}
 {# --- Sinon un message invite a lancer une analyse --- #}
-<div id="zone-resultats-extraction">
+<div id="zone-resultats-extraction" aria-live="polite" data-testid="panneau-analyse-zone">
     {% if entities %}
         {% include "front/includes/extraction_results.html" %}
     {% else %}
-        <p class="text-xs text-slate-400 text-center py-4">
-            Choisissez un analyseur puis cliquez sur Analyser.
-        </p>
+        <div class="empty-state" data-testid="panneau-empty-state">
+            <svg class="empty-state-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+            </svg>
+            <p class="empty-state-text">Aucune extraction</p>
+            <p class="empty-state-subtext">Choisissez un analyseur puis cliquez sur Analyser</p>
+        </div>
     {% endif %}
 </div>

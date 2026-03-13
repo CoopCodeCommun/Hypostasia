@@ -5,9 +5,17 @@
 {% load extractor_tags %}
 <div class="space-y-3" id="extraction-results">
     {% if error_message %}
-    <div class="bg-red-50 border border-red-200 rounded-xl p-4">
-        <p class="text-sm text-red-600 font-medium">Erreur lors de l'extraction</p>
-        <p class="text-xs text-red-500 mt-1">{{ error_message|truncatechars:200 }}</p>
+    <div class="error-inline rounded-xl p-4" data-testid="extraction-error-state">
+        <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+        </svg>
+        <div class="flex-1">
+            <p class="text-sm font-medium">Erreur lors de l'extraction</p>
+            <p class="text-xs mt-1 opacity-80">{{ error_message|truncatechars:200 }}</p>
+            <button class="empty-state-action mt-2" onclick="document.getElementById('btn-toolbar-analyser').click()">
+                Réessayer
+            </button>
+        </div>
     </div>
 
     {% elif entities %}
@@ -16,18 +24,18 @@
         {# / Extract first 4 attributes from JSONField by key order #}
         {% entity_json_attrs entity as entity_attrs %}
         <div class="extraction-card bg-white rounded-lg border p-3 hover:shadow-sm transition-shadow cursor-pointer relative group {% if entity.nombre_commentaires %}border-amber-400{% else %}border-slate-200{% endif %}"
-             data-extraction-id="{{ entity.pk }}"
+             data-extraction-id="{{ entity.pk }}" data-testid="extraction-card"
              title="Position: {{ entity.start_char }}-{{ entity.end_char }}">
 
             {# Boutons editer + commenter (visibles au hover) / Edit + comment buttons (visible on hover) #}
             <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button class="btn-commenter-extraction p-1 rounded text-slate-300 hover:text-amber-500 hover:bg-amber-50"
-                        data-entity-id="{{ entity.pk }}"
+                        data-entity-id="{{ entity.pk }}" data-testid="extraction-btn-commenter"
                         title="Commenter cette extraction"
                         hx-get="/extractions/fil_discussion/?entity_id={{ entity.pk }}"
                         hx-target="#panneau-extractions"
                         hx-swap="innerHTML">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round"
                               d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/>
                     </svg>
@@ -36,17 +44,17 @@
                         data-entity-id="{{ entity.pk }}"
                         data-page-id="{{ entity.job.page_id }}"
                         title="Modifier cette extraction">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round"
                               d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
                     </svg>
                 </button>
                 <button class="btn-supprimer-extraction p-1 rounded text-slate-300 hover:text-red-500 hover:bg-red-50"
-                        data-entity-id="{{ entity.pk }}"
+                        data-entity-id="{{ entity.pk }}" data-testid="extraction-btn-supprimer"
                         data-page-id="{{ entity.job.page_id }}"
                         data-has-comments="{% if entity.nombre_commentaires %}true{% else %}false{% endif %}"
                         title="Supprimer cette extraction">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>

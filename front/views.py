@@ -4,7 +4,7 @@ import logging
 import os
 from datetime import timedelta
 
-from django.db.models import Count, Prefetch
+from django.db.models import Case, Count, Prefetch, Value, When
 from django.utils import timezone
 from django.utils.html import escape, strip_tags
 from django.http import FileResponse, HttpResponse, JsonResponse
@@ -21,6 +21,7 @@ from hypostasis_extractor.models import (
     ExtractedEntity, ExtractionJob, PromptPiece,
 )
 from .serializers import (
+    ChangerStatutSerializer,
     CommentaireExtractionSerializer, DossierCreateSerializer, DossierRenommerSerializer,
     EditerBlocSerializer,
     ExtractionManuelleSerializer, ExtractionSerializer, ImportFichierSerializer,
@@ -35,6 +36,10 @@ from .serializers import (
 from .utils import annoter_html_avec_barres
 
 logger = logging.getLogger(__name__)
+
+# Seuil de consensus par defaut (pourcentage d'entites consensuelles)
+# / Default consensus threshold (percentage of consensual entities)
+SEUIL_CONSENSUS_DEFAUT = 80
 
 
 def _render_arbre(request):
@@ -168,14 +173,10 @@ class BibliothequeViewSet(viewsets.ViewSet):
     """
 
     def list(self, request):
-        # Requete HTMX → retourne le contenu par defaut de zone-lecture
-        # / HTMX request → return default zone-lecture content
+        # Requete HTMX → retourne l'onboarding comme contenu par defaut
+        # / HTMX request → return onboarding as default content
         if request.headers.get('HX-Request'):
-            return HttpResponse(
-                '<div class="max-w-3xl mx-auto text-slate-500 text-sm">'
-                'Sélectionnez une page pour commencer la lecture.'
-                '</div>'
-            )
+            return render(request, "front/includes/onboarding_vide.html")
 
         # Acces direct → page complete
         # / Direct access → full page
@@ -222,14 +223,30 @@ class LectureViewSet(viewsets.ViewSet):
             status="completed",
         ).order_by("-created_at").first()
 
+        # Pour les pages audio avec transcription_raw, regenerer le HTML diarise
+        # afin de garantir les data attributes PHASE-15 (fonds pales, data-speaker, etc.)
+        # / For audio pages with transcription_raw, regenerate diarized HTML
+        # to ensure PHASE-15 data attributes (pale backgrounds, data-speaker, etc.)
+        if page.source_type == "audio" and page.transcription_raw:
+            from .services.transcription_audio import construire_html_diarise
+            html_diarise_regenere, texte_brut_regenere = construire_html_diarise(
+                page.transcription_raw,
+            )
+            if html_diarise_regenere:
+                page.html_readability = html_diarise_regenere
+                page.text_readability = texte_brut_regenere
+                page.save(update_fields=["html_readability", "text_readability"])
+
         # Si un job existe, on recupere ses entites pour les afficher
         # / If a job exists, retrieve its entities for display
         entites_existantes = None
         html_annote = None
         ids_entites_commentees = set()
         if dernier_job_termine:
+            # Exclure les entites masquees de l'annotation
+            # / Exclude hidden entities from annotation
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.all()
+                dernier_job_termine.entities.filter(masquee=False)
             )
             # Annoter le HTML avec des ancres pour le scroll-to-extraction
             # / Annotate HTML with anchors for scroll-to-extraction
@@ -243,6 +260,16 @@ class LectureViewSet(viewsets.ViewSet):
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
 
+        # Widgets audio : filtre locuteurs + timeline (PHASE-15)
+        # / Audio widgets: speaker filter + timeline (PHASE-15)
+        html_filtre_locuteurs = ""
+        html_timeline = ""
+        if page.source_type == "audio" and page.transcription_raw:
+            from .services.transcription_audio import construire_widgets_audio
+            html_filtre_locuteurs, html_timeline = construire_widgets_audio(
+                page.transcription_raw, entites_extraction=entites_existantes,
+            )
+
         # Contexte commun pour les deux partials
         ia_active = _get_ia_active()
         contexte_partage = {
@@ -254,6 +281,8 @@ class LectureViewSet(viewsets.ViewSet):
             "ia_active": ia_active,
             "versions": toutes_les_versions,
             "page_racine": page_racine,
+            "html_filtre_locuteurs": html_filtre_locuteurs,
+            "html_timeline": html_timeline,
         }
 
         if request.headers.get('HX-Request'):
@@ -293,6 +322,8 @@ class LectureViewSet(viewsets.ViewSet):
             "ia_active": ia_active,
             "versions": toutes_les_versions,
             "page_racine": page_racine,
+            "html_filtre_locuteurs": html_filtre_locuteurs,
+            "html_timeline": html_timeline,
         })
 
     @action(detail=True, methods=["POST"], url_path="modifier_titre")
@@ -328,8 +359,10 @@ class LectureViewSet(viewsets.ViewSet):
         html_annote = None
         ids_entites_commentees = set()
         if dernier_job_termine:
+            # Exclure les entites masquees de l'annotation
+            # / Exclude hidden entities from annotation
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.all()
+                dernier_job_termine.entities.filter(masquee=False)
             )
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
@@ -608,9 +641,22 @@ class LectureViewSet(viewsets.ViewSet):
             reponse["HX-Trigger"] = "ouvrirPanneauDroit"
             return reponse
 
+        # Si analyseur_id n'est pas fourni, utiliser le premier analyseur actif de type "analyser"
+        # / If analyseur_id is not provided, use the first active analyzer of type "analyser"
+        donnees_requete = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        if not donnees_requete.get("analyseur_id"):
+            analyseur_par_defaut = AnalyseurSyntaxique.objects.filter(
+                is_active=True, type_analyseur="analyser",
+            ).first()
+            if not analyseur_par_defaut:
+                return render(request, "front/includes/extraction_results.html", {
+                    "error_message": "Aucun analyseur actif trouvé. Configurez un analyseur via /api/analyseurs/.",
+                })
+            donnees_requete["analyseur_id"] = analyseur_par_defaut.pk
+
         # Validation via serializer DRF sur request.data (form-data envoye par HTMX)
         # / Validation via DRF serializer on request.data (form-data sent by HTMX)
-        serializer = RunAnalyseSerializer(data=request.data)
+        serializer = RunAnalyseSerializer(data=donnees_requete)
         if not serializer.is_valid():
             logger.warning("analyser: validation echouee — %s", serializer.errors)
             return render(request, "front/includes/extraction_results.html", {
@@ -741,8 +787,9 @@ class LectureViewSet(viewsets.ViewSet):
         if dernier_job_termine:
             # Termine → renvoyer les resultats d'extraction + OOB readability
             # / Completed → return extraction results + OOB readability
+            # Exclure les entites masquees / Exclude hidden entities
             toutes_les_entites_du_job, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.all()
+                dernier_job_termine.entities.filter(masquee=False)
             )
 
             html_annote = annoter_html_avec_barres(
@@ -1080,8 +1127,9 @@ class LectureViewSet(viewsets.ViewSet):
             page=page, status="completed",
         ).order_by("-created_at").first()
         if dernier_job_termine:
+            # Exclure les entites masquees / Exclude hidden entities
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.all()
+                dernier_job_termine.entities.filter(masquee=False)
             )
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
@@ -1161,8 +1209,9 @@ class LectureViewSet(viewsets.ViewSet):
             page=page, status="completed",
         ).order_by("-created_at").first()
         if dernier_job_termine:
+            # Exclure les entites masquees / Exclude hidden entities
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.all()
+                dernier_job_termine.entities.filter(masquee=False)
             )
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
@@ -1330,16 +1379,27 @@ class ExtractionViewSet(viewsets.ViewSet):
         tous_les_jobs_termines = ExtractionJob.objects.filter(
             page=page, status="completed",
         )
-        toutes_les_entites, ids_entites_commentees = _annoter_entites_avec_commentaires(
+
+        # Entites visibles (non masquees) pour l'annotation HTML
+        # / Visible entities (not hidden) for HTML annotation
+        entites_visibles, ids_entites_commentees = _annoter_entites_avec_commentaires(
             ExtractedEntity.objects.filter(
                 job__in=tous_les_jobs_termines,
+                masquee=False,
             ).order_by("start_char")
         )
+
+        # Compteur d'entites masquees pour le drawer
+        # / Hidden entities count for the drawer
+        nombre_masquees = ExtractedEntity.objects.filter(
+            job__in=tous_les_jobs_termines,
+            masquee=True,
+        ).count()
 
         # Annoter le HTML / Annotate HTML
         html_annote = annoter_html_avec_barres(
             page.html_readability, page.text_readability,
-            toutes_les_entites, ids_entites_commentees,
+            entites_visibles, ids_entites_commentees,
         )
 
         # Dernier job pour le contexte du panneau / Latest job for panel context
@@ -1351,7 +1411,8 @@ class ExtractionViewSet(viewsets.ViewSet):
                 "page": page,
                 "analyseurs_actifs": analyseurs_actifs,
                 "job": dernier_job,
-                "entities": toutes_les_entites,
+                "entities": entites_visibles,
+                "nombre_masquees": nombre_masquees,
                 "ia_active": _get_ia_active(),
             },
             request=request,
@@ -1366,6 +1427,78 @@ class ExtractionViewSet(viewsets.ViewSet):
         )
 
         return html_panneau + html_readability_oob
+
+    def _render_readability_avec_panneau_oob(self, request, page):
+        """
+        Inverse de _render_panneau_complet_avec_oob :
+        retourne le readability-content annote en contenu principal
+        et le panneau d'extractions en OOB.
+        Utilise quand la cible principale est #readability-content (ex: masquer/restaurer
+        appeles depuis le drawer JS via htmx.ajax).
+        / Inverse of _render_panneau_complet_avec_oob:
+        / returns annotated readability-content as main content
+        / and extraction panel as OOB.
+        / Used when main target is #readability-content (e.g. hide/restore
+        / called from drawer JS via htmx.ajax).
+        """
+        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
+
+        # Toutes les entites de tous les jobs completed de la page
+        # / All entities from all completed jobs for the page
+        tous_les_jobs_termines = ExtractionJob.objects.filter(
+            page=page, status="completed",
+        )
+
+        # Entites visibles (non masquees) pour l'annotation HTML
+        # / Visible entities (not hidden) for HTML annotation
+        entites_visibles, ids_entites_commentees = _annoter_entites_avec_commentaires(
+            ExtractedEntity.objects.filter(
+                job__in=tous_les_jobs_termines,
+                masquee=False,
+            ).order_by("start_char")
+        )
+
+        # Compteur d'entites masquees pour le drawer
+        # / Hidden entities count for the drawer
+        nombre_masquees = ExtractedEntity.objects.filter(
+            job__in=tous_les_jobs_termines,
+            masquee=True,
+        ).count()
+
+        # Annoter le HTML / Annotate HTML
+        html_annote = annoter_html_avec_barres(
+            page.html_readability, page.text_readability,
+            entites_visibles, ids_entites_commentees,
+        )
+
+        # Dernier job pour le contexte du panneau / Latest job for panel context
+        dernier_job = tous_les_jobs_termines.order_by("-created_at").first()
+
+        # Contenu principal : readability annote
+        # / Main content: annotated readability
+        html_readability_principal = html_annote or page.html_readability
+
+        # OOB swap pour le panneau d'extractions
+        # / OOB swap for extraction panel
+        html_panneau = render_to_string(
+            "front/includes/panneau_analyse.html",
+            {
+                "page": page,
+                "analyseurs_actifs": analyseurs_actifs,
+                "job": dernier_job,
+                "entities": entites_visibles,
+                "nombre_masquees": nombre_masquees,
+                "ia_active": _get_ia_active(),
+            },
+            request=request,
+        )
+        html_panneau_oob = (
+            '<div id="panneau-extractions" hx-swap-oob="innerHTML:#panneau-extractions">'
+            + html_panneau
+            + '</div>'
+        )
+
+        return html_readability_principal + html_panneau_oob
 
     @action(detail=False, methods=["POST"])
     def panneau(self, request):
@@ -1571,6 +1704,33 @@ class ExtractionViewSet(viewsets.ViewSet):
         })
         return reponse
 
+    @action(detail=False, methods=["GET"], url_path="carte_inline")
+    def carte_inline(self, request):
+        """
+        Renvoie le partial HTML d'une carte d'extraction depliable inline.
+        / Returns the inline extraction card HTML partial.
+
+        LOCALISATION : front/views.py — ExtractionViewSet
+
+        Appelee par marginalia.js quand l'utilisateur clique sur une pastille.
+        Charge l'entite et ses commentaires, puis rend le template carte_inline.html.
+        / Called by marginalia.js when user clicks a margin dot.
+        """
+        identifiant_entite = request.query_params.get("entity_id")
+        if not identifiant_entite:
+            return HttpResponse("entity_id requis.", status=400)
+
+        entite = get_object_or_404(ExtractedEntity, pk=identifiant_entite)
+
+        # Compter les commentaires pour cette entite
+        # / Count comments for this entity
+        nombre_commentaires = CommentaireExtraction.objects.filter(entity=entite).count()
+
+        return render(request, "front/includes/carte_inline.html", {
+            "entity": entite,
+            "nombre_commentaires": nombre_commentaires,
+        })
+
     @action(detail=False, methods=["GET"], url_path="fil_discussion")
     def fil_discussion(self, request):
         """
@@ -1639,6 +1799,12 @@ class ExtractionViewSet(viewsets.ViewSet):
             commentaire=donnees["commentaire"],
         )
 
+        # Auto-promotion : discutable → discute quand un 1er commentaire est ajoute
+        # / Auto-promote: discutable → discute when first comment is added
+        if entite.statut_debat == "discutable":
+            entite.statut_debat = "discute"
+            entite.save(update_fields=["statut_debat"])
+
         # Contexte reformulation + restitution / Reformulation + restitution context
         ia_active = _get_ia_active()
         analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
@@ -1667,6 +1833,7 @@ class ExtractionViewSet(viewsets.ViewSet):
             "ouvrirPanneauDroit": True,
             "activerModeDebat": True,
             "showToast": {"message": "Commentaire ajout\u00e9"},
+            "dashboardReload": True,
         })
         return reponse
 
@@ -2577,6 +2744,233 @@ class ExtractionViewSet(viewsets.ViewSet):
         print(f"[EXTRACTION IA] page={validated_page_id} texte={validated_text}")
 
         return Response({"status": "ok"})
+
+    @action(detail=False, methods=["POST"])
+    def masquer(self, request):
+        """
+        Masque une extraction (curation). Refuse si l'entite a des commentaires.
+        / Hide an extraction (curation). Refuses if entity has comments.
+        """
+        identifiant_entite = request.data.get("entity_id")
+        identifiant_page = request.data.get("page_id")
+        if not identifiant_entite or not identifiant_page:
+            return HttpResponse("entity_id et page_id requis.", status=400)
+
+        entite_a_masquer = get_object_or_404(ExtractedEntity, pk=identifiant_entite)
+
+        # Garde : ne pas masquer une entite qui a des commentaires
+        # / Guard: do not hide an entity that has comments
+        nombre_commentaires_entite = CommentaireExtraction.objects.filter(
+            entity=entite_a_masquer,
+        ).count()
+        if nombre_commentaires_entite > 0:
+            return HttpResponse(
+                '<p class="text-sm text-red-500">Impossible de masquer : '
+                'cette extraction a des commentaires.</p>',
+                status=400,
+            )
+
+        entite_a_masquer.masquee = True
+        entite_a_masquer.save(update_fields=["masquee"])
+
+        # Reponse minimale : le panneau sera recharge via drawerContenuChange
+        # et le texte sera recharge via lectureReload dans le JS
+        # / Minimal response: panel will be reloaded via drawerContenuChange
+        # / and text will be reloaded via lectureReload in JS
+        reponse = HttpResponse('<span></span>')
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": "Extraction masqu\u00e9e"},
+            "drawerContenuChange": True,
+            "lectureReload": {"page_id": identifiant_page},
+            "dashboardReload": True,
+        })
+        return reponse
+
+    @action(detail=False, methods=["POST"])
+    def restaurer(self, request):
+        """
+        Restaure une extraction masquee (la rend visible a nouveau).
+        / Restore a hidden extraction (make it visible again).
+        """
+        identifiant_entite = request.data.get("entity_id")
+        identifiant_page = request.data.get("page_id")
+        if not identifiant_entite or not identifiant_page:
+            return HttpResponse("entity_id et page_id requis.", status=400)
+
+        entite_a_restaurer = get_object_or_404(ExtractedEntity, pk=identifiant_entite)
+        entite_a_restaurer.masquee = False
+        entite_a_restaurer.save(update_fields=["masquee"])
+
+        # Reponse minimale : le panneau et le texte seront recharges via events
+        # / Minimal response: panel and text will be reloaded via events
+        reponse = HttpResponse('<span></span>')
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": "Extraction restaur\u00e9e"},
+            "drawerContenuChange": True,
+            "lectureReload": {"page_id": identifiant_page},
+            "dashboardReload": True,
+        })
+        return reponse
+
+    @action(detail=False, methods=["POST"], url_path="changer_statut")
+    def changer_statut(self, request):
+        """
+        Change le statut de debat d'une extraction.
+        / Change the debate status of an extraction.
+        """
+        serializer = ChangerStatutSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.warning("changer_statut: validation echouee — %s", serializer.errors)
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        donnees = serializer.validated_data
+        entite_a_modifier = get_object_or_404(ExtractedEntity, pk=donnees["entity_id"])
+        nouveau_statut = donnees["nouveau_statut"]
+        identifiant_page = donnees["page_id"]
+
+        # Mettre a jour le statut de debat / Update debate status
+        entite_a_modifier.statut_debat = nouveau_statut
+        entite_a_modifier.save(update_fields=["statut_debat"])
+
+        # Reponse minimale avec triggers HTMX / Minimal response with HTMX triggers
+        reponse = HttpResponse("<span></span>")
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": "Statut chang\u00e9 : " + nouveau_statut},
+            "drawerContenuChange": True,
+            "lectureReload": {"page_id": str(identifiant_page)},
+            "dashboardReload": True,
+        })
+        return reponse
+
+    @action(detail=False, methods=["GET"], url_path="dashboard")
+    def dashboard(self, request):
+        """
+        Renvoie le dashboard de consensus pour une page donnee.
+        / Returns the consensus dashboard for a given page.
+        """
+        identifiant_page = request.query_params.get("page_id")
+        if not identifiant_page:
+            return HttpResponse("page_id requis.", status=400)
+
+        page = get_object_or_404(Page, pk=identifiant_page)
+
+        # Toutes les entites non masquees de la page
+        # / All non-hidden entities for the page
+        tous_les_jobs_termines = ExtractionJob.objects.filter(
+            page=page, status="completed",
+        )
+        toutes_les_entites_visibles = ExtractedEntity.objects.filter(
+            job__in=tous_les_jobs_termines,
+            masquee=False,
+        )
+
+        # Compteurs par statut / Counts per status
+        compteurs_par_statut = dict(
+            toutes_les_entites_visibles.values_list("statut_debat").annotate(
+                count=Count("id"),
+            )
+        )
+        compteur_consensuel = compteurs_par_statut.get("consensuel", 0)
+        compteur_discutable = compteurs_par_statut.get("discutable", 0)
+        compteur_discute = compteurs_par_statut.get("discute", 0)
+        compteur_controverse = compteurs_par_statut.get("controverse", 0)
+        total_entites = compteur_consensuel + compteur_discutable + compteur_discute + compteur_controverse
+
+        # Pourcentage de consensus (garde div-by-zero)
+        # / Consensus percentage (guard div-by-zero)
+        if total_entites > 0:
+            pourcentage_consensus = round(compteur_consensuel * 100 / total_entites)
+        else:
+            pourcentage_consensus = 0
+
+        # Extractions bloquantes : controverse d'abord, puis discute,
+        # triees par nombre de commentaires (les plus discutees en haut)
+        # / Blocking extractions: controverse first, then discute,
+        # sorted by comment count (most discussed on top)
+        extractions_bloquantes = toutes_les_entites_visibles.filter(
+            statut_debat__in=["controverse", "discute"],
+        ).annotate(
+            nombre_commentaires=Count("commentaires"),
+            # Ordre explicite : controverse=0 (en premier), discute=1
+            # / Explicit order: controverse=0 (first), discute=1
+            ordre_statut=Case(
+                When(statut_debat="controverse", then=Value(0)),
+                When(statut_debat="discute", then=Value(1)),
+                default=Value(2),
+            ),
+        ).order_by(
+            "ordre_statut",
+            "-nombre_commentaires",
+        )[:10]
+
+        # Seuil atteint ? / Threshold reached?
+        seuil_atteint = pourcentage_consensus >= SEUIL_CONSENSUS_DEFAUT
+
+        contexte = {
+            "page": page,
+            "compteur_consensuel": compteur_consensuel,
+            "compteur_discutable": compteur_discutable,
+            "compteur_discute": compteur_discute,
+            "compteur_controverse": compteur_controverse,
+            "total_entites": total_entites,
+            "pourcentage_consensus": pourcentage_consensus,
+            "seuil_consensus": SEUIL_CONSENSUS_DEFAUT,
+            "seuil_atteint": seuil_atteint,
+            "extractions_bloquantes": extractions_bloquantes,
+        }
+
+        return render(request, "front/includes/dashboard_consensus.html", contexte)
+
+    @action(detail=False, methods=["GET"], url_path="drawer_contenu")
+    def drawer_contenu(self, request):
+        """
+        Renvoie le contenu du drawer vue liste (toutes les extractions d'une page).
+        Supporte un parametre de tri : position (defaut), activite, statut.
+        / Returns drawer list view content (all extractions for a page).
+        Supports sort parameter: position (default), activite, statut.
+        """
+        identifiant_page = request.query_params.get("page_id")
+        if not identifiant_page:
+            return HttpResponse("page_id requis.", status=400)
+
+        page = get_object_or_404(Page, pk=identifiant_page)
+        parametre_tri = request.query_params.get("tri", "position")
+
+        # Recuperer toutes les entites (masquees et non masquees)
+        # / Retrieve all entities (hidden and not hidden)
+        tous_les_jobs_termines = ExtractionJob.objects.filter(
+            page=page, status="completed",
+        )
+        toutes_les_entites = ExtractedEntity.objects.filter(
+            job__in=tous_les_jobs_termines,
+        ).annotate(
+            nombre_commentaires=Count("commentaires"),
+        )
+
+        # Appliquer le tri / Apply sort order
+        if parametre_tri == "activite":
+            toutes_les_entites = toutes_les_entites.order_by("-created_at")
+        elif parametre_tri == "statut":
+            toutes_les_entites = toutes_les_entites.order_by("statut_debat", "start_char")
+        else:
+            toutes_les_entites = toutes_les_entites.order_by("start_char")
+
+        # Separer visibles et masquees pour le template
+        # / Separate visible and hidden for the template
+        entites_visibles = [entite for entite in toutes_les_entites if not entite.masquee]
+        entites_masquees = [entite for entite in toutes_les_entites if entite.masquee]
+
+        return render(request, "front/includes/drawer_vue_liste.html", {
+            "page": page,
+            "entites_visibles": entites_visibles,
+            "entites_masquees": entites_masquees,
+            "nombre_masquees": len(entites_masquees),
+            "nombre_total": len(entites_visibles) + len(entites_masquees),
+            "tri_actuel": parametre_tri,
+        })
 
 
 class ImportViewSet(viewsets.ViewSet):

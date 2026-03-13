@@ -1,7 +1,9 @@
-<div class="max-w-3xl mx-auto" data-page-id="{{ page.pk }}">
+<div class="mx-auto relative" style="max-width: 44rem; padding-right: 3.5rem;" data-page-id="{{ page.pk }}" data-testid="lecture-zone-principale">
+    {# Barre de progression analyse IA — cachee par defaut, affichee via JS #}
+    {# / AI analysis progress bar — hidden by default, shown via JS #}
+    <div id="progress-analyse" class="progress-bar-top" hidden></div>
     {# Titre cliquable pour edition inline / Clickable title for inline editing #}
     <h1 class="titre-page-cliquable text-2xl font-bold text-slate-900 mb-1 cursor-text hover:bg-slate-50 rounded px-1 -mx-1 transition-colors"
-        style="font-family: 'Inter', sans-serif;"
         data-page-id="{{ page.pk }}">{{ page.title|default:"Sans titre" }}</h1>
 
     {# Ligne sous le titre : URL source + boutons telecharger/exporter #}
@@ -77,6 +79,16 @@
     </div>
     {% endif %}
 
+    {# Widgets audio : filtre locuteurs + timeline + barre de progression (PHASE-15) #}
+    {# / Audio widgets: speaker filter + timeline + progress bar (PHASE-15) #}
+    {% if html_filtre_locuteurs %}{{ html_filtre_locuteurs|safe }}{% endif %}
+    {% if html_timeline %}{{ html_timeline|safe }}{% endif %}
+    {% if page.source_type == "audio" %}
+    <div id="barre-progression-audio" class="barre-progression-audio">
+        <div id="barre-progression-remplissage" class="barre-progression-remplissage"></div>
+    </div>
+    {% endif %}
+
     <article id="readability-content" class="lecture-article prose prose-slate prose-lg max-w-none
                     prose-headings:font-semibold prose-headings:text-slate-900
                     prose-p:mb-5 prose-p:mt-0
@@ -92,3 +104,6 @@
     {# / Zone where the speaker renaming modal will be injected via HTMX #}
     <div id="zone-modal-locuteur"></div>
 </div>
+
+{# OOB : mise a jour du titre dans la toolbar / OOB: update title in toolbar #}
+<span id="titre-toolbar" hx-swap-oob="innerHTML:#titre-toolbar">{{ page.title|default:"Sans titre" }}</span>

@@ -1,38 +1,47 @@
 {% load extractor_tags %}
-<!-- Corps interne de la carte d'extraction — recoit attr_0, attr_1, text, attr_2, attr_3 -->
-<!-- / Inner body of extraction card — receives attr_0, attr_1, text, attr_2, attr_3 -->
+{# Corps interne de la carte d'extraction — recoit attr_0, attr_1, text, attr_2, attr_3 #}
+{# / Inner body of extraction card — receives attr_0, attr_1, text, attr_2, attr_3 #}
 
-<!-- Attribut 0 → tags indigo (splitter par virgule) -->
+{# === 1. Header : hypostases en B612 gras uppercase, colorees par famille === #}
+{# / === 1. Header: hypostases in B612 bold uppercase, colored by family === #}
 {% if attr_0 %}
 <div class="flex flex-wrap gap-1 mb-2">
     {% for tag in attr_0|split_comma %}
-    <span class="inline-block text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">{{ tag }}</span>
+    <span class="typo-hypostase inline-block px-1.5 py-0.5 rounded-full"
+          style="background: var(--hypostase-{{ tag|hypostase_famille }}-bg); color: var(--hypostase-{{ tag|hypostase_famille }}-text);"
+          title="{{ tag }} — {{ tag|hypostase_definition }}"
+          data-testid="badge-hypostase">{{ tag }}</span>
     {% endfor %}
 </div>
 {% endif %}
 
-<!-- Attribut 1 → titre -->
+{# === 2. Corps : resume IA en B612 Mono (texte machine) === #}
+{# / === 2. Body: AI summary in B612 Mono (machine text) === #}
 {% if attr_1 %}
-<p class="text-sm font-medium text-slate-800 mb-1.5 leading-snug">{{ attr_1 }}</p>
+<p class="typo-machine mb-1.5 leading-snug">{{ attr_1 }}</p>
 {% endif %}
 
-<!-- Texte source extrait (tronque) -->
+{# === 3. Citation source humaine en Lora italique entre crochets === #}
+{# / === 3. Human source citation in Lora italic in brackets === #}
 {% if text %}
-<p class="text-xs text-slate-500 leading-relaxed line-clamp-3 mb-2">{{ text }}</p>
+<p class="typo-citation line-clamp-3 mb-2 leading-relaxed">[{{ text }}]</p>
 {% endif %}
 
-<!-- Pied : attribut 2 (tag amber) -->
+{# === 4. Footer : statut de debat (badge colore + icone Unicode) === #}
+{# / === 4. Footer: debate status (colored badge + Unicode icon) === #}
 {% if attr_2 %}
 <div class="mb-1">
-    <span class="text-[10px] font-semibold uppercase tracking-wide text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">{{ attr_2 }}</span>
+    <span class="typo-hypostase px-1.5 py-0.5 rounded"
+          style="color: var(--statut-{{ attr_2|lower }}-text); background: var(--statut-{{ attr_2|lower }}-bg);">{{ attr_2|statut_icone }} {{ attr_2 }}</span>
 </div>
 {% endif %}
 
-<!-- Hashtags (attribut 3) sur une ligne separee pour eviter le debordement -->
+{# === 5. Hashtags avec data-hashtag pour rendu cliquable futur === #}
+{# / === 5. Hashtags with data-hashtag for future clickable rendering === #}
 {% if attr_3 %}
 <div class="flex flex-wrap gap-1 mt-1">
     {% for hashtag in attr_3|split_comma %}
-    <span class="text-[10px] text-slate-400">#{{ hashtag }}</span>
+    <span class="text-[10px] text-slate-400" data-hashtag="{{ hashtag }}">#{{ hashtag }}</span>
     {% endfor %}
 </div>
 {% endif %}

@@ -22,7 +22,8 @@
 
     <form hx-post="{% if entity %}/extractions/modifier/{% else %}/extractions/creer_manuelle/{% endif %}"
           hx-target="#panneau-extractions"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          data-testid="extraction-form-manuelle">
         {% csrf_token %}
 
         {% if entity %}
@@ -42,14 +43,14 @@
         {# / Loop over dynamic attributes (key, value) #}
         {% for nom_cle, valeur_attribut in liste_attributs %}
             <input type="hidden" name="attr_key_{{ forloop.counter0 }}" value="{{ nom_cle }}">
-            <label class="block text-xs font-medium text-slate-600 mb-1">{{ nom_cle|capfirst }}</label>
-            <input type="text" name="attr_val_{{ forloop.counter0 }}" value="{{ valeur_attribut }}"
+            <label class="block text-xs font-medium text-slate-600 mb-1" for="attr_val_{{ forloop.counter0 }}">{{ nom_cle|capfirst }}</label>
+            <input type="text" name="attr_val_{{ forloop.counter0 }}" id="attr_val_{{ forloop.counter0 }}" value="{{ valeur_attribut }}"
                    placeholder="…"
                    class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 mb-2 focus:outline-none focus:ring-1 focus:ring-blue-400">
         {% endfor %}
 
         <div class="flex gap-2 mt-1">
-            <button type="submit"
+            <button type="submit" data-testid="extraction-btn-creer"
                     class="flex-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors">
                 {% if entity %}Enregistrer{% else %}Creer l'extraction{% endif %}
             </button>
