@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hypostasia — Bibliothèque</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
-    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=18">
+    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=21">
     <script src="{% static 'front/vendor/htmx-2.0.4.min.js' %}"></script>
     <script src="{% static 'front/vendor/sweetalert2-11.min.js' %}"></script>
 </head>
@@ -54,6 +54,19 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
                 </svg>
                 <span class="btn-toolbar-label">Lecture</span>
+            </button>
+            <!-- Bouton heat map du debat (PHASE-19) -->
+            <!-- / Debate heat map button (PHASE-19) -->
+            <button id="btn-toolbar-heatmap" class="btn-toolbar"
+                    title="Heat map du débat (H)" data-testid="btn-toolbar-heatmap">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"
+                     viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.047 8.287 8.287 0 009 9.601a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 18a3.75 3.75 0 00.495-7.468 5.99 5.99 0 00-1.925 3.547 5.975 5.975 0 01-2.133-1.001A3.75 3.75 0 0012 18z"/>
+                </svg>
+                <span class="btn-toolbar-label">Débat</span>
             </button>
             <!-- Bouton aide raccourcis clavier (PHASE-17) -->
             <!-- / Keyboard shortcuts help button (PHASE-17) -->
@@ -132,6 +145,11 @@
                 <input type="file" class="hidden" id="input-import-fichier-overlay"
                        accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
             </label>
+            <!-- Bouton Comparer (PHASE-18) — active le mode selection -->
+            <!-- / Compare button (PHASE-18) — activates selection mode -->
+            <button id="btn-comparer-arbre" class="flex-1 text-sm text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-3 py-2 transition-colors text-left" title="Comparer des pages (A)">
+                Comparer
+            </button>
         </div>
     </aside>
 
@@ -166,6 +184,18 @@
             </div>
         </div>
     </aside>
+
+    <!-- Bottom sheet mobile (PHASE-21) -->
+    <!-- / Mobile bottom sheet (PHASE-21) -->
+    <div id="bottom-sheet-backdrop" class="bottom-sheet-backdrop" data-testid="bottom-sheet-backdrop"></div>
+    <div id="bottom-sheet" class="bottom-sheet" aria-label="Detail extraction" data-testid="bottom-sheet">
+        <div class="bottom-sheet-poignee" data-testid="bottom-sheet-poignee" aria-label="Glisser pour fermer"></div>
+        <div id="bottom-sheet-contenu" class="bottom-sheet-contenu" data-testid="bottom-sheet-contenu"></div>
+    </div>
+
+    <!-- Conteneur modale alignement (PHASE-18) -->
+    <!-- / Alignment modal container (PHASE-18) -->
+    <div id="alignement-modale-container"></div>
 
     <!-- Layout mono-colonne -->
     <!-- / Single-column layout -->
@@ -207,13 +237,16 @@
 
     {% include "front/includes/selection_menu.html" %}
 
-    <script src="{% static 'front/js/hypostasia.js' %}?v=14"></script>
-    <script src="{% static 'front/js/marginalia.js' %}?v=17"></script>
+    <script src="{% static 'front/js/hypostasia.js' %}?v=19"></script>
+    <script src="{% static 'front/js/marginalia.js' %}?v=21"></script>
+    <script src="{% static 'front/js/bottom_sheet.js' %}?v=21"></script>
     <script src="{% static 'front/js/arbre_overlay.js' %}?v=17"></script>
-    <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=17"></script>
+    <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=19"></script>
     <script src="{% static 'front/js/dashboard_consensus.js' %}?v=17"></script>
     <script src="{% static 'front/js/transcription_rythme.js' %}?v=15"></script>
-    <script src="{% static 'front/js/keyboard.js' %}?v=17"></script>
+    <script src="{% static 'front/js/alignement.js' %}?v=18"></script>
+    <script src="{% static 'front/js/notifications_progression.js' %}?v=20"></script>
+    <script src="{% static 'front/js/keyboard.js' %}?v=21"></script>
 
 </body>
 </html>

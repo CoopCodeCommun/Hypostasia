@@ -4,6 +4,14 @@ set -e
 echo "uv sync"
 uv sync
 
+# Attente PostgreSQL avant migration
+# / Wait for PostgreSQL before migration
+echo "Waiting for PostgreSQL..."
+until pg_isready -h ${POSTGRES_HOST:-postgres} -U ${POSTGRES_USER:-hypostasia} -q; do
+    sleep 2
+done
+echo "PostgreSQL is ready!"
+
 echo "Running migrations..."
 uv run manage.py migrate
 

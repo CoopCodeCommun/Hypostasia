@@ -79,13 +79,19 @@ TEMPLATES = [
 WSGI_APPLICATION = 'hypostasia.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+# Database — PostgreSQL partout (dev, prod, boitier offline)
+# / Database — PostgreSQL everywhere (dev, prod, offline box)
+# Defaults = valeurs du docker-compose.dev.yml → dev marche sans .env
+# / Defaults = docker-compose.dev.yml values → dev works without .env
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db' / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get("POSTGRES_DB", "hypostasia"),
+        "USER": os.environ.get("POSTGRES_USER", "hypostasia"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "hypostasia_dev"),
+        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }
 }
 
@@ -125,6 +131,8 @@ CORS_ALLOW_ALL_ORIGINS = True
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://localhost:8000",
+    "http://127.0.0.1:8123",
+    "http://localhost:8123",
     f'https://{os.environ.get("DOMAIN")}',
     "chrome-extension://lmflifaokphpaknpdnmdmhdiaeiieomd"
 ]
@@ -142,13 +150,12 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 
 # =============================================================================
-# Celery — broker et backend via django-db (SQLite, pas de Redis)
-# / Celery — broker and backend via django-db (SQLite, no Redis)
+# Celery — Redis partout (dev, prod, boitier offline)
+# / Celery — Redis everywhere (dev, prod, offline box)
 # =============================================================================
 
-# Broker : SQLAlchemy + SQLite (pas de Redis requis)
-# / Broker: SQLAlchemy + SQLite (no Redis required)
-CELERY_BROKER_URL = f"sqla+sqlite:///{BASE_DIR / 'db' / 'celery-broker.sqlite3'}"
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
+
 CELERY_RESULT_BACKEND = "django-db"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"

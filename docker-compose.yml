@@ -12,16 +12,49 @@
 # =============================================================================
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: hypostasia_postgres_prod
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hypostasia}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - hypostasia
+
+  redis:
+    image: redis:7-alpine
+    container_name: hypostasia_redis_prod
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - hypostasia
+
   web:
     build: .
     container_name: hypostasia_web
     env_file: .env
     volumes:
-      - sqlite_data:/app/db
       - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - frontend
+      - hypostasia
     command: "bash start.sh"
 #    command: "sleep infinity"
 
@@ -52,5 +85,6 @@ networks:
     internal: true
 
 volumes:
-  sqlite_data:
+  pgdata:
   static_volume:
+  media_volume:

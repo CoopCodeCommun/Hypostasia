@@ -1,4 +1,4 @@
-<div class="mx-auto relative" style="max-width: 44rem; padding-right: 3.5rem;" data-page-id="{{ page.pk }}" data-testid="lecture-zone-principale">
+<div class="lecture-zone-conteneur mx-auto relative" data-page-id="{{ page.pk }}" data-testid="lecture-zone-principale">
     {# Barre de progression analyse IA — cachee par defaut, affichee via JS #}
     {# / AI analysis progress bar — hidden by default, shown via JS #}
     <div id="progress-analyse" class="progress-bar-top" hidden></div>
@@ -78,6 +78,10 @@
         {% endfor %}
     </div>
     {% endif %}
+
+    {# Bandeau de notifications de progression (PHASE-20) #}
+    {# / Progression notification banner (PHASE-20) #}
+    <div id="bandeau-notifications" data-testid="bandeau-notifications"></div>
 
     {# Widgets audio : filtre locuteurs + timeline + barre de progression (PHASE-15) #}
     {# / Audio widgets: speaker filter + timeline + progress bar (PHASE-15) #}

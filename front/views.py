@@ -2,7 +2,7 @@ import hashlib
 import json
 import logging
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.db.models import Case, Count, Prefetch, Value, When
 from django.utils import timezone
@@ -75,6 +75,106 @@ def _annoter_entites_avec_commentaires(queryset_entites):
         entites_annotees.filter(nombre_commentaires__gt=0).values_list("pk", flat=True)
     )
     return entites_annotees, ids_commentees
+
+
+def _calculer_scores_temperature(entites_annotees):
+    """
+    Calcule les scores de temperature normalises pour la heat map du debat (PHASE-19).
+    Score brut = (nombre_commentaires × 1) + (non-consensuel × 3).
+    Retourne un dict {entite_pk: score_normalise_entre_0_et_1}.
+    / Compute normalized temperature scores for debate heat map (PHASE-19).
+    Raw score = (comment_count × 1) + (non-consensual × 3).
+    Returns {entity_pk: normalized_score_between_0_and_1}.
+    """
+    scores_bruts_par_entite = {}
+    score_maximum_du_document = 0
+
+    for entite in entites_annotees:
+        nombre_commentaires = entite.nombre_commentaires if hasattr(entite, 'nombre_commentaires') else 0
+        est_non_consensuel = 1 if (entite.statut_debat or "discutable") != "consensuel" else 0
+        score_brut = (nombre_commentaires * 1) + (est_non_consensuel * 3)
+        scores_bruts_par_entite[entite.pk] = score_brut
+        if score_brut > score_maximum_du_document:
+            score_maximum_du_document = score_brut
+
+    # Normalisation sur [0, 1] par rapport au max du document
+    # / Normalize to [0, 1] relative to document max
+    scores_normalises = {}
+    for pk, score_brut in scores_bruts_par_entite.items():
+        if score_maximum_du_document > 0:
+            scores_normalises[pk] = score_brut / score_maximum_du_document
+        else:
+            scores_normalises[pk] = 0.0
+
+    return scores_normalises
+
+
+def _calculer_mouvements_depuis(page, timestamp_derniere_visite):
+    """
+    Calcule les mouvements sur une page depuis un timestamp donne.
+    Retourne un dict avec les changements detectes, ou None si aucun mouvement.
+    / Compute page movements since a given timestamp.
+    Returns a dict with detected changes, or None if no movement.
+    """
+    # Nombre de nouveaux commentaires depuis la derniere visite
+    # / Number of new comments since last visit
+    nombre_nouveaux_commentaires = CommentaireExtraction.objects.filter(
+        entity__job__page=page,
+        created_at__gt=timestamp_derniere_visite,
+    ).count()
+
+    # Entites dont le statut a change depuis la derniere visite
+    # / Entities whose status changed since last visit
+    entites_modifiees_par_statut = (
+        ExtractedEntity.objects.filter(
+            job__page=page,
+            masquee=False,
+            updated_at__gt=timestamp_derniere_visite,
+        )
+        .values("statut_debat")
+        .annotate(nombre=Count("id"))
+    )
+    changements_statut = {
+        ligne["statut_debat"]: ligne["nombre"]
+        for ligne in entites_modifiees_par_statut
+    }
+
+    # Entites orphelines (0 commentaires au total)
+    # / Orphan entities (0 comments total)
+    nombre_total_entites = ExtractedEntity.objects.filter(
+        job__page=page, masquee=False,
+    ).count()
+    nombre_entites_avec_commentaires = ExtractedEntity.objects.filter(
+        job__page=page, masquee=False,
+        commentaires__isnull=False,
+    ).distinct().count()
+    nombre_orphelines = nombre_total_entites - nombre_entites_avec_commentaires
+
+    # Pourcentage de consensus et seuil atteint
+    # / Consensus percentage and threshold reached
+    if nombre_total_entites > 0:
+        nombre_consensuelles = ExtractedEntity.objects.filter(
+            job__page=page, masquee=False, statut_debat="consensuel",
+        ).count()
+        pourcentage_consensus = round(
+            (nombre_consensuelles / nombre_total_entites) * 100
+        )
+    else:
+        pourcentage_consensus = 0
+    seuil_atteint = pourcentage_consensus >= SEUIL_CONSENSUS_DEFAUT
+
+    # Si aucun mouvement detecte, retourne None
+    # / If no movement detected, return None
+    if nombre_nouveaux_commentaires == 0 and not changements_statut:
+        return None
+
+    return {
+        "nombre_nouveaux_commentaires": nombre_nouveaux_commentaires,
+        "changements_statut": changements_statut,
+        "nombre_orphelines": nombre_orphelines,
+        "pourcentage_consensus": pourcentage_consensus,
+        "seuil_atteint": seuil_atteint,
+    }
 
 
 def _get_ia_active():
@@ -250,9 +350,11 @@ class LectureViewSet(viewsets.ViewSet):
             )
             # Annoter le HTML avec des ancres pour le scroll-to-extraction
             # / Annotate HTML with anchors for scroll-to-extraction
+            scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
+                scores_temperature_normalises=scores_temperature,
             )
 
         # Recupere toutes les versions de cette page (racine + restitutions)
@@ -326,6 +428,51 @@ class LectureViewSet(viewsets.ViewSet):
             "html_timeline": html_timeline,
         })
 
+    @action(detail=True, methods=["GET"], url_path="notifications")
+    def notifications(self, request, pk=None):
+        """
+        Retourne le bandeau de notifications de progression (PHASE-20).
+        Le JS envoie ?derniere_visite=ISO pour filtrer les mouvements.
+        Retourne un partial HTML ou un div vide si rien n'a change.
+        / Returns the progression notification banner (PHASE-20).
+        JS sends ?derniere_visite=ISO to filter movements.
+        Returns an HTML partial or empty div if nothing changed.
+        """
+        page = get_object_or_404(Page, pk=pk)
+
+        # Recupere le timestamp de derniere visite depuis le query param
+        # / Retrieve last visit timestamp from query param
+        param_derniere_visite = request.GET.get("derniere_visite", "")
+        if not param_derniere_visite:
+            return HttpResponse(
+                '<div id="bandeau-notifications" data-testid="bandeau-notifications"></div>'
+            )
+
+        # Parse le timestamp ISO — si invalide, retourne un div vide
+        # / Parse the ISO timestamp — if invalid, return empty div
+        try:
+            timestamp_derniere_visite = datetime.fromisoformat(
+                param_derniere_visite.replace("Z", "+00:00")
+            )
+        except (ValueError, TypeError):
+            return HttpResponse(
+                '<div id="bandeau-notifications" data-testid="bandeau-notifications"></div>'
+            )
+
+        # Calcule les mouvements depuis la derniere visite
+        # / Compute movements since last visit
+        mouvements = _calculer_mouvements_depuis(page, timestamp_derniere_visite)
+
+        if mouvements is None:
+            return HttpResponse(
+                '<div id="bandeau-notifications" data-testid="bandeau-notifications"></div>'
+            )
+
+        return render(request, "front/includes/bandeau_notification.html", {
+            "page": page,
+            "mouvements": mouvements,
+        })
+
     @action(detail=True, methods=["POST"], url_path="modifier_titre")
     def modifier_titre(self, request, pk=None):
         """
@@ -364,9 +511,11 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 dernier_job_termine.entities.filter(masquee=False)
             )
+            scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
+                scores_temperature_normalises=scores_temperature,
             )
 
         toutes_les_versions = page.toutes_les_versions
@@ -792,9 +941,11 @@ class LectureViewSet(viewsets.ViewSet):
                 dernier_job_termine.entities.filter(masquee=False)
             )
 
+            scores_temperature = _calculer_scores_temperature(toutes_les_entites_du_job)
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 toutes_les_entites_du_job, ids_entites_commentees,
+                scores_temperature_normalises=scores_temperature,
             )
 
             html_cartes = render_to_string(
@@ -1131,9 +1282,11 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 dernier_job_termine.entities.filter(masquee=False)
             )
+            scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
+                scores_temperature_normalises=scores_temperature,
             )
 
         toutes_les_versions = page.toutes_les_versions
@@ -1213,9 +1366,11 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 dernier_job_termine.entities.filter(masquee=False)
             )
+            scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
+                scores_temperature_normalises=scores_temperature,
             )
 
         toutes_les_versions = page.toutes_les_versions
@@ -1397,9 +1552,11 @@ class ExtractionViewSet(viewsets.ViewSet):
         ).count()
 
         # Annoter le HTML / Annotate HTML
+        scores_temperature = _calculer_scores_temperature(entites_visibles)
         html_annote = annoter_html_avec_barres(
             page.html_readability, page.text_readability,
             entites_visibles, ids_entites_commentees,
+            scores_temperature_normalises=scores_temperature,
         )
 
         # Dernier job pour le contexte du panneau / Latest job for panel context
@@ -1466,9 +1623,11 @@ class ExtractionViewSet(viewsets.ViewSet):
         ).count()
 
         # Annoter le HTML / Annotate HTML
+        scores_temperature = _calculer_scores_temperature(entites_visibles)
         html_annote = annoter_html_avec_barres(
             page.html_readability, page.text_readability,
             entites_visibles, ids_entites_commentees,
+            scores_temperature_normalises=scores_temperature,
         )
 
         # Dernier job pour le contexte du panneau / Latest job for panel context
@@ -1727,6 +1886,34 @@ class ExtractionViewSet(viewsets.ViewSet):
         nombre_commentaires = CommentaireExtraction.objects.filter(entity=entite).count()
 
         return render(request, "front/includes/carte_inline.html", {
+            "entity": entite,
+            "nombre_commentaires": nombre_commentaires,
+        })
+
+    @action(detail=False, methods=["GET"], url_path="carte_mobile")
+    def carte_mobile(self, request):
+        """
+        Renvoie le partial HTML d'une carte pour le bottom sheet mobile (PHASE-21).
+        / Returns the mobile bottom sheet extraction card HTML partial.
+
+        LOCALISATION : front/views.py — ExtractionViewSet
+
+        Appelee par bottom_sheet.js quand l'utilisateur tap une extraction sur mobile.
+        Meme logique que carte_inline, mais rend bottom_sheet_extraction.html.
+        / Called by bottom_sheet.js when user taps an extraction on mobile.
+        """
+        # Identifiant de l'entite a afficher / Entity ID to display
+        identifiant_entite = request.query_params.get("entity_id")
+        if not identifiant_entite:
+            return HttpResponse("entity_id requis.", status=400)
+
+        entite = get_object_or_404(ExtractedEntity, pk=identifiant_entite)
+
+        # Compter les commentaires pour cette entite
+        # / Count comments for this entity
+        nombre_commentaires = CommentaireExtraction.objects.filter(entity=entite).count()
+
+        return render(request, "front/includes/bottom_sheet_extraction.html", {
             "entity": entite,
             "nombre_commentaires": nombre_commentaires,
         })
@@ -2946,6 +3133,8 @@ class ExtractionViewSet(viewsets.ViewSet):
         )
         toutes_les_entites = ExtractedEntity.objects.filter(
             job__in=tous_les_jobs_termines,
+        ).prefetch_related(
+            "commentaires",
         ).annotate(
             nombre_commentaires=Count("commentaires"),
         )

@@ -2,8 +2,8 @@
 Configuration Celery pour Hypostasia.
 / Celery configuration for Hypostasia.
 
-Utilise django-db comme broker et backend (SQLite, pas de Redis).
-/ Uses django-db as broker and backend (SQLite, no Redis).
+Utilise Redis comme broker partout (dev, prod, boitier offline).
+/ Uses Redis as broker everywhere (dev, prod, offline box).
 """
 
 import os

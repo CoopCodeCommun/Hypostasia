@@ -231,7 +231,11 @@ class ExtractedEntity(models.Model):
     masquee = models.BooleanField(default=False)
     
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
+    # Date de derniere modification (changement de statut, etc.) — PHASE-20
+    # / Last modification date (status change, etc.) — PHASE-20
+    updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
         ordering = ['start_char']
     
