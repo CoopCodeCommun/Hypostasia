@@ -1,0 +1,1461 @@
+/* ==========================================================================
+   HYPOSTASIA — Charte visuelle
+   Fichier CSS principal du front (variables, typographie, composants)
+   / Main front CSS file (variables, typography, components)
+   ========================================================================== */
+
+
+/* === 1. Variables CSS sémantiques ===
+   Toutes les couleurs du projet, regroupées par famille.
+   Préparation dark mode : il suffira d'overrider ces variables.
+   / All project colors, grouped by family.
+   / Dark mode prep: just override these variables.
+   ========================================================================== */
+
+:root {
+    /* --- 1a. Ancre (format RGB pour usage avec rgba) --- */
+    --ancre-color: 59, 130, 246; /* bleu Tailwind blue-500, format RGB */
+
+    /* --- 1b. Surfaces --- */
+    /* / Surfaces */
+    --surface-primary: #ffffff;
+    --surface-secondary: #f8fafc;
+    --surface-tertiary: #f1f5f9;
+
+    /* --- 1c. Textes --- */
+    /* / Texts */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-tertiary: #94a3b8;
+
+    /* --- 1d. Bordures --- */
+    /* / Borders */
+    --border-default: #e2e8f0;
+    --border-strong: #cbd5e1;
+
+    /* --- 1e. Statuts de debat --- */
+    /* / Debate statuses */
+    --statut-consensuel-text: #15803d;
+    --statut-consensuel-bg: #f0fdf4;
+    --statut-consensuel-accent: #429900;
+
+    --statut-discutable-text: #B61601;
+    --statut-discutable-bg: #fef2f2;
+    --statut-discutable-accent: #B61601;
+
+    --statut-discute-text: #b45309;
+    --statut-discute-bg: #fffbeb;
+    --statut-discute-accent: #D97706;
+
+    --statut-controverse-text: #C2410C;
+    --statut-controverse-bg: #FFF4ED;
+    --statut-controverse-accent: #FF4000;
+
+    /* --- 1f. Hypostases (8 familles : fond + texte) --- */
+    /* / Hypostases (8 families: background + text) */
+    --hypostase-epistemique-bg: #e0e7ff;
+    --hypostase-epistemique-text: #4338ca;
+
+    --hypostase-empirique-bg: #d1fae5;
+    --hypostase-empirique-text: #047857;
+
+    --hypostase-speculatif-bg: #fef3c7;
+    --hypostase-speculatif-text: #b45309;
+
+    --hypostase-structurel-bg: #e2e8f0;
+    --hypostase-structurel-text: #475569;
+
+    --hypostase-normatif-bg: #ede9fe;
+    --hypostase-normatif-text: #6d28d9;
+
+    --hypostase-problematique-bg: #fee2e2;
+    --hypostase-problematique-text: #b91c1c;
+
+    --hypostase-mode-bg: #cffafe;
+    --hypostase-mode-text: #0e7490;
+
+    --hypostase-objet-bg: #f1f5f9;
+    --hypostase-objet-text: #64748b;
+
+    /* --- 1g. Provenances typographiques --- */
+    /* / Typographic provenances */
+    --typo-machine-color: #475569;
+    --typo-citation-color: #1e293b;
+    --typo-lecteur-color: #0056D6;
+
+    /* --- 1h. États interactifs --- */
+    /* / Interactive states */
+    --hover-bg: #f8fafc;          /* slate-50 */
+    --active-bg: #f1f5f9;         /* slate-100 */
+    --loading-shimmer: #e2e8f0;   /* slate-200 */
+    --error-text: #dc2626;        /* red-600 */
+    --error-bg: #fef2f2;          /* red-50 */
+    --warning-text: #a16207;      /* yellow-700 */
+    --warning-bg: #fefce8;        /* yellow-50 */
+}
+
+
+/* === 2. Classes typographiques (3 polices = 3 provenances) ===
+   Chaque classe encode une provenance de texte.
+   / Each class encodes a text provenance.
+   ========================================================================== */
+
+/* Label d'hypostase — B612 gras, petites capitales */
+/* / Hypostase label — B612 bold, small caps */
+.typo-hypostase {
+    font-family: 'B612', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Texte machine (IA) — B612 Mono */
+/* / Machine text (AI) — B612 Mono */
+.typo-machine {
+    font-family: 'B612 Mono', monospace;
+    font-size: 14px;
+    color: var(--typo-machine-color);
+}
+
+/* Citation source humaine — Lora italique */
+/* / Human source citation — Lora italic */
+.typo-citation {
+    font-family: 'Lora', Georgia, serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--typo-citation-color);
+}
+
+/* Nom du lecteur — Srisakdi, taille signature */
+/* / Reader name — Srisakdi, signature size */
+.typo-lecteur-nom {
+    font-family: 'Srisakdi', cursive;
+    font-size: 20px;
+    color: var(--typo-lecteur-color);
+}
+
+/* Corps du commentaire lecteur — Srisakdi, taille courante */
+/* / Reader comment body — Srisakdi, running size */
+.typo-lecteur-corps {
+    font-family: 'Srisakdi', cursive;
+    font-size: 16px;
+    color: var(--typo-lecteur-color);
+}
+
+
+/* === 3. Composants de base ===
+   Styles globaux et utilitaires generiques.
+   / Global styles and generic utilities.
+   ========================================================================== */
+
+body { font-family: 'B612', sans-serif; }
+.tree-arrow { transition: transform 0.15s ease; }
+.tree-arrow.open { transform: rotate(90deg); }
+
+/* Sidebar droite cachee (PHASE-07) — conservee comme cible OOB */
+/* / Right sidebar hidden (PHASE-07) — kept as OOB target */
+
+
+/* === 4. Blocs de transcription ===
+   Blocs visuels par locuteur dans la zone de lecture.
+   / Visual blocks per speaker in the reading zone.
+   ========================================================================== */
+
+.speaker-block {
+    padding: 0.75rem 1rem;
+    background: var(--surface-primary);
+    border-radius: 0 0.5rem 0.5rem 0;
+    transition: filter 0.15s;
+}
+.speaker-block:hover {
+    filter: brightness(0.97);
+}
+/* Bloc masque par le filtre locuteur / Block hidden by speaker filter */
+.speaker-block.masque-par-filtre {
+    display: none;
+}
+
+
+/* === 5. Style de lecture ===
+   Typographie et mise en page de l'article en zone centrale.
+   / Typography and layout of the central reading area article.
+   ========================================================================== */
+
+.lecture-article {
+    font-family: 'Lora', Georgia, serif;
+    font-size: 1.125rem;
+    line-height: 1.85;
+    color: var(--typo-citation-color);
+}
+.lecture-article img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+    margin: 1.5rem auto;
+    display: block;
+}
+.lecture-article a {
+    color: #2563eb;
+    text-decoration: underline;
+    text-decoration-color: #93c5fd;
+    text-underline-offset: 3px;
+    transition: text-decoration-color 0.15s;
+}
+.lecture-article a:hover {
+    text-decoration-color: #2563eb;
+}
+.lecture-article figcaption {
+    font-family: 'B612', sans-serif;
+    font-size: 0.8rem;
+    color: var(--hypostase-objet-text);
+    text-align: center;
+    margin-top: 0.5rem;
+}
+
+
+/* === 6. Pastilles et surlignage d'extraction ===
+   Marqueurs visuels dans la marge et dans le texte.
+   / Visual markers in the margin and in the text.
+   ========================================================================== */
+
+/* Les conteneurs de texte doivent etre position:relative pour ancrer les pastilles */
+/* / Text containers must be position:relative to anchor the dots */
+#readability-content p,
+#readability-content div,
+#readability-content blockquote,
+#readability-content li,
+#readability-content h1, #readability-content h2, #readability-content h3,
+#readability-content h4, #readability-content h5, #readability-content h6 {
+    position: relative;
+}
+
+/* Surlignage du texte extrait — fond colore selon le statut de debat */
+/* Les couleurs suivent le systeme de statuts de l'application */
+/* / Inline highlight of extracted text — colored background per debate status */
+/* / Colors follow the application's status system */
+.hl-extraction {
+    border-radius: 2px;
+    transition: background-color 0.15s;
+    padding: 1px 0;
+}
+
+/* Fond par statut de debat — desktop : subtil, soulignement en bas */
+/* / Background per debate status — desktop: subtle, underline at bottom */
+.hl-extraction[data-statut="consensuel"] {
+    background-color: rgba(66, 153, 0, 0.08);
+    border-bottom: 2px solid rgba(66, 153, 0, 0.25);
+}
+.hl-extraction[data-statut="discutable"] {
+    background-color: rgba(182, 22, 1, 0.08);
+    border-bottom: 2px solid rgba(182, 22, 1, 0.25);
+}
+.hl-extraction[data-statut="discute"] {
+    background-color: rgba(217, 119, 6, 0.08);
+    border-bottom: 2px solid rgba(217, 119, 6, 0.25);
+}
+.hl-extraction[data-statut="controverse"] {
+    background-color: rgba(255, 64, 0, 0.10);
+    border-bottom: 2px solid rgba(255, 64, 0, 0.30);
+}
+
+/* Extractions avec commentaires — bordure plus marquee */
+/* / Extractions with comments — more visible border */
+.hl-extraction.hl-commentee {
+    border-bottom-style: dotted;
+    border-bottom-width: 2px;
+}
+
+/* Conteneur de pastilles en marge droite (PHASE-09) */
+/* / Right margin dot container (PHASE-09) */
+#readability-content .pastilles-marge {
+    position: absolute;
+    right: -2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 5;
+}
+
+/* Pastille individuelle (cercle 10px, couleur inline via JS) */
+/* / Individual dot (10px circle, inline color via JS) */
+.pastille-extraction {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+}
+.pastille-extraction:hover {
+    transform: scale(1.4);
+}
+.pastille-extraction.pastille-active {
+    transform: scale(1.4);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+
+/* === 7. Carte inline depliable ===
+   Carte affichee sous le paragraphe au clic sur une pastille.
+   / Card displayed below the paragraph on dot click.
+   ========================================================================== */
+
+.carte-inline {
+    margin: 0.75rem 0;
+    border-left: 3px solid var(--statut-discutable-accent);
+    border-radius: 0.5rem;
+    background: var(--surface-secondary);
+    padding: 0.75rem 1rem;
+    position: relative;
+    overflow: hidden;
+}
+.carte-inline[data-statut="consensuel"]  { border-left-color: var(--statut-consensuel-accent); }
+.carte-inline[data-statut="discutable"]  { border-left-color: var(--statut-discutable-accent); }
+.carte-inline[data-statut="discute"]     { border-left-color: var(--statut-discute-accent); }
+.carte-inline[data-statut="controverse"] { border-left-color: var(--statut-controverse-accent); }
+
+/* Animation entree carte inline */
+/* / Inline card entrance animation */
+.carte-inline-entree {
+    animation: carte-inline-slide-down 200ms ease forwards;
+}
+@keyframes carte-inline-slide-down {
+    from { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0; }
+    to   { max-height: 600px; opacity: 1; }
+}
+
+/* Animation sortie carte inline */
+/* / Inline card exit animation */
+.carte-inline-sortie {
+    animation: carte-inline-slide-up 200ms ease forwards;
+}
+@keyframes carte-inline-slide-up {
+    from { max-height: 600px; opacity: 1; }
+    to   { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0; }
+}
+
+/* Bouton replier (triangle haut) en haut a droite de la carte */
+/* / Collapse button (up triangle) at top right of card */
+.btn-replier-carte {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    transition: color 0.15s, background-color 0.15s;
+}
+.btn-replier-carte:hover {
+    color: var(--text-secondary);
+    background-color: var(--border-default);
+}
+
+
+/* === 8. Animations de surlignage actif ===
+   Pulse visuel au clic depuis le panneau droit ou depuis la pastille.
+   / Visual pulse on click from right panel or from the dot.
+   ========================================================================== */
+
+/* Le pulse au clic intensifie le fond du statut actuel */
+/* / Click pulse intensifies the current status background */
+.hl-extraction.ancre-active {
+    animation: hl-pulse 2.5s ease-out forwards;
+}
+.hl-extraction[data-statut="consensuel"].ancre-active  { background-color: rgba(66, 153, 0, 0.25); }
+.hl-extraction[data-statut="discutable"].ancre-active  { background-color: rgba(182, 22, 1, 0.20); }
+.hl-extraction[data-statut="discute"].ancre-active     { background-color: rgba(217, 119, 6, 0.22); }
+.hl-extraction[data-statut="controverse"].ancre-active { background-color: rgba(255, 64, 0, 0.25); }
+@keyframes hl-pulse {
+    0%   { background-color: rgba(59, 130, 246, 0.25); }
+    70%  { background-color: rgba(59, 130, 246, 0.1); }
+    100% { background-color: transparent; }
+}
+@keyframes hl-pulse-orange {
+    0%   { background-color: rgba(245, 158, 11, 0.25); }
+    70%  { background-color: rgba(245, 158, 11, 0.1); }
+    100% { background-color: transparent; }
+}
+
+/* Carte d'extraction clignotante (cliquee depuis le texte) */
+/* / Flashing extraction card (clicked from text) */
+.carte-flash {
+    animation: carte-flash-pulse 2s ease-out forwards;
+}
+@keyframes carte-flash-pulse {
+    0%   { box-shadow: 0 0 0 3px rgba(var(--ancre-color), 0.5); background-color: rgba(219, 234, 254, 1); }
+    50%  { box-shadow: 0 0 0 3px rgba(var(--ancre-color), 0.3); background-color: rgba(219, 234, 254, 0.6); }
+    100% { box-shadow: none; background-color: var(--surface-primary); }
+}
+
+
+/* === 9. Barre de progression indeterminee ===
+   Pour les taches async (analyse IA, entrainement).
+   / For async tasks (AI analysis, training).
+   ========================================================================== */
+
+@keyframes indeterminate-analyse {
+    0% { transform: translateX(-100%); width: 40%; }
+    50% { transform: translateX(100%); width: 60%; }
+    100% { transform: translateX(300%); width: 40%; }
+}
+.animate-indeterminate-analyse {
+    animation: indeterminate-analyse 2s ease-in-out infinite;
+}
+
+
+/* === 10. Overlay arbre et toolbar ===
+   Transitions overlay arbre (PHASE-08) et boutons toolbar.
+   / Tree overlay transitions (PHASE-08) and toolbar buttons.
+   ========================================================================== */
+
+#arbre-backdrop { transition: opacity 0.2s ease; }
+#arbre-overlay { transition: transform 0.2s ease; }
+
+/* Boutons toolbar uniformes (PHASE-08) */
+/* / Uniform toolbar buttons (PHASE-08) */
+.btn-toolbar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8125rem;
+    color: var(--hypostase-objet-text);
+    border-radius: 0.375rem;
+    transition: color 0.15s, background-color 0.15s;
+}
+.btn-toolbar:hover {
+    color: #2563eb;
+    background-color: var(--surface-tertiary);
+}
+.btn-toolbar:disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+/* Responsive toolbar : masque les labels texte sur petits ecrans, garde les icones */
+/* / Responsive toolbar: hide text labels on small screens, keep icons */
+@media (max-width: 640px) {
+    .btn-toolbar-label { display: none; }
+}
+
+
+/* === 11. Drawer vue liste (PHASE-10) ===
+   Panneau lateral droit pour la liste des extractions.
+   / Right side panel for the extraction list.
+   ========================================================================== */
+
+#drawer-backdrop { transition: opacity 0.2s ease; }
+#drawer-overlay { transition: transform 0.25s ease; }
+
+.drawer-carte-compacte {
+    margin-bottom: 2px;
+}
+.drawer-carte-compacte.drawer-carte-active {
+    background-color: #eff6ff;
+    border-left: 3px solid rgba(var(--ancre-color), 0.7);
+}
+.drawer-carte-masquee {
+    opacity: 0.5;
+}
+
+
+/* === 12a. Active states ===
+   État actif pour les items de l'arbre et les cartes.
+   / Active state for tree items and cards.
+   ========================================================================== */
+
+.arbre-item-actif {
+    background-color: #eef2ff;  /* indigo-50 */
+    border-left: 3px solid #6366f1;  /* indigo-500 */
+}
+
+
+/* === 12b. Loading states ===
+   Spinner, skeleton et barre de progression.
+   / Spinner, skeleton and progress bar.
+   ========================================================================== */
+
+/* Bouton en chargement — spinner inline + desactive / Loading button — inline spinner + disabled */
+.btn-loading {
+    pointer-events: none;
+    opacity: 0.6;
+    position: relative;
+}
+.btn-loading::after {
+    content: "";
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-left: 0.5em;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Skeleton — fond anime shimmer / Skeleton — animated shimmer background */
+.skeleton {
+    background: linear-gradient(90deg, var(--loading-shimmer) 25%, #f1f5f9 50%, var(--loading-shimmer) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 0.25rem;
+}
+@keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Barre de progression indeterminee en haut / Indeterminate progress bar at top */
+.progress-bar-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    overflow: hidden;
+    z-index: 10;
+}
+.progress-bar-top::after {
+    content: "";
+    display: block;
+    height: 100%;
+    background-color: #6366f1;  /* indigo-500 */
+    animation: indeterminate-analyse 2s ease-in-out infinite;
+}
+
+/* Conteneur en chargement — masque le contenu sauf les skeletons */
+/* / Loading container — hides content except skeletons */
+.is-loading > *:not(.skeleton) {
+    visibility: hidden;
+}
+
+
+/* === 12c. Empty states ===
+   États vides uniformes pour les zones sans contenu.
+   / Uniform empty states for zones without content.
+   ========================================================================== */
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    text-align: center;
+}
+.empty-state-icon {
+    width: 3rem;
+    height: 3rem;
+    color: #cbd5e1;  /* slate-300 */
+    margin-bottom: 0.75rem;
+}
+.empty-state-text {
+    font-size: 0.875rem;
+    color: #94a3b8;  /* slate-400 */
+    margin-bottom: 0.5rem;
+}
+.empty-state-subtext {
+    font-size: 0.75rem;
+    color: #cbd5e1;  /* slate-300 */
+    margin-bottom: 0.75rem;
+}
+.empty-state-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    background-color: #eef2ff;  /* indigo-50 */
+    color: #4f46e5;  /* indigo-600 */
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    border: none;
+}
+.empty-state-action:hover {
+    background-color: #e0e7ff;  /* indigo-100 */
+}
+
+
+/* === 12d. Error / Warning states ===
+   Blocs d'erreur et d'avertissement réutilisables.
+   / Reusable error and warning blocks.
+   ========================================================================== */
+
+.error-inline {
+    background-color: var(--error-bg);
+    border: 1px solid #fecaca;  /* red-200 */
+    color: var(--error-text);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+}
+.warning-banner {
+    background-color: var(--warning-bg);
+    border-bottom: 2px solid #fcd34d;  /* yellow-300 */
+    color: var(--warning-text);
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+
+/* === 13. Dashboard consensus (PHASE-14) ===
+   Dropdown, barre de progression et composants du dashboard.
+   / Dropdown, progress bar and dashboard components.
+   ========================================================================== */
+
+/* Dropdown ancre sous le bouton toolbar / Dropdown anchored below toolbar button */
+.dashboard-dropdown {
+    position: absolute;
+    top: 3rem;
+    right: 8rem;
+    z-index: 50;
+    max-width: 22rem;
+    width: 22rem;
+    background: var(--surface-primary);
+    border: 1px solid var(--border-default);
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+@media (max-width: 640px) {
+    .dashboard-dropdown {
+        right: 0.5rem;
+        left: 0.5rem;
+        width: auto;
+        max-width: none;
+    }
+}
+
+/* Barre de progression consensus / Consensus progress bar */
+.progress-bar-consensus {
+    height: 0.5rem;
+    background: var(--surface-tertiary);
+    border-radius: 9999px;
+    overflow: hidden;
+}
+.progress-bar-consensus-fill {
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 0.3s ease;
+}
+
+/* Compteur individuel du dashboard / Individual dashboard counter */
+.dashboard-compteur {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 0.375rem;
+    background: var(--surface-secondary);
+}
+
+/* Carte bloquante cliquable / Clickable blocker card */
+.dashboard-bloquant {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    transition: background-color 0.15s;
+}
+.dashboard-bloquant:hover {
+    background: var(--surface-secondary);
+}
+
+/* Badge statut dans la liste des bloquants / Status badge in blockers list */
+.dashboard-bloquant-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 0.25rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* Bouton synthese / Synthesis button */
+.btn-synthese {
+    width: 100%;
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: white;
+    background-color: var(--statut-consensuel-accent);
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.btn-synthese:hover {
+    opacity: 0.9;
+}
+.btn-synthese:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.btn-synthese-avertissement {
+    opacity: 0.6;
+    cursor: pointer;
+}
+
+
+/* === 14. Marqueurs temporels (PHASE-15) ===
+   Lignes horizontales + timestamp centre toutes les 5 minutes.
+   / Horizontal lines + centered timestamp every 5 minutes.
+   ========================================================================== */
+
+.marqueur-temporel {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+    color: var(--text-tertiary);
+    font-family: 'B612', sans-serif;
+    font-size: 0.75rem;
+    user-select: none;
+}
+.marqueur-temporel::before,
+.marqueur-temporel::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border-default);
+}
+/* Masque par le filtre locuteur / Hidden by speaker filter */
+.marqueur-temporel.masque-par-filtre {
+    display: none;
+}
+
+
+/* === 15. Filtre locuteurs (PHASE-15) ===
+   Pilules cliquables pour filtrer par locuteur.
+   / Clickable pills to filter by speaker.
+   ========================================================================== */
+
+.filtre-locuteurs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-bottom: 0.75rem;
+}
+/* Mobile : scroll horizontal au lieu d'empiler / Mobile: horizontal scroll instead of stacking */
+@media (max-width: 640px) {
+    .filtre-locuteurs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;  /* Firefox */
+        padding-bottom: 0.25rem;
+    }
+    .filtre-locuteurs::-webkit-scrollbar { display: none; }
+    .pilule-locuteur { white-space: nowrap; flex-shrink: 0; }
+}
+.pilule-locuteur {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-family: 'B612', sans-serif;
+    color: var(--text-secondary);
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.pilule-locuteur:hover {
+    background: var(--surface-tertiary);
+    border-color: var(--border-strong);
+}
+.pilule-locuteur.pilule-active {
+    background: var(--text-primary);
+    color: white;
+    border-color: var(--text-primary);
+}
+.pilule-pastille {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+
+/* === 16. Timeline audio (PHASE-15) ===
+   Barre horizontale coloree representant le deroulement audio.
+   / Colored horizontal bar representing the audio flow.
+   ========================================================================== */
+
+.timeline-audio {
+    position: relative;
+    margin-bottom: 0.75rem;
+    border-radius: 0.375rem;
+    overflow: hidden;
+}
+.timeline-segments {
+    display: flex;
+    gap: 1px;
+    height: 1.25rem;
+    border-radius: 0.375rem;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--border-default);
+}
+.timeline-segment {
+    height: 100%;
+    transition: filter 0.15s, opacity 0.15s;
+    min-width: 2px;
+}
+.timeline-segment:hover {
+    filter: brightness(0.85);
+}
+/* Segment grise quand un filtre locuteur est actif / Grayed-out when a speaker filter is active */
+.timeline-segment.masque-par-filtre {
+    opacity: 0.2;
+    filter: grayscale(0.8);
+}
+/* Points d'extraction superposes sur la timeline / Extraction dots overlaid on timeline */
+.timeline-extraction-dots {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    pointer-events: none;
+}
+.timeline-extraction-dot {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 6px;
+    background: white;
+    border: 1.5px solid var(--text-primary);
+    border-radius: 50%;
+    pointer-events: auto;
+    cursor: pointer;
+}
+.timeline-extraction-dot:hover {
+    transform: translate(-50%, -50%) scale(1.5);
+}
+
+
+/* === 17. Barre de progression de lecture (PHASE-15) ===
+   Sticky en haut de la zone de lecture, suit le scroll.
+   / Sticky at top of reading zone, follows scroll.
+   ========================================================================== */
+
+.barre-progression-audio {
+    position: sticky;
+    top: -2rem;  /* compenser le p-8 du parent #zone-lecture */
+    left: -2rem;
+    right: -2rem;
+    width: calc(100% + 4rem);
+    margin-left: -2rem;
+    height: 3px;
+    background: var(--surface-tertiary);
+    z-index: 5;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+}
+.barre-progression-remplissage {
+    height: 100%;
+    background: #6366f1;  /* indigo-500 */
+    border-radius: 0 1.5px 1.5px 0;
+    width: 0%;
+    transition: width 0.1s linear;
+}
+
+/* Animation flash pour le scroll-to-block (timeline → bloc) */
+/* / Flash animation for scroll-to-block (timeline → block) */
+.bloc-flash {
+    animation: bloc-flash-pulse 1.5s ease-out forwards;
+}
+@keyframes bloc-flash-pulse {
+    0%   { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.5); }
+    50%  { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
+    100% { box-shadow: none; }
+}
+
+
+/* === 18. Mode focus (PHASE-17) ===
+   Lecture immersive : pastilles cachees, surlignage off, texte centre.
+   / Immersive reading: dots hidden, highlights off, text centered.
+   ========================================================================== */
+
+body.mode-focus .pastilles-marge { display: none !important; }
+body.mode-focus .hl-extraction { background-color: transparent !important; animation: none !important; }
+body.mode-focus #readability-content { max-width: 42rem; margin: 0 auto; padding: 4rem; }
+body.mode-focus nav { opacity: 0.3; transition: opacity 0.2s; }
+body.mode-focus nav:hover { opacity: 1; }
+
+/* Desaturation des couleurs en mode focus : lecture pure sans bruit visuel */
+/* / Desaturate colors in focus mode: pure reading without visual noise */
+body.mode-focus .carte-inline {
+    border-left-color: var(--border-default) !important;
+    filter: grayscale(1);
+}
+body.mode-focus .pastille-extraction { filter: grayscale(1); }
+body.mode-focus .extraction-selectionnee { outline-color: var(--border-strong); }
+
+/* Blocs de transcription audio : neutraliser les couleurs inline des locuteurs */
+/* / Audio transcription blocks: neutralize inline speaker colors */
+body.mode-focus .speaker-block {
+    background-color: transparent !important;
+    border-left-color: #d1d5db !important;
+}
+body.mode-focus .timeline-audio { filter: grayscale(1); opacity: 0.4; }
+body.mode-focus .filtre-locuteurs { filter: grayscale(1); opacity: 0.5; }
+body.mode-focus .speaker-block .speaker-name { color: inherit !important; }
+
+.btn-toolbar-actif { color: #2563eb; background-color: #eef2ff; }
+
+
+/* === 19. Extraction selectionnee (PHASE-17) ===
+   Contour visuel sur l'extraction navigable au clavier.
+   / Visual outline on keyboard-navigated extraction.
+   ========================================================================== */
+
+.extraction-selectionnee { outline: 2px solid rgba(59, 130, 246, 0.5); outline-offset: 2px; border-radius: 3px; }
+
+
+/* === 20. Modale raccourcis clavier (PHASE-17) ===
+   Overlay centre affichant la liste des raccourcis.
+   / Centered overlay showing the shortcut list.
+   ========================================================================== */
+
+.modale-raccourcis-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 60; display: flex; align-items: center; justify-content: center; }
+.modale-raccourcis { background: white; border-radius: 0.75rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); max-width: 28rem; width: 90vw; padding: 1.5rem; }
+.raccourci-touche { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5rem; padding: 0.125rem 0.375rem; font-family: monospace; font-size: 0.75rem; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 0.25rem; }
+
+
+/* === 21. Alignement cross-documents (PHASE-18) ===
+   Modale, tableau croise et mode selection dans l'arbre.
+   / Modal, cross-table and selection mode in the tree.
+   ========================================================================== */
+
+/* Backdrop modale alignement / Alignment modal backdrop */
+.alignement-modale-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Modale principale / Main modal */
+.alignement-modale {
+    width: 90vw;
+    max-height: 85vh;
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Header de la modale / Modal header */
+.alignement-header {
+    height: 3.5rem;
+    border-bottom: 1px solid var(--border-default);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    flex-shrink: 0;
+}
+
+/* Corps scrollable / Scrollable body */
+.alignement-body {
+    flex: 1;
+    overflow: auto;
+}
+
+/* Tableau principal / Main table */
+.alignement-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+/* En-tete de colonne (nom de page) / Column header (page name) */
+.alignement-th-page {
+    position: sticky;
+    top: 0;
+    background: white;
+    border-bottom: 2px solid var(--border-default);
+    padding: 0.625rem 0.75rem;
+    text-align: left;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 10rem;
+    z-index: 2;
+}
+
+/* Coin superieur gauche (sticky dans les deux axes) / Top-left corner (sticky both axes) */
+.alignement-th-corner {
+    position: sticky;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    background: white;
+    border-bottom: 2px solid var(--border-default);
+    padding: 0.625rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+/* Colonne hypostase (sticky left) / Hypostase column (sticky left) */
+.alignement-td-hypostase {
+    position: sticky;
+    left: 0;
+    background: white;
+    border-right: 1px solid var(--border-default);
+    padding: 0.5rem 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+    z-index: 1;
+}
+
+/* Cellule standard / Standard cell */
+.alignement-cell {
+    padding: 0.75rem;
+    border: 1px solid var(--border-default);
+    cursor: pointer;
+    min-width: 8rem;
+    vertical-align: top;
+    position: relative;
+    transition: background-color 0.15s;
+}
+.alignement-cell:hover {
+    background-color: var(--hover-bg);
+}
+
+/* Cellule vide (gap) / Empty cell (gap) */
+.alignement-cell-gap {
+    text-align: center;
+    color: var(--text-tertiary);
+    font-style: italic;
+    cursor: default;
+}
+.alignement-cell-gap:hover {
+    background-color: transparent;
+}
+
+/* Badge compteur dans la cellule / Counter badge in cell */
+.alignement-cell-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0.375rem;
+    right: 0.375rem;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.25rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    background: var(--surface-tertiary);
+    color: var(--text-secondary);
+    border-radius: 9999px;
+}
+
+/* Barre flottante de selection dans l'arbre / Floating selection bar in tree */
+.barre-selection-alignement {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    border-top: 1px solid var(--border-default);
+    padding: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    z-index: 5;
+}
+
+/* Checkbox du mode selection dans l'arbre / Selection mode checkbox in tree */
+.arbre-checkbox-selection {
+    width: 1rem;
+    height: 1rem;
+    margin-right: 0.375rem;
+    cursor: pointer;
+    accent-color: #6366f1;
+    flex-shrink: 0;
+    vertical-align: middle;
+}
+
+/* Bascule texte source / resume IA dans les cellules / Source text / AI summary toggle in cells */
+.alignement-texte-origine { display: none; }
+.alignement-mode-source .alignement-texte-resume { display: none; }
+.alignement-mode-source .alignement-texte-origine { display: block; }
+
+
+/* === 22. Heat map du debat (PHASE-19) ===
+   Coloration du fond selon l'intensite du debat.
+   Activee via body.mode-heatmap + inline style data-heat-color (JS).
+   / Debate heat map — background color by debate intensity.
+   / Activated via body.mode-heatmap + inline style data-heat-color (JS).
+   ========================================================================== */
+
+:root {
+    --heatmap-froid: #f0fdf4;      /* vert pale — consensus */
+    --heatmap-tiede: #fefce8;      /* jaune pale — discussion moderee */
+    --heatmap-chaud: #fff7ed;      /* orange pale — debat actif */
+    --heatmap-brulant: #fef2f2;    /* rouge pale — controverse forte */
+}
+
+/* Calque underlay : nappe de halos radiaux derriere le texte */
+/* / Underlay layer: radial halo sheet behind the text */
+#heatmap-underlay {
+    transition: opacity 0.4s ease;
+}
+
+/* En mode heatmap, les blocs de contenu deviennent transparents
+   pour laisser voir le calque de halos derriere eux.
+   / In heatmap mode, content blocks become transparent
+   / to let the halo layer show through. */
+body.mode-heatmap .speaker-block {
+    background: transparent !important;
+}
+body.mode-heatmap #readability-content p,
+body.mode-heatmap #readability-content div,
+body.mode-heatmap #readability-content blockquote,
+body.mode-heatmap #readability-content li {
+    background: transparent;
+}
+
+/* Mode focus : masque le calque heat map (lecture pure sans bruit visuel) */
+/* / Focus mode: hide heat map overlay (pure reading without visual noise) */
+body.mode-focus #heatmap-underlay {
+    opacity: 0 !important;
+}
+
+/* Responsive : modale plus petite sur mobile / Responsive: smaller modal on mobile */
+@media (max-width: 640px) {
+    .alignement-modale {
+        width: 98vw;
+        max-height: 92vh;
+        border-radius: 0.5rem;
+    }
+    .alignement-cell {
+        min-width: 6rem;
+        padding: 0.5rem;
+    }
+}
+
+
+/* === 23. Bandeau de notification (PHASE-20) ===
+   Bandeau discret en haut de la zone de lecture informant
+   des mouvements depuis la derniere visite.
+   / Subtle banner at top of reading zone showing
+   / movements since last visit.
+   ========================================================================== */
+
+.bandeau-notification {
+    background: #eef2ff;             /* indigo-50 */
+    border-left: 4px solid #6366f1;  /* indigo-500 */
+    border-radius: 0.375rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.bandeau-notification-contenu {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.bandeau-notification-titre {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #4338ca;  /* indigo-700 */
+}
+
+.bandeau-notification-liste {
+    list-style: none;
+    padding: 0;
+    margin: 0.5rem 0 0 1.5rem;
+    font-size: 0.8125rem;
+    color: #4338ca;  /* indigo-700 */
+}
+
+.bandeau-notification-liste li {
+    padding: 0.125rem 0;
+}
+
+.bandeau-notification-liste li::before {
+    content: "\00b7";
+    font-weight: 700;
+    margin-right: 0.5rem;
+}
+
+.bandeau-notification-fermer {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    color: #6366f1;  /* indigo-500 */
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    line-height: 1;
+    border-radius: 0.25rem;
+    transition: background-color 0.15s;
+}
+
+.bandeau-notification-fermer:hover {
+    background: #c7d2fe;  /* indigo-200 */
+}
+
+.bandeau-notification-seuil {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--statut-consensuel-bg, #f0fdf4);
+    border-radius: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+}
+
+.btn-lancer-synthese-bandeau {
+    background: #d1d5db;  /* gray-300 */
+    color: #6b7280;       /* gray-500 */
+    border: none;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+@keyframes bandeau-entree {
+    from {
+        opacity: 0;
+        transform: translateY(-0.5rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Mode focus : masque le bandeau notification (lecture pure sans bruit visuel) */
+/* / Focus mode: hide notification banner (pure reading without visual noise) */
+body.mode-focus .bandeau-notification {
+    display: none;
+}
+
+
+/* === 24. Mobile + Bottom sheet (PHASE-21) ===
+   Responsive breakpoint 768px, conteneur lecture, bottom sheet extraction mobile.
+   / Responsive breakpoint 768px, reading container, mobile extraction bottom sheet.
+   ========================================================================== */
+
+/* 24a. Classe conteneur lecture (remplace le style inline de lecture_principale.html) */
+/* / 24a. Reading container class (replaces inline style from lecture_principale.html) */
+.lecture-zone-conteneur {
+    max-width: 44rem;
+    padding-right: 3.5rem;
+    margin-left: auto;
+    margin-right: auto;
+    position: relative;
+}
+
+/* 24b. Breakpoint mobile */
+/* / 24b. Mobile breakpoint */
+@media (max-width: 768px) {
+    html, body { overflow-x: hidden; }
+    .lecture-zone-conteneur { max-width: none; padding-right: 0; }
+    #zone-lecture { padding: 1rem !important; }
+
+    /* Sur mobile, les pastilles de marge sont masquees car pas de place.
+       Le surlignage du texte prend le relais avec un fond colore plus marque.
+       Les couleurs suivent les statuts de debat, comme sur desktop.
+       / On mobile, margin dots are hidden (no space).
+       Text highlighting takes over with a stronger colored background.
+       Colors follow debate statuses, same as desktop. */
+    .pastilles-marge { display: none !important; }
+    .hl-extraction[data-extraction-id] {
+        cursor: pointer;
+        -webkit-tap-highlight-color: rgba(59,130,246,0.2);
+    }
+    .hl-extraction[data-statut="consensuel"] {
+        background-color: rgba(66, 153, 0, 0.12) !important;
+        border-bottom: 2px solid rgba(66, 153, 0, 0.35) !important;
+    }
+    .hl-extraction[data-statut="discutable"] {
+        background-color: rgba(182, 22, 1, 0.12) !important;
+        border-bottom: 2px solid rgba(182, 22, 1, 0.35) !important;
+    }
+    .hl-extraction[data-statut="discute"] {
+        background-color: rgba(217, 119, 6, 0.12) !important;
+        border-bottom: 2px solid rgba(217, 119, 6, 0.35) !important;
+    }
+    .hl-extraction[data-statut="controverse"] {
+        background-color: rgba(255, 64, 0, 0.14) !important;
+        border-bottom: 2px solid rgba(255, 64, 0, 0.40) !important;
+    }
+    .hl-extraction.hl-commentee[data-extraction-id] {
+        border-bottom-style: dotted !important;
+    }
+
+    #arbre-overlay { width: 100vw !important; }
+    .btn-toolbar { min-width: 2.75rem; min-height: 2.75rem; }
+
+    /* Sur mobile on masque Focus et Heatmap (remplaces par le toggle mode) */
+    /* / On mobile hide Focus and Heatmap (replaced by mode toggle) */
+    #btn-toolbar-focus, #btn-toolbar-heatmap { display: none; }
+
+    /* Boutons desktop masques sur mobile, boutons mobile visibles */
+    /* / Desktop buttons hidden on mobile, mobile buttons visible */
+    .btn-desktop-only { display: none !important; }
+    .btn-mobile-only { display: flex !important; }
+
+    /* Labels texte des boutons toolbar masques, on garde juste les icones */
+    /* / Toolbar button text labels hidden, keep icons only */
+    .btn-toolbar-label { display: none; }
+
+    /* Mot "Hypostasia" masque sur mobile, titre du document prend toute la place */
+    /* / "Hypostasia" word hidden on mobile, document title takes all space */
+    .titre-app-desktop { display: none; }
+    #titre-toolbar {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: var(--text-strong, #1e293b);
+    }
+
+    /* Mode lecture mobile : masque le surlignage quand active */
+    /* / Mobile reading mode: hides highlighting when active */
+    body.mode-lecture-mobile .hl-extraction[data-extraction-id] {
+        background-color: transparent !important;
+        border-bottom: none !important;
+    }
+
+    /* Mode heatmap mobile : masque le surlignage individuel, la heatmap prend le relais */
+    /* / Mobile heatmap mode: hide individual highlighting, heatmap takes over */
+    body.mode-heatmap-mobile .hl-extraction[data-extraction-id] {
+        background-color: transparent !important;
+        border-bottom: none !important;
+    }
+}
+
+/* Mode bottom-sheet-focus : masque le surlignage de toutes les extractions sauf celle active */
+/* Utilisé quand le bottom sheet est ouvert pour focaliser l'attention sur un seul passage */
+/* / Bottom-sheet-focus mode: hides highlighting on all extractions except the active one */
+/* / Used when bottom sheet is open to focus attention on a single passage */
+body.bottom-sheet-focus .hl-extraction[data-extraction-id] {
+    background-color: transparent !important;
+    border-bottom-color: transparent !important;
+}
+body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
+    background-color: rgba(99, 102, 241, 0.18) !important;
+    border-bottom: 2px solid rgba(99, 102, 241, 0.45) !important;
+}
+
+/* Boutons mobile caches sur desktop, boutons desktop visibles par defaut */
+/* / Mobile buttons hidden on desktop, desktop buttons visible by default */
+.btn-mobile-only { display: none; }
+.btn-desktop-only { display: flex; }
+
+/* 24c. Bottom sheet extraction mobile */
+/* / 24c. Mobile extraction bottom sheet */
+.bottom-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 55;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+.bottom-sheet-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+.bottom-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 56;
+    background: white;
+    border-radius: 1rem 1rem 0 0;
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.15);
+    max-height: 85vh;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+.bottom-sheet.ouvert {
+    transform: translateY(0);
+}
+
+/* Bouton fermer (X) en haut a droite */
+/* / Close button (X) at top-right */
+.btn-fermer-bottom-sheet {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.75rem;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    background: rgba(0,0,0,0.06);
+    border-radius: 50%;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+    transition: background 0.15s, color 0.15s;
+}
+.btn-fermer-bottom-sheet:hover,
+.btn-fermer-bottom-sheet:active {
+    background: rgba(0,0,0,0.12);
+    color: #1e293b;
+}
+
+.bottom-sheet-contenu {
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex: 1;
+    padding: 0.75rem 1rem 1rem;
+    -webkit-overflow-scrolling: touch;
+}

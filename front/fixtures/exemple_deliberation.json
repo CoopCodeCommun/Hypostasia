@@ -1,0 +1,297 @@
+[
+    {
+        "model": "core.dossier",
+        "pk": 1,
+        "fields": {
+            "name": "Exemple \u2014 Lecture d\u00e9lib\u00e9rative",
+            "created_at": "2026-01-15T10:00:00Z"
+        }
+    },
+    {
+        "model": "core.page",
+        "pk": 1,
+        "fields": {
+            "dossier": 1,
+            "source_type": "file",
+            "original_filename": "epistemologie_deliberative.md",
+            "title": "\u00c9pist\u00e9mologie d\u00e9lib\u00e9rative : fondements et controverses",
+            "html_original": "<h1>\u00c9pist\u00e9mologie d\u00e9lib\u00e9rative : fondements et controverses</h1><p>La connaissance scientifique repose sur un ensemble d\u2019axiomes rarement questionn\u00e9s. Le principe de r\u00e9futabilit\u00e9 popperien, par exemple, est souvent trait\u00e9 comme un crit\u00e8re d\u00e9finitif de d\u00e9marcation entre science et non-science. Pourtant, plusieurs \u00e9pist\u00e9mologues contemporains soutiennent que ce crit\u00e8re est lui-m\u00eame une conjecture philosophique, non une loi empirique.</p><p>L\u2019observation directe des ph\u00e9nom\u00e8nes quantiques a r\u00e9v\u00e9l\u00e9 un paradoxe fondamental : la mesure modifie l\u2019\u00e9tat du syst\u00e8me observ\u00e9. Cette donn\u00e9e exp\u00e9rimentale contredit le principe classique d\u2019objectivit\u00e9 selon lequel l\u2019observateur est s\u00e9parable de l\u2019objet \u00e9tudi\u00e9. La variable \u00ab position \u00bb n\u2019a plus de valeur d\u00e9finie ind\u00e9pendamment de la mesure.</p><p>Face \u00e0 cette aporie, deux approches s\u2019affrontent. L\u2019interpr\u00e9tation de Copenhague propose que la fonction d\u2019onde s\u2019effondre lors de la mesure \u2014 une hypoth\u00e8se qui satisfait le formalisme math\u00e9matique mais reste invérifiable directement. L\u2019interpr\u00e9tation des mondes multiples, elle, postule une ramification de l\u2019univers \u00e0 chaque mesure \u2014 une conjecture \u00e9l\u00e9gante mais non testable par principe.</p><p>Le d\u00e9bat \u00e9pist\u00e9mologique sous-jacent touche \u00e0 une valeur fondamentale de la science : la reproductibilit\u00e9. Si deux cadres th\u00e9oriques incompatibles produisent les m\u00eames pr\u00e9dictions empiriques, le crit\u00e8re de r\u00e9futabilit\u00e9 ne suffit plus \u00e0 d\u00e9partager. Il faut alors invoquer des m\u00e9thodes compl\u00e9mentaires \u2014 parcimonie, coh\u00e9rence interne, f\u00e9condit\u00e9 heuristique \u2014 qui rel\u00e8vent davantage du jugement que de la d\u00e9monstration.</p>",
+            "html_readability": "<h1>\u00c9pist\u00e9mologie d\u00e9lib\u00e9rative : fondements et controverses</h1><p>La connaissance scientifique repose sur un ensemble d\u2019axiomes rarement questionn\u00e9s. Le principe de r\u00e9futabilit\u00e9 popperien, par exemple, est souvent trait\u00e9 comme un crit\u00e8re d\u00e9finitif de d\u00e9marcation entre science et non-science. Pourtant, plusieurs \u00e9pist\u00e9mologues contemporains soutiennent que ce crit\u00e8re est lui-m\u00eame une conjecture philosophique, non une loi empirique.</p><p>L\u2019observation directe des ph\u00e9nom\u00e8nes quantiques a r\u00e9v\u00e9l\u00e9 un paradoxe fondamental : la mesure modifie l\u2019\u00e9tat du syst\u00e8me observ\u00e9. Cette donn\u00e9e exp\u00e9rimentale contredit le principe classique d\u2019objectivit\u00e9 selon lequel l\u2019observateur est s\u00e9parable de l\u2019objet \u00e9tudi\u00e9. La variable \u00ab position \u00bb n\u2019a plus de valeur d\u00e9finie ind\u00e9pendamment de la mesure.</p><p>Face \u00e0 cette aporie, deux approches s\u2019affrontent. L\u2019interpr\u00e9tation de Copenhague propose que la fonction d\u2019onde s\u2019effondre lors de la mesure \u2014 une hypoth\u00e8se qui satisfait le formalisme math\u00e9matique mais reste inv\u00e9rifiable directement. L\u2019interpr\u00e9tation des mondes multiples, elle, postule une ramification de l\u2019univers \u00e0 chaque mesure \u2014 une conjecture \u00e9l\u00e9gante mais non testable par principe.</p><p>Le d\u00e9bat \u00e9pist\u00e9mologique sous-jacent touche \u00e0 une valeur fondamentale de la science : la reproductibilit\u00e9. Si deux cadres th\u00e9oriques incompatibles produisent les m\u00eames pr\u00e9dictions empiriques, le crit\u00e8re de r\u00e9futabilit\u00e9 ne suffit plus \u00e0 d\u00e9partager. Il faut alors invoquer des m\u00e9thodes compl\u00e9mentaires \u2014 parcimonie, coh\u00e9rence interne, f\u00e9condit\u00e9 heuristique \u2014 qui rel\u00e8vent davantage du jugement que de la d\u00e9monstration.</p>",
+            "text_readability": "\u00c9pist\u00e9mologie d\u00e9lib\u00e9rative : fondements et controverses\n\nLa connaissance scientifique repose sur un ensemble d\u2019axiomes rarement questionn\u00e9s. Le principe de r\u00e9futabilit\u00e9 popperien, par exemple, est souvent trait\u00e9 comme un crit\u00e8re d\u00e9finitif de d\u00e9marcation entre science et non-science. Pourtant, plusieurs \u00e9pist\u00e9mologues contemporains soutiennent que ce crit\u00e8re est lui-m\u00eame une conjecture philosophique, non une loi empirique.\n\nL\u2019observation directe des ph\u00e9nom\u00e8nes quantiques a r\u00e9v\u00e9l\u00e9 un paradoxe fondamental : la mesure modifie l\u2019\u00e9tat du syst\u00e8me observ\u00e9. Cette donn\u00e9e exp\u00e9rimentale contredit le principe classique d\u2019objectivit\u00e9 selon lequel l\u2019observateur est s\u00e9parable de l\u2019objet \u00e9tudi\u00e9. La variable \u00ab position \u00bb n\u2019a plus de valeur d\u00e9finie ind\u00e9pendamment de la mesure.\n\nFace \u00e0 cette aporie, deux approches s\u2019affrontent. L\u2019interpr\u00e9tation de Copenhague propose que la fonction d\u2019onde s\u2019effondre lors de la mesure \u2014 une hypoth\u00e8se qui satisfait le formalisme math\u00e9matique mais reste inv\u00e9rifiable directement. L\u2019interpr\u00e9tation des mondes multiples, elle, postule une ramification de l\u2019univers \u00e0 chaque mesure \u2014 une conjecture \u00e9l\u00e9gante mais non testable par principe.\n\nLe d\u00e9bat \u00e9pist\u00e9mologique sous-jacent touche \u00e0 une valeur fondamentale de la science : la reproductibilit\u00e9. Si deux cadres th\u00e9oriques incompatibles produisent les m\u00eames pr\u00e9dictions empiriques, le crit\u00e8re de r\u00e9futabilit\u00e9 ne suffit plus \u00e0 d\u00e9partager. Il faut alors invoquer des m\u00e9thodes compl\u00e9mentaires \u2014 parcimonie, coh\u00e9rence interne, f\u00e9condit\u00e9 heuristique \u2014 qui rel\u00e8vent davantage du jugement que de la d\u00e9monstration.",
+            "content_hash": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+            "status": "completed",
+            "version_number": 1,
+            "version_label": "",
+            "created_at": "2026-01-15T10:01:00Z",
+            "updated_at": "2026-01-15T10:01:00Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.extractionjob",
+        "pk": 1,
+        "fields": {
+            "page": 1,
+            "ai_model": null,
+            "name": "Analyse \u00e9pist\u00e9mologique compl\u00e8te",
+            "prompt_description": "Extraction des hypostases \u00e9pist\u00e9mologiques du texte source.",
+            "status": "completed",
+            "error_message": null,
+            "raw_result": null,
+            "est_reformulation": false,
+            "entities_count": 7,
+            "processing_time_seconds": 4.2,
+            "created_at": "2026-01-15T10:05:00Z",
+            "updated_at": "2026-01-15T10:05:04Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.extractedentity",
+        "pk": 1,
+        "fields": {
+            "job": 1,
+            "extraction_class": "hypostase",
+            "extraction_text": "Le principe de r\u00e9futabilit\u00e9 popperien, par exemple, est souvent trait\u00e9 comme un crit\u00e8re d\u00e9finitif de d\u00e9marcation entre science et non-science.",
+            "start_char": 85,
+            "end_char": 230,
+            "attributes": {
+                "hypostases": "axiome",
+                "resume": "Le crit\u00e8re de r\u00e9futabilit\u00e9 de Popper est pr\u00e9sent\u00e9 comme un axiome fondateur de la d\u00e9marcation scientifique.",
+                "statut": "discutable",
+                "hashtags": "\u00e9pist\u00e9mologie, Popper, d\u00e9marcation"
+            },
+            "texte_reformule": "",
+            "reformule_par": "",
+            "reformulation_en_cours": false,
+            "reformulation_erreur": "",
+            "restitution_texte": "",
+            "restitution_ia_en_cours": false,
+            "restitution_ia_erreur": "",
+            "texte_restitution_ia": "",
+            "user_validated": false,
+            "user_notes": "",
+            "statut_debat": "discutable",
+            "masquee": false,
+            "created_at": "2026-01-15T10:05:01Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.extractedentity",
+        "pk": 2,
+        "fields": {
+            "job": 1,
+            "extraction_class": "hypostase",
+            "extraction_text": "L\u2019observation directe des ph\u00e9nom\u00e8nes quantiques a r\u00e9v\u00e9l\u00e9 un paradoxe fondamental : la mesure modifie l\u2019\u00e9tat du syst\u00e8me observ\u00e9.",
+            "start_char": 350,
+            "end_char": 490,
+            "attributes": {
+                "hypostases": "paradoxe",
+                "resume": "Le paradoxe de la mesure quantique : observer un syst\u00e8me en modifie l\u2019\u00e9tat, remettant en cause l\u2019objectivit\u00e9 classique.",
+                "statut": "consensuel",
+                "hashtags": "quantique, mesure, objectivit\u00e9"
+            },
+            "texte_reformule": "",
+            "reformule_par": "",
+            "reformulation_en_cours": false,
+            "reformulation_erreur": "",
+            "restitution_texte": "",
+            "restitution_ia_en_cours": false,
+            "restitution_ia_erreur": "",
+            "texte_restitution_ia": "",
+            "user_validated": true,
+            "user_notes": "",
+            "statut_debat": "consensuel",
+            "masquee": false,
+            "created_at": "2026-01-15T10:05:01Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.extractedentity",
+        "pk": 3,
+        "fields": {
+            "job": 1,
+            "extraction_class": "hypostase",
+            "extraction_text": "Cette donn\u00e9e exp\u00e9rimentale contredit le principe classique d\u2019objectivit\u00e9 selon lequel l\u2019observateur est s\u00e9parable de l\u2019objet \u00e9tudi\u00e9.",
+            "start_char": 492,
+            "end_char": 632,
+            "attributes": {
+                "hypostases": "donnee",
+                "resume": "La donn\u00e9e exp\u00e9rimentale quantique invalide la s\u00e9parabilit\u00e9 observateur/objet.",
+                "statut": "consensuel",
+                "hashtags": "empirique, donn\u00e9e, objectivit\u00e9"
+            },
+            "texte_reformule": "",
+            "reformule_par": "",
+            "reformulation_en_cours": false,
+            "reformulation_erreur": "",
+            "restitution_texte": "",
+            "restitution_ia_en_cours": false,
+            "restitution_ia_erreur": "",
+            "texte_restitution_ia": "",
+            "user_validated": false,
+            "user_notes": "",
+            "statut_debat": "consensuel",
+            "masquee": false,
+            "created_at": "2026-01-15T10:05:02Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.extractedentity",
+        "pk": 4,
+        "fields": {
+            "job": 1,
+            "extraction_class": "hypostase",
+            "extraction_text": "Face \u00e0 cette aporie, deux approches s\u2019affrontent.",
+            "start_char": 720,
+            "end_char": 770,
+            "attributes": {
+                "hypostases": "aporie",
+                "resume": "L\u2019impossibilit\u00e9 de trancher entre interpr\u00e9tations quantiques constitue une aporie \u00e9pist\u00e9mologique.",
+                "statut": "discute",
+                "hashtags": "aporie, interpr\u00e9tation, impasse"
+            },
+            "texte_reformule": "",
+            "reformule_par": "",
+            "reformulation_en_cours": false,
+            "reformulation_erreur": "",
+            "restitution_texte": "",
+            "restitution_ia_en_cours": false,
+            "restitution_ia_erreur": "",
+            "texte_restitution_ia": "",
+            "user_validated": false,
+            "user_notes": "",
+            "statut_debat": "discute",
+            "masquee": false,
+            "created_at": "2026-01-15T10:05:02Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.extractedentity",
+        "pk": 5,
+        "fields": {
+            "job": 1,
+            "extraction_class": "hypostase",
+            "extraction_text": "L\u2019interpr\u00e9tation de Copenhague propose que la fonction d\u2019onde s\u2019effondre lors de la mesure \u2014 une hypoth\u00e8se qui satisfait le formalisme math\u00e9matique mais reste inv\u00e9rifiable directement.",
+            "start_char": 771,
+            "end_char": 960,
+            "attributes": {
+                "hypostases": "hypothese",
+                "resume": "L\u2019effondrement de la fonction d\u2019onde est une hypoth\u00e8se formellement coh\u00e9rente mais empiriquement inv\u00e9rifiable.",
+                "statut": "controverse",
+                "hashtags": "Copenhague, hypoth\u00e8se, formalisme"
+            },
+            "texte_reformule": "",
+            "reformule_par": "",
+            "reformulation_en_cours": false,
+            "reformulation_erreur": "",
+            "restitution_texte": "",
+            "restitution_ia_en_cours": false,
+            "restitution_ia_erreur": "",
+            "texte_restitution_ia": "",
+            "user_validated": false,
+            "user_notes": "",
+            "statut_debat": "controverse",
+            "masquee": false,
+            "created_at": "2026-01-15T10:05:03Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.extractedentity",
+        "pk": 6,
+        "fields": {
+            "job": 1,
+            "extraction_class": "hypostase",
+            "extraction_text": "L\u2019interpr\u00e9tation des mondes multiples, elle, postule une ramification de l\u2019univers \u00e0 chaque mesure \u2014 une conjecture \u00e9l\u00e9gante mais non testable par principe.",
+            "start_char": 961,
+            "end_char": 1123,
+            "attributes": {
+                "hypostases": "conjecture",
+                "resume": "La th\u00e9orie des mondes multiples est une conjecture non testable, fond\u00e9e sur l\u2019\u00e9l\u00e9gance math\u00e9matique.",
+                "statut": "controverse",
+                "hashtags": "Everett, conjecture, multivers"
+            },
+            "texte_reformule": "",
+            "reformule_par": "",
+            "reformulation_en_cours": false,
+            "reformulation_erreur": "",
+            "restitution_texte": "",
+            "restitution_ia_en_cours": false,
+            "restitution_ia_erreur": "",
+            "texte_restitution_ia": "",
+            "user_validated": false,
+            "user_notes": "",
+            "statut_debat": "controverse",
+            "masquee": false,
+            "created_at": "2026-01-15T10:05:03Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.extractedentity",
+        "pk": 7,
+        "fields": {
+            "job": 1,
+            "extraction_class": "hypostase",
+            "extraction_text": "Le d\u00e9bat \u00e9pist\u00e9mologique sous-jacent touche \u00e0 une valeur fondamentale de la science : la reproductibilit\u00e9.",
+            "start_char": 1124,
+            "end_char": 1230,
+            "attributes": {
+                "hypostases": "valeur",
+                "resume": "La reproductibilit\u00e9 est identifi\u00e9e comme valeur normative centrale de la d\u00e9marche scientifique.",
+                "statut": "consensuel",
+                "hashtags": "reproductibilit\u00e9, valeur, science"
+            },
+            "texte_reformule": "",
+            "reformule_par": "",
+            "reformulation_en_cours": false,
+            "reformulation_erreur": "",
+            "restitution_texte": "La reproductibilit\u00e9 constitue le socle normatif sur lequel repose la l\u00e9gitimit\u00e9 de toute affirmation scientifique. Sans elle, la distinction entre savoir et opinion s\u2019effondre.",
+            "restitution_ia_en_cours": false,
+            "restitution_ia_erreur": "",
+            "texte_restitution_ia": "",
+            "user_validated": true,
+            "user_notes": "",
+            "statut_debat": "consensuel",
+            "masquee": false,
+            "created_at": "2026-01-15T10:05:04Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.commentaireextraction",
+        "pk": 1,
+        "fields": {
+            "entity": 5,
+            "prenom": "Marie",
+            "commentaire": "L\u2019effondrement de la fonction d\u2019onde n\u2019est pas une hypoth\u00e8se au sens strict \u2014 c\u2019est plut\u00f4t un postulat op\u00e9ratoire. La distinction est importante pour le statut \u00e9pist\u00e9mique.",
+            "created_at": "2026-01-16T09:00:00Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.commentaireextraction",
+        "pk": 2,
+        "fields": {
+            "entity": 5,
+            "prenom": "Thomas",
+            "commentaire": "Je suis en d\u00e9saccord. M\u00eame un postulat peut \u00eatre r\u00e9fut\u00e9 si ses cons\u00e9quences observables divergent. L\u2019invérifiabilit\u00e9 est le vrai probl\u00e8me ici.",
+            "created_at": "2026-01-16T14:30:00Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.commentaireextraction",
+        "pk": 3,
+        "fields": {
+            "entity": 4,
+            "prenom": "Lucie",
+            "commentaire": "Qualifier cela d\u2019aporie me semble trop fort. C\u2019est un d\u00e9saccord th\u00e9orique, pas une impasse logique. Le terme \u00ab probl\u00e8me ouvert \u00bb serait plus juste.",
+            "created_at": "2026-01-17T11:15:00Z"
+        }
+    },
+    {
+        "model": "hypostasis_extractor.commentaireextraction",
+        "pk": 4,
+        "fields": {
+            "entity": 1,
+            "prenom": "Marie",
+            "commentaire": "Popper lui-m\u00eame a nuanc\u00e9 sa position au fil du temps. Ce n\u2019est plus un axiome indiscut\u00e9 m\u00eame dans le camp popperien.",
+            "created_at": "2026-01-18T08:45:00Z"
+        }
+    }
+]

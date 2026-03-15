@@ -1,0 +1,55 @@
+{# Partial: Formulaire de partage d'un dossier (PHASE-25) #}
+{# / Partial: Folder sharing form (PHASE-25) #}
+{# LOCALISATION : front/templates/front/includes/partage_dossier_form.html #}
+<div class="p-3 space-y-3" data-testid="partage-dossier-form">
+    <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+        Partager « {{ dossier.name }} »
+    </h3>
+
+    {# Formulaire d'ajout d'un utilisateur au partage #}
+    {# / Form to add a user to sharing #}
+    <form hx-post="/dossiers/{{ dossier.pk }}/partager/"
+          hx-target="#partage-contenu-{{ dossier.pk }}"
+          hx-swap="innerHTML"
+          class="flex items-center gap-2"
+          aria-label="Ajouter un utilisateur au partage">
+        <input type="text" name="username" placeholder="Nom d'utilisateur"
+               data-testid="partage-input-username"
+               class="flex-1 text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+               required>
+        <button type="submit"
+                data-testid="partage-btn-ajouter"
+                class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors">
+            Partager
+        </button>
+    </form>
+
+    {# Liste des utilisateurs deja partages #}
+    {# / List of already shared users #}
+    {% if partages %}
+    <div class="space-y-1">
+        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Partage avec :</p>
+        {% for partage in partages %}
+        <div class="flex items-center justify-between py-1 px-2 bg-slate-50 rounded" data-testid="partage-user-row">
+            <span class="text-sm text-slate-700">{{ partage.utilisateur.username }}</span>
+            <form hx-post="/dossiers/{{ dossier.pk }}/partager/"
+                  hx-target="#partage-contenu-{{ dossier.pk }}"
+                  hx-swap="innerHTML"
+                  class="inline">
+                <input type="hidden" name="retirer_user_id" value="{{ partage.utilisateur.pk }}">
+                <button type="submit"
+                        data-testid="partage-btn-retirer"
+                        class="text-xs text-red-400 hover:text-red-600 transition-colors"
+                        title="Retirer le partage">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-xs text-slate-400">Aucun partage pour ce dossier.</p>
+    {% endif %}
+</div>

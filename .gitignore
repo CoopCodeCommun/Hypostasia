@@ -1,3 +1,9 @@
+# Fichiers d'environnement (secrets, cles API)
+# / Environment files (secrets, API keys)
+.env
+.env.local
+.env.production
+
 # Python-generated files
 __pycache__/
 *.py[oc]

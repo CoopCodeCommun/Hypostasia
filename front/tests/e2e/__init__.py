@@ -1,0 +1,13 @@
+from front.tests.e2e.test_01_navigation import *  # noqa: F401,F403
+from front.tests.e2e.test_02_lecture import *  # noqa: F401,F403
+from front.tests.e2e.test_03_import import *  # noqa: F401,F403
+from front.tests.e2e.test_04_extractions import *  # noqa: F401,F403
+from front.tests.e2e.test_05_config_ia import *  # noqa: F401,F403
+from front.tests.e2e.test_06_charte_visuelle import *  # noqa: F401,F403
+from front.tests.e2e.test_07_layout import *  # noqa: F401,F403
+from front.tests.e2e.test_08_curation import *  # noqa: F401,F403
+from front.tests.e2e.test_09_alignement import *  # noqa: F401,F403
+from front.tests.e2e.test_10_mobile import *  # noqa: F401,F403
+from front.tests.e2e.test_11_confirmation_analyse import *  # noqa: F401,F403
+from front.tests.e2e.test_12_providers_ia import *  # noqa: F401,F403
+from front.tests.e2e.test_13_auth import *  # noqa: F401,F403

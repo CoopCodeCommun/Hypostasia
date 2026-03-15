@@ -1,0 +1,129 @@
+{% comment %}
+Tableau d'alignement cross-documents par hypostases (PHASE-18).
+/ Cross-document alignment table by hypostases (PHASE-18).
+
+LOCALISATION : front/templates/front/includes/alignement_tableau.html
+
+Variables de contexte :
+  - pages_selectionnees : liste des Page selectionnees
+  - sections_tableau : liste de { famille, nom_famille, lignes: [{ hypostase, cellules }] }
+  - nombre_hypostases : total d'hypostases distinctes trouvees
+  - nombre_pages : nombre de pages comparees
+{% endcomment %}
+
+<!-- Header de la modale : titre + actions -->
+<!-- / Modal header: title + actions -->
+<div class="alignement-header">
+    <div class="flex items-center gap-3">
+        <h2 class="text-base font-semibold text-slate-800">
+            Alignement — {{ nombre_pages }} documents
+        </h2>
+        <span class="text-xs text-slate-400">{{ nombre_hypostases }} hypostase{{ nombre_hypostases|pluralize:"s" }}</span>
+    </div>
+    <div class="flex items-center gap-2">
+        <!-- Bouton bascule Source / Resume -->
+        <!-- / Toggle button Source / Summary -->
+        <button id="btn-bascule-source" class="text-sm text-slate-500 hover:text-indigo-600 px-3 py-1.5 rounded hover:bg-slate-50 transition-colors" data-testid="btn-bascule-source" title="Basculer texte source / résumé IA">
+            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span id="btn-bascule-source-label">Source</span>
+        </button>
+        <button id="btn-export-alignement" class="text-sm text-slate-500 hover:text-blue-600 px-3 py-1.5 rounded hover:bg-slate-50 transition-colors" title="Exporter en Markdown">
+            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+            </svg>
+            Export .md
+        </button>
+        <button id="btn-fermer-alignement" class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors" title="Fermer (Escape)" aria-label="Fermer l'alignement">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<!-- Avertissement si le dossier a ete tronque -->
+<!-- / Warning if the folder was truncated -->
+{% if avertissement %}
+<div class="warning-banner text-sm">
+    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z"/>
+    </svg>
+    {{ avertissement }}
+</div>
+{% endif %}
+
+<!-- Corps du tableau avec scroll horizontal -->
+<!-- / Table body with horizontal scroll -->
+<div class="alignement-body">
+    {% if sections_tableau %}
+    <table class="alignement-table">
+        <thead>
+            <tr>
+                <th class="alignement-td-hypostase alignement-th-corner">Hypostase</th>
+                {% for page in pages_selectionnees %}
+                <th class="alignement-th-page" title="{{ page.title|default:'Sans titre' }}">
+                    {{ page.title|default:"Sans titre"|truncatechars:30 }}
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for section in sections_tableau %}
+            <!-- En-tete de famille : bandeau colore -->
+            <!-- / Family header: colored banner -->
+            <tr class="alignement-famille-header" data-famille="{{ section.famille }}" style="cursor: pointer;">
+                <td colspan="{{ nombre_pages|add:1 }}" class="px-4 py-2 text-xs font-semibold tracking-wider uppercase" style="background-color: var(--hypostase-{{ section.famille }}-bg); color: var(--hypostase-{{ section.famille }}-text);">
+                    <span class="inline-flex items-center gap-2">
+                        <svg class="w-3 h-3 tree-arrow open" fill="currentColor" viewBox="0 0 20 20"><path d="M6 6l4 4 4-4"/></svg>
+                        {{ section.nom_famille }}
+                        <span class="text-[0.625rem] font-normal opacity-70">({{ section.lignes|length }})</span>
+                    </span>
+                </td>
+            </tr>
+
+            {% for ligne in section.lignes %}
+            <tr class="alignement-ligne" data-famille="{{ section.famille }}">
+                <!-- Colonne hypostase (sticky left) -->
+                <td class="alignement-td-hypostase">
+                    <span class="typo-hypostase" style="color: var(--hypostase-{{ section.famille }}-text);">
+                        {{ ligne.hypostase }}
+                    </span>
+                </td>
+
+                {% for cellule in ligne.cellules %}
+                {% if cellule.remplie %}
+                <!-- Cellule remplie : compteur + resume / texte source -->
+                <!-- / Filled cell: counter + summary / source text -->
+                <td class="alignement-cell" data-page-id="{{ cellule.page_id }}">
+                    <span class="alignement-cell-count">{{ cellule.count }}</span>
+                    <span class="alignement-texte-resume typo-machine text-xs leading-snug">{{ cellule.resume_complet }}</span>
+                    <span class="alignement-texte-origine typo-citation text-sm leading-relaxed">{{ cellule.texte_origine }}</span>
+                </td>
+                {% else %}
+                <!-- Cellule vide (gap) -->
+                <!-- / Empty cell (gap) -->
+                <td class="alignement-cell alignement-cell-gap">
+                    —
+                </td>
+                {% endif %}
+                {% endfor %}
+            </tr>
+            {% endfor %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <!-- Aucune hypostase trouvee -->
+    <!-- / No hypostases found -->
+    <div class="empty-state" style="min-height: 20rem;">
+        <svg class="empty-state-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z"/>
+        </svg>
+        <p class="empty-state-text">Aucune hypostase trouvée</p>
+        <p class="empty-state-subtext">Les pages sélectionnées n'ont pas encore été analysées, ou aucune extraction n'a été effectuée.</p>
+    </div>
+    {% endif %}
+</div>

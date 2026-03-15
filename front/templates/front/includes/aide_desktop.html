@@ -1,0 +1,41 @@
+{# Partial : modale d'aide pour desktop (raccourcis clavier) #}
+{# Chargee via HTMX depuis le bouton aide dans la toolbar ou la touche ? #}
+{# / Partial: desktop help modal (keyboard shortcuts) #}
+{# / Loaded via HTMX from the help button in the toolbar or the ? key #}
+
+<div class="modale-raccourcis-backdrop" id="modale-raccourcis" data-testid="modale-aide">
+    <div class="modale-raccourcis">
+
+        {# En-tete / Header #}
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold text-slate-800">Raccourcis clavier</h2>
+            <button id="btn-fermer-modale-raccourcis"
+                    class="text-slate-400 hover:text-slate-700 text-lg leading-none">&times;</button>
+        </div>
+
+        {# Liste des raccourcis / Shortcuts list #}
+        <div class="space-y-2 text-sm text-slate-600">
+            {% for touche, description in raccourcis %}
+            <div class="flex items-center gap-3">
+                <span class="raccourci-touche">{{ touche }}</span>
+                <span>{{ description }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // Fermer la modale au clic sur le backdrop ou le bouton fermer
+    // / Close modal on backdrop click or close button click
+    var modale = document.getElementById('modale-raccourcis');
+    if (modale) {
+        modale.addEventListener('click', function(evenement) {
+            if (evenement.target === modale || evenement.target.id === 'btn-fermer-modale-raccourcis') {
+                modale.remove();
+            }
+        });
+    }
+})();
+</script>

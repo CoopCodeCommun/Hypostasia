@@ -1,0 +1,74 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscription — Hypostasia</title>
+    <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
+</head>
+<body class="h-full bg-slate-50 flex items-center justify-center px-4">
+
+    <div class="w-full max-w-sm">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Hypostasia</h1>
+            <p class="text-sm text-slate-500 mt-1">Creez votre compte</p>
+        </div>
+
+        <!-- Zone d'erreurs d'inscription — annoncee par les lecteurs d'ecran -->
+        <!-- / Registration error zone — announced by screen readers -->
+        {% if erreurs %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-3 mb-4" role="alert" aria-live="assertive">
+            {% for erreur in erreurs %}
+            <p class="text-sm text-red-600">{{ erreur }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/auth/register/" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4" aria-label="Formulaire d'inscription">
+            {% csrf_token %}
+            <div>
+                <label for="input-username" class="block text-sm font-medium text-slate-700 mb-1">Nom d'utilisateur</label>
+                <input id="input-username" name="username" type="text" required autofocus
+                       data-testid="input-username"
+                       value="{{ donnees.username|default:'' }}"
+                       class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       placeholder="Choisissez un nom d'utilisateur">
+            </div>
+            <div>
+                <label for="input-email" class="block text-sm font-medium text-slate-700 mb-1">Email <span class="text-slate-400">(optionnel)</span></label>
+                <input id="input-email" name="email" type="email"
+                       data-testid="input-email"
+                       value="{{ donnees.email|default:'' }}"
+                       class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       placeholder="votre@email.com">
+            </div>
+            <div>
+                <label for="input-password" class="block text-sm font-medium text-slate-700 mb-1">Mot de passe</label>
+                <input id="input-password" name="password" type="password" required
+                       data-testid="input-password"
+                       class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       placeholder="8 caracteres minimum">
+            </div>
+            <div>
+                <label for="input-password-confirm" class="block text-sm font-medium text-slate-700 mb-1">Confirmer le mot de passe</label>
+                <input id="input-password-confirm" name="password_confirm" type="password" required
+                       data-testid="input-password-confirm"
+                       class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       placeholder="Retapez votre mot de passe">
+            </div>
+            <button type="submit"
+                    data-testid="btn-submit-register"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg px-4 py-2.5 transition-colors">
+                Creer mon compte
+            </button>
+        </form>
+
+        <p class="text-center text-sm text-slate-500 mt-4">
+            Deja un compte ?
+            <a href="/auth/login/" class="text-blue-600 hover:text-blue-800 font-medium" data-testid="lien-login">Se connecter</a>
+        </p>
+    </div>
+
+</body>
+</html>

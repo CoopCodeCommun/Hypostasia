@@ -1,0 +1,89 @@
+{# Partial: Carte d'extraction pour bottom sheet mobile (PHASE-21) #}
+{# / Partial: Mobile bottom sheet extraction card (PHASE-21) #}
+{% load extractor_tags %}
+{% entity_json_attrs entity as entity_attrs %}
+<div class="carte-inline"
+     data-extraction-id="{{ entity.pk }}"
+     data-statut="{{ entity.statut_debat }}"
+     data-testid="bottom-sheet-carte"
+     aria-label="Carte extraction {{ entity.extraction_text|truncatechars:30 }}">
+
+    {# En-tete : badge statut debat / Header: debate status badge #}
+    <div class="flex items-center gap-2 mb-2">
+        <span class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded"
+              style="color: var(--statut-{{ entity.statut_debat }}-text); background: var(--statut-{{ entity.statut_debat }}-bg);">
+            {{ entity.get_statut_debat_display }}
+        </span>
+        {% if nombre_commentaires %}
+        <span class="text-[10px] text-amber-600" title="{{ nombre_commentaires }} commentaire{{ nombre_commentaires|pluralize:"s" }}">
+            <svg class="w-3 h-3 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/>
+            </svg>
+            {{ nombre_commentaires }}
+        </span>
+        {% endif %}
+    </div>
+
+    {# Corps : reutilise le meme _card_body que extraction_results #}
+    {# / Body: reuses same _card_body as extraction_results #}
+    {% with attr_0=entity_attrs.0 attr_1=entity_attrs.1 text=entity.extraction_text attr_2=entity_attrs.2 attr_3=entity_attrs.3 %}
+        {% include "hypostasis_extractor/includes/_card_body.html" %}
+    {% endwith %}
+
+    {# Pied : boutons d'action / Footer: action buttons #}
+    <div class="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
+        {# Boutons de changement de statut (PHASE-14) / Status change buttons (PHASE-14) #}
+        {% if entity.statut_debat != "consensuel" %}
+        <button class="text-xs text-green-600 hover:text-green-800 transition-colors"
+                data-testid="bottom-sheet-btn-consensuel"
+                hx-post="/extractions/changer_statut/"
+                hx-vals='{"entity_id": "{{ entity.pk }}", "page_id": "{{ entity.job.page_id }}", "nouveau_statut": "consensuel"}'
+                hx-swap="none"
+                title="Marquer comme consensuel">
+            <svg class="w-3.5 h-3.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+            </svg>
+            Consensuel
+        </button>
+        {% endif %}
+        {% if entity.statut_debat != "controverse" %}
+        <button class="text-xs text-red-500 hover:text-red-700 transition-colors"
+                data-testid="bottom-sheet-btn-controverse"
+                hx-post="/extractions/changer_statut/"
+                hx-vals='{"entity_id": "{{ entity.pk }}", "page_id": "{{ entity.job.page_id }}", "nouveau_statut": "controverse"}'
+                hx-swap="none"
+                title="Marquer comme controversé">
+            <svg class="w-3.5 h-3.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+            </svg>
+            Controvers&eacute;
+        </button>
+        {% endif %}
+        <span class="w-px h-3 bg-slate-200"></span>
+        <button class="btn-commenter-extraction text-xs text-slate-400 hover:text-amber-600 transition-colors"
+                data-entity-id="{{ entity.pk }}"
+                data-testid="bottom-sheet-btn-commenter"
+                hx-get="/extractions/fil_discussion/?entity_id={{ entity.pk }}&mobile=1"
+                hx-target="#bottom-sheet-contenu"
+                hx-swap="innerHTML"
+                title="Commenter">
+            <svg class="w-3.5 h-3.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/>
+            </svg>
+            Commenter
+        </button>
+        <button class="btn-editer-extraction text-xs text-slate-400 hover:text-blue-600 transition-colors"
+                data-entity-id="{{ entity.pk }}"
+                data-page-id="{{ entity.job.page_id }}"
+                data-testid="bottom-sheet-btn-modifier"
+                title="Modifier">
+            <svg class="w-3.5 h-3.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
+            </svg>
+            Modifier
+        </button>
+    </div>
+</div>

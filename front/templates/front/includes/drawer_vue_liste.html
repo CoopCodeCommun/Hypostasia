@@ -1,0 +1,168 @@
+{# Partial: Contenu du drawer vue liste des extractions (PHASE-10) #}
+{# Ameliore : cartes lisibles avec resume IA, citation source, commentaires deplies #}
+{# / Partial: Drawer list view content for extractions (PHASE-10) #}
+{# / Improved: readable cards with AI summary, source citation, expanded comments #}
+{# LOCALISATION : front/templates/front/includes/drawer_vue_liste.html #}
+{% load extractor_tags %}
+<div id="drawer-contenu-inner" aria-live="polite">
+
+    {# Header : compteur + select tri #}
+    {# / Header: counter + sort select #}
+    <div class="flex items-center justify-between mb-3">
+        <span class="text-xs text-slate-500">
+            {{ nombre_total }} extraction{{ nombre_total|pluralize:"s" }}
+        </span>
+        <select id="drawer-select-tri" class="text-xs border border-slate-200 rounded px-2 py-1 text-slate-600 bg-white"
+                data-page-id="{{ page.pk }}" data-testid="drawer-select-tri">
+            <option value="position" {% if tri_actuel == "position" %}selected{% endif %}>Position</option>
+            <option value="activite" {% if tri_actuel == "activite" %}selected{% endif %}>Activit&eacute; r&eacute;cente</option>
+            <option value="statut" {% if tri_actuel == "statut" %}selected{% endif %}>Statut de d&eacute;bat</option>
+        </select>
+    </div>
+
+    {# Cartes lisibles des entites visibles #}
+    {# / Readable cards for visible entities #}
+    {% for entity in entites_visibles %}
+    {% entity_json_attrs entity as entity_attrs %}
+    <div class="drawer-carte-compacte mb-2 rounded-lg border border-slate-100 overflow-hidden cursor-pointer hover:border-slate-200 transition-colors group"
+         data-extraction-id="{{ entity.pk }}"
+         data-page-id="{{ page.pk }}"
+         data-testid="drawer-carte"
+         style="border-left: 3px solid var(--statut-{{ entity.statut_debat }}-accent);">
+
+        {# En-tete de la carte : hypostase + statut + compteur commentaires #}
+        {# / Card header: hypostase + status + comments counter #}
+        <div class="flex items-center gap-2 px-3 py-2">
+            {# Pastille couleur statut / Status color dot #}
+            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style="background-color: var(--statut-{{ entity.statut_debat }}-accent);"
+                  title="{{ entity.get_statut_debat_display }}"></span>
+
+            {# Badges hypostases / Hypostase badges #}
+            {% if entity_attrs.0 %}
+            <span class="typo-hypostase text-[10px] text-slate-500 truncate max-w-[8rem]">
+                {{ entity_attrs.0 }}
+            </span>
+            {% endif %}
+
+            <span class="flex-1"></span>
+
+            {# Badge commentaires / Comments badge #}
+            {% if entity.nombre_commentaires %}
+            <span class="inline-flex items-center gap-1 text-[10px] text-amber-600 flex-shrink-0"
+                  title="{{ entity.nombre_commentaires }} commentaire{{ entity.nombre_commentaires|pluralize:"s" }}">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/>
+                </svg>
+                {{ entity.nombre_commentaires }}
+            </span>
+            {% endif %}
+
+            {# Bouton masquer (visible au hover) — POST HTMX, rechargement via events #}
+            {# / Hide button (visible on hover) — HTMX POST, reload via events #}
+            <button class="btn-masquer-drawer opacity-0 group-hover:opacity-100 p-0.5 rounded text-slate-300 hover:text-red-500 transition-all flex-shrink-0"
+                    data-entity-id="{{ entity.pk }}"
+                    data-page-id="{{ page.pk }}"
+                    {% if entity.nombre_commentaires %}disabled title="Extraction avec commentaires"{% else %}title="Masquer cette extraction"
+                    hx-post="/extractions/masquer/"
+                    hx-vals='{"entity_id": "{{ entity.pk }}", "page_id": "{{ page.pk }}"}'
+                    hx-swap="none"
+                    {% endif %}
+                    data-testid="drawer-btn-masquer">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>
+                </svg>
+            </button>
+        </div>
+
+        {# Resume IA (attr_1) — texte complet, lisible #}
+        {# / AI summary (attr_1) — full text, readable #}
+        {% if entity_attrs.1 %}
+        <div class="px-3 pb-1">
+            <p class="typo-machine text-xs leading-relaxed text-slate-600">{{ entity_attrs.1 }}</p>
+        </div>
+        {% endif %}
+
+        {# Citation source — texte d'origine tronque #}
+        {# / Source citation — truncated original text #}
+        <div class="px-3 pb-2">
+            <p class="typo-citation text-xs leading-relaxed text-slate-500 italic">
+                [{{ entity.extraction_text|truncatechars:120 }}]
+            </p>
+        </div>
+
+        {# Commentaires — affiches directement sous la carte #}
+        {# / Comments — displayed directly under the card #}
+        {% for commentaire in entity.commentaires.all %}
+        <div class="px-3 py-1.5 bg-slate-50 border-t border-slate-100 {% if not forloop.last %}border-b-0{% endif %}">
+            <div class="flex items-baseline gap-2">
+                <span class="typo-lecteur-nom text-xs flex-shrink-0" style="font-size: 13px;">{{ commentaire.user.username }}</span>
+                <p class="text-xs text-slate-600 leading-relaxed">{{ commentaire.commentaire }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% empty %}
+    <div class="empty-state" data-testid="drawer-empty-state">
+        <svg class="empty-state-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+        </svg>
+        <p class="empty-state-text">Aucune extraction pour cette page</p>
+        <button class="empty-state-action" onclick="document.getElementById('btn-toolbar-analyser').click()">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+            </svg>
+            Lancer une analyse
+        </button>
+    </div>
+    {% endfor %}
+
+    {# Section entites masquees / Hidden entities section #}
+    {% if nombre_masquees > 0 %}
+    <div class="mt-4 pt-3 border-t border-slate-100">
+        <button id="btn-toggle-masquees" class="text-xs text-slate-400 hover:text-slate-600 transition-colors mb-2"
+                data-testid="drawer-btn-toggle-masquees">
+            {{ nombre_masquees }} masqu&eacute;e{{ nombre_masquees|pluralize:"s" }} &mdash; Afficher
+        </button>
+        <div id="drawer-section-masquees" class="hidden space-y-1">
+            {% for entity in entites_masquees %}
+            {% entity_json_attrs entity as entity_attrs %}
+            <div class="drawer-carte-compacte drawer-carte-masquee flex items-center gap-2 px-2 py-1.5 rounded opacity-50 group"
+                 data-extraction-id="{{ entity.pk }}"
+                 data-page-id="{{ page.pk }}"
+                 style="border-left: 2px solid var(--statut-{{ entity.statut_debat }}-accent);">
+
+                <span class="w-2 h-2 rounded-full flex-shrink-0"
+                      style="background-color: var(--statut-{{ entity.statut_debat }}-accent);"></span>
+
+                {% if entity.extraction_class %}
+                <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 flex-shrink-0 max-w-[5rem] truncate">
+                    {{ entity.extraction_class }}
+                </span>
+                {% endif %}
+
+                <span class="text-xs text-slate-500 truncate flex-1">
+                    {% if entity_attrs.1 %}{{ entity_attrs.1|truncatechars:60 }}{% else %}{{ entity.extraction_text|truncatechars:60 }}{% endif %}
+                </span>
+
+                {# Bouton restaurer — POST HTMX, rechargement via events #}
+                {# / Restore button — HTMX POST, reload via events #}
+                <button class="btn-restaurer-drawer p-0.5 rounded text-slate-400 hover:text-green-600 transition-colors flex-shrink-0"
+                        data-entity-id="{{ entity.pk }}"
+                        data-page-id="{{ page.pk }}"
+                        title="Restaurer cette extraction"
+                        hx-post="/extractions/restaurer/"
+                        hx-vals='{"entity_id": "{{ entity.pk }}", "page_id": "{{ page.pk }}"}'
+                        hx-swap="none"
+                        data-testid="drawer-btn-restaurer">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178zM15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>

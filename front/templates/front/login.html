@@ -1,0 +1,58 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion — Hypostasia</title>
+    <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
+</head>
+<body class="h-full bg-slate-50 flex items-center justify-center px-4">
+
+    <div class="w-full max-w-sm">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Hypostasia</h1>
+            <p class="text-sm text-slate-500 mt-1">Connectez-vous pour continuer</p>
+        </div>
+
+        <!-- Zone d'erreurs d'authentification — annoncee par les lecteurs d'ecran -->
+        <!-- / Authentication error zone — announced by screen readers -->
+        {% if erreurs %}
+        <div class="bg-red-50 border border-red-200 rounded-lg p-3 mb-4" role="alert" aria-live="assertive">
+            {% for erreur in erreurs %}
+            <p class="text-sm text-red-600">{{ erreur }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/auth/login/{% if request.GET.next %}?next={{ request.GET.next }}{% endif %}" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4" aria-label="Formulaire de connexion">
+            {% csrf_token %}
+            <div>
+                <label for="input-username" class="block text-sm font-medium text-slate-700 mb-1">Nom d'utilisateur</label>
+                <input id="input-username" name="username" type="text" required autofocus
+                       data-testid="input-username"
+                       class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       placeholder="Votre nom d'utilisateur">
+            </div>
+            <div>
+                <label for="input-password" class="block text-sm font-medium text-slate-700 mb-1">Mot de passe</label>
+                <input id="input-password" name="password" type="password" required
+                       data-testid="input-password"
+                       class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                       placeholder="Votre mot de passe">
+            </div>
+            <button type="submit"
+                    data-testid="btn-submit-login"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg px-4 py-2.5 transition-colors">
+                Se connecter
+            </button>
+        </form>
+
+        <p class="text-center text-sm text-slate-500 mt-4">
+            Pas encore de compte ?
+            <a href="/auth/register/" class="text-blue-600 hover:text-blue-800 font-medium" data-testid="lien-register">Creer un compte</a>
+        </p>
+    </div>
+
+</body>
+</html>
