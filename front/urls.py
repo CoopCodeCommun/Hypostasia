@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
 from .views_alignement import AlignementViewSet
+from .views_auth import AuthViewSet
 
 app_name = "front"
 
@@ -17,6 +18,7 @@ router.register(r"config-ia", views.ConfigurationIAViewSet, basename="config-ia"
 router.register(r"import", views.ImportViewSet, basename="import")
 router.register(r"questionnaire", views.QuestionnaireViewSet, basename="questionnaire")
 router.register(r"alignement", AlignementViewSet, basename="alignement")
+router.register(r"auth", AuthViewSet, basename="auth")
 
 urlpatterns = [
     # La page racine reste un path explicite (pas de pk, pas de CRUD)

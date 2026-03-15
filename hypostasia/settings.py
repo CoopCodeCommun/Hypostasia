@@ -168,6 +168,16 @@ CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes max par tache / 30 min max per ta
 # / Temporary directory for audio files awaiting transcription
 # =============================================================================
 
+# =============================================================================
+# Auth — URLs de redirection pour login/logout
+# / Auth — Redirect URLs for login/logout
+# =============================================================================
+
+LOGIN_URL = "/auth/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/auth/login/"
+
+
 AUDIO_TEMP_DIR = BASE_DIR / "tmp" / "audio"
 AUDIO_TEMP_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -147,6 +147,29 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
             </a>
+            <!-- Menu utilisateur (PHASE-25) -->
+            <!-- / User menu (PHASE-25) -->
+            {% if user.is_authenticated %}
+            <div class="relative" id="user-menu-container">
+                <button id="btn-user-menu" data-testid="btn-user-menu"
+                        class="flex items-center gap-1 px-1.5 py-1 text-slate-500 hover:text-blue-600 rounded hover:bg-slate-100"
+                        onclick="document.getElementById('user-menu-dropdown').classList.toggle('hidden')">
+                    <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
+                        {{ user.username|first|upper }}
+                    </span>
+                    <span class="btn-desktop-only text-xs text-slate-600">{{ user.username }}</span>
+                </button>
+                <div id="user-menu-dropdown" class="hidden absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px] z-50" data-testid="user-menu-dropdown" aria-label="Menu utilisateur">
+                    <span class="block px-3 py-1.5 text-xs text-slate-400">{{ user.email|default:user.username }}</span>
+                    <hr class="my-1 border-slate-100">
+                    <form method="POST" action="/auth/logout/">{% csrf_token %}
+                        <button type="submit" class="w-full text-left px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50" data-testid="btn-logout">Deconnexion</button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <a href="/auth/login/" class="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 shrink-0" data-testid="btn-login">Connexion</a>
+            {% endif %}
         </div>
     </nav>
 

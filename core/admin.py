@@ -174,7 +174,7 @@ class TranscriptionJobAdmin(admin.ModelAdmin):
 class ReponseQuestionInline(admin.TabularInline):
     model = ReponseQuestion
     extra = 0
-    fields = ("prenom", "texte_reponse", "created_at")
+    fields = ("user", "texte_reponse", "created_at")
     readonly_fields = ("created_at",)
 
 
@@ -184,9 +184,9 @@ class QuestionAdmin(admin.ModelAdmin):
     Admin pour les questions sur les pages.
     / Admin for questions on pages.
     """
-    list_display = ("prenom", "texte_question_courte", "page", "created_at")
+    list_display = ("user", "texte_question_courte", "page", "created_at")
     list_filter = ("page",)
-    search_fields = ("prenom", "texte_question")
+    search_fields = ("user__username", "texte_question")
     inlines = [ReponseQuestionInline]
 
     def texte_question_courte(self, obj):
@@ -200,6 +200,6 @@ class ReponseQuestionAdmin(admin.ModelAdmin):
     Admin pour les reponses aux questions.
     / Admin for answers to questions.
     """
-    list_display = ("prenom", "question", "created_at")
+    list_display = ("user", "question", "created_at")
     list_filter = ("question__page",)
-    search_fields = ("prenom", "texte_reponse")
+    search_fields = ("user__username", "texte_reponse")

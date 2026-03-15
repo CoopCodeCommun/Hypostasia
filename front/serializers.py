@@ -1,6 +1,8 @@
 import os
 
+from django.contrib.auth.models import User
 from rest_framework import serializers
+from rest_framework.exceptions import ValidationError
 
 # Extensions de fichiers autorisees pour l'import
 # / Allowed file extensions for import
@@ -175,18 +177,13 @@ class ExtractionManuelleSerializer(serializers.Serializer):
 class CommentaireExtractionSerializer(serializers.Serializer):
     """
     Validation pour la creation d'un commentaire sur une extraction.
-    Validation for creating a comment on an extraction.
+    Le user est implicite (request.user), plus besoin de prenom.
+    / Validation for creating a comment on an extraction.
+    User is implicit (request.user), no more prenom needed.
     """
     entity_id = serializers.IntegerField(
         error_messages={
             "required": "L'ID de l'entite est obligatoire / Entity ID is required",
-        },
-    )
-    prenom = serializers.CharField(
-        max_length=100,
-        error_messages={
-            "required": "Le prenom est obligatoire / First name is required",
-            "blank": "Le prenom ne peut pas etre vide / First name cannot be blank",
         },
     )
     commentaire = serializers.CharField(
@@ -200,18 +197,13 @@ class CommentaireExtractionSerializer(serializers.Serializer):
 class QuestionSerializer(serializers.Serializer):
     """
     Validation pour la creation d'une question sur une page.
-    Validation for creating a question on a page.
+    Le user est implicite (request.user).
+    / Validation for creating a question on a page.
+    User is implicit (request.user).
     """
     page_id = serializers.IntegerField(
         error_messages={
             "required": "L'ID de la page est obligatoire / Page ID is required",
-        },
-    )
-    prenom = serializers.CharField(
-        max_length=100,
-        error_messages={
-            "required": "Le prenom est obligatoire / First name is required",
-            "blank": "Le prenom ne peut pas etre vide / First name cannot be blank",
         },
     )
     texte_question = serializers.CharField(
@@ -276,18 +268,13 @@ class RunRestitutionSerializer(serializers.Serializer):
 class ReponseQuestionSerializer(serializers.Serializer):
     """
     Validation pour la creation d'une reponse a une question.
-    Validation for creating an answer to a question.
+    Le user est implicite (request.user).
+    / Validation for creating an answer to a question.
+    User is implicit (request.user).
     """
     question_id = serializers.IntegerField(
         error_messages={
             "required": "L'ID de la question est obligatoire / Question ID is required",
-        },
-    )
-    prenom = serializers.CharField(
-        max_length=100,
-        error_messages={
-            "required": "Le prenom est obligatoire / First name is required",
-            "blank": "Le prenom ne peut pas etre vide / First name cannot be blank",
         },
     )
     texte_reponse = serializers.CharField(
@@ -539,4 +526,63 @@ class ChangerStatutSerializer(serializers.Serializer):
         error_messages={
             "required": "Le nouveau statut est obligatoire / New status is required",
         },
+    )
+
+
+# =============================================================================
+# PHASE-25 — Serializers d'authentification et partage
+# / PHASE-25 — Authentication and sharing serializers
+# =============================================================================
+
+
+class LoginSerializer(serializers.Serializer):
+    """
+    Validation du formulaire de connexion.
+    / Login form validation.
+
+    LOCALISATION : front/serializers.py
+    """
+    username = serializers.CharField(max_length=150)
+    password = serializers.CharField()
+
+
+class RegisterSerializer(serializers.Serializer):
+    """
+    Validation du formulaire d'inscription.
+    / Registration form validation.
+
+    LOCALISATION : front/serializers.py
+    """
+    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    password = serializers.CharField(min_length=8)
+    password_confirm = serializers.CharField()
+
+    def validate_username(self, value):
+        # Verifie que le nom d'utilisateur n'est pas deja pris
+        # / Check that username is not already taken
+        if User.objects.filter(username__iexact=value).exists():
+            raise ValidationError("Ce nom d'utilisateur existe deja.")
+        return value
+
+    def validate(self, data):
+        # Verifie que les mots de passe correspondent
+        # / Check that passwords match
+        if data["password"] != data["password_confirm"]:
+            raise ValidationError({
+                "password_confirm": "Les mots de passe ne correspondent pas.",
+            })
+        return data
+
+
+class DossierPartageSerializer(serializers.Serializer):
+    """
+    Validation pour le partage d'un dossier avec un utilisateur.
+    / Validation for sharing a folder with a user.
+
+    LOCALISATION : front/serializers.py
+    """
+    username = serializers.CharField(
+        max_length=150,
+        help_text="Nom d'utilisateur a ajouter / Username to add",
     )

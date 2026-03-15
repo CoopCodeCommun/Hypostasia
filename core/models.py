@@ -33,6 +33,13 @@ class Dossier(models.Model):
     """Dossier de classement pour organiser les pages."""
 
     name = models.CharField(max_length=200, help_text="Nom du dossier")
+    # Proprietaire du dossier (null = legacy/donnees existantes)
+    # / Folder owner (null = legacy/existing data)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="dossiers_possedes",
+        help_text="Proprietaire du dossier (null = legacy) / Folder owner",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -76,6 +83,13 @@ class Page(models.Model):
         blank=True,
         related_name="pages",
         help_text="Dossier de classement (optionnel)",
+    )
+    # Proprietaire de la page (null = legacy/donnees existantes)
+    # / Page owner (null = legacy/existing data)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="pages_possedees",
+        help_text="Proprietaire de la page (null = legacy) / Page owner",
     )
     source_type = models.CharField(
         max_length=10,
@@ -998,10 +1012,8 @@ class TranscriptionJob(models.Model):
 
 class Question(models.Model):
     """
-    Question posee sur une page (texte). Pas d'authentification requise,
-    l'auteur est identifie par son prenom (meme pattern que CommentaireExtraction).
-    / Question asked about a page (text). No authentication required,
-    the author is identified by first name (same pattern as CommentaireExtraction).
+    Question posee sur une page (texte). L'auteur est identifie par son user FK.
+    / Question asked about a page (text). The author is identified by user FK.
     """
     page = models.ForeignKey(
         Page,
@@ -1009,9 +1021,10 @@ class Question(models.Model):
         related_name="questions",
         help_text="Page a laquelle cette question se rapporte / Page this question relates to",
     )
-    prenom = models.CharField(
-        max_length=100,
-        help_text="Prenom de l'auteur de la question / Author first name",
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="questions",
+        help_text="Auteur de la question / Question author",
     )
     texte_question = models.TextField(
         help_text="Texte de la question / Question text",
@@ -1024,13 +1037,13 @@ class Question(models.Model):
         verbose_name_plural = "Questions"
 
     def __str__(self):
-        return f"{self.prenom}: {self.texte_question[:60]}"
+        return f"{self.user.username}: {self.texte_question[:60]}"
 
 
 class ReponseQuestion(models.Model):
     """
-    Reponse a une question — meme pattern sans authentification (prenom).
-    / Answer to a question — same pattern without authentication (first name).
+    Reponse a une question — l'auteur est identifie par son user FK.
+    / Answer to a question — the author is identified by user FK.
     """
     question = models.ForeignKey(
         Question,
@@ -1038,9 +1051,10 @@ class ReponseQuestion(models.Model):
         related_name="reponses",
         help_text="Question a laquelle cette reponse repond / Question this answer replies to",
     )
-    prenom = models.CharField(
-        max_length=100,
-        help_text="Prenom de l'auteur de la reponse / Author first name",
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="reponses_questions",
+        help_text="Auteur de la reponse / Answer author",
     )
     texte_reponse = models.TextField(
         help_text="Texte de la reponse / Answer text",
@@ -1053,4 +1067,24 @@ class ReponseQuestion(models.Model):
         verbose_name_plural = "Reponses"
 
     def __str__(self):
-        return f"{self.prenom}: {self.texte_reponse[:60]}"
+        return f"{self.user.username}: {self.texte_reponse[:60]}"
+
+
+class DossierPartage(models.Model):
+    """
+    Partage binaire d'un dossier. Si le lien existe, l'utilisateur a acces complet.
+    / Binary folder sharing. If the link exists, the user has full access.
+    """
+    dossier = models.ForeignKey(Dossier, on_delete=models.CASCADE, related_name="partages")
+    utilisateur = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="dossiers_partages",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ["dossier", "utilisateur"]
+        verbose_name = "Partage de dossier"
+
+    def __str__(self):
+        return f"{self.dossier.name} → {self.utilisateur.username}"

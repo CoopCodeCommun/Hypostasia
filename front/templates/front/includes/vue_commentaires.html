@@ -3,7 +3,7 @@
 {% load extractor_tags %}
 
 {% if entites_avec_commentaires %}
-<div id="vue-commentaires-global" class="space-y-6">
+<div id="vue-commentaires-global" class="space-y-6" data-current-user-id="{% if user.is_authenticated %}{{ user.pk }}{% endif %}">
     {% for entite in entites_avec_commentaires %}
     {% entity_json_attrs entite as entite_attrs %}
     <div class="space-y-2">
@@ -60,11 +60,11 @@
         {# === 3. Commentaires — layout SMS (propre = droite, autres = gauche) === #}
         {# / === 3. Comments — SMS layout (own = right, others = left) === #}
         {% for commentaire in entite.commentaires.all %}
-        <div class="commentaire-bulle-global" data-prenom="{{ commentaire.prenom }}" data-commentaire-id="{{ commentaire.pk }}">
+        <div class="commentaire-bulle-global" data-user-id="{{ commentaire.user.pk }}" data-commentaire-id="{{ commentaire.pk }}">
             <div class="mr-12 commentaire-container-autre">
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 group/commentaire relative">
                     <div class="flex items-center justify-between mb-1">
-                        <span class="typo-lecteur-nom" style="font-size: 14px;">{{ commentaire.prenom }}</span>
+                        <span class="typo-lecteur-nom" style="font-size: 14px;">{{ commentaire.user.first_name|default:commentaire.user.username }}</span>
                         <div class="flex items-center gap-1">
                             <span class="text-[10px] text-slate-400">{{ commentaire.created_at|date:"d/m H:i" }}</span>
                             {# Boutons modifier et supprimer commentaire (visibles au hover) #}
@@ -100,12 +100,13 @@
 
 <script>
 (function() {
-    // Layout SMS : positionne les commentaires propres a droite
-    // / SMS layout: position own comments on the right
-    var prenomUtilisateur = localStorage.getItem('hypo_prenom');
-    if (prenomUtilisateur) {
+    // Layout SMS : positionne les commentaires propres a droite via user ID server-side
+    // / SMS layout: position own comments on the right via server-side user ID
+    var vueGlobale = document.getElementById('vue-commentaires-global');
+    var currentUserId = vueGlobale ? vueGlobale.dataset.currentUserId : '';
+    if (currentUserId) {
         document.querySelectorAll('.commentaire-bulle-global').forEach(function(bulle) {
-            if (bulle.dataset.prenom === prenomUtilisateur) {
+            if (bulle.dataset.userId === currentUserId) {
                 var conteneur = bulle.querySelector('.commentaire-container-autre');
                 if (conteneur) {
                     conteneur.className = 'ml-12 commentaire-container-propre';

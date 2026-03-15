@@ -7,22 +7,25 @@ from datetime import datetime, timedelta
 from django.db.models import Case, Count, Prefetch, Value, When
 from django.utils import timezone
 from django.utils.html import escape, strip_tags
+from django.db.models import Q
 from django.http import FileResponse, HttpResponse, JsonResponse
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import redirect, render, get_object_or_404
 from django.template.loader import render_to_string
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, Configuration, Dossier, Page, Question, ReponseQuestion
+from core.models import AIModel, Configuration, Dossier, DossierPartage, Page, Question, ReponseQuestion
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
     ExampleExtraction, ExtractionAttribute,
     ExtractedEntity, ExtractionJob, PromptPiece,
 )
+from django.contrib.auth.models import User as AuthUser
 from .serializers import (
     ChangerStatutSerializer,
-    CommentaireExtractionSerializer, DossierCreateSerializer, DossierRenommerSerializer,
+    CommentaireExtractionSerializer, DossierCreateSerializer,
+    DossierPartageSerializer, DossierRenommerSerializer,
     EditerBlocSerializer,
     ExtractionManuelleSerializer, ExtractionSerializer, ImportFichierSerializer,
     ModifierCommentaireSerializer, ModifierTitrePageSerializer,
@@ -42,10 +45,33 @@ logger = logging.getLogger(__name__)
 SEUIL_CONSENSUS_DEFAUT = 80
 
 
+def _exiger_authentification(request):
+    """
+    Verifie que l'utilisateur est authentifie pour les operations d'ecriture.
+    Retourne None si OK, ou une HttpResponse 403/redirect si non authentifie.
+    / Checks user is authenticated for write ops. Returns None or 403/redirect.
+
+    LOCALISATION : front/views.py
+    """
+    if request.user.is_authenticated:
+        return None
+    if request.headers.get("HX-Request"):
+        return HttpResponse(
+            '<p class="text-sm text-red-600 p-3">'
+            'Connexion requise. <a href="/auth/login/" class="underline text-blue-600">Se connecter</a>'
+            '</p>', status=403,
+        )
+    return redirect("/auth/login/")
+
+
 def _render_arbre(request):
     """
     Helper interne — renvoie le partial HTML de l'arbre de dossiers.
-    Internal helper — returns the folder tree HTML partial.
+    Filtre par owner si l'utilisateur est connecte (mes dossiers + partages + legacy).
+    Anonyme : tout voir (mode lecture seule).
+    / Internal helper — returns the folder tree HTML partial.
+    Filters by owner if user is logged in (own + shared + legacy).
+    Anonymous: see everything (read-only mode).
     """
     # Exclure les restitutions de l'arbre (ne montrer que les pages racines)
     # / Exclude restitutions from tree (only show root pages)
@@ -53,10 +79,35 @@ def _render_arbre(request):
         "pages",
         queryset=Page.objects.filter(parent_page__isnull=True),
     )
-    all_dossiers = Dossier.objects.prefetch_related(pages_racines_seulement).all()
-    pages_orphelines = Page.objects.filter(dossier__isnull=True, parent_page__isnull=True).order_by("-created_at")
+
+    if request.user.is_authenticated:
+        # Connecte : mes dossiers + partages + dossiers sans owner (legacy)
+        # / Logged in: own + shared + ownerless folders (legacy)
+        ids_dossiers_partages = DossierPartage.objects.filter(
+            utilisateur=request.user,
+        ).values_list("dossier_id", flat=True)
+
+        tous_les_dossiers = Dossier.objects.prefetch_related(
+            pages_racines_seulement
+        ).filter(
+            Q(owner=request.user) | Q(pk__in=ids_dossiers_partages) | Q(owner__isnull=True)
+        ).distinct()
+
+        pages_orphelines = Page.objects.filter(
+            dossier__isnull=True, parent_page__isnull=True,
+        ).filter(
+            Q(owner=request.user) | Q(owner__isnull=True)
+        ).order_by("-created_at")
+    else:
+        # Anonyme : tout voir (mode lecture seule)
+        # / Anonymous: see everything (read-only mode)
+        tous_les_dossiers = Dossier.objects.prefetch_related(pages_racines_seulement).all()
+        pages_orphelines = Page.objects.filter(
+            dossier__isnull=True, parent_page__isnull=True,
+        ).order_by("-created_at")
+
     return render(request, "front/includes/arbre_dossiers.html", {
-        "dossiers": all_dossiers,
+        "dossiers": tous_les_dossiers,
         "pages_orphelines": pages_orphelines,
     })
 
@@ -210,6 +261,9 @@ class ConfigurationIAViewSet(viewsets.ViewSet):
         Active ou desactive l'IA. Si plusieurs modeles actifs et activation → renvoie un select.
         Toggle AI on/off. If multiple active models and enabling → return a select.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         configuration = Configuration.get_solo()
         modeles_actifs = AIModel.objects.filter(is_active=True)
 
@@ -248,6 +302,9 @@ class ConfigurationIAViewSet(viewsets.ViewSet):
         Selectionne un modele IA et active l'IA.
         Select an AI model and enable AI.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         serializer = SelectModelSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -485,6 +542,9 @@ class LectureViewSet(viewsets.ViewSet):
         / Modifies a page's title (inline editing).
         Returns the updated lecture_principale partial.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         page = get_object_or_404(Page, pk=pk)
 
         # Validation via serializer DRF
@@ -838,6 +898,9 @@ class LectureViewSet(viewsets.ViewSet):
         - If a job is already running → returns polling template (no re-launch)
         - Otherwise → creates ExtractionJob, launches Celery task, returns polling
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         # Guard : verifie que l'IA est activee / Check AI is enabled
         if not _get_ia_active():
             return HttpResponse("IA desactivee. Activez l'IA depuis le panneau de gauche.", status=403)
@@ -1048,6 +1111,9 @@ class LectureViewSet(viewsets.ViewSet):
         Renomme un locuteur dans la transcription (transcription_raw + html/text_readability).
         / Renames a speaker in the transcription (transcription_raw + html/text_readability).
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         from .services.transcription_audio import construire_html_diarise
 
         page = get_object_or_404(Page, pk=pk)
@@ -1227,6 +1293,9 @@ class LectureViewSet(viewsets.ViewSet):
         Modifie le texte d'un bloc de transcription.
         / Edits the text of a transcription block.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         from .services.transcription_audio import construire_html_diarise
 
         page = get_object_or_404(Page, pk=pk)
@@ -1348,6 +1417,9 @@ class LectureViewSet(viewsets.ViewSet):
         Supprime un bloc entier de la transcription.
         / Deletes an entire block from the transcription.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         from .services.transcription_audio import construire_html_diarise
 
         page = get_object_or_404(Page, pk=pk)
@@ -1441,11 +1513,14 @@ class DossierViewSet(viewsets.ViewSet):
         return JsonResponse(data)
 
     def create(self, request):
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         # Validation via serializer DRF
         # Validation via DRF serializer
         serializer = DossierCreateSerializer(data=request.POST)
         if serializer.is_valid():
-            Dossier.objects.create(name=serializer.validated_data["name"])
+            Dossier.objects.create(name=serializer.validated_data["name"], owner=request.user)
         reponse = _render_arbre(request)
         reponse["HX-Trigger"] = json.dumps({"showToast": {"message": "Dossier cr\u00e9\u00e9"}})
         return reponse
@@ -1457,6 +1532,9 @@ class DossierViewSet(viewsets.ViewSet):
         / Deletes a folder. If the folder contains pages, they become orphans
         (dossier=null) thanks to the on_delete=SET_NULL on the model.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         dossier_a_supprimer = get_object_or_404(Dossier, pk=pk)
         nombre_pages_dans_dossier = Page.objects.filter(
             dossier=dossier_a_supprimer, parent_page__isnull=True,
@@ -1482,6 +1560,9 @@ class DossierViewSet(viewsets.ViewSet):
         Renomme un dossier et retourne l'arbre mis a jour.
         / Renames a folder and returns the updated tree.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         dossier_a_renommer = get_object_or_404(Dossier, pk=pk)
 
         serializer = DossierRenommerSerializer(data=request.data)
@@ -1502,6 +1583,49 @@ class DossierViewSet(viewsets.ViewSet):
         })
         return reponse
 
+    @action(detail=True, methods=["GET", "POST"], url_path="partager")
+    def partager(self, request, pk=None):
+        """
+        GET : affiche le formulaire de partage avec la liste des users partages.
+        POST : ajoute ou retire un partage.
+        / GET: display sharing form with list of shared users.
+        / POST: add or remove a share.
+        """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
+
+        dossier_cible = get_object_or_404(Dossier, pk=pk)
+
+        if request.method == "POST":
+            # Detecter si c'est un retrait (retirer_user_id) ou un ajout (username)
+            # / Detect if it's a removal (retirer_user_id) or an addition (username)
+            retirer_user_id = request.data.get("retirer_user_id")
+            if retirer_user_id:
+                DossierPartage.objects.filter(
+                    dossier=dossier_cible, utilisateur_id=retirer_user_id,
+                ).delete()
+            else:
+                serializer = DossierPartageSerializer(data=request.data)
+                if serializer.is_valid():
+                    username_a_ajouter = serializer.validated_data["username"]
+                    utilisateur_cible = AuthUser.objects.filter(username__iexact=username_a_ajouter).first()
+                    if utilisateur_cible and utilisateur_cible != request.user:
+                        DossierPartage.objects.get_or_create(
+                            dossier=dossier_cible,
+                            utilisateur=utilisateur_cible,
+                        )
+
+        # Rendre le formulaire de partage / Render sharing form
+        tous_les_partages_du_dossier = DossierPartage.objects.filter(
+            dossier=dossier_cible,
+        ).select_related("utilisateur")
+
+        return render(request, "front/includes/partage_dossier_form.html", {
+            "dossier": dossier_cible,
+            "partages": tous_les_partages_du_dossier,
+        })
+
 
 class PageViewSet(viewsets.ViewSet):
     """
@@ -1515,6 +1639,9 @@ class PageViewSet(viewsets.ViewSet):
         Supprime une page et retourne l'arbre mis a jour.
         Deletes a page and returns the updated tree.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         page_a_supprimer = get_object_or_404(Page, pk=pk)
         titre_page = page_a_supprimer.title or "Sans titre"
         page_a_supprimer.delete()
@@ -1531,6 +1658,9 @@ class PageViewSet(viewsets.ViewSet):
         Assigne une page a un dossier, retourne l'arbre mis a jour.
         Assign a page to a folder, return updated tree.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         page = get_object_or_404(Page, pk=pk)
 
         # request.data gere automatiquement JSON et form-data via DRF
@@ -1779,6 +1909,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Cree une ExtractedEntity manuelle et re-rend le panneau complet.
         Creates a manual ExtractedEntity and re-renders the full panel.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         logger.info(
             "creer_manuelle: content_type=%s data=%s",
             request.content_type, {k: str(v)[:80] for k, v in request.data.items()},
@@ -1870,6 +2003,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         / Modifies an existing ExtractedEntity and re-renders the full panel.
         / Reads (attr_key_N, attr_val_N) pairs from POST to support dynamic keys.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         logger.info(
             "modifier: content_type=%s data=%s",
             request.content_type, {k: str(v)[:80] for k, v in request.data.items()},
@@ -2011,6 +2147,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Cree un commentaire sur une extraction et re-rend le fil de discussion.
         Creates a comment on an extraction and re-renders the discussion thread.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         serializer = CommentaireExtractionSerializer(data=request.data)
         if not serializer.is_valid():
             logger.warning("ajouter_commentaire: validation echouee — %s", serializer.errors)
@@ -2025,7 +2164,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         # Creer le commentaire / Create the comment
         CommentaireExtraction.objects.create(
             entity=entite,
-            prenom=donnees["prenom"],
+            user=request.user,
             commentaire=donnees["commentaire"],
         )
 
@@ -2100,6 +2239,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Modifie le texte d'un commentaire existant et re-rend le fil de discussion.
         / Edits an existing comment's text and re-renders the discussion thread.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         serializer = ModifierCommentaireSerializer(data=request.data)
         if not serializer.is_valid():
             logger.warning("modifier_commentaire: validation echouee — %s", serializer.errors)
@@ -2134,6 +2276,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Supprime un commentaire et re-rend le fil de discussion.
         / Deletes a comment and re-renders the discussion thread.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         serializer = SupprimerCommentaireSerializer(data=request.data)
         if not serializer.is_valid():
             logger.warning("supprimer_commentaire: validation echouee — %s", serializer.errors)
@@ -2166,6 +2311,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Supprime une entite extraite (si pas de commentaires).
         Deletes an extracted entity (if no comments).
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         entity_id = request.data.get("entity_id")
         page_id = request.data.get("page_id")
         if not entity_id or not page_id:
@@ -2196,6 +2344,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Deletes all AI extraction jobs (and their entities via cascade).
         Manual extractions are preserved.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         page_id = request.data.get("page_id")
         if not page_id:
             return HttpResponse("page_id requis.", status=400)
@@ -2267,6 +2418,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         The page text becomes the example source text.
         Each extraction becomes an expected ExampleExtraction with its attributes.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         # Validation des parametres via serializer DRF
         # / Validate parameters via DRF serializer
         serializer = PromouvoirEntrainementSerializer(data=request.data)
@@ -2560,6 +2714,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         / Launches an async reformulation on an extraction via Celery.
         Stores the result in entity.texte_reformule.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         # Guard : verifie que l'IA est activee / Check AI is enabled
         if not _get_ia_active():
             return HttpResponse("IA desactivee.", status=403)
@@ -2868,6 +3025,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         / Creates a new page version with the restitution text inserted.
         The text is tagged with a violet anchor linking back to the source extraction.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         from .serializers import RestitutionDebatSerializer
 
         serializer = RestitutionDebatSerializer(data=request.data)
@@ -2945,6 +3105,7 @@ class ExtractionViewSet(viewsets.ViewSet):
                 html_readability=balise_restitution,
                 text_readability=texte_brut,
                 content_hash=hash_contenu,
+                owner=request.user,
             )
 
         # Clot le debat : marque l'entite comme restituee avec lien vers la page cible
@@ -2981,6 +3142,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Masque une extraction (curation). Refuse si l'entite a des commentaires.
         / Hide an extraction (curation). Refuses if entity has comments.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         identifiant_entite = request.data.get("entity_id")
         identifiant_page = request.data.get("page_id")
         if not identifiant_entite or not identifiant_page:
@@ -3022,6 +3186,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Restaure une extraction masquee (la rend visible a nouveau).
         / Restore a hidden extraction (make it visible again).
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         identifiant_entite = request.data.get("entity_id")
         identifiant_page = request.data.get("page_id")
         if not identifiant_entite or not identifiant_page:
@@ -3048,6 +3215,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Change le statut de debat d'une extraction.
         / Change the debate status of an extraction.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         serializer = ChangerStatutSerializer(data=request.data)
         if not serializer.is_valid():
             logger.warning("changer_statut: validation echouee — %s", serializer.errors)
@@ -3223,6 +3393,9 @@ class ImportViewSet(viewsets.ViewSet):
         / Imports a file. Branches to audio pipeline if audio file,
         otherwise synchronous pipeline for documents.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         # Validation via serializer DRF
         # / Validation via DRF serializer
         serializer = ImportFichierSerializer(data=request.data)
@@ -3324,6 +3497,7 @@ class ImportViewSet(viewsets.ViewSet):
             status="completed",
             dossier=dossier_assigne,
             source_file=contenu_fichier_source,
+            owner=request.user,
         )
 
         logger.info(
@@ -3444,6 +3618,7 @@ class ImportViewSet(viewsets.ViewSet):
             status="processing",
             dossier=dossier_assigne,
             source_file=fichier_uploade,
+            owner=request.user,
         )
 
         # Recuperer la config de transcription active (ou None pour mock)
@@ -3573,6 +3748,7 @@ class ImportViewSet(viewsets.ViewSet):
             content_hash=hash_contenu,
             dossier=dossier_assigne,
             source_file=fichier_uploade,
+            owner=request.user,
         )
 
         logger.info(
@@ -3854,6 +4030,7 @@ class ImportViewSet(viewsets.ViewSet):
             status="processing",
             dossier=dossier_assigne,
             source_file=fichier_django_source,
+            owner=request.user,
         )
         fichier_audio_pour_source.close()
 
@@ -3957,6 +4134,9 @@ class QuestionnaireViewSet(viewsets.ViewSet):
         Cree une nouvelle question sur une page et re-rend le questionnaire.
         / Creates a new question on a page and re-renders the questionnaire.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         serializer = QuestionSerializer(data=request.data)
         if not serializer.is_valid():
             logger.warning("poser_question: validation echouee — %s", serializer.errors)
@@ -3971,7 +4151,7 @@ class QuestionnaireViewSet(viewsets.ViewSet):
         # Creer la question / Create the question
         Question.objects.create(
             page=page,
-            prenom=donnees["prenom"],
+            user=request.user,
             texte_question=donnees["texte_question"],
         )
 
@@ -3987,6 +4167,9 @@ class QuestionnaireViewSet(viewsets.ViewSet):
         Cree une reponse a une question et re-rend le questionnaire.
         / Creates an answer to a question and re-renders the questionnaire.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         serializer = ReponseQuestionSerializer(data=request.data)
         if not serializer.is_valid():
             logger.warning("repondre: validation echouee — %s", serializer.errors)
@@ -4001,7 +4184,7 @@ class QuestionnaireViewSet(viewsets.ViewSet):
         # Creer la reponse / Create the answer
         ReponseQuestion.objects.create(
             question=question,
-            prenom=donnees["prenom"],
+            user=request.user,
             texte_reponse=donnees["texte_reponse"],
         )
 

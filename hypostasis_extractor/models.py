@@ -449,10 +449,10 @@ class ExtractionAttribute(models.Model):
 
 class CommentaireExtraction(models.Model):
     """
-    Commentaire sur une extraction — mode debat sans authentification.
-    Un utilisateur identifie par son prenom peut commenter une entite extraite.
-    / Comment on an extraction — debate mode without authentication.
-    A user identified by first name can comment on an extracted entity.
+    Commentaire sur une extraction — mode debat avec authentification.
+    L'auteur est identifie par son user FK.
+    / Comment on an extraction — debate mode with authentication.
+    The author is identified by user FK.
     """
     entity = models.ForeignKey(
         ExtractedEntity,
@@ -460,9 +460,10 @@ class CommentaireExtraction(models.Model):
         related_name='commentaires',
         help_text="Entite commentee / Commented entity",
     )
-    prenom = models.CharField(
-        max_length=100,
-        help_text="Prenom de l'auteur du commentaire / Author first name",
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="commentaires_extraction",
+        help_text="Auteur du commentaire / Comment author",
     )
     commentaire = models.TextField(
         help_text="Texte du commentaire / Comment text",
@@ -473,7 +474,7 @@ class CommentaireExtraction(models.Model):
         ordering = ['created_at']
 
     def __str__(self):
-        return f"{self.prenom}: {self.commentaire[:50]}"
+        return f"{self.user.username}: {self.commentaire[:50]}"
 
 
 # =============================================================================

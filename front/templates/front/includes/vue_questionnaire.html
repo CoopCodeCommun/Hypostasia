@@ -3,16 +3,14 @@
 
 <div class="space-y-4">
 
-    {# Formulaire de creation d'une nouvelle question #}
-    {# / New question creation form #}
+    {# Formulaire de creation d'une nouvelle question (connecte seulement) #}
+    {# / New question creation form (logged in only) #}
+    {% if user.is_authenticated %}
     <form hx-post="/questionnaire/poser_question/"
           hx-target="#panneau-extractions"
           hx-swap="innerHTML"
           class="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
         <input type="hidden" name="page_id" value="{{ page.pk }}">
-        <input type="text" name="prenom" placeholder="Votre prenom"
-               class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-               required>
         <textarea name="texte_question" rows="2" placeholder="Posez votre question sur ce texte…"
                   class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none"
                   required></textarea>
@@ -21,6 +19,11 @@
             Poser une question
         </button>
     </form>
+    {% else %}
+    <p class="text-sm text-slate-400 text-center py-3">
+        <a href="/auth/login/" class="text-blue-600 hover:text-blue-800 underline">Connectez-vous</a> pour poser une question.
+    </p>
+    {% endif %}
 
     {# Liste des questions avec leurs reponses #}
     {# / Questions list with their answers #}
@@ -32,7 +35,7 @@
             {# En-tete de la question / Question header #}
             <div>
                 <div class="flex items-center justify-between mb-1">
-                    <span class="typo-lecteur-nom" style="font-size: 14px;">{{ question.prenom }}</span>
+                    <span class="typo-lecteur-nom" style="font-size: 14px;">{{ question.user.first_name|default:question.user.username }}</span>
                     <span class="text-[10px] text-slate-400">{{ question.created_at|date:"d/m H:i" }}</span>
                 </div>
                 <p class="typo-lecteur-corps">{{ question.texte_question }}</p>
@@ -42,14 +45,15 @@
             {% for reponse in question.reponses.all %}
             <div class="ml-6 border-l-2 border-indigo-100 pl-3">
                 <div class="flex items-center justify-between mb-0.5">
-                    <span class="typo-lecteur-nom" style="font-size: 14px;">{{ reponse.prenom }}</span>
+                    <span class="typo-lecteur-nom" style="font-size: 14px;">{{ reponse.user.first_name|default:reponse.user.username }}</span>
                     <span class="text-[10px] text-slate-400">{{ reponse.created_at|date:"d/m H:i" }}</span>
                 </div>
                 <p class="typo-lecteur-corps whitespace-pre-wrap">{{ reponse.texte_reponse }}</p>
             </div>
             {% endfor %}
 
-            {# Formulaire de reponse repliable / Collapsible answer form #}
+            {# Formulaire de reponse repliable (connecte seulement) / Collapsible answer form (logged in only) #}
+            {% if user.is_authenticated %}
             <details class="ml-6">
                 <summary class="text-xs text-indigo-500 hover:text-indigo-700 font-medium cursor-pointer">
                     Repondre
@@ -59,9 +63,6 @@
                       hx-swap="innerHTML"
                       class="mt-2 space-y-2">
                     <input type="hidden" name="question_id" value="{{ question.pk }}">
-                    <input type="text" name="prenom" placeholder="Votre prenom"
-                           class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                           required>
                     <textarea name="texte_reponse" rows="2" placeholder="Votre reponse…"
                               class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none"
                               required></textarea>
@@ -71,6 +72,7 @@
                     </button>
                 </form>
             </details>
+            {% endif %}
 
         </div>
         {% endfor %}
