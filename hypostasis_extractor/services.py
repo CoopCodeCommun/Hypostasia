@@ -52,11 +52,13 @@ def build_langextract_examples(job) -> List[lx.data.ExampleData]:
 def resolve_model_params(ai_model: AIModel) -> Dict:
     """
     Convertit une configuration AIModel en parametres pour LangExtract.
-    Pour Mistral, utilise le provider OpenAI avec base_url Mistral API
-    (l'API Mistral est compatible OpenAI).
+    Supporte Google, OpenAI, Ollama (natif LangExtract) et Mock.
+    Anthropic leve une ValueError car non supporte par LangExtract.
     / Converts an AIModel config into LangExtract parameters.
-    For Mistral, uses the OpenAI provider with Mistral API base_url
-    (Mistral API is OpenAI-compatible).
+    Supports Google, OpenAI, Ollama (native LangExtract), Mock.
+    Anthropic raises ValueError (not supported by LangExtract).
+
+    LOCALISATION : hypostasis_extractor/services.py
     """
     logger.debug("resolve_model_params: provider=%s model=%s", ai_model.provider, ai_model.model_name)
     params = {
@@ -78,17 +80,32 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
         params['fence_output'] = True
         params['use_schema_constraints'] = False
 
+    elif ai_model.provider == Provider.OLLAMA:
+        # Ollama est supporte nativement par LangExtract (OllamaLanguageModel)
+        # / Ollama is natively supported by LangExtract (OllamaLanguageModel)
+        base_url_ollama = ai_model.base_url or "http://localhost:11434"
+        params['model_url'] = base_url_ollama
+        if ai_model.api_key:
+            params['api_key'] = ai_model.api_key
+
+    elif ai_model.provider == Provider.ANTHROPIC:
+        # Anthropic n'est pas supporte par LangExtract pour l'extraction
+        # / Anthropic is not supported by LangExtract for extraction
+        raise ValueError(
+            "Anthropic ne supporte pas l'extraction. "
+            "Utilisez Gemini, OpenAI ou Ollama pour l'extraction. "
+            "Anthropic est disponible pour la reformulation et la restitution."
+        )
+
     elif ai_model.provider == Provider.MOCK:
         # Pour le mock, on utilise un provider qui existe
         # / For mock, use an existing provider
         params['model_id'] = 'gemini-2.5-flash'
 
     else:
-        # LangExtract ne supporte que Google Gemini et OpenAI GPT
-        # / LangExtract only supports Google Gemini and OpenAI GPT
+        # Provider inconnu / Unknown provider
         raise ValueError(
-            f"Le provider '{ai_model.provider}' n'est pas supporté par LangExtract. "
-            f"Seuls Google (Gemini) et OpenAI (GPT) sont disponibles pour l'extraction."
+            f"Le provider '{ai_model.provider}' n'est pas supporte par LangExtract."
         )
 
     return params

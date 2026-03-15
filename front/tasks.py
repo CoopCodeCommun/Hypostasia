@@ -211,8 +211,9 @@ def reformuler_entite_task(self, entity_id, analyseur_id):
             entity_id, analyseur.name, modele_ia.model_name, len(texte_a_reformuler),
         )
 
-        # Appel au LLM selon le provider / Call LLM based on provider
-        texte_reformule = _appeler_llm_reformulation(modele_ia, message_complet)
+        # Appel au LLM via la couche unifiee / Call LLM via unified layer
+        from core.llm_providers import appeler_llm
+        texte_reformule = appeler_llm(modele_ia, message_complet)
 
         if not texte_reformule or not texte_reformule.strip():
             raise ValueError("Le LLM a retourne une reponse vide")
@@ -245,40 +246,6 @@ def reformuler_entite_task(self, entity_id, analyseur_id):
         entite.reformulation_en_cours = False
         entite.reformulation_erreur = message_erreur
         entite.save(update_fields=["reformulation_en_cours", "reformulation_erreur"])
-
-
-def _appeler_llm_reformulation(modele_ia, message_complet):
-    """
-    Appelle le LLM pour une reformulation (texte libre, pas extraction).
-    Supporte Google Gemini et OpenAI GPT.
-    / Calls the LLM for reformulation (free text, not extraction).
-    Supports Google Gemini and OpenAI GPT.
-    """
-    from core.models import Provider
-
-    if modele_ia.provider == Provider.GOOGLE:
-        import google.generativeai as genai
-        if modele_ia.api_key:
-            genai.configure(api_key=modele_ia.api_key)
-        modele_genai = genai.GenerativeModel(modele_ia.model_name)
-        reponse = modele_genai.generate_content(message_complet)
-        return reponse.text
-
-    elif modele_ia.provider == Provider.OPENAI:
-        from openai import OpenAI
-        client = OpenAI(api_key=modele_ia.api_key)
-        reponse = client.chat.completions.create(
-            model=modele_ia.model_name,
-            messages=[{"role": "user", "content": message_complet}],
-        )
-        return reponse.choices[0].message.content
-
-    elif modele_ia.provider == Provider.MOCK:
-        # Mock : retourne un texte factice / Mock: return dummy text
-        return f"[MOCK] Reformulation de : {message_complet[:200]}..."
-
-    else:
-        raise ValueError(f"Provider '{modele_ia.provider}' non supporte pour la reformulation")
 
 
 @shared_task(bind=True)
@@ -362,8 +329,9 @@ def restituer_debat_task(self, entity_id, analyseur_id):
             entity_id, analyseur.name, modele_ia.model_name, len(message_complet),
         )
 
-        # Appel au LLM / Call LLM
-        texte_restitution = _appeler_llm_reformulation(modele_ia, message_complet)
+        # Appel au LLM via la couche unifiee / Call LLM via unified layer
+        from core.llm_providers import appeler_llm
+        texte_restitution = appeler_llm(modele_ia, message_complet)
 
         if not texte_restitution or not texte_restitution.strip():
             raise ValueError("Le LLM a retourne une reponse vide")

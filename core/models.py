@@ -401,23 +401,30 @@ class ArgumentComment(models.Model):
 
 class Provider(models.TextChoices):
     """
-    Fournisseur du modèle d'IA pour LangExtract.
-    Seuls Google Gemini et OpenAI GPT sont supportés par LangExtract.
-    / AI model provider for LangExtract.
-    Only Google Gemini and OpenAI GPT are supported by LangExtract.
+    Fournisseur du modele d'IA.
+    Google et OpenAI sont supportes par LangExtract (extraction).
+    Ollama et Anthropic sont supportes pour la reformulation/restitution.
+    / AI model provider.
+    Google and OpenAI are supported by LangExtract (extraction).
+    Ollama and Anthropic are supported for reformulation/restitution.
     """
 
     MOCK = "mock", "Mock (Simulation)"
     GOOGLE = "google", "Google Gemini"
     OPENAI = "openai", "OpenAI GPT"
+    OLLAMA = "ollama", "Ollama (Local)"
+    ANTHROPIC = "anthropic", "Anthropic Claude"
 
 
 class AIModelChoices(models.TextChoices):
     """
-    Liste des modèles AI supportés par LangExtract.
-    Seuls Google Gemini et OpenAI GPT sont supportés.
-    / List of AI models supported by LangExtract.
-    Only Google Gemini and OpenAI GPT are supported.
+    Liste des modeles AI disponibles dans l'application.
+    Google Gemini et OpenAI GPT sont supportes pour l'extraction (LangExtract).
+    Ollama est supporte pour l'extraction et la reformulation.
+    Anthropic Claude est supporte pour la reformulation et la restitution uniquement.
+    / List of AI models available in the application.
+    Google and OpenAI for extraction (LangExtract). Ollama for extraction + reformulation.
+    Anthropic for reformulation/restitution only.
     """
 
     # Google / Gemini
@@ -441,6 +448,19 @@ class AIModelChoices(models.TextChoices):
     OPENAI_GPT_4_TURBO = "gpt-4-turbo", "GPT-4 Turbo (OpenAI)"
     OPENAI_GPT_4_1 = "gpt-4.1", "GPT-4.1 (OpenAI)"
     OPENAI_GPT_4_1_MINI = "gpt-4.1-mini", "GPT-4.1 Mini (OpenAI)"
+
+    # Ollama (Local)
+    OLLAMA_LLAMA3 = "llama3", "Llama 3 (Ollama)"
+    OLLAMA_LLAMA3_1 = "llama3.1", "Llama 3.1 (Ollama)"
+    OLLAMA_MISTRAL = "mistral", "Mistral (Ollama)"
+    OLLAMA_GEMMA2 = "gemma2", "Gemma 2 (Ollama)"
+    OLLAMA_QWEN2_5 = "qwen2.5", "Qwen 2.5 (Ollama)"
+    OLLAMA_DEEPSEEK_R1 = "deepseek-r1", "DeepSeek R1 (Ollama)"
+    OLLAMA_PHI3 = "phi3", "Phi 3 (Ollama)"
+
+    # Anthropic / Claude
+    ANTHROPIC_CLAUDE_SONNET_4 = "claude-sonnet-4-20250514", "Claude Sonnet 4 (Anthropic)"
+    ANTHROPIC_CLAUDE_HAIKU_4 = "claude-haiku-4-20250414", "Claude Haiku 4 (Anthropic)"
 
     # Mock (Simulation)
     MOCK_DEFAULT = "mock", "Mock / Simulation"
@@ -489,6 +509,12 @@ class AIModel(models.Model):
     api_key = models.CharField(
         max_length=255, blank=True, help_text="Clé API (laisser vide pour Mock)"
     )
+    base_url = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="URL de base du serveur (utilise par Ollama, ex: http://localhost:11434)",
+    )
     temperature = models.FloatField(
         default=0.7, help_text="Température d'échantillonnage du LLM"
     )
@@ -515,6 +541,13 @@ class AIModel(models.Model):
             prefix_to_provider = [
                 ("gemini-", Provider.GOOGLE),
                 ("gpt-", Provider.OPENAI),
+                ("llama", Provider.OLLAMA),
+                ("mistral", Provider.OLLAMA),
+                ("gemma", Provider.OLLAMA),
+                ("qwen", Provider.OLLAMA),
+                ("deepseek", Provider.OLLAMA),
+                ("phi", Provider.OLLAMA),
+                ("claude-", Provider.ANTHROPIC),
                 ("mock", Provider.MOCK),
             ]
 
@@ -575,6 +608,18 @@ class AIModel(models.Model):
         "gpt-4-turbo": (10.00, 30.00),
         "gpt-4.1": (2.00, 8.00),
         "gpt-4.1-mini": (0.40, 1.60),
+        # Ollama — gratuit (local) / Ollama — free (local)
+        "llama3": (0.0, 0.0),
+        "llama3.1": (0.0, 0.0),
+        "mistral": (0.0, 0.0),
+        "gemma2": (0.0, 0.0),
+        "qwen2.5": (0.0, 0.0),
+        "deepseek-r1": (0.0, 0.0),
+        "phi3": (0.0, 0.0),
+        # Anthropic Claude — prix input/output par million de tokens
+        # / Anthropic Claude — input/output price per million tokens
+        "claude-sonnet-4-20250514": (3.00, 15.00),
+        "claude-haiku-4-20250414": (0.80, 4.00),
         # Mock — gratuit / Mock — free
         "mock": (0.0, 0.0),
     }
