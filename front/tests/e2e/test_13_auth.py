@@ -68,6 +68,7 @@ class Phase25AuthE2ETest(PlaywrightLiveTestCase):
         """L'inscription cree un user et connecte automatiquement."""
         self.naviguer_vers("/auth/register/")
         self.page.fill('[data-testid="input-username"]', "nouveau_user")
+        self.page.fill('[data-testid="input-email"]', "test@example.com")
         self.page.fill('[data-testid="input-password"]', "monmotdepasse123")
         self.page.fill('[data-testid="input-password-confirm"]', "monmotdepasse123")
         self.page.click('[data-testid="btn-submit-register"]')

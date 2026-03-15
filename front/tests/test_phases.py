@@ -1245,23 +1245,26 @@ class Phase04TemplatesContiennentBoutonsTest(TestCase):
     """Verifie que les templates contiennent les boutons CRUD necessaires.
     / Verify that templates contain the necessary CRUD buttons."""
 
-    def test_arbre_contient_bouton_renommer_dossier(self):
-        """arbre_dossiers.html contient le bouton btn-renommer-dossier."""
+    def test_arbre_contient_bouton_ctx_menu_dossier(self):
+        """arbre_dossiers.html contient le menu contextuel kebab pour les dossiers.
+        / arbre_dossiers.html contains the kebab context menu for folders."""
         chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "arbre_dossiers.html"
         contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("btn-renommer-dossier", contenu)
+        self.assertIn("data-ctx-type=\"dossier\"", contenu)
 
-    def test_arbre_contient_bouton_supprimer_dossier(self):
-        """arbre_dossiers.html contient le bouton btn-supprimer-dossier."""
+    def test_arbre_contient_bouton_ctx_menu_actions_dossier(self):
+        """arbre_dossiers.html contient le bouton btn-ctx-menu pour les dossiers.
+        / arbre_dossiers.html contains the btn-ctx-menu button for folders."""
         chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "arbre_dossiers.html"
         contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("btn-supprimer-dossier", contenu)
+        self.assertIn("btn-ctx-menu", contenu)
 
-    def test_arbre_contient_bouton_supprimer_page(self):
-        """arbre_dossiers.html contient le bouton btn-supprimer-page."""
+    def test_arbre_contient_bouton_ctx_menu_page(self):
+        """arbre_dossiers.html contient le menu contextuel kebab pour les pages.
+        / arbre_dossiers.html contains the kebab context menu for pages."""
         chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "arbre_dossiers.html"
         contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("btn-supprimer-page", contenu)
+        self.assertIn("data-ctx-type=\"page\"", contenu)
 
     def test_fil_discussion_contient_bouton_modifier_commentaire(self):
         """fil_discussion.html contient le bouton btn-modifier-commentaire."""
@@ -6842,14 +6845,16 @@ class Phase25RegisterSerializerTest(TestCase):
     def test_valid(self):
         from front.serializers import RegisterSerializer
         s = RegisterSerializer(data={
-            "username": "newuser", "password": "testpass1", "password_confirm": "testpass1",
+            "username": "newuser", "email": "test@example.com",
+            "password": "testpass1", "password_confirm": "testpass1",
         })
         self.assertTrue(s.is_valid())
 
     def test_password_mismatch(self):
         from front.serializers import RegisterSerializer
         s = RegisterSerializer(data={
-            "username": "newuser", "password": "testpass1", "password_confirm": "different",
+            "username": "newuser", "email": "test@example.com",
+            "password": "testpass1", "password_confirm": "different",
         })
         self.assertFalse(s.is_valid())
         self.assertIn("password_confirm", s.errors)

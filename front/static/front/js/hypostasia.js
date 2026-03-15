@@ -47,7 +47,14 @@ if (ongletsPanneau) {
 }
 
 // Expand/collapse dossiers (client-side) — clic sur la ligne entière
+// Ignore les clics sur le bouton kebab menu contextuel (PHASE-25)
+// / Ignores clicks on the kebab context menu button (PHASE-25)
 document.addEventListener('click', function(e) {
+    // Si le clic est sur le bouton kebab ou marque comme gere par le menu contextuel,
+    // ne pas toggler le dossier
+    // / If click is on kebab button or marked as handled by context menu, don't toggle
+    if (e.target.closest('.btn-ctx-menu')) return;
+    if (e._ctxMenuHandled) return;
     const row = e.target.closest('.dossier-toggle');
     if (!row) return;
     const node = row.closest('.dossier-node');

@@ -65,6 +65,9 @@
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 group/commentaire relative">
                     <div class="flex items-center justify-between mb-1">
                         <span class="typo-lecteur-nom" style="font-size: 14px;">{{ commentaire.user.first_name|default:commentaire.user.username }}</span>
+                        {% if user.is_authenticated and commentaire.user.pk == user.pk %}
+                        <span class="text-[9px] font-medium text-blue-500 bg-blue-50 px-1 py-0.5 rounded">vous</span>
+                        {% endif %}
                         <div class="flex items-center gap-1">
                             <span class="text-[10px] text-slate-400">{{ commentaire.created_at|date:"d/m H:i" }}</span>
                             {# Boutons modifier et supprimer commentaire (visibles au hover) #}

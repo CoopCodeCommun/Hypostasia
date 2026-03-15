@@ -54,6 +54,7 @@ class AuthViewSet(viewsets.ViewSet):
         if not serializer.is_valid():
             return render(request, "front/login.html", {
                 "erreurs": _extraire_erreurs_serializer(serializer),
+                "donnees_login": {"username": request.POST.get("username", "")},
             })
 
         donnees = serializer.validated_data
@@ -68,6 +69,7 @@ class AuthViewSet(viewsets.ViewSet):
         if utilisateur_authentifie is None:
             return render(request, "front/login.html", {
                 "erreurs": ["Nom d'utilisateur ou mot de passe incorrect."],
+                "donnees_login": {"username": donnees["username"]},
             })
 
         login(request, utilisateur_authentifie)
@@ -119,7 +121,7 @@ class AuthViewSet(viewsets.ViewSet):
         login(request, nouvel_utilisateur)
         return redirect("/")
 
-    @action(detail=False, methods=["POST"], url_path="logout")
+    @action(detail=False, methods=["GET", "POST"], url_path="logout")
     def deconnexion(self, request):
         """
         Deconnecte l'utilisateur et redirige vers la page de login.

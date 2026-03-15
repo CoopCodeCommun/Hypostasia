@@ -204,6 +204,9 @@
              aria-live="polite"
              data-testid="arbre-dossiers">
         </div>
+        <!-- Menu contextuel arbre — dans l'overlay pour rester au-dessus du backdrop (PHASE-25) -->
+        <!-- / Tree context menu — inside overlay to stay above backdrop (PHASE-25) -->
+        <div id="arbre-ctx-menu" class="hidden fixed bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px] z-[100] text-sm" data-testid="arbre-ctx-menu" role="menu" aria-label="Actions"></div>
         <!-- Footer overlay : actions rapides -->
         <!-- / Overlay footer: quick actions -->
         <div class="border-t border-slate-200 p-3 flex items-center gap-2 shrink-0">
@@ -309,6 +312,7 @@
 
     {% include "front/includes/selection_menu.html" %}
 
+
     <script src="{% static 'front/js/hypostasia.js' %}?v=19"></script>
     <script src="{% static 'front/js/marginalia.js' %}?v=21"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
@@ -319,6 +323,11 @@
     <script src="{% static 'front/js/alignement.js' %}?v=18"></script>
     <script src="{% static 'front/js/notifications_progression.js' %}?v=20"></script>
     <script src="{% static 'front/js/keyboard.js' %}?v=23"></script>
+    <script src="{% static 'front/js/arbre_context_menu.js' %}?v=25"></script>
+
+    <!-- Fermeture du dropdown menu utilisateur au clic exterieur (PHASE-25) -->
+    <!-- / Close user menu dropdown on outside click (PHASE-25) -->
+    <script src="{% static 'front/js/user_menu.js' %}?v=25"></script>
 
 </body>
 </html>

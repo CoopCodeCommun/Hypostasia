@@ -554,7 +554,12 @@ class RegisterSerializer(serializers.Serializer):
     LOCALISATION : front/serializers.py
     """
     username = serializers.CharField(max_length=150)
-    email = serializers.EmailField(required=False, allow_blank=True)
+    email = serializers.EmailField(
+        error_messages={
+            "required": "L'email est obligatoire / Email is required",
+            "invalid": "Format d'email invalide / Invalid email format",
+        },
+    )
     password = serializers.CharField(min_length=8)
     password_confirm = serializers.CharField()
 

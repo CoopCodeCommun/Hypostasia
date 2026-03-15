@@ -11,10 +11,18 @@ class E2ENavigationTest(PlaywrightLiveTestCase):
 
     def setUp(self):
         super().setUp()
+        # Creer un utilisateur et se connecter pour les actions d'ecriture
+        # / Create a user and log in for write actions
+        self.utilisateur_test = self.creer_utilisateur_demo()
+        self.se_connecter("testuser", "testpass123")
         # Creer 2 dossiers et 3 pages (1 classee, 2 orphelines)
         # / Create 2 folders and 3 pages (1 classified, 2 orphans)
         self.dossier_alpha = self.creer_dossier_demo("Alpha")
+        self.dossier_alpha.owner = self.utilisateur_test
+        self.dossier_alpha.save()
         self.dossier_beta = self.creer_dossier_demo("Beta")
+        self.dossier_beta.owner = self.utilisateur_test
+        self.dossier_beta.save()
         self.page_classee = self.creer_page_demo(
             "Page classee",
             "<p>Contenu page classee dans Alpha.</p>",
@@ -71,10 +79,15 @@ class E2ENavigationTest(PlaywrightLiveTestCase):
         """Le bouton renommer ouvre un SweetAlert pre-rempli avec le nom actuel."""
         self.naviguer_vers("/")
         self.ouvrir_arbre()
-        bouton_renommer = self.page.locator(
-            f'.btn-renommer-dossier[data-dossier-id="{self.dossier_alpha.pk}"]'
+        # Ouvrir le menu contextuel kebab du dossier Alpha
+        # / Open the kebab context menu for folder Alpha
+        bouton_kebab = self.page.locator(
+            f'[data-ctx-type="dossier"][data-ctx-id="{self.dossier_alpha.pk}"] [data-testid="btn-ctx-dossier"]'
         )
-        bouton_renommer.click()
+        bouton_kebab.click()
+        # Cliquer sur l'action "Renommer" dans le menu contextuel
+        # / Click the "Rename" action in the context menu
+        self.page.locator(".btn-action-renommer").first.click()
         # SweetAlert2 doit apparaitre avec le nom actuel pre-rempli
         # / SweetAlert2 must appear with current name pre-filled
         self.page.wait_for_selector(".swal2-popup", state="visible", timeout=3000)
@@ -88,26 +101,36 @@ class E2ENavigationTest(PlaywrightLiveTestCase):
         """Le bouton supprimer ouvre un SweetAlert de confirmation."""
         self.naviguer_vers("/")
         self.ouvrir_arbre()
-        bouton_supprimer = self.page.locator(
-            f'.btn-supprimer-dossier[data-dossier-id="{self.dossier_beta.pk}"]'
+        # Ouvrir le menu contextuel kebab du dossier Beta
+        # / Open the kebab context menu for folder Beta
+        bouton_kebab = self.page.locator(
+            f'[data-ctx-type="dossier"][data-ctx-id="{self.dossier_beta.pk}"] [data-testid="btn-ctx-dossier"]'
         )
-        bouton_supprimer.click()
+        bouton_kebab.click()
+        # Cliquer sur l'action "Supprimer" dans le menu contextuel
+        # / Click the "Delete" action in the context menu
+        self.page.locator(".btn-action-supprimer-dossier").first.click()
         # SweetAlert2 de confirmation doit apparaitre
         # / Confirmation SweetAlert2 must appear
         self.page.wait_for_selector(".swal2-popup", state="visible", timeout=3000)
-        # Le titre devrait mentionner le dossier
-        # / The title should mention the folder
+        # Le titre devrait mentionner la suppression
+        # / The title should mention deletion
         contenu_swal = self.page.text_content(".swal2-popup")
-        self.assertIn("Beta", contenu_swal)
+        self.assertIn("Supprimer", contenu_swal)
 
     def test_classer_page_dans_dossier(self):
         """Classer une page orpheline dans un dossier via SweetAlert."""
         self.naviguer_vers("/")
         self.ouvrir_arbre()
-        bouton_classer = self.page.locator(
-            f'.btn-classer[data-page-id="{self.page_orpheline_1.pk}"]'
+        # Ouvrir le menu contextuel kebab de la page orpheline
+        # / Open the kebab context menu for the orphan page
+        bouton_kebab = self.page.locator(
+            f'[data-ctx-type="page"][data-ctx-id="{self.page_orpheline_1.pk}"] [data-testid="btn-ctx-page"]'
         )
-        bouton_classer.click()
+        bouton_kebab.click()
+        # Cliquer sur l'action "Deplacer" dans le menu contextuel
+        # / Click the "Move" action in the context menu
+        self.page.locator(".btn-action-deplacer").first.click()
         # SweetAlert devrait apparaitre avec un select des dossiers
         # / SweetAlert should appear with a folder select
         self.page.wait_for_selector(".swal2-popup", state="visible", timeout=3000)

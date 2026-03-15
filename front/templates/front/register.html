@@ -30,14 +30,16 @@
             <div>
                 <label for="input-username" class="block text-sm font-medium text-slate-700 mb-1">Nom d'utilisateur</label>
                 <input id="input-username" name="username" type="text" required autofocus
+                       autocomplete="username"
                        data-testid="input-username"
                        value="{{ donnees.username|default:'' }}"
                        class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                        placeholder="Choisissez un nom d'utilisateur">
             </div>
             <div>
-                <label for="input-email" class="block text-sm font-medium text-slate-700 mb-1">Email <span class="text-slate-400">(optionnel)</span></label>
-                <input id="input-email" name="email" type="email"
+                <label for="input-email" class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                <input id="input-email" name="email" type="email" required
+                       autocomplete="email"
                        data-testid="input-email"
                        value="{{ donnees.email|default:'' }}"
                        class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -46,6 +48,7 @@
             <div>
                 <label for="input-password" class="block text-sm font-medium text-slate-700 mb-1">Mot de passe</label>
                 <input id="input-password" name="password" type="password" required
+                       autocomplete="new-password"
                        data-testid="input-password"
                        class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                        placeholder="8 caracteres minimum">
@@ -53,6 +56,7 @@
             <div>
                 <label for="input-password-confirm" class="block text-sm font-medium text-slate-700 mb-1">Confirmer le mot de passe</label>
                 <input id="input-password-confirm" name="password_confirm" type="password" required
+                       autocomplete="new-password"
                        data-testid="input-password-confirm"
                        class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                        placeholder="Retapez votre mot de passe">
@@ -64,10 +68,16 @@
             </button>
         </form>
 
-        <p class="text-center text-sm text-slate-500 mt-4">
-            Deja un compte ?
-            <a href="/auth/login/" class="text-blue-600 hover:text-blue-800 font-medium" data-testid="lien-login">Se connecter</a>
-        </p>
+        <!-- Lien vers la connexion — volontairement plus visible qu'un simple lien texte -->
+        <!-- / Link to login — intentionally more visible than a plain text link -->
+        <div class="text-center mt-5">
+            <p class="text-sm text-slate-500 mb-2">Deja un compte ?</p>
+            <a href="/auth/login/"
+               data-testid="lien-login"
+               class="inline-block w-full px-4 py-2.5 text-sm font-medium text-blue-600 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors">
+                Se connecter
+            </a>
+        </div>
     </div>
 
 </body>
