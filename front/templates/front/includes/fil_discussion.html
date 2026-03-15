@@ -7,6 +7,7 @@
     <div class="flex items-center justify-between">
         <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Discussion</h3>
         <button class="btn-fermer-discussion text-slate-400 hover:text-slate-700 text-sm"
+                data-testid="fermer-discussion-button"
                 hx-post="/extractions/panneau/"
                 hx-target="#panneau-extractions"
                 hx-swap="innerHTML"
@@ -213,9 +214,11 @@
                    class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
                    required>
             <textarea name="commentaire" rows="3" placeholder="Votre commentaire…"
+                      data-testid="commentaire-textarea"
                       class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none"
                       required></textarea>
             <button type="submit"
+                    data-testid="commentaire-submit-button"
                     class="w-full bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded px-3 py-1.5 transition-colors">
                 Envoyer
             </button>

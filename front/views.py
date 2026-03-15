@@ -680,13 +680,23 @@ class LectureViewSet(viewsets.ViewSet):
         """
         page = get_object_or_404(Page, pk=pk)
 
-        # Recupere l'analyseur depuis le query param
-        # / Get analyzer from query param
-        analyseur_id = request.query_params.get("analyseur_id")
-        if not analyseur_id:
-            return HttpResponse("analyseur_id requis.", status=400)
+        # Recupere l'analyseur depuis le query param, ou le premier actif par defaut
+        # / Get analyzer from query param, or the first active one by default
+        analyseur_id = request.GET.get("analyseur_id")
+        if analyseur_id:
+            analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
+        else:
+            analyseur = AnalyseurSyntaxique.objects.filter(
+                is_active=True, type_analyseur="analyser",
+            ).first()
+            if not analyseur:
+                return HttpResponse("Aucun analyseur actif trouvé.", status=400)
 
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
+        # Tous les analyseurs actifs de type "analyser" pour le selecteur
+        # / All active analyzers of type "analyser" for the selector
+        tous_les_analyseurs_actifs = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="analyser",
+        ).order_by("name")
 
         # Recupere le modele IA actif depuis la configuration singleton
         # / Get active AI model from singleton configuration
@@ -748,6 +758,7 @@ class LectureViewSet(viewsets.ViewSet):
         return render(request, "front/includes/confirmation_analyse.html", {
             "page": page,
             "analyseur": analyseur,
+            "analyseurs_actifs": tous_les_analyseurs_actifs,
             "modele_ia": modele_ia_actif,
             "nombre_tokens_input": nombre_tokens_input,
             "nombre_tokens_output_estime": nombre_tokens_output_estime,
@@ -934,38 +945,10 @@ class LectureViewSet(viewsets.ViewSet):
                 })
 
         if dernier_job_termine:
-            # Termine → renvoyer les resultats d'extraction + OOB readability
-            # / Completed → return extraction results + OOB readability
-            # Exclure les entites masquees / Exclude hidden entities
-            toutes_les_entites_du_job, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
-            )
-
-            scores_temperature = _calculer_scores_temperature(toutes_les_entites_du_job)
-            html_annote = annoter_html_avec_barres(
-                page.html_readability, page.text_readability,
-                toutes_les_entites_du_job, ids_entites_commentees,
-                scores_temperature_normalises=scores_temperature,
-            )
-
-            html_cartes = render_to_string(
-                "front/includes/extraction_results.html",
-                {"job": dernier_job_termine, "entities": toutes_les_entites_du_job},
-                request=request,
-            )
-
-            # OOB swap pour mettre a jour #readability-content avec le HTML annote
-            # / OOB swap to update #readability-content with annotated HTML
-            html_readability_oob = (
-                '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
-                + (html_annote or page.html_readability)
-                + '</article>'
-            )
-
-            html_complet = html_cartes + html_readability_oob
-            reponse = HttpResponse(html_complet)
+            # Termine → recharger la page de lecture complete avec les annotations
+            # / Completed → reload the full reading page with annotations
+            reponse = self.retrieve(request, pk=pk)
             reponse["HX-Trigger"] = json.dumps({
-                "ouvrirPanneauDroit": True,
                 "showToast": {"message": "Analyse termin\u00e9e"},
             })
             return reponse

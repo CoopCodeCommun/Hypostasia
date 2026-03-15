@@ -53,7 +53,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - frontend
       - hypostasia
     command: "bash start.sh"
 #    command: "sleep infinity"
@@ -64,6 +63,7 @@ services:
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
       - static_volume:/app/staticfiles
+      - media_volume:/app/media
     depends_on:
       - web
     restart: unless-stopped
@@ -74,6 +74,8 @@ services:
       - "traefik.http.routers.hypostasia.tls.certresolver=myresolver"
       - "traefik.http.services.hypostasia.loadbalancer.server.port=80"
       - "traefik.http.routers.hypostasia.rule=Host(`$DOMAIN`)"
+      # crowdsec
+      - "traefik.http.routers.hypostasia.middlewares=crowdsec@file"
     networks:
       - frontend
       - hypostasia

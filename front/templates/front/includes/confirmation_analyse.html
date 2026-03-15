@@ -1,81 +1,116 @@
 {# Partial : confirmation avant lancement d'une analyse IA #}
-{# Affiche le modele, les tokens, le cout estime, et un bouton pour voir le prompt #}
+{# S'affiche dans #zone-lecture en mode mono-colonne #}
+{# Affiche : selecteur analyseur, modele, tokens, cout estime, prompt complet #}
 {# / Partial: confirmation before launching an AI analysis #}
-{# / Shows model, tokens, estimated cost, and a button to view the prompt #}
+{# / Displayed in #zone-lecture in single-column mode #}
+{# / Shows: analyzer selector, model, tokens, estimated cost, full prompt #}
 
-<div class="bg-white rounded-lg border border-indigo-200 p-4 space-y-3" id="confirmation-analyse">
+<div class="max-w-2xl mx-auto p-2" id="confirmation-analyse" data-page-id="{{ page.pk }}" data-testid="confirmation-analyse">
 
-    {# En-tete / Header #}
-    <div class="flex items-center gap-2">
-        <svg class="w-5 h-5 text-indigo-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/>
-        </svg>
-        <h3 class="text-sm font-semibold text-slate-800">Confirmer l'analyse</h3>
+    {# En-tete avec titre de la page analysee / Header with analyzed page title #}
+    <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+            </svg>
+        </div>
+        <div>
+            <h2 class="text-lg font-semibold text-slate-900">Analyser cette page</h2>
+            <p class="text-sm text-slate-500">{{ page.title|default:"Sans titre" }}</p>
+        </div>
     </div>
 
+    {# Selecteur d'analyseur — recalcule l'estimation au changement #}
+    {# / Analyzer selector — recalculates estimate on change #}
+    {% if analyseurs_actifs.count > 1 %}
+    <div class="mb-4">
+        <label for="select-analyseur-confirmation" class="block text-xs font-medium text-slate-600 mb-1">Analyseur</label>
+        <select id="select-analyseur-confirmation" name="analyseur_id"
+                data-testid="select-analyseur-confirmation"
+                hx-get="/lire/{{ page.pk }}/previsualiser_analyse/"
+                hx-target="#zone-lecture"
+                hx-swap="innerHTML"
+                hx-include="this"
+                class="w-full text-sm border border-slate-300 rounded px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400">
+            {% for a in analyseurs_actifs %}
+                <option value="{{ a.id }}" {% if a.id == analyseur.id %}selected{% endif %}>{{ a.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+
     {# Infos resume / Summary info #}
-    <div class="bg-slate-50 rounded p-3 space-y-1.5 text-xs text-slate-600">
-        <div class="flex justify-between">
+    <div class="bg-slate-50 rounded-lg p-4 space-y-2 text-sm text-slate-600 mb-4">
+        <div class="flex justify-between items-center">
             <span>Analyseur</span>
-            <span class="font-medium text-slate-800">{{ analyseur.name }}</span>
+            <span class="font-semibold text-slate-800">{{ analyseur.name }}</span>
         </div>
-        <div class="flex justify-between">
-            <span>Modèle IA</span>
-            <span class="font-medium text-slate-800">{{ modele_ia.get_display_name }}</span>
+        <div class="flex justify-between items-center">
+            <span>Modele IA</span>
+            <span class="font-semibold text-slate-800">{{ modele_ia.get_display_name }}</span>
         </div>
-        <div class="flex justify-between">
-            <span>Pièces de prompt</span>
-            <span class="font-medium text-slate-800">{{ nombre_pieces }}</span>
+        <div class="flex justify-between items-center">
+            <span>Pieces de prompt</span>
+            <span class="font-semibold text-slate-800">{{ nombre_pieces }}</span>
         </div>
-        <div class="flex justify-between">
+        <div class="flex justify-between items-center">
             <span>Exemples few-shot</span>
-            <span class="font-medium text-slate-800">{{ nombre_exemples }}</span>
+            <span class="font-semibold text-slate-800">{{ nombre_exemples }}</span>
         </div>
     </div>
 
     {# Estimation tokens et cout / Token and cost estimate #}
-    <div class="bg-amber-50 border border-amber-200 rounded p-3 space-y-1.5 text-xs">
-        <div class="flex justify-between text-amber-800">
-            <span>Tokens input estimés</span>
-            <span class="font-bold">{{ nombre_tokens_input|floatformat:0 }}</span>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2 text-sm mb-4" data-testid="estimation-tokens">
+        <div class="flex justify-between items-center text-amber-800">
+            <span>Tokens input estimes</span>
+            <span class="font-bold text-base">{{ nombre_tokens_input|floatformat:0 }}</span>
         </div>
-        <div class="flex justify-between text-amber-700">
-            <span>Tokens output estimés (~20%)</span>
+        <div class="flex justify-between items-center text-amber-700">
+            <span>Tokens output estimes (~20%)</span>
             <span class="font-medium">~{{ nombre_tokens_output_estime|floatformat:0 }}</span>
         </div>
-        <div class="flex justify-between text-amber-900 border-t border-amber-200 pt-1.5 mt-1.5">
-            <span class="font-semibold">Coût estimé</span>
-            <span class="font-bold">~{{ cout_estime_euros|floatformat:5 }} €</span>
+        <div class="flex justify-between items-center text-amber-900 border-t border-amber-300 pt-2 mt-2">
+            <span class="font-semibold">Cout estime</span>
+            <span class="font-bold text-lg">~{{ cout_estime_euros|floatformat:5 }} &euro;</span>
         </div>
     </div>
 
-    {# Bouton pour voir le prompt complet dans une modale scrollable #}
-    {# / Button to view the full prompt in a scrollable modal #}
+    {# Bouton pour voir le prompt complet / Button to view the full prompt #}
     <button type="button"
-            class="btn-voir-prompt-complet w-full text-xs text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 rounded px-3 py-1.5 transition-colors"
+            class="btn-voir-prompt-complet w-full text-xs text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 rounded-lg px-3 py-2 transition-colors mb-4"
+            data-testid="btn-voir-prompt"
             data-prompt-visible="false">
         Voir le prompt complet
     </button>
 
-    {# Zone cachee du prompt complet (modale inline scrollable) #}
-    {# / Hidden zone for the full prompt (inline scrollable modal) #}
-    <div id="zone-prompt-complet" class="hidden">
-        <div class="bg-slate-900 text-slate-100 rounded-lg p-4 max-h-96 overflow-y-auto text-xs font-mono whitespace-pre-wrap leading-relaxed">{{ prompt_complet }}</div>
+    {# Zone cachee du prompt complet (scrollable) #}
+    {# / Hidden zone for the full prompt (scrollable) #}
+    <div id="zone-prompt-complet" class="hidden mb-4">
+        <div class="bg-slate-900 text-slate-100 rounded-lg p-4 max-h-[32rem] overflow-y-auto text-xs font-mono whitespace-pre-wrap leading-relaxed">{{ prompt_complet }}</div>
     </div>
 
     {# Boutons d'action / Action buttons #}
-    <div class="flex gap-2 pt-1">
+    <div class="flex gap-3">
         <button type="button"
+                data-testid="btn-lancer-analyse"
                 hx-post="/lire/{{ page.pk }}/analyser/"
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                 hx-vals='{"analyseur_id": "{{ analyseur.id }}"}'
-                hx-target="#zone-resultats-extraction"
+                hx-target="#zone-lecture"
                 hx-swap="innerHTML"
-                class="flex-1 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors">
+                class="flex-1 px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+            </svg>
             Lancer l'analyse
         </button>
         <button type="button"
-                class="btn-annuler-analyse flex-1 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-colors">
+                data-testid="btn-annuler-analyse"
+                hx-get="/lire/{{ page.pk }}/"
+                hx-target="#zone-lecture"
+                hx-swap="innerHTML"
+                hx-push-url="true"
+                class="px-4 py-2.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
             Annuler
         </button>
     </div>
@@ -88,18 +123,8 @@
     var zonePrompt = document.getElementById('zone-prompt-complet');
     if (boutonVoirPrompt && zonePrompt) {
         boutonVoirPrompt.addEventListener('click', function() {
-            var estVisible = zonePrompt.classList.toggle('hidden');
-            boutonVoirPrompt.textContent = estVisible ? 'Voir le prompt complet' : 'Masquer le prompt';
-        });
-    }
-
-    // Bouton Annuler : vide la zone de confirmation
-    // / Cancel button: clear the confirmation zone
-    var boutonAnnuler = document.querySelector('.btn-annuler-analyse');
-    if (boutonAnnuler) {
-        boutonAnnuler.addEventListener('click', function() {
-            var zoneConfirmation = document.getElementById('confirmation-analyse');
-            if (zoneConfirmation) zoneConfirmation.remove();
+            var estCache = zonePrompt.classList.toggle('hidden');
+            boutonVoirPrompt.textContent = estCache ? 'Voir le prompt complet' : 'Masquer le prompt';
         });
     }
 })();
