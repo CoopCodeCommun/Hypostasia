@@ -554,11 +554,15 @@ class AIModel(models.Model):
     # Sources : https://ai.google.dev/gemini-api/docs/pricing
     #           https://openai.com/api/pricing/
     # / Pricing per million tokens (input, output) in USD
+    # Tarifs mis a jour le 2026-03-15 depuis :
+    #   https://ai.google.dev/pricing
+    #   https://openai.com/api/pricing/
+    # / Pricing updated 2026-03-15 from official sources
     TARIFS_PAR_MILLION_TOKENS = {
-        # Google Gemini — prix input/output par million de tokens
-        # / Google Gemini — input/output price per million tokens
+        # Google Gemini — prix standard (paid tier) input/output par million de tokens
+        # / Google Gemini — standard (paid tier) input/output price per million tokens
         "gemini-2.5-pro": (1.25, 10.00),
-        "gemini-2.5-flash": (0.15, 0.60),
+        "gemini-2.5-flash": (0.30, 2.50),
         "gemini-2.5-flash-lite": (0.075, 0.30),
         "gemini-2.0-flash": (0.10, 0.40),
         "gemini-2.0-flash-lite": (0.075, 0.30),

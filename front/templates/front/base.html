@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hypostasia — Bibliothèque</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
-    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=21">
+    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=23">
     <script src="{% static 'front/vendor/htmx-2.0.4.min.js' %}"></script>
     <script src="{% static 'front/vendor/sweetalert2-11.min.js' %}"></script>
 </head>
@@ -14,36 +14,47 @@
 
     <!-- Toolbar principale (PHASE-08) -->
     <!-- / Main toolbar (PHASE-08) -->
-    <nav class="h-12 border-b border-slate-200 flex items-center justify-between px-4 bg-white shrink-0 z-30 relative">
-        <!-- Gauche : hamburger + titre -->
-        <!-- / Left: hamburger + title -->
-        <div class="flex items-center gap-3">
-            <button id="btn-hamburger-arbre" class="flex items-center justify-center w-8 h-8 text-slate-500 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors" title="Ouvrir la bibliothèque (T)" aria-label="Ouvrir la bibliothèque" data-testid="btn-hamburger-arbre">
+    <nav class="h-12 border-b border-slate-200 flex items-center px-3 bg-white shrink-0 z-30 relative gap-1">
+        <!-- Gauche : hamburger + titre (prend l'espace restant, tronque) -->
+        <!-- Sur mobile : pas de mot "Hypostasia", juste le titre du document tronque -->
+        <!-- / Left: hamburger + title (takes remaining space, truncated) -->
+        <!-- / On mobile: no "Hypostasia" word, just truncated document title -->
+        <div class="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+            <button id="btn-hamburger-arbre" class="flex items-center justify-center w-8 h-8 text-slate-500 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors shrink-0" title="Ouvrir la bibliothèque (T)" aria-label="Ouvrir la bibliothèque" data-testid="btn-hamburger-arbre">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
                 </svg>
             </button>
-            <span class="font-semibold text-lg tracking-tight">Hypostasia</span>
-            <span id="titre-toolbar" class="text-sm text-slate-400 truncate max-w-xs">{% if page_preloaded %}{{ page_preloaded.title|default:"Sans titre" }}{% endif %}</span>
+            <span class="titre-app-desktop font-semibold text-lg tracking-tight shrink-0">Hypostasia</span>
+            <span id="titre-toolbar" class="text-sm text-slate-400 truncate" data-testid="titre-toolbar">{% if page_preloaded %}{{ page_preloaded.title|default:"Sans titre" }}{% endif %}</span>
         </div>
-        <!-- Droite : boutons d'action + separateur + import + config -->
+        <!-- Droite : boutons d'action (ne se compresse jamais) + separateur + import + config -->
         <!-- / Right: action buttons + separator + import + config -->
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-1 shrink-0">
             <!-- Boutons d'action (certains placeholder) -->
             <!-- / Action buttons (some placeholder) -->
-            <button id="btn-toolbar-dashboard" class="btn-toolbar" title="Dashboard consensus" data-testid="btn-toolbar-dashboard">
+            <button id="btn-toolbar-dashboard" class="btn-toolbar btn-desktop-only" title="Dashboard consensus" data-testid="btn-toolbar-dashboard">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/>
                 </svg>
                 <span class="btn-toolbar-label">Dashboard</span>
             </button>
-            <button id="btn-toolbar-analyser" class="btn-toolbar" title="Lancer une analyse IA sur la page courante" data-testid="btn-toolbar-analyser">
+            <!-- Bouton Analyser — attributs HTMX mis a jour via OOB dans lecture_principale.html -->
+            <!-- / Analyze button — HTMX attributes updated via OOB in lecture_principale.html -->
+            <button id="btn-toolbar-analyser" class="btn-toolbar btn-desktop-only"
+                    title="Lancer une analyse IA sur la page courante"
+                    data-testid="btn-toolbar-analyser"
+                    {% if page_preloaded %}
+                    hx-get="/lire/{{ page_preloaded.pk }}/previsualiser_analyse/"
+                    hx-target="#zone-lecture"
+                    hx-swap="innerHTML"
+                    {% endif %}>
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/>
                 </svg>
                 <span class="btn-toolbar-label">Analyser</span>
             </button>
-            <button id="btn-toolbar-drawer" class="btn-toolbar" title="Vue liste des extractions (E)" data-testid="btn-toolbar-extractions">
+            <button id="btn-toolbar-drawer" class="btn-toolbar btn-desktop-only" title="Vue liste des extractions (E)" data-testid="btn-toolbar-extractions">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
                 </svg>
@@ -68,19 +79,55 @@
                 </svg>
                 <span class="btn-toolbar-label">Débat</span>
             </button>
-            <!-- Bouton aide raccourcis clavier (PHASE-17) -->
-            <!-- / Keyboard shortcuts help button (PHASE-17) -->
-            <button id="btn-toolbar-aide" class="btn-toolbar" title="Raccourcis clavier (?)" data-testid="btn-toolbar-aide" aria-label="Raccourcis clavier">
+            <!-- Bouton toggle mode mobile : surlignage → lecture → heatmap (PHASE-21) -->
+            <!-- Visible uniquement sur mobile, cache sur desktop -->
+            <!-- / Mobile mode toggle button: highlight → reading → heatmap (PHASE-21) -->
+            <!-- / Visible only on mobile, hidden on desktop -->
+            <button id="btn-toolbar-mode-mobile" class="btn-toolbar btn-mobile-only items-center justify-center"
+                    title="Mode : Surlignage (tap pour changer)"
+                    data-testid="btn-toolbar-mode-mobile"
+                    aria-label="Changer le mode d'affichage">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+            </button>
+            <!-- Bouton aide desktop — charge la modale raccourcis clavier via HTMX -->
+            <!-- Cache sur mobile, visible sur desktop -->
+            <!-- / Desktop help button — loads keyboard shortcuts modal via HTMX -->
+            <!-- / Hidden on mobile, visible on desktop -->
+            <button id="btn-toolbar-aide" class="btn-toolbar btn-desktop-only"
+                    title="Raccourcis clavier (?)"
+                    data-testid="btn-toolbar-aide"
+                    aria-label="Raccourcis clavier"
+                    hx-get="/lire/aide/"
+                    hx-target="body"
+                    hx-swap="beforeend">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/>
                 </svg>
             </button>
-            <!-- Separateur -->
-            <!-- / Separator -->
-            <div class="w-px h-5 bg-slate-200 mx-1"></div>
-            <!-- Bouton import fichier (icone compacte) -->
-            <!-- / Compact file import button -->
-            <label class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 cursor-pointer transition-colors" title="Importer un fichier ou audio" data-testid="btn-toolbar-import">
+            <!-- Bouton aide mobile — charge la modale gestes tactiles via HTMX -->
+            <!-- Visible uniquement sur mobile, cache sur desktop -->
+            <!-- / Mobile help button — loads touch gestures modal via HTMX -->
+            <!-- / Visible only on mobile, hidden on desktop -->
+            <button id="btn-toolbar-aide-mobile" class="btn-toolbar btn-mobile-only"
+                    title="Aide"
+                    data-testid="btn-toolbar-aide-mobile"
+                    aria-label="Aide"
+                    hx-get="/lire/aide/?mobile=1"
+                    hx-target="body"
+                    hx-swap="beforeend">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/>
+                </svg>
+            </button>
+            <!-- Separateur (desktop uniquement) -->
+            <!-- / Separator (desktop only) -->
+            <div class="w-px h-5 bg-slate-200 mx-1 btn-desktop-only"></div>
+            <!-- Bouton import fichier (desktop uniquement, sur mobile on importe via l'arbre) -->
+            <!-- / Compact file import button (desktop only, on mobile import via tree) -->
+            <label class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 cursor-pointer transition-colors btn-desktop-only" title="Importer un fichier ou audio" data-testid="btn-toolbar-import">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
                 </svg>
@@ -94,7 +141,7 @@
                hx-target="#zone-lecture"
                hx-swap="innerHTML"
                hx-push-url="/api/analyseurs/"
-               class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors" title="Configurer les LLM" data-testid="btn-toolbar-config-llm">
+               class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors btn-desktop-only" title="Configurer les LLM" data-testid="btn-toolbar-config-llm">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/>
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -189,7 +236,9 @@
     <!-- / Mobile bottom sheet (PHASE-21) -->
     <div id="bottom-sheet-backdrop" class="bottom-sheet-backdrop" data-testid="bottom-sheet-backdrop"></div>
     <div id="bottom-sheet" class="bottom-sheet" aria-label="Detail extraction" data-testid="bottom-sheet">
-        <div class="bottom-sheet-poignee" data-testid="bottom-sheet-poignee" aria-label="Glisser pour fermer"></div>
+        <!-- Bouton fermer (X) en haut a droite du bottom sheet -->
+        <!-- / Close button (X) at top-right of bottom sheet -->
+        <button class="btn-fermer-bottom-sheet" data-testid="btn-fermer-bottom-sheet" aria-label="Fermer" title="Fermer">&times;</button>
         <div id="bottom-sheet-contenu" class="bottom-sheet-contenu" data-testid="bottom-sheet-contenu"></div>
     </div>
 
@@ -239,14 +288,14 @@
 
     <script src="{% static 'front/js/hypostasia.js' %}?v=19"></script>
     <script src="{% static 'front/js/marginalia.js' %}?v=21"></script>
-    <script src="{% static 'front/js/bottom_sheet.js' %}?v=21"></script>
-    <script src="{% static 'front/js/arbre_overlay.js' %}?v=17"></script>
-    <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=19"></script>
+    <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
+    <script src="{% static 'front/js/arbre_overlay.js' %}?v=23"></script>
+    <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=23"></script>
     <script src="{% static 'front/js/dashboard_consensus.js' %}?v=17"></script>
     <script src="{% static 'front/js/transcription_rythme.js' %}?v=15"></script>
     <script src="{% static 'front/js/alignement.js' %}?v=18"></script>
     <script src="{% static 'front/js/notifications_progression.js' %}?v=20"></script>
-    <script src="{% static 'front/js/keyboard.js' %}?v=21"></script>
+    <script src="{% static 'front/js/keyboard.js' %}?v=23"></script>
 
 </body>
 </html>

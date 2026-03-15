@@ -373,7 +373,10 @@ class LectureViewSet(viewsets.ViewSet):
             )
 
         # Contexte commun pour les deux partials
+        # est_requete_htmx sert a conditionner les blocs OOB dans les templates
+        # / est_requete_htmx is used to conditionally render OOB blocks in templates
         ia_active = _get_ia_active()
+        est_requete_htmx = bool(request.headers.get('HX-Request'))
         contexte_partage = {
             "page": page,
             "html_annote": html_annote,
@@ -385,6 +388,7 @@ class LectureViewSet(viewsets.ViewSet):
             "page_racine": page_racine,
             "html_filtre_locuteurs": html_filtre_locuteurs,
             "html_timeline": html_timeline,
+            "est_requete_htmx": est_requete_htmx,
         }
 
         if request.headers.get('HX-Request'):
@@ -670,6 +674,41 @@ class LectureViewSet(viewsets.ViewSet):
             reponse["Content-Disposition"] = f'attachment; filename="{nom_fichier}"'
             return reponse
 
+    @action(detail=False, methods=["GET"])
+    def aide(self, request):
+        """
+        Renvoie la modale d'aide adaptee au contexte (mobile ou desktop).
+        Le contenu est un template Django modifiable en HTML.
+        / Returns the help modal adapted to the context (mobile or desktop).
+        Content is a Django template editable in HTML.
+        """
+        # Detecter le contexte mobile via le query param ou le User-Agent
+        # / Detect mobile context via query param or User-Agent
+        est_mobile = request.GET.get("mobile") == "1"
+
+        if est_mobile:
+            return render(request, "front/includes/aide_mobile.html")
+
+        # Desktop : passer la liste des raccourcis clavier
+        # / Desktop: pass the keyboard shortcuts list
+        liste_raccourcis = [
+            ("T", "Ouvrir/fermer la biblioth\u00e8que"),
+            ("E", "Ouvrir/fermer le panneau extractions"),
+            ("L", "Mode focus lecture"),
+            ("J", "Extraction suivante"),
+            ("K", "Extraction pr\u00e9c\u00e9dente"),
+            ("C", "Commenter l\u2019extraction s\u00e9lectionn\u00e9e"),
+            ("S", "Marquer consensuelle"),
+            ("X", "Masquer l\u2019extraction"),
+            ("H", "Heat map du d\u00e9bat"),
+            ("A", "Comparer / Aligner des pages"),
+            ("?", "Afficher cette aide"),
+            ("Esc", "Fermer le panneau actif"),
+        ]
+        return render(request, "front/includes/aide_desktop.html", {
+            "raccourcis": liste_raccourcis,
+        })
+
     @action(detail=True, methods=["GET"], url_path="previsualiser_analyse")
     def previsualiser_analyse(self, request, pk=None):
         """
@@ -710,18 +749,33 @@ class LectureViewSet(viewsets.ViewSet):
         pieces_ordonnees = PromptPiece.objects.filter(
             analyseur=analyseur,
         ).order_by("order")
-        texte_prompt_pieces = "\n".join(piece.content for piece in pieces_ordonnees)
+        # Concatene le contenu de chaque morceau de prompt en un seul texte
+        # / Concatenate the content of each prompt piece into a single text
+        segments_contenu_prompt = []
+        for piece in pieces_ordonnees:
+            segments_contenu_prompt.append(piece.content)
+        texte_prompt_pieces = "\n".join(segments_contenu_prompt)
 
         # Serialise les exemples few-shot en texte lisible
+        # (few-shot = montrer au LLM quelques exemples pour guider sa reponse)
         # / Serialize few-shot examples as readable text
+        # (few-shot = showing the LLM a few examples to guide its response)
         tous_les_exemples = AnalyseurExample.objects.filter(
             analyseur=analyseur,
         ).order_by("order").prefetch_related("extractions__attributes")
 
+        # Construire le texte des exemples (nom + texte source + extractions attendues)
+        # / Build example text (name + source text + expected extractions)
         texte_exemples = ""
         for exemple in tous_les_exemples:
             texte_exemples += f"\n--- Exemple : {exemple.name} ---\n"
-            texte_exemples += f"Texte source :\n{exemple.example_text[:500]}...\n" if len(exemple.example_text) > 500 else f"Texte source :\n{exemple.example_text}\n"
+            # Tronquer le texte source si plus de 500 caracteres
+            # / Truncate source text if longer than 500 characters
+            if len(exemple.example_text) > 500:
+                texte_source_exemple = f"{exemple.example_text[:500]}...\n"
+            else:
+                texte_source_exemple = f"{exemple.example_text}\n"
+            texte_exemples += f"Texte source :\n{texte_source_exemple}"
             for extraction in exemple.extractions.all():
                 texte_exemples += f"\n  [{extraction.extraction_class}] {extraction.extraction_text}\n"
                 for attribut in extraction.attributes.all():
@@ -745,15 +799,21 @@ class LectureViewSet(viewsets.ViewSet):
         encodeur_tokens = tiktoken.get_encoding("cl100k_base")
         nombre_tokens_input = len(encodeur_tokens.encode(prompt_complet))
 
-        # Estimation du nombre de tokens output (20% de l'input)
-        # / Estimate output token count (20% of input)
-        nombre_tokens_output_estime = int(nombre_tokens_input * 0.20)
+        # Estimation du nombre de tokens output (50% de l'input)
+        # Mesure reelle sur 18 extractions : 52% — on arrondit a 50%
+        # / Estimate output token count (50% of input)
+        # Real measurement on 18 extractions: 52% — rounded to 50%
+        nombre_tokens_output_estime = int(nombre_tokens_input * 0.50)
 
         # Estimation du cout en euros via la methode du modele
+        # Marge x2 arrondi au centime superieur pour absorber les variations
         # / Cost estimate in euros via the model method
-        cout_estime_euros = modele_ia_actif.estimer_cout_euros(
+        # x2 margin rounded up to next cent to absorb variations
+        import math
+        cout_brut_euros = modele_ia_actif.estimer_cout_euros(
             nombre_tokens_input, nombre_tokens_output_estime
         )
+        cout_estime_euros = math.ceil(cout_brut_euros * 2 * 100) / 100
 
         return render(request, "front/includes/confirmation_analyse.html", {
             "page": page,

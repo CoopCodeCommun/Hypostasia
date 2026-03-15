@@ -15,17 +15,20 @@
 </div>
 {% endif %}
 
-{# === 2. Corps : resume IA en B612 Mono (texte machine) === #}
-{# / === 2. Body: AI summary in B612 Mono (machine text) === #}
+{# === 2. Corps : resume IA en police B612 Mono === #}
+{# La classe typo-machine est definie dans hypostasia.css (PHASE-11) #}
+{# Elle utilise une police mono pour signaler que c'est l'IA qui a ecrit ce texte #}
+{# / === 2. Body: AI summary in B612 Mono font === #}
+{# typo-machine class defined in hypostasia.css (PHASE-11) #}
+{# Uses mono font to signal this text was written by the AI #}
 {% if attr_1 %}
 <p class="typo-machine mb-1.5 leading-snug">{{ attr_1 }}</p>
 {% endif %}
 
-{# === 3. Citation source humaine en Lora italique entre crochets === #}
-{# / === 3. Human source citation in Lora italic in brackets === #}
-{% if text %}
-<p class="typo-citation line-clamp-3 mb-2 leading-relaxed">[{{ text }}]</p>
-{% endif %}
+{# Citation source retiree — le resume IA suffit, le texte source est visible #}
+{# dans le surlignage du texte (scroll auto sur mobile, pastille marge sur desktop) #}
+{# / Source citation removed — AI summary is enough, source text is visible #}
+{# / in text highlighting (auto-scroll on mobile, margin dot on desktop) #}
 
 {# === 4. Footer : statut de debat (badge colore + icone Unicode) === #}
 {# / === 4. Footer: debate status (colored badge + Unicode icon) === #}
