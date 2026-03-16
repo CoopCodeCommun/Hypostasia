@@ -14,7 +14,7 @@ Usage :
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 
-from core.models import Dossier, DossierPartage, Page
+from core.models import Dossier, DossierPartage, Page, VisibiliteDossier
 from hypostasis_extractor.models import (
     CommentaireExtraction,
     ExtractedEntity,
@@ -157,6 +157,48 @@ COMMENTAIRES_DEMO = [
 ]
 
 
+# =============================================================================
+# Commentaires sur les pages Wikipedia (PHASE-26a)
+# Ajoutes pour tester le filtre contributeur avec des donnees reelles.
+# Chaque tuple = (titre_page_partiel, index_entite, username, commentaire)
+# / Comments on Wikipedia pages (PHASE-26a)
+# / Added to test the contributor filter with real data.
+# / Each tuple = (partial_page_title, entity_index, username, comment)
+# =============================================================================
+
+COMMENTAIRES_PAGES_WIKIPEDIA = [
+    # --- Elinor Ostrom ---
+    ("Elinor Ostrom", 0, "marie", "Les huit principes de gouvernance d'Ostrom sont plus pertinents que jamais face à l'IA générative. Qui fixe les règles d'usage de ChatGPT ?"),
+    ("Elinor Ostrom", 0, "thomas", "La comparaison entre biens communs naturels et communs numériques a ses limites : un logiciel libre est non-rival, contrairement à un pâturage."),
+    ("Elinor Ostrom", 0, "fatima", "Il faudrait relire Ostrom en parallèle avec les travaux de Benkler sur la production par les pairs — c'est la même logique étendue au numérique."),
+    ("Elinor Ostrom", 1, "pierre", "L'autogouvernement sans État ni marché : c'est exactement ce que tentent les communautés open source. Mais à l'échelle de l'IA, est-ce réaliste ?"),
+    ("Elinor Ostrom", 1, "marie", "Ostrom elle-même nuançait : l'autogouvernement marche pour des communautés de taille limitée. Meta et Google ne sont pas des communautés."),
+    ("Elinor Ostrom", 2, "thomas", "La tragédie des communs de Hardin est trop souvent citée sans connaître la réponse d'Ostrom. C'est devenu un mythe qui justifie la privatisation."),
+    ("Elinor Ostrom", 2, "fatima", "En même temps, dire que les communs fonctionnent toujours est aussi un mythe. Ostrom documentait autant les échecs que les succès."),
+    ("Elinor Ostrom", 3, "pierre", "La réciprocité et la confiance sont les deux piliers qu'on retrouve dans tous les projets open source qui durent — Linux, Wikipedia, Debian."),
+
+    # --- Laurent Alexandre ---
+    ("Laurent Alexandre", 0, "fatima", "Alexandre vulgarise des idées complexes mais les caricature souvent. La singularité « pas avant 2100 » — sur quoi se base-t-il exactement ?"),
+    ("Laurent Alexandre", 0, "thomas", "Malgré les excès, Alexandre pose une vraie question : que fait-on quand l'IA surpasse l'humain dans tous les domaines cognitifs ?"),
+    ("Laurent Alexandre", 0, "pierre", "La rhétorique alarmiste d'Alexandre sert surtout à vendre des livres. Sadin a bien montré comment ce type de discours nourrit l'industrie qu'il prétend critiquer."),
+    ("Laurent Alexandre", 1, "marie", "L'opposition entre augmentation cognitive et revenu universel est un faux dilemme. On peut investir dans l'éducation ET dans la protection sociale."),
+    ("Laurent Alexandre", 1, "fatima", "Rejeter le revenu universel au nom du darwinisme social est profondément problématique. L'humanité a précisément évolué vers la coopération."),
+    ("Laurent Alexandre", 2, "thomas", "Luc Julia et les critiques académiques convergent : Alexandre simplifie la complexité de l'IA pour en faire un récit spectaculaire."),
+    ("Laurent Alexandre", 2, "pierre", "Le fait qu'Acrimed le qualifie de « militant politique sous couvert de vulgarisation » résume bien le problème."),
+    ("Laurent Alexandre", 3, "marie", "La guerre des intelligences est un livre intéressant mais daté. L'irruption de ChatGPT a invalidé une partie de ses prévisions temporelles."),
+
+    # --- Éric Sadin ---
+    ("Sadin", 0, "thomas", "Le concept de « silicolonisation » est puissant mais risque de tout réduire à un complot de la Silicon Valley. La réalité est plus nuancée."),
+    ("Sadin", 0, "marie", "Sadin a eu raison avant tout le monde sur la surveillance numérique — Snowden l'a confirmé 4 ans après Surveillance globale."),
+    ("Sadin", 0, "pierre", "Le philosophe pose les bonnes questions mais ses solutions restent vagues. « Faire sécession » n'est pas un programme politique."),
+    ("Sadin", 1, "fatima", "L'alerte de Sadin sur « deux ou trois ans pour agir » face à l'IA générative mérite d'être prise au sérieux, même si le délai est discutable."),
+    ("Sadin", 1, "thomas", "Le contre-sommet IA de 2025 est une initiative salutaire. Il faut des espaces de débat contradictoire face aux discours techno-optimistes."),
+    ("Sadin", 2, "marie", "Sadin a raison de s'inquiéter pour les professions intellectuelles touchées par l'IA — traducteurs, journalistes, enseignants. Mais quelle alternative propose-t-il ?"),
+    ("Sadin", 2, "pierre", "La question de Libération est vertigineuse : « que va-t-il rester à l'humanité ? ». C'est la question philosophique centrale de notre époque."),
+    ("Sadin", 2, "fatima", "Sadin et Alexandre représentent les deux pôles du débat. Ostrom, elle, nous offrirait une voie médiane : gouverner collectivement la technologie."),
+]
+
+
 def _construire_html_depuis_texte(texte_brut):
     """
     Construit du HTML simple a partir de texte brut (paragraphes).
@@ -198,20 +240,27 @@ class Command(BaseCommand):
         tous_les_users_demo = self._creer_users_demo()
         user_admin = tous_les_users_demo.get("jonas")
 
-        # 2. Recupere ou cree le dossier cible avec owner
-        # / Get or create target folder with owner
+        # 2. Recupere ou cree le dossier cible avec owner, visibilite publique (PHASE-26a)
+        # / Get or create target folder with owner, public visibility (PHASE-26a)
         dossier, dossier_cree = Dossier.objects.get_or_create(
             name=nom_dossier,
-            defaults={"owner": user_admin},
+            defaults={"owner": user_admin, "visibilite": VisibiliteDossier.PUBLIC},
         )
         if dossier_cree:
-            self.stdout.write(f"  Dossier créé : {nom_dossier}")
+            self.stdout.write(f"  Dossier créé : {nom_dossier} (public)")
         else:
-            # Mettre a jour l'owner si absent / Update owner if missing
+            # Mettre a jour l'owner et la visibilite si necessaire
+            # / Update owner and visibility if needed
+            champs_modifies = []
             if not dossier.owner and user_admin:
                 dossier.owner = user_admin
-                dossier.save(update_fields=["owner"])
-            self.stdout.write(f"  Dossier existant : {nom_dossier} (pk={dossier.pk})")
+                champs_modifies.append("owner")
+            if dossier.visibilite != VisibiliteDossier.PUBLIC:
+                dossier.visibilite = VisibiliteDossier.PUBLIC
+                champs_modifies.append("visibilite")
+            if champs_modifies:
+                dossier.save(update_fields=champs_modifies)
+            self.stdout.write(f"  Dossier existant : {nom_dossier} (pk={dossier.pk}, public)")
 
         # 3. Creer un partage demo : dossier "Petits textes" partage avec marie
         # / Create a demo share: "Petits textes" folder shared with marie
@@ -291,6 +340,10 @@ class Command(BaseCommand):
         # 5. Ajoute les commentaires sur les extractions de la page 69
         # / Add comments on page 69 extractions
         self._ajouter_commentaires_page_69(tous_les_users_demo)
+
+        # 6. Ajoute les commentaires sur les pages Wikipedia (PHASE-26a)
+        # / Add comments on Wikipedia pages (PHASE-26a)
+        self._ajouter_commentaires_pages_wikipedia(tous_les_users_demo)
 
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(
@@ -418,4 +471,89 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f"  Page 69 : {nombre_commentaires_crees} commentaires créés"
+        ))
+
+    def _ajouter_commentaires_pages_wikipedia(self, tous_les_users):
+        """
+        Ajoute des commentaires de demonstration sur les extractions des pages Wikipedia
+        (Ostrom, Alexandre, Sadin) pour tester le filtre contributeur (PHASE-26a).
+        / Add demo comments on Wikipedia page extractions
+        (Ostrom, Alexandre, Sadin) to test the contributor filter (PHASE-26a).
+        """
+        nombre_total_commentaires_crees = 0
+
+        # Grouper les commentaires par page (titre partiel)
+        # / Group comments by page (partial title)
+        commentaires_par_titre = {}
+        for titre_partiel, index_entite, username_auteur, texte_commentaire in COMMENTAIRES_PAGES_WIKIPEDIA:
+            if titre_partiel not in commentaires_par_titre:
+                commentaires_par_titre[titre_partiel] = []
+            commentaires_par_titre[titre_partiel].append(
+                (index_entite, username_auteur, texte_commentaire)
+            )
+
+        for titre_partiel, liste_commentaires in commentaires_par_titre.items():
+            # Chercher la page par titre partiel
+            # / Find the page by partial title
+            page_cible = Page.objects.filter(title__icontains=titre_partiel).first()
+            if not page_cible:
+                self.stdout.write(f"  Page '{titre_partiel}' : introuvable, commentaires ignorés.")
+                continue
+
+            # Recuperer le dernier job termine
+            # / Get the latest completed job
+            dernier_job = (
+                ExtractionJob.objects
+                .filter(page=page_cible, status="completed")
+                .order_by("-created_at")
+                .first()
+            )
+            if not dernier_job:
+                self.stdout.write(f"  Page '{titre_partiel}' (pk={page_cible.pk}) : aucun job complété, commentaires ignorés.")
+                continue
+
+            # Recuperer les entites triees par position
+            # / Get entities sorted by position
+            toutes_les_entites_du_job = list(
+                dernier_job.entities
+                .filter(masquee=False)
+                .order_by("start_char")
+            )
+            if not toutes_les_entites_du_job:
+                self.stdout.write(f"  Page '{titre_partiel}' (pk={page_cible.pk}) : aucune entité, commentaires ignorés.")
+                continue
+
+            nombre_commentaires_page = 0
+            for index_entite, username_auteur, texte_commentaire in liste_commentaires:
+                if index_entite >= len(toutes_les_entites_du_job):
+                    continue
+
+                entite_cible = toutes_les_entites_du_job[index_entite]
+                user_auteur = tous_les_users.get(username_auteur)
+                if not user_auteur:
+                    continue
+
+                # Eviter les doublons / Avoid duplicates
+                commentaire_existe_deja = CommentaireExtraction.objects.filter(
+                    entity=entite_cible,
+                    user=user_auteur,
+                    commentaire=texte_commentaire,
+                ).exists()
+                if commentaire_existe_deja:
+                    continue
+
+                CommentaireExtraction.objects.create(
+                    entity=entite_cible,
+                    user=user_auteur,
+                    commentaire=texte_commentaire,
+                )
+                nombre_commentaires_page += 1
+
+            nombre_total_commentaires_crees += nombre_commentaires_page
+            self.stdout.write(self.style.SUCCESS(
+                f"  Page '{titre_partiel}' (pk={page_cible.pk}) : {nombre_commentaires_page} commentaires créés"
+            ))
+
+        self.stdout.write(self.style.SUCCESS(
+            f"  Pages Wikipedia : {nombre_total_commentaires_crees} commentaires créés au total"
         ))

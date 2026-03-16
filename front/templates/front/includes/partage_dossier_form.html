@@ -1,5 +1,5 @@
-{# Partial: Formulaire de partage d'un dossier (PHASE-25) #}
-{# / Partial: Folder sharing form (PHASE-25) #}
+{# Partial: Formulaire de partage d'un dossier (PHASE-25c) #}
+{# / Partial: Folder sharing form (PHASE-25c) #}
 {# LOCALISATION : front/templates/front/includes/partage_dossier_form.html #}
 <div class="p-3 space-y-3" data-testid="partage-dossier-form">
     <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -26,10 +26,8 @@
 
     {# Liste des utilisateurs deja partages #}
     {# / List of already shared users #}
-    {% if partages %}
-    <div class="space-y-1">
-        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Partage avec :</p>
-        {% for partage in partages %}
+    {% for partage in partages %}
+        {% if partage.utilisateur %}
         <div class="flex items-center justify-between py-1 px-2 bg-slate-50 rounded" data-testid="partage-user-row">
             <span class="text-sm text-slate-700">{{ partage.utilisateur.username }}</span>
             <form hx-post="/dossiers/{{ dossier.pk }}/partager/"
@@ -47,9 +45,112 @@
                 </button>
             </form>
         </div>
+        {% endif %}
+    {% endfor %}
+
+    {# Section partage par groupes #}
+    {# / Group sharing section #}
+    {% if groupes_disponibles.count %}
+    <div class="border-t border-slate-200 pt-2 mt-2">
+        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-1">Partager avec un groupe</p>
+        {% for groupe in groupes_disponibles %}
+        <div class="flex items-center justify-between py-1 px-2 rounded {% if groupe.pk in ids_groupes_partages %}bg-blue-50{% else %}bg-slate-50{% endif %}" data-testid="partage-groupe-row">
+            <div>
+                <span class="text-sm text-slate-700">{{ groupe.nom }}</span>
+                <span class="text-[10px] text-slate-400">({{ groupe.membres.count }} membre{{ groupe.membres.count|pluralize:"s" }})</span>
+            </div>
+            {% if groupe.pk in ids_groupes_partages %}
+            <form hx-post="/dossiers/{{ dossier.pk }}/partager/"
+                  hx-target="#partage-contenu-{{ dossier.pk }}"
+                  hx-swap="innerHTML" class="inline">
+                <input type="hidden" name="retirer_groupe_id" value="{{ groupe.pk }}">
+                <button type="submit" data-testid="partage-btn-retirer-groupe" class="text-xs text-red-400 hover:text-red-600" title="Retirer le partage du groupe" aria-label="Retirer le partage du groupe">Retirer</button>
+            </form>
+            {% else %}
+            <form hx-post="/dossiers/{{ dossier.pk }}/partager/"
+                  hx-target="#partage-contenu-{{ dossier.pk }}"
+                  hx-swap="innerHTML" class="inline">
+                <input type="hidden" name="groupe_id" value="{{ groupe.pk }}">
+                <button type="submit" data-testid="partage-btn-partager-groupe" class="text-xs text-blue-600 hover:text-blue-800" title="Partager avec ce groupe" aria-label="Partager avec ce groupe">Partager</button>
+            </form>
+            {% endif %}
+        </div>
         {% endfor %}
     </div>
-    {% else %}
+    {% endif %}
+
+    {# Section invitation par email (PHASE-25d) #}
+    {# / Email invitation section (PHASE-25d) #}
+    <div class="border-t border-slate-200 pt-2 mt-2">
+        <p class="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-1">Inviter par email</p>
+        <form hx-post="/dossiers/{{ dossier.pk }}/inviter/"
+              hx-target="#partage-contenu-{{ dossier.pk }}"
+              hx-swap="innerHTML"
+              class="flex items-center gap-2"
+              aria-label="Inviter par email">
+            <input type="email" name="email" placeholder="email@exemple.com"
+                   data-testid="inviter-input-email"
+                   class="flex-1 text-sm border border-slate-300 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                   required>
+            <button type="submit"
+                    data-testid="inviter-btn-envoyer"
+                    class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors">
+                Inviter
+            </button>
+        </form>
+        {# Invitations en attente #}
+        {# / Pending invitations #}
+        {% for invitation in invitations_en_attente %}
+        <div class="flex items-center justify-between py-1 px-2 bg-amber-50 rounded mt-1" data-testid="invitation-en-attente">
+            <span class="text-sm text-amber-700">{{ invitation.email }}</span>
+            <span class="text-[10px] text-amber-500">en attente</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    {# Lien gestion groupes — toujours visible, avec texte d'aide si pas de groupes #}
+    {# / Group management link — always visible, with help text if no groups #}
+    <div class="border-t border-slate-200 pt-2 mt-2">
+        <details class="groupe-gestion" {% if not groupes_disponibles.count %}open{% endif %}>
+            <summary class="text-xs text-blue-600 hover:text-blue-800 cursor-pointer font-medium flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/>
+                </svg>
+                Gerer les groupes
+            </summary>
+            {% if not groupes_disponibles.count %}
+            <p class="text-[10px] text-slate-400 mt-1 mb-2">Creez un groupe pour partager un dossier avec plusieurs personnes en un clic.</p>
+            {% endif %}
+            <div class="mt-2 space-y-2">
+                {# Creer un nouveau groupe #}
+                <form hx-post="/groupes/"
+                      hx-target="closest .groupe-gestion"
+                      hx-swap="afterend"
+                      class="flex items-center gap-1">
+                    <input type="text" name="nom" placeholder="Nom du groupe"
+                           data-testid="groupe-input-nom"
+                           class="flex-1 text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400" required>
+                    <button type="submit" data-testid="groupe-btn-creer" class="px-2 py-1 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded" aria-label="Creer un groupe">Creer</button>
+                </form>
+                {# Liste inline des groupes existants #}
+                {% for groupe in groupes_disponibles %}
+                <div class="groupe-item">
+                    <div class="flex items-center justify-between py-1 px-2 bg-slate-50 rounded">
+                        <span class="text-xs text-slate-700">{{ groupe.nom }} ({{ groupe.membres.count }})</span>
+                        <button hx-get="/groupes/{{ groupe.pk }}/detail/"
+                                hx-target="closest .groupe-item"
+                                hx-swap="innerHTML"
+                                data-testid="groupe-btn-details"
+                                class="text-xs text-blue-500 hover:text-blue-700"
+                                aria-label="Details du groupe {{ groupe.nom }}">Details</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </details>
+    </div>
+
+    {% if not partages and not groupes_disponibles.count %}
     <p class="text-xs text-slate-400">Aucun partage pour ce dossier.</p>
     {% endif %}
 </div>

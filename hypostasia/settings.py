@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'django_htmx',
     'corsheaders',
     'solo',
@@ -127,6 +128,13 @@ USE_I18N = True
 USE_TZ = True
 
 # CORS & CSRF Settings for Extension
+# Headers CORS autorises — inclut Authorization pour le token API de l'extension
+# / Allowed CORS headers — includes Authorization for extension API token
+CORS_ALLOW_HEADERS = [
+    "accept", "content-type", "authorization",
+    "x-csrftoken", "x-requested-with",
+]
+
 CORS_ALLOW_ALL_ORIGINS = True
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
@@ -176,6 +184,21 @@ CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes max par tache / 30 min max per ta
 LOGIN_URL = "/auth/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/auth/login/"
+
+
+# =============================================================================
+# Email — console backend en dev, SMTP via env vars en prod
+# / Email — console backend in dev, SMTP via env vars in prod
+# =============================================================================
+
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True").lower() == "true"
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@hypostasia.org")
+SITE_URL = os.environ.get("SITE_URL", "http://localhost:8123")
 
 
 AUDIO_TEMP_DIR = BASE_DIR / "tmp" / "audio"

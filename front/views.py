@@ -15,7 +15,7 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, Configuration, Dossier, DossierPartage, Page, Question, ReponseQuestion
+from core.models import AIModel, Configuration, Dossier, DossierPartage, DossierSuivi, GroupeUtilisateurs, Invitation, Page, Question, ReponseQuestion, VisibiliteDossier
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
     ExampleExtraction, ExtractionAttribute,
@@ -23,11 +23,13 @@ from hypostasis_extractor.models import (
 )
 from django.contrib.auth.models import User as AuthUser
 from .serializers import (
-    ChangerStatutSerializer,
+    ChangerStatutSerializer, ChangerVisibiliteSerializer,
     CommentaireExtractionSerializer, DossierCreateSerializer,
     DossierPartageSerializer, DossierRenommerSerializer,
     EditerBlocSerializer,
-    ExtractionManuelleSerializer, ExtractionSerializer, ImportFichierSerializer,
+    ExtractionManuelleSerializer, ExtractionSerializer,
+    GroupeAjouterMembreSerializer, GroupeCreateSerializer,
+    ImportFichierSerializer, InviterEmailSerializer,
     ModifierCommentaireSerializer, ModifierTitrePageSerializer,
     PageClasserSerializer, PromouvoirEntrainementSerializer,
     QuestionSerializer, RenommerLocuteurSerializer, ReponseQuestionSerializer,
@@ -64,14 +66,156 @@ def _exiger_authentification(request):
     return redirect("/auth/login/")
 
 
+def _utilisateur_a_acces_dossier(utilisateur, dossier):
+    """
+    Verifie si un utilisateur a acces en lecture a un dossier.
+    Public → tout le monde. Owner → oui. Legacy (owner=None) → tout authentifie.
+    Partage direct ou via groupe → oui. Sinon → non.
+    / Checks if a user has read access to a folder.
+    Public → everyone. Owner → yes. Legacy (owner=None) → any authenticated.
+    Direct or group share → yes. Otherwise → no.
+
+    LOCALISATION : front/views.py
+
+    FLUX :
+    1. Dossier public → True pour tous (y compris anonymes)
+    2. Owner → True
+    3. Legacy (owner=None) → True pour tout authentifie
+    4. Partage direct (DossierPartage.utilisateur) → True
+    5. Partage via groupe (DossierPartage.groupe.membres) → True
+    6. Sinon → False
+    """
+    if dossier is None:
+        return False
+
+    # Dossier public → accessible a tous (y compris anonymes)
+    # / Public folder → accessible to all (including anonymous)
+    if dossier.visibilite == VisibiliteDossier.PUBLIC:
+        return True
+
+    # Owner du dossier → toujours acces
+    # / Folder owner → always access
+    if utilisateur and utilisateur.is_authenticated and dossier.owner == utilisateur:
+        return True
+
+    # Legacy (owner=None) → tout utilisateur authentifie a acces
+    # / Legacy (owner=None) → any authenticated user has access
+    if dossier.owner is None and utilisateur and utilisateur.is_authenticated:
+        return True
+
+    # Partage direct (DossierPartage.utilisateur)
+    # / Direct share (DossierPartage.utilisateur)
+    if utilisateur and utilisateur.is_authenticated:
+        partage_direct_existe = DossierPartage.objects.filter(
+            dossier=dossier, utilisateur=utilisateur,
+        ).exists()
+        if partage_direct_existe:
+            return True
+
+        # Partage via groupe (DossierPartage.groupe.membres)
+        # / Share via group (DossierPartage.groupe.membres)
+        partage_groupe_existe = DossierPartage.objects.filter(
+            dossier=dossier, groupe__membres=utilisateur,
+        ).exists()
+        if partage_groupe_existe:
+            return True
+
+    return False
+
+
+def _utilisateur_peut_ecrire_dossier(utilisateur, dossier):
+    """
+    Verifie si un utilisateur peut ecrire dans un dossier.
+    Meme logique que _utilisateur_a_acces_dossier, sauf :
+    - Exige authentification
+    - Anonymes sur dossiers publics → non
+    / Checks if a user can write to a folder.
+    Same logic as _utilisateur_a_acces_dossier, except:
+    - Requires authentication
+    - Anonymous on public folders → no
+
+    LOCALISATION : front/views.py
+    """
+    if not utilisateur or not utilisateur.is_authenticated:
+        return False
+    if dossier is None:
+        return False
+    return _utilisateur_a_acces_dossier(utilisateur, dossier)
+
+
+def _reponse_acces_refuse(request):
+    """
+    Construit la reponse 403 — template HTML complet ou texte court pour HTMX.
+    / Builds the 403 response — full HTML template or short text for HTMX.
+
+    LOCALISATION : front/views.py
+    """
+    # Requete HTMX → reponse courte inline (pas de page complete)
+    # / HTMX request → short inline response (no full page)
+    if request.headers.get("HX-Request"):
+        return HttpResponse(
+            '<p class="text-sm text-red-600 p-3">Acces refuse.</p>',
+            status=403,
+        )
+    # Acces direct (F5 ou URL) → template complet avec navigation
+    # / Direct access (F5 or URL) → full template with navigation
+    return render(request, "front/acces_refuse.html", status=403)
+
+
+def _verifier_acces_page(request, page):
+    """
+    Verifie l'acces en lecture a une page via son dossier.
+    Retourne None si OK, ou HttpResponse 403 si acces refuse.
+    Page sans dossier : accessible uniquement par son owner.
+    / Checks read access to a page via its folder.
+    Returns None if OK, or HttpResponse 403 if access denied.
+    Page without folder: accessible only by its owner.
+
+    LOCALISATION : front/views.py
+
+    DEPENDENCIES :
+    - _utilisateur_a_acces_dossier() pour la verification du dossier
+    - _reponse_acces_refuse() pour la reponse 403
+    """
+    if page.dossier:
+        if _utilisateur_a_acces_dossier(request.user, page.dossier):
+            return None
+        return _reponse_acces_refuse(request)
+
+    # Page sans dossier → accessible par son owner ou legacy (owner=None)
+    # / Page without folder → accessible by owner or legacy (owner=None)
+    if page.owner is None:
+        if request.user.is_authenticated:
+            return None
+        return _reponse_acces_refuse(request)
+    if request.user.is_authenticated and page.owner == request.user:
+        return None
+    return _reponse_acces_refuse(request)
+
+
+def _obtenir_ou_creer_dossier_imports(utilisateur):
+    """
+    Retourne (ou cree) le dossier "Mes imports" pour l'utilisateur.
+    Appel idempotent : si le dossier existe deja, on le retourne tel quel.
+    / Returns (or creates) the "Mes imports" folder for the user.
+    Idempotent: if the folder already exists, returns it as-is.
+
+    LOCALISATION : front/views.py
+    """
+    dossier_imports, _cree = Dossier.objects.get_or_create(
+        name="Mes imports", owner=utilisateur,
+    )
+    return dossier_imports
+
+
 def _render_arbre(request):
     """
     Helper interne — renvoie le partial HTML de l'arbre de dossiers.
-    Filtre par owner si l'utilisateur est connecte (mes dossiers + partages + legacy).
-    Anonyme : tout voir (mode lecture seule).
+    3 sections : Mes dossiers, Partages avec moi, Dossiers publics.
+    Anonyme : uniquement les dossiers publics.
     / Internal helper — returns the folder tree HTML partial.
-    Filters by owner if user is logged in (own + shared + legacy).
-    Anonymous: see everything (read-only mode).
+    3 sections: My folders, Shared with me, Public folders.
+    Anonymous: only public folders.
     """
     # Exclure les restitutions de l'arbre (ne montrer que les pages racines)
     # / Exclude restitutions from tree (only show root pages)
@@ -81,34 +225,95 @@ def _render_arbre(request):
     )
 
     if request.user.is_authenticated:
-        # Connecte : mes dossiers + partages + dossiers sans owner (legacy)
-        # / Logged in: own + shared + ownerless folders (legacy)
-        ids_dossiers_partages = DossierPartage.objects.filter(
+        # Mes dossiers : owner=moi ou legacy (owner=null)
+        # / My folders: owner=me or legacy (owner=null)
+        mes_dossiers = Dossier.objects.prefetch_related(
+            pages_racines_seulement,
+        ).filter(
+            Q(owner=request.user) | Q(owner__isnull=True)
+        ).distinct()
+
+        # Dossiers partages avec moi (direct ou via groupe), excluant mes propres dossiers
+        # / Folders shared with me (direct or via group), excluding my own folders
+        ids_dossiers_partages_directs = DossierPartage.objects.filter(
+            utilisateur=request.user,
+        ).values_list("dossier_id", flat=True)
+        ids_dossiers_partages_groupe = DossierPartage.objects.filter(
+            groupe__membres=request.user,
+        ).values_list("dossier_id", flat=True)
+
+        dossiers_partages = Dossier.objects.prefetch_related(
+            pages_racines_seulement,
+        ).select_related("owner").filter(
+            Q(pk__in=ids_dossiers_partages_directs) | Q(pk__in=ids_dossiers_partages_groupe)
+        ).exclude(
+            Q(owner=request.user) | Q(owner__isnull=True)
+        ).distinct()
+
+        # Dossiers suivis (PHASE-25d) — uniquement ceux qui sont encore publics
+        # / Followed folders (PHASE-25d) — only those still public
+        ids_dossiers_suivis = DossierSuivi.objects.filter(
             utilisateur=request.user,
         ).values_list("dossier_id", flat=True)
 
-        tous_les_dossiers = Dossier.objects.prefetch_related(
-            pages_racines_seulement
-        ).filter(
-            Q(owner=request.user) | Q(pk__in=ids_dossiers_partages) | Q(owner__isnull=True)
+        dossiers_suivis = Dossier.objects.prefetch_related(
+            pages_racines_seulement,
+        ).select_related("owner").filter(
+            pk__in=ids_dossiers_suivis,
+            visibilite=VisibiliteDossier.PUBLIC,
         ).distinct()
 
-        pages_orphelines = Page.objects.filter(
-            dossier__isnull=True, parent_page__isnull=True,
-        ).filter(
+        # Dossiers publics (tous, avec owner affiche) — exclut suivis et partages
+        # / Public folders (all, with owner displayed) — excludes followed and shared
+        dossiers_publics = Dossier.objects.prefetch_related(
+            pages_racines_seulement,
+        ).select_related("owner").filter(
+            visibilite=VisibiliteDossier.PUBLIC,
+        ).exclude(
             Q(owner=request.user) | Q(owner__isnull=True)
-        ).order_by("-created_at")
+        ).exclude(
+            pk__in=ids_dossiers_partages_directs,
+        ).exclude(
+            pk__in=ids_dossiers_partages_groupe,
+        ).exclude(
+            pk__in=ids_dossiers_suivis,
+        ).distinct()
     else:
-        # Anonyme : tout voir (mode lecture seule)
-        # / Anonymous: see everything (read-only mode)
-        tous_les_dossiers = Dossier.objects.prefetch_related(pages_racines_seulement).all()
-        pages_orphelines = Page.objects.filter(
-            dossier__isnull=True, parent_page__isnull=True,
-        ).order_by("-created_at")
+        # Anonyme : uniquement les dossiers publics
+        # / Anonymous: only public folders
+        mes_dossiers = Dossier.objects.none()
+        dossiers_partages = Dossier.objects.none()
+        dossiers_suivis = Dossier.objects.none()
+        dossiers_publics = Dossier.objects.prefetch_related(
+            pages_racines_seulement,
+        ).select_related("owner").filter(
+            visibilite=VisibiliteDossier.PUBLIC,
+        )
+
+    # Calculer le total de pages par section pour affichage dans les headers
+    # / Calculate total pages per section for display in headers
+    total_pages_mes_dossiers = 0
+    for dossier_comptage in mes_dossiers:
+        total_pages_mes_dossiers += dossier_comptage.pages.count()
+    total_pages_partages = 0
+    for dossier_comptage in dossiers_partages:
+        total_pages_partages += dossier_comptage.pages.count()
+    total_pages_suivis = 0
+    for dossier_comptage in dossiers_suivis:
+        total_pages_suivis += dossier_comptage.pages.count()
+    total_pages_publics = 0
+    for dossier_comptage in dossiers_publics:
+        total_pages_publics += dossier_comptage.pages.count()
 
     return render(request, "front/includes/arbre_dossiers.html", {
-        "dossiers": tous_les_dossiers,
-        "pages_orphelines": pages_orphelines,
+        "mes_dossiers": mes_dossiers,
+        "dossiers_partages": dossiers_partages,
+        "dossiers_suivis": dossiers_suivis,
+        "dossiers_publics": dossiers_publics,
+        "total_pages_mes_dossiers": total_pages_mes_dossiers,
+        "total_pages_partages": total_pages_partages,
+        "total_pages_suivis": total_pages_suivis,
+        "total_pages_publics": total_pages_publics,
     })
 
 
@@ -142,6 +347,47 @@ def _calculer_scores_temperature(entites_annotees):
 
     for entite in entites_annotees:
         nombre_commentaires = entite.nombre_commentaires if hasattr(entite, 'nombre_commentaires') else 0
+        est_non_consensuel = 1 if (entite.statut_debat or "discutable") != "consensuel" else 0
+        score_brut = (nombre_commentaires * 1) + (est_non_consensuel * 3)
+        scores_bruts_par_entite[entite.pk] = score_brut
+        if score_brut > score_maximum_du_document:
+            score_maximum_du_document = score_brut
+
+    # Normalisation sur [0, 1] par rapport au max du document
+    # / Normalize to [0, 1] relative to document max
+    scores_normalises = {}
+    for pk, score_brut in scores_bruts_par_entite.items():
+        if score_maximum_du_document > 0:
+            scores_normalises[pk] = score_brut / score_maximum_du_document
+        else:
+            scores_normalises[pk] = 0.0
+
+    return scores_normalises
+
+
+def _calculer_scores_temperature_par_contributeur(entites, identifiant_contributeur):
+    """
+    Calcule les scores de temperature normalises pour un contributeur specifique (PHASE-26a).
+    Ne compte que les commentaires du contributeur filtre.
+    Retourne un dict {entite_pk: score_normalise_entre_0_et_1}.
+    / Compute normalized temperature scores for a specific contributor (PHASE-26a).
+    Only counts comments from the filtered contributor.
+    Returns {entity_pk: normalized_score_between_0_and_1}.
+    """
+    # Compter les commentaires du contributeur par entite
+    # / Count contributor's comments per entity
+    comptages_par_entite = dict(
+        CommentaireExtraction.objects.filter(
+            entity__in=entites,
+            user_id=identifiant_contributeur,
+        ).values_list("entity_id").annotate(nombre=Count("pk"))
+    )
+
+    scores_bruts_par_entite = {}
+    score_maximum_du_document = 0
+
+    for entite in entites:
+        nombre_commentaires = comptages_par_entite.get(entite.pk, 0)
         est_non_consensuel = 1 if (entite.statut_debat or "discutable") != "consensuel" else 0
         score_brut = (nombre_commentaires * 1) + (est_non_consensuel * 3)
         scores_bruts_par_entite[entite.pk] = score_brut
@@ -371,6 +617,13 @@ class LectureViewSet(viewsets.ViewSet):
         Ca permet de mettre a jour le panneau droit sans JS.
         """
         page = get_object_or_404(Page, pk=pk)
+
+        # Verifier l'acces en lecture a la page via son dossier
+        # / Check read access to the page via its folder
+        refus_acces = _verifier_acces_page(request, page)
+        if refus_acces:
+            return refus_acces
+
         analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
 
         # Recupere le dernier job d'extraction termine pour cette page
@@ -407,7 +660,20 @@ class LectureViewSet(viewsets.ViewSet):
             )
             # Annoter le HTML avec des ancres pour le scroll-to-extraction
             # / Annotate HTML with anchors for scroll-to-extraction
-            scores_temperature = _calculer_scores_temperature(entites_existantes)
+
+            # Heat map par contributeur si filtre actif (PHASE-26a)
+            # / Contributor-specific heat map if filter is active (PHASE-26a)
+            parametre_contributeur_lecture = request.query_params.get("contributeur")
+            if parametre_contributeur_lecture:
+                try:
+                    id_contributeur_lecture = int(parametre_contributeur_lecture)
+                    scores_temperature = _calculer_scores_temperature_par_contributeur(
+                        entites_existantes, id_contributeur_lecture,
+                    )
+                except (ValueError, TypeError):
+                    scores_temperature = _calculer_scores_temperature(entites_existantes)
+            else:
+                scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
@@ -600,19 +866,12 @@ class LectureViewSet(viewsets.ViewSet):
             request=request,
         )
 
-        # OOB swap : arbre mis a jour (le titre peut apparaitre dans l'arbre)
-        # / OOB swap: updated tree (title may appear in the tree)
-        html_arbre_oob = render_to_string(
-            "front/includes/arbre_dossiers.html",
-            {
-                "dossiers": Dossier.objects.prefetch_related("pages").all(),
-                "pages_orphelines": Page.objects.filter(dossier__isnull=True, parent_page__isnull=True).order_by("-created_at"),
-            },
-            request=request,
-        )
+        # OOB swap : arbre mis a jour via _render_arbre
+        # / OOB swap: updated tree via _render_arbre
+        reponse_arbre = _render_arbre(request)
         html_arbre_oob = (
             '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
-            + html_arbre_oob
+            + reponse_arbre.content.decode()
             + '</div>'
         )
 
@@ -906,6 +1165,11 @@ class LectureViewSet(viewsets.ViewSet):
             return HttpResponse("IA desactivee. Activez l'IA depuis le panneau de gauche.", status=403)
 
         page = get_object_or_404(Page, pk=pk)
+
+        # Verifier les droits d'ecriture sur le dossier de la page
+        # / Check write permissions on the page's folder
+        if page.dossier and not _utilisateur_peut_ecrire_dossier(request.user, page.dossier):
+            return HttpResponse("Acces refuse.", status=403)
 
         # Guard anti-doublon : verifier s'il y a deja un job en cours pour cette page
         # / Anti-duplicate guard: check if a job is already running for this page
@@ -1506,10 +1770,15 @@ class DossierViewSet(viewsets.ViewSet):
     """
 
     def list(self, request):
-        # Retourne la liste des dossiers en JSON (pour SweetAlert)
-        # Returns folder list as JSON (for SweetAlert)
-        all_dossiers = Dossier.objects.all().order_by("name")
-        data = {str(d.pk): d.name for d in all_dossiers}
+        # Retourne la liste des dossiers de l'utilisateur en JSON (pour SweetAlert)
+        # / Returns user's folder list as JSON (for SweetAlert)
+        if request.user.is_authenticated:
+            tous_les_dossiers = Dossier.objects.filter(
+                Q(owner=request.user) | Q(owner__isnull=True)
+            ).order_by("name")
+        else:
+            tous_les_dossiers = Dossier.objects.none()
+        data = {str(d.pk): d.name for d in tous_les_dossiers}
         return JsonResponse(data)
 
     def create(self, request):
@@ -1598,13 +1867,37 @@ class DossierViewSet(viewsets.ViewSet):
         dossier_cible = get_object_or_404(Dossier, pk=pk)
 
         if request.method == "POST":
-            # Detecter si c'est un retrait (retirer_user_id) ou un ajout (username)
-            # / Detect if it's a removal (retirer_user_id) or an addition (username)
+            # Detecter si c'est un retrait (retirer_user_id / retirer_groupe_id) ou un ajout
+            # / Detect if it's a removal (retirer_user_id / retirer_groupe_id) or an addition
             retirer_user_id = request.data.get("retirer_user_id")
+            retirer_groupe_id = request.data.get("retirer_groupe_id")
+            groupe_id_a_ajouter = request.data.get("groupe_id")
+
             if retirer_user_id:
                 DossierPartage.objects.filter(
                     dossier=dossier_cible, utilisateur_id=retirer_user_id,
                 ).delete()
+            elif retirer_groupe_id:
+                DossierPartage.objects.filter(
+                    dossier=dossier_cible, groupe_id=retirer_groupe_id,
+                ).delete()
+            elif groupe_id_a_ajouter:
+                # Partage avec un groupe
+                # / Share with a group
+                groupe_cible = GroupeUtilisateurs.objects.filter(
+                    pk=groupe_id_a_ajouter, owner=request.user,
+                ).first()
+                if groupe_cible:
+                    DossierPartage.objects.get_or_create(
+                        dossier=dossier_cible,
+                        groupe=groupe_cible,
+                        defaults={"utilisateur": None},
+                    )
+                    # Auto-upgrade : prive → partage
+                    # / Auto-upgrade: private → shared
+                    if dossier_cible.visibilite == VisibiliteDossier.PRIVE:
+                        dossier_cible.visibilite = VisibiliteDossier.PARTAGE
+                        dossier_cible.save(update_fields=["visibilite"])
             else:
                 serializer = DossierPartageSerializer(data=request.data)
                 if serializer.is_valid():
@@ -1614,17 +1907,218 @@ class DossierViewSet(viewsets.ViewSet):
                         DossierPartage.objects.get_or_create(
                             dossier=dossier_cible,
                             utilisateur=utilisateur_cible,
+                            defaults={"groupe": None},
                         )
+                        # Auto-upgrade : prive → partage
+                        # / Auto-upgrade: private → shared
+                        if dossier_cible.visibilite == VisibiliteDossier.PRIVE:
+                            dossier_cible.visibilite = VisibiliteDossier.PARTAGE
+                            dossier_cible.save(update_fields=["visibilite"])
 
         # Rendre le formulaire de partage / Render sharing form
         tous_les_partages_du_dossier = DossierPartage.objects.filter(
             dossier=dossier_cible,
-        ).select_related("utilisateur")
+        ).select_related("utilisateur", "groupe")
+
+        # Recuperer les groupes de l'utilisateur (pour la section groupes)
+        # / Get user's groups (for group section)
+        groupes_de_utilisateur = GroupeUtilisateurs.objects.filter(
+            owner=request.user,
+        )
+        ids_groupes_partages = DossierPartage.objects.filter(
+            dossier=dossier_cible, groupe__isnull=False,
+        ).values_list("groupe_id", flat=True)
+
+        # Invitations en attente pour ce dossier (PHASE-25d)
+        # / Pending invitations for this folder (PHASE-25d)
+        invitations_en_attente_dossier = Invitation.objects.filter(
+            dossier=dossier_cible, acceptee=False, expires_at__gte=timezone.now(),
+        )
 
         return render(request, "front/includes/partage_dossier_form.html", {
             "dossier": dossier_cible,
             "partages": tous_les_partages_du_dossier,
+            "groupes_disponibles": groupes_de_utilisateur,
+            "ids_groupes_partages": set(ids_groupes_partages),
+            "invitations_en_attente": invitations_en_attente_dossier,
         })
+
+    @action(detail=True, methods=["POST"], url_path="visibilite")
+    def changer_visibilite(self, request, pk=None):
+        """
+        Change la visibilite d'un dossier (prive, partage, public).
+        Seul l'owner peut changer la visibilite.
+        / Changes folder visibility (private, shared, public).
+        Only the owner can change visibility.
+        """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
+
+        dossier_cible = get_object_or_404(Dossier, pk=pk)
+
+        # Seul le proprietaire peut changer la visibilite
+        # / Only the owner can change visibility
+        if dossier_cible.owner != request.user:
+            return HttpResponse("Non autorise.", status=403)
+
+        serializer = ChangerVisibiliteSerializer(data=request.data)
+        if not serializer.is_valid():
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        nouvelle_visibilite = serializer.validated_data["visibilite"]
+        dossier_cible.visibilite = nouvelle_visibilite
+        dossier_cible.save(update_fields=["visibilite"])
+
+        reponse = _render_arbre(request)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": f"Visibilite changee en « {nouvelle_visibilite} »"},
+        })
+        return reponse
+
+    @action(detail=True, methods=["POST"], url_path="quitter")
+    def quitter(self, request, pk=None):
+        """
+        Quitte un partage : supprime le DossierPartage pour l'utilisateur courant.
+        / Leave a share: removes the DossierPartage for the current user.
+        """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
+
+        dossier_cible = get_object_or_404(Dossier, pk=pk)
+
+        # Supprimer les partages directs de cet utilisateur
+        # / Remove direct shares for this user
+        DossierPartage.objects.filter(
+            dossier=dossier_cible, utilisateur=request.user,
+        ).delete()
+
+        reponse = _render_arbre(request)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": f"Partage quitte pour « {dossier_cible.name} »"},
+        })
+        return reponse
+
+    @action(detail=True, methods=["POST"], url_path="inviter")
+    def inviter(self, request, pk=None):
+        """
+        Invite un utilisateur par email a acceder a un dossier (PHASE-25d).
+        Si l'email correspond a un utilisateur existant → DossierPartage direct.
+        Sinon → creation d'une Invitation + envoi d'email.
+        / Invite a user by email to access a folder (PHASE-25d).
+        If email matches an existing user → direct DossierPartage.
+        Otherwise → create Invitation + send email.
+
+        LOCALISATION : front/views.py
+        """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
+
+        dossier_cible = get_object_or_404(Dossier, pk=pk)
+
+        # Verifier que c'est l'owner du dossier
+        # / Check that user is folder owner
+        if dossier_cible.owner != request.user:
+            return HttpResponse("Non autorise.", status=403)
+
+        serializer = InviterEmailSerializer(data=request.data)
+        if not serializer.is_valid():
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
+                status=400,
+            )
+
+        email_invite = serializer.validated_data["email"]
+
+        # Rejeter l'auto-invitation
+        # / Reject self-invitation
+        if request.user.email and email_invite.lower() == request.user.email.lower():
+            return HttpResponse(
+                '<p class="text-sm text-red-500">Vous ne pouvez pas vous inviter vous-meme.</p>',
+                status=400,
+            )
+
+        # Verifier si un utilisateur avec cet email existe deja
+        # / Check if a user with this email already exists
+        utilisateur_existant = AuthUser.objects.filter(email__iexact=email_invite).first()
+
+        if utilisateur_existant:
+            # Partage direct (pas d'email envoye) / Direct share (no email sent)
+            DossierPartage.objects.get_or_create(
+                dossier=dossier_cible,
+                utilisateur=utilisateur_existant,
+                defaults={"groupe": None},
+            )
+            # Auto-upgrade : prive → partage
+            # / Auto-upgrade: private → shared
+            if dossier_cible.visibilite == VisibiliteDossier.PRIVE:
+                dossier_cible.visibilite = VisibiliteDossier.PARTAGE
+                dossier_cible.save(update_fields=["visibilite"])
+        else:
+            # Verifier si une invitation est deja en attente
+            # / Check if an invitation is already pending
+            invitation_existante = Invitation.objects.filter(
+                dossier=dossier_cible, email__iexact=email_invite,
+                acceptee=False, expires_at__gte=timezone.now(),
+            ).exists()
+
+            if invitation_existante:
+                # Re-render le formulaire avec toast info
+                # / Re-render form with info toast
+                pass
+            else:
+                # Creer et envoyer l'invitation
+                # / Create and send invitation
+                from .views_invitation import creer_invitation
+                creer_invitation(
+                    dossier=dossier_cible,
+                    groupe=None,
+                    email=email_invite,
+                    invite_par=request.user,
+                )
+
+        # Re-render le formulaire de partage avec les invitations en attente
+        # / Re-render sharing form with pending invitations
+        tous_les_partages_du_dossier = DossierPartage.objects.filter(
+            dossier=dossier_cible,
+        ).select_related("utilisateur", "groupe")
+
+        groupes_de_utilisateur = GroupeUtilisateurs.objects.filter(
+            owner=request.user,
+        )
+        ids_groupes_partages = DossierPartage.objects.filter(
+            dossier=dossier_cible, groupe__isnull=False,
+        ).values_list("groupe_id", flat=True)
+
+        # Invitations en attente pour ce dossier
+        # / Pending invitations for this folder
+        invitations_en_attente_dossier = Invitation.objects.filter(
+            dossier=dossier_cible, acceptee=False, expires_at__gte=timezone.now(),
+        )
+
+        # Toast de confirmation selon le type d'action
+        # / Confirmation toast depending on action type
+        if utilisateur_existant:
+            message_toast = f"Dossier partage avec {utilisateur_existant.username}"
+        else:
+            message_toast = f"Invitation envoyee a {email_invite}"
+
+        reponse = render(request, "front/includes/partage_dossier_form.html", {
+            "dossier": dossier_cible,
+            "partages": tous_les_partages_du_dossier,
+            "groupes_disponibles": groupes_de_utilisateur,
+            "ids_groupes_partages": set(ids_groupes_partages),
+            "invitations_en_attente": invitations_en_attente_dossier,
+        })
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": message_toast},
+        })
+        return reponse
 
 
 class PageViewSet(viewsets.ViewSet):
@@ -2291,6 +2785,17 @@ class ExtractionViewSet(viewsets.ViewSet):
         commentaire_a_supprimer = get_object_or_404(
             CommentaireExtraction, pk=donnees["commentaire_id"],
         )
+
+        # Moderation : auteur du commentaire ou owner du dossier peut supprimer
+        # / Moderation: comment author or folder owner can delete
+        page_du_commentaire = commentaire_a_supprimer.entity.job.page
+        dossier_de_la_page = page_du_commentaire.dossier
+        est_auteur = commentaire_a_supprimer.user == request.user
+        est_proprietaire_dossier = (
+            dossier_de_la_page and dossier_de_la_page.owner == request.user
+        )
+        if not est_auteur and not est_proprietaire_dossier:
+            return HttpResponse("Non autorise.", status=403)
 
         entite = commentaire_a_supprimer.entity
         commentaire_a_supprimer.delete()
@@ -3329,8 +3834,10 @@ class ExtractionViewSet(viewsets.ViewSet):
         """
         Renvoie le contenu du drawer vue liste (toutes les extractions d'une page).
         Supporte un parametre de tri : position (defaut), activite, statut.
+        Supporte un filtre par contributeur : ?contributeur=42 (PHASE-26a).
         / Returns drawer list view content (all extractions for a page).
         Supports sort parameter: position (default), activite, statut.
+        Supports contributor filter: ?contributeur=42 (PHASE-26a).
         """
         identifiant_page = request.query_params.get("page_id")
         if not identifiant_page:
@@ -3338,6 +3845,16 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         page = get_object_or_404(Page, pk=identifiant_page)
         parametre_tri = request.query_params.get("tri", "position")
+
+        # Parametre optionnel : filtre contributeur (PHASE-26a)
+        # / Optional parameter: contributor filter (PHASE-26a)
+        parametre_contributeur = request.query_params.get("contributeur")
+        identifiant_contributeur = None
+        if parametre_contributeur:
+            try:
+                identifiant_contributeur = int(parametre_contributeur)
+            except (ValueError, TypeError):
+                pass
 
         # Recuperer toutes les entites (masquees et non masquees)
         # / Retrieve all entities (hidden and not hidden)
@@ -3347,10 +3864,48 @@ class ExtractionViewSet(viewsets.ViewSet):
         toutes_les_entites = ExtractedEntity.objects.filter(
             job__in=tous_les_jobs_termines,
         ).prefetch_related(
-            "commentaires",
+            Prefetch(
+                "commentaires",
+                queryset=CommentaireExtraction.objects.select_related("user"),
+            ),
         ).annotate(
             nombre_commentaires=Count("commentaires"),
         )
+
+        # Construire la liste des contributeurs ayant commente ce document (PHASE-26a)
+        # / Build the list of contributors who commented on this document (PHASE-26a)
+        commentaires_par_contributeur = CommentaireExtraction.objects.filter(
+            entity__job__in=tous_les_jobs_termines,
+        ).values("user__pk", "user__username").annotate(
+            nombre_commentaires=Count("pk"),
+        ).order_by("-nombre_commentaires")
+
+        # Compter le total AVANT filtre pour afficher "N sur M" (PHASE-26a UX)
+        # / Count total BEFORE filter to display "N out of M" (PHASE-26a UX)
+        nombre_total_sans_filtre = toutes_les_entites.count()
+
+        # Si un contributeur est filtre, ne garder que les entites commentees par ce user
+        # / If a contributor is filtered, keep only entities commented by that user
+        ids_entites_du_contributeur = set()
+        nom_contributeur_actif = None
+        if identifiant_contributeur:
+            ids_entites_du_contributeur = set(
+                CommentaireExtraction.objects.filter(
+                    entity__job__in=tous_les_jobs_termines,
+                    user_id=identifiant_contributeur,
+                ).values_list("entity_id", flat=True).distinct()
+            )
+            toutes_les_entites = toutes_les_entites.filter(
+                pk__in=ids_entites_du_contributeur,
+            )
+            # Recuperer le nom du contributeur pour le chip actif
+            # / Get contributor name for the active chip
+            contributeur_trouve = next(
+                (c for c in commentaires_par_contributeur if c["user__pk"] == identifiant_contributeur),
+                None,
+            )
+            if contributeur_trouve:
+                nom_contributeur_actif = contributeur_trouve["user__username"]
 
         # Appliquer le tri / Apply sort order
         if parametre_tri == "activite":
@@ -3365,14 +3920,31 @@ class ExtractionViewSet(viewsets.ViewSet):
         entites_visibles = [entite for entite in toutes_les_entites if not entite.masquee]
         entites_masquees = [entite for entite in toutes_les_entites if entite.masquee]
 
-        return render(request, "front/includes/drawer_vue_liste.html", {
+        # Emettre HX-Trigger pour le filtrage des pastilles cote JS (PHASE-26a)
+        # / Emit HX-Trigger for pastille filtering on JS side (PHASE-26a)
+        donnees_trigger = json.dumps({
+            "contributeurFiltreChange": {
+                "contributeur_id": identifiant_contributeur,
+                "ids_entites": list(ids_entites_du_contributeur) if identifiant_contributeur else [],
+            }
+        })
+
+        reponse = render(request, "front/includes/drawer_vue_liste.html", {
             "page": page,
             "entites_visibles": entites_visibles,
             "entites_masquees": entites_masquees,
             "nombre_masquees": len(entites_masquees),
             "nombre_total": len(entites_visibles) + len(entites_masquees),
+            "nombre_total_sans_filtre": nombre_total_sans_filtre,
             "tri_actuel": parametre_tri,
+            "liste_contributeurs": commentaires_par_contributeur,
+            "contributeur_actif": identifiant_contributeur,
+            "nom_contributeur_actif": nom_contributeur_actif,
+            "ids_entites_du_contributeur": ids_entites_du_contributeur,
         })
+
+        reponse["HX-Trigger"] = donnees_trigger
+        return reponse
 
 
 class ImportViewSet(viewsets.ViewSet):
@@ -3473,9 +4045,12 @@ class ImportViewSet(viewsets.ViewSet):
         # / Determine final title and folder
         nom_sans_extension = os.path.splitext(nom_fichier)[0]
         titre_final = titre_personnalise.strip() if titre_personnalise.strip() else nom_sans_extension
-        dossier_assigne = None
         if dossier_id:
             dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
+        else:
+            # Auto-classement dans "Mes imports" si pas de dossier specifie
+            # / Auto-classify in "Mes imports" if no folder specified
+            dossier_assigne = _obtenir_ou_creer_dossier_imports(request.user)
 
         # Sauvegarder le fichier JSON original dans source_file
         # / Save the original JSON file in source_file
@@ -3526,17 +4101,11 @@ class ImportViewSet(viewsets.ViewSet):
 
         # OOB swap : arbre de dossiers mis a jour
         # / OOB swap: updated folder tree
-        html_arbre_oob = render_to_string(
-            "front/includes/arbre_dossiers.html",
-            {
-                "dossiers": Dossier.objects.prefetch_related("pages").all(),
-                "pages_orphelines": Page.objects.filter(dossier__isnull=True).order_by("-created_at"),
-            },
-            request=request,
-        )
+        # OOB swap : arbre via _render_arbre / OOB swap: tree via _render_arbre
+        reponse_arbre = _render_arbre(request)
         html_arbre_oob = (
             '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
-            + html_arbre_oob
+            + reponse_arbre.content.decode()
             + '</div>'
         )
 
@@ -3596,9 +4165,12 @@ class ImportViewSet(viewsets.ViewSet):
         # / Determine title and folder
         nom_sans_extension = os.path.splitext(nom_fichier)[0]
         titre_final = titre_personnalise.strip() if titre_personnalise.strip() else nom_sans_extension
-        dossier_assigne = None
         if dossier_id:
             dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
+        else:
+            # Auto-classement dans "Mes imports" si pas de dossier specifie
+            # / Auto-classify in "Mes imports" if no folder specified
+            dossier_assigne = _obtenir_ou_creer_dossier_imports(request.user)
 
         # Sauvegarder le fichier audio dans source_file
         # / Save the audio file in source_file
@@ -3667,17 +4239,11 @@ class ImportViewSet(viewsets.ViewSet):
 
         # OOB swap : arbre de dossiers mis a jour
         # / OOB swap: updated folder tree
-        html_arbre_oob = render_to_string(
-            "front/includes/arbre_dossiers.html",
-            {
-                "dossiers": Dossier.objects.prefetch_related("pages").all(),
-                "pages_orphelines": Page.objects.filter(dossier__isnull=True).order_by("-created_at"),
-            },
-            request=request,
-        )
+        # OOB swap : arbre via _render_arbre / OOB swap: tree via _render_arbre
+        reponse_arbre = _render_arbre(request)
         html_arbre_oob = (
             '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
-            + html_arbre_oob
+            + reponse_arbre.content.decode()
             + '</div>'
         )
 
@@ -3723,9 +4289,12 @@ class ImportViewSet(viewsets.ViewSet):
         # Determiner le titre final et le dossier
         # / Determine final title and folder
         titre_final = titre_personnalise.strip() if titre_personnalise.strip() else titre_extrait
-        dossier_assigne = None
         if dossier_id:
             dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
+        else:
+            # Auto-classement dans "Mes imports" si pas de dossier specifie
+            # / Auto-classify in "Mes imports" if no folder specified
+            dossier_assigne = _obtenir_ou_creer_dossier_imports(request.user)
 
         # Calculer le hash du contenu pour content_hash
         # / Compute content hash
@@ -3777,17 +4346,11 @@ class ImportViewSet(viewsets.ViewSet):
 
         # OOB swap : arbre de dossiers mis a jour
         # / OOB swap: updated folder tree
-        html_arbre_oob = render_to_string(
-            "front/includes/arbre_dossiers.html",
-            {
-                "dossiers": Dossier.objects.prefetch_related("pages").all(),
-                "pages_orphelines": Page.objects.filter(dossier__isnull=True).order_by("-created_at"),
-            },
-            request=request,
-        )
+        # OOB swap : arbre via _render_arbre / OOB swap: tree via _render_arbre
+        reponse_arbre = _render_arbre(request)
         html_arbre_oob = (
             '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
-            + html_arbre_oob
+            + reponse_arbre.content.decode()
             + '</div>'
         )
 
@@ -4006,9 +4569,12 @@ class ImportViewSet(viewsets.ViewSet):
         # / Determine title and folder
         nom_sans_extension = os.path.splitext(nom_fichier_original)[0]
         titre_final = titre_personnalise.strip() if titre_personnalise.strip() else nom_sans_extension
-        dossier_assigne = None
         if dossier_id:
             dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
+        else:
+            # Auto-classement dans "Mes imports" si pas de dossier specifie
+            # / Auto-classify in "Mes imports" if no folder specified
+            dossier_assigne = _obtenir_ou_creer_dossier_imports(request.user)
 
         # Sauvegarder le fichier audio dans source_file depuis le fichier temp
         # / Save the audio file in source_file from the temp file
@@ -4074,17 +4640,11 @@ class ImportViewSet(viewsets.ViewSet):
             request=request,
         )
 
-        html_arbre_oob = render_to_string(
-            "front/includes/arbre_dossiers.html",
-            {
-                "dossiers": Dossier.objects.prefetch_related("pages").all(),
-                "pages_orphelines": Page.objects.filter(dossier__isnull=True).order_by("-created_at"),
-            },
-            request=request,
-        )
+        # OOB swap : arbre via _render_arbre / OOB swap: tree via _render_arbre
+        reponse_arbre = _render_arbre(request)
         html_arbre_oob = (
             '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
-            + html_arbre_oob
+            + reponse_arbre.content.decode()
             + '</div>'
         )
 

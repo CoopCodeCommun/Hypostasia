@@ -200,6 +200,59 @@
     // / The Analyze button is now handled by HTMX (hx-get attributes on the button)
     // Its attributes are updated via OOB swap in lecture_principale.html
 
+    // Accordeon sections arbre — delegation d'evenements (PHASE-25c)
+    // / Accordion tree sections — event delegation (PHASE-25c)
+    document.getElementById('arbre').addEventListener('click', function(evenement) {
+        var boutonSection = evenement.target.closest('.arbre-section-toggle');
+        if (!boutonSection) return;
+
+        var idContenu = boutonSection.getAttribute('aria-controls');
+        var contenuSection = document.getElementById(idContenu);
+        if (!contenuSection) return;
+
+        var estExpanse = boutonSection.getAttribute('aria-expanded') === 'true';
+
+        // Basculer l'etat / Toggle state
+        boutonSection.setAttribute('aria-expanded', estExpanse ? 'false' : 'true');
+        contenuSection.classList.toggle('hidden');
+
+        // Rotation du chevron / Chevron rotation
+        var chevron = boutonSection.querySelector('.arbre-section-chevron');
+        if (chevron) {
+            chevron.classList.toggle('rotate-90');
+        }
+    });
+
+    // Bouton quitter partage — delegation d'evenements avec confirmation (PHASE-25c)
+    // / Leave share button — event delegation with confirmation (PHASE-25c)
+    document.getElementById('arbre').addEventListener('click', function(evenement) {
+        var boutonQuitter = evenement.target.closest('.btn-quitter-partage');
+        if (!boutonQuitter) return;
+
+        evenement.stopPropagation();
+        var dossierId = boutonQuitter.getAttribute('data-dossier-id');
+
+        // Confirmation SweetAlert avant de quitter le partage
+        // / SweetAlert confirmation before leaving the share
+        Swal.fire({
+            title: 'Quitter ce partage ?',
+            text: 'Vous perdrez l\'acces a ce dossier. Le proprietaire devra re-partager.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Quitter',
+            cancelButtonText: 'Annuler',
+            confirmButtonColor: '#ef4444',
+        }).then(function(resultat) {
+            if (resultat.isConfirmed) {
+                htmx.ajax('POST', '/dossiers/' + dossierId + '/quitter/', {
+                    target: '#arbre',
+                    swap: 'innerHTML',
+                    headers: { 'X-CSRFToken': extraireTokenCsrf() }
+                });
+            }
+        });
+    });
+
     // Expose l'API publique pour les tests
     // / Expose public API for testing
     window.arbreOverlay = {

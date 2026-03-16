@@ -129,6 +129,20 @@ class PageCreateSerializer(serializers.ModelSerializer):
 
 # --- VALIDATION PIPELINE IA / AI PIPELINE VALIDATION ---
 
+class ClasserDepuisExtensionSerializer(serializers.Serializer):
+    """
+    Validation pour le classement d'une page dans un dossier depuis l'extension.
+    / Validation for classifying a page into a folder from the extension.
+
+    LOCALISATION : core/serializers.py
+    """
+    dossier_id = serializers.IntegerField(
+        error_messages={
+            "required": "dossier_id est obligatoire / dossier_id is required",
+        },
+    )
+
+
 class AnalysisItemSerializer(serializers.Serializer):
     """
     Valide un element individuel de la reponse JSON du LLM.

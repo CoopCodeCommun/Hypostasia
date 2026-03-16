@@ -15,6 +15,8 @@
  * Ecoute : clic delegue sur .drawer-carte-compacte (scroll texte + carte inline)
  * Note : .btn-masquer-drawer et .btn-restaurer-drawer sont geres par HTMX (hx-post dans le template)
  * Ecoute : change sur #drawer-select-tri (recharge contenu)
+ * Ecoute : change sur #drawer-select-contributeur (filtre contributeur, PHASE-26a)
+ * Ecoute : clic delegue sur .btn-retirer-filtre-contributeur (retire filtre, PHASE-26a UX)
  * Ecoute : clic delegue sur #btn-toggle-masquees (affiche/cache section masquees)
  * Ecoute : htmx event drawerContenuChange (recharge contenu apres masquer/restaurer)
  * Expose : window.drawerVueListe = { ouvrir, fermer, basculer, estOuvert }
@@ -52,6 +54,7 @@
     }
 
     // Recharge la zone de lecture pour rafraichir les pastilles apres masquer/restaurer
+    // Accepte un parametre contributeur optionnel pour la heat map (PHASE-26a)
     // Utilise fetch + innerHTML car htmx.ajax ne fait pas le swap de maniere fiable
     // La reponse HTMX de /lire/{id}/ contient 2 morceaux :
     //   1. Le partial lecture_principale (contenu principal)
@@ -59,10 +62,15 @@
     // On extrait seulement le premier morceau grace a un DOMParser.
     // Apres le swap, on reconstruit les pastilles marginales (marginalia.js).
     // / Reload reading zone to refresh pastilles after hide/restore
+    // / Accepts optional contributor parameter for heat map (PHASE-26a)
     // / Uses fetch + innerHTML because htmx.ajax doesn't reliably swap
-    function rechargerZoneLecture(pageId) {
+    function rechargerZoneLecture(pageId, contributeurOptional) {
         if (!pageId) return;
-        fetch('/lire/' + pageId + '/', {
+        var urlLecture = '/lire/' + pageId + '/';
+        if (contributeurOptional) {
+            urlLecture += '?contributeur=' + contributeurOptional;
+        }
+        fetch(urlLecture, {
             headers: { 'HX-Request': 'true' },
         })
         .then(function(reponse) { return reponse.text(); })
@@ -91,9 +99,16 @@
         });
     }
 
+    // Recupere la valeur actuelle du filtre contributeur (PHASE-26a)
+    // / Get current contributor filter value (PHASE-26a)
+    function getContributeurActuel() {
+        var select = document.getElementById('drawer-select-contributeur');
+        return select ? select.value : '';
+    }
+
     // Charge le contenu du drawer via HTMX
     // / Load drawer content via HTMX
-    function chargerContenu(triOptional) {
+    function chargerContenu(triOptional, contributeurOptional) {
         var pageId = getPageId();
         if (!pageId) {
             contenu.innerHTML = '<p class="text-xs text-slate-400 text-center py-8">Aucune page s\u00e9lectionn\u00e9e.</p>';
@@ -103,6 +118,9 @@
         var url = '/extractions/drawer_contenu/?page_id=' + pageId;
         if (triOptional) {
             url += '&tri=' + triOptional;
+        }
+        if (contributeurOptional) {
+            url += '&contributeur=' + contributeurOptional;
         }
 
         htmx.ajax('GET', url, {
@@ -290,14 +308,71 @@
     //   3. The "drawerContenuChange" signal reloads the side panel list
     //   4. The "lectureReload" signal reloads the text with updated highlighting
 
-    // Change sur le select de tri → recharge le contenu
-    // / Change on sort select → reload content
+    // Change sur le select de tri → recharge le contenu en preservant le filtre contributeur
+    // / Change on sort select → reload content preserving contributor filter
     document.getElementById('drawer-contenu').addEventListener('change', function(evenement) {
-        if (evenement.target.id !== 'drawer-select-tri') return;
+        if (evenement.target.id === 'drawer-select-tri') {
+            var triChoisi = evenement.target.value;
+            var contributeurActuel = getContributeurActuel();
+            chargerContenu(triChoisi, contributeurActuel);
+            return;
+        }
 
-        var triChoisi = evenement.target.value;
-        chargerContenu(triChoisi);
+        // Change sur le select contributeur → recharge avec le filtre (PHASE-26a)
+        // / Change on contributor select → reload with filter (PHASE-26a)
+        if (evenement.target.id === 'drawer-select-contributeur') {
+            var selectTri = document.getElementById('drawer-select-tri');
+            var triActuel = selectTri ? selectTri.value : 'position';
+            var contributeurChoisi = evenement.target.value;
+            chargerContenu(triActuel, contributeurChoisi);
+
+            // Mettre a jour le badge indicateur dans la toolbar (PHASE-26a UX)
+            // / Update toolbar indicator badge (PHASE-26a UX)
+            mettreAJourBadgeToolbar(contributeurChoisi);
+
+            // Si heatmap active, recharger la zone de lecture avec le contributeur (PHASE-26a)
+            // / If heatmap is active, reload reading zone with contributor (PHASE-26a)
+            if (window.marginalia && window.marginalia.heatmapEstActive()) {
+                var pageId = getPageId();
+                rechargerZoneLecture(pageId, contributeurChoisi);
+            }
+            return;
+        }
     });
+
+    // Clic sur le bouton "x" du chip contributeur actif → retirer le filtre (PHASE-26a UX)
+    // / Click on active contributor chip "x" button → remove filter (PHASE-26a UX)
+    document.getElementById('drawer-contenu').addEventListener('click', function(evenement) {
+        var boutonRetirer = evenement.target.closest('.btn-retirer-filtre-contributeur');
+        if (!boutonRetirer) return;
+
+        var selectTri = document.getElementById('drawer-select-tri');
+        var triActuel = selectTri ? selectTri.value : 'position';
+        chargerContenu(triActuel, '');
+        mettreAJourBadgeToolbar('');
+
+        // Retirer aussi le filtre pastilles et recharger la heatmap si active
+        // / Also remove pastille filter and reload heatmap if active
+        if (window.marginalia && window.marginalia.resetContributeurFiltre) {
+            window.marginalia.resetContributeurFiltre();
+        }
+        if (window.marginalia && window.marginalia.heatmapEstActive()) {
+            var pageId = getPageId();
+            rechargerZoneLecture(pageId, '');
+        }
+    });
+
+    // Affiche ou cache le badge indicateur filtre sur le bouton toolbar Extractions
+    // / Show or hide the filter indicator badge on the Extractions toolbar button
+    function mettreAJourBadgeToolbar(contributeurId) {
+        var badge = document.getElementById('badge-filtre-contributeur');
+        if (!badge) return;
+        if (contributeurId) {
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
 
     // Toggle section masquees
     // / Toggle hidden section
@@ -325,7 +400,8 @@
         if (drawerEstOuvert) {
             var selectTri = document.getElementById('drawer-select-tri');
             var triActuel = selectTri ? selectTri.value : 'position';
-            chargerContenu(triActuel);
+            var contributeurActuel = getContributeurActuel();
+            chargerContenu(triActuel, contributeurActuel);
         } else {
             // Marquer comme non charge pour forcer le rechargement au prochain open
             // / Mark as not loaded to force reload on next open

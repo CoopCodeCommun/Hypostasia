@@ -514,6 +514,61 @@
     });
 
 
+    // === Filtre contributeur sur les pastilles (PHASE-26a) ===
+    // / === Contributor filter on pastilles (PHASE-26a) ===
+
+    // ID du contributeur filtre actuellement (null = pas de filtre)
+    // / Currently filtered contributor ID (null = no filter)
+    var contributeurFiltreActuel = null;
+
+    // Retourne l'ID du contributeur filtre actuellement
+    // / Returns the currently filtered contributor ID
+    function getContributeurFiltre() {
+        return contributeurFiltreActuel;
+    }
+
+    // Reset le filtre contributeur (retire les classes de dimming)
+    // / Reset contributor filter (remove dimming classes)
+    function resetContributeurFiltre() {
+        contributeurFiltreActuel = null;
+        document.querySelectorAll('.pastille-extraction.pastille-hors-filtre').forEach(function(pastille) {
+            pastille.classList.remove('pastille-hors-filtre');
+        });
+    }
+
+    // Applique le filtre contributeur sur les pastilles
+    // / Apply contributor filter on pastilles
+    function appliquerFiltreContributeur(contributeurId, idsEntites) {
+        contributeurFiltreActuel = contributeurId;
+
+        if (!contributeurId) {
+            // Pas de filtre → retirer toutes les classes de dimming
+            // / No filter → remove all dimming classes
+            resetContributeurFiltre();
+            return;
+        }
+
+        var setIdsEntites = new Set(idsEntites.map(String));
+
+        document.querySelectorAll('.pastille-extraction').forEach(function(pastille) {
+            var extractionId = pastille.dataset.extractionId;
+            if (setIdsEntites.has(extractionId)) {
+                pastille.classList.remove('pastille-hors-filtre');
+            } else {
+                pastille.classList.add('pastille-hors-filtre');
+            }
+        });
+    }
+
+    // Listener HX-Trigger contributeurFiltreChange (PHASE-26a)
+    // / HX-Trigger listener for contributeurFiltreChange (PHASE-26a)
+    document.body.addEventListener('contributeurFiltreChange', function(evenement) {
+        var detail = evenement.detail;
+        if (!detail) return;
+        appliquerFiltreContributeur(detail.contributeur_id, detail.ids_entites || []);
+    });
+
+
     // Expose l'API publique (PHASE-17)
     // / Expose public API (PHASE-17)
     window.marginalia = {
@@ -524,6 +579,8 @@
         modeFocusEstActif: modeFocusEstActif,
         basculerHeatmap: basculerHeatmap,
         heatmapEstActive: heatmapEstActive,
+        getContributeurFiltre: getContributeurFiltre,
+        resetContributeurFiltre: resetContributeurFiltre,
     };
 
     // --- Tap sur .hl-extraction sur mobile → ouvrir bottom sheet (PHASE-21) ---

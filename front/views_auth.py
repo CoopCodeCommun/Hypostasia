@@ -96,7 +96,13 @@ class AuthViewSet(viewsets.ViewSet):
         if request.method == "GET":
             if request.user.is_authenticated:
                 return redirect("/")
-            return render(request, "front/register.html", {"erreurs": []})
+            # Passer le token d'invitation au template (PHASE-25d)
+            # / Pass invitation token to template (PHASE-25d)
+            token_invitation = request.GET.get("token", "")
+            return render(request, "front/register.html", {
+                "erreurs": [],
+                "token_invitation": token_invitation,
+            })
 
         # Validation via serializer DRF
         # / Validation via DRF serializer
@@ -119,7 +125,64 @@ class AuthViewSet(viewsets.ViewSet):
 
         # Connecter immediatement / Log in immediately
         login(request, nouvel_utilisateur)
+
+        # Accepter automatiquement l'invitation si un token est present (PHASE-25d)
+        # / Auto-accept invitation if a token is present (PHASE-25d)
+        token_invitation = request.POST.get("token", "")
+        if token_invitation:
+            from django.utils import timezone
+            from core.models import Invitation
+            from .views_invitation import _accepter_invitation
+            invitation_a_accepter = Invitation.objects.filter(
+                token=token_invitation, acceptee=False,
+            ).first()
+            if invitation_a_accepter and invitation_a_accepter.expires_at >= timezone.now():
+                _accepter_invitation(invitation_a_accepter, nouvel_utilisateur)
+                logger.info("Invitation auto-acceptee apres inscription pour %s", nouvel_utilisateur.username)
+
         return redirect("/")
+
+    @action(detail=False, methods=["GET", "POST"], url_path="token")
+    def mon_token(self, request):
+        """
+        Affiche le token API de l'utilisateur (GET) ou en regenere un nouveau (POST).
+        Page standalone, meme structure que login.html.
+        / Display user's API token (GET) or regenerate a new one (POST).
+        Standalone page, same structure as login.html.
+
+        LOCALISATION : front/views_auth.py
+
+        FLUX :
+        1. Si non authentifie → redirect vers /auth/login/?next=/auth/token/
+        2. POST → supprime l'ancien token, cree un nouveau, render avec regenere=True
+        3. GET → get_or_create du token, render front/mon_token.html
+        """
+        # Exiger l'authentification / Require authentication
+        if not request.user.is_authenticated:
+            return redirect("/auth/login/?next=/auth/token/")
+
+        from rest_framework.authtoken.models import Token
+
+        if request.method == "POST":
+            # Regenerer le token — supprimer l'ancien et en creer un nouveau
+            # / Regenerate token — delete old one and create new
+            Token.objects.filter(user=request.user).delete()
+            nouveau_token = Token.objects.create(user=request.user)
+            logger.info("Token regenere pour %s", request.user.username)
+            return render(request, "front/mon_token.html", {
+                "token": nouveau_token.key,
+                "regenere": True,
+            })
+
+        # GET — afficher le token existant ou en creer un premier
+        # / GET — show existing token or create first one
+        token_existant, token_cree = Token.objects.get_or_create(user=request.user)
+        if token_cree:
+            logger.info("Premier token cree pour %s", request.user.username)
+        return render(request, "front/mon_token.html", {
+            "token": token_existant.key,
+            "regenere": False,
+        })
 
     @action(detail=False, methods=["GET", "POST"], url_path="logout")
     def deconnexion(self, request):

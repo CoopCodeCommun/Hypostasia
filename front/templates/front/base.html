@@ -59,6 +59,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
                 </svg>
                 <span class="btn-toolbar-label">Extractions</span>
+                {# Point indicateur filtre contributeur actif (PHASE-26a UX) #}
+                <span id="badge-filtre-contributeur" class="badge-filtre-contributeur hidden" data-testid="badge-filtre-contributeur"></span>
             </button>
             <button id="btn-toolbar-focus" class="btn-toolbar" title="Mode focus lecture (L)" data-testid="btn-toolbar-focus">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -134,6 +136,15 @@
                 <input type="file" class="hidden" id="input-import-fichier"
                        accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
             </label>
+            <!-- Lien Explorer les dossiers publics (PHASE-25d) -->
+            <!-- / Explore public folders link (PHASE-25d) -->
+            <a href="/explorer/"
+               class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors btn-desktop-only"
+               title="Explorer les dossiers publics" data-testid="btn-toolbar-explorer" aria-label="Explorer les dossiers publics">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/>
+                </svg>
+            </a>
             <!-- Lien config LLM (icone engrenage) -->
             <!-- / LLM config link (gear icon) -->
             <a href="/api/analyseurs/"
@@ -162,6 +173,8 @@
                 <div id="user-menu-dropdown" class="hidden absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px] z-50" data-testid="user-menu-dropdown" aria-label="Menu utilisateur">
                     <span class="block px-3 py-1.5 text-xs text-slate-400">{{ user.email|default:user.username }}</span>
                     <hr class="my-1 border-slate-100">
+                    <a href="/auth/token/" class="block px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+                       data-testid="btn-token-api">Mon token API</a>
                     <form method="POST" action="/auth/logout/">{% csrf_token %}
                         <button type="submit" class="w-full text-left px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50" data-testid="btn-logout">Deconnexion</button>
                     </form>
@@ -223,6 +236,18 @@
             <button id="btn-comparer-arbre" class="flex-1 text-sm text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-3 py-2 transition-colors text-left" title="Comparer des pages (A)">
                 Comparer
             </button>
+            <!-- Lien Explorer les dossiers publics (PHASE-25d) -->
+            <!-- / Explore public folders link (PHASE-25d) -->
+            <a href="/explorer/"
+               hx-get="/explorer/"
+               hx-target="#zone-lecture"
+               hx-swap="innerHTML"
+               hx-push-url="true"
+               class="flex-1 text-sm text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-3 py-2 transition-colors text-left"
+               data-testid="btn-explorer-publics"
+               title="Explorer les dossiers publics">
+                Explorer
+            </a>
         </div>
     </aside>
 

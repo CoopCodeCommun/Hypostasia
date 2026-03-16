@@ -1459,3 +1459,83 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
     padding: 0.75rem 1rem 1rem;
     -webkit-overflow-scrolling: touch;
 }
+
+
+/* === 26. Filtre contributeur (PHASE-26a) ===
+   Opacite reduite pour les commentaires et pastilles hors filtre.
+   / Reduced opacity for comments and pastilles outside the active filter.
+   ========================================================================== */
+
+/* Commentaire d'un autre contributeur quand un filtre est actif */
+/* / Comment from another contributor when filter is active */
+.commentaire-hors-filtre {
+    opacity: 0.35;
+}
+
+/* Pastille non concernee par le contributeur selectionne */
+/* / Pastille not matching the selected contributor */
+.pastille-extraction.pastille-hors-filtre {
+    opacity: 0.15;
+    pointer-events: none;
+}
+
+/* Chip du contributeur actif — badge cliquable avec bouton "x" */
+/* / Active contributor chip — clickable badge with "x" button */
+.chip-contributeur-actif {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+    font-family: 'Srisakdi', cursive;
+    color: var(--typo-lecteur-color);
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 9999px;
+}
+.btn-retirer-filtre-contributeur {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1rem;
+    height: 1rem;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.875rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.15s, color 0.15s;
+    padding: 0;
+}
+.btn-retirer-filtre-contributeur:hover {
+    background: rgba(0,0,0,0.08);
+    color: #475569;
+}
+
+/* Highlight du nom du contributeur filtre dans les commentaires */
+/* / Highlight of filtered contributor name in comments */
+.contributeur-actif-highlight {
+    background: #eef2ff;
+    padding: 0 0.25rem;
+    border-radius: 0.25rem;
+    font-weight: 600;
+}
+
+/* Badge indicateur filtre actif sur le bouton toolbar Extractions */
+/* / Filter active indicator badge on the Extractions toolbar button */
+.badge-filtre-contributeur {
+    position: absolute;
+    top: 0.125rem;
+    right: 0.125rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--typo-lecteur-color);
+}
+/* Le bouton toolbar doit etre en position relative pour le badge */
+/* / Toolbar button needs position relative for the badge */
+#btn-toolbar-drawer {
+    position: relative;
+}

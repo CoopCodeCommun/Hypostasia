@@ -1,19 +1,43 @@
-// Popup logic — Recolte de contenu uniquement, pas d'analyse LLM
-// / Popup logic — Content harvesting only, no LLM analysis
+/**
+ * Logique principale de la popup de l'extension navigateur.
+ * Gere la recolte de contenu, l'authentification par token,
+ * et le classement dans les dossiers apres recolte.
+ * / Main popup logic for the browser extension.
+ * Handles content harvesting, token authentication,
+ * and folder classification after harvest.
+ *
+ * LOCALISATION : extension/popup.js
+ *
+ * COMMUNICATION :
+ * - Appelle GET /api/pages/ pour verifier les doublons
+ * - Appelle GET /api/pages/me/ pour verifier le token
+ * - Appelle POST /api/pages/ pour creer une page
+ * - Appelle GET /api/pages/mes_dossiers/ pour lister les dossiers
+ * - Appelle POST /api/pages/{id}/classer_depuis_extension/ pour classer
+ */
 document.addEventListener('DOMContentLoaded', async () => {
     const recolterBtn = document.getElementById('recolterBtn');
     const statusDiv = document.getElementById('status');
     const serverUrlInput = document.getElementById('serverUrl');
     const indicateur_point = document.getElementById('serverStatusDot');
     const indicateur_texte = document.getElementById('serverStatusText');
+    const zone_auth = document.getElementById('authStatus');
+    const zone_dossiers = document.getElementById('dossiersChoix');
+    const liste_dossiers = document.getElementById('dossiersListe');
 
-    // Charger l'adresse serveur depuis le storage / Load server URL from storage
+    // Charger l'adresse serveur et le token depuis le storage
+    // / Load server URL and token from storage
     const config = await new Promise(resolve => {
         chrome.storage.sync.get({
-            serverUrl: 'http://127.0.0.1:8000/'
+            serverUrl: 'http://127.0.0.1:8000/',
+            apiKey: '',
         }, resolve);
     });
     serverUrlInput.value = config.serverUrl;
+
+    // Token d'authentification charge depuis le storage
+    // / Authentication token loaded from storage
+    var token_api = config.apiKey || '';
 
     /**
      * Nettoie et normalise l'URL serveur :
@@ -124,6 +148,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         return document_parse.body.textContent || '';
     }
 
+    /**
+     * Construit les headers HTTP avec le token d'authentification si present.
+     * / Build HTTP headers with authentication token if available.
+     */
+    function construireHeaders(content_type) {
+        var headers = { 'Accept': 'application/json' };
+        if (content_type) {
+            headers['Content-Type'] = content_type;
+        }
+        if (token_api) {
+            headers['Authorization'] = 'Token ' + token_api;
+        }
+        return headers;
+    }
+
     // --- Indicateur de statut serveur / Server status indicator ---
 
     /**
@@ -135,7 +174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function verifierStatutServeur() {
         try {
             var reponse = await fetch(getBaseUrl() + 'api/pages/', {
-                headers: { 'Accept': 'application/json' },
+                headers: construireHeaders(),
                 signal: AbortSignal.timeout(3000),
             });
             if (reponse.ok) {
@@ -151,6 +190,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    /**
+     * Verifie l'authentification via /api/pages/me/ et affiche le statut.
+     * / Check authentication via /api/pages/me/ and display status.
+     */
+    async function verifierAuthentification() {
+        if (!token_api) {
+            zone_auth.textContent = 'Non connecte (pas de token)';
+            zone_auth.className = 'auth-ko';
+            return;
+        }
+        try {
+            var reponse = await fetch(getBaseUrl() + 'api/pages/me/', {
+                headers: construireHeaders(),
+                signal: AbortSignal.timeout(3000),
+            });
+            if (reponse.ok) {
+                var donnees = await reponse.json();
+                if (donnees.authenticated) {
+                    zone_auth.textContent = 'Connecte : ' + donnees.username;
+                    zone_auth.className = 'auth-ok';
+                } else {
+                    zone_auth.textContent = 'Non connecte';
+                    zone_auth.className = 'auth-ko';
+                }
+            } else {
+                zone_auth.textContent = 'Token invalide';
+                zone_auth.className = 'auth-ko';
+            }
+        } catch (erreur) {
+            zone_auth.textContent = '';
+        }
+    }
+
     var saveUrlBtn = document.getElementById('saveUrlBtn');
 
     // Sanitiser et sauvegarder au clic sur OK
@@ -162,12 +234,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.debug('[Hypostasia] serverUrl sauvegarde:', url_propre);
 
         // Feedback visuel bref / Brief visual feedback
-        saveUrlBtn.textContent = '✓';
+        saveUrlBtn.textContent = '\u2713';
         setTimeout(function() { saveUrlBtn.textContent = 'OK'; }, 800);
 
         // Re-verifier le statut avec la nouvelle URL
         // / Re-check status with the new URL
         verifierStatutServeur();
+        verifierAuthentification();
     }
 
     saveUrlBtn.addEventListener('click', sauvegarderUrlServeur);
@@ -182,9 +255,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     console.debug('[Hypostasia] BASE_URL:', getBaseUrl());
 
-    // Verifier le statut au chargement de la popup
-    // / Check status on popup load
+    // Verifier le statut et l'auth au chargement de la popup
+    // / Check status and auth on popup load
     verifierStatutServeur();
+    verifierAuthentification();
 
     // --- Bouton principal : recolter le contenu de la page ---
     // / Main button: harvest page content
@@ -193,6 +267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         recolterBtn.textContent = "Recolte...";
         statusDiv.textContent = "";
         statusDiv.className = "";
+        zone_dossiers.style.display = 'none';
 
         try {
             await recolterContenuPage();
@@ -228,7 +303,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         statusDiv.textContent = "Verification...";
         const verification_response = await fetch(
             `${getBaseUrl()}api/pages/?url=${encodeURIComponent(url_normalisee)}`,
-            { headers: { 'Accept': 'application/json' } }
+            { headers: construireHeaders() }
         );
 
         if (!verification_response.ok) {
@@ -305,14 +380,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         console.debug('[Hypostasia] content_hash:', content_hash_calcule.substring(0, 16) + '...');
 
-        // 4. Envoyer au serveur (stockage uniquement, pas d'analyse LLM)
-        // / Send to server (storage only, no LLM analysis)
+        // 4. Envoyer au serveur avec le token d'authentification
+        // / Send to server with authentication token
         statusDiv.textContent = "Envoi...";
         console.debug('[Hypostasia] POST /api/pages/');
 
         const creation_response = await fetch(`${getBaseUrl()}api/pages/`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: construireHeaders('application/json'),
             body: JSON.stringify(donnees_extraites)
         });
 
@@ -331,6 +406,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
+            // Gerer le 401 (pas authentifie)
+            // / Handle 401 (not authenticated)
+            if (creation_response.status === 401) {
+                statusDiv.textContent = "Token manquant ou invalide. Configurez-le dans les options.";
+                statusDiv.className = "error";
+                recolterBtn.disabled = false;
+                recolterBtn.textContent = "Recolter";
+                return;
+            }
+
             throw new Error("Erreur creation (" + creation_response.status + ")");
         }
 
@@ -340,7 +425,89 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Succes / Success
         statusDiv.textContent = "Page enregistree (id: " + page_creee.id + ")";
         statusDiv.className = "success";
-        recolterBtn.textContent = "Recolte";
+        recolterBtn.textContent = "Recolter";
         recolterBtn.disabled = false;
+
+        // 5. Apres recolte reussie, afficher les dossiers pour classement
+        // / After successful harvest, show folders for classification
+        afficherDossiersPostRecolte(page_creee.id);
+    }
+
+    /**
+     * Recupere les dossiers de l'utilisateur et les affiche comme boutons.
+     * / Fetch user's folders and display them as buttons.
+     */
+    async function afficherDossiersPostRecolte(page_id) {
+        if (!token_api) return;
+
+        try {
+            var reponse = await fetch(getBaseUrl() + 'api/pages/mes_dossiers/', {
+                headers: construireHeaders(),
+                signal: AbortSignal.timeout(3000),
+            });
+            if (!reponse.ok) return;
+
+            var dossiers = await reponse.json();
+            if (!dossiers || dossiers.length === 0) return;
+
+            // Vider et remplir la liste de boutons
+            // / Clear and populate button list
+            liste_dossiers.innerHTML = '';
+            dossiers.forEach(function(dossier) {
+                // Ne pas afficher le dossier "A ranger" car c'est deja le defaut
+                // / Don't show "A ranger" folder since it's already the default
+                if (dossier.name === 'A ranger') return;
+
+                var bouton = document.createElement('button');
+                bouton.className = 'btn-dossier';
+                bouton.textContent = dossier.name;
+                bouton.addEventListener('click', function() {
+                    classerPage(page_id, dossier.id, bouton);
+                });
+                liste_dossiers.appendChild(bouton);
+            });
+
+            // Afficher la zone seulement s'il y a des boutons
+            // / Show zone only if there are buttons
+            if (liste_dossiers.children.length > 0) {
+                zone_dossiers.style.display = 'block';
+            }
+        } catch (erreur) {
+            console.debug('[Hypostasia] Erreur chargement dossiers:', erreur);
+        }
+    }
+
+    /**
+     * Deplace une page dans un dossier via l'API.
+     * / Move a page into a folder via API.
+     */
+    async function classerPage(page_id, dossier_id, bouton_clique) {
+        try {
+            var reponse = await fetch(
+                getBaseUrl() + 'api/pages/' + page_id + '/classer_depuis_extension/',
+                {
+                    method: 'POST',
+                    headers: construireHeaders('application/json'),
+                    body: JSON.stringify({ dossier_id: dossier_id }),
+                }
+            );
+            if (reponse.ok) {
+                var donnees = await reponse.json();
+                bouton_clique.className = 'btn-dossier selected';
+                statusDiv.textContent = 'Classee dans "' + donnees.dossier_name + '"';
+
+                // Desactiver tous les boutons apres classement
+                // / Disable all buttons after classification
+                var tous_les_boutons = liste_dossiers.querySelectorAll('.btn-dossier');
+                tous_les_boutons.forEach(function(btn) {
+                    btn.disabled = true;
+                    btn.style.cursor = 'default';
+                });
+            } else {
+                console.error('[Hypostasia] Erreur classement:', reponse.status);
+            }
+        } catch (erreur) {
+            console.error('[Hypostasia] Erreur classement:', erreur);
+        }
     }
 });

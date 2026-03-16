@@ -5,6 +5,187 @@
 
 ---
 
+## 2026-03-16 — PHASE-26a : Filtre contributeur sur les commentaires
+
+**Quoi / What:** Filtre par contributeur dans le drawer vue liste des extractions.
+Quand un contributeur est selectionne, seules les extractions qu'il a commentees
+apparaissent, les commentaires des autres sont dimmes (opacite reduite), les pastilles
+de marge non concernees sont desactivees, et la heat map se recalcule pour ne compter
+que les commentaires de ce contributeur.
+
+**Pourquoi / Why:** Le facilitateur a besoin de filtrer par contributeur pour preparer
+les reunions de consensus ("qu'est-ce que Michel a dit ?"). Ce filtre se combine avec
+la heat map pour visualiser la temperature du debat du point de vue d'un contributeur.
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `front/views.py` | +helper `_calculer_scores_temperature_par_contributeur()`, modifier `drawer_contenu()` (param contributeur, liste contributeurs, HX-Trigger), modifier `retrieve()` (heat map par contributeur) |
+| `front/templates/front/includes/drawer_vue_liste.html` | +dropdown contributeur, +classe dimming commentaires |
+| `front/static/front/js/drawer_vue_liste.js` | +param contributeur sur `chargerContenu()`, event listener select, heatmap reload |
+| `front/static/front/js/marginalia.js` | +listener `contributeurFiltreChange`, filtrage pastilles, API `getContributeurFiltre`/`resetContributeurFiltre` |
+| `front/static/front/css/hypostasia.css` | +`.commentaire-hors-filtre`, +`.pastille-hors-filtre` |
+| `front/tests/test_phases.py` | +13 tests unitaires PHASE-26a (7 base + 6 UX) |
+| `front/tests/e2e/test_17_filtre_contributeur.py` | **NOUVEAU** — 6 tests E2E |
+| `front/management/commands/charger_fixtures_demo.py` | +24 commentaires sur pages Wikipedia (Ostrom, Alexandre, Sadin) par 4 contributeurs, dossier "Petits textes" rendu public |
+
+### Ameliorations UX (post-implementation)
+1. Icone personne devant le select contributeur (differencie du select de tri)
+2. Chip/badge actif "nom x" pour retirer le filtre en un clic
+3. Compteur "N sur M" quand filtre actif (ex: "2 sur 78")
+4. Highlight du nom du contributeur filtre dans les commentaires (fond bleu + gras)
+5. Badge point bleu sur le bouton toolbar Extractions quand filtre actif
+
+---
+
+## 2026-03-15 — PHASE-25d UX : Ameliorations Explorer
+
+**Quoi / What:** 7 ameliorations UX sur l'Explorer et le systeme d'invitation :
+1. Description optionnelle sur les dossiers (champ `description` 200 chars)
+2. Compteur de suivis affiche en ambre sur les cards ("3 suivis")
+3. Bouton Explorer (globe) ajoute dans la toolbar principale desktop
+4. Toasts de confirmation sur Suivre/Ne plus suivre/Inviter
+5. Selecteur tri (Plus recents / Plus suivis / Alphabetique)
+6. Preview des 3 premiers titres de pages en badges gris dans les cards
+7. Fix bug dropdown auteur duplique (Meta.ordering polluait DISTINCT)
+
+**Pourquoi / Why:** Les cards etaient trop minimales (nom + date), l'Explorer
+pas assez decouvrable (cache dans le footer de l'arbre uniquement), et pas de
+feedback apres les actions Suivre/Inviter.
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `core/models.py` | +champ `description` sur Dossier |
+| `core/migrations/0024_dossier_description.py` | Migration auto |
+| `front/serializers.py` | +champ `tri` dans ExplorerFiltresSerializer |
+| `front/views_explorer.py` | +annotate nombre_suivis, +tri (populaire/nom/recent), +preview pages, +toasts HX-Trigger, fix DISTINCT |
+| `front/views.py` | +toast sur action inviter |
+| `front/templates/front/includes/explorer_page.html` | +select tri, +listener toast SweetAlert |
+| `front/templates/front/includes/explorer_card.html` | +description, +compteur suivis ambre, +preview pages badges |
+| `front/templates/front/base.html` | +bouton globe Explorer dans toolbar |
+
+### Migration
+- **Migration necessaire / Migration required:** Oui
+- `core/migrations/0024_dossier_description.py`
+- Commande : `uv run python manage.py migrate`
+
+---
+
+## 2026-03-15 — PHASE-25d : Invitation par email + Explorer + DossierSuivi
+
+**Quoi / What:** Invitation par email pour dossiers et groupes (email connu = partage direct,
+email inconnu = invitation avec token + email). Page Explorer pour decouvrir les dossiers publics
+(recherche, filtre auteur, pagination). Suivi de dossiers publics (4e section "Suivis" dans l'arbre).
+Inscription avec token d'invitation → auto-acceptation.
+
+**Pourquoi / Why:** PHASE-25c imposait de connaitre le username exact pour partager. Pas de
+decouverte de contenu public. Pas moyen d'inviter un non-inscrit.
+
+### Fichiers crees / Created files
+| Fichier / File | Description |
+|---|---|
+| `front/views_invitation.py` | InvitationViewSet + helpers (creer, accepter, envoyer email) |
+| `front/views_explorer.py` | ExplorerViewSet (list, suivre, ne_plus_suivre) |
+| `front/templates/front/includes/explorer_page.html` | Page Explorer complete |
+| `front/templates/front/includes/explorer_resultats.html` | Resultats pagines |
+| `front/templates/front/includes/explorer_card.html` | Card dossier individuelle |
+| `front/templates/front/invitation_erreur.html` | Page erreur invitation |
+| `front/templates/front/emails/invitation_dossier.txt` | Email invitation dossier (texte) |
+| `front/templates/front/emails/invitation_dossier.html` | Email invitation dossier (HTML) |
+| `front/templates/front/emails/invitation_groupe.txt` | Email invitation groupe (texte) |
+| `front/templates/front/emails/invitation_groupe.html` | Email invitation groupe (HTML) |
+| `front/tests/e2e/test_16_invitation_explorer.py` | 8 tests E2E |
+| `core/migrations/0023_dossiersuivi_invitation.py` | Migration auto |
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `core/models.py` | +Invitation, +DossierSuivi |
+| `hypostasia/settings.py` | +config email (EMAIL_BACKEND, SITE_URL, etc.) |
+| `front/serializers.py` | +InviterEmailSerializer, +ExplorerFiltresSerializer |
+| `front/views.py` | +action inviter sur DossierViewSet, _render_arbre 4 sections (+ Suivis) |
+| `front/views_auth.py` | Handle ?token= dans register |
+| `front/views_groupes.py` | +action inviter sur GroupeViewSet |
+| `front/urls.py` | +ExplorerViewSet, +InvitationViewSet |
+| `front/templates/front/includes/arbre_dossiers.html` | +section Suivis |
+| `front/templates/front/includes/_dossier_node.html` | +bouton Ne plus suivre |
+| `front/templates/front/includes/partage_dossier_form.html` | +section email + invitations en attente |
+| `front/templates/front/register.html` | +hidden field token |
+| `front/templates/front/base.html` | +lien Explorer dans footer arbre |
+| `front/tests/test_phases.py` | +18 tests unitaires PHASE-25d |
+
+### Migration
+- **Migration necessaire / Migration required:** Oui
+- `core/migrations/0023_dossiersuivi_invitation.py`
+- Commande : `uv run python manage.py migrate`
+
+---
+
+## 2026-03-15 — PHASE-25c : Visibilite 3 niveaux + groupes + arbre restructure
+
+**Quoi / What:** Systeme de visibilite a 3 niveaux (prive/partage/public) sur les dossiers.
+Groupes d'utilisateurs (CRUD) pour faciliter le partage. Arbre restructure en 3 sections
+accordeon (Mes dossiers / Partages avec moi / Dossiers publics). Anonymes limites aux dossiers
+publics. Controle d'acces lecture/ecriture sur LectureViewSet. Moderation : owner du dossier
+peut supprimer les commentaires. Auto-classement des imports dans "Mes imports". Menu contextuel
+avec sous-menu visibilite. OOB swaps corriges (centralises via _render_arbre).
+
+**Pourquoi / Why:** Le modele de visibilite PHASE-25 etait binaire (tout ou rien). Pas de
+distinction prive/partage/public, pas de groupes, les anonymes voyaient tout.
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `core/models.py` | +VisibiliteDossier, +GroupeUtilisateurs, visibilite sur Dossier, DossierPartage avec groupe+constraints |
+| `core/migrations/0022_*.py` | Migration auto |
+| `front/views.py` | +3 helpers acces, _render_arbre 3 sections, +changer_visibilite, +quitter, acces LectureViewSet, auto-classify imports, OOB fixes, moderation, DossierViewSet.list filtre |
+| `front/views_groupes.py` | **Nouveau** — GroupeViewSet CRUD |
+| `front/serializers.py` | +ChangerVisibiliteSerializer, +GroupeCreateSerializer, +GroupeAjouterMembreSerializer |
+| `front/urls.py` | +GroupeViewSet |
+| `front/templates/front/includes/arbre_dossiers.html` | Rewrite — 3 sections accordeon |
+| `front/templates/front/includes/_dossier_node.html` | **Nouveau** — partial reutilisable |
+| `front/templates/front/includes/partage_dossier_form.html` | +section groupes |
+| `front/static/front/js/arbre_context_menu.js` | +sous-menu visibilite |
+| `front/static/front/js/arbre_overlay.js` | +JS accordeon + bouton quitter |
+| `front/templates/front/includes/groupe_detail.html` | **Nouveau** — partial template detail groupe |
+| `front/tests/test_phases.py` | +23 tests PHASE-25c |
+
+### Migration
+- **Migration necessaire / Migration required:** Oui
+- `core/migrations/0022_alter_dossierpartage_unique_together_and_more.py`
+- Commande : `uv run python manage.py migrate`
+
+---
+
+## 2026-03-15 — PHASE-25b : Auth extension navigateur
+
+**Quoi / What:** Authentification par token API pour l'extension navigateur Chrome.
+L'extension envoie le token dans les headers HTTP. POST /api/pages/ exige un token valide (401 sinon).
+Page `/auth/token/` pour generer/regenerer le token. Apres recolte, boutons dossiers pour classer
+la page. Dossier "A ranger" auto-cree par defaut. Dedup filtree par owner + partages.
+Fix URL hardcodee dans sidebar.js.
+
+**Pourquoi / Why:** L'extension fonctionnait sans authentification — impossible de tracer
+qui envoie quoi, ni de classer les pages par utilisateur.
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `hypostasia/settings.py` | +rest_framework.authtoken dans INSTALLED_APPS, +CORS_ALLOW_HEADERS |
+| `core/views.py` | TokenAuthentication, owner sur create, endpoints me/mes_dossiers/classer_depuis_extension, dedup filtree owner+partages |
+| `front/views_auth.py` | +action mon_token (GET/POST) — generation et regeneration de token |
+| `front/templates/front/mon_token.html` | **Nouveau** — page standalone token avec bouton copier/regenerer |
+| `front/templates/front/base.html` | Lien "Mon token API" dans dropdown menu utilisateur |
+| `extension/popup.js` | Token dans headers, feedback auth, boutons dossiers post-recolte |
+| `extension/popup.html` | Zones #authStatus et #dossiersChoix |
+| `extension/sidebar.js` | Fix URL hardcodee → lecture serverUrl depuis storage + token dans headers |
+| `extension/options.html` | Renommer "Cle API" en "Token d'authentification" + help-text |
+| `front/tests/test_phases.py` | +12 tests unitaires PHASE-25b |
+| `front/tests/e2e/test_15_token.py` | **Nouveau** — 3 tests E2E page token |
+
+---
+
 ## 2026-03-15 — PHASE-25 : Users et partage
 
 **Quoi / What:** Authentification Django (login/register/logout), propriete des ressources

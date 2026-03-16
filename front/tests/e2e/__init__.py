@@ -11,3 +11,5 @@ from front.tests.e2e.test_10_mobile import *  # noqa: F401,F403
 from front.tests.e2e.test_11_confirmation_analyse import *  # noqa: F401,F403
 from front.tests.e2e.test_12_providers_ia import *  # noqa: F401,F403
 from front.tests.e2e.test_13_auth import *  # noqa: F401,F403
+from front.tests.e2e.test_15_token import *  # noqa: F401,F403
+from front.tests.e2e.test_16_invitation_explorer import *  # noqa: F401,F403

@@ -3,6 +3,9 @@ from rest_framework.routers import DefaultRouter
 from . import views
 from .views_alignement import AlignementViewSet
 from .views_auth import AuthViewSet
+from .views_explorer import ExplorerViewSet
+from .views_groupes import GroupeViewSet
+from .views_invitation import InvitationViewSet
 
 app_name = "front"
 
@@ -19,6 +22,9 @@ router.register(r"import", views.ImportViewSet, basename="import")
 router.register(r"questionnaire", views.QuestionnaireViewSet, basename="questionnaire")
 router.register(r"alignement", AlignementViewSet, basename="alignement")
 router.register(r"auth", AuthViewSet, basename="auth")
+router.register(r"groupes", GroupeViewSet, basename="groupe")
+router.register(r"explorer", ExplorerViewSet, basename="explorer")
+router.register(r"invitation", InvitationViewSet, basename="invitation")
 
 urlpatterns = [
     # La page racine reste un path explicite (pas de pk, pas de CRUD)

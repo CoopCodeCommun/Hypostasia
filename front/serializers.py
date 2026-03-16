@@ -591,3 +591,87 @@ class DossierPartageSerializer(serializers.Serializer):
         max_length=150,
         help_text="Nom d'utilisateur a ajouter / Username to add",
     )
+
+
+class ChangerVisibiliteSerializer(serializers.Serializer):
+    """
+    Validation pour le changement de visibilite d'un dossier.
+    / Validation for changing folder visibility.
+
+    LOCALISATION : front/serializers.py
+    """
+    visibilite = serializers.ChoiceField(
+        choices=["prive", "partage", "public"],
+        error_messages={
+            "required": "La visibilite est obligatoire / Visibility is required",
+        },
+    )
+
+
+class GroupeCreateSerializer(serializers.Serializer):
+    """
+    Validation pour la creation d'un groupe d'utilisateurs.
+    / Validation for creating a user group.
+
+    LOCALISATION : front/serializers.py
+    """
+    nom = serializers.CharField(
+        max_length=200,
+        error_messages={
+            "required": "Le nom du groupe est obligatoire / Group name is required",
+            "blank": "Le nom du groupe ne peut pas etre vide / Group name cannot be blank",
+        },
+    )
+
+
+class GroupeAjouterMembreSerializer(serializers.Serializer):
+    """
+    Validation pour l'ajout d'un membre a un groupe.
+    / Validation for adding a member to a group.
+
+    LOCALISATION : front/serializers.py
+    """
+    username = serializers.CharField(
+        max_length=150,
+        error_messages={
+            "required": "Le nom d'utilisateur est obligatoire / Username is required",
+            "blank": "Le nom d'utilisateur ne peut pas etre vide / Username cannot be blank",
+        },
+    )
+
+
+# =============================================================================
+# PHASE-25d — Serializers invitation email + Explorer
+# / PHASE-25d — Email invitation + Explorer serializers
+# =============================================================================
+
+
+class InviterEmailSerializer(serializers.Serializer):
+    """
+    Validation pour l'invitation par email (dossier ou groupe).
+    / Validation for email invitation (folder or group).
+
+    LOCALISATION : front/serializers.py
+    """
+    email = serializers.EmailField(
+        error_messages={
+            "required": "L'email est obligatoire / Email is required",
+            "invalid": "Format d'email invalide / Invalid email format",
+        },
+    )
+
+
+class ExplorerFiltresSerializer(serializers.Serializer):
+    """
+    Validation des filtres de la page Explorer (recherche, auteur, pagination).
+    / Validation for Explorer page filters (search, author, pagination).
+
+    LOCALISATION : front/serializers.py
+    """
+    q = serializers.CharField(required=False, allow_blank=True, default="")
+    auteur = serializers.IntegerField(required=False, allow_null=True, default=None)
+    tri = serializers.ChoiceField(
+        choices=["recent", "populaire", "nom"],
+        required=False, default="recent",
+    )
+    page_num = serializers.IntegerField(required=False, default=1)

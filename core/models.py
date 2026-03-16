@@ -29,6 +29,15 @@ class PageStatus(models.TextChoices):
     ERROR = "error", "Erreur"
 
 
+class VisibiliteDossier(models.TextChoices):
+    """Niveau de visibilite d'un dossier (prive, partage, public).
+    / Folder visibility level (private, shared, public).
+    """
+    PRIVE = "prive", "Privé"
+    PARTAGE = "partage", "Partagé"
+    PUBLIC = "public", "Public"
+
+
 class Dossier(models.Model):
     """Dossier de classement pour organiser les pages."""
 
@@ -39,6 +48,20 @@ class Dossier(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name="dossiers_possedes",
         help_text="Proprietaire du dossier (null = legacy) / Folder owner",
+    )
+    # Visibilite du dossier : prive (defaut), partage, public
+    # / Folder visibility: private (default), shared, public
+    # Description courte du dossier (optionnel, visible dans l'Explorer)
+    # / Short folder description (optional, shown in Explorer)
+    description = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Description courte du dossier (optionnel) / Short folder description (optional)",
+    )
+    visibilite = models.CharField(
+        max_length=10,
+        choices=VisibiliteDossier.choices,
+        default=VisibiliteDossier.PRIVE,
+        help_text="Niveau de visibilite du dossier / Folder visibility level",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1070,21 +1093,171 @@ class ReponseQuestion(models.Model):
         return f"{self.user.username}: {self.texte_reponse[:60]}"
 
 
-class DossierPartage(models.Model):
+class GroupeUtilisateurs(models.Model):
     """
-    Partage binaire d'un dossier. Si le lien existe, l'utilisateur a acces complet.
-    / Binary folder sharing. If the link exists, the user has full access.
+    Groupe d'utilisateurs cree par un owner pour faciliter le partage de dossiers.
+    / User group created by an owner to simplify folder sharing.
     """
-    dossier = models.ForeignKey(Dossier, on_delete=models.CASCADE, related_name="partages")
-    utilisateur = models.ForeignKey(
+    nom = models.CharField(max_length=200, help_text="Nom du groupe / Group name")
+    owner = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-        related_name="dossiers_partages",
+        related_name="groupes_possedes",
+        help_text="Proprietaire du groupe / Group owner",
+    )
+    membres = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, related_name="groupes_membre",
+        blank=True, help_text="Membres du groupe / Group members",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ["dossier", "utilisateur"]
-        verbose_name = "Partage de dossier"
+        verbose_name = "Groupe d'utilisateurs"
+        verbose_name_plural = "Groupes d'utilisateurs"
+        ordering = ["nom"]
 
     def __str__(self):
-        return f"{self.dossier.name} → {self.utilisateur.username}"
+        return self.nom
+
+
+class DossierPartage(models.Model):
+    """
+    Partage d'un dossier avec un utilisateur ou un groupe.
+    Au moins un des deux (utilisateur, groupe) doit etre non-null.
+    / Folder sharing with a user or a group.
+    At least one of (utilisateur, groupe) must be non-null.
+    """
+    dossier = models.ForeignKey(Dossier, on_delete=models.CASCADE, related_name="partages")
+    utilisateur = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="dossiers_partages",
+        help_text="Utilisateur cible du partage (null si partage par groupe)",
+    )
+    groupe = models.ForeignKey(
+        GroupeUtilisateurs, on_delete=models.CASCADE,
+        null=True, blank=True,
+        related_name="partages_dossier",
+        help_text="Groupe cible du partage (null si partage direct)",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Partage de dossier"
+        constraints = [
+            # Unicite partage dossier+utilisateur (quand utilisateur non null)
+            # / Unique share per folder+user (when user is not null)
+            models.UniqueConstraint(
+                fields=["dossier", "utilisateur"],
+                condition=models.Q(utilisateur__isnull=False),
+                name="unique_partage_dossier_utilisateur",
+            ),
+            # Unicite partage dossier+groupe (quand groupe non null)
+            # / Unique share per folder+group (when group is not null)
+            models.UniqueConstraint(
+                fields=["dossier", "groupe"],
+                condition=models.Q(groupe__isnull=False),
+                name="unique_partage_dossier_groupe",
+            ),
+            # Au moins un des deux (utilisateur ou groupe) doit etre renseigne
+            # / At least one of (user or group) must be set
+            models.CheckConstraint(
+                condition=~models.Q(utilisateur__isnull=True, groupe__isnull=True),
+                name="partage_dossier_au_moins_un_cible",
+            ),
+        ]
+
+    def __str__(self):
+        if self.utilisateur:
+            return f"{self.dossier.name} → {self.utilisateur.username}"
+        return f"{self.dossier.name} → groupe:{self.groupe.nom}"
+
+
+class Invitation(models.Model):
+    """
+    Invitation par email a rejoindre un dossier ou un groupe.
+    Au moins un des deux (dossier, groupe) doit etre non-null.
+    / Email invitation to join a folder or a group.
+    At least one of (dossier, groupe) must be non-null.
+    """
+    dossier = models.ForeignKey(
+        Dossier, on_delete=models.CASCADE,
+        null=True, blank=True, related_name="invitations",
+        help_text="Dossier cible de l'invitation (null si invitation groupe)",
+    )
+    groupe = models.ForeignKey(
+        GroupeUtilisateurs, on_delete=models.CASCADE,
+        null=True, blank=True, related_name="invitations",
+        help_text="Groupe cible de l'invitation (null si invitation dossier)",
+    )
+    email = models.EmailField(
+        help_text="Adresse email du destinataire / Recipient email address",
+    )
+    invite_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="invitations_envoyees",
+        help_text="Utilisateur qui a envoye l'invitation / User who sent the invitation",
+    )
+    token = models.CharField(
+        max_length=64, unique=True,
+        help_text="Token unique d'acceptation (secrets.token_hex(32)) / Unique acceptance token",
+    )
+    acceptee = models.BooleanField(
+        default=False,
+        help_text="True si l'invitation a ete acceptee / True if invitation was accepted",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(
+        help_text="Date d'expiration de l'invitation (now + 7 jours) / Invitation expiry date",
+    )
+
+    class Meta:
+        verbose_name = "Invitation"
+        verbose_name_plural = "Invitations"
+        ordering = ["-created_at"]
+        constraints = [
+            # Au moins un des deux (dossier ou groupe) doit etre renseigne
+            # / At least one of (dossier or groupe) must be set
+            models.CheckConstraint(
+                condition=~models.Q(dossier__isnull=True, groupe__isnull=True),
+                name="invitation_au_moins_une_cible",
+            ),
+        ]
+
+    def __str__(self):
+        cible = self.dossier.name if self.dossier else f"groupe:{self.groupe.nom}"
+        return f"Invitation {self.email} → {cible}"
+
+
+class DossierSuivi(models.Model):
+    """
+    Suivi d'un dossier public par un utilisateur.
+    Permet d'ajouter un dossier public dans la section "Suivis" de l'arbre.
+    / Follow of a public folder by a user.
+    Allows adding a public folder in the "Followed" section of the tree.
+    """
+    utilisateur = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="dossiers_suivis",
+        help_text="Utilisateur qui suit le dossier / User following the folder",
+    )
+    dossier = models.ForeignKey(
+        Dossier, on_delete=models.CASCADE,
+        related_name="suivis",
+        help_text="Dossier suivi / Followed folder",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Suivi de dossier"
+        verbose_name_plural = "Suivis de dossiers"
+        constraints = [
+            # Unicite : un utilisateur ne peut suivre un dossier qu'une fois
+            # / Uniqueness: a user can follow a folder only once
+            models.UniqueConstraint(
+                fields=["utilisateur", "dossier"],
+                name="unique_suivi_utilisateur_dossier",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.utilisateur.username} suit {self.dossier.name}"
