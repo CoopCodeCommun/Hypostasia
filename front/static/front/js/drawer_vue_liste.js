@@ -15,8 +15,8 @@
  * Ecoute : clic delegue sur .drawer-carte-compacte (scroll texte + carte inline)
  * Note : .btn-masquer-drawer et .btn-restaurer-drawer sont geres par HTMX (hx-post dans le template)
  * Ecoute : change sur #drawer-select-tri (recharge contenu)
- * Ecoute : change sur #drawer-select-contributeur (filtre contributeur, PHASE-26a)
- * Ecoute : clic delegue sur .btn-retirer-filtre-contributeur (retire filtre, PHASE-26a UX)
+ * Ecoute : clic delegue sur .pilule-contributeur (toggle filtre multi-contributeurs, PHASE-26a-bis)
+ * Ecoute : clic delegue sur .pilule-reset-contributeurs (retire tous les filtres, PHASE-26a-bis)
  * Ecoute : clic delegue sur #btn-toggle-masquees (affiche/cache section masquees)
  * Ecoute : htmx event drawerContenuChange (recharge contenu apres masquer/restaurer)
  * Expose : window.drawerVueListe = { ouvrir, fermer, basculer, estOuvert }
@@ -32,6 +32,14 @@
 
     var drawerEstOuvert = false;
     var contenuCharge = false;
+
+    // Flag pour scroller en haut du drawer apres rechargement filtre (PHASE-26a UX)
+    // / Flag to scroll drawer to top after filter reload (PHASE-26a UX)
+    var doitScrollerApresSwap = false;
+
+    // Mode filtre : 'inclure' (defaut) ou 'exclure' (PHASE-26a UX)
+    // / Filter mode: 'inclure' (default) or 'exclure' (PHASE-26a UX)
+    var modeFiltre = 'inclure';
 
     // Extrait le token CSRF depuis le header hx-headers du body
     // / Extract CSRF token from body's hx-headers attribute
@@ -99,11 +107,21 @@
         });
     }
 
-    // Recupere la valeur actuelle du filtre contributeur (PHASE-26a)
-    // / Get current contributor filter value (PHASE-26a)
-    function getContributeurActuel() {
-        var select = document.getElementById('drawer-select-contributeur');
-        return select ? select.value : '';
+    // Recupere les IDs des contributeurs actuellement filtres (PHASE-26a-bis)
+    // Inclut les pilules actives ET exclues (PHASE-26a UX)
+    // / Get currently filtered contributor IDs (PHASE-26a-bis)
+    // / Includes active AND excluded pills (PHASE-26a UX)
+    function getContributeursActuels() {
+        var pilules = document.querySelectorAll(
+            '#drawer-contenu .pilule-contributeur.pilule-active:not(.pilule-reset-contributeurs),' +
+            '#drawer-contenu .pilule-contributeur.pilule-exclue:not(.pilule-reset-contributeurs)'
+        );
+        var listeIds = [];
+        pilules.forEach(function(pilule) {
+            var identifiant = pilule.dataset.contributeurId;
+            if (identifiant) listeIds.push(identifiant);
+        });
+        return listeIds.join(',');
     }
 
     // Charge le contenu du drawer via HTMX
@@ -121,6 +139,11 @@
         }
         if (contributeurOptional) {
             url += '&contributeur=' + contributeurOptional;
+        }
+        // Passer le mode filtre si exclure (PHASE-26a UX)
+        // / Pass filter mode if exclude (PHASE-26a UX)
+        if (modeFiltre === 'exclure') {
+            url += '&mode_filtre=exclure';
         }
 
         htmx.ajax('GET', url, {
@@ -308,71 +331,102 @@
     //   3. The "drawerContenuChange" signal reloads the side panel list
     //   4. The "lectureReload" signal reloads the text with updated highlighting
 
-    // Change sur le select de tri → recharge le contenu en preservant le filtre contributeur
+    // Change sur le select de tri → recharge le contenu en preservant le filtre contributeurs
     // / Change on sort select → reload content preserving contributor filter
     document.getElementById('drawer-contenu').addEventListener('change', function(evenement) {
         if (evenement.target.id === 'drawer-select-tri') {
             var triChoisi = evenement.target.value;
-            var contributeurActuel = getContributeurActuel();
-            chargerContenu(triChoisi, contributeurActuel);
-            return;
-        }
-
-        // Change sur le select contributeur → recharge avec le filtre (PHASE-26a)
-        // / Change on contributor select → reload with filter (PHASE-26a)
-        if (evenement.target.id === 'drawer-select-contributeur') {
-            var selectTri = document.getElementById('drawer-select-tri');
-            var triActuel = selectTri ? selectTri.value : 'position';
-            var contributeurChoisi = evenement.target.value;
-            chargerContenu(triActuel, contributeurChoisi);
-
-            // Mettre a jour le badge indicateur dans la toolbar (PHASE-26a UX)
-            // / Update toolbar indicator badge (PHASE-26a UX)
-            mettreAJourBadgeToolbar(contributeurChoisi);
-
-            // Si heatmap active, recharger la zone de lecture avec le contributeur (PHASE-26a)
-            // / If heatmap is active, reload reading zone with contributor (PHASE-26a)
-            if (window.marginalia && window.marginalia.heatmapEstActive()) {
-                var pageId = getPageId();
-                rechargerZoneLecture(pageId, contributeurChoisi);
-            }
+            var contributeursActuels = getContributeursActuels();
+            chargerContenu(triChoisi, contributeursActuels);
             return;
         }
     });
 
-    // Clic sur le bouton "x" du chip contributeur actif → retirer le filtre (PHASE-26a UX)
-    // / Click on active contributor chip "x" button → remove filter (PHASE-26a UX)
+    // Clic sur une pilule contributeur → toggle filtre (PHASE-26a-bis)
+    // / Click on a contributor pill → toggle filter (PHASE-26a-bis)
     document.getElementById('drawer-contenu').addEventListener('click', function(evenement) {
-        var boutonRetirer = evenement.target.closest('.btn-retirer-filtre-contributeur');
-        if (!boutonRetirer) return;
+        var pilule = evenement.target.closest('.pilule-contributeur');
+        if (!pilule) return;
 
         var selectTri = document.getElementById('drawer-select-tri');
         var triActuel = selectTri ? selectTri.value : 'position';
-        chargerContenu(triActuel, '');
-        mettreAJourBadgeToolbar('');
 
-        // Retirer aussi le filtre pastilles et recharger la heatmap si active
-        // / Also remove pastille filter and reload heatmap if active
-        if (window.marginalia && window.marginalia.resetContributeurFiltre) {
-            window.marginalia.resetContributeurFiltre();
+        // Clic sur "Tous x" → retirer tous les filtres et reset mode
+        // / Click on "Tous x" → remove all filters and reset mode
+        if (pilule.classList.contains('pilule-reset-contributeurs')) {
+            modeFiltre = 'inclure';
+            doitScrollerApresSwap = true;
+            chargerContenu(triActuel, '');
+            mettreAJourBadgeToolbar('');
+            if (window.marginalia && window.marginalia.resetContributeurFiltre) {
+                window.marginalia.resetContributeurFiltre();
+            }
+            if (window.marginalia && window.marginalia.heatmapEstActive()) {
+                var pageId = getPageId();
+                rechargerZoneLecture(pageId, '');
+            }
+            return;
         }
+
+        // Clic sur "Sauf" → basculer le mode inclure/exclure (PHASE-26a UX)
+        // / Click on "Sauf" → toggle include/exclude mode (PHASE-26a UX)
+        if (pilule.classList.contains('pilule-toggle-mode')) {
+            modeFiltre = (modeFiltre === 'inclure') ? 'exclure' : 'inclure';
+            var contributeursActuels = getContributeursActuels();
+            doitScrollerApresSwap = true;
+            chargerContenu(triActuel, contributeursActuels);
+            mettreAJourBadgeToolbar(contributeursActuels);
+            if (window.marginalia && window.marginalia.heatmapEstActive()) {
+                var pageId = getPageId();
+                rechargerZoneLecture(pageId, contributeursActuels);
+            }
+            return;
+        }
+
+        // Toggle la pilule cliquee (feedback visuel immediat)
+        // Utilise pilule-exclue en mode exclure, pilule-active en mode inclure (PHASE-26a UX)
+        // / Toggle the clicked pill (immediate visual feedback)
+        // / Uses pilule-exclue in exclude mode, pilule-active in include mode (PHASE-26a UX)
+        var classePilule = (modeFiltre === 'exclure') ? 'pilule-exclue' : 'pilule-active';
+        pilule.classList.toggle(classePilule);
+
+        // Lire tous les IDs actifs et recharger
+        // / Read all active IDs and reload
+        var contributeursActuels = getContributeursActuels();
+        doitScrollerApresSwap = true;
+        chargerContenu(triActuel, contributeursActuels);
+        mettreAJourBadgeToolbar(contributeursActuels);
+
+        // Si heatmap active, recharger la zone de lecture (PHASE-26a-bis)
+        // / If heatmap is active, reload reading zone (PHASE-26a-bis)
         if (window.marginalia && window.marginalia.heatmapEstActive()) {
             var pageId = getPageId();
-            rechargerZoneLecture(pageId, '');
+            rechargerZoneLecture(pageId, contributeursActuels);
         }
     });
 
     // Affiche ou cache le badge indicateur filtre sur le bouton toolbar Extractions
+    // La valeur recue est une chaine virgule-separee des IDs contributeurs actifs.
+    // Chaine vide = pas de filtre actif = cacher le badge.
     // / Show or hide the filter indicator badge on the Extractions toolbar button
-    function mettreAJourBadgeToolbar(contributeurId) {
+    function mettreAJourBadgeToolbar(valeurFiltreContributeurs) {
         var badge = document.getElementById('badge-filtre-contributeur');
         if (!badge) return;
-        if (contributeurId) {
+        if (valeurFiltreContributeurs) {
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');
         }
     }
+
+    // Scroll en haut du drawer apres un swap filtre contributeur (PHASE-26a UX)
+    // / Scroll drawer to top after contributor filter swap (PHASE-26a UX)
+    contenu.addEventListener('htmx:afterSwap', function() {
+        if (doitScrollerApresSwap) {
+            contenu.scrollTop = 0;
+            doitScrollerApresSwap = false;
+        }
+    });
 
     // Toggle section masquees
     // / Toggle hidden section
@@ -400,8 +454,8 @@
         if (drawerEstOuvert) {
             var selectTri = document.getElementById('drawer-select-tri');
             var triActuel = selectTri ? selectTri.value : 'position';
-            var contributeurActuel = getContributeurActuel();
-            chargerContenu(triActuel, contributeurActuel);
+            var contributeursActuels = getContributeursActuels();
+            chargerContenu(triActuel, contributeursActuels);
         } else {
             // Marquer comme non charge pour forcer le rechargement au prochain open
             // / Mark as not loaded to force reload on next open

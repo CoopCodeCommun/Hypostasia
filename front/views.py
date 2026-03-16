@@ -365,21 +365,21 @@ def _calculer_scores_temperature(entites_annotees):
     return scores_normalises
 
 
-def _calculer_scores_temperature_par_contributeur(entites, identifiant_contributeur):
+def _calculer_scores_temperature_par_contributeurs(entites, ensemble_identifiants_contributeurs):
     """
-    Calcule les scores de temperature normalises pour un contributeur specifique (PHASE-26a).
-    Ne compte que les commentaires du contributeur filtre.
+    Calcule les scores de temperature normalises pour un ou plusieurs contributeurs (PHASE-26a-bis).
+    Ne compte que les commentaires des contributeurs filtres.
     Retourne un dict {entite_pk: score_normalise_entre_0_et_1}.
-    / Compute normalized temperature scores for a specific contributor (PHASE-26a).
-    Only counts comments from the filtered contributor.
+    / Compute normalized temperature scores for one or more contributors (PHASE-26a-bis).
+    Only counts comments from the filtered contributors.
     Returns {entity_pk: normalized_score_between_0_and_1}.
     """
-    # Compter les commentaires du contributeur par entite
-    # / Count contributor's comments per entity
+    # Compter les commentaires des contributeurs par entite
+    # / Count contributors' comments per entity
     comptages_par_entite = dict(
         CommentaireExtraction.objects.filter(
             entity__in=entites,
-            user_id=identifiant_contributeur,
+            user_id__in=ensemble_identifiants_contributeurs,
         ).values_list("entity_id").annotate(nombre=Count("pk"))
     )
 
@@ -661,17 +661,21 @@ class LectureViewSet(viewsets.ViewSet):
             # Annoter le HTML avec des ancres pour le scroll-to-extraction
             # / Annotate HTML with anchors for scroll-to-extraction
 
-            # Heat map par contributeur si filtre actif (PHASE-26a)
-            # / Contributor-specific heat map if filter is active (PHASE-26a)
-            parametre_contributeur_lecture = request.query_params.get("contributeur")
-            if parametre_contributeur_lecture:
-                try:
-                    id_contributeur_lecture = int(parametre_contributeur_lecture)
-                    scores_temperature = _calculer_scores_temperature_par_contributeur(
-                        entites_existantes, id_contributeur_lecture,
-                    )
-                except (ValueError, TypeError):
-                    scores_temperature = _calculer_scores_temperature(entites_existantes)
+            # Heat map par contributeurs si filtre actif (PHASE-26a-bis)
+            # / Contributor-specific heat map if filter is active (PHASE-26a-bis)
+            parametre_contributeur_lecture = request.query_params.get("contributeur", "")
+            ensemble_ids_contributeurs_lecture = set()
+            for id_brut in parametre_contributeur_lecture.split(","):
+                id_brut = id_brut.strip()
+                if id_brut:
+                    try:
+                        ensemble_ids_contributeurs_lecture.add(int(id_brut))
+                    except (ValueError, TypeError):
+                        pass
+            if ensemble_ids_contributeurs_lecture:
+                scores_temperature = _calculer_scores_temperature_par_contributeurs(
+                    entites_existantes, ensemble_ids_contributeurs_lecture,
+                )
             else:
                 scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
@@ -2169,6 +2173,13 @@ class PageViewSet(viewsets.ViewSet):
         page.save(update_fields=["dossier"])
 
         return _render_arbre(request)
+
+
+def _calculer_teinte_contributeur(username):
+    """Hash deterministe du username en teinte HSL 0-360 (PHASE-26a UX).
+    / Deterministic hash of username to HSL hue 0-360 (PHASE-26a UX)."""
+    digest = hashlib.md5(username.encode()).hexdigest()
+    return int(digest[:8], 16) % 360
 
 
 class ExtractionViewSet(viewsets.ViewSet):
@@ -3846,15 +3857,19 @@ class ExtractionViewSet(viewsets.ViewSet):
         page = get_object_or_404(Page, pk=identifiant_page)
         parametre_tri = request.query_params.get("tri", "position")
 
-        # Parametre optionnel : filtre contributeur (PHASE-26a)
-        # / Optional parameter: contributor filter (PHASE-26a)
-        parametre_contributeur = request.query_params.get("contributeur")
-        identifiant_contributeur = None
-        if parametre_contributeur:
-            try:
-                identifiant_contributeur = int(parametre_contributeur)
-            except (ValueError, TypeError):
-                pass
+        # Parametre optionnel : filtre multi-contributeurs, virgule-separee (PHASE-26a-bis)
+        # Retro-compatible : ?contributeur=42 (single) fonctionne toujours.
+        # / Optional: multi-contributor filter, comma-separated (PHASE-26a-bis)
+        # / Backward compat: ?contributeur=42 (single) still works.
+        parametre_contributeur = request.query_params.get("contributeur", "")
+        ensemble_contributeurs_actifs = set()
+        for identifiant_brut in parametre_contributeur.split(","):
+            identifiant_brut = identifiant_brut.strip()
+            if identifiant_brut:
+                try:
+                    ensemble_contributeurs_actifs.add(int(identifiant_brut))
+                except (ValueError, TypeError):
+                    pass
 
         # Recuperer toutes les entites (masquees et non masquees)
         # / Retrieve all entities (hidden and not hidden)
@@ -3880,32 +3895,61 @@ class ExtractionViewSet(viewsets.ViewSet):
             nombre_commentaires=Count("pk"),
         ).order_by("-nombre_commentaires")
 
+        # Compter le nombre d'entites distinctes par contributeur (PHASE-26a UX)
+        # / Count distinct entities per contributor (PHASE-26a UX)
+        entites_distinctes_par_contributeur = dict(
+            CommentaireExtraction.objects.filter(
+                entity__job__in=tous_les_jobs_termines,
+            ).values("user__pk").annotate(
+                nombre_entites=Count("entity_id", distinct=True),
+            ).values_list("user__pk", "nombre_entites")
+        )
+
+        # Enrichir la liste des contributeurs avec nombre_entites + couleur HSL (PHASE-26a UX)
+        # / Enrich contributor list with nombre_entites + HSL color (PHASE-26a UX)
+        liste_contributeurs_enrichie = []
+        for contributeur_entry in commentaires_par_contributeur:
+            contributeur_enrichi = dict(contributeur_entry)
+            contributeur_enrichi["nombre_entites"] = entites_distinctes_par_contributeur.get(
+                contributeur_entry["user__pk"], 0,
+            )
+            contributeur_enrichi["couleur_hsl"] = _calculer_teinte_contributeur(
+                contributeur_entry["user__username"],
+            )
+            liste_contributeurs_enrichie.append(contributeur_enrichi)
+
         # Compter le total AVANT filtre pour afficher "N sur M" (PHASE-26a UX)
         # / Count total BEFORE filter to display "N out of M" (PHASE-26a UX)
         nombre_total_sans_filtre = toutes_les_entites.count()
 
-        # Si un contributeur est filtre, ne garder que les entites commentees par ce user
-        # / If a contributor is filtered, keep only entities commented by that user
-        ids_entites_du_contributeur = set()
-        nom_contributeur_actif = None
-        if identifiant_contributeur:
-            ids_entites_du_contributeur = set(
+        # Mode filtre : inclure (defaut) ou exclure (PHASE-26a UX)
+        # / Filter mode: inclure (default) or exclure (PHASE-26a UX)
+        mode_filtre = request.query_params.get("mode_filtre", "inclure")
+
+        # Si des contributeurs sont filtres, garder ou exclure les entites commentees
+        # / If contributors are filtered, keep or exclude commented entities
+        ids_entites_des_contributeurs = set()
+        noms_contributeurs_actifs = []
+        if ensemble_contributeurs_actifs:
+            ids_entites_des_contributeurs = set(
                 CommentaireExtraction.objects.filter(
                     entity__job__in=tous_les_jobs_termines,
-                    user_id=identifiant_contributeur,
+                    user_id__in=ensemble_contributeurs_actifs,
                 ).values_list("entity_id", flat=True).distinct()
             )
-            toutes_les_entites = toutes_les_entites.filter(
-                pk__in=ids_entites_du_contributeur,
-            )
-            # Recuperer le nom du contributeur pour le chip actif
-            # / Get contributor name for the active chip
-            contributeur_trouve = next(
-                (c for c in commentaires_par_contributeur if c["user__pk"] == identifiant_contributeur),
-                None,
-            )
-            if contributeur_trouve:
-                nom_contributeur_actif = contributeur_trouve["user__username"]
+            if mode_filtre == "exclure":
+                toutes_les_entites = toutes_les_entites.exclude(
+                    pk__in=ids_entites_des_contributeurs,
+                )
+            else:
+                toutes_les_entites = toutes_les_entites.filter(
+                    pk__in=ids_entites_des_contributeurs,
+                )
+            # Recuperer les noms des contributeurs pour les pilules actives
+            # / Get contributor names for active pills
+            for contributeur_entry in commentaires_par_contributeur:
+                if contributeur_entry["user__pk"] in ensemble_contributeurs_actifs:
+                    noms_contributeurs_actifs.append(contributeur_entry["user__username"])
 
         # Appliquer le tri / Apply sort order
         if parametre_tri == "activite":
@@ -3920,12 +3964,13 @@ class ExtractionViewSet(viewsets.ViewSet):
         entites_visibles = [entite for entite in toutes_les_entites if not entite.masquee]
         entites_masquees = [entite for entite in toutes_les_entites if entite.masquee]
 
-        # Emettre HX-Trigger pour le filtrage des pastilles cote JS (PHASE-26a)
-        # / Emit HX-Trigger for pastille filtering on JS side (PHASE-26a)
+        # Emettre HX-Trigger pour le filtrage des pastilles cote JS (PHASE-26a-bis)
+        # / Emit HX-Trigger for pastille filtering on JS side (PHASE-26a-bis)
         donnees_trigger = json.dumps({
             "contributeurFiltreChange": {
-                "contributeur_id": identifiant_contributeur,
-                "ids_entites": list(ids_entites_du_contributeur) if identifiant_contributeur else [],
+                "contributeurs_ids": list(ensemble_contributeurs_actifs),
+                "ids_entites": list(ids_entites_des_contributeurs) if ensemble_contributeurs_actifs else [],
+                "mode_filtre": mode_filtre,
             }
         })
 
@@ -3937,10 +3982,11 @@ class ExtractionViewSet(viewsets.ViewSet):
             "nombre_total": len(entites_visibles) + len(entites_masquees),
             "nombre_total_sans_filtre": nombre_total_sans_filtre,
             "tri_actuel": parametre_tri,
-            "liste_contributeurs": commentaires_par_contributeur,
-            "contributeur_actif": identifiant_contributeur,
-            "nom_contributeur_actif": nom_contributeur_actif,
-            "ids_entites_du_contributeur": ids_entites_du_contributeur,
+            "liste_contributeurs": liste_contributeurs_enrichie,
+            "contributeurs_actifs": ensemble_contributeurs_actifs,
+            "noms_contributeurs_actifs": noms_contributeurs_actifs,
+            "ids_entites_des_contributeurs": ids_entites_des_contributeurs,
+            "mode_filtre": mode_filtre,
         })
 
         reponse["HX-Trigger"] = donnees_trigger

@@ -514,34 +514,36 @@
     });
 
 
-    // === Filtre contributeur sur les pastilles (PHASE-26a) ===
-    // / === Contributor filter on pastilles (PHASE-26a) ===
+    // === Filtre multi-contributeurs sur les pastilles (PHASE-26a-bis) ===
+    // / === Multi-contributor filter on pastilles (PHASE-26a-bis) ===
 
-    // ID du contributeur filtre actuellement (null = pas de filtre)
-    // / Currently filtered contributor ID (null = no filter)
-    var contributeurFiltreActuel = null;
+    // IDs des contributeurs filtres actuellement (tableau vide = pas de filtre)
+    // / Currently filtered contributor IDs (empty array = no filter)
+    var contributeursFiltresActuels = [];
 
-    // Retourne l'ID du contributeur filtre actuellement
-    // / Returns the currently filtered contributor ID
+    // Retourne les IDs des contributeurs filtres actuellement
+    // / Returns the currently filtered contributor IDs
     function getContributeurFiltre() {
-        return contributeurFiltreActuel;
+        return contributeursFiltresActuels;
     }
 
-    // Reset le filtre contributeur (retire les classes de dimming)
+    // Reset le filtre contributeurs (retire les classes de dimming)
     // / Reset contributor filter (remove dimming classes)
     function resetContributeurFiltre() {
-        contributeurFiltreActuel = null;
+        contributeursFiltresActuels = [];
         document.querySelectorAll('.pastille-extraction.pastille-hors-filtre').forEach(function(pastille) {
             pastille.classList.remove('pastille-hors-filtre');
         });
     }
 
-    // Applique le filtre contributeur sur les pastilles
-    // / Apply contributor filter on pastilles
-    function appliquerFiltreContributeur(contributeurId, idsEntites) {
-        contributeurFiltreActuel = contributeurId;
+    // Applique le filtre multi-contributeurs sur les pastilles
+    // Supporte le mode exclure : inverse le dimming (PHASE-26a UX)
+    // / Apply multi-contributor filter on pastilles
+    // / Supports exclude mode: inverts dimming (PHASE-26a UX)
+    function appliquerFiltreContributeurs(listeContributeursIds, idsEntites, modeFiltre) {
+        contributeursFiltresActuels = listeContributeursIds;
 
-        if (!contributeurId) {
+        if (!listeContributeursIds || !listeContributeursIds.length) {
             // Pas de filtre → retirer toutes les classes de dimming
             // / No filter → remove all dimming classes
             resetContributeurFiltre();
@@ -549,23 +551,32 @@
         }
 
         var setIdsEntites = new Set(idsEntites.map(String));
+        var estModeExclure = (modeFiltre === 'exclure');
 
         document.querySelectorAll('.pastille-extraction').forEach(function(pastille) {
             var extractionId = pastille.dataset.extractionId;
-            if (setIdsEntites.has(extractionId)) {
-                pastille.classList.remove('pastille-hors-filtre');
-            } else {
+            // En mode exclure, inverser la logique : dimmer les entites des contributeurs
+            // / In exclude mode, invert logic: dim the contributor's entities
+            var dansFiltre = setIdsEntites.has(extractionId);
+            var doitDimmer = estModeExclure ? dansFiltre : !dansFiltre;
+            if (doitDimmer) {
                 pastille.classList.add('pastille-hors-filtre');
+            } else {
+                pastille.classList.remove('pastille-hors-filtre');
             }
         });
     }
 
-    // Listener HX-Trigger contributeurFiltreChange (PHASE-26a)
-    // / HX-Trigger listener for contributeurFiltreChange (PHASE-26a)
+    // Listener HX-Trigger contributeurFiltreChange (PHASE-26a-bis)
+    // / HX-Trigger listener for contributeurFiltreChange (PHASE-26a-bis)
     document.body.addEventListener('contributeurFiltreChange', function(evenement) {
         var detail = evenement.detail;
         if (!detail) return;
-        appliquerFiltreContributeur(detail.contributeur_id, detail.ids_entites || []);
+        appliquerFiltreContributeurs(
+            detail.contributeurs_ids || [],
+            detail.ids_entites || [],
+            detail.mode_filtre || 'inclure'
+        );
     });
 
 

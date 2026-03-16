@@ -798,6 +798,44 @@ body { font-family: 'B612', sans-serif; }
     color: white;
     border-color: var(--text-primary);
 }
+
+/* Couleur HSL deterministe par contributeur (PHASE-26a UX) */
+/* / Deterministic HSL color per contributor (PHASE-26a UX) */
+.pilule-contributeur.pilule-active {
+    background: hsl(var(--pilule-hue, 220), 55%, 45%);
+    color: white;
+    border-color: hsl(var(--pilule-hue, 220), 55%, 45%);
+}
+.pilule-contributeur.pilule-active:hover {
+    background: hsl(var(--pilule-hue, 220), 55%, 38%);
+    border-color: hsl(var(--pilule-hue, 220), 55%, 38%);
+}
+
+/* Mode exclure : pilule barree avec hachures diagonales (PHASE-26a UX) */
+/* / Exclude mode: strikethrough pill with diagonal hatching (PHASE-26a UX) */
+.pilule-contributeur.pilule-exclue {
+    background: repeating-linear-gradient(-45deg,
+        hsl(var(--pilule-hue, 0), 25%, 90%),
+        hsl(var(--pilule-hue, 0), 25%, 90%) 2px,
+        hsl(var(--pilule-hue, 0), 25%, 82%) 2px,
+        hsl(var(--pilule-hue, 0), 25%, 82%) 4px);
+    color: hsl(var(--pilule-hue, 0), 40%, 35%);
+    border-color: hsl(var(--pilule-hue, 0), 30%, 70%);
+    text-decoration: line-through;
+}
+
+/* Bouton toggle mode inclure/exclure (PHASE-26a UX) */
+/* / Toggle button include/exclude mode (PHASE-26a UX) */
+.pilule-toggle-mode {
+    font-weight: 600;
+    font-style: italic;
+}
+.pilule-toggle-mode.pilule-mode-exclure {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    color: #92400e;
+}
+
 .pilule-pastille {
     display: inline-block;
     width: 8px;
@@ -1479,39 +1517,10 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
     pointer-events: none;
 }
 
-/* Chip du contributeur actif — badge cliquable avec bouton "x" */
-/* / Active contributor chip — clickable badge with "x" button */
-.chip-contributeur-actif {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.2rem 0.5rem;
-    font-size: 0.7rem;
-    font-family: 'Srisakdi', cursive;
-    color: var(--typo-lecteur-color);
-    background: #eef2ff;
-    border: 1px solid #c7d2fe;
-    border-radius: 9999px;
-}
-.btn-retirer-filtre-contributeur {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1rem;
-    height: 1rem;
-    border: none;
-    background: transparent;
-    color: #94a3b8;
-    font-size: 0.875rem;
-    line-height: 1;
-    cursor: pointer;
-    border-radius: 50%;
-    transition: background-color 0.15s, color 0.15s;
-    padding: 0;
-}
-.btn-retirer-filtre-contributeur:hover {
-    background: rgba(0,0,0,0.08);
-    color: #475569;
+/* Pilule reset "Tous x" — style discret (PHASE-26a-bis) */
+/* / Reset pill "Tous x" — subtle style (PHASE-26a-bis) */
+.pilule-reset-contributeurs {
+    font-weight: 600;
 }
 
 /* Highlight du nom du contributeur filtre dans les commentaires */

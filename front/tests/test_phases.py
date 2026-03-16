@@ -8230,8 +8230,8 @@ class _Phase26aSetupMixin:
 
 
 class Phase26aListeContributeursTest(_Phase26aSetupMixin, TestCase):
-    """La liste des contributeurs est peuplee avec noms + counts.
-    / Contributor list is populated with names + counts."""
+    """Les pilules contributeurs sont peuplees avec noms + counts.
+    / Contributor pills are populated with names + counts."""
 
     def setUp(self):
         self._creer_donnees_phase26a()
@@ -8243,9 +8243,9 @@ class Phase26aListeContributeursTest(_Phase26aSetupMixin, TestCase):
         )
         self.assertEqual(reponse.status_code, 200)
         contenu = reponse.content.decode()
-        # Le select contributeur doit etre present
-        # / The contributor select must be present
-        self.assertIn('drawer-select-contributeur', contenu)
+        # Les pilules contributeurs doivent etre presentes
+        # / Contributor pills must be present
+        self.assertIn('pilule-contributeur', contenu)
         # Les deux contributeurs doivent apparaitre
         # / Both contributors must appear
         self.assertIn('p26a_alice', contenu)
@@ -8318,8 +8318,8 @@ class Phase26aFiltreAvecTriTest(_Phase26aSetupMixin, TestCase):
 
 
 class Phase26aHxTriggerTest(_Phase26aSetupMixin, TestCase):
-    """Header HX-Trigger contient les bons IDs.
-    / HX-Trigger header contains the correct IDs."""
+    """Header HX-Trigger contient les bons IDs (PHASE-26a-bis : contributeurs_ids).
+    / HX-Trigger header contains the correct IDs (PHASE-26a-bis: contributeurs_ids)."""
 
     def setUp(self):
         self._creer_donnees_phase26a()
@@ -8336,6 +8336,10 @@ class Phase26aHxTriggerTest(_Phase26aSetupMixin, TestCase):
         self.assertIsNotNone(trigger_brut)
         trigger_data = json.loads(trigger_brut)
         self.assertIn("contributeurFiltreChange", trigger_data)
+        # PHASE-26a-bis : contributeurs_ids au lieu de contributeur_id
+        # / PHASE-26a-bis: contributeurs_ids instead of contributeur_id
+        contributeurs_ids = trigger_data["contributeurFiltreChange"]["contributeurs_ids"]
+        self.assertIn(self.contributeur_a.pk, contributeurs_ids)
         ids_entites = set(trigger_data["contributeurFiltreChange"]["ids_entites"])
         # Alice a commente entites 1 et 2
         # / Alice commented entities 1 and 2
@@ -8352,7 +8356,7 @@ class Phase26aHeatmapContributeurTest(_Phase26aSetupMixin, TestCase):
         self._creer_donnees_phase26a()
 
     def test_scores_temperature_par_contributeur(self):
-        from front.views import _calculer_scores_temperature_par_contributeur
+        from front.views import _calculer_scores_temperature_par_contributeurs
         from django.db.models import Count
         from hypostasis_extractor.models import ExtractedEntity
 
@@ -8362,8 +8366,8 @@ class Phase26aHeatmapContributeurTest(_Phase26aSetupMixin, TestCase):
 
         # Scores pour Alice : entite_1 a 1 comm + non-consensuel, entite_2 a 1 comm + consensuel
         # / Scores for Alice: entity_1 has 1 comment + non-consensual, entity_2 has 1 comment + consensual
-        scores_alice = _calculer_scores_temperature_par_contributeur(
-            entites, self.contributeur_a.pk,
+        scores_alice = _calculer_scores_temperature_par_contributeurs(
+            entites, {self.contributeur_a.pk},
         )
         # Entite 1 : 1×1 + 1×3 = 4, Entite 2 : 1×1 + 0×3 = 1
         # Entite 3 : 0×1 + 1×3 = 3 (Bob seulement), Entite 4 : 0×1 + 0×3 = 0
@@ -8426,30 +8430,32 @@ class Phase26aCompteurNsurMTest(_Phase26aSetupMixin, TestCase):
 
 
 class Phase26aChipContributeurActifTest(_Phase26aSetupMixin, TestCase):
-    """Le chip contributeur actif est present quand un filtre est actif.
-    / Active contributor chip is present when a filter is active."""
+    """La pilule contributeur active a la classe pilule-active (PHASE-26a-bis).
+    / Active contributor pill has the pilule-active class (PHASE-26a-bis)."""
 
     def setUp(self):
         self._creer_donnees_phase26a()
 
-    def test_chip_present_avec_filtre(self):
+    def test_pilule_active_avec_filtre(self):
         self.client.login(username="p26a_owner", password="test1234")
         reponse = self.client.get(
             f"/extractions/drawer_contenu/?page_id={self.page.pk}"
             f"&contributeur={self.contributeur_a.pk}",
         )
         contenu = reponse.content.decode()
-        self.assertIn('chip-contributeur-actif', contenu)
+        self.assertIn('pilule-active', contenu)
         self.assertIn('p26a_alice', contenu)
-        self.assertIn('btn-retirer-filtre-contributeur', contenu)
+        # Le bouton reset "Tous x" doit etre present
+        # / The "Tous x" reset button must be present
+        self.assertIn('btn-reset-contributeurs', contenu)
 
-    def test_chip_absent_sans_filtre(self):
+    def test_pilule_inactive_sans_filtre(self):
         self.client.login(username="p26a_owner", password="test1234")
         reponse = self.client.get(
             f"/extractions/drawer_contenu/?page_id={self.page.pk}",
         )
         contenu = reponse.content.decode()
-        self.assertNotIn('chip-contributeur-actif', contenu)
+        self.assertNotIn('pilule-active', contenu)
 
 
 class Phase26aHighlightNomContributeurTest(_Phase26aSetupMixin, TestCase):
@@ -8475,3 +8481,292 @@ class Phase26aHighlightNomContributeurTest(_Phase26aSetupMixin, TestCase):
         )
         contenu = reponse.content.decode()
         self.assertNotIn('contributeur-actif-highlight', contenu)
+
+
+# ====================================================================
+# PHASE-26a-bis — Filtre multi-contributeurs (pilules toggle)
+# ====================================================================
+
+
+class Phase26aBisMultiFiltreTest(_Phase26aSetupMixin, TestCase):
+    """?contributeur=A,B renvoie l'union des entites des deux contributeurs.
+    / ?contributeur=A,B returns the union of both contributors' entities."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_filtre_deux_contributeurs(self):
+        self.client.login(username="p26a_owner", password="test1234")
+        # Alice a commente entites 1,2 — Bob a commente entites 1,3 → union = 1,2,3
+        # / Alice commented entities 1,2 — Bob commented entities 1,3 → union = 1,2,3
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}"
+            f"&contributeur={self.contributeur_a.pk},{self.contributeur_b.pk}",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        contenu = reponse.content.decode()
+        self.assertIn('Texte entite 1', contenu)
+        self.assertIn('Texte entite 2', contenu)
+        self.assertIn('Texte entite 3', contenu)
+        # Entite 4 n'a aucun commentaire → exclue
+        # / Entity 4 has no comments → excluded
+        self.assertNotIn('Texte entite 4', contenu)
+
+
+class Phase26aBisMultiHxTriggerTest(_Phase26aSetupMixin, TestCase):
+    """HX-Trigger contient les 2 IDs contributeurs.
+    / HX-Trigger contains both contributor IDs."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_hx_trigger_multi(self):
+        import json
+        self.client.login(username="p26a_owner", password="test1234")
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}"
+            f"&contributeur={self.contributeur_a.pk},{self.contributeur_b.pk}",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        trigger_brut = reponse.get("HX-Trigger")
+        self.assertIsNotNone(trigger_brut)
+        trigger_data = json.loads(trigger_brut)
+        contributeurs_ids = set(trigger_data["contributeurFiltreChange"]["contributeurs_ids"])
+        self.assertIn(self.contributeur_a.pk, contributeurs_ids)
+        self.assertIn(self.contributeur_b.pk, contributeurs_ids)
+
+
+class Phase26aBisPilulesTest(_Phase26aSetupMixin, TestCase):
+    """Les pilules actives ont la classe pilule-active et le bouton reset apparait.
+    / Active pills have the pilule-active class and reset button appears."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_pilule_active_mono(self):
+        self.client.login(username="p26a_owner", password="test1234")
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}"
+            f"&contributeur={self.contributeur_a.pk}",
+        )
+        contenu = reponse.content.decode()
+        self.assertIn('pilule-active', contenu)
+        self.assertIn('btn-reset-contributeurs', contenu)
+
+    def test_pilules_actives_multi(self):
+        self.client.login(username="p26a_owner", password="test1234")
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}"
+            f"&contributeur={self.contributeur_a.pk},{self.contributeur_b.pk}",
+        )
+        contenu = reponse.content.decode()
+        # Les deux pilules doivent etre actives
+        # / Both pills must be active
+        self.assertIn(f'pilule-contributeur-{self.contributeur_a.pk}', contenu)
+        self.assertIn(f'pilule-contributeur-{self.contributeur_b.pk}', contenu)
+        self.assertIn('btn-reset-contributeurs', contenu)
+
+
+class Phase26aBisHeatmapUnionTest(_Phase26aSetupMixin, TestCase):
+    """Scores = union des commentaires de plusieurs contributeurs.
+    / Scores = union of comments from multiple contributors."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_scores_union(self):
+        from front.views import _calculer_scores_temperature_par_contributeurs
+        from django.db.models import Count
+        from hypostasis_extractor.models import ExtractedEntity
+
+        entites = ExtractedEntity.objects.filter(
+            job=self.job,
+        ).annotate(nombre_commentaires=Count("commentaires"))
+
+        # Union Alice + Bob : entite_1 a 2 comm, entite_2 a 1 comm (Alice),
+        # entite_3 a 1 comm (Bob)
+        # / Union Alice + Bob: entity_1 has 2 comments, entity_2 has 1 (Alice),
+        # / entity_3 has 1 (Bob)
+        scores_union = _calculer_scores_temperature_par_contributeurs(
+            entites, {self.contributeur_a.pk, self.contributeur_b.pk},
+        )
+        # Entite 1 : 2×1 + 1×3 = 5 (max), Entite 2 : 1×1 + 0×3 = 1
+        # Entite 3 : 1×1 + 1×3 = 4, Entite 4 : 0×1 + 0×3 = 0
+        self.assertEqual(scores_union[self.entite_1.pk], 1.0)  # 5/5
+        self.assertAlmostEqual(scores_union[self.entite_2.pk], 0.2)  # 1/5
+        self.assertAlmostEqual(scores_union[self.entite_3.pk], 0.8)  # 4/5
+
+
+class Phase26aBisRetroCompatTest(_Phase26aSetupMixin, TestCase):
+    """?contributeur=42 (single) fonctionne toujours.
+    / ?contributeur=42 (single) still works."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_single_backwards_compat(self):
+        self.client.login(username="p26a_owner", password="test1234")
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}"
+            f"&contributeur={self.contributeur_a.pk}",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        contenu = reponse.content.decode()
+        # Alice a commente entites 1 et 2
+        # / Alice commented entities 1 and 2
+        self.assertIn('Texte entite 1', contenu)
+        self.assertIn('Texte entite 2', contenu)
+        self.assertNotIn('Texte entite 3', contenu)
+
+
+# =============================================================================
+# PHASE-26a UX — 5 ameliorations filtre multi-contributeurs
+# / PHASE-26a UX — 5 improvements for multi-contributor filter
+# =============================================================================
+
+
+class Phase26aBisCompteurNomsTest(_Phase26aSetupMixin, TestCase):
+    """Le compteur affiche les noms des contributeurs actifs.
+    / Counter displays active contributor names."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_noms_dans_compteur(self):
+        self.client.login(username="p26a_owner", password="test1234")
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}"
+            f"&contributeur={self.contributeur_a.pk}",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        contenu = reponse.content.decode()
+        # Le compteur contient le nom du contributeur filtre
+        # / Counter contains the filtered contributor name
+        self.assertIn("p26a_alice", contenu)
+        self.assertIn('data-testid="drawer-compteur-noms"', contenu)
+
+
+class Phase26aBisEntitesCountTest(_Phase26aSetupMixin, TestCase):
+    """La pilule active affiche le nombre d'entites distinctes.
+    / Active pill displays distinct entity count."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_nombre_entites_calcul(self):
+        """Verifie que nombre_entites est bien injecte dans le contexte.
+        / Verify nombre_entites is injected in context."""
+        self.client.login(username="p26a_owner", password="test1234")
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}"
+            f"&contributeur={self.contributeur_a.pk}",
+        )
+        # Verifier dans le contexte de rendu
+        # / Check in the render context
+        liste_contrib = reponse.context["liste_contributeurs"]
+        alice_contrib = [c for c in liste_contrib if c["user__username"] == "p26a_alice"][0]
+        self.assertEqual(alice_contrib["nombre_entites"], 2)
+
+
+class Phase26aBisCouleurHslTest(_Phase26aSetupMixin, TestCase):
+    """Les pilules ont une couleur HSL deterministe.
+    / Pills have a deterministic HSL color."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_pilule_hue_dans_html(self):
+        self.client.login(username="p26a_owner", password="test1234")
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        contenu = reponse.content.decode()
+        self.assertIn("--pilule-hue:", contenu)
+
+    def test_teinte_deterministe(self):
+        """La meme username produit toujours la meme teinte.
+        / Same username always produces the same hue."""
+        from front.views import _calculer_teinte_contributeur
+        teinte_1 = _calculer_teinte_contributeur("alice")
+        teinte_2 = _calculer_teinte_contributeur("alice")
+        self.assertEqual(teinte_1, teinte_2)
+        # La teinte est entre 0 et 359
+        # / Hue is between 0 and 359
+        self.assertGreaterEqual(teinte_1, 0)
+        self.assertLessEqual(teinte_1, 359)
+
+    def test_teintes_differentes(self):
+        """Deux usernames differents produisent des teintes differentes.
+        / Two different usernames produce different hues."""
+        from front.views import _calculer_teinte_contributeur
+        teinte_alice = _calculer_teinte_contributeur("alice")
+        teinte_bob = _calculer_teinte_contributeur("bob")
+        self.assertNotEqual(teinte_alice, teinte_bob)
+
+
+class Phase26aBisExclureTest(_Phase26aSetupMixin, TestCase):
+    """Le mode exclure inverse le filtre : entites NON commentees par le contributeur.
+    / Exclude mode inverts the filter: entities NOT commented by the contributor."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_mode_exclure_alice(self):
+        self.client.login(username="p26a_owner", password="test1234")
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}"
+            f"&contributeur={self.contributeur_a.pk}"
+            f"&mode_filtre=exclure",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        contenu = reponse.content.decode()
+        # Alice a commente entites 1 et 2, donc exclure → entites 3 et 4
+        # / Alice commented entities 1 and 2, so exclude → entities 3 and 4
+        self.assertNotIn('Texte entite 1', contenu)
+        self.assertNotIn('Texte entite 2', contenu)
+        self.assertIn('Texte entite 3', contenu)
+        self.assertIn('Texte entite 4', contenu)
+
+
+class Phase26aBisExclureCompteurTest(_Phase26aSetupMixin, TestCase):
+    """Le compteur en mode exclure contient 'sauf'.
+    / Counter in exclude mode contains 'sauf'."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_compteur_sauf(self):
+        self.client.login(username="p26a_owner", password="test1234")
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}"
+            f"&contributeur={self.contributeur_a.pk}"
+            f"&mode_filtre=exclure",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        contenu = reponse.content.decode()
+        self.assertIn("sauf", contenu)
+
+
+class Phase26aBisExclureHxTriggerTest(_Phase26aSetupMixin, TestCase):
+    """Le HX-Trigger contient mode_filtre.
+    / HX-Trigger contains mode_filtre."""
+
+    def setUp(self):
+        self._creer_donnees_phase26a()
+
+    def test_hx_trigger_mode_filtre(self):
+        self.client.login(username="p26a_owner", password="test1234")
+        reponse = self.client.get(
+            f"/extractions/drawer_contenu/?page_id={self.page.pk}"
+            f"&contributeur={self.contributeur_a.pk}"
+            f"&mode_filtre=exclure",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        import json
+        trigger_brut = reponse.get("HX-Trigger", "")
+        donnees_trigger = json.loads(trigger_brut)
+        self.assertEqual(
+            donnees_trigger["contributeurFiltreChange"]["mode_filtre"],
+            "exclure",
+        )
