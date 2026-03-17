@@ -36,10 +36,10 @@ def _interpoler_couleur_heatmap(score_normalise):
     # Paliers (seuil, (R, G, B)) pour chaque niveau de temperature
     # / Threshold levels (threshold, (R, G, B)) for each temperature level
     paliers = [
-        (0.0, (240, 253, 244)),   # vert pale — consensus
-        (0.33, (254, 252, 232)),  # jaune pale — discussion moderee
-        (0.66, (255, 247, 237)),  # orange pale — debat actif
-        (1.0, (254, 242, 242)),   # rouge pale — controverse forte
+        (0.0, (236, 253, 245)),   # vert pale — consensus (consensuel bg)
+        (0.33, (240, 249, 255)),  # bleu pale — discussion moderee (discute bg)
+        (0.66, (255, 251, 235)),  # orange pale — debat actif (discutable bg)
+        (1.0, (255, 247, 237)),   # vermillon pale — controverse forte (controverse bg)
     ]
 
     # Borner le score entre 0 et 1 / Clamp score to [0, 1]

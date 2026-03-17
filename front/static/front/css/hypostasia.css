@@ -33,23 +33,31 @@
     --border-default: #e2e8f0;
     --border-strong: #cbd5e1;
 
-    /* --- 1e. Statuts de debat --- */
-    /* / Debate statuses */
-    --statut-consensuel-text: #15803d;
-    --statut-consensuel-bg: #f0fdf4;
-    --statut-consensuel-accent: #429900;
+    /* --- 1e. Statuts de debat (6 statuts) — Palette Wong (2011) daltonien-safe --- */
+    /* / Debate statuses (6 statuses) — Wong (2011) colorblind-safe palette */
+    --statut-nouveau-text: #6b7280;
+    --statut-nouveau-bg: #f3f4f6;
+    --statut-nouveau-accent: #999999;
 
-    --statut-discutable-text: #B61601;
-    --statut-discutable-bg: #fef2f2;
-    --statut-discutable-accent: #B61601;
+    --statut-consensuel-text: #047857;
+    --statut-consensuel-bg: #ecfdf5;
+    --statut-consensuel-accent: #009E73;
 
-    --statut-discute-text: #b45309;
-    --statut-discute-bg: #fffbeb;
-    --statut-discute-accent: #D97706;
+    --statut-discutable-text: #b45309;
+    --statut-discutable-bg: #fffbeb;
+    --statut-discutable-accent: #E69F00;
 
-    --statut-controverse-text: #C2410C;
-    --statut-controverse-bg: #FFF4ED;
-    --statut-controverse-accent: #FF4000;
+    --statut-discute-text: #0369a1;
+    --statut-discute-bg: #f0f9ff;
+    --statut-discute-accent: #56B4E9;
+
+    --statut-controverse-text: #c2410c;
+    --statut-controverse-bg: #fff7ed;
+    --statut-controverse-accent: #D55E00;
+
+    --statut-non_pertinent-text: #9d4e7e;
+    --statut-non_pertinent-bg: #fdf2f8;
+    --statut-non_pertinent-accent: #CC79A7;
 
     /* --- 1f. Hypostases (8 familles : fond + texte) --- */
     /* / Hypostases (8 families: background + text) */
@@ -240,23 +248,31 @@ body { font-family: 'B612', sans-serif; }
     padding: 1px 0;
 }
 
-/* Fond par statut de debat — desktop : subtil, soulignement en bas */
-/* / Background per debate status — desktop: subtle, underline at bottom */
+/* Fond par statut de debat — desktop : subtil, soulignement en bas (palette Wong 2011) */
+/* / Background per debate status — desktop: subtle, underline at bottom (Wong 2011 palette) */
+.hl-extraction[data-statut="nouveau"] {
+    background-color: rgba(153,153,153,0.06);
+    border-bottom: 2px solid rgba(153,153,153,0.20);
+}
 .hl-extraction[data-statut="consensuel"] {
-    background-color: rgba(66, 153, 0, 0.08);
-    border-bottom: 2px solid rgba(66, 153, 0, 0.25);
+    background-color: rgba(0,158,115,0.08);
+    border-bottom: 2px solid rgba(0,158,115,0.25);
 }
 .hl-extraction[data-statut="discutable"] {
-    background-color: rgba(182, 22, 1, 0.08);
-    border-bottom: 2px solid rgba(182, 22, 1, 0.25);
+    background-color: rgba(230,159,0,0.08);
+    border-bottom: 2px solid rgba(230,159,0,0.25);
 }
 .hl-extraction[data-statut="discute"] {
-    background-color: rgba(217, 119, 6, 0.08);
-    border-bottom: 2px solid rgba(217, 119, 6, 0.25);
+    background-color: rgba(86,180,233,0.08);
+    border-bottom: 2px solid rgba(86,180,233,0.25);
 }
 .hl-extraction[data-statut="controverse"] {
-    background-color: rgba(255, 64, 0, 0.10);
-    border-bottom: 2px solid rgba(255, 64, 0, 0.30);
+    background-color: rgba(213,94,0,0.10);
+    border-bottom: 2px solid rgba(213,94,0,0.30);
+}
+.hl-extraction[data-statut="non_pertinent"] {
+    background-color: rgba(204,121,167,0.06);
+    border-bottom: 2px solid rgba(204,121,167,0.20);
 }
 
 /* Extractions avec commentaires — bordure plus marquee */
@@ -270,18 +286,18 @@ body { font-family: 'B612', sans-serif; }
 /* / Right margin dot container (PHASE-09) */
 #readability-content .pastilles-marge {
     position: absolute;
-    right: -2.5rem;
+    right: -3rem;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 5px;
     z-index: 5;
 }
 
-/* Pastille individuelle (cercle 10px, couleur inline via JS) */
-/* / Individual dot (10px circle, inline color via JS) */
+/* Pastille individuelle (16px, forme par statut via clip-path) */
+/* / Individual dot (16px, shape per status via clip-path) */
 .pastille-extraction {
-    width: 10px;
-    height: 10px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     border: none;
     padding: 0;
@@ -290,11 +306,44 @@ body { font-family: 'B612', sans-serif; }
     flex-shrink: 0;
 }
 .pastille-extraction:hover {
-    transform: scale(1.4);
+    transform: scale(1.3);
 }
 .pastille-extraction.pastille-active {
-    transform: scale(1.4);
+    transform: scale(1.3);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+/* Formes par statut — daltonien-safe : chaque statut a une forme unique */
+/* / Shapes per status — colorblind-safe: each status has a unique shape */
+.pastille-extraction[data-statut="nouveau"],
+.indicateur-statut[data-statut="nouveau"] {
+    background: transparent !important;
+    border: 2px solid #999999;
+    border-radius: 50%;
+}
+.pastille-extraction[data-statut="consensuel"],
+.indicateur-statut[data-statut="consensuel"] {
+    border-radius: 50%;
+}
+.pastille-extraction[data-statut="discutable"],
+.indicateur-statut[data-statut="discutable"] {
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    border-radius: 0;
+}
+.pastille-extraction[data-statut="discute"],
+.indicateur-statut[data-statut="discute"] {
+    clip-path: polygon(50% 5%, 95% 95%, 5% 95%);
+    border-radius: 0;
+}
+.pastille-extraction[data-statut="controverse"],
+.indicateur-statut[data-statut="controverse"] {
+    border-radius: 2px;
+    clip-path: none;
+}
+.pastille-extraction[data-statut="non_pertinent"],
+.indicateur-statut[data-statut="non_pertinent"] {
+    clip-path: polygon(0% 30%, 100% 30%, 100% 70%, 0% 70%);
+    border-radius: 0;
 }
 
 
@@ -312,10 +361,12 @@ body { font-family: 'B612', sans-serif; }
     position: relative;
     overflow: hidden;
 }
-.carte-inline[data-statut="consensuel"]  { border-left-color: var(--statut-consensuel-accent); }
-.carte-inline[data-statut="discutable"]  { border-left-color: var(--statut-discutable-accent); }
-.carte-inline[data-statut="discute"]     { border-left-color: var(--statut-discute-accent); }
-.carte-inline[data-statut="controverse"] { border-left-color: var(--statut-controverse-accent); }
+.carte-inline[data-statut="nouveau"]       { border-left-color: var(--statut-nouveau-accent); }
+.carte-inline[data-statut="consensuel"]    { border-left-color: var(--statut-consensuel-accent); }
+.carte-inline[data-statut="discutable"]    { border-left-color: var(--statut-discutable-accent); }
+.carte-inline[data-statut="discute"]       { border-left-color: var(--statut-discute-accent); }
+.carte-inline[data-statut="controverse"]   { border-left-color: var(--statut-controverse-accent); }
+.carte-inline[data-statut="non_pertinent"] { border-left-color: var(--statut-non_pertinent-accent); }
 
 /* Animation entree carte inline */
 /* / Inline card entrance animation */
@@ -372,10 +423,12 @@ body { font-family: 'B612', sans-serif; }
 .hl-extraction.ancre-active {
     animation: hl-pulse 2.5s ease-out forwards;
 }
-.hl-extraction[data-statut="consensuel"].ancre-active  { background-color: rgba(66, 153, 0, 0.25); }
-.hl-extraction[data-statut="discutable"].ancre-active  { background-color: rgba(182, 22, 1, 0.20); }
-.hl-extraction[data-statut="discute"].ancre-active     { background-color: rgba(217, 119, 6, 0.22); }
-.hl-extraction[data-statut="controverse"].ancre-active { background-color: rgba(255, 64, 0, 0.25); }
+.hl-extraction[data-statut="nouveau"].ancre-active       { background-color: rgba(153,153,153,0.20); }
+.hl-extraction[data-statut="consensuel"].ancre-active    { background-color: rgba(0,158,115,0.25); }
+.hl-extraction[data-statut="discutable"].ancre-active    { background-color: rgba(230,159,0,0.22); }
+.hl-extraction[data-statut="discute"].ancre-active       { background-color: rgba(86,180,233,0.25); }
+.hl-extraction[data-statut="controverse"].ancre-active   { background-color: rgba(213,94,0,0.25); }
+.hl-extraction[data-statut="non_pertinent"].ancre-active { background-color: rgba(204,121,167,0.20); }
 @keyframes hl-pulse {
     0%   { background-color: rgba(59, 130, 246, 0.25); }
     70%  { background-color: rgba(59, 130, 246, 0.1); }
@@ -1351,21 +1404,29 @@ body.mode-focus .bandeau-notification {
         cursor: pointer;
         -webkit-tap-highlight-color: rgba(59,130,246,0.2);
     }
+    .hl-extraction[data-statut="nouveau"] {
+        background-color: rgba(153,153,153,0.10) !important;
+        border-bottom: 2px solid rgba(153,153,153,0.30) !important;
+    }
     .hl-extraction[data-statut="consensuel"] {
-        background-color: rgba(66, 153, 0, 0.12) !important;
-        border-bottom: 2px solid rgba(66, 153, 0, 0.35) !important;
+        background-color: rgba(0,158,115,0.12) !important;
+        border-bottom: 2px solid rgba(0,158,115,0.35) !important;
     }
     .hl-extraction[data-statut="discutable"] {
-        background-color: rgba(182, 22, 1, 0.12) !important;
-        border-bottom: 2px solid rgba(182, 22, 1, 0.35) !important;
+        background-color: rgba(230,159,0,0.12) !important;
+        border-bottom: 2px solid rgba(230,159,0,0.35) !important;
     }
     .hl-extraction[data-statut="discute"] {
-        background-color: rgba(217, 119, 6, 0.12) !important;
-        border-bottom: 2px solid rgba(217, 119, 6, 0.35) !important;
+        background-color: rgba(86,180,233,0.12) !important;
+        border-bottom: 2px solid rgba(86,180,233,0.35) !important;
     }
     .hl-extraction[data-statut="controverse"] {
-        background-color: rgba(255, 64, 0, 0.14) !important;
-        border-bottom: 2px solid rgba(255, 64, 0, 0.40) !important;
+        background-color: rgba(213,94,0,0.14) !important;
+        border-bottom: 2px solid rgba(213,94,0,0.40) !important;
+    }
+    .hl-extraction[data-statut="non_pertinent"] {
+        background-color: rgba(204,121,167,0.10) !important;
+        border-bottom: 2px solid rgba(204,121,167,0.30) !important;
     }
     .hl-extraction.hl-commentee[data-extraction-id] {
         border-bottom-style: dotted !important;

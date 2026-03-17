@@ -78,10 +78,12 @@ HYPOSTASE_VERS_FAMILLE = {
 # Icones Unicode par statut de debat
 # / Unicode icons per debate status
 STATUT_ICONES = {
+    'nouveau': '○',
     'consensuel': '●',
-    'discutable': '▶',
-    'discute': '▷',
-    'controverse': '!',
+    'discutable': '◆',
+    'discute': '▲',
+    'controverse': '■',
+    'non_pertinent': '—',
 }
 
 # Definitions en 1 phrase de chaque hypostase (memes cles normalisees que HYPOSTASE_VERS_FAMILLE)

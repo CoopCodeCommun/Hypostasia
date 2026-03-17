@@ -17,8 +17,11 @@
  * Ecoute : change sur #drawer-select-tri (recharge contenu)
  * Ecoute : clic delegue sur .pilule-contributeur (toggle filtre multi-contributeurs, PHASE-26a-bis)
  * Ecoute : clic delegue sur .pilule-reset-contributeurs (retire tous les filtres, PHASE-26a-bis)
+ * Ecoute : clic delegue sur .pilule-toggle-mode (bascule inclure/exclure, PHASE-26a UX)
  * Ecoute : clic delegue sur #btn-toggle-masquees (affiche/cache section masquees)
  * Ecoute : htmx event drawerContenuChange (recharge contenu apres masquer/restaurer)
+ * Ecoute : htmx:afterSwap sur #drawer-contenu (scroll-to-top apres filtre, PHASE-26a UX)
+ * Gere : variable modeFiltre ('inclure'|'exclure') pour le mode Sauf (PHASE-26a UX)
  * Expose : window.drawerVueListe = { ouvrir, fermer, basculer, estOuvert }
  */
 (function() {

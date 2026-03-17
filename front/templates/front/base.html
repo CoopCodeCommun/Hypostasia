@@ -303,7 +303,8 @@
 
         <!-- Zone de lecture -->
         <!-- / Reading zone -->
-        <main id="zone-lecture" class="overflow-y-auto p-8 h-full" aria-live="polite" data-testid="bibliotheque-colonne-lecture">
+        <main id="zone-lecture" class="overflow-y-auto p-8 h-full" aria-live="polite" data-testid="bibliotheque-colonne-lecture"
+              data-est-proprietaire="{% if est_proprietaire %}true{% else %}false{% endif %}">
             {% if configuration_llm_preloaded %}
                 {% include "hypostasis_extractor/configuration_llm.html" %}
             {% elif analyseur_preloaded %}

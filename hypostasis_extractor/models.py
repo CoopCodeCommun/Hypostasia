@@ -214,16 +214,18 @@ class ExtractedEntity(models.Model):
     # Statut du debat sur cette extraction
     # / Debate status for this extraction
     STATUT_DEBAT_CHOICES = [
+        ("nouveau", "Nouveau"),
         ("consensuel", "Consensuel"),
         ("discutable", "Discutable"),
         ("discute", "Discuté"),
         ("controverse", "Controversé"),
+        ("non_pertinent", "Non pertinent"),
     ]
 
     statut_debat = models.CharField(
         max_length=20,
         choices=STATUT_DEBAT_CHOICES,
-        default="discutable",
+        default="nouveau",
     )
 
     # Extraction masquee par curation
@@ -238,7 +240,13 @@ class ExtractedEntity(models.Model):
 
     class Meta:
         ordering = ['start_char']
-    
+
+    def save(self, *args, **kwargs):
+        # Synchronise masquee avec statut_debat : non_pertinent ↔ masquee=True
+        # / Sync masquee with statut_debat: non_pertinent ↔ masquee=True
+        self.masquee = (self.statut_debat == "non_pertinent")
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"[{self.extraction_class}] {self.extraction_text[:50]}..."
 

@@ -16,10 +16,12 @@
 //
 // COMMUNICATION :
 // Recoit : htmx:afterSwap sur #zone-lecture -> reconstruit les pastilles
+// Recoit : HX-Trigger contributeurFiltreChange -> filtre pastilles (PHASE-26a-bis)
+//          avec mode_filtre 'inclure'|'exclure' pour inverser le dimming (PHASE-26a UX)
 // Appelle : GET /extractions/carte_inline/?entity_id=N (front/views.py ExtractionViewSet)
 // Exporte : window.marginalia = { construirePastillesMarginales, fermerCarteInline,
 //           basculerModeFocus, desactiverModeFocus, modeFocusEstActif,
-//           basculerHeatmap, heatmapEstActive }
+//           basculerHeatmap, heatmapEstActive, getContributeurFiltre, resetContributeurFiltre }
 // Exporte : window.construirePastillesMarginales (alias global, utilise par drawer_vue_liste.js)
 // ==========================================================================
 (function() {
@@ -29,10 +31,12 @@
     // Les valeurs correspondent aux variables CSS --statut-*-accent de hypostasia.css
     // / Color mapping by debate status (matches CSS variables)
     var COULEURS_STATUT = {
-        consensuel:  '#429900',
-        discutable:  '#B61601',
-        discute:     '#D97706',
-        controverse: '#FF4000',
+        nouveau:       '#999999',
+        consensuel:    '#009E73',
+        discutable:    '#E69F00',
+        discute:       '#56B4E9',
+        controverse:   '#D55E00',
+        non_pertinent: '#CC79A7',
     };
 
     // Cle localStorage pour persister le mode focus entre rechargements
@@ -342,6 +346,7 @@
                 var pastille = document.createElement('button');
                 pastille.className = 'pastille-extraction';
                 pastille.dataset.extractionId = extractionId;
+                pastille.dataset.statut = statut;
                 pastille.style.backgroundColor = couleur;
                 pastille.title = 'Extraction #' + extractionId + ' — ' + statut;
                 pastille.setAttribute('aria-label', 'Voir extraction ' + extractionId);

@@ -522,7 +522,7 @@ class ChangerStatutSerializer(serializers.Serializer):
         },
     )
     nouveau_statut = serializers.ChoiceField(
-        choices=["consensuel", "discutable", "discute", "controverse"],
+        choices=["nouveau", "consensuel", "discutable", "discute", "controverse", "non_pertinent"],
         error_messages={
             "required": "Le nouveau statut est obligatoire / New status is required",
         },

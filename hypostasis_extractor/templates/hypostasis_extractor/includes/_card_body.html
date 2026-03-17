@@ -30,14 +30,8 @@
 {# / Source citation removed — AI summary is enough, source text is visible #}
 {# / in text highlighting (auto-scroll on mobile, margin dot on desktop) #}
 
-{# === 4. Footer : statut de debat (badge colore + icone Unicode) === #}
-{# / === 4. Footer: debate status (colored badge + Unicode icon) === #}
-{% if attr_2 %}
-<div class="mb-1">
-    <span class="typo-hypostase px-1.5 py-0.5 rounded"
-          style="color: var(--statut-{{ attr_2|lower }}-text); background: var(--statut-{{ attr_2|lower }}-bg);">{{ attr_2|statut_icone }} {{ attr_2 }}</span>
-</div>
-{% endif %}
+{# === 4. Footer : statut de debat — supprime (PHASE-26c : double badge) === #}
+{# / === 4. Footer: debate status — removed (PHASE-26c: double badge) === #}
 
 {# === 5. Hashtags avec data-hashtag pour rendu cliquable futur === #}
 {# / === 5. Hashtags with data-hashtag for future clickable rendering === #}

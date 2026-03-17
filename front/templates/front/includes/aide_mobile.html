@@ -67,11 +67,12 @@
                 <span class="text-sm text-slate-700"><strong>Analyser</strong> lance l'extraction IA sur la page</span>
             </div>
 
-            {# Statuts = pastille verte/rouge #}
+            {# Statuts = indicateurs avec formes daltonien-safe #}
+            {# / Statuses = indicators with colorblind-safe shapes #}
             <div class="flex items-start gap-3">
                 <span class="shrink-0 w-7 flex justify-center gap-1 pt-1">
-                    <span class="w-2.5 h-2.5 rounded-full" style="background: var(--statut-consensuel-accent);"></span>
-                    <span class="w-2.5 h-2.5 rounded-full" style="background: var(--statut-controverse-accent);"></span>
+                    <span class="indicateur-statut w-3 h-3" data-statut="consensuel" style="background: var(--statut-consensuel-accent);"></span>
+                    <span class="indicateur-statut w-3 h-3" data-statut="controverse" style="background: var(--statut-controverse-accent);"></span>
                 </span>
                 <span class="text-sm text-slate-700"><strong>Consensuel / Controverse</strong> pour voter sur une extraction</span>
             </div>

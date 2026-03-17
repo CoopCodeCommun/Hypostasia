@@ -1,8 +1,8 @@
 """
-Charge les fixtures de demonstration : users + 3 pages Wikipedia (Ostrom, Alexandre, Sadin)
-+ commentaires sur les extractions existantes de la page 69.
-/ Load demo fixtures: users + 3 Wikipedia pages (Ostrom, Alexandre, Sadin)
-/ + comments on existing extractions from page 69.
+Charge les fixtures de demonstration : users + pages Wikipedia + debat fictif
+dans un dossier unique "Demonstration" avec commentaires et statuts varies.
+/ Load demo fixtures: users + Wikipedia pages + fictional debate
+in a single "Demonstration" folder with comments and varied statuses.
 
 LOCALISATION : front/management/commands/charger_fixtures_demo.py
 
@@ -86,9 +86,64 @@ En février 2025, alors que se déroule à Paris le Sommet pour l'action sur l'i
 
 Éric Sadin déclare que l'usage de l'IA peut relever d'un renoncement à l'usage de nos facultés les plus fondamentales. En octobre 2025, il poursuit son analyse dans Le Désert de nous-mêmes, estimant que l'intelligence artificielle générative représente un tournant dans l'histoire de l'humanité. Sadin affirme que face à l'ouragan des IA génératives, il nous reste deux ou trois ans pour agir, sinon il sera trop tard pour les réguler.
 
-Libération décrit le philosophe comme vu par les uns comme un prophète de malheur et par les autres comme un lanceur d'alerte extralucide. La question posée est vertigineuse : que va-t-il rester à l'humanité quand les assistés numériques que nous sommes délégueront totalement l'apprentissage, la création et la formation du savoir à des machines ?
+Libération décrit le philosophe comme vu par les uns comme un prophète de malheur et par les autres comme un lanceur d'alerte extralucide. La question posée est vertigineuse : que va-t-il rester à l'humanité quand les assistés numériques que nous sommes déléguerons totalement l'apprentissage, la création et la formation du savoir à des machines ?
 
 Parmi ses ouvrages essentiels : Surveillance globale (2009), La Vie algorithmique (2015), La Silicolonisation du monde (2016), L'Intelligence artificielle ou l'enjeu du siècle (2018), L'Ère de l'individu tyran (2020), Faire sécession (2021), La Vie spectrale (2023), Le Désert de nous-mêmes (2025)."""
+
+
+# =============================================================================
+# Debat fictif : 3 locuteurs, 12 segments
+# / Fictional debate: 3 speakers, 12 segments
+# =============================================================================
+
+TEXTE_DEBAT = """L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre. La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.
+
+Voilà exactement le discours qui m'inquiète. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.
+
+Je crois qu'il y a une troisième voie que vous négligez tous les deux. L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.
+
+Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences. Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement. L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.
+
+Tu vois, c'est précisément cette rhétorique guerrière qui est toxique. L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements. Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.
+
+Eric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire. Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options. Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.
+
+Le problème, Elinor, c'est que l'IA évolue à une vitesse qui dépasse nos capacités d'auto-organisation. Dans dix ans, les machines auront une intelligence supérieure à la nôtre. Si nous n'avons pas préparé nos sociétés par l'éducation et l'investissement massif, nous assisterons à une bifurcation entre une élite cognitive augmentée et le reste de l'humanité laissé pour compte.
+
+Et c'est justement ce que je dénonce : cette course en avant permanente, cette fuite technologique qui nous empêche de penser. Nous avons besoin d'une insurrection civique contre la délégation du jugement aux machines. L'humain n'est pas un profil statistique à optimiser. Il est temps de repolitiser radicalement le débat sur la technologie.
+
+Je partage ton inquiétude sur la concentration du pouvoir, Eric, mais je refuse le fatalisme. Regardez les logiciels libres, Wikipédia, les coopératives de données : ce sont des preuves vivantes que des communautés peuvent gouverner des ressources numériques de manière démocratique. L'enjeu n'est pas de refuser l'IA, mais de construire des institutions polycentriques qui empêchent sa capture par quelques acteurs privés.
+
+Vous êtes des rêveurs sympathiques, mais pendant que vous débattez de gouvernance et de communs, les laboratoires chinois et américains entraînent des modèles de plus en plus puissants. Le transhumanisme n'est pas une idéologie, c'est la description lucide de ce qui arrive. La convergence des nanotechnologies, de la biologie et de l'informatique va transformer l'espèce humaine, que cela nous plaise ou non.
+
+Et voilà le piège : transformer une idéologie en prophétie auto-réalisatrice. Non, Laurent, le transhumanisme n'est pas une description neutre du réel. C'est un projet politique porté par des intérêts économiques colossaux. Et c'est notre responsabilité collective de dire non à cette vision du monde qui réduit l'humanité à un problème d'optimisation.
+
+Pour conclure, je dirais que l'IA est un outil d'empuissancement formidable si — et seulement si — nous construisons les institutions capables de la gouverner collectivement. Ni la course technologique débridée de Laurent, ni le refus radical d'Eric ne suffisent. Il faut des règles claires, une participation des usagers aux décisions, et des mécanismes de contrôle gradués. C'est possible, et c'est notre responsabilité de le faire."""
+
+# Segments du debat avec locuteurs et timestamps
+# / Debate segments with speakers and timestamps
+SEGMENTS_DEBAT = [
+    {"speaker": "Laurent", "start": 0.0, "end": 27.5},
+    {"speaker": "Eric", "start": 28.0, "end": 54.5},
+    {"speaker": "Elinor", "start": 55.0, "end": 79.5},
+    {"speaker": "Laurent", "start": 80.0, "end": 107.5},
+    {"speaker": "Eric", "start": 108.0, "end": 134.5},
+    {"speaker": "Elinor", "start": 135.0, "end": 161.5},
+    {"speaker": "Laurent", "start": 162.0, "end": 189.5},
+    {"speaker": "Eric", "start": 190.0, "end": 217.5},
+    {"speaker": "Elinor", "start": 218.0, "end": 244.5},
+    {"speaker": "Laurent", "start": 245.0, "end": 271.5},
+    {"speaker": "Eric", "start": 272.0, "end": 298.5},
+    {"speaker": "Elinor", "start": 298.5, "end": 325.0},
+]
+
+# Couleurs des locuteurs pour le HTML du debat
+# / Speaker colors for debate HTML
+COULEURS_LOCUTEURS = {
+    "Laurent": {"fond": "rgba(239, 68, 68, 0.06)", "bordure": "#ef4444"},
+    "Eric": {"fond": "rgba(59, 130, 246, 0.06)", "bordure": "#3b82f6"},
+    "Elinor": {"fond": "rgba(16, 185, 129, 0.06)", "bordure": "#10b981"},
+}
 
 
 # =============================================================================
@@ -107,63 +162,118 @@ USER_ADMIN = {"username": "jonas", "first_name": "Jonas", "password": "admin1234
 
 
 # =============================================================================
-# Commentaires de demonstration sur les extractions de la page 69
-# Les commentaires representent des reactions de lecteurs fictifs
-# / Demo comments on page 69 extractions
-# / Comments represent reactions from fictional readers
+# Commentaires sur le debat fictif — couvrent les 6 statuts
+# Chaque tuple = (index_entite, username, commentaire)
+# L'index correspond a l'entite triee par start_char dans le job
+# / Comments on fictional debate — cover all 6 statuses
 # =============================================================================
 
-COMMENTAIRES_DEMO = [
-    # (index_entite_dans_job, username, commentaire)
-    # index 0 = premiere entite du job triee par start_char
-
-    # Entite "L'IA est la revolution la plus importante..."
-    (0, "marie", "Comparer l'IA à l'écriture est une hyperbole rhétorique, pas un argument. L'écriture a transformé la cognition humaine sur des millénaires. L'IA automatise des tâches en quelques années. Ce n'est pas le même type de rupture."),
-    (0, "thomas", "Je suis plutôt d'accord avec cette analyse. L'IA modifie notre rapport au savoir de manière fondamentale — c'est bien une révolution épistémique, pas seulement technique."),
+COMMENTAIRES_DEBAT = [
+    # --- Entite 0 : "L'IA est la revolution la plus importante..."
+    # Cible : CONTROVERSE (desaccord fort, 3 commentaires opposes)
+    (0, "marie", "Comparer l'IA à l'écriture est une hyperbole rhétorique, pas un argument. L'écriture a transformé la cognition humaine sur des millénaires. L'IA automatise des tâches en quelques années."),
+    (0, "thomas", "Je suis d'accord avec Laurent — l'IA modifie notre rapport au savoir de manière fondamentale. C'est bien une révolution épistémique, pas seulement technique."),
     (0, "fatima", "Ostrom dirait que la question n'est pas de savoir si c'est une révolution, mais qui gouverne cette révolution et selon quelles règles."),
 
-    # Entite "Les pays qui n'investissent pas massivement..."
-    (1, "pierre", "C'est exactement le discours de Laurent Alexandre : la course technologique comme fatalité. Mais Sadin a montré que cette rhétorique guerrière sert les intérêts des GAFAM, pas ceux des peuples."),
-    (1, "marie", "La compétition entre nations sur l'IA est un fait, pas une opinion. Le nier serait naïf."),
+    # --- Entite 1 : "On nous présente l'IA comme une fatalité historique..."
+    # Cible : DISCUTE (debat en cours, 2 commentaires)
+    (1, "thomas", "C'est le cœur de la thèse de Sadin dans La Silicolonisation du monde : l'IA comme choix politique déguisé en progrès inévitable."),
+    (1, "fatima", "Attention à ne pas tomber dans l'excès inverse : dire que tout est choix politique peut mener à l'inaction face à des transformations réelles."),
 
-    # Entite "On nous présente l'IA comme une fatalité historique..."
-    (2, "thomas", "C'est le cœur de la thèse de Sadin dans La Silicolonisation du monde : l'IA comme choix politique déguisé en progrès inévitable."),
-    (2, "fatima", "Attention à ne pas tomber dans l'excès inverse : dire que tout est choix politique peut mener à l'inaction face à des transformations réelles."),
+    # --- Entite 2 : "Je crois qu'il y a une troisième voie..."
+    # Cible : CONSENSUEL (accord atteint, 3 commentaires convergents)
+    (2, "pierre", "Cette troisième voie rappelle directement les travaux d'Ostrom : ni marché pur, ni État centralisé, mais auto-gouvernement avec des règles claires."),
+    (2, "marie", "Belle synthèse. Les logiciels libres prouvent que c'est possible à grande échelle — Linux fait tourner 90% des serveurs mondiaux."),
+    (2, "thomas", "Je souscris. La clé est dans les mots « à condition que les communautés participent » — c'est la participation qui fait tout."),
 
-    # Entite "Je crois qu'il y a une troisième voie..."
-    (4, "pierre", "Cette troisième voie rappelle directement les travaux d'Ostrom sur les communs : ni marché pur, ni État centralisé, mais auto-gouvernement avec des règles claires."),
-    (4, "marie", "Belle idée en théorie, mais comment gouverner collectivement un modèle d'IA qui nécessite des milliards d'investissement ? Les communs d'Ostrom portaient sur des pâturages, pas sur des data centers."),
-    (4, "thomas", "Les logiciels libres prouvent que c'est possible à grande échelle. Linux fait tourner 90% des serveurs mondiaux."),
+    # --- Entite 3 : "Un commun numérique, c'est charmant en théorie..."
+    # Cible : DISCUTE (debat en cours, 2 commentaires contradictoires)
+    (3, "fatima", "C'est la position d'Alexandre résumée en une phrase. Il faudrait confronter cela aux 8 principes d'Ostrom."),
+    (3, "pierre", "Réponse typiquement techno-solutionniste. Ostrom a prouvé que des communautés gèrent des ressources communes depuis des siècles."),
 
-    # Entite "Un commun numérique, c'est charmant en théorie..."
-    (6, "fatima", "C'est la position de Laurent Alexandre résumée en une phrase. Il faudrait confronter cela aux 8 principes d'Ostrom pour voir si l'objection tient."),
-    (6, "pierre", "Réponse typiquement techno-solutionniste. Ostrom a justement prouvé que des communautés gèrent des ressources communes depuis des siècles — le pessimisme de Hardin sur la « tragédie des communs » est une prophétie auto-réalisatrice."),
+    # --- Entite 4 : "L'IA ne se contente pas d'augmenter nos capacités..."
+    # Cible : DISCUTABLE (pas encore de commentaire — reste discutable)
+    # (pas de commentaire — l'extraction doit rester en discutable)
 
-    # Entite "L'augmentation cognitive n'est pas une option..."
-    (7, "marie", "Sadin qualifierait cela d'« antihumanisme radical » — réduire l'humain à un problème d'optimisation cognitive."),
-    (7, "thomas", "C'est un argument darwinien : s'adapter ou disparaître. Mais l'humanité ne se réduit pas à la compétition."),
+    # --- Entite 5 : "Des communautés peuvent s'auto-organiser..."
+    # Cible : NOUVEAU (pas de commentaire — reste au statut initial)
 
-    # Entite "l'IA est un outil d'empuissancement formidable si..."
-    (27, "pierre", "C'est exactement la position d'Ostrom appliquée au numérique. La condition « si et seulement si » est cruciale — elle distingue cette position du techno-optimisme naïf."),
-    (27, "fatima", "Je trouve cette formulation trop conciliante. Sadin dirait qu'on ne « gouverne » pas une technologie conçue pour nous gouverner."),
-    (27, "marie", "Position de compromis intéressante mais qui sous-estime la vitesse de déploiement de l'IA. Les institutions de gouvernance sont toujours en retard sur la technologie."),
+    # --- Entite 6 : "Dans dix ans, les machines auront une intelligence supérieure..."
+    # Cible : CONTROVERSE (desaccord fort)
+    (6, "marie", "Prédire que les machines seront « supérieures » dans dix ans est du même ordre que les prédictions d'Alexandre sur la singularité. Aucune base empirique solide."),
+    (6, "thomas", "Et pourtant GPT-4 a surpassé les humains sur la quasi-totalité des examens professionnels en 2024. La trajectoire est claire."),
+    (6, "pierre", "Sadin a raison : cette rhétorique de la « bifurcation » sert à justifier des investissements massifs sans débat démocratique."),
 
-    # Entite "Ni la course technologique débridée... ni le refus radical..."
-    (28, "thomas", "C'est la synthèse parfaite du débat. Mais dans la pratique, le « juste milieu » est souvent un vœu pieux."),
+    # --- Entite 7 : "Nous avons besoin d'une insurrection civique..."
+    # Cible : DISCUTE (1 commentaire)
+    (7, "fatima", "« Insurrection civique » est un terme fort mais la réalité montre que les mouvements citoyens peinent à peser face aux GAFAM."),
 
-    # Entite "C'est possible, et c'est notre responsabilité de le faire."
-    (30, "pierre", "Ostrom a consacré sa carrière à prouver que c'est possible. La question est : avons-nous le temps de construire ces institutions avant que l'IA ne soit partout ?"),
-    (30, "fatima", "J'entends l'optimisme mais Sadin nous rappelle qu'il reste « deux ou trois ans pour agir ». L'urgence devrait primer sur l'espoir."),
+    # --- Entite 8 : "Regardez les logiciels libres, Wikipédia..."
+    # Cible : CONSENSUEL (accord, 2 commentaires convergents)
+    (8, "pierre", "Les exemples sont solides : Linux, Wikipédia, Debian. Ce sont des preuves empiriques de la thèse d'Ostrom appliquée au numérique."),
+    (8, "marie", "L'enjeu est de passer de ces exemples réussis à une échelle de gouvernance capable de réguler des modèles comme GPT ou Gemini."),
+
+    # --- Entite 9 : "Le transhumanisme n'est pas une idéologie..."
+    # Cible : CONTROVERSE (desaccord radical)
+    (9, "thomas", "Laurent assume ici une position philosophique forte. Mais le transhumanisme EST une idéologie — Bostrom lui-même le reconnaît."),
+    (9, "fatima", "La convergence NBIC est un fait technique. Mais en faire une « description lucide du réel » c'est déjà prendre parti."),
+    (9, "pierre", "Exactement ce que Sadin dénonce : transformer un projet politique en prophétie auto-réalisatrice."),
+
+    # --- Entite 10 : "C'est un projet politique porté par des intérêts économiques colossaux"
+    # Cible : DISCUTE (2 commentaires)
+    (10, "marie", "La critique est pertinente mais un peu trop totalisante. Tous les acteurs de l'IA ne sont pas des transhumanistes."),
+    (10, "thomas", "Il y a quand même un fond de vérité : OpenAI, Google DeepMind, Anthropic — tous financés par des milliardaires avec une vision."),
+
+    # --- Entite 11 : "L'IA est un outil d'empuissancement formidable si..."
+    # Cible : CONSENSUEL (la conclusion fait consensus)
+    (11, "pierre", "C'est exactement la position d'Ostrom appliquée au numérique. La condition « si et seulement si » est cruciale."),
+    (11, "fatima", "Position de compromis intéressante. Le mot « empuissancement » est bien choisi — ni augmentation ni soumission."),
+    (11, "marie", "Formulation équilibrée. Mais Sadin nous rappelle qu'il reste « deux ou trois ans pour agir ». L'urgence devrait primer."),
 ]
+
+# Statuts cibles pour les entites du debat fictif (par index)
+# Permet de couvrir les 6 statuts dans le dashboard
+# / Target statuses for fictional debate entities (by index)
+# / Covers all 6 statuses in the dashboard
+STATUTS_CIBLES_DEBAT = {
+    0: "controverse",       # ■ carre vermillon — 3 commentaires opposes
+    1: "discute",           # ▲ triangle bleu — 2 commentaires (auto-promu)
+    2: "consensuel",        # ● cercle vert — 3 commentaires convergents
+    3: "discute",           # ▲ triangle bleu — 2 commentaires (auto-promu)
+    4: "discutable",        # ◆ losange orange — pas de commentaire, a debattre
+    5: "nouveau",           # ○ anneau gris — pas de commentaire, nouveau
+    6: "controverse",       # ■ carre vermillon — 3 commentaires opposes
+    7: "discute",           # ▲ triangle bleu — 1 commentaire (auto-promu)
+    8: "consensuel",        # ● cercle vert — 2 commentaires convergents
+    9: "controverse",       # ■ carre vermillon — 3 commentaires opposes
+    10: "discute",          # ▲ triangle bleu — 2 commentaires
+    11: "consensuel",       # ● cercle vert — 3 commentaires convergents
+    # L'entite non_pertinent sera ajoutee comme extraction supplementaire
+}
+
+# Extraction supplementaire non pertinente : un faux sophisme identifie a tort
+# Sera creee manuellement apres le job d'extraction IA
+# / Additional non-relevant extraction: a false sophism incorrectly identified
+# / Will be created manually after the AI extraction job
+EXTRACTION_NON_PERTINENTE = {
+    "extraction_text": "La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+    "extraction_class": "sophisme",
+    "attributes": {
+        "résumé": "Faux dilemme : l'auteur présente deux options (investir massivement ou échouer) en excluant toute alternative nuancée.",
+        "hypostase": "Aporie",
+        "statut_debat": "non_pertinent",
+    },
+    "commentaire_rejet": {
+        "user": "pierre",
+        "texte": "Ce n'est pas un faux dilemme. Laurent présente sa position de manière forte, mais il ne dit pas que ce sont les seules options — il dit que c'est la priorité. L'IA a mal classifié cette figure de style.",
+    },
+}
 
 
 # =============================================================================
 # Commentaires sur les pages Wikipedia (PHASE-26a)
-# Ajoutes pour tester le filtre contributeur avec des donnees reelles.
 # Chaque tuple = (titre_page_partiel, index_entite, username, commentaire)
 # / Comments on Wikipedia pages (PHASE-26a)
-# / Added to test the contributor filter with real data.
-# / Each tuple = (partial_page_title, entity_index, username, comment)
 # =============================================================================
 
 COMMENTAIRES_PAGES_WIKIPEDIA = [
@@ -219,10 +329,59 @@ def _construire_html_depuis_texte(texte_brut):
     return "\n".join(fragments_html)
 
 
+def _construire_html_debat(texte_brut, segments):
+    """
+    Construit du HTML avec blocs locuteur colores (meme format que transcription_audio).
+    / Build HTML with colored speaker blocks (same format as transcription_audio).
+    """
+    import html as html_module
+
+    paragraphes = texte_brut.strip().split("\n\n")
+    blocs_html = []
+
+    for index_segment, segment in enumerate(segments):
+        if index_segment >= len(paragraphes):
+            break
+
+        nom_locuteur = segment["speaker"]
+        texte_paragraphe = paragraphes[index_segment].strip()
+        texte_html = html_module.escape(texte_paragraphe)
+        couleurs = COULEURS_LOCUTEURS.get(nom_locuteur, {"fond": "rgba(0,0,0,0.03)", "bordure": "#94a3b8"})
+
+        # Format timestamp mm:ss / Timestamp format mm:ss
+        debut_min = int(segment["start"] // 60)
+        debut_sec = int(segment["start"] % 60)
+        fin_min = int(segment["end"] // 60)
+        fin_sec = int(segment["end"] % 60)
+        timestamp_debut = f"{debut_min}:{debut_sec:02d}"
+        timestamp_fin = f"{fin_min}:{fin_sec:02d}"
+
+        bloc_html = (
+            f'<div id="speaker-block-{index_segment}" class="speaker-block mb-2 pl-4 rounded-r" '
+            f'data-speaker="{nom_locuteur}" data-speaker-index="{index_segment}" '
+            f'data-start="{segment["start"]}" data-end="{segment["end"]}" '
+            f'style="background-color: {couleurs["fond"]}; border-left: 3px solid {couleurs["bordure"]};">'
+            f'<div class="flex items-center gap-2 mb-1">'
+            f'<span class="speaker-name font-semibold text-sm cursor-pointer hover:underline" '
+            f'style="color: {couleurs["bordure"]};" '
+            f'data-speaker="{nom_locuteur}" data-block-index="{index_segment}">'
+            f'{nom_locuteur}</span>'
+            f'<span class="text-xs text-slate-400">{timestamp_debut} — {timestamp_fin}</span>'
+            f'</div>'
+            f'<p class="texte-bloc-cliquable text-slate-700 leading-relaxed cursor-text hover:bg-slate-50 '
+            f'rounded px-1 -mx-1 transition-colors" '
+            f'data-block-index="{index_segment}">{texte_html}</p>'
+            f'</div>'
+        )
+        blocs_html.append(bloc_html)
+
+    return "\n".join(blocs_html)
+
+
 class Command(BaseCommand):
     help = (
-        "Charge les fixtures de démonstration : users + 3 pages Wikipedia "
-        "(Ostrom, Alexandre, Sadin) + commentaires sur les extractions."
+        "Charge les fixtures de démonstration : users + pages Wikipedia + débat fictif "
+        "dans un dossier unique « Démonstration » avec commentaires et statuts variés."
     )
 
     def add_arguments(self, parser):
@@ -234,14 +393,14 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         mode_reset = options.get("reset", False)
-        nom_dossier = "Petits textes"
+        nom_dossier = "Démonstration"
 
         # 1. Creer les users demo / Create demo users
         tous_les_users_demo = self._creer_users_demo()
         user_admin = tous_les_users_demo.get("jonas")
 
-        # 2. Recupere ou cree le dossier cible avec owner, visibilite publique (PHASE-26a)
-        # / Get or create target folder with owner, public visibility (PHASE-26a)
+        # 2. Recupere ou cree le dossier cible avec owner, visibilite publique
+        # / Get or create target folder with owner, public visibility
         dossier, dossier_cree = Dossier.objects.get_or_create(
             name=nom_dossier,
             defaults={"owner": user_admin, "visibilite": VisibiliteDossier.PUBLIC},
@@ -262,8 +421,8 @@ class Command(BaseCommand):
                 dossier.save(update_fields=champs_modifies)
             self.stdout.write(f"  Dossier existant : {nom_dossier} (pk={dossier.pk}, public)")
 
-        # 3. Creer un partage demo : dossier "Petits textes" partage avec marie
-        # / Create a demo share: "Petits textes" folder shared with marie
+        # 3. Creer un partage demo avec marie
+        # / Create a demo share with marie
         user_marie = tous_les_users_demo.get("marie")
         if user_marie:
             DossierPartage.objects.get_or_create(
@@ -271,23 +430,33 @@ class Command(BaseCommand):
             )
             self.stdout.write(f"  Partage : {nom_dossier} → marie")
 
-        # 4. Definition des 3 pages a creer
-        # / Definition of the 3 pages to create
+        # 4. Definition des pages a creer (3 Wikipedia + 1 debat fictif)
+        # / Definition of pages to create (3 Wikipedia + 1 fictional debate)
         pages_a_creer = [
             {
                 "title": "Elinor Ostrom — Gouvernance des communs",
                 "texte": TEXTE_OSTROM,
                 "url": "https://fr.wikipedia.org/wiki/Elinor_Ostrom",
+                "type_html": "texte",
             },
             {
                 "title": "Laurent Alexandre — Accélération technologique",
                 "texte": TEXTE_ALEXANDRE,
                 "url": "https://fr.wikipedia.org/wiki/Laurent_Alexandre",
+                "type_html": "texte",
             },
             {
                 "title": "Éric Sadin — Critique de la technologie",
                 "texte": TEXTE_SADIN,
                 "url": "https://fr.wikipedia.org/wiki/%C3%89ric_Sadin",
+                "type_html": "texte",
+            },
+            {
+                "title": "Débat IA — Laurent Alexandre, Éric Sadin, Elinor Ostrom",
+                "texte": TEXTE_DEBAT,
+                "url": "",
+                "type_html": "debat",
+                "source_type": "audio",
             },
         ]
 
@@ -308,7 +477,6 @@ class Command(BaseCommand):
             # / Check if page already exists
             page_existante = Page.objects.filter(title=titre).first()
             if page_existante:
-                # Mettre a jour l'owner si absent / Update owner if missing
                 if not page_existante.owner and user_admin:
                     page_existante.owner = user_admin
                     page_existante.save(update_fields=["owner"])
@@ -316,10 +484,16 @@ class Command(BaseCommand):
                 pages_creees.append(page_existante)
                 continue
 
-            # Cree la page avec le texte Wikipedia + owner
-            # / Create page with Wikipedia text + owner
+            # Cree la page / Create the page
             texte_brut = definition_page["texte"].strip()
-            html_readability = _construire_html_depuis_texte(texte_brut)
+            type_html = definition_page.get("type_html", "texte")
+
+            if type_html == "debat":
+                html_readability = _construire_html_debat(texte_brut, SEGMENTS_DEBAT)
+            else:
+                html_readability = _construire_html_depuis_texte(texte_brut)
+
+            source_type = definition_page.get("source_type", "web")
 
             page_nouvelle = Page.objects.create(
                 title=titre,
@@ -327,7 +501,7 @@ class Command(BaseCommand):
                 html_original=f"<html><body>{html_readability}</body></html>",
                 html_readability=html_readability,
                 text_readability=texte_brut,
-                source_type="web",
+                source_type=source_type,
                 status="completed",
                 dossier=dossier,
                 owner=user_admin,
@@ -337,13 +511,17 @@ class Command(BaseCommand):
             ))
             pages_creees.append(page_nouvelle)
 
-        # 5. Ajoute les commentaires sur les extractions de la page 69
-        # / Add comments on page 69 extractions
-        self._ajouter_commentaires_page_69(tous_les_users_demo)
-
-        # 6. Ajoute les commentaires sur les pages Wikipedia (PHASE-26a)
+        # 5. Ajouter les commentaires sur les pages Wikipedia (PHASE-26a)
         # / Add comments on Wikipedia pages (PHASE-26a)
         self._ajouter_commentaires_pages_wikipedia(tous_les_users_demo)
+
+        # 6. Ajouter les commentaires sur le debat fictif + statuts cibles
+        # / Add comments on fictional debate + target statuses
+        self._ajouter_commentaires_debat(tous_les_users_demo)
+
+        # 7. Redistribuer les statuts de debat sur les pages HORS debat fictif
+        # / Redistribute debate statuses on pages OUTSIDE fictional debate
+        self._redistribuer_statuts_debat()
 
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(
@@ -401,41 +579,48 @@ class Command(BaseCommand):
 
         return tous_les_users
 
-    def _ajouter_commentaires_page_69(self, tous_les_users):
+    def _ajouter_commentaires_debat(self, tous_les_users):
         """
-        Ajoute des commentaires de demonstration sur les extractions de la page 69.
-        Utilise les User objects au lieu des prenoms string.
-        / Add demo comments on page 69 extractions.
-        Uses User objects instead of string first names.
+        Ajoute les commentaires sur le debat fictif et applique les statuts cibles.
+        Cree aussi l'extraction non pertinente (faux sophisme).
+        / Add comments on fictional debate and apply target statuses.
+        Also creates the non-relevant extraction (false sophism).
         """
-        # Recupere le dernier job termine de la page 69
-        # / Get the latest completed job for page 69
-        dernier_job_page_69 = (
+        # Chercher la page du debat fictif par titre
+        # / Find the fictional debate page by title
+        page_debat = Page.objects.filter(
+            title__icontains="Débat IA",
+        ).first()
+        if not page_debat:
+            self.stdout.write("  Débat fictif : page introuvable, commentaires ignorés.")
+            return
+
+        # Recuperer le dernier job termine
+        # / Get the latest completed job
+        dernier_job = (
             ExtractionJob.objects
-            .filter(page_id=69, status="completed")
+            .filter(page=page_debat, status="completed")
             .order_by("-created_at")
             .first()
         )
-        if not dernier_job_page_69:
-            self.stdout.write("  Page 69 : aucun job complété, commentaires ignorés.")
+        if not dernier_job:
+            self.stdout.write(f"  Débat fictif (pk={page_debat.pk}) : aucun job complété, commentaires ignorés.")
             return
 
-        # Recupere les entites triees par position dans le texte
-        # / Get entities sorted by position in text
+        # Recuperer les entites triees par position
+        # / Get entities sorted by position
         toutes_les_entites_du_job = list(
-            dernier_job_page_69.entities
+            dernier_job.entities
             .filter(masquee=False)
             .order_by("start_char")
         )
-
         if not toutes_les_entites_du_job:
-            self.stdout.write("  Page 69 : aucune entité, commentaires ignorés.")
+            self.stdout.write(f"  Débat fictif (pk={page_debat.pk}) : aucune entité, commentaires ignorés.")
             return
 
+        # Ajouter les commentaires / Add comments
         nombre_commentaires_crees = 0
-        for index_entite, username_auteur, texte_commentaire in COMMENTAIRES_DEMO:
-            # Verifie que l'index est valide
-            # / Check index is valid
+        for index_entite, username_auteur, texte_commentaire in COMMENTAIRES_DEBAT:
             if index_entite >= len(toutes_les_entites_du_job):
                 self.stdout.write(
                     f"  Index {index_entite} hors limites "
@@ -444,16 +629,11 @@ class Command(BaseCommand):
                 continue
 
             entite_cible = toutes_les_entites_du_job[index_entite]
-
-            # Recupere le user correspondant au username
-            # / Get the user matching the username
             user_auteur = tous_les_users.get(username_auteur)
             if not user_auteur:
-                self.stdout.write(f"  User '{username_auteur}' introuvable, commentaire ignoré.")
                 continue
 
-            # Verifie qu'un commentaire identique n'existe pas deja
-            # / Check that an identical comment doesn't already exist
+            # Eviter les doublons / Avoid duplicates
             commentaire_existe_deja = CommentaireExtraction.objects.filter(
                 entity=entite_cible,
                 user=user_auteur,
@@ -469,9 +649,75 @@ class Command(BaseCommand):
             )
             nombre_commentaires_crees += 1
 
+            # Auto-promotion : nouveau/discutable → discute au premier commentaire
+            # / Auto-promote: nouveau/discutable → discute on first comment
+            if entite_cible.statut_debat in ("nouveau", "discutable"):
+                entite_cible.statut_debat = "discute"
+                entite_cible.save(update_fields=["statut_debat"])
+
         self.stdout.write(self.style.SUCCESS(
-            f"  Page 69 : {nombre_commentaires_crees} commentaires créés"
+            f"  Débat fictif (pk={page_debat.pk}) : {nombre_commentaires_crees} commentaires créés"
         ))
+
+        # Appliquer les statuts cibles sur les entites du debat
+        # / Apply target statuses on debate entities
+        for index_entite, statut_cible in STATUTS_CIBLES_DEBAT.items():
+            if index_entite >= len(toutes_les_entites_du_job):
+                continue
+            entite = toutes_les_entites_du_job[index_entite]
+            if entite.statut_debat != statut_cible:
+                entite.statut_debat = statut_cible
+                entite.save(update_fields=["statut_debat"])
+
+        self.stdout.write(self.style.SUCCESS(
+            f"  Débat fictif : {len(STATUTS_CIBLES_DEBAT)} statuts appliqués"
+        ))
+
+        # Creer l'extraction non pertinente (faux sophisme)
+        # / Create the non-relevant extraction (false sophism)
+        info_np = EXTRACTION_NON_PERTINENTE
+        texte_np = info_np["extraction_text"]
+
+        # Verifier qu'elle n'existe pas deja
+        # / Check it doesn't already exist
+        extraction_np_existante = ExtractedEntity.objects.filter(
+            job=dernier_job,
+            statut_debat="non_pertinent",
+            extraction_class="sophisme",
+        ).first()
+
+        if not extraction_np_existante:
+            # Chercher la position dans le texte / Find position in text
+            texte_page = page_debat.text_readability or ""
+            start_char = texte_page.find(texte_np)
+            end_char = start_char + len(texte_np) if start_char >= 0 else 0
+
+            extraction_np = ExtractedEntity.objects.create(
+                job=dernier_job,
+                extraction_class=info_np["extraction_class"],
+                extraction_text=texte_np,
+                start_char=max(0, start_char),
+                end_char=end_char,
+                attributes=info_np["attributes"],
+                statut_debat="non_pertinent",
+            )
+
+            # Ajouter le commentaire de rejet
+            # / Add the rejection comment
+            info_commentaire_rejet = info_np["commentaire_rejet"]
+            user_rejet = tous_les_users.get(info_commentaire_rejet["user"])
+            if user_rejet:
+                CommentaireExtraction.objects.create(
+                    entity=extraction_np,
+                    user=user_rejet,
+                    commentaire=info_commentaire_rejet["texte"],
+                )
+
+            self.stdout.write(self.style.SUCCESS(
+                f"  Extraction non pertinente créée : « {texte_np[:50]}... »"
+            ))
+        else:
+            self.stdout.write(f"  Extraction non pertinente existante (pk={extraction_np_existante.pk})")
 
     def _ajouter_commentaires_pages_wikipedia(self, tous_les_users):
         """
@@ -549,6 +795,12 @@ class Command(BaseCommand):
                 )
                 nombre_commentaires_page += 1
 
+                # Auto-promotion : nouveau/discutable → discute au premier commentaire
+                # / Auto-promote: nouveau/discutable → discute on first comment
+                if entite_cible.statut_debat in ("nouveau", "discutable"):
+                    entite_cible.statut_debat = "discute"
+                    entite_cible.save(update_fields=["statut_debat"])
+
             nombre_total_commentaires_crees += nombre_commentaires_page
             self.stdout.write(self.style.SUCCESS(
                 f"  Page '{titre_partiel}' (pk={page_cible.pk}) : {nombre_commentaires_page} commentaires créés"
@@ -556,4 +808,63 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f"  Pages Wikipedia : {nombre_total_commentaires_crees} commentaires créés au total"
+        ))
+
+    def _redistribuer_statuts_debat(self):
+        """
+        Redistribue les statuts de debat pour les pages HORS debat fictif.
+        Le debat fictif a ses propres statuts cibles (STATUTS_CIBLES_DEBAT).
+        - Entites avec commentaires → mix discute/discutable/consensuel/controverse
+        - Entites sans commentaires → majorite nouveau, quelques non_pertinent
+        / Redistribute debate statuses for pages OUTSIDE fictional debate.
+        """
+
+        # Exclure les entites du debat fictif (gerees par STATUTS_CIBLES_DEBAT)
+        # / Exclude fictional debate entities (managed by STATUTS_CIBLES_DEBAT)
+        page_debat = Page.objects.filter(title__icontains="Débat IA").first()
+        ids_pages_debat = set()
+        if page_debat:
+            ids_pages_debat = set(
+                ExtractionJob.objects
+                .filter(page=page_debat)
+                .values_list("pk", flat=True)
+            )
+
+        toutes_les_entites = ExtractedEntity.objects.all()
+        if ids_pages_debat:
+            toutes_les_entites = toutes_les_entites.exclude(job_id__in=ids_pages_debat)
+
+        ids_avec_commentaires = set(
+            CommentaireExtraction.objects
+            .values_list("entity_id", flat=True)
+            .distinct()
+        )
+
+        # Entites avec commentaires : repartir entre discute, consensuel, controverse
+        # / Entities with comments: distribute between discute, consensuel, controverse
+        statuts_avec_commentaires = ["discute", "discutable", "consensuel", "controverse"]
+        compteur_avec = 0
+        for entite in toutes_les_entites.filter(pk__in=ids_avec_commentaires):
+            nouveau_statut = statuts_avec_commentaires[compteur_avec % len(statuts_avec_commentaires)]
+            if entite.statut_debat != nouveau_statut:
+                entite.statut_debat = nouveau_statut
+                entite.save(update_fields=["statut_debat"])
+            compteur_avec += 1
+
+        # Entites sans commentaires : majorite nouveau, quelques non_pertinent
+        # / Entities without comments: mostly nouveau, some non_pertinent
+        compteur_sans = 0
+        for entite in toutes_les_entites.exclude(pk__in=ids_avec_commentaires):
+            if compteur_sans % 7 == 0 and compteur_sans > 0:
+                # 1 sur 7 en non_pertinent / 1 out of 7 as non_pertinent
+                nouveau_statut = "non_pertinent"
+            else:
+                nouveau_statut = "nouveau"
+            if entite.statut_debat != nouveau_statut:
+                entite.statut_debat = nouveau_statut
+                entite.save(update_fields=["statut_debat"])
+            compteur_sans += 1
+
+        self.stdout.write(self.style.SUCCESS(
+            f"  Statuts redistribués : {compteur_avec} avec commentaires, {compteur_sans} sans"
         ))

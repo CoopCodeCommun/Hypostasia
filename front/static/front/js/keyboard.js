@@ -310,11 +310,25 @@
     }
 
     // Marque l'extraction selectionnee comme consensuelle (S)
+    // Verifie d'abord que l'utilisateur est proprietaire du dossier (PHASE-26c)
     // / Mark selected extraction as consensual (S)
+    // / First check that user is the folder owner (PHASE-26c)
     function marquerConsensuelleExtraction() {
         if (indexExtractionSelectionnee < 0) return;
         var extraction = listeExtractionsVisibles[indexExtractionSelectionnee];
         if (!extraction) return;
+
+        // Verifier ownership via data-est-proprietaire sur #zone-lecture
+        // Toast feedback si non-owner / Toast feedback if non-owner
+        var zoneLecture = document.getElementById('zone-lecture');
+        if (zoneLecture && zoneLecture.dataset.estProprietaire !== 'true') {
+            Swal.fire({
+                toast: true, position: 'top-end', icon: 'info',
+                title: 'R\u00e9serv\u00e9 au propri\u00e9taire',
+                showConfirmButton: false, timer: 2000,
+            });
+            return;
+        }
 
         var pageId = getPageId();
         if (!pageId) return;

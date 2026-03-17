@@ -143,6 +143,20 @@ def _utilisateur_peut_ecrire_dossier(utilisateur, dossier):
     return _utilisateur_a_acces_dossier(utilisateur, dossier)
 
 
+def _est_proprietaire_dossier(utilisateur, page):
+    """
+    Verifie si l'utilisateur est le proprietaire du dossier contenant la page.
+    / Checks if the user is the owner of the folder containing the page.
+
+    LOCALISATION : front/views.py
+    """
+    if not utilisateur or not utilisateur.is_authenticated:
+        return False
+    if not page.dossier:
+        return False
+    return page.dossier.owner == utilisateur
+
+
 def _reponse_acces_refuse(request):
     """
     Construit la reponse 403 — template HTML complet ou texte court pour HTMX.
@@ -746,6 +760,10 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Acces direct (F5) → page complete avec le panneau pre-charge
         # On passe aussi le job, les entites et le HTML annote
+        # Determiner si l'utilisateur est proprietaire du dossier pour les controles UI
+        # / Determine if user is the folder owner for UI controls
+        est_proprietaire = _est_proprietaire_dossier(request.user, page)
+
         return render(request, "front/base.html", {
             "page_preloaded": page,
             "html_annote": html_annote,
@@ -757,6 +775,7 @@ class LectureViewSet(viewsets.ViewSet):
             "page_racine": page_racine,
             "html_filtre_locuteurs": html_filtre_locuteurs,
             "html_timeline": html_timeline,
+            "est_proprietaire": est_proprietaire,
         })
 
     @action(detail=True, methods=["GET"], url_path="notifications")
@@ -2176,8 +2195,19 @@ class PageViewSet(viewsets.ViewSet):
 
 
 def _calculer_teinte_contributeur(username):
-    """Hash deterministe du username en teinte HSL 0-360 (PHASE-26a UX).
-    / Deterministic hash of username to HSL hue 0-360 (PHASE-26a UX)."""
+    """
+    Convertit un username en teinte HSL deterministe (0-360) via hash MD5.
+    Chaque contributeur obtient une couleur unique et stable pour ses pilules.
+    / Converts a username to a deterministic HSL hue (0-360) via MD5 hash.
+    / Each contributor gets a unique, stable color for their pills.
+
+    LOCALISATION : front/views.py (PHASE-26a UX)
+
+    :param username: Nom d'utilisateur (str)
+    :return: Teinte HSL entre 0 et 359 (int)
+    """
+    # Prendre les 8 premiers caracteres du hash MD5 et convertir en entier modulo 360
+    # / Take the first 8 chars of the MD5 hash and convert to integer modulo 360
     digest = hashlib.md5(username.encode()).hexdigest()
     return int(digest[:8], 16) % 360
 
@@ -2569,9 +2599,14 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / Count comments for this entity
         nombre_commentaires = CommentaireExtraction.objects.filter(entity=entite).count()
 
+        # Determiner si l'utilisateur est proprietaire du dossier
+        # / Determine if user is the folder owner
+        est_proprietaire = _est_proprietaire_dossier(request.user, entite.job.page)
+
         return render(request, "front/includes/carte_inline.html", {
             "entity": entite,
             "nombre_commentaires": nombre_commentaires,
+            "est_proprietaire": est_proprietaire,
         })
 
     @action(detail=False, methods=["GET"], url_path="carte_mobile")
@@ -2597,9 +2632,14 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / Count comments for this entity
         nombre_commentaires = CommentaireExtraction.objects.filter(entity=entite).count()
 
+        # Determiner si l'utilisateur est proprietaire du dossier
+        # / Determine if user is the folder owner
+        est_proprietaire = _est_proprietaire_dossier(request.user, entite.job.page)
+
         return render(request, "front/includes/bottom_sheet_extraction.html", {
             "entity": entite,
             "nombre_commentaires": nombre_commentaires,
+            "est_proprietaire": est_proprietaire,
         })
 
     @action(detail=False, methods=["GET"], url_path="fil_discussion")
@@ -2673,9 +2713,9 @@ class ExtractionViewSet(viewsets.ViewSet):
             commentaire=donnees["commentaire"],
         )
 
-        # Auto-promotion : discutable → discute quand un 1er commentaire est ajoute
-        # / Auto-promote: discutable → discute when first comment is added
-        if entite.statut_debat == "discutable":
+        # Auto-promotion : nouveau/discutable → discute quand un 1er commentaire est ajoute
+        # / Auto-promote: nouveau/discutable → discute when first comment is added
+        if entite.statut_debat in ("nouveau", "discutable"):
             entite.statut_debat = "discute"
             entite.save(update_fields=["statut_debat"])
 
@@ -2688,7 +2728,31 @@ class ExtractionViewSet(viewsets.ViewSet):
             is_active=True, type_analyseur="restituer",
         ).exists()
 
-        # Re-rendre le fil complet / Re-render full thread
+        # Detecter si la requete vient de la carte inline (hx-swap="outerHTML" sur .carte-inline)
+        # Dans ce cas, re-rendre la carte inline au lieu du fil de discussion complet
+        # / Detect if request comes from inline card (hx-swap="outerHTML" on .carte-inline)
+        # / In that case, re-render the inline card instead of the full discussion thread
+        cible_htmx = request.META.get("HTTP_HX_TARGET", "")
+        est_depuis_carte_inline = "panneau" not in cible_htmx and cible_htmx != "panneau-extractions"
+
+        if est_depuis_carte_inline:
+            # Re-rendre la carte inline avec les commentaires a jour
+            # / Re-render the inline card with updated comments
+            nombre_commentaires = CommentaireExtraction.objects.filter(entity=entite).count()
+            est_proprietaire = _est_proprietaire_dossier(request.user, entite.job.page)
+            reponse = render(request, "front/includes/carte_inline.html", {
+                "entity": entite,
+                "nombre_commentaires": nombre_commentaires,
+                "est_proprietaire": est_proprietaire,
+            })
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {"message": "Commentaire ajout\u00e9"},
+                "dashboardReload": True,
+                "drawerContenuChange": True,
+            })
+            return reponse
+
+        # Re-rendre le fil complet (ancien flux panneau droit) / Re-render full thread (old right panel flow)
         tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
         html_fil = render_to_string(
             "front/includes/fil_discussion.html",
@@ -3668,6 +3732,12 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         entite_a_masquer = get_object_or_404(ExtractedEntity, pk=identifiant_entite)
 
+        # Verification ownership : seul le proprietaire du dossier peut masquer
+        # / Ownership check: only the folder owner can hide
+        page_de_lentite = entite_a_masquer.job.page
+        if not _est_proprietaire_dossier(request.user, page_de_lentite):
+            return HttpResponse("Non autorise.", status=403)
+
         # Garde : ne pas masquer une entite qui a des commentaires
         # / Guard: do not hide an entity that has comments
         nombre_commentaires_entite = CommentaireExtraction.objects.filter(
@@ -3680,8 +3750,10 @@ class ExtractionViewSet(viewsets.ViewSet):
                 status=400,
             )
 
-        entite_a_masquer.masquee = True
-        entite_a_masquer.save(update_fields=["masquee"])
+        # Passer en "non_pertinent" (le save() synchronise masquee=True)
+        # / Set to "non_pertinent" (save() syncs masquee=True)
+        entite_a_masquer.statut_debat = "non_pertinent"
+        entite_a_masquer.save(update_fields=["statut_debat", "masquee"])
 
         # Reponse minimale : le panneau sera recharge via drawerContenuChange
         # et le texte sera recharge via lectureReload dans le JS
@@ -3711,8 +3783,17 @@ class ExtractionViewSet(viewsets.ViewSet):
             return HttpResponse("entity_id et page_id requis.", status=400)
 
         entite_a_restaurer = get_object_or_404(ExtractedEntity, pk=identifiant_entite)
-        entite_a_restaurer.masquee = False
-        entite_a_restaurer.save(update_fields=["masquee"])
+
+        # Verification ownership : seul le proprietaire du dossier peut restaurer
+        # / Ownership check: only the folder owner can restore
+        page_de_lentite = entite_a_restaurer.job.page
+        if not _est_proprietaire_dossier(request.user, page_de_lentite):
+            return HttpResponse("Non autorise.", status=403)
+
+        # Passer en "nouveau" (le save() synchronise masquee=False)
+        # / Set to "nouveau" (save() syncs masquee=False)
+        entite_a_restaurer.statut_debat = "nouveau"
+        entite_a_restaurer.save(update_fields=["statut_debat", "masquee"])
 
         # Reponse minimale : le panneau et le texte seront recharges via events
         # / Minimal response: panel and text will be reloaded via events
@@ -3747,9 +3828,15 @@ class ExtractionViewSet(viewsets.ViewSet):
         nouveau_statut = donnees["nouveau_statut"]
         identifiant_page = donnees["page_id"]
 
+        # Verification ownership : seul le proprietaire du dossier peut changer le statut
+        # / Ownership check: only the folder owner can change the status
+        page_de_lentite = entite_a_modifier.job.page
+        if not _est_proprietaire_dossier(request.user, page_de_lentite):
+            return HttpResponse("Non autorise.", status=403)
+
         # Mettre a jour le statut de debat / Update debate status
         entite_a_modifier.statut_debat = nouveau_statut
-        entite_a_modifier.save(update_fields=["statut_debat"])
+        entite_a_modifier.save(update_fields=["statut_debat", "masquee"])
 
         # Reponse minimale avec triggers HTMX / Minimal response with HTMX triggers
         reponse = HttpResponse("<span></span>")
@@ -3783,16 +3870,20 @@ class ExtractionViewSet(viewsets.ViewSet):
             masquee=False,
         )
 
-        # Compteurs par statut / Counts per status
+        # Compteurs par statut (6 statuts) / Counts per status (6 statuses)
         compteurs_par_statut = dict(
             toutes_les_entites_visibles.values_list("statut_debat").annotate(
                 count=Count("id"),
             )
         )
+        compteur_nouveau = compteurs_par_statut.get("nouveau", 0)
         compteur_consensuel = compteurs_par_statut.get("consensuel", 0)
         compteur_discutable = compteurs_par_statut.get("discutable", 0)
         compteur_discute = compteurs_par_statut.get("discute", 0)
         compteur_controverse = compteurs_par_statut.get("controverse", 0)
+        compteur_non_pertinent = compteurs_par_statut.get("non_pertinent", 0)
+        # Total pour le consensus : exclure nouveau et non_pertinent (pas dans le cycle deliberatif)
+        # / Total for consensus: exclude nouveau and non_pertinent (not in deliberative cycle)
         total_entites = compteur_consensuel + compteur_discutable + compteur_discute + compteur_controverse
 
         # Pourcentage de consensus (garde div-by-zero)
@@ -3827,10 +3918,12 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         contexte = {
             "page": page,
+            "compteur_nouveau": compteur_nouveau,
             "compteur_consensuel": compteur_consensuel,
             "compteur_discutable": compteur_discutable,
             "compteur_discute": compteur_discute,
             "compteur_controverse": compteur_controverse,
+            "compteur_non_pertinent": compteur_non_pertinent,
             "total_entites": total_entites,
             "pourcentage_consensus": pourcentage_consensus,
             "seuil_consensus": SEUIL_CONSENSUS_DEFAUT,
@@ -3959,10 +4052,15 @@ class ExtractionViewSet(viewsets.ViewSet):
         else:
             toutes_les_entites = toutes_les_entites.order_by("start_char")
 
-        # Separer visibles et masquees pour le template
-        # / Separate visible and hidden for the template
-        entites_visibles = [entite for entite in toutes_les_entites if not entite.masquee]
-        entites_masquees = [entite for entite in toutes_les_entites if entite.masquee]
+        # Separer visibles et masquees (non_pertinent) pour le template
+        # / Separate visible and hidden (non_pertinent) for the template
+        entites_visibles = []
+        entites_masquees = []
+        for entite in toutes_les_entites:
+            if entite.masquee:
+                entites_masquees.append(entite)
+            else:
+                entites_visibles.append(entite)
 
         # Emettre HX-Trigger pour le filtrage des pastilles cote JS (PHASE-26a-bis)
         # / Emit HX-Trigger for pastille filtering on JS side (PHASE-26a-bis)
@@ -3973,6 +4071,10 @@ class ExtractionViewSet(viewsets.ViewSet):
                 "mode_filtre": mode_filtre,
             }
         })
+
+        # Determiner si l'utilisateur est proprietaire du dossier
+        # / Determine if user is the folder owner
+        est_proprietaire = _est_proprietaire_dossier(request.user, page)
 
         reponse = render(request, "front/includes/drawer_vue_liste.html", {
             "page": page,
@@ -3987,6 +4089,7 @@ class ExtractionViewSet(viewsets.ViewSet):
             "noms_contributeurs_actifs": noms_contributeurs_actifs,
             "ids_entites_des_contributeurs": ids_entites_des_contributeurs,
             "mode_filtre": mode_filtre,
+            "est_proprietaire": est_proprietaire,
         })
 
         reponse["HX-Trigger"] = donnees_trigger
