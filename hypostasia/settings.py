@@ -14,7 +14,7 @@ from pathlib import Path
 import os
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,13 +23,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-k$6h%42un)h996fsk35s0*mu-^89nl=&6&w@m#e9d_$m#gepuv'
+# Cle secrete : depuis .env en prod, fallback insecure pour le dev local
+# / Secret key: from .env in prod, insecure fallback for local dev
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY",
+    "django-insecure-k$6h%42un)h996fsk35s0*mu-^89nl=&6&w@m#e9d_$m#gepuv",
+)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Mode debug : depuis .env, True par defaut en dev local
+# / Debug mode: from .env, True by default for local dev
+DEBUG = os.environ.get("DEBUG", "true").lower() in ("true", "1", "yes")
 
-ALLOWED_HOSTS = ["*"]
+# ALLOWED_HOSTS : localhost en dev + domaine de production depuis .env
+# Pas de https:// — Django attend juste le nom de domaine nu
+# / ALLOWED_HOSTS: localhost in dev + production domain from .env
+# / No https:// — Django expects bare domain names only
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+if os.environ.get("DOMAIN"):
+    ALLOWED_HOSTS.append(os.environ["DOMAIN"])
 
 
 # Application definition
