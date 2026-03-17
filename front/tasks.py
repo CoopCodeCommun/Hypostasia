@@ -13,6 +13,25 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
+def envoyer_progression_websocket(nom_groupe, type_message, donnees):
+    """
+    Envoie un message au channel layer depuis une tache Celery (contexte sync).
+    / Send a message to the channel layer from a Celery task (sync context).
+    """
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+
+    couche_channels = get_channel_layer()
+    if couche_channels is None:
+        logger.debug("envoyer_progression_websocket: channel layer non configure, skip")
+        return
+
+    async_to_sync(couche_channels.group_send)(
+        nom_groupe,
+        {'type': type_message, **donnees},
+    )
+
+
 @shared_task(bind=True)
 def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, langue=""):
     """
@@ -53,6 +72,15 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
     job_transcription.status = TranscriptionJobStatus.PROCESSING
     job_transcription.celery_task_id = self.request.id or ""
     job_transcription.save(update_fields=["status", "celery_task_id"])
+
+    # Notifier le navigateur que la transcription a demarre
+    # / Notify the browser that transcription has started
+    nom_groupe_transcription = f"tache_{self.request.id}"
+    envoyer_progression_websocket(nom_groupe_transcription, "progression", {
+        "pourcentage": 5,
+        "message": "Transcription audio démarrée",
+        "status": "en_cours",
+    })
 
     logger.info(
         "transcrire_audio_task: demarrage job=%s page=%s fichier=%s provider=%s",
@@ -108,6 +136,14 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
             job_id, page_associee.pk, len(segments_transcrits), duree_traitement,
         )
 
+        # Notifier le navigateur que la transcription est terminee
+        # / Notify the browser that transcription is complete
+        envoyer_progression_websocket(nom_groupe_transcription, "terminee", {
+            "status": "completed",
+            "message": f"Transcription terminée — {len(segments_transcrits)} segments",
+            "resultat": {"page_id": page_associee.pk, "segments": len(segments_transcrits)},
+        })
+
     except Exception as erreur_transcription:
         # En cas d'erreur, marquer le job et la page en erreur
         # / On error, mark both job and page as error
@@ -122,6 +158,14 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
         page_associee.status = PageStatus.ERROR
         page_associee.error_message = message_erreur[:1000]
         page_associee.save(update_fields=["status", "error_message"])
+
+        # Notifier le navigateur de l'erreur
+        # / Notify the browser of the error
+        envoyer_progression_websocket(nom_groupe_transcription, "terminee", {
+            "status": "error",
+            "message": f"Erreur de transcription : {message_erreur[:200]}",
+            "resultat": {},
+        })
 
         job_transcription.status = TranscriptionJobStatus.ERROR
         job_transcription.error_message = message_erreur
@@ -234,6 +278,14 @@ def reformuler_entite_task(self, entity_id, analyseur_id):
             "reformuler_entite_task: termine entity=%s en %.1fs — %d chars",
             entity_id, duree, len(texte_reformule),
         )
+
+        # Notifier le navigateur que la reformulation est terminee
+        # / Notify the browser that reformulation is complete
+        envoyer_progression_websocket(f"tache_{self.request.id}", "terminee", {
+            "status": "completed",
+            "message": "Reformulation terminée",
+            "resultat": {"entity_id": entity_id},
+        })
 
     except Exception as erreur_reformulation:
         # Erreur : remettre l'entite en etat stable + stocker le message d'erreur
@@ -352,6 +404,14 @@ def restituer_debat_task(self, entity_id, analyseur_id):
             entity_id, duree, len(texte_restitution),
         )
 
+        # Notifier le navigateur que la restitution est terminee
+        # / Notify the browser that restitution is complete
+        envoyer_progression_websocket(f"tache_{self.request.id}", "terminee", {
+            "status": "completed",
+            "message": "Restitution du débat terminée",
+            "resultat": {"entity_id": entity_id},
+        })
+
     except Exception as erreur_restitution:
         # Erreur : remettre l'entite en etat stable + stocker le message d'erreur
         # / Error: reset entity to stable state + store error message
@@ -400,6 +460,15 @@ def analyser_page_task(self, job_id):
     job_extraction.status = ExtractionJobStatus.PROCESSING
     job_extraction.error_message = None
     job_extraction.save(update_fields=["status", "error_message"])
+
+    # Notifier le navigateur que l'analyse a demarre
+    # / Notify the browser that analysis has started
+    nom_groupe_analyse = f"tache_{self.request.id}"
+    envoyer_progression_websocket(nom_groupe_analyse, "progression", {
+        "pourcentage": 5,
+        "message": "Analyse IA démarrée",
+        "status": "en_cours",
+    })
 
     logger.info(
         "analyser_page_task: demarrage job=%s page=%s model=%s",
@@ -479,6 +548,14 @@ def analyser_page_task(self, job_id):
             job_id, nombre_entites_creees, duree_traitement,
         )
 
+        # Notifier le navigateur que l'analyse est terminee
+        # / Notify the browser that analysis is complete
+        envoyer_progression_websocket(nom_groupe_analyse, "terminee", {
+            "status": "completed",
+            "message": f"Analyse terminée — {nombre_entites_creees} entités extraites",
+            "resultat": {"job_id": job_id, "entites": nombre_entites_creees},
+        })
+
     except Exception as erreur_extraction:
         duree_traitement = time.time() - debut_traitement
         message_erreur = str(erreur_extraction)
@@ -494,3 +571,11 @@ def analyser_page_task(self, job_id):
         job_extraction.save(update_fields=[
             "status", "error_message", "processing_time_seconds",
         ])
+
+        # Notifier le navigateur de l'erreur d'analyse
+        # / Notify the browser of the analysis error
+        envoyer_progression_websocket(nom_groupe_analyse, "terminee", {
+            "status": "error",
+            "message": f"Erreur d'analyse : {message_erreur[:200]}",
+            "resultat": {},
+        })

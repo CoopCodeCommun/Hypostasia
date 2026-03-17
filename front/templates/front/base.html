@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
     <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=24">
     <script src="{% static 'front/vendor/htmx-2.0.4.min.js' %}"></script>
+    <script src="{% static 'front/vendor/htmx-ext-ws-2.0.4.js' %}"></script>
     <script src="{% static 'front/vendor/sweetalert2-11.min.js' %}"></script>
 </head>
 <body class="h-full bg-white text-slate-800" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
@@ -362,6 +363,25 @@
     <!-- Fermeture du dropdown menu utilisateur au clic exterieur (PHASE-25) -->
     <!-- / Close user menu dropdown on outside click (PHASE-25) -->
     <script src="{% static 'front/js/user_menu.js' %}?v=25"></script>
+
+    <!-- Hub WebSocket notifications temps reel (htmx-ext-ws) -->
+    <!-- Les toasts arrivent via OOB swap depuis le consumer NotificationConsumer -->
+    <!-- / Real-time notification WebSocket hub (htmx-ext-ws) -->
+    <!-- / Toasts arrive via OOB swap from the NotificationConsumer -->
+    {% if user.is_authenticated %}
+    <div id="ws-hub"
+         hx-ext="ws"
+         ws-connect="/ws/notifications/"
+         aria-hidden="true"
+         style="display:none">
+    </div>
+    <div id="ws-toasts"
+         class="ws-toasts-container"
+         aria-live="polite"
+         role="status"
+         aria-label="Notifications temps réel">
+    </div>
+    {% endif %}
 
 </body>
 </html>

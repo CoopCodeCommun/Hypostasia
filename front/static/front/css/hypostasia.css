@@ -1678,3 +1678,145 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
 #btn-toolbar-drawer {
     position: relative;
 }
+
+
+/* === 27. Toasts WebSocket temps reel ===
+   Notifications poussees depuis le serveur via NotificationConsumer.
+   Empilees en bas a droite, disparaissent apres 6s ou au clic X.
+   / Real-time WebSocket toasts.
+   / Pushed from server via NotificationConsumer.
+   / Stacked bottom-right, disappear after 6s or on X click.
+   ========================================================================== */
+
+/* Conteneur positionne en bas a droite, hors du flux */
+/* / Container positioned bottom-right, out of document flow */
+.ws-toasts-container {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    max-width: min(22rem, calc(100vw - 2.5rem));
+    pointer-events: none;  /* ne bloque pas les clics sur la page */
+}
+
+/* Toast individuel */
+/* / Individual toast */
+.ws-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    border-left: 4px solid;
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+    pointer-events: all;
+    animation: ws-toast-entree 0.25s ease-out;
+    transition: opacity 0.3s, transform 0.3s;
+}
+
+/* Niveaux de toast */
+/* / Toast levels */
+.ws-toast--info {
+    border-left-color: #6366f1;  /* indigo-500 */
+    color: #3730a3;              /* indigo-800 */
+}
+.ws-toast--info .ws-toast__icone { color: #6366f1; }
+
+.ws-toast--succes {
+    border-left-color: #22c55e;  /* green-500 */
+    color: #14532d;              /* green-900 */
+}
+.ws-toast--succes .ws-toast__icone { color: #22c55e; }
+
+.ws-toast--avertissement {
+    border-left-color: #f59e0b;  /* amber-500 */
+    color: #78350f;              /* amber-900 */
+}
+.ws-toast--avertissement .ws-toast__icone { color: #f59e0b; }
+
+.ws-toast--erreur {
+    border-left-color: #ef4444;  /* red-500 */
+    color: #7f1d1d;              /* red-900 */
+}
+.ws-toast--erreur .ws-toast__icone { color: #ef4444; }
+
+/* Icone a gauche, alignee avec la premiere ligne de texte */
+/* / Icon on the left, aligned with the first line of text */
+.ws-toast__icone {
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+
+/* Corps du toast : titre + message */
+/* / Toast body: title + message */
+.ws-toast__corps {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.ws-toast__titre {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.ws-toast__message {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    opacity: 0.85;
+}
+
+/* Bouton fermer en haut a droite du toast */
+/* / Close button at top-right of toast */
+.ws-toast__fermer {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    font-size: 1.125rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.125rem;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+    align-self: flex-start;
+    color: inherit;
+}
+.ws-toast__fermer:hover { opacity: 1; }
+
+/* Etat sortie : fondu + glissement vers la droite */
+/* / Exit state: fade out + slide right */
+.ws-toast--sortie {
+    opacity: 0;
+    transform: translateX(1rem);
+}
+
+/* Animation d'entree : glissement depuis la droite */
+/* / Entry animation: slide in from the right */
+@keyframes ws-toast-entree {
+    from {
+        opacity: 0;
+        transform: translateX(1.5rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Sur mobile : toasts en bas, pleine largeur */
+/* / On mobile: toasts at bottom, full width */
+@media (max-width: 480px) {
+    .ws-toasts-container {
+        left: 0.75rem;
+        right: 0.75rem;
+        bottom: 0.75rem;
+        max-width: 100%;
+    }
+}

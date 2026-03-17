@@ -51,6 +51,7 @@ if os.environ.get("DOMAIN"):
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -97,6 +98,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'hypostasia.wsgi.application'
+ASGI_APPLICATION = 'hypostasia.asgi.application'
 
 
 # Database — PostgreSQL partout (dev, prod, boitier offline)
@@ -195,6 +197,21 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes max par tache / 30 min max per task
+
+
+# =============================================================================
+# Django Channels — WebSocket via Redis
+# / Django Channels — WebSocket via Redis
+# =============================================================================
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [os.environ.get('REDIS_URL', 'redis://localhost:6379/0')],
+        },
+    },
+}
 
 
 # =============================================================================
