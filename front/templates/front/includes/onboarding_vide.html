@@ -1,25 +1,26 @@
-{# Parcours d'onboarding en 4 etapes — affiche quand la base est vide #}
-{# / 4-step onboarding guide — displayed when the database is empty #}
+{# Parcours d'onboarding — affiche quand aucune page n'est chargee #}
+{# Contient : processus en 4 etapes + 6 statuts + raccourcis clavier #}
+{# / Onboarding guide — displayed when no page is loaded #}
+{# / Contains: 4-step process + 6 statuses + keyboard shortcuts #}
 
-<div class="mx-auto py-12 px-4" style="max-width: 36rem;" data-testid="onboarding-guide">
+<div class="onboarding-contenu" data-testid="onboarding-guide">
 
-    <h2 class="text-xl font-semibold text-slate-800 mb-2 text-center">Bienvenue dans Hypostasia</h2>
-    <p class="text-sm text-slate-500 mb-8 text-center">Quatre étapes pour commencer votre lecture délibérative.</p>
+    {# === Header === #}
+    <div class="onboarding-header">
+        <h2 class="onboarding-titre">Hypostasia</h2>
+        <p class="onboarding-sous-titre">Un outil pour <strong>lire</strong>, <strong>extraire</strong> et <strong>d&eacute;battre</strong> collectivement d&rsquo;un texte.</p>
+    </div>
 
-    <div class="space-y-6">
+    {# === Les 4 etapes === #}
+    {# / === The 4 steps === #}
+    <div class="onboarding-etapes">
 
-        {# === Etape 1 : Importer un document === #}
-        {# / === Step 1: Import a document === #}
-        <div class="flex items-start gap-4 p-4 rounded-lg border border-slate-200 bg-white" data-testid="onboarding-step-1">
-            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-50 text-blue-600 shrink-0">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
-                </svg>
-            </div>
-            <div class="flex-1">
-                <h3 class="text-sm font-semibold text-slate-700 mb-1">1. Importez votre premier document</h3>
-                <p class="text-xs text-slate-500 mb-3">PDF, DOCX, Markdown, fichier audio… Hypostasia extrait le texte et prépare la lecture.</p>
-                <label class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded cursor-pointer transition-colors">
+        <div class="onboarding-etape" data-testid="onboarding-step-1">
+            <div class="onboarding-etape-num" style="background: #dbeafe; color: #2563eb;">1</div>
+            <div class="onboarding-etape-corps">
+                <h3 class="onboarding-etape-titre">Importez un texte</h3>
+                <p class="onboarding-etape-desc">PDF, audio, page web, Word&hellip; Hypostasia extrait le texte et le met en page.</p>
+                <label class="onboarding-btn-import">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
                     </svg>
@@ -30,48 +31,277 @@
             </div>
         </div>
 
-        {# === Etape 2 : Lancer une extraction IA === #}
-        {# / === Step 2: Launch an AI extraction === #}
-        <div class="flex items-start gap-4 p-4 rounded-lg border border-slate-200 bg-white" data-testid="onboarding-step-2">
-            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 shrink-0">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
-                </svg>
-            </div>
-            <div class="flex-1">
-                <h3 class="text-sm font-semibold text-slate-700 mb-1">2. Lancez une extraction IA</h3>
-                <p class="text-xs text-slate-500">Un analyseur IA parcourt le texte et identifie les passages clés : hypothèses, définitions, paradoxes, données…</p>
+        <div class="onboarding-etape" data-testid="onboarding-step-2">
+            <div class="onboarding-etape-num" style="background: #e0e7ff; color: #4f46e5;">2</div>
+            <div class="onboarding-etape-corps">
+                <h3 class="onboarding-etape-titre">L&rsquo;IA extrait les passages cl&eacute;s</h3>
+                <p class="onboarding-etape-desc">Hypoth&egrave;ses, d&eacute;finitions, paradoxes, donn&eacute;es&hellip; Chaque passage est soulign&eacute; dans le texte avec une pastille en marge.</p>
             </div>
         </div>
 
-        {# === Etape 3 : Lire les hypostases === #}
-        {# / === Step 3: Read the hypostases === #}
-        <div class="flex items-start gap-4 p-4 rounded-lg border border-slate-200 bg-white" data-testid="onboarding-step-3">
-            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-amber-50 text-amber-600 shrink-0">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/>
-                </svg>
-            </div>
-            <div class="flex-1">
-                <h3 class="text-sm font-semibold text-slate-700 mb-1">3. Lisez les hypostases</h3>
-                <p class="text-xs text-slate-500">Ce ne sont pas des surligneurs : chaque badge colore représente un <strong>type épistémique</strong> — conjecture, axiome, phénomène… Un modèle pour comprendre <em>comment</em> un texte pense, pas seulement ce qu'il dit.</p>
+        <div class="onboarding-etape" data-testid="onboarding-step-3">
+            <div class="onboarding-etape-num" style="background: #fef3c7; color: #b45309;">3</div>
+            <div class="onboarding-etape-corps">
+                <h3 class="onboarding-etape-titre">Commentez et d&eacute;battez</h3>
+                <p class="onboarding-etape-desc">Cliquez sur une pastille pour ouvrir la carte. Chaque lecteur peut commenter. Le statut change selon le d&eacute;bat.</p>
             </div>
         </div>
 
-        {# === Etape 4 : Commenter et debattre === #}
-        {# / === Step 4: Comment and debate === #}
-        <div class="flex items-start gap-4 p-4 rounded-lg border border-slate-200 bg-white" data-testid="onboarding-step-4">
-            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 shrink-0">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155"/>
-                </svg>
-            </div>
-            <div class="flex-1">
-                <h3 class="text-sm font-semibold text-slate-700 mb-1">4. Commentez et débattez</h3>
-                <p class="text-xs text-slate-500">Chaque extraction peut être commentée par plusieurs lecteurs. Le statut évolue : <span class="text-emerald-600 font-medium">consensuel</span>, <span class="text-amber-500 font-medium">discutable</span>, <span class="text-orange-500 font-medium">discuté</span>, <span class="text-red-600 font-medium">controversé</span>. Le consensus se construit collectivement.</p>
+        <div class="onboarding-etape" data-testid="onboarding-step-4">
+            <div class="onboarding-etape-num" style="background: #d1fae5; color: #047857;">4</div>
+            <div class="onboarding-etape-corps">
+                <h3 class="onboarding-etape-titre">Construisez le consensus</h3>
+                <p class="onboarding-etape-desc">Quand <strong>80%</strong> des extractions sont consensuelles, la synth&egrave;se peut &ecirc;tre lanc&eacute;e.</p>
             </div>
         </div>
 
     </div>
+
+    {# === Deux colonnes : statuts + raccourcis === #}
+    {# / === Two columns: statuses + shortcuts === #}
+    <div class="onboarding-deux-colonnes">
+
+        {# Colonne gauche : 6 statuts #}
+        <div class="onboarding-section">
+            <h3 class="onboarding-section-titre">Les 6 statuts</h3>
+            <p class="onboarding-section-desc">Chaque forme est unique &mdash; reconnaissable m&ecirc;me sans couleur.</p>
+
+            <div class="onboarding-statuts">
+                <div class="onboarding-statut" style="border-left-color: var(--statut-nouveau-accent);">
+                    <span class="indicateur-statut onboarding-forme" data-statut="nouveau"
+                          style="background-color: var(--statut-nouveau-accent);"></span>
+                    <div>
+                        <strong style="color: var(--statut-nouveau-text);">Nouveau</strong>
+                        <span class="onboarding-statut-desc">Pas encore lu</span>
+                    </div>
+                </div>
+                <div class="onboarding-statut" style="border-left-color: var(--statut-discutable-accent);">
+                    <span class="indicateur-statut onboarding-forme" data-statut="discutable"
+                          style="background-color: var(--statut-discutable-accent);"></span>
+                    <div>
+                        <strong style="color: var(--statut-discutable-text);">Discutable</strong>
+                        <span class="onboarding-statut-desc">&Agrave; d&eacute;battre</span>
+                    </div>
+                </div>
+                <div class="onboarding-statut" style="border-left-color: var(--statut-discute-accent);">
+                    <span class="indicateur-statut onboarding-forme" data-statut="discute"
+                          style="background-color: var(--statut-discute-accent);"></span>
+                    <div>
+                        <strong style="color: var(--statut-discute-text);">Discut&eacute;</strong>
+                        <span class="onboarding-statut-desc">D&eacute;bat en cours</span>
+                    </div>
+                </div>
+                <div class="onboarding-statut" style="border-left-color: var(--statut-consensuel-accent);">
+                    <span class="indicateur-statut onboarding-forme" data-statut="consensuel"
+                          style="background-color: var(--statut-consensuel-accent);"></span>
+                    <div>
+                        <strong style="color: var(--statut-consensuel-text);">Consensuel</strong>
+                        <span class="onboarding-statut-desc">Accord atteint</span>
+                    </div>
+                </div>
+                <div class="onboarding-statut" style="border-left-color: var(--statut-controverse-accent);">
+                    <span class="indicateur-statut onboarding-forme" data-statut="controverse"
+                          style="background-color: var(--statut-controverse-accent);"></span>
+                    <div>
+                        <strong style="color: var(--statut-controverse-text);">Controvers&eacute;</strong>
+                        <span class="onboarding-statut-desc">D&eacute;saccord fort</span>
+                    </div>
+                </div>
+                <div class="onboarding-statut" style="border-left-color: var(--statut-non_pertinent-accent);">
+                    <span class="indicateur-statut onboarding-forme" data-statut="non_pertinent"
+                          style="background-color: var(--statut-non_pertinent-accent);"></span>
+                    <div>
+                        <strong style="color: var(--statut-non_pertinent-text);">Non pertinent</strong>
+                        <span class="onboarding-statut-desc">&Eacute;cart&eacute; du d&eacute;bat</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Colonne droite : raccourcis clavier (desktop only) #}
+        <div class="onboarding-section onboarding-section-clavier">
+            <h3 class="onboarding-section-titre">Raccourcis clavier</h3>
+            <p class="onboarding-section-desc">Appuyez sur <kbd class="aide-kbd">?</kbd> pour revoir cette aide.</p>
+
+            <div class="onboarding-raccourcis">
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">T</kbd><span>Biblioth&egrave;que</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">E</kbd><span>Extractions</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">J</kbd><span>Suivante</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">K</kbd><span>Pr&eacute;c&eacute;dente</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">C</kbd><span>Commenter</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">S</kbd><span>Consensuelle</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">L</kbd><span>Lecture focus</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">H</kbd><span>Heat map</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">X</kbd><span>Masquer</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">A</kbd><span>Comparer</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">Esc</kbd><span>Fermer</span></div>
+            </div>
+        </div>
+
+    </div>
+
 </div>
+
+<style>
+/* === Onboarding page === */
+.onboarding-contenu {
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 3rem 2rem 4rem;
+}
+
+.onboarding-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+.onboarding-titre {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+}
+.onboarding-sous-titre {
+    font-size: 0.9375rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+/* Etapes / Steps */
+.onboarding-etapes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.875rem;
+    margin-bottom: 2.5rem;
+}
+.onboarding-etape {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.875rem;
+    padding: 1.125rem 1.25rem;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    transition: border-color 0.15s;
+}
+.onboarding-etape:hover { border-color: #cbd5e1; }
+.onboarding-etape-num {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9375rem;
+    flex-shrink: 0;
+}
+.onboarding-etape-corps { flex: 1; }
+.onboarding-etape-titre {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.25rem;
+}
+.onboarding-etape-desc {
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.5;
+}
+.onboarding-btn-import {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    margin-top: 0.625rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #fff;
+    background: #2563eb;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.onboarding-btn-import:hover { background: #1d4ed8; }
+
+/* Deux colonnes statuts + raccourcis / Two columns statuses + shortcuts */
+.onboarding-deux-colonnes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+.onboarding-section {
+    padding: 1.25rem;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+}
+.onboarding-section-titre {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin-bottom: 0.25rem;
+}
+.onboarding-section-desc {
+    font-size: 0.6875rem;
+    color: #94a3b8;
+    margin-bottom: 0.875rem;
+}
+
+/* Statuts / Statuses */
+.onboarding-statuts {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+.onboarding-statut {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem 0.625rem;
+    border-radius: 0.375rem;
+    border-left: 3px solid transparent;
+    background: #fafbfc;
+    font-size: 0.8125rem;
+    transition: background 0.15s;
+}
+.onboarding-statut:hover { background: #f1f5f9; }
+.onboarding-forme {
+    width: 1.125rem;
+    height: 1.125rem;
+    flex-shrink: 0;
+}
+.onboarding-statut-desc {
+    display: block;
+    font-size: 0.6875rem;
+    color: #94a3b8;
+    line-height: 1.2;
+}
+
+/* Raccourcis clavier / Keyboard shortcuts */
+.onboarding-raccourcis {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem 0.75rem;
+}
+.onboarding-raccourci {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3125rem 0;
+    font-size: 0.8125rem;
+    color: #475569;
+}
+
+/* aide-kbd reutilise le style de la modale aide */
+/* / aide-kbd reuses style from help modal */
+
+/* === Mobile : empiler === */
+@media (max-width: 768px) {
+    .onboarding-contenu { padding: 2rem 1rem 3rem; }
+    .onboarding-etapes { grid-template-columns: 1fr; }
+    .onboarding-deux-colonnes { grid-template-columns: 1fr; }
+    .onboarding-section-clavier { display: none; }
+}
+</style>
