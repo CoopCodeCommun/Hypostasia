@@ -77,6 +77,8 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
 
     elif ai_model.provider == Provider.OPENAI:
         cle_api_openai = ai_model.api_key or os.environ.get("OPENAI_API_KEY", "")
+        if not cle_api_openai:
+            raise ValueError("Clé API OpenAI manquante. Renseignez OPENAI_API_KEY dans .env ou dans l'admin (AIModel).")
         params['api_key'] = cle_api_openai
         # OpenAI necessite des parametres specifiques dans LangExtract
         # / OpenAI requires specific params in LangExtract

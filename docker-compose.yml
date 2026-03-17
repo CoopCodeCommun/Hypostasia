@@ -52,11 +52,24 @@ services:
   web:
     build: .
     container_name: hypostasia_web
+    # Utilise le meme uid:gid que l'utilisateur hote pour que les volumes
+    # montes (media/, logs/, tmp/) soient accessibles en ecriture.
+    # Par defaut 1000:1000 (premier user Linux). Surcharger dans .env si different.
+    # / Uses the same uid:gid as the host user so that mounted volumes
+    # / (media/, logs/, tmp/) are writable. Default 1000:1000 (first Linux user).
+    # user: "${UID:-1000}:${GID:-1000}"
     env_file: .env
+    environment:
+      # Force le host PostgreSQL et Redis vers les noms de service Docker
+      # / Force PostgreSQL and Redis hosts to Docker service names
+      POSTGRES_HOST: postgres
+      CELERY_BROKER_URL: redis://redis:6379/0
+      # Cache uv et home dans /app pour eviter les problemes de permissions
+      # / uv cache and home in /app to avoid permission issues
+      UV_CACHE_DIR: /app/.cache/uv
+      HOME: /app
     volumes:
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
-      - ./.bashrc.container:/home/hypostasia/.bashrc
+      - .:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,8 +95,8 @@ services:
     container_name: hypostasia_nginx
     volumes:
       - ./nginx/${NGINX_CONF:-default.conf}:/etc/nginx/conf.d/default.conf
-      - static_volume:/app/staticfiles
-      - media_volume:/app/media
+      - ./staticfiles:/app/staticfiles:ro
+      - ./media:/app/media:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -104,9 +117,6 @@ networks:
   frontend:
     external: true
   hypostasia:
-    internal: true
 
 volumes:
   pgdata:
-  static_volume:
-  media_volume:

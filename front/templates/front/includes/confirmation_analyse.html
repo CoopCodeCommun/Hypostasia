@@ -118,12 +118,10 @@
 
 <script>
 (function() {
-    // Push l'URL de previsualisation dans l'historique navigateur
-    // / Push preview URL into browser history
-    var pageId = document.getElementById('confirmation-analyse').dataset.pageId;
-    if (pageId && window.history) {
-        history.replaceState({}, '', '/lire/' + pageId + '/previsualiser_analyse/');
-    }
+    // L'URL reste sur /lire/{pk}/ — pas de push vers previsualiser_analyse
+    // Un F5 sur cette page redirige vers le texte original
+    // / URL stays on /lire/{pk}/ — no push to previsualiser_analyse
+    // / F5 on this page redirects to the original text
 
     // Toggle du prompt complet / Toggle full prompt visibility
     var boutonVoirPrompt = document.querySelector('.btn-voir-prompt-complet');

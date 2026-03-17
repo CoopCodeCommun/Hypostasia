@@ -188,19 +188,22 @@ Les templates de `core/` ne servent que l'extension navigateur (sidebar).
 Toutes les commandes Django se lancent via `uv run` :
 
 ```bash
-uv run python manage.py runserver
+uv run python manage.py runserver 0.0.0.0:8123
 uv run python manage.py migrate
 uv run python manage.py check
 
 # Worker Celery (requis pour la transcription audio)
 uv run celery -A hypostasia worker --loglevel=info
+
+# Charger les fixtures de demo (idempotent)
+uv run python manage.py charger_fixtures_demo
 ```
 
 ---
 
 ## 6. CSS
 
-Le front utilise **Tailwind CSS** (via CDN). La specification `CLAUDE.md` mentionne Bootstrap 5, mais le code actuel utilise Tailwind partout. Continuer avec Tailwind pour la coherence.
+Le front utilise **Tailwind CSS** (via CDN, sera localise en PHASE-02). Les polices cibles sont Lora, B612, B612 Mono et Srisakdi (PHASE-02 + PHASE-11).
 
 ---
 
@@ -210,7 +213,7 @@ Les taches longues (transcription audio) sont traitees en asynchrone via Celery.
 
 ### Infrastructure
 
-- **Broker** : SQLAlchemy + SQLite (`sqla+sqlite:///db/celery-broker.sqlite3`)
+- **Broker** : Redis (`redis://localhost:6379/0`)
 - **Backend** : `django-db` (via `django-celery-results`)
 - **Config** : `hypostasia/celery.py` + namespace `CELERY_` dans `settings.py`
 - **Taches** : `front/tasks.py`
@@ -243,7 +246,40 @@ Le `start.sh` fait les migrations puis lance supervisord.
 
 ---
 
-## 8. Resume des regles
+## 8. Docker : environnement unique dev/prod
+
+Tout tourne dans Docker. Un seul `docker-compose.yml` gere dev et prod.
+La variable `DEBUG` dans `.env` determine le comportement :
+
+| | `DEBUG=true` (dev) | `DEBUG=false` (prod) |
+|---|---|---|
+| **Demarrage** | `sleep infinity` | `start.sh` (supervisord) |
+| **Serveur** | `runserver` lance a la main | Gunicorn (3 workers) |
+| **Celery** | Lance a la main | Supervisord (2 workers) |
+| **Nginx** | `NGINX_CONF=dev.conf` (proxy host) | `default.conf` (proxy interne) |
+
+### Scripts
+
+- **`install.sh`** : idempotent — sync, mkdir, migrate, collectstatic, charger_fixtures_demo
+- **`start.sh`** : attend PostgreSQL → appelle `install.sh` → lance supervisord
+
+`install.sh` peut etre relance a chaque redemarrage sans risque : les fixtures
+utilisent `get_or_create`, les migrations sautent celles deja appliquees.
+
+### Cles API
+
+Priorite : champ DB > variable d'environnement `.env`.
+Variables supportees : `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`.
+
+---
+
+## 9. Preferences utilisateur
+
+- **Ne JAMAIS commit ni push.** L'utilisateur gere lui-meme ses commits et ses push. Ne pas proposer de commit, ne pas lancer `git add/commit/push`.
+
+---
+
+## 10. Resume des regles
 
 1. `viewsets.ViewSet` explicite, jamais `ModelViewSet`
 2. `DefaultRouter` DRF, jamais `path()` manuel pour DRF
@@ -253,5 +289,6 @@ Le `start.sh` fait les migrations puis lance supervisord.
 6. Commentaires bilingues FR/EN
 7. `core` = API JSON extension, `front` = interface HTML HTMX
 8. `uv run` pour toutes les commandes
-9. Celery pour les taches longues (transcription audio), broker SQLite
+9. Celery pour les taches longues (transcription audio), broker Redis
 10. Supervisord en Docker pour gerer gunicorn + celery worker
+11. `front/views.py` fait 3269 lignes — si une phase ajoute un ViewSet, envisager de le mettre dans un fichier separe (`front/views/nouveau_viewset.py`) et l'importer dans `front/views.py`

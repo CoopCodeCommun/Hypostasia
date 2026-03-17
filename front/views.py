@@ -51,18 +51,24 @@ def _exiger_authentification(request):
     """
     Verifie que l'utilisateur est authentifie pour les operations d'ecriture.
     Retourne None si OK, ou une HttpResponse 403/redirect si non authentifie.
+    Pour les requetes HTMX : renvoie un HX-Trigger pour afficher un toast SweetAlert.
     / Checks user is authenticated for write ops. Returns None or 403/redirect.
+    / For HTMX requests: returns an HX-Trigger to show a SweetAlert toast.
 
     LOCALISATION : front/views.py
     """
     if request.user.is_authenticated:
         return None
     if request.headers.get("HX-Request"):
-        return HttpResponse(
-            '<p class="text-sm text-red-600 p-3">'
-            'Connexion requise. <a href="/auth/login/" class="underline text-blue-600">Se connecter</a>'
-            '</p>', status=403,
-        )
+        reponse = HttpResponse(status=403)
+        reponse["HX-Trigger"] = json.dumps({
+            "authRequise": {
+                "titre": "Connexion requise",
+                "message": "Connectez-vous pour effectuer cette action.",
+                "url_login": "/auth/login/",
+            }
+        })
+        return reponse
     return redirect("/auth/login/")
 
 
@@ -159,18 +165,22 @@ def _est_proprietaire_dossier(utilisateur, page):
 
 def _reponse_acces_refuse(request):
     """
-    Construit la reponse 403 — template HTML complet ou texte court pour HTMX.
-    / Builds the 403 response — full HTML template or short text for HTMX.
+    Construit la reponse 403 — toast SweetAlert pour HTMX, template complet sinon.
+    / Builds the 403 response — SweetAlert toast for HTMX, full template otherwise.
 
     LOCALISATION : front/views.py
     """
-    # Requete HTMX → reponse courte inline (pas de page complete)
-    # / HTMX request → short inline response (no full page)
+    # Requete HTMX → toast SweetAlert via HX-Trigger
+    # / HTMX request → SweetAlert toast via HX-Trigger
     if request.headers.get("HX-Request"):
-        return HttpResponse(
-            '<p class="text-sm text-red-600 p-3">Acces refuse.</p>',
-            status=403,
-        )
+        reponse = HttpResponse(status=403)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {
+                "message": "Acc\u00e8s r\u00e9serv\u00e9 au propri\u00e9taire du dossier.",
+                "icon": "warning",
+            }
+        })
+        return reponse
     # Acces direct (F5 ou URL) → template complet avec navigation
     # / Direct access (F5 or URL) → full template with navigation
     return render(request, "front/acces_refuse.html", status=403)
@@ -1058,10 +1068,35 @@ class LectureViewSet(viewsets.ViewSet):
         """
         Construit le prompt complet (pieces + exemples + texte source) et retourne
         un partial de confirmation avec : estimation tokens, cout, bouton voir prompt.
-        / Builds the full prompt (pieces + examples + source text) and returns
-        a confirmation partial with: token estimate, cost, view prompt button.
+        Si un job est deja en cours → renvoie le template de polling directement.
+        Si le dernier job est en erreur → affiche l'erreur avec possibilite de relancer.
+        / Builds the full prompt and returns a confirmation partial.
+        / If a job is already running → returns the polling template directly.
+        / If the last job errored → shows the error with option to re-launch.
         """
         page = get_object_or_404(Page, pk=pk)
+
+        # Acces direct (F5) → rediriger vers la page de lecture
+        # Cette vue ne sert que comme partial HTMX, pas en acces direct
+        # / Direct access (F5) → redirect to reading page
+        # / This view only serves as an HTMX partial, not for direct access
+        if not request.headers.get("HX-Request"):
+            return redirect(f"/lire/{pk}/")
+
+        # Verifier si un job est deja en cours pour cette page
+        # / Check if a job is already running for this page
+        job_en_cours = ExtractionJob.objects.filter(
+            page=page,
+            status__in=["pending", "processing"],
+        ).order_by("-created_at").first()
+
+        if job_en_cours:
+            # Deja en cours → renvoyer le polling au lieu de la confirmation
+            # / Already running → return polling instead of confirmation
+            return render(request, "front/includes/analyse_en_cours.html", {
+                "page": page,
+                "job": job_en_cours,
+            })
 
         # Recupere l'analyseur depuis le query param, ou le premier actif par defaut
         # / Get analyzer from query param, or the first active one by default
@@ -1073,7 +1108,11 @@ class LectureViewSet(viewsets.ViewSet):
                 is_active=True, type_analyseur="analyser",
             ).first()
             if not analyseur:
-                return HttpResponse("Aucun analyseur actif trouvé.", status=400)
+                reponse = HttpResponse(status=400)
+                reponse["HX-Trigger"] = json.dumps({
+                    "showToast": {"message": "Aucun analyseur actif. Configurez-en un dans /api/analyseurs/.", "icon": "error"},
+                })
+                return reponse
 
         # Tous les analyseurs actifs de type "analyser" pour le selecteur
         # / All active analyzers of type "analyser" for the selector
@@ -1086,7 +1125,14 @@ class LectureViewSet(viewsets.ViewSet):
         configuration_ia = Configuration.get_solo()
         modele_ia_actif = configuration_ia.ai_model
         if not modele_ia_actif:
-            return HttpResponse("Aucun modèle IA sélectionné.", status=400)
+            reponse = HttpResponse(status=400)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Aucun mod\u00e8le IA configur\u00e9. Ajoutez une cl\u00e9 API dans .env (GOOGLE_API_KEY, OPENAI_API_KEY...) puis relancez install.sh.",
+                    "icon": "error",
+                },
+            })
+            return reponse
 
         # Construit le prompt complet depuis les pieces de l'analyseur
         # / Build full prompt from analyzer pieces
@@ -1187,14 +1233,21 @@ class LectureViewSet(viewsets.ViewSet):
             return refus
         # Guard : verifie que l'IA est activee / Check AI is enabled
         if not _get_ia_active():
-            return HttpResponse("IA desactivee. Activez l'IA depuis le panneau de gauche.", status=403)
+            reponse = HttpResponse(status=400)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "IA non activ\u00e9e. Configurez un mod\u00e8le dans /api/analyseurs/ ou ajoutez une cl\u00e9 API dans .env.",
+                    "icon": "warning",
+                },
+            })
+            return reponse
 
         page = get_object_or_404(Page, pk=pk)
 
         # Verifier les droits d'ecriture sur le dossier de la page
         # / Check write permissions on the page's folder
         if page.dossier and not _utilisateur_peut_ecrire_dossier(request.user, page.dossier):
-            return HttpResponse("Acces refuse.", status=403)
+            return _reponse_acces_refuse(request)
 
         # Guard anti-doublon : verifier s'il y a deja un job en cours pour cette page
         # / Anti-duplicate guard: check if a job is already running for this page
@@ -1209,6 +1262,7 @@ class LectureViewSet(viewsets.ViewSet):
             logger.info("analyser: job deja en cours pk=%s pour page=%s", job_en_cours.pk, pk)
             reponse = render(request, "front/includes/analyse_en_cours.html", {
                 "page": page,
+                "job": job_en_cours,
             })
             reponse["HX-Trigger"] = "ouvrirPanneauDroit"
             return reponse
@@ -1280,12 +1334,16 @@ class LectureViewSet(viewsets.ViewSet):
             job_extraction.pk, pk, analyseur.name,
         )
 
-        # Retourner le template de polling
-        # / Return the polling template
+        # Retourner le template de polling et corriger l'URL
+        # L'URL etait sur /previsualiser_analyse/, on la remet sur /lire/{pk}/
+        # / Return the polling template and fix the URL
+        # / The URL was on /previsualiser_analyse/, reset it to /lire/{pk}/
         reponse = render(request, "front/includes/analyse_en_cours.html", {
             "page": page,
+            "job": job_extraction,
         })
         reponse["HX-Trigger"] = "ouvrirPanneauDroit"
+        reponse["HX-Push-Url"] = f"/lire/{pk}/"
         return reponse
 
     @action(detail=True, methods=["GET"])
@@ -1323,12 +1381,14 @@ class LectureViewSet(viewsets.ViewSet):
                 job_en_cours.save(update_fields=["status", "error_message"])
                 return render(request, "front/includes/extraction_results.html", {
                     "error_message": job_en_cours.error_message,
+                    "error_job": job_en_cours,
                 })
 
             # Toujours en cours → renvoyer le partial de polling
             # / Still processing → return polling partial
             return render(request, "front/includes/analyse_en_cours.html", {
                 "page": page,
+                "job": job_en_cours,
             })
 
         # Recuperer le dernier job termine OU en erreur (le plus recent des deux)
@@ -1351,9 +1411,9 @@ class LectureViewSet(viewsets.ViewSet):
             if dernier_job_erreur.created_at > dernier_job_termine.created_at:
                 # L'erreur est plus recente → afficher l'erreur
                 # / Error is more recent → show error
-                message_erreur = dernier_job_erreur.error_message or "Erreur inconnue"
                 return render(request, "front/includes/extraction_results.html", {
-                    "error_message": message_erreur,
+                    "error_message": dernier_job_erreur.error_message or "Erreur inconnue",
+                    "error_job": dernier_job_erreur,
                 })
 
         if dernier_job_termine:
@@ -1368,9 +1428,9 @@ class LectureViewSet(viewsets.ViewSet):
         if dernier_job_erreur:
             # Erreur sans aucun job completed → afficher l'erreur
             # / Error with no completed job → show error
-            message_erreur = dernier_job_erreur.error_message or "Erreur inconnue"
             return render(request, "front/includes/extraction_results.html", {
-                "error_message": message_erreur,
+                "error_message": dernier_job_erreur.error_message or "Erreur inconnue",
+                "error_job": dernier_job_erreur,
             })
 
         # Fallback : aucun job trouve / Fallback: no job found
@@ -1807,29 +1867,57 @@ class DossierViewSet(viewsets.ViewSet):
         return JsonResponse(data)
 
     def create(self, request):
+        """
+        Cree un nouveau dossier. Le champ arrive sous le nom 'nom' depuis le JS.
+        / Creates a new folder. The field arrives as 'nom' from the JS.
+        """
         refus = _exiger_authentification(request)
         if refus:
             return refus
-        # Validation via serializer DRF
-        # Validation via DRF serializer
-        serializer = DossierCreateSerializer(data=request.POST)
-        if serializer.is_valid():
-            Dossier.objects.create(name=serializer.validated_data["name"], owner=request.user)
+
+        # Le JS envoie 'nom', le serializer attend 'name' — on normalise
+        # / JS sends 'nom', serializer expects 'name' — normalize
+        donnees_normalisees = request.data.copy()
+        if "nom" in donnees_normalisees and "name" not in donnees_normalisees:
+            donnees_normalisees["name"] = donnees_normalisees["nom"]
+
+        serializer = DossierCreateSerializer(data=donnees_normalisees)
+        if not serializer.is_valid():
+            logger.warning("create dossier: validation echouee — %s", serializer.errors)
+            reponse = HttpResponse(status=400)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {"message": "Nom du dossier invalide", "icon": "error"},
+            })
+            return reponse
+
+        nouveau_dossier = Dossier.objects.create(
+            name=serializer.validated_data["name"],
+            owner=request.user,
+        )
+        logger.info("create dossier: pk=%s name='%s' owner=%s", nouveau_dossier.pk, nouveau_dossier.name, request.user)
+
         reponse = _render_arbre(request)
-        reponse["HX-Trigger"] = json.dumps({"showToast": {"message": "Dossier cr\u00e9\u00e9"}})
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {"message": f"Dossier \u00ab {nouveau_dossier.name} \u00bb cr\u00e9\u00e9"},
+        })
         return reponse
 
     def destroy(self, request, pk=None):
         """
-        Supprime un dossier. Si le dossier contient des pages, elles deviennent orphelines
-        (dossier=null) grace au on_delete=SET_NULL du modele.
-        / Deletes a folder. If the folder contains pages, they become orphans
-        (dossier=null) thanks to the on_delete=SET_NULL on the model.
+        Supprime un dossier. Seul le proprietaire peut supprimer.
+        Si le dossier contient des pages, elles deviennent orphelines.
+        / Deletes a folder. Only the owner can delete.
+        / If the folder contains pages, they become orphans.
         """
         refus = _exiger_authentification(request)
         if refus:
             return refus
         dossier_a_supprimer = get_object_or_404(Dossier, pk=pk)
+
+        # Verifier ownership / Check ownership
+        if dossier_a_supprimer.owner and dossier_a_supprimer.owner != request.user:
+            return _reponse_acces_refuse(request)
+
         nombre_pages_dans_dossier = Page.objects.filter(
             dossier=dossier_a_supprimer, parent_page__isnull=True,
         ).count()
@@ -1852,12 +1940,18 @@ class DossierViewSet(viewsets.ViewSet):
     def renommer(self, request, pk=None):
         """
         Renomme un dossier et retourne l'arbre mis a jour.
+        Seul le proprietaire du dossier peut le renommer.
         / Renames a folder and returns the updated tree.
+        / Only the folder owner can rename it.
         """
         refus = _exiger_authentification(request)
         if refus:
             return refus
         dossier_a_renommer = get_object_or_404(Dossier, pk=pk)
+
+        # Verifier ownership / Check ownership
+        if dossier_a_renommer.owner and dossier_a_renommer.owner != request.user:
+            return _reponse_acces_refuse(request)
 
         serializer = DossierRenommerSerializer(data=request.data)
         if not serializer.is_valid():
@@ -2156,12 +2250,19 @@ class PageViewSet(viewsets.ViewSet):
     def supprimer(self, request, pk=None):
         """
         Supprime une page et retourne l'arbre mis a jour.
-        Deletes a page and returns the updated tree.
+        Seul le proprietaire du dossier contenant la page peut la supprimer.
+        / Deletes a page and returns the updated tree.
+        / Only the owner of the folder containing the page can delete it.
         """
         refus = _exiger_authentification(request)
         if refus:
             return refus
         page_a_supprimer = get_object_or_404(Page, pk=pk)
+
+        # Verifier ownership du dossier / Check folder ownership
+        if not _est_proprietaire_dossier(request.user, page_a_supprimer):
+            return _reponse_acces_refuse(request)
+
         titre_page = page_a_supprimer.title or "Sans titre"
         page_a_supprimer.delete()
 
@@ -2175,22 +2276,29 @@ class PageViewSet(viewsets.ViewSet):
     def classer(self, request, pk=None):
         """
         Assigne une page a un dossier, retourne l'arbre mis a jour.
-        Assign a page to a folder, return updated tree.
+        Verifie que l'utilisateur est owner du dossier source ou destination.
+        / Assign a page to a folder, return updated tree.
+        / Checks user is owner of source or destination folder.
         """
         refus = _exiger_authentification(request)
         if refus:
             return refus
         page = get_object_or_404(Page, pk=pk)
 
-        # request.data gere automatiquement JSON et form-data via DRF
         serializer = PageClasserSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         dossier_id = serializer.validated_data["dossier_id"]
-        if dossier_id:
-            page.dossier = get_object_or_404(Dossier, pk=dossier_id)
-        else:
-            page.dossier = None
+        dossier_destination = get_object_or_404(Dossier, pk=dossier_id) if dossier_id else None
+
+        # Verifier ownership : l'utilisateur doit etre owner du dossier source OU destination
+        # / Check ownership: user must be owner of source OR destination folder
+        est_owner_source = page.dossier and page.dossier.owner == request.user
+        est_owner_destination = dossier_destination and dossier_destination.owner == request.user
+        if not est_owner_source and not est_owner_destination:
+            return _reponse_acces_refuse(request)
+
+        page.dossier = dossier_destination
         page.save(update_fields=["dossier"])
 
         return _render_arbre(request)
@@ -2375,6 +2483,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Re-rend le panneau d'analyse complet pour une page (utilise par Annuler).
         Re-renders the full analysis panel for a page (used by Cancel).
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         page_id = request.data.get("page_id")
         if not page_id:
             return HttpResponse("page_id requis.", status=400)
@@ -2388,6 +2499,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Recoit le texte selectionne, calcule les positions, et renvoie le formulaire.
         Receives selected text, computes positions, returns the form partial.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         logger.info(
             "manuelle: content_type=%s data=%s",
             request.content_type, dict(request.data),
@@ -2496,13 +2610,26 @@ class ExtractionViewSet(viewsets.ViewSet):
     def editer(self, request):
         """
         Affiche le formulaire d'edition inline pour une extraction existante.
-        Displays the inline edit form for an existing extraction.
+        Reserve au proprietaire du dossier, seulement si nouveau/discutable sans commentaires.
+        / Displays the inline edit form for an existing extraction.
+        / Owner only, only if nouveau/discutable with no comments.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         entity_id = request.data.get("entity_id")
         page_id = request.data.get("page_id")
         logger.info("editer: entity_id=%s page_id=%s", entity_id, page_id)
 
         entite = get_object_or_404(ExtractedEntity, pk=entity_id)
+
+        # Verifier ownership et statut / Check ownership and status
+        if not _est_proprietaire_dossier(request.user, entite.job.page):
+            return _reponse_acces_refuse(request)
+        if entite.statut_debat not in ("nouveau", "discutable"):
+            return _reponse_acces_refuse(request)
+        if CommentaireExtraction.objects.filter(entity=entite).exists():
+            return _reponse_acces_refuse(request)
         attributs = entite.attributes or {}
 
         # Construire la liste des paires (cle, valeur) pour le template
@@ -2555,6 +2682,10 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         entite = get_object_or_404(ExtractedEntity, pk=entity_id)
         page = get_object_or_404(Page, pk=page_id)
+
+        # Verifier ownership / Check ownership
+        if not _est_proprietaire_dossier(request.user, page):
+            return _reponse_acces_refuse(request)
 
         # Lire les paires cle/valeur dynamiques depuis le formulaire
         # Le template envoie attr_key_0, attr_val_0, attr_key_1, attr_val_1, etc.
@@ -2903,6 +3034,10 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         entite_a_supprimer = get_object_or_404(ExtractedEntity, pk=entity_id)
 
+        # Verifier ownership / Check ownership
+        if not _est_proprietaire_dossier(request.user, entite_a_supprimer.job.page):
+            return _reponse_acces_refuse(request)
+
         # Verifier qu'il n'y a pas de commentaires / Check no comments exist
         if CommentaireExtraction.objects.filter(entity=entite_a_supprimer).exists():
             return HttpResponse("Impossible de supprimer une extraction qui a des commentaires.", status=400)
@@ -3235,6 +3370,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         / Builds the full reformulation prompt for an extraction
         and returns a confirmation partial with token and cost estimates.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         entity_id = request.data.get("entity_id")
         analyseur_id = request.data.get("analyseur_id")
         if not entity_id or not analyseur_id:
@@ -3389,6 +3527,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         / Builds the full AI restitution prompt for an extraction
         and returns a confirmation partial with token and cost estimates.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         entity_id = request.data.get("entity_id")
         analyseur_id = request.data.get("analyseur_id")
         if not entity_id or not analyseur_id:
@@ -3463,6 +3604,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Lance une restitution IA asynchrone sur une extraction via Celery.
         / Launches an async AI restitution on an extraction via Celery.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         # Guard : verifie que l'IA est activee / Check AI is enabled
         if not _get_ia_active():
             return HttpResponse("IA desactivee.", status=403)
@@ -3709,6 +3853,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         Recoit le texte selectionne pour extraction IA.
         Receives selected text for AI extraction.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         serializer = ExtractionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -4613,6 +4760,9 @@ class ImportViewSet(viewsets.ViewSet):
         / Receives the audio file, saves it temporarily, computes duration,
         and returns a confirmation partial with cost estimate.
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         import os
         import uuid
         from django.conf import settings
@@ -4648,6 +4798,15 @@ class ImportViewSet(viewsets.ViewSet):
         # Recuperer la config de transcription active
         # / Get active transcription config
         config_transcription = TranscriptionConfig.objects.filter(is_active=True).first()
+        if not config_transcription:
+            reponse = HttpResponse(status=400)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Transcription non configur\u00e9e. Ajoutez MISTRAL_API_KEY dans .env puis relancez install.sh.",
+                    "icon": "error",
+                },
+            })
+            return reponse
 
         # Calcul du cout estime en euros — marge x2, minimum 0.01€
         # / Compute estimated cost in euros — x2 margin, minimum 0.01€
@@ -4688,6 +4847,9 @@ class ImportViewSet(viewsets.ViewSet):
         / Launches transcription of an already temp-saved audio file.
         Receives the temp file name (not the file itself).
         """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
         import os
         from django.conf import settings
         from core.models import TranscriptionConfig, TranscriptionJob

@@ -121,6 +121,8 @@ def _appeler_openai(modele_ia, message_complet: str) -> str:
 
     # Cle API : priorite DB, fallback .env / API key: DB priority, fallback .env
     cle_api_openai = modele_ia.api_key or os.environ.get("OPENAI_API_KEY", "")
+    if not cle_api_openai:
+        raise ValueError("Clé API OpenAI manquante. Renseignez OPENAI_API_KEY dans .env ou dans l'admin.")
     client = OpenAI(api_key=cle_api_openai)
     nom_modele = modele_ia.model_name or modele_ia.model_choice
 
@@ -176,6 +178,8 @@ def _appeler_anthropic(modele_ia, message_complet: str) -> str:
 
     # Cle API : priorite DB, fallback .env / API key: DB priority, fallback .env
     cle_api_anthropic = modele_ia.api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+    if not cle_api_anthropic:
+        raise ValueError("Clé API Anthropic manquante. Renseignez ANTHROPIC_API_KEY dans .env ou dans l'admin.")
     client = anthropic.Anthropic(api_key=cle_api_anthropic)
     nom_modele = modele_ia.model_name or modele_ia.model_choice
 

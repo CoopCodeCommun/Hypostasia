@@ -11,9 +11,16 @@
         </svg>
         <div class="flex-1">
             <p class="text-sm font-medium">Erreur lors de l'extraction</p>
-            <p class="text-xs mt-1 opacity-80">{{ error_message|truncatechars:200 }}</p>
+            <p class="text-xs mt-1 opacity-80">{{ error_message|truncatechars:300 }}</p>
+            {% if error_job %}
+            <p class="text-[10px] mt-1 opacity-60">
+                {{ error_job.name }}
+                {% if error_job.ai_model %}&mdash; {{ error_job.ai_model.get_display_name }}{% endif %}
+                &mdash; {{ error_job.created_at|date:"d/m H:i" }}
+            </p>
+            {% endif %}
             <button class="empty-state-action mt-2" onclick="document.getElementById('btn-toolbar-analyser').click()">
-                Réessayer
+                R&eacute;essayer
             </button>
         </div>
     </div>

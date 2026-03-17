@@ -14,7 +14,12 @@ from pathlib import Path
 import os
 
 from dotenv import load_dotenv
-load_dotenv(override=True)
+# override=False : les variables d'environnement systeme (injectees par docker-compose)
+# ont priorite sur le fichier .env. Cela permet a docker-compose de forcer
+# POSTGRES_HOST=postgres meme si le .env dit localhost.
+# / override=False: system env vars (injected by docker-compose) take priority
+# / over .env file. This allows docker-compose to force POSTGRES_HOST=postgres.
+load_dotenv(override=False)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent

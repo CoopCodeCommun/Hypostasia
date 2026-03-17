@@ -1,28 +1,26 @@
 FROM ghcr.io/astral-sh/uv:python3.13-trixie
 
-# Install git for cloning
-RUN apt-get update && apt-get upgrade -y && apt-get install -y git curl ffmpeg postgresql-client && rm -rf /var/lib/apt/lists/*
+# Paquets systeme necessaires : git, ffmpeg (audio), pg_isready (healthcheck)
+# / Required system packages: git, ffmpeg (audio), pg_isready (healthcheck)
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends git curl ffmpeg postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
-
-RUN useradd -ms /bin/bash hypostasia
+# Creer un user non-root avec uid 1000 (match le defaut docker-compose)
+# / Create a non-root user with uid 1000 (matches docker-compose default)
+RUN useradd -ms /bin/bash -u 1000 hypostasia
+COPY .bashrc.container /home/hypostasia/.bashrc
 USER hypostasia
 
-# Set working directory
 WORKDIR /app
 
-# Clone the repository
-# We clone into a temporary dir and move it to /app or just clone into .
-# Since /app is empty, we can clone .
+# Cloner le depot / Clone the repository
 RUN git clone https://github.com/CoopCodeCommun/Hypostasia .
 
-# Install dependencies
-# Using system python environment managed by uv
+# Installer les dependances Python / Install Python dependencies
 RUN uv sync --frozen
 
-# Ensure the db directory exists
-RUN mkdir -p db staticfiles
+# Creer les repertoires necessaires / Create required directories
+RUN mkdir -p db staticfiles logs tmp/audio media
 
-# Environment variables
 ENV PATH="/app/.venv/bin:$PATH"
-
-

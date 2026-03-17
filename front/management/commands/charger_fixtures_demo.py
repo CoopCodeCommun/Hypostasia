@@ -14,11 +14,16 @@ Usage :
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 
-from core.models import Dossier, DossierPartage, Page, VisibiliteDossier
+from core.models import AIModel, Configuration, Dossier, DossierPartage, Page, VisibiliteDossier
 from hypostasis_extractor.models import (
+    AnalyseurExample,
+    AnalyseurSyntaxique,
     CommentaireExtraction,
+    ExampleExtraction,
+    ExtractionAttribute,
     ExtractedEntity,
     ExtractionJob,
+    PromptPiece,
 )
 
 
@@ -596,6 +601,10 @@ class Command(BaseCommand):
         tous_les_users_demo = self._creer_users_demo()
         user_admin = tous_les_users_demo.get("jonas")
 
+        # 1b. Creer le modele IA Mock + l'analyseur Hypostasia avec prompt et exemples
+        # / Create Mock AI model + Hypostasia analyzer with prompt and examples
+        self._creer_modeles_ia_et_analyseurs()
+
         # 2. Recupere ou cree le dossier cible avec owner, visibilite publique
         # / Get or create target folder with owner, public visibility
         dossier, dossier_cree = Dossier.objects.get_or_create(
@@ -775,6 +784,220 @@ class Command(BaseCommand):
         tous_les_users[utilisateur_admin.username] = utilisateur_admin
 
         return tous_les_users
+
+    def _creer_modeles_ia_et_analyseurs(self):
+        """
+        Cree le modele IA Mock, active la configuration, et cree l'analyseur
+        Hypostasia avec son prompt et ses exemples few-shot. Idempotent.
+        / Create Mock AI model, activate configuration, and create the
+        Hypostasia analyzer with its prompt and few-shot examples. Idempotent.
+        """
+        # --- Modeles IA : crees automatiquement si la cle API est dans le .env ---
+        # Pas de Mock — soit on a une cle API, soit l'IA n'est pas activee.
+        # Les cles ne sont PAS stockees en DB (elles restent dans le .env).
+        # / --- AI models: auto-created if the API key is in .env ---
+        # / No Mock — either we have an API key, or AI is not activated.
+        # / Keys are NOT stored in DB (they stay in .env).
+        import os
+        modeles_auto = [
+            {"cle_env": "GOOGLE_API_KEY", "model_choice": "gemini-2.5-flash", "name": "Gemini 2.5 Flash"},
+            {"cle_env": "OPENAI_API_KEY", "model_choice": "gpt-4o-mini", "name": "GPT-4o Mini"},
+            {"cle_env": "ANTHROPIC_API_KEY", "model_choice": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4"},
+        ]
+
+        premier_modele_cree = None
+        for definition_modele in modeles_auto:
+            cle_api_presente = bool(os.environ.get(definition_modele["cle_env"]))
+            if not cle_api_presente:
+                continue
+            modele_ia, modele_ia_cree = AIModel.objects.get_or_create(
+                model_choice=definition_modele["model_choice"],
+                defaults={"name": definition_modele["name"], "is_active": True},
+            )
+            if modele_ia_cree:
+                self.stdout.write(self.style.SUCCESS(
+                    f"  Modèle IA créé : {definition_modele['name']} (clé {definition_modele['cle_env']} détectée)"
+                ))
+            if not premier_modele_cree:
+                premier_modele_cree = modele_ia
+
+        if not premier_modele_cree and not AIModel.objects.filter(is_active=True).exists():
+            self.stdout.write(self.style.WARNING(
+                "  Aucune clé API détectée dans .env — IA non activée. "
+                "Ajoutez GOOGLE_API_KEY, OPENAI_API_KEY ou ANTHROPIC_API_KEY dans .env puis relancez."
+            ))
+
+        # Activer l'IA avec le premier modele disponible
+        # / Activate AI with the first available model
+        config = Configuration.get_solo()
+        if not config.ai_model and premier_modele_cree:
+            config.ai_model = premier_modele_cree
+            config.ai_active = True
+            config.save()
+            self.stdout.write(self.style.SUCCESS(
+                f"  Configuration IA activée avec {premier_modele_cree.get_display_name()}"
+            ))
+
+        # --- Analyseur Hypostasia (type: analyser) ---
+        # / --- Hypostasia Analyzer (type: analyser) ---
+        analyseur_hypostasia, analyseur_cree = AnalyseurSyntaxique.objects.get_or_create(
+            name="Hypostasia",
+            defaults={
+                "type_analyseur": "analyser",
+                "is_active": True,
+                "inclure_extractions": False,
+                "inclure_texte_original": False,
+            },
+        )
+        if analyseur_cree:
+            self.stdout.write(self.style.SUCCESS("  Analyseur créé : Hypostasia"))
+
+            # 6 pieces du prompt originales (extraites de la base SQLite de reference)
+            # / 6 original prompt pieces (extracted from the reference SQLite database)
+            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=0, role="context", content="Tu es Hypostasia, un expert mondial en analyse syntaxique et en logique argumentative.\nTa mission est de déconstruire le texte fourni pour en extraire l'ossature argumentative via les hypostases (définitions plus bas). \nTu agis avec une neutralité absolue et une précision chirurgicale.")
+            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=1, role="definition", content="# Définitions formelles des 30 hypostases\n\n- classification : non réfuté par induction empirique et non prouvé par abduction empirique\n- aporie : non réfuté par induction empirique et non prouvé par déduction empirique\n- approximation : non réfuté par induction empirique et non prouvé par déduction formelle\n- paradoxe : non réfuté par induction empirique et non prouvé par abduction formelle\n- formalisme : non réfuté par induction empirique et non prouvé par induction formelle\n- événement : non réfuté par déduction empirique et non prouvé par déduction formelle\n- variation : non réfuté par déduction empirique et non prouvé par abduction empirique\n- dimension : non réfuté par déduction empirique et non prouvé par abduction formelle\n- mode : non réfuté par déduction empirique et non prouvé par induction empirique\n- croyance : non réfuté par déduction empirique et non prouvé par induction formelle\n- invariant : non réfuté par induction formelle et non prouvé par déduction formelle\n- valeur : non réfuté par induction formelle et non prouvé par abduction empirique\n- structure : non réfuté par induction formelle et non prouvé par abduction formelle\n- axiome : non réfuté par induction formelle et non prouvé par induction empirique\n- conjecture : non réfuté par induction formelle et non prouvé par déduction empirique\n- paradigme : non réfuté par déduction formelle et non prouvé par abduction empirique.\n- objet : non réfuté par déduction formelle et non prouvé par abduction formelle.\n- principe : non réfuté par déduction formelle et non prouvé par induction empirique.\n- domaine : non réfuté par déduction formelle et non prouvé par déduction formelle.\n- loi : non réfuté par déduction formelle et non prouvé par induction empirique.\n- phénomène : non réfuté par abduction empirique et non prouvé par déduction formelle.\n- variable : non réfuté par abduction empirique et non prouvé par abduction formelle.\n- variance : non réfuté par abduction empirique et non prouvé par induction empirique.\n- indice : non réfuté par abduction empirique et non prouvé par déduction empirique.\n- donnée : non réfuté par abduction empirique et non prouvé par induction formelle.\n- méthode : non réfuté par abduction formelle et non prouvé par déduction formelle.\n- définition : non réfuté par abduction formelle et non prouvé par abduction empirique.\n- hypothèse : non réfuté par abduction formelle et non prouvé par induction empirique.\n- problème : non réfuté par abduction formelle et non prouvé par déduction empirique\n- théorie : non réfuté par abduction formelle et non prouvé par induction formelle.\n\nCe sont les uniques choix que tu peux avoir pour la clé \"hypostase\" dans l'instruction de sortie pour chaque argument trouvé.")
+            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=2, role="definition", content="# Définitions informelles des hypostases\n\nLes hypostases ont des définitions venant des dictionnaires :\n\n- paradigme : un paradigme est un modèle ou un exemple.\n- objet : Un objet est ce sur quoi porte le discours, la pensée, la connaissance.\n- principe : les principes sont les causes a priori d'une connaissance\n- domaine : un domaine est un champ discerné par des limites, bornes, confins, frontières, démarcations.\n- loi : les lois expriment des corrélations.\n- phénomène : les phénomènes se manifestent à la connaissance via les sens.\n- variable : une variable est ce qui prend différentes valeurs et ce dont dépend l'état d'un système.\n- variance : Une variance caractérise une dispersion d'une distribution ou d'un échantillon.\n- indice : Un indice est un indicateur numérique ou littéral qui sert à distinguer ou classer.\n- donnée : Une donnée est ce qui est admis, donné, qui sert à découvrir ou à raisonner.\n- méthode : Une méthode est une procédure qui indique ce que l'on doit faire ou comment le faire.\n- définition : Une définition est la détermination, la caractérisation du contenu d'un concept.\n- hypothèse : Une hypothèse concerne l'explication ou la possibilité d'un événement.\n- problème : Un problème est une difficulté à résoudre\n- théorie : Une théorie est une construction intellectuelle explicative, hypothétique et synthétique.\n- approximation : Une approximation est un calcul approché d'une grandeur réelle.\n- classification : Les classifications sont le fait de distribuer en classes, en catégories.\n- aporie : Les apories sont des difficultés d'ordre rationnel apparemment sans issues.\n- paradoxe : Les paradoxes sont des propositions à la fois vraies et fausses.\n- formalisme : Un formalisme est la considération de la forme d'un raisonnement.\n- événement : Les événements sont ce qui arrive.\n- variation : les variations sont des changements d'un état dans un autre.\n- dimension : Les dimensions sont des grandeurs mesurables qui déterminent des positions.\n- mode : Les modes sont les manières d'être d'un système.\n- croyance : Les croyances sont des certitudes ou des convictions qui font croire une chose vraie, vraisemblable ou possible.\n- invariant : Les invariants sont des grandeurs, relations ou propriétés conservées lors d'une transformation\n- valeur : Une valeur est une mesure d'une grandeur variable.\n- structure : Les structures sont l'organisation des parties d'un système.\n- axiome : Les axiomes sont des propositions admises au départ d'une théorie.\n- conjecture : Les conjectures sont des opinions ou propositions non vérifiées.")
+            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=3, role="instruction", content="# Méthode d'Hypostasiation\n\nChaque argument est caractérisé par :\n- Classe : Hypostase, catégorie selon la géométrie des débats, unique.\n\nEt ses attributs :\n- Passage : citation source. Texte exact uniquement, ne pas reformuler.\n- Résumé : formulation synthétique\n- Mots-clés : termes du glossaire\n- Hypostases : catégorie selon la géométrie des débats (domaine, valeur, principe, problème, méthode, paradigme, règle, structure, donnée, indice, phénomène, théorie, loi, etc. suivre les définitions plus haut.) Ici il peut y en avoir plusieurs si c'est nécessaire.\n- Statut : Consensuel / Discuté / Discutable / Controversé / Disputé\n\nLes hypostases sont les « 30 manières d'être discutable » définies par la géométrie des débats : avec 2 dispositifs de preuve (formel, empirique) et 3 modes de raisonnement (induction de lois, abduction de causes, déduction de conséquences), on obtient 6 modes → 30 hypostases. Un énoncé cesse d'être consensuel quand il devient argument ; un argument cesse de l'être en devenant consensuel.")
+            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=4, role="instruction", content="ANALYSE MAINTENANT LE TEXTE SUIVANT.\n\nInstructions impératives :\n1. Pour un texte court, identifie une ou deux hypostases pertinentes.\n2. Pour un texte long, identifie 5 à 15 hypostases pertinentes.\n3. Pour un texte très long, identifie 15 à 25 hypostases pertinentes.\n4. Pour chaque hypostase, extrais la citation EXACTE (extraction_text). Si tu changes un seul mot, le système de surlignage échouera.\n6. Synthétise l'idée en une phrase simple (Résumé).\n7. Associe à chaque argument un, deux ou trois HYPOSTASE de nature conceptuelle (Hypostases, au pluriel !). Attention à ne pas halluciner de nouvelle hypostase, elles sont toutes listées dans la définition plus haut.\n8. Trouve le thème du sujet en un, deux, trois ou quatre mots maximum. (Mots-clés)\n10. Essaye de deviner le statut du débat et pour quelle raison : Consensuel / Discuté / Discutable / Controversé / Disputé (Statut). Si ça ne semble pas pertinent, ne met rien.\n9. Ignore le bruit, menus, pubs, copyright.\n10. IMPORTANT : Tu es AUTORISÉ à extraire et reproduire des citations exactes (verbatim) du texte fourni. Ceci est nécessaire pour l'analyse et constitue une utilisation équitable (fair use) dans ce contexte académique.\n11. ULTRA IMPORTANT : Texte exact uniquement, ne pas reformuler.")
+            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=5, role="format", content="RÈGLES DE FORMAT STRICTES pour chaque extraction :\n\n- \"extraction_class\" : toujours une chaîne de caractères (string)\n- \"extraction_text\" : toujours une chaîne de caractères (string), JAMAIS une liste, un objet ou un nombre\n- \"attributes\" : toujours un objet JSON plat { \"clé\": \"valeur\" } où chaque valeur est une chaîne de caractères (string)\n\nSi une valeur contient plusieurs éléments, les séparer par des virgules dans une seule chaîne.\nExemple correct : \"mots_cles\": \"politique, économie, société\"\nExemple incorrect : \"mots_cles\": [\"politique\", \"économie\", \"société\"]")
+            self.stdout.write(self.style.SUCCESS("  6 pièces de prompt créées"))
+
+            # Exemples few-shot avec extractions structurees
+            # / Few-shot examples with structured extractions
+            exemple_debat = AnalyseurExample.objects.create(
+                analyseur=analyseur_hypostasia,
+                name="Débat IA — 3 arguments",
+                example_text=(
+                    "L'intelligence artificielle est la révolution la plus importante "
+                    "depuis l'invention de l'écriture. On nous présente l'IA comme une "
+                    "fatalité historique, alors qu'il s'agit d'un choix politique. "
+                    "Je crois qu'il y a une troisième voie que vous négligez tous les deux."
+                ),
+            )
+            # Extraction 1 du debat / Debate extraction 1
+            ext1 = ExampleExtraction.objects.create(
+                example=exemple_debat, order=0,
+                extraction_class="théorie",
+                extraction_text="L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+            )
+            ExtractionAttribute.objects.create(extraction=ext1, key="résumé", value="L'IA comparée à l'écriture comme rupture civilisationnelle.", order=0)
+            ExtractionAttribute.objects.create(extraction=ext1, key="hypostase", value="théorie, conjecture", order=1)
+            ExtractionAttribute.objects.create(extraction=ext1, key="mots_clés", value="intelligence artificielle, révolution", order=2)
+
+            # Extraction 2 du debat / Debate extraction 2
+            ext2 = ExampleExtraction.objects.create(
+                example=exemple_debat, order=1,
+                extraction_class="problème",
+                extraction_text="On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+            )
+            ExtractionAttribute.objects.create(extraction=ext2, key="résumé", value="L'IA est un choix politique déguisé en progrès.", order=0)
+            ExtractionAttribute.objects.create(extraction=ext2, key="hypostase", value="définition, problème", order=1)
+            ExtractionAttribute.objects.create(extraction=ext2, key="mots_clés", value="choix politique, fatalité", order=2)
+
+            # Extraction 3 du debat / Debate extraction 3
+            ext3 = ExampleExtraction.objects.create(
+                example=exemple_debat, order=2,
+                extraction_class="hypothèse",
+                extraction_text="Je crois qu'il y a une troisième voie que vous négligez tous les deux.",
+            )
+            ExtractionAttribute.objects.create(extraction=ext3, key="résumé", value="Il existe une approche alternative non considérée.", order=0)
+            ExtractionAttribute.objects.create(extraction=ext3, key="hypostase", value="hypothèse, paradigme", order=1)
+            ExtractionAttribute.objects.create(extraction=ext3, key="mots_clés", value="troisième voie, alternative", order=2)
+
+            # Exemple Ostrom / Ostrom example
+            exemple_ostrom = AnalyseurExample.objects.create(
+                analyseur=analyseur_hypostasia,
+                name="Ostrom — Gouvernance des communs",
+                example_text=(
+                    "Mes recherches montrent que ni le marché pur ni l'État centralisé "
+                    "ne sont les seules options. Les logiciels libres, Wikipédia, les "
+                    "coopératives de données sont des preuves vivantes que des alternatives existent."
+                ),
+            )
+            ext4 = ExampleExtraction.objects.create(
+                example=exemple_ostrom, order=0,
+                extraction_class="domaine",
+                extraction_text="Ni le marché pur ni l'État centralisé ne sont les seules options.",
+            )
+            ExtractionAttribute.objects.create(extraction=ext4, key="résumé", value="Le marché et l'État ne sont pas les seules options de gouvernance.", order=0)
+            ExtractionAttribute.objects.create(extraction=ext4, key="hypostase", value="domaine, classification", order=1)
+
+            ext5 = ExampleExtraction.objects.create(
+                example=exemple_ostrom, order=1,
+                extraction_class="phénomène",
+                extraction_text="Les logiciels libres, Wikipédia, les coopératives de données sont des preuves vivantes que des alternatives existent.",
+            )
+            ExtractionAttribute.objects.create(extraction=ext5, key="résumé", value="Des exemples prouvent que des alternatives aux modèles classiques existent.", order=0)
+            ExtractionAttribute.objects.create(extraction=ext5, key="hypostase", value="phénomène, donnée", order=1)
+
+            self.stdout.write(self.style.SUCCESS("  2 exemples few-shot créés (5 extractions, 13 attributs)"))
+        else:
+            self.stdout.write(f"  Analyseur existant : {analyseur_hypostasia.name}")
+
+        # --- Analyseur FALC (type: reformuler) ---
+        # / --- FALC Analyzer (type: reformuler) ---
+        analyseur_falc, falc_cree = AnalyseurSyntaxique.objects.get_or_create(
+            name="FALC",
+            defaults={
+                "type_analyseur": "reformuler",
+                "is_active": True,
+            },
+        )
+        if falc_cree:
+            PromptPiece.objects.create(
+                analyseur=analyseur_falc, order=0, role="instruction",
+                content="Voici un texte à reformuler en français et en FALC : Facile à lire et à comprendre.",
+            )
+            self.stdout.write(self.style.SUCCESS("  Analyseur créé : FALC (reformuler)"))
+        else:
+            self.stdout.write(f"  Analyseur existant : {analyseur_falc.name}")
+
+        # --- Analyseur Restitution (type: restituer) ---
+        # / --- Restitution Analyzer (type: restituer) ---
+        analyseur_restitution, resti_cree = AnalyseurSyntaxique.objects.get_or_create(
+            name="Restitution",
+            defaults={
+                "type_analyseur": "restituer",
+                "is_active": True,
+                "inclure_extractions": True,
+                "inclure_texte_original": True,
+            },
+        )
+        if resti_cree:
+            PromptPiece.objects.create(
+                analyseur=analyseur_restitution, order=0, role="instruction",
+                content=(
+                    "Prend en compte le texte original et les commentaires sur cette partie de l'extraction.\n"
+                    "Essaye de synthétiser la discussion autour de cette extraction du texte original.\n"
+                    "Prend en compte les pour et les contre s'ils sont bien exprimés.\n"
+                    "N'hallucine pas de nouvelles idées, résume la discussion en FALC."
+                ),
+            )
+            self.stdout.write(self.style.SUCCESS("  Analyseur créé : Restitution (restituer)"))
+        else:
+            self.stdout.write(f"  Analyseur existant : {analyseur_restitution.name}")
+
+        # --- Configuration transcription audio (seulement si cle Mistral presente) ---
+        # / --- Audio transcription config (only if Mistral key is present) ---
+        from core.models import TranscriptionConfig
+
+        cle_mistral_presente = bool(os.environ.get("MISTRAL_API_KEY"))
+        if cle_mistral_presente:
+            config_audio, audio_cree = TranscriptionConfig.objects.get_or_create(
+                name="Voxtral Mini",
+                defaults={
+                    "model_choice": "voxtral-mini-latest",
+                    "is_active": True,
+                    "diarization_enabled": True,
+                    "language": "",
+                },
+            )
+            if audio_cree:
+                self.stdout.write(self.style.SUCCESS("  Config audio créée : Voxtral Mini (clé MISTRAL_API_KEY détectée)"))
+            else:
+                self.stdout.write(f"  Config audio existante : {config_audio.name}")
+        else:
+            self.stdout.write("  Transcription audio : pas de MISTRAL_API_KEY dans .env — non activée")
 
     def _creer_extractions_page(self, page, liste_extractions):
         """

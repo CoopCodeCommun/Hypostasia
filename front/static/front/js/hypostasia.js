@@ -334,14 +334,43 @@ document.body.addEventListener('ouvrirPanneauDroit', function() {
 });
 
 // --- SweetAlert sur erreur HTMX ---
-// Si une requete HTMX echoue (ex: 500, 403), on affiche l'erreur
+// Les 403 d'authentification sont gerees par l'evenement authRequise (ci-dessous)
+// Les autres erreurs (500, 404, etc.) affichent un SweetAlert generique
+// / HTMX error handler
+// / Auth 403s are handled by the authRequise event (below)
+// / Other errors (500, 404, etc.) show a generic SweetAlert
 document.body.addEventListener('htmx:responseError', function(evenement) {
     var codeHttp = evenement.detail.xhr.status;
+    // Ignorer les 403 d'auth — gerees par HX-Trigger authRequise
+    // / Skip auth 403s — handled by HX-Trigger authRequise
+    if (codeHttp === 403) return;
     var texteErreur = evenement.detail.xhr.responseText || 'Erreur inconnue';
     Swal.fire({
         icon: 'error',
         title: 'Erreur ' + codeHttp,
         text: texteErreur.substring(0, 300),
+    });
+});
+
+// --- SweetAlert pour authentification requise (403) ---
+// Declenche par HX-Trigger authRequise depuis _exiger_authentification()
+// Affiche un SweetAlert avec un bouton de connexion
+// / Auth required SweetAlert (403)
+// / Triggered by HX-Trigger authRequise from _exiger_authentification()
+document.body.addEventListener('authRequise', function(evenement) {
+    var detail = evenement.detail || {};
+    Swal.fire({
+        icon: 'info',
+        title: detail.titre || 'Connexion requise',
+        text: detail.message || 'Connectez-vous pour effectuer cette action.',
+        confirmButtonText: 'Se connecter',
+        showCancelButton: true,
+        cancelButtonText: 'Annuler',
+        confirmButtonColor: '#2563eb',
+    }).then(function(resultat) {
+        if (resultat.isConfirmed) {
+            window.location.href = detail.url_login || '/auth/login/';
+        }
     });
 });
 

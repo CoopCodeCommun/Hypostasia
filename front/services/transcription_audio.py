@@ -83,8 +83,15 @@ def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max
     )
 
     # Cle API : priorite au champ DB, fallback sur la variable d'environnement
+    # Si aucune cle n'est disponible, erreur explicite avant d'appeler l'API
     # / API key: DB field takes priority, fallback to environment variable
+    # / If no key is available, raise explicit error before calling the API
     cle_api_mistral = config_transcription.api_key or os.environ.get("MISTRAL_API_KEY", "")
+    if not cle_api_mistral:
+        raise ValueError(
+            "Clé API Mistral manquante. "
+            "Renseignez MISTRAL_API_KEY dans .env ou dans l'admin (TranscriptionConfig)."
+        )
     client_mistral = Mistral(api_key=cle_api_mistral)
 
     # Determiner si la diarisation est activee dans la config
