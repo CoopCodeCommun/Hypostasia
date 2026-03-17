@@ -571,26 +571,11 @@
                 evenement.preventDefault();
                 break;
 
-            // A → Toggle mode selection alignement ou ouvrir modale
-            // / A → Toggle alignment selection mode or open modal
+            // A → Toggle alignement du dossier courant
+            // / A → Toggle alignment for current folder
             case 'a':
                 if (window.alignement) {
-                    // Si l'arbre est ouvert, bascule le mode selection
-                    // / If tree is open, toggle selection mode
-                    if (window.arbreOverlay && window.arbreOverlay.estOuvert()) {
-                        window.alignement.basculerSelection();
-                    } else {
-                        // Ouvre l'arbre et active le mode selection
-                        // / Open tree and activate selection mode
-                        if (window.arbreOverlay) {
-                            window.arbreOverlay.ouvrir();
-                        }
-                        // Petit delai pour laisser l'arbre s'ouvrir
-                        // / Short delay to let tree open
-                        setTimeout(function() {
-                            window.alignement.activerSelection();
-                        }, 300);
-                    }
+                    window.alignement.basculerAlignement();
                 }
                 evenement.preventDefault();
                 break;

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hypostasia — Bibliothèque</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
-    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=23">
+    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=24">
     <script src="{% static 'front/vendor/htmx-2.0.4.min.js' %}"></script>
     <script src="{% static 'front/vendor/sweetalert2-11.min.js' %}"></script>
 </head>
@@ -222,32 +222,48 @@
         <div id="arbre-ctx-menu" class="hidden fixed bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px] z-[100] text-sm" data-testid="arbre-ctx-menu" role="menu" aria-label="Actions"></div>
         <!-- Footer overlay : actions rapides -->
         <!-- / Overlay footer: quick actions -->
-        <div class="border-t border-slate-200 p-3 flex items-center gap-2 shrink-0">
-            <button id="btn-creer-dossier-overlay" class="flex-1 text-sm text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-3 py-2 transition-colors text-left" title="Créer un nouveau dossier" data-testid="btn-creer-dossier-overlay">
-                + Nouveau dossier
-            </button>
-            <label class="flex-1 text-sm text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-3 py-2 transition-colors cursor-pointer text-left" title="Importer un fichier">
-                + Importer
-                <input type="file" class="hidden" id="input-import-fichier-overlay"
-                       accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
-            </label>
-            <!-- Bouton Comparer (PHASE-18) — active le mode selection -->
-            <!-- / Compare button (PHASE-18) — activates selection mode -->
-            <button id="btn-comparer-arbre" class="flex-1 text-sm text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-3 py-2 transition-colors text-left" title="Comparer des pages (A)">
-                Comparer
-            </button>
-            <!-- Lien Explorer les dossiers publics (PHASE-25d) -->
-            <!-- / Explore public folders link (PHASE-25d) -->
-            <a href="/explorer/"
-               hx-get="/explorer/"
-               hx-target="#zone-lecture"
-               hx-swap="innerHTML"
-               hx-push-url="true"
-               class="flex-1 text-sm text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded px-3 py-2 transition-colors text-left"
-               data-testid="btn-explorer-publics"
-               title="Explorer les dossiers publics">
-                Explorer
-            </a>
+        <div class="arbre-footer">
+            <div class="arbre-footer-rangee">
+                <button id="btn-creer-dossier-overlay" class="arbre-footer-btn" title="Créer un nouveau dossier" data-testid="btn-creer-dossier-overlay">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/>
+                    </svg>
+                    <span>Nouveau dossier</span>
+                </button>
+                <label class="arbre-footer-btn" title="Importer un fichier">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                    </svg>
+                    <span>Importer</span>
+                    <input type="file" class="hidden" id="input-import-fichier-overlay"
+                           accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
+                </label>
+            </div>
+            <div class="arbre-footer-rangee">
+                <!-- Bouton Comparer (PHASE-18) — active le mode selection -->
+                <!-- / Compare button (PHASE-18) — activates selection mode -->
+                <button id="btn-comparer-arbre" class="arbre-footer-btn" title="Comparer des pages (A)">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
+                    </svg>
+                    <span>Comparer</span>
+                </button>
+                <!-- Lien Explorer les dossiers publics (PHASE-25d) -->
+                <!-- / Explore public folders link (PHASE-25d) -->
+                <a href="/explorer/"
+                   hx-get="/explorer/"
+                   hx-target="#zone-lecture"
+                   hx-swap="innerHTML"
+                   hx-push-url="true"
+                   class="arbre-footer-btn"
+                   data-testid="btn-explorer-publics"
+                   title="Explorer les dossiers publics">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/>
+                    </svg>
+                    <span>Explorer</span>
+                </a>
+            </div>
         </div>
     </aside>
 
@@ -346,9 +362,9 @@
     <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=23"></script>
     <script src="{% static 'front/js/dashboard_consensus.js' %}?v=17"></script>
     <script src="{% static 'front/js/transcription_rythme.js' %}?v=15"></script>
-    <script src="{% static 'front/js/alignement.js' %}?v=18"></script>
+    <script src="{% static 'front/js/alignement.js' %}?v=19"></script>
     <script src="{% static 'front/js/notifications_progression.js' %}?v=20"></script>
-    <script src="{% static 'front/js/keyboard.js' %}?v=23"></script>
+    <script src="{% static 'front/js/keyboard.js' %}?v=24"></script>
     <script src="{% static 'front/js/arbre_context_menu.js' %}?v=25"></script>
 
     <!-- Fermeture du dropdown menu utilisateur au clic exterieur (PHASE-25) -->

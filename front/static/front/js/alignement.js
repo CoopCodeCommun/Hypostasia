@@ -471,13 +471,14 @@
             });
         });
 
-        // Clic sur cellule remplie → navigation vers la page
-        // / Click on filled cell → navigate to the page
+        // Clic sur cellule remplie → navigation vers la page + scroll vers l'extraction
+        // / Click on filled cell → navigate to page + scroll to extraction
         var cellules = document.querySelectorAll('.alignement-cell[data-page-id]');
         cellules.forEach(function(cellule) {
             cellule.addEventListener('click', function() {
                 var pageId = this.dataset.pageId;
                 if (!pageId) return;
+                var extractionId = this.dataset.extractionId;
 
                 // Ferme la modale / Close modal
                 fermerModale();
@@ -490,6 +491,19 @@
                     swap: 'innerHTML',
                 }).then(function() {
                     history.pushState({}, '', urlLecture);
+
+                    // Scroll vers l'extraction apres chargement / Scroll to extraction after load
+                    if (extractionId) {
+                        setTimeout(function() {
+                            var spanExtraction = document.querySelector(
+                                '.hl-extraction[data-extraction-id="' + extractionId + '"]'
+                            );
+                            if (spanExtraction) {
+                                spanExtraction.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                spanExtraction.classList.add('ancre-active');
+                            }
+                        }, 300);
+                    }
                 });
             });
         });
@@ -535,6 +549,36 @@
     });
 
 
+    // Ouvre l'alignement du dossier de la page actuellement affichee
+    // Detecte le dossier-id depuis le data-attribute de la zone de lecture
+    // / Open alignment for the folder of the currently displayed page
+    // / Detects dossier-id from the data-attribute of the reading zone
+    function ouvrirDossierCourant() {
+        var zoneLecture = document.querySelector('[data-dossier-id]');
+        if (!zoneLecture) return false;
+        var dossierId = zoneLecture.dataset.dossierId;
+        if (!dossierId) return false;
+        ouvrirDossier(dossierId);
+        return true;
+    }
+
+    // Toggle l'alignement : si ouvert → fermer, sinon → ouvrir le dossier courant
+    // / Toggle alignment: if open → close, else → open current folder
+    function basculerAlignement() {
+        if (modaleOuverte) {
+            fermerModale();
+        } else {
+            var ouvert = ouvrirDossierCourant();
+            if (!ouvert && typeof Swal !== 'undefined') {
+                Swal.fire({
+                    toast: true, position: 'top-end', icon: 'info',
+                    title: 'Aucun dossier associ\u00e9',
+                    showConfirmButton: false, timer: 2000,
+                });
+            }
+        }
+    }
+
     // Expose l'API publique
     // / Expose public API
     window.alignement = {
@@ -543,6 +587,8 @@
         basculerSelection: basculerSelection,
         ouvrir: ouvrirModale,
         ouvrirDossier: ouvrirDossier,
+        ouvrirDossierCourant: ouvrirDossierCourant,
+        basculerAlignement: basculerAlignement,
         fermer: fermerModale,
         estOuvert: function() { return modaleOuverte; },
     };

@@ -164,11 +164,11 @@ def _preparer_lignes_tableau(donnees_par_famille, pages_selectionnees):
             for identifiant_page in identifiants_pages:
                 entites_page = hypostases_de_famille[hypostase].get(identifiant_page, [])
                 if entites_page:
-                    # Prend le resume depuis la cle 'resume' de la premiere entite
-                    # / Take summary from 'resume' key of first entity
+                    # Prend le resume depuis la cle 'resume' ou 'résumé' de la premiere entite
+                    # / Take summary from 'resume' or 'résumé' key of first entity
                     premiere_entite = entites_page[0]
                     attributs = premiere_entite.attributes or {}
-                    resume = attributs.get('resume', '')
+                    resume = attributs.get('resume', '') or attributs.get('r\u00e9sum\u00e9', '')
                     resume_tronque = (str(resume)[:60] + '...') if len(str(resume)) > 60 else str(resume)
 
                     # Concatene les extraction_text de toutes les entites (texte source)

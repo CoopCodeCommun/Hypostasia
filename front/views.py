@@ -1155,7 +1155,7 @@ class LectureViewSet(viewsets.ViewSet):
         cout_brut_euros = modele_ia_actif.estimer_cout_euros(
             nombre_tokens_input, nombre_tokens_output_estime
         )
-        cout_estime_euros = math.ceil(cout_brut_euros * 2 * 100) / 100
+        cout_estime_euros = max(0.01, math.ceil(cout_brut_euros * 2 * 100) / 100)
 
         return render(request, "front/includes/confirmation_analyse.html", {
             "page": page,

@@ -55,6 +55,13 @@ Variables de contexte :
 </div>
 {% endif %}
 
+<!-- Indication FALC pour la navigation -->
+<!-- / Easy-read navigation hint -->
+<p class="text-xs text-slate-400 px-5 py-2 border-b border-slate-100">
+    Cliquez sur un texte pour voir le passage original.
+    Appuyez sur <kbd class="aide-kbd" style="font-size: 0.625rem; min-width: 1rem; height: 1.125rem; padding: 0 0.25rem;">A</kbd> pour revenir ici.
+</p>
+
 <!-- Corps du tableau avec scroll horizontal -->
 <!-- / Table body with horizontal scroll -->
 <div class="alignement-body">
@@ -97,7 +104,7 @@ Variables de contexte :
                 {% if cellule.remplie %}
                 <!-- Cellule remplie : compteur + resume / texte source -->
                 <!-- / Filled cell: counter + summary / source text -->
-                <td class="alignement-cell" data-page-id="{{ cellule.page_id }}">
+                <td class="alignement-cell" data-page-id="{{ cellule.page_id }}" data-extraction-id="{{ cellule.entites.0.pk }}">
                     <span class="alignement-cell-count">{{ cellule.count }}</span>
                     <span class="alignement-texte-resume typo-machine text-xs leading-snug">{{ cellule.resume_complet }}</span>
                     <span class="alignement-texte-origine typo-citation text-sm leading-relaxed">{{ cellule.texte_origine }}</span>

@@ -475,6 +475,56 @@ body { font-family: 'B612', sans-serif; }
 #arbre-backdrop { transition: opacity 0.2s ease; }
 #arbre-overlay { transition: transform 0.2s ease; }
 
+/* Footer de l'arbre : boutons d'action en bas de la sidebar */
+/* / Tree footer: action buttons at the bottom of the sidebar */
+.arbre-footer {
+    border-top: 1px solid var(--border-default);
+    padding: 0.625rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    flex-shrink: 0;
+    background: var(--surface-secondary);
+}
+.arbre-footer-rangee {
+    display: flex;
+    gap: 0.375rem;
+}
+.arbre-footer-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--surface-primary);
+    border: 1px solid var(--border-default);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    text-align: center;
+    line-height: 1.2;
+}
+.arbre-footer-btn:hover {
+    color: #2563eb;
+    border-color: #bfdbfe;
+    background: #eff6ff;
+}
+.arbre-footer-btn:active {
+    background: #dbeafe;
+}
+.arbre-footer-btn svg {
+    flex-shrink: 0;
+    opacity: 0.6;
+}
+.arbre-footer-btn:hover svg {
+    opacity: 1;
+}
+
 /* Boutons toolbar uniformes (PHASE-08) */
 /* / Uniform toolbar buttons (PHASE-08) */
 .btn-toolbar {

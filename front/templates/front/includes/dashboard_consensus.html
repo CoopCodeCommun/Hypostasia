@@ -15,32 +15,32 @@
         {# Grille 3x2 compteurs (6 statuts) / 3x2 counter grid (6 statuses) #}
         <div class="grid grid-cols-3 gap-2 mb-4">
             <div class="dashboard-compteur" data-testid="compteur-nouveau">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="nouveau" style="background: var(--statut-nouveau-accent);"></span>
+                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="nouveau" style="background: var(--statut-nouveau-accent);" aria-label="Nouveau" aria-hidden="true"></span>
                 <span class="font-semibold">{{ compteur_nouveau }}</span>
                 <span class="text-slate-500">Nouveau{{ compteur_nouveau|pluralize:"x" }}</span>
             </div>
             <div class="dashboard-compteur" data-testid="compteur-consensuel">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="consensuel" style="background: var(--statut-consensuel-accent);"></span>
+                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="consensuel" style="background: var(--statut-consensuel-accent);" aria-hidden="true"></span>
                 <span class="font-semibold">{{ compteur_consensuel }}</span>
                 <span class="text-slate-500">Consensuel{{ compteur_consensuel|pluralize }}</span>
             </div>
             <div class="dashboard-compteur" data-testid="compteur-discutable">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="discutable" style="background: var(--statut-discutable-accent);"></span>
+                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="discutable" style="background: var(--statut-discutable-accent);" aria-hidden="true"></span>
                 <span class="font-semibold">{{ compteur_discutable }}</span>
                 <span class="text-slate-500">Discutable{{ compteur_discutable|pluralize }}</span>
             </div>
             <div class="dashboard-compteur" data-testid="compteur-discute">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="discute" style="background: var(--statut-discute-accent);"></span>
+                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="discute" style="background: var(--statut-discute-accent);" aria-hidden="true"></span>
                 <span class="font-semibold">{{ compteur_discute }}</span>
                 <span class="text-slate-500">Discut&eacute;{{ compteur_discute|pluralize }}</span>
             </div>
             <div class="dashboard-compteur" data-testid="compteur-controverse">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="controverse" style="background: var(--statut-controverse-accent);"></span>
+                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="controverse" style="background: var(--statut-controverse-accent);" aria-hidden="true"></span>
                 <span class="font-semibold">{{ compteur_controverse }}</span>
                 <span class="text-slate-500">Controvers&eacute;{{ compteur_controverse|pluralize }}</span>
             </div>
             <div class="dashboard-compteur" data-testid="compteur-non-pertinent">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="non_pertinent" style="background: var(--statut-non_pertinent-accent);"></span>
+                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="non_pertinent" style="background: var(--statut-non_pertinent-accent);" aria-hidden="true"></span>
                 <span class="font-semibold">{{ compteur_non_pertinent }}</span>
                 <span class="text-slate-500">Non pertinent{{ compteur_non_pertinent|pluralize }}</span>
             </div>
