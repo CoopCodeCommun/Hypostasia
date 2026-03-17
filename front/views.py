@@ -3850,20 +3850,160 @@ class ExtractionViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["POST"])
     def ia(self, request):
         """
-        Recoit le texte selectionne pour extraction IA.
-        Receives selected text for AI extraction.
+        Extrait des hypostases du texte selectionne via LangExtract (appel synchrone).
+        Le LLM peut retourner une ou plusieurs extractions.
+        Les positions sont recalculees par rapport a text_readability de la page.
+        / Extracts hypostases from selected text via LangExtract (synchronous call).
+        / The LLM can return one or more extractions.
+        / Positions are recalculated relative to the page's text_readability.
+
+        LOCALISATION : front/views.py — ExtractionViewSet
         """
         refus = _exiger_authentification(request)
         if refus:
             return refus
+
         serializer = ExtractionSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            reponse = HttpResponse(status=400)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {"message": "Texte invalide.", "icon": "error"},
+            })
+            return reponse
 
-        validated_text = serializer.validated_data["text"]
-        validated_page_id = serializer.validated_data.get("page_id")
-        print(f"[EXTRACTION IA] page={validated_page_id} texte={validated_text}")
+        texte_selectionne = serializer.validated_data["text"]
+        identifiant_page = serializer.validated_data.get("page_id")
+        if not identifiant_page:
+            reponse = HttpResponse(status=400)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {"message": "Page introuvable.", "icon": "error"},
+            })
+            return reponse
 
-        return Response({"status": "ok"})
+        page = get_object_or_404(Page, pk=identifiant_page)
+
+        # Verifier que l'IA est activee et qu'un modele est configure
+        # / Check that AI is enabled and a model is configured
+        configuration_ia = Configuration.get_solo()
+        if not configuration_ia.ai_active or not configuration_ia.ai_model:
+            reponse = HttpResponse(status=400)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "IA non activ\u00e9e. Configurez un mod\u00e8le dans /api/analyseurs/.",
+                    "icon": "warning",
+                },
+            })
+            return reponse
+
+        # Recuperer le premier analyseur actif de type "analyser"
+        # / Get the first active analyzer of type "analyser"
+        analyseur = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="analyser",
+        ).first()
+        if not analyseur:
+            reponse = HttpResponse(status=400)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {"message": "Aucun analyseur actif.", "icon": "error"},
+            })
+            return reponse
+
+        # Construire le prompt et les exemples / Build prompt and examples
+        from front.tasks import _construire_exemples_langextract
+        from hypostasis_extractor.services import resolve_model_params
+        import langextract as lx
+
+        pieces_ordonnees = PromptPiece.objects.filter(analyseur=analyseur).order_by("order")
+        prompt_complet = "\n".join(piece.content for piece in pieces_ordonnees)
+        liste_exemples = _construire_exemples_langextract(analyseur)
+        parametres_modele = resolve_model_params(configuration_ia.ai_model)
+
+        logger.info(
+            "ia (selection): page=%s model=%s text_len=%d",
+            identifiant_page, parametres_modele.get("model_id", "?"), len(texte_selectionne),
+        )
+
+        # Appel synchrone LangExtract sur le texte selectionne
+        # / Synchronous LangExtract call on selected text
+        try:
+            resultat = lx.extract(
+                text_or_documents=texte_selectionne,
+                prompt_description=prompt_complet,
+                examples=liste_exemples,
+                **parametres_modele,
+            )
+        except Exception as erreur_extraction:
+            logger.error("ia (selection): erreur LangExtract — %s", erreur_extraction)
+            reponse = HttpResponse(status=500)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": f"Erreur IA : {str(erreur_extraction)[:150]}",
+                    "icon": "error",
+                },
+            })
+            return reponse
+
+        # Calculer l'offset du texte selectionne dans text_readability
+        # pour que les positions des extractions soient relatives a la page entiere
+        # / Calculate the offset of the selected text in text_readability
+        # / so extraction positions are relative to the full page
+        texte_page_complet = page.text_readability or ""
+        offset_dans_page = texte_page_complet.find(texte_selectionne)
+        if offset_dans_page == -1:
+            # Fallback : essayer avec normalisation des espaces insecables
+            # / Fallback: try with non-breaking space normalization
+            texte_page_normalise = texte_page_complet.replace("\xa0", " ")
+            texte_selectionne_normalise = texte_selectionne.replace("\xa0", " ")
+            offset_dans_page = texte_page_normalise.find(texte_selectionne_normalise)
+        if offset_dans_page == -1:
+            offset_dans_page = 0
+
+        # Creer un job d'extraction pour regrouper les entites
+        # / Create an extraction job to group the entities
+        job_ia_selection = ExtractionJob.objects.create(
+            page=page,
+            ai_model=configuration_ia.ai_model,
+            name=f"Extraction IA (s\u00e9lection) — {analyseur.name}",
+            prompt_description=prompt_complet[:500],
+            status="completed",
+        )
+
+        # Creer les entites extraites / Create extracted entities
+        nombre_entites_creees = 0
+        for extraction in resultat.extractions or []:
+            intervalle_caracteres = extraction.char_interval
+
+            # Positions relatives au texte selectionne → ajouter l'offset page
+            # / Positions relative to selected text → add page offset
+            start_char_dans_selection = intervalle_caracteres.start_pos if intervalle_caracteres else 0
+            end_char_dans_selection = intervalle_caracteres.end_pos if intervalle_caracteres else 0
+            start_char_dans_page = start_char_dans_selection + offset_dans_page
+            end_char_dans_page = end_char_dans_selection + offset_dans_page
+
+            ExtractedEntity.objects.create(
+                job=job_ia_selection,
+                extraction_class=extraction.extraction_class or "",
+                extraction_text=extraction.extraction_text or texte_selectionne,
+                start_char=start_char_dans_page,
+                end_char=end_char_dans_page,
+                attributes=extraction.attributes or {},
+            )
+            nombre_entites_creees += 1
+
+        logger.info(
+            "ia (selection): %d extraction(s) creee(s) pour page=%s",
+            nombre_entites_creees, identifiant_page,
+        )
+
+        # Re-rendre la page de lecture complete avec les nouvelles annotations
+        # / Re-render the full reading page with new annotations
+        reponse = self._render_lecture_complete(request, page)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {
+                "message": f"{nombre_entites_creees} extraction(s) IA cr\u00e9\u00e9e(s)",
+                "icon": "success",
+            },
+        })
+        return reponse
 
     @action(detail=False, methods=["POST"])
     def masquer(self, request):

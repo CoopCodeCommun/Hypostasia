@@ -497,58 +497,62 @@ document.getElementById('zone-lecture').addEventListener('htmx:afterSwap', funct
         }
     });
 
-    // Envoyer l'extraction au serveur
-    function sendExtraction(endpoint) {
-        const text = window.getSelection().toString().trim();
-        if (!text) return;
-
-        const pageContainer = zoneLecture.querySelector('[data-page-id]');
-        const pageId = pageContainer ? pageContainer.dataset.pageId : null;
-
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-        const headers = {'Content-Type': 'application/json'};
-        if (csrfToken) headers['X-CSRFToken'] = csrfToken.value;
-
-        fetch(endpoint, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({text: text, page_id: pageId}),
-        })
-        .then(r => r.json())
-        .then(data => console.log('[Extraction]', data))
-        .catch(err => console.error('[Extraction erreur]', err));
-
-        menu.style.display = 'none';
+    // Recupere le page_id et le texte selectionne
+    // / Get page_id and selected text
+    function recupererContexteSelection() {
+        var texteSelectionne = window.getSelection().toString().trim();
+        var conteneurPage = zoneLecture.querySelector('[data-page-id]');
+        var pageId = conteneurPage ? conteneurPage.dataset.pageId : null;
+        return { texte: texteSelectionne, pageId: pageId };
     }
 
+    // --- Bouton extraction manuelle (crayon) ---
+    // Ouvre le formulaire simplifie dans le panneau droit
+    // / --- Manual extraction button (pencil) ---
+    // / Opens simplified form in the right panel
     document.getElementById('btn-extraction-manuelle').addEventListener('click', function() {
-        const text = window.getSelection().toString().trim();
-        if (!text) return;
+        var contexte = recupererContexteSelection();
+        if (!contexte.texte || !contexte.pageId) return;
 
-        const pageContainer = zoneLecture.querySelector('[data-page-id]');
-        const pageId = pageContainer ? pageContainer.dataset.pageId : null;
-        if (!pageId) {
-            console.warn('[Extraction manuelle] Aucun data-page-id trouve');
-            return;
-        }
-
-        console.log('[Extraction manuelle] envoi text=' + text.substring(0, 50) + '… page_id=' + pageId);
-
-        // Envoyer en form-data via htmx.ajax (pas JSON)
-        // / Send as form-data via htmx.ajax (not JSON)
         htmx.ajax('POST', '/extractions/manuelle/', {
             target: '#panneau-extractions',
             swap: 'innerHTML',
-            values: {text: text, page_id: pageId},
+            values: { text: contexte.texte, page_id: contexte.pageId },
         });
-
         menu.style.display = 'none';
     });
 
+    // --- Bouton extraction IA (sparkle) ---
+    // Lance une extraction IA sur le texte selectionne, affiche un toast pendant le traitement
+    // Peut creer plusieurs extractions si le LLM en detecte plusieurs
+    // / --- AI extraction button (sparkle) ---
+    // / Launches AI extraction on selected text, shows toast during processing
+    // / Can create multiple extractions if the LLM detects several
     var boutonExtractionIa = document.getElementById('btn-extraction-ia');
     if (boutonExtractionIa) {
         boutonExtractionIa.addEventListener('click', function() {
-            sendExtraction('/extractions/ia/');
+            var contexte = recupererContexteSelection();
+            if (!contexte.texte || !contexte.pageId) return;
+
+            menu.style.display = 'none';
+
+            // Toast de chargement / Loading toast
+            Swal.fire({
+                toast: true, position: 'top-end', icon: 'info',
+                title: 'Extraction IA en cours\u2026',
+                showConfirmButton: false, timer: 30000, timerProgressBar: true,
+                didOpen: function(toast) { toast.dataset.swalExtractionIa = 'true'; },
+            });
+
+            // Appel HTMX vers la vue d'extraction IA
+            // La vue re-rend le panneau + OOB swap du texte annote
+            // / HTMX call to the AI extraction view
+            // / The view re-renders the panel + OOB swap of annotated text
+            htmx.ajax('POST', '/extractions/ia/', {
+                target: '#panneau-extractions',
+                swap: 'innerHTML',
+                values: { text: contexte.texte, page_id: contexte.pageId },
+            });
         });
     }
 })();
