@@ -169,104 +169,256 @@ USER_ADMIN = {"username": "jonas", "first_name": "Jonas", "password": "admin1234
 # =============================================================================
 
 COMMENTAIRES_DEBAT = [
+    # Les index correspondent a EXTRACTIONS_DEBAT (0=revolution, 1=non_pertinent, 2=choix politique, etc.)
+    # / Indexes match EXTRACTIONS_DEBAT
+
     # --- Entite 0 : "L'IA est la revolution la plus importante..."
     # Cible : CONTROVERSE (desaccord fort, 3 commentaires opposes)
     (0, "marie", "Comparer l'IA à l'écriture est une hyperbole rhétorique, pas un argument. L'écriture a transformé la cognition humaine sur des millénaires. L'IA automatise des tâches en quelques années."),
     (0, "thomas", "Je suis d'accord avec Laurent — l'IA modifie notre rapport au savoir de manière fondamentale. C'est bien une révolution épistémique, pas seulement technique."),
     (0, "fatima", "Ostrom dirait que la question n'est pas de savoir si c'est une révolution, mais qui gouverne cette révolution et selon quelles règles."),
 
-    # --- Entite 1 : "On nous présente l'IA comme une fatalité historique..."
+    # --- Entite 1 : faux sophisme (non_pertinent) — commentaire de rejet
+    (1, "pierre", "Ce n'est pas un faux dilemme. Laurent présente sa position de manière forte, mais il ne dit pas que ce sont les seules options — il dit que c'est la priorité. L'IA a mal classifié cette figure de style."),
+
+    # --- Entite 2 : "On nous présente l'IA comme une fatalité historique..."
     # Cible : DISCUTE (debat en cours, 2 commentaires)
-    (1, "thomas", "C'est le cœur de la thèse de Sadin dans La Silicolonisation du monde : l'IA comme choix politique déguisé en progrès inévitable."),
-    (1, "fatima", "Attention à ne pas tomber dans l'excès inverse : dire que tout est choix politique peut mener à l'inaction face à des transformations réelles."),
+    (2, "thomas", "C'est le cœur de la thèse de Sadin dans La Silicolonisation du monde : l'IA comme choix politique déguisé en progrès inévitable."),
+    (2, "fatima", "Attention à ne pas tomber dans l'excès inverse : dire que tout est choix politique peut mener à l'inaction face à des transformations réelles."),
 
-    # --- Entite 2 : "Je crois qu'il y a une troisième voie..."
+    # --- Entite 3 : "C'est une ressource qui peut etre gouvernee..."
     # Cible : CONSENSUEL (accord atteint, 3 commentaires convergents)
-    (2, "pierre", "Cette troisième voie rappelle directement les travaux d'Ostrom : ni marché pur, ni État centralisé, mais auto-gouvernement avec des règles claires."),
-    (2, "marie", "Belle synthèse. Les logiciels libres prouvent que c'est possible à grande échelle — Linux fait tourner 90% des serveurs mondiaux."),
-    (2, "thomas", "Je souscris. La clé est dans les mots « à condition que les communautés participent » — c'est la participation qui fait tout."),
+    (3, "pierre", "Cette troisième voie rappelle directement les travaux d'Ostrom : ni marché pur, ni État centralisé, mais auto-gouvernement avec des règles claires."),
+    (3, "marie", "Belle synthèse. Les logiciels libres prouvent que c'est possible à grande échelle — Linux fait tourner 90% des serveurs mondiaux."),
+    (3, "thomas", "Je souscris. La clé est dans les mots « à condition que les communautés participent » — c'est la participation qui fait tout."),
 
-    # --- Entite 3 : "Un commun numérique, c'est charmant en théorie..."
+    # --- Entite 4 : "Un commun numérique, c'est charmant en théorie..."
     # Cible : DISCUTE (debat en cours, 2 commentaires contradictoires)
-    (3, "fatima", "C'est la position d'Alexandre résumée en une phrase. Il faudrait confronter cela aux 8 principes d'Ostrom."),
-    (3, "pierre", "Réponse typiquement techno-solutionniste. Ostrom a prouvé que des communautés gèrent des ressources communes depuis des siècles."),
+    (4, "fatima", "C'est la position d'Alexandre résumée en une phrase. Il faudrait confronter cela aux 8 principes d'Ostrom."),
+    (4, "pierre", "Réponse typiquement techno-solutionniste. Ostrom a prouvé que des communautés gèrent des ressources communes depuis des siècles."),
 
-    # --- Entite 4 : "L'IA ne se contente pas d'augmenter nos capacités..."
-    # Cible : DISCUTABLE (pas encore de commentaire — reste discutable)
-    # (pas de commentaire — l'extraction doit rester en discutable)
+    # --- Entite 5 : "Les algorithmes de recommandation..."
+    # Cible : DISCUTABLE (pas de commentaire — reste discutable)
 
-    # --- Entite 5 : "Des communautés peuvent s'auto-organiser..."
+    # --- Entite 6 : "Des communautés peuvent s'auto-organiser..."
     # Cible : NOUVEAU (pas de commentaire — reste au statut initial)
 
-    # --- Entite 6 : "Dans dix ans, les machines auront une intelligence supérieure..."
+    # --- Entite 7 : "Dans dix ans, les machines auront une intelligence supérieure..."
     # Cible : CONTROVERSE (desaccord fort)
-    (6, "marie", "Prédire que les machines seront « supérieures » dans dix ans est du même ordre que les prédictions d'Alexandre sur la singularité. Aucune base empirique solide."),
-    (6, "thomas", "Et pourtant GPT-4 a surpassé les humains sur la quasi-totalité des examens professionnels en 2024. La trajectoire est claire."),
-    (6, "pierre", "Sadin a raison : cette rhétorique de la « bifurcation » sert à justifier des investissements massifs sans débat démocratique."),
+    (7, "marie", "Prédire que les machines seront « supérieures » dans dix ans est du même ordre que les prédictions d'Alexandre sur la singularité. Aucune base empirique solide."),
+    (7, "thomas", "Et pourtant GPT-4 a surpassé les humains sur la quasi-totalité des examens professionnels en 2024. La trajectoire est claire."),
+    (7, "pierre", "Sadin a raison : cette rhétorique de la « bifurcation » sert à justifier des investissements massifs sans débat démocratique."),
 
-    # --- Entite 7 : "Nous avons besoin d'une insurrection civique..."
+    # --- Entite 8 : "Nous avons besoin d'une insurrection civique..."
     # Cible : DISCUTE (1 commentaire)
-    (7, "fatima", "« Insurrection civique » est un terme fort mais la réalité montre que les mouvements citoyens peinent à peser face aux GAFAM."),
+    (8, "fatima", "« Insurrection civique » est un terme fort mais la réalité montre que les mouvements citoyens peinent à peser face aux GAFAM."),
 
-    # --- Entite 8 : "Regardez les logiciels libres, Wikipédia..."
+    # --- Entite 9 : "Regardez les logiciels libres, Wikipédia..."
     # Cible : CONSENSUEL (accord, 2 commentaires convergents)
-    (8, "pierre", "Les exemples sont solides : Linux, Wikipédia, Debian. Ce sont des preuves empiriques de la thèse d'Ostrom appliquée au numérique."),
-    (8, "marie", "L'enjeu est de passer de ces exemples réussis à une échelle de gouvernance capable de réguler des modèles comme GPT ou Gemini."),
+    (9, "pierre", "Les exemples sont solides : Linux, Wikipédia, Debian. Ce sont des preuves empiriques de la thèse d'Ostrom appliquée au numérique."),
+    (9, "marie", "L'enjeu est de passer de ces exemples réussis à une échelle de gouvernance capable de réguler des modèles comme GPT ou Gemini."),
 
-    # --- Entite 9 : "Le transhumanisme n'est pas une idéologie..."
+    # --- Entite 10 : "Le transhumanisme n'est pas une idéologie..."
     # Cible : CONTROVERSE (desaccord radical)
-    (9, "thomas", "Laurent assume ici une position philosophique forte. Mais le transhumanisme EST une idéologie — Bostrom lui-même le reconnaît."),
-    (9, "fatima", "La convergence NBIC est un fait technique. Mais en faire une « description lucide du réel » c'est déjà prendre parti."),
-    (9, "pierre", "Exactement ce que Sadin dénonce : transformer un projet politique en prophétie auto-réalisatrice."),
+    (10, "thomas", "Laurent assume ici une position philosophique forte. Mais le transhumanisme EST une idéologie — Bostrom lui-même le reconnaît."),
+    (10, "fatima", "La convergence NBIC est un fait technique. Mais en faire une « description lucide du réel » c'est déjà prendre parti."),
+    (10, "pierre", "Exactement ce que Sadin dénonce : transformer un projet politique en prophétie auto-réalisatrice."),
 
-    # --- Entite 10 : "C'est un projet politique porté par des intérêts économiques colossaux"
+    # --- Entite 11 : "C'est un projet politique porté par des intérêts économiques colossaux"
     # Cible : DISCUTE (2 commentaires)
-    (10, "marie", "La critique est pertinente mais un peu trop totalisante. Tous les acteurs de l'IA ne sont pas des transhumanistes."),
-    (10, "thomas", "Il y a quand même un fond de vérité : OpenAI, Google DeepMind, Anthropic — tous financés par des milliardaires avec une vision."),
+    (11, "marie", "La critique est pertinente mais un peu trop totalisante. Tous les acteurs de l'IA ne sont pas des transhumanistes."),
+    (11, "thomas", "Il y a quand même un fond de vérité : OpenAI, Google DeepMind, Anthropic — tous financés par des milliardaires avec une vision."),
 
-    # --- Entite 11 : "L'IA est un outil d'empuissancement formidable si..."
+    # --- Entite 12 : "L'IA est un outil d'empuissancement formidable si..."
     # Cible : CONSENSUEL (la conclusion fait consensus)
-    (11, "pierre", "C'est exactement la position d'Ostrom appliquée au numérique. La condition « si et seulement si » est cruciale."),
-    (11, "fatima", "Position de compromis intéressante. Le mot « empuissancement » est bien choisi — ni augmentation ni soumission."),
-    (11, "marie", "Formulation équilibrée. Mais Sadin nous rappelle qu'il reste « deux ou trois ans pour agir ». L'urgence devrait primer."),
+    (12, "pierre", "C'est exactement la position d'Ostrom appliquée au numérique. La condition « si et seulement si » est cruciale."),
+    (12, "fatima", "Position de compromis intéressante. Le mot « empuissancement » est bien choisi — ni augmentation ni soumission."),
+    (12, "marie", "Formulation équilibrée. Mais Sadin nous rappelle qu'il reste « deux ou trois ans pour agir ». L'urgence devrait primer."),
 ]
 
-# Statuts cibles pour les entites du debat fictif (par index)
-# Permet de couvrir les 6 statuts dans le dashboard
-# / Target statuses for fictional debate entities (by index)
-# / Covers all 6 statuses in the dashboard
-STATUTS_CIBLES_DEBAT = {
-    0: "controverse",       # ■ carre vermillon — 3 commentaires opposes
-    1: "discute",           # ▲ triangle bleu — 2 commentaires (auto-promu)
-    2: "consensuel",        # ● cercle vert — 3 commentaires convergents
-    3: "discute",           # ▲ triangle bleu — 2 commentaires (auto-promu)
-    4: "discutable",        # ◆ losange orange — pas de commentaire, a debattre
-    5: "nouveau",           # ○ anneau gris — pas de commentaire, nouveau
-    6: "controverse",       # ■ carre vermillon — 3 commentaires opposes
-    7: "discute",           # ▲ triangle bleu — 1 commentaire (auto-promu)
-    8: "consensuel",        # ● cercle vert — 2 commentaires convergents
-    9: "controverse",       # ■ carre vermillon — 3 commentaires opposes
-    10: "discute",          # ▲ triangle bleu — 2 commentaires
-    11: "consensuel",       # ● cercle vert — 3 commentaires convergents
-    # L'entite non_pertinent sera ajoutee comme extraction supplementaire
+# =============================================================================
+# Extractions pre-calculees pour chaque page (positions dans text_readability)
+# Ces donnees remplacent l'appel LLM : la fixture est 100% autonome.
+# Chaque extraction = (text, class, attributes, statut_debat)
+# / Pre-computed extractions for each page (positions in text_readability)
+# / These replace the LLM call: the fixture is 100% self-contained.
+# =============================================================================
+
+EXTRACTIONS_OSTROM = [
+    {
+        "text": "elle est la première femme à recevoir le «\u00a0prix Nobel d\u2019économie\u00a0», avec Oliver Williamson, pour son analyse de la gouvernance économique, et en particulier, des biens communs.",
+        "class": "événement",
+        "attributes": {"résumé": "Ostrom première femme Nobel d\u2019économie pour ses travaux sur les biens communs.", "hypostase": "Événement"},
+    },
+    {
+        "text": "L\u2019\u0153uvre d\u2019Ostrom tend à montrer qu\u2019il existe un autre type de solutions, l\u2019autogouvernement, dont elle définit les huit principes caractéristiques nécessaires à sa pérennité, ainsi que les deux éléments clés de son émergence\u00a0: la réciprocité et la confiance.",
+        "class": "théorie",
+        "attributes": {"résumé": "L\u2019autogouvernement comme troisième voie fondée sur réciprocité et confiance.", "hypostase": "Théorie"},
+    },
+    {
+        "text": "la rationalité économique doit a priori pousser des individus qui se partagent un bien en commun à le surexploiter.",
+        "class": "thèse",
+        "attributes": {"résumé": "La tragédie des communs de Hardin : la rationalité individuelle mène à la surexploitation.", "hypostase": "Axiome"},
+    },
+    {
+        "text": "La question de la gouvernance de l\u2019intelligence artificielle comme commun numérique \u2014 avec des règles claires, une participation des usagers et des mécanismes de contrôle gradués \u2014 s\u2019inscrit directement dans la lignée de ses travaux.",
+        "class": "extension",
+        "attributes": {"résumé": "Application des principes d\u2019Ostrom à la gouvernance de l\u2019IA comme commun numérique.", "hypostase": "Hypothèse"},
+    },
+]
+
+EXTRACTIONS_ALEXANDRE = [
+    {
+        "text": "Laurent Alexandre est l\u2019un des principaux représentants du mouvement transhumaniste en France, bien qu\u2019il affirme ne pas en être un adepte et accréditer seulement le diagnostic technologique des transhumanistes.",
+        "class": "positionnement",
+        "attributes": {"résumé": "Alexandre se présente comme non-transhumaniste tout en validant le diagnostic transhumaniste.", "hypostase": "Paradoxe"},
+    },
+    {
+        "text": "il s\u2019oppose à l\u2019instauration d\u2019un revenu universel et plaide pour une éducation visant à permettre à nos cerveaux biologiques d\u2019être le plus complémentaires possible de l\u2019intelligence artificielle.",
+        "class": "proposition",
+        "attributes": {"résumé": "Opposition au revenu universel, priorité à l\u2019éducation pour la complémentarité humain-IA.", "hypostase": "Principe"},
+    },
+    {
+        "text": "Luc Julia, vice-président innovation de Samsung Monde, affirme que Laurent Alexandre dit n\u2019importe quoi sur ce sujet, tout en changeant d\u2019avis tous les trois mois.",
+        "class": "critique",
+        "attributes": {"résumé": "Critique de Julia (Samsung) : Alexandre manque de rigueur et change de position fréquemment.", "hypostase": "Indice"},
+    },
+    {
+        "text": "le site Acrimed décrit Laurent Alexandre comme un militant politique agissant sous couvert de vulgarisation scientifique au détriment de l\u2019honnêteté intellectuelle et de la rigueur scientifique.",
+        "class": "critique",
+        "attributes": {"résumé": "Acrimed : Alexandre est un militant politique déguisé en vulgarisateur scientifique.", "hypostase": "Indice"},
+    },
+]
+
+EXTRACTIONS_SADIN = [
+    {
+        "text": "ce livre fait d\u2019Éric Sadin l\u2019un des rares penseurs à s\u2019interroger sur les limites de la révolution numérique en cours et à en proposer une analyse multidimensionnelle \u2014 historique, philosophique, économique, idéologique et sociologique.",
+        "class": "reconnaissance",
+        "attributes": {"résumé": "Le Monde salue l\u2019approche multidimensionnelle de Sadin sur le numérique.", "hypostase": "Classification"},
+    },
+    {
+        "text": "Le terme «\u00a0silicolonisation\u00a0» \u2014 forgé par Sadin \u2014 désigne l\u2019expansion d\u2019un modèle économique et idéologique issu de la Silicon Valley qui colonise progressivement toutes les sphères de l\u2019existence.",
+        "class": "concept",
+        "attributes": {"résumé": "La silicolonisation : expansion du modèle Silicon Valley dans toutes les sphères.", "hypostase": "Définition"},
+    },
+    {
+        "text": "il nous reste deux ou trois ans pour agir, sinon il sera trop tard pour les réguler.",
+        "class": "alerte",
+        "attributes": {"résumé": "Urgence : fenêtre de 2-3 ans pour réguler l\u2019IA générative avant qu\u2019il ne soit trop tard.", "hypostase": "Conjecture"},
+    },
+]
+
+EXTRACTIONS_DEBAT = [
+    # 0 — Laurent : revolution IA
+    {
+        "text": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+        "class": "thèse",
+        "attributes": {"résumé": "L\u2019IA comparée à l\u2019écriture comme rupture civilisationnelle majeure.", "hypostase": "Théorie"},
+        "statut": "controverse",
+    },
+    # 1 — Non pertinent : faux sophisme identifie a tort par l'IA
+    {
+        "text": "La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+        "class": "sophisme",
+        "attributes": {
+            "résumé": "Faux dilemme : l\u2019auteur présente deux options (investir massivement ou échouer) en excluant toute alternative nuancée.",
+            "hypostase": "Aporie",
+            "statut_debat": "non_pertinent",
+        },
+        "statut": "non_pertinent",
+    },
+    # 2 — Eric : choix politique
+    {
+        "text": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+        "class": "thèse",
+        "attributes": {"résumé": "L\u2019IA n\u2019est pas une fatalité mais un choix politique déguisé en progrès.", "hypostase": "Principe"},
+        "statut": "discute",
+    },
+    # 3 — Elinor : commun numerique
+    {
+        "text": "C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+        "class": "proposition",
+        "attributes": {"résumé": "L\u2019IA comme commun numérique gouverné par les communautés d\u2019usagers.", "hypostase": "Structure"},
+        "statut": "consensuel",
+    },
+    # 4 — Laurent : guerre des intelligences
+    {
+        "text": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences.",
+        "class": "objection",
+        "attributes": {"résumé": "Rejet de la gouvernance commune au profit de la compétition technologique entre nations.", "hypostase": "Problème"},
+        "statut": "discute",
+    },
+    # 5 — Eric : gouvernement non elu (discutable — pas de commentaire)
+    {
+        "text": "Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.",
+        "class": "phénomène",
+        "attributes": {"résumé": "Les algorithmes exercent un pouvoir de gouvernement non démocratique sur nos comportements.", "hypostase": "Phénomène"},
+        "statut": "discutable",
+    },
+    # 6 — Elinor : auto-organisation (nouveau — pas de commentaire)
+    {
+        "text": "Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+        "class": "proposition",
+        "attributes": {"résumé": "L\u2019auto-organisation communautaire comme modèle de gouvernance de l\u2019IA.", "hypostase": "Hypothèse"},
+        "statut": "nouveau",
+    },
+    # 7 — Laurent : bifurcation
+    {
+        "text": "Dans dix ans, les machines auront une intelligence supérieure à la nôtre. Si nous n'avons pas préparé nos sociétés par l'éducation et l'investissement massif, nous assisterons à une bifurcation entre une élite cognitive augmentée et le reste de l'humanité laissé pour compte.",
+        "class": "prédiction",
+        "attributes": {"résumé": "Prédiction d\u2019une bifurcation entre élite augmentée et humanité laissée pour compte.", "hypostase": "Conjecture"},
+        "statut": "controverse",
+    },
+    # 8 — Eric : insurrection civique
+    {
+        "text": "Nous avons besoin d'une insurrection civique contre la délégation du jugement aux machines.",
+        "class": "appel",
+        "attributes": {"résumé": "Appel à une mobilisation citoyenne contre l\u2019automatisation du jugement.", "hypostase": "Principe"},
+        "statut": "discute",
+    },
+    # 9 — Elinor : preuves empiriques
+    {
+        "text": "Regardez les logiciels libres, Wikipédia, les coopératives de données : ce sont des preuves vivantes que des communautés peuvent gouverner des ressources numériques de manière démocratique.",
+        "class": "argument",
+        "attributes": {"résumé": "Linux, Wikipédia et les coopératives comme preuves empiriques de gouvernance collective.", "hypostase": "Donnée"},
+        "statut": "consensuel",
+    },
+    # 10 — Laurent : transhumanisme
+    {
+        "text": "Le transhumanisme n'est pas une idéologie, c'est la description lucide de ce qui arrive. La convergence des nanotechnologies, de la biologie et de l'informatique va transformer l'espèce humaine, que cela nous plaise ou non.",
+        "class": "thèse",
+        "attributes": {"résumé": "Le transhumanisme présenté comme description objective de la convergence NBIC.", "hypostase": "Théorie"},
+        "statut": "controverse",
+    },
+    # 11 — Eric : projet politique
+    {
+        "text": "C'est un projet politique porté par des intérêts économiques colossaux. Et c'est notre responsabilité collective de dire non à cette vision du monde qui réduit l'humanité à un problème d'optimisation.",
+        "class": "critique",
+        "attributes": {"résumé": "Le transhumanisme dénoncé comme projet politique servant des intérêts économiques.", "hypostase": "Valeur"},
+        "statut": "discute",
+    },
+    # 12 — Elinor : conclusion
+    {
+        "text": "l'IA est un outil d'empuissancement formidable si — et seulement si — nous construisons les institutions capables de la gouverner collectivement.",
+        "class": "synthèse",
+        "attributes": {"résumé": "L\u2019IA bénéfique uniquement sous condition de gouvernance collective institutionnelle.", "hypostase": "Principe"},
+        "statut": "consensuel",
+    },
+]
+
+# Commentaire de rejet pour l'extraction non pertinente (index 1 du debat)
+# / Rejection comment for the non-relevant extraction (debate index 1)
+COMMENTAIRE_REJET_NON_PERTINENT = {
+    "user": "pierre",
+    "texte": "Ce n'est pas un faux dilemme. Laurent présente sa position de manière forte, mais il ne dit pas que ce sont les seules options — il dit que c'est la priorité. L'IA a mal classifié cette figure de style.",
 }
 
-# Extraction supplementaire non pertinente : un faux sophisme identifie a tort
-# Sera creee manuellement apres le job d'extraction IA
-# / Additional non-relevant extraction: a false sophism incorrectly identified
-# / Will be created manually after the AI extraction job
-EXTRACTION_NON_PERTINENTE = {
-    "extraction_text": "La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
-    "extraction_class": "sophisme",
-    "attributes": {
-        "résumé": "Faux dilemme : l'auteur présente deux options (investir massivement ou échouer) en excluant toute alternative nuancée.",
-        "hypostase": "Aporie",
-        "statut_debat": "non_pertinent",
-    },
-    "commentaire_rejet": {
-        "user": "pierre",
-        "texte": "Ce n'est pas un faux dilemme. Laurent présente sa position de manière forte, mais il ne dit pas que ce sont les seules options — il dit que c'est la priorité. L'IA a mal classifié cette figure de style.",
-    },
+# Mapping titre partiel → liste d'extractions pour les pages Wikipedia
+# / Partial title → extractions list mapping for Wikipedia pages
+EXTRACTIONS_PAR_TITRE = {
+    "Elinor Ostrom": EXTRACTIONS_OSTROM,
+    "Laurent Alexandre": EXTRACTIONS_ALEXANDRE,
+    "Sadin": EXTRACTIONS_SADIN,
 }
 
 
@@ -511,15 +663,20 @@ class Command(BaseCommand):
             ))
             pages_creees.append(page_nouvelle)
 
-        # 5. Ajouter les commentaires sur les pages Wikipedia (PHASE-26a)
+        # 5. Creer les extractions pre-calculees pour chaque page
+        # / Create pre-computed extractions for each page
+        self._creer_extractions_debat(pages_creees)
+        self._creer_extractions_wikipedia(pages_creees)
+
+        # 6. Ajouter les commentaires sur les pages Wikipedia (PHASE-26a)
         # / Add comments on Wikipedia pages (PHASE-26a)
         self._ajouter_commentaires_pages_wikipedia(tous_les_users_demo)
 
-        # 6. Ajouter les commentaires sur le debat fictif + statuts cibles
+        # 7. Ajouter les commentaires sur le debat fictif + statuts cibles
         # / Add comments on fictional debate + target statuses
         self._ajouter_commentaires_debat(tous_les_users_demo)
 
-        # 7. Redistribuer les statuts de debat sur les pages HORS debat fictif
+        # 8. Redistribuer les statuts de debat sur les pages HORS debat fictif
         # / Redistribute debate statuses on pages OUTSIDE fictional debate
         self._redistribuer_statuts_debat()
 
@@ -527,11 +684,6 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"Fixtures chargées : {len(pages_creees)} pages dans « {nom_dossier} »"
         ))
-        self.stdout.write(
-            "  Lancez l'analyse IA sur chaque page pour générer les extractions :"
-        )
-        for page in pages_creees:
-            self.stdout.write(f"    → /lire/{page.pk}/analyser/")
 
     def _creer_users_demo(self):
         """
@@ -579,12 +731,111 @@ class Command(BaseCommand):
 
         return tous_les_users
 
+    def _creer_extractions_page(self, page, liste_extractions):
+        """
+        Cree un ExtractionJob + les ExtractedEntity pour une page a partir de donnees pre-calculees.
+        Idempotent : ne cree rien si un job completed existe deja.
+        / Create ExtractionJob + ExtractedEntity for a page from pre-computed data.
+        Idempotent: creates nothing if a completed job already exists.
+        """
+        # Verifier qu'il n'y a pas deja un job termine
+        # / Check that no completed job already exists
+        job_existant = ExtractionJob.objects.filter(page=page, status="completed").first()
+        if job_existant:
+            nombre_entites = job_existant.entities.count()
+            self.stdout.write(f"  {page.title[:50]} : job existant (pk={job_existant.pk}, {nombre_entites} entités)")
+            return job_existant
+
+        job = ExtractionJob.objects.create(
+            page=page,
+            name="Extractions demo (fixtures)",
+            status="completed",
+            prompt_description="Extractions pré-calculées par les fixtures de démonstration.",
+        )
+
+        texte_page = page.text_readability or ""
+        nombre_entites_creees = 0
+
+        for extraction_data in liste_extractions:
+            extraction_text = extraction_data["text"]
+
+            # Recherche de la position exacte dans text_readability
+            # Essaie exact, puis normalise les apostrophes
+            # / Find exact position in text_readability
+            # / Try exact, then normalize apostrophes
+            start_char = texte_page.find(extraction_text)
+            if start_char == -1:
+                texte_page_norm = texte_page.replace("\u2019", "'").replace("\u00a0", " ")
+                texte_norm = extraction_text.replace("\u2019", "'").replace("\u00a0", " ")
+                start_char = texte_page_norm.find(texte_norm)
+            if start_char == -1:
+                # Chercher par prefixe (30 chars) / Search by prefix
+                prefixe = extraction_text[:30].replace("\u2019", "'").replace("\u00a0", " ")
+                texte_page_norm = texte_page.replace("\u2019", "'").replace("\u00a0", " ")
+                start_char = texte_page_norm.find(prefixe)
+
+            if start_char == -1:
+                self.stdout.write(self.style.WARNING(
+                    f"  WARN: texte introuvable : '{extraction_text[:50]}...'"
+                ))
+                start_char = 0
+
+            end_char = start_char + len(extraction_text)
+            statut = extraction_data.get("statut", "discutable")
+
+            ExtractedEntity.objects.create(
+                job=job,
+                extraction_class=extraction_data.get("class", "concept"),
+                extraction_text=extraction_text,
+                start_char=start_char,
+                end_char=end_char,
+                attributes=extraction_data.get("attributes", {}),
+                statut_debat=statut,
+            )
+            nombre_entites_creees += 1
+
+        job.entities_count = nombre_entites_creees
+        job.save(update_fields=["entities_count"])
+
+        self.stdout.write(self.style.SUCCESS(
+            f"  {page.title[:50]} : {nombre_entites_creees} extractions créées"
+        ))
+        return job
+
+    def _creer_extractions_debat(self, pages_creees):
+        """
+        Cree les extractions pre-calculees pour la page du debat fictif.
+        / Create pre-computed extractions for the fictional debate page.
+        """
+        page_debat = None
+        for page in pages_creees:
+            if "Débat IA" in page.title:
+                page_debat = page
+                break
+        if not page_debat:
+            return
+        self._creer_extractions_page(page_debat, EXTRACTIONS_DEBAT)
+
+    def _creer_extractions_wikipedia(self, pages_creees):
+        """
+        Cree les extractions pre-calculees pour les pages Wikipedia.
+        / Create pre-computed extractions for Wikipedia pages.
+        """
+        for titre_partiel, liste_extractions in EXTRACTIONS_PAR_TITRE.items():
+            page_cible = None
+            for page in pages_creees:
+                if titre_partiel in page.title:
+                    page_cible = page
+                    break
+            if page_cible:
+                self._creer_extractions_page(page_cible, liste_extractions)
+
     def _ajouter_commentaires_debat(self, tous_les_users):
         """
-        Ajoute les commentaires sur le debat fictif et applique les statuts cibles.
-        Cree aussi l'extraction non pertinente (faux sophisme).
-        / Add comments on fictional debate and apply target statuses.
-        Also creates the non-relevant extraction (false sophism).
+        Ajoute les commentaires sur le debat fictif.
+        Les statuts sont deja definis dans EXTRACTIONS_DEBAT lors de la creation.
+        / Add comments on the fictional debate.
+        Statuses are already set in EXTRACTIONS_DEBAT at creation time.
         """
         # Chercher la page du debat fictif par titre
         # / Find the fictional debate page by title
@@ -607,12 +858,10 @@ class Command(BaseCommand):
             self.stdout.write(f"  Débat fictif (pk={page_debat.pk}) : aucun job complété, commentaires ignorés.")
             return
 
-        # Recuperer les entites triees par position
-        # / Get entities sorted by position
+        # Recuperer TOUTES les entites triees par position (y compris masquees/non_pertinent)
+        # / Get ALL entities sorted by position (including hidden/non_pertinent)
         toutes_les_entites_du_job = list(
-            dernier_job.entities
-            .filter(masquee=False)
-            .order_by("start_char")
+            dernier_job.entities.order_by("start_char")
         )
         if not toutes_les_entites_du_job:
             self.stdout.write(f"  Débat fictif (pk={page_debat.pk}) : aucune entité, commentaires ignorés.")
@@ -649,75 +898,9 @@ class Command(BaseCommand):
             )
             nombre_commentaires_crees += 1
 
-            # Auto-promotion : nouveau/discutable → discute au premier commentaire
-            # / Auto-promote: nouveau/discutable → discute on first comment
-            if entite_cible.statut_debat in ("nouveau", "discutable"):
-                entite_cible.statut_debat = "discute"
-                entite_cible.save(update_fields=["statut_debat"])
-
         self.stdout.write(self.style.SUCCESS(
             f"  Débat fictif (pk={page_debat.pk}) : {nombre_commentaires_crees} commentaires créés"
         ))
-
-        # Appliquer les statuts cibles sur les entites du debat
-        # / Apply target statuses on debate entities
-        for index_entite, statut_cible in STATUTS_CIBLES_DEBAT.items():
-            if index_entite >= len(toutes_les_entites_du_job):
-                continue
-            entite = toutes_les_entites_du_job[index_entite]
-            if entite.statut_debat != statut_cible:
-                entite.statut_debat = statut_cible
-                entite.save(update_fields=["statut_debat"])
-
-        self.stdout.write(self.style.SUCCESS(
-            f"  Débat fictif : {len(STATUTS_CIBLES_DEBAT)} statuts appliqués"
-        ))
-
-        # Creer l'extraction non pertinente (faux sophisme)
-        # / Create the non-relevant extraction (false sophism)
-        info_np = EXTRACTION_NON_PERTINENTE
-        texte_np = info_np["extraction_text"]
-
-        # Verifier qu'elle n'existe pas deja
-        # / Check it doesn't already exist
-        extraction_np_existante = ExtractedEntity.objects.filter(
-            job=dernier_job,
-            statut_debat="non_pertinent",
-            extraction_class="sophisme",
-        ).first()
-
-        if not extraction_np_existante:
-            # Chercher la position dans le texte / Find position in text
-            texte_page = page_debat.text_readability or ""
-            start_char = texte_page.find(texte_np)
-            end_char = start_char + len(texte_np) if start_char >= 0 else 0
-
-            extraction_np = ExtractedEntity.objects.create(
-                job=dernier_job,
-                extraction_class=info_np["extraction_class"],
-                extraction_text=texte_np,
-                start_char=max(0, start_char),
-                end_char=end_char,
-                attributes=info_np["attributes"],
-                statut_debat="non_pertinent",
-            )
-
-            # Ajouter le commentaire de rejet
-            # / Add the rejection comment
-            info_commentaire_rejet = info_np["commentaire_rejet"]
-            user_rejet = tous_les_users.get(info_commentaire_rejet["user"])
-            if user_rejet:
-                CommentaireExtraction.objects.create(
-                    entity=extraction_np,
-                    user=user_rejet,
-                    commentaire=info_commentaire_rejet["texte"],
-                )
-
-            self.stdout.write(self.style.SUCCESS(
-                f"  Extraction non pertinente créée : « {texte_np[:50]}... »"
-            ))
-        else:
-            self.stdout.write(f"  Extraction non pertinente existante (pk={extraction_np_existante.pk})")
 
     def _ajouter_commentaires_pages_wikipedia(self, tous_les_users):
         """
