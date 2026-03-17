@@ -72,9 +72,20 @@ MISTRAL_API_KEY=
 docker compose up -d
 ```
 
-C'est tout. Docker Compose cree PostgreSQL, Redis, Nginx et l'application.
+C'est tout. Au demarrage, `start.sh` appelle `install.sh` qui fait automatiquement :
 
-*That's it. Docker Compose creates PostgreSQL, Redis, Nginx and the application.*
+*That's it. On startup, `start.sh` calls `install.sh` which automatically runs:*
+
+1. `uv sync` — installation des dependances
+2. `migrate` — creation/mise a jour des tables
+3. `collectstatic` — fichiers CSS/JS
+4. `charger_fixtures_demo` — donnees de demo (idempotent, ne cree que ce qui manque)
+
+`install.sh` est **idempotent** : il peut etre relance sans risque a chaque redemarrage. Les fixtures utilisent `get_or_create` — rien n'est ecrase.
+
+*`install.sh` is **idempotent**: it can safely run on every restart. Fixtures use `get_or_create` — nothing is overwritten.*
+
+**Comptes crees** : `jonas` (admin), `marie`, `thomas`, `fatima`, `pierre` — mot de passe : `demo1234`
 
 ---
 
@@ -113,24 +124,28 @@ uv run python manage.py runserver 0.0.0.0:8123
 uv run celery -A hypostasia worker --loglevel=info
 ```
 
-Ou sans Docker (Python local) :
+Ou sans Docker (Python local — necessite PostgreSQL et Redis installes) :
+
+*Or without Docker (local Python — requires PostgreSQL and Redis installed):*
 
 ```bash
-# Installer les dependances / Install dependencies
-uv sync
+# Configurer le .env / Configure .env
+cp .env.example .env
+# Editer : POSTGRES_HOST=localhost, DEBUG=true
 
-# Creer les repertoires / Create directories
-mkdir -p logs tmp/audio staticfiles
-
-# Appliquer les migrations / Apply migrations
-uv run python manage.py migrate
-
-# Charger les donnees de demo / Load demo data
-uv run python manage.py charger_fixtures_demo
+# Installer tout (dependances, migrations, static, fixtures)
+# / Install everything (dependencies, migrations, static, fixtures)
+bash install.sh
 
 # Lancer le serveur / Start server
 uv run python manage.py runserver 0.0.0.0:8123
+
+# (Autre terminal) Lancer Celery pour la transcription audio
+# / (Another terminal) Start Celery for audio transcription
+uv run celery -A hypostasia worker --loglevel=info
 ```
+
+Acces : http://localhost:8123/ — Se connecter avec `jonas` / `demo1234`
 
 ### Production
 

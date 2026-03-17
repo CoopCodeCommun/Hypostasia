@@ -46,9 +46,9 @@ Le projet est organise en 3 apps avec des responsabilites distinctes :
 
 ---
 
-## 2. Skill obligatoire : django-htmx-readable
+## 2. Skill obligatoire : stack-ccc
 
-Tout le code Django de ce projet suit le skill **`django-htmx-readable`** (voir `.claude/skills/django-htmx-readable/SKILL.md`). Ce skill impose des conventions strictes de lisibilite.
+Tout le code Django de ce projet suit le skill **`stack-ccc`** (voir `skills/stack-ccc/SKILL.md`). Ce skill impose des conventions strictes de lisibilite.
 
 ### 2.1 ViewSets explicites
 
