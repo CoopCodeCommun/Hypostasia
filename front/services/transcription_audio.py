@@ -12,6 +12,7 @@ Returns per-speaker segments with timestamps.
 """
 
 import logging
+import os
 import time
 from html import escape as html_escape
 
@@ -81,7 +82,10 @@ def transcrire_audio_via_voxtral(chemin_fichier_audio, config_transcription, max
         langue_effective or "auto", max_locuteurs,
     )
 
-    client_mistral = Mistral(api_key=config_transcription.api_key)
+    # Cle API : priorite au champ DB, fallback sur la variable d'environnement
+    # / API key: DB field takes priority, fallback to environment variable
+    cle_api_mistral = config_transcription.api_key or os.environ.get("MISTRAL_API_KEY", "")
+    client_mistral = Mistral(api_key=cle_api_mistral)
 
     # Determiner si la diarisation est activee dans la config
     # / Determine if diarization is enabled in the config

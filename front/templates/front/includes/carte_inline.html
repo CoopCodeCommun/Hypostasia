@@ -124,7 +124,7 @@
         {# Commentaires existants / Existing comments #}
         {% for commentaire in entity.commentaires.all %}
         <div class="flex items-start gap-2 mb-2 px-1">
-            <span class="text-sm font-semibold text-slate-700 flex-shrink-0 mt-0.5">{{ commentaire.user.username }}</span>
+            <span class="text-sm font-semibold text-slate-700 flex-shrink-0 mt-0.5">{{ commentaire.user.first_name|default:commentaire.user.username|title }}</span>
             <p class="text-sm text-slate-600 leading-relaxed">{{ commentaire.commentaire }}</p>
         </div>
         {% endfor %}

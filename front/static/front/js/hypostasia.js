@@ -1115,10 +1115,8 @@ document.addEventListener('click', function(evenement) {
     var cheminTemp = boutonConfirmerTranscription.dataset.cheminTemp;
     var nomFichier = boutonConfirmerTranscription.dataset.nomFichier;
 
-    // Recuperer les options choisies par l'utilisateur
-    // / Get the options chosen by the user
-    var selectMaxLocuteurs = document.getElementById('max-speakers-select');
-    var maxLocuteurs = selectMaxLocuteurs ? selectMaxLocuteurs.value : '5';
+    // Recuperer la langue choisie par l'utilisateur
+    // / Get the language chosen by the user
     var selectLangue = document.getElementById('langue-audio-select');
     var langueAudio = selectLangue ? selectLangue.value : '';
 
@@ -1132,7 +1130,6 @@ document.addEventListener('click', function(evenement) {
         headers: headers,
         body: 'chemin_fichier_temp=' + encodeURIComponent(cheminTemp)
             + '&nom_fichier=' + encodeURIComponent(nomFichier)
-            + '&max_speakers=' + encodeURIComponent(maxLocuteurs)
             + '&language=' + encodeURIComponent(langueAudio),
     })
     .then(function(reponse) {

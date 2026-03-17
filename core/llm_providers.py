@@ -22,6 +22,7 @@ que le SDK necessaire au provider appele.
 """
 
 import logging
+import os
 
 from core.models import Provider
 
@@ -95,8 +96,10 @@ def _appeler_google(modele_ia, message_complet: str) -> str:
     """
     import google.generativeai as genai
 
-    if modele_ia.api_key:
-        genai.configure(api_key=modele_ia.api_key)
+    # Cle API : priorite DB, fallback .env / API key: DB priority, fallback .env
+    cle_api_google = modele_ia.api_key or os.environ.get("GOOGLE_API_KEY", "")
+    if cle_api_google:
+        genai.configure(api_key=cle_api_google)
 
     nom_modele = modele_ia.model_name or modele_ia.model_choice
     modele_genai = genai.GenerativeModel(nom_modele)
@@ -116,7 +119,9 @@ def _appeler_openai(modele_ia, message_complet: str) -> str:
     """
     from openai import OpenAI
 
-    client = OpenAI(api_key=modele_ia.api_key)
+    # Cle API : priorite DB, fallback .env / API key: DB priority, fallback .env
+    cle_api_openai = modele_ia.api_key or os.environ.get("OPENAI_API_KEY", "")
+    client = OpenAI(api_key=cle_api_openai)
     nom_modele = modele_ia.model_name or modele_ia.model_choice
 
     logger.info("appeler_llm: OpenAI %s — %d chars", nom_modele, len(message_complet))
@@ -169,7 +174,9 @@ def _appeler_anthropic(modele_ia, message_complet: str) -> str:
     """
     import anthropic
 
-    client = anthropic.Anthropic(api_key=modele_ia.api_key)
+    # Cle API : priorite DB, fallback .env / API key: DB priority, fallback .env
+    cle_api_anthropic = modele_ia.api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+    client = anthropic.Anthropic(api_key=cle_api_anthropic)
     nom_modele = modele_ia.model_name or modele_ia.model_choice
 
     logger.info("appeler_llm: Anthropic %s — %d chars", nom_modele, len(message_complet))

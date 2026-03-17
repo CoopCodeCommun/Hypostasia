@@ -15,7 +15,7 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, Configuration, Dossier, DossierPartage, DossierSuivi, GroupeUtilisateurs, Invitation, Page, Question, ReponseQuestion, VisibiliteDossier
+from core.models import AIModel, Configuration, Dossier, DossierPartage, DossierSuivi, GroupeUtilisateurs, Invitation, Page, Question, ReponseQuestion, TranscriptionConfig, VisibiliteDossier
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
     ExampleExtraction, ExtractionAttribute,
@@ -505,14 +505,16 @@ class ConfigurationIAViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["GET"])
     def status(self, request):
         """
-        Retourne le partial HTML du bouton IA (pour HTMX).
-        Returns the AI button HTML partial (for HTMX).
+        Retourne le partial HTML du bouton IA + audio (pour HTMX).
+        / Returns the AI + audio button HTML partial (for HTMX).
         """
         configuration = Configuration.get_solo()
         modeles_actifs = AIModel.objects.filter(is_active=True)
+        config_transcription_active = TranscriptionConfig.objects.filter(is_active=True).first()
         return render(request, "front/includes/config_ia_toggle.html", {
             "configuration": configuration,
             "modeles_actifs": modeles_actifs,
+            "config_transcription": config_transcription_active,
         })
 
     @action(detail=False, methods=["POST"])
@@ -3984,7 +3986,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / Build the list of contributors who commented on this document (PHASE-26a)
         commentaires_par_contributeur = CommentaireExtraction.objects.filter(
             entity__job__in=tous_les_jobs_termines,
-        ).values("user__pk", "user__username").annotate(
+        ).values("user__pk", "user__username", "user__first_name").annotate(
             nombre_commentaires=Count("pk"),
         ).order_by("-nombre_commentaires")
 
@@ -4042,7 +4044,9 @@ class ExtractionViewSet(viewsets.ViewSet):
             # / Get contributor names for active pills
             for contributeur_entry in commentaires_par_contributeur:
                 if contributeur_entry["user__pk"] in ensemble_contributeurs_actifs:
-                    noms_contributeurs_actifs.append(contributeur_entry["user__username"])
+                    # Majuscule sur le prenom / Capitalize the name
+                    nom_affiche = contributeur_entry.get("user__first_name") or contributeur_entry["user__username"]
+                    noms_contributeurs_actifs.append(nom_affiche.title())
 
         # Appliquer le tri / Apply sort order
         if parametre_tri == "activite":
@@ -4645,11 +4649,13 @@ class ImportViewSet(viewsets.ViewSet):
         # / Get active transcription config
         config_transcription = TranscriptionConfig.objects.filter(is_active=True).first()
 
-        # Calcul du cout estime en euros
-        # / Compute estimated cost in euros
-        cout_estime_euros = 0.0
+        # Calcul du cout estime en euros — marge x2, minimum 0.01€
+        # / Compute estimated cost in euros — x2 margin, minimum 0.01€
+        import math
+        cout_brut_euros = 0.0
         if config_transcription:
-            cout_estime_euros = config_transcription.estimer_cout_euros(duree_secondes)
+            cout_brut_euros = config_transcription.estimer_cout_euros(duree_secondes)
+        cout_estime_euros = max(0.01, math.ceil(cout_brut_euros * 2 * 100) / 100)
 
         # Formater la duree en minutes:secondes pour affichage
         # / Format duration as minutes:seconds for display
@@ -4660,10 +4666,8 @@ class ImportViewSet(viewsets.ViewSet):
         # Taille du fichier en Mo / File size in MB
         taille_fichier_mo = os.path.getsize(chemin_fichier_audio) / (1024 * 1024)
 
-        # Valeurs par defaut depuis la config (locuteurs et langue)
-        # / Default values from config (speakers and language)
-        max_locuteurs_defaut = config_transcription.max_speakers if config_transcription else 5
-        langue_defaut = config_transcription.language if config_transcription else "fr"
+        # Langue par defaut depuis la config / Default language from config
+        langue_defaut = config_transcription.language if config_transcription else ""
 
         return render(request, "front/includes/confirmation_audio.html", {
             "nom_fichier": nom_fichier,
@@ -4673,8 +4677,6 @@ class ImportViewSet(viewsets.ViewSet):
             "taille_fichier_mo": round(taille_fichier_mo, 2),
             "config_transcription": config_transcription,
             "cout_estime_euros": cout_estime_euros,
-            "choix_max_locuteurs": range(1, 11),
-            "max_locuteurs_defaut": max_locuteurs_defaut,
             "langue_defaut": langue_defaut,
         })
 

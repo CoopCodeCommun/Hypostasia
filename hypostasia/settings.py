@@ -13,6 +13,9 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -141,9 +144,16 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8123",
     "http://localhost:8123",
-    f'https://{os.environ.get("DOMAIN")}',
-    "chrome-extension://lmflifaokphpaknpdnmdmhdiaeiieomd"
+    "http://0.0.0.0:8123",
+    "chrome-extension://lmflifaokphpaknpdnmdmhdiaeiieomd",
 ]
+
+# Ajoute le domaine de production depuis la variable d'environnement DOMAIN
+# / Add production domain from the DOMAIN environment variable
+_domaine_production = os.environ.get("DOMAIN")
+if _domaine_production:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_domaine_production}")
+    CSRF_TRUSTED_ORIGINS.append(f"http://{_domaine_production}")
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/

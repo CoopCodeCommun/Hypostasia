@@ -42,7 +42,7 @@
                     data-contributeur-id="{{ contrib.user__pk }}"
                     data-testid="pilule-contributeur-{{ contrib.user__pk }}"
                     style="--pilule-hue: {{ contrib.couleur_hsl }}">
-                {{ contrib.user__username }}
+                {{ contrib.user__username|title }}
                 <span class="text-[10px] opacity-60">
                     {% if contrib.user__pk in contributeurs_actifs %}
                         ({{ contrib.nombre_entites }})
@@ -171,7 +171,7 @@
                         {% else %}
                             {% if commentaire.user.pk in contributeurs_actifs %}contributeur-actif-highlight{% endif %}
                         {% endif %}
-                    {% endif %}">{{ commentaire.user.username }}</span>
+                    {% endif %}">{{ commentaire.user.first_name|default:commentaire.user.username|title }}</span>
                 <p class="text-sm text-slate-700 leading-relaxed">{{ commentaire.commentaire }}</p>
             </div>
         </div>

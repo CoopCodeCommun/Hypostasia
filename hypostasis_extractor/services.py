@@ -3,6 +3,7 @@ Services pour l'integration LangExtract.
 Wrapper autour de la librairie langextract pour s'integrer avec Hypostasia.
 """
 
+import os
 import time
 import logging
 import langextract as lx
@@ -66,15 +67,17 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
     }
 
     # Configuration specifique par provider
+    # Cle API : priorite au champ DB, fallback sur variable d'environnement
     # / Provider-specific configuration
+    # / API key: DB field priority, fallback to environment variable
     if ai_model.provider == Provider.GOOGLE:
-        # Utilise la cle API stockee ou celle de l'environnement
-        # / Use stored API key or environment variable
-        if ai_model.api_key:
-            params['api_key'] = ai_model.api_key
+        cle_api_google = ai_model.api_key or os.environ.get("GOOGLE_API_KEY", "")
+        if cle_api_google:
+            params['api_key'] = cle_api_google
 
     elif ai_model.provider == Provider.OPENAI:
-        params['api_key'] = ai_model.api_key
+        cle_api_openai = ai_model.api_key or os.environ.get("OPENAI_API_KEY", "")
+        params['api_key'] = cle_api_openai
         # OpenAI necessite des parametres specifiques dans LangExtract
         # / OpenAI requires specific params in LangExtract
         params['fence_output'] = True
@@ -85,8 +88,9 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
         # / Ollama is natively supported by LangExtract (OllamaLanguageModel)
         base_url_ollama = ai_model.base_url or "http://localhost:11434"
         params['model_url'] = base_url_ollama
-        if ai_model.api_key:
-            params['api_key'] = ai_model.api_key
+        cle_api_ollama = ai_model.api_key or os.environ.get("OLLAMA_API_KEY", "")
+        if cle_api_ollama:
+            params['api_key'] = cle_api_ollama
 
     elif ai_model.provider == Provider.ANTHROPIC:
         # Anthropic n'est pas supporte par LangExtract pour l'extraction

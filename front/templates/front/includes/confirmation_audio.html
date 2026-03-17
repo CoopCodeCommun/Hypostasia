@@ -1,96 +1,89 @@
 {# Partial : confirmation avant lancement d'une transcription audio #}
-{# Affiche la duree, le modele, le cout estime #}
+{# Design harmonise avec confirmation_analyse.html #}
 {# / Partial: confirmation before launching audio transcription #}
-{# / Shows duration, model, estimated cost #}
+{# / Design harmonized with confirmation_analyse.html #}
 
-<div class="max-w-xl mx-auto p-6">
-    <div class="bg-white rounded-lg border border-blue-200 p-4 space-y-3" id="confirmation-audio">
+<div class="max-w-2xl mx-auto py-6 px-4" id="confirmation-audio" data-testid="confirmation-audio">
 
-        {# En-tete / Header #}
-        <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    {# En-tete avec titre / Header with title #}
+    <div class="flex items-center gap-4 mb-6">
+        <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/>
             </svg>
-            <h3 class="text-sm font-semibold text-slate-800">Confirmer la transcription</h3>
         </div>
-
-        {# Infos resume / Summary info #}
-        <div class="bg-slate-50 rounded p-3 space-y-1.5 text-xs text-slate-600">
-            <div class="flex justify-between">
-                <span>Fichier</span>
-                <span class="font-medium text-slate-800 truncate ml-2 max-w-[200px]">{{ nom_fichier }}</span>
-            </div>
-            <div class="flex justify-between">
-                <span>Durée</span>
-                <span class="font-medium text-slate-800">{{ duree_formatee }} ({{ duree_secondes }}s)</span>
-            </div>
-            <div class="flex justify-between">
-                <span>Taille</span>
-                <span class="font-medium text-slate-800">{{ taille_fichier_mo }} Mo</span>
-            </div>
-            <div class="flex justify-between">
-                <span>Modèle</span>
-                <span class="font-medium text-slate-800">
-                    {% if config_transcription %}{{ config_transcription.get_display_name }}{% else %}Mock (simulation){% endif %}
-                </span>
-            </div>
+        <div>
+            <h2 class="text-xl font-bold text-slate-900">Transcrire un fichier audio</h2>
+            <p class="text-base text-slate-500 truncate max-w-md">{{ nom_fichier }}</p>
         </div>
+    </div>
 
-        {# Options de transcription / Transcription options #}
-        <div class="bg-slate-50 rounded p-3 text-xs text-slate-600 space-y-3">
-
-            {# Langue de l'audio / Audio language #}
-            <div>
-                <label for="langue-audio-select" class="block font-medium text-slate-700 mb-1">Langue de l'audio</label>
-                <select id="langue-audio-select" class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                    <option value="" {% if not langue_defaut %}selected{% endif %}>Détection automatique</option>
-                    <option value="fr" {% if langue_defaut == "fr" %}selected{% endif %}>Français</option>
-                    <option value="en" {% if langue_defaut == "en" %}selected{% endif %}>English</option>
-                    <option value="de" {% if langue_defaut == "de" %}selected{% endif %}>Deutsch</option>
-                    <option value="es" {% if langue_defaut == "es" %}selected{% endif %}>Español</option>
-                    <option value="it" {% if langue_defaut == "it" %}selected{% endif %}>Italiano</option>
-                    <option value="pt" {% if langue_defaut == "pt" %}selected{% endif %}>Português</option>
-                    <option value="nl" {% if langue_defaut == "nl" %}selected{% endif %}>Nederlands</option>
-                    <option value="ja" {% if langue_defaut == "ja" %}selected{% endif %}>日本語</option>
-                    <option value="zh" {% if langue_defaut == "zh" %}selected{% endif %}>中文</option>
-                    <option value="ar" {% if langue_defaut == "ar" %}selected{% endif %}>العربية</option>
-                    <option value="ru" {% if langue_defaut == "ru" %}selected{% endif %}>Русский</option>
-                    <option value="ko" {% if langue_defaut == "ko" %}selected{% endif %}>한국어</option>
-                    <option value="hi" {% if langue_defaut == "hi" %}selected{% endif %}>हिन्दी</option>
-                </select>
-            </div>
-
-            {# Nombre de locuteurs max / Max speakers count #}
-            <div>
-                <label for="max-speakers-select" class="block font-medium text-slate-700 mb-1">Nombre max de locuteurs</label>
-                <select id="max-speakers-select" class="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                    {% for i in choix_max_locuteurs %}
-                        <option value="{{ i }}" {% if i == max_locuteurs_defaut %}selected{% endif %}>{{ i }} locuteur{{ i|pluralize }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+    {# Infos resume / Summary info #}
+    <div class="bg-slate-50 rounded-xl p-5 space-y-3 text-base text-slate-600 mb-5">
+        <div class="flex justify-between items-center">
+            <span>Dur&eacute;e</span>
+            <span class="font-semibold text-slate-800">{{ duree_formatee }}</span>
         </div>
-
-        {# Estimation cout / Cost estimate #}
-        <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs">
-            <div class="flex justify-between text-amber-900">
-                <span class="font-semibold">Coût estimé</span>
-                <span class="font-bold">~{{ cout_estime_euros|floatformat:5 }} €</span>
-            </div>
+        <div class="flex justify-between items-center">
+            <span>Taille</span>
+            <span class="font-semibold text-slate-800">{{ taille_fichier_mo }} Mo</span>
         </div>
-
-        {# Boutons d'action / Action buttons #}
-        <div class="flex gap-2 pt-1">
-            <button type="button"
-                    class="btn-confirmer-transcription flex-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
-                    data-chemin-temp="{{ chemin_fichier_temp }}"
-                    data-nom-fichier="{{ nom_fichier }}">
-                Lancer la transcription
-            </button>
-            <button type="button"
-                    class="btn-annuler-transcription flex-1 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded transition-colors">
-                Annuler
-            </button>
+        <div class="flex justify-between items-center">
+            <span>Mod&egrave;le</span>
+            <span class="font-semibold text-slate-800">
+                {% if config_transcription %}{{ config_transcription.get_display_name }}{% else %}Mock (simulation){% endif %}
+            </span>
         </div>
+    </div>
+
+    {# Option : langue de l'audio / Option: audio language #}
+    <div class="mb-5">
+        <label for="langue-audio-select" class="block text-sm font-medium text-slate-600 mb-1.5">Langue de l&rsquo;audio</label>
+        <select id="langue-audio-select"
+                data-testid="select-langue-audio"
+                class="w-full text-base border border-slate-300 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+            <option value="" {% if not langue_defaut %}selected{% endif %}>D&eacute;tection automatique</option>
+            <option value="fr" {% if langue_defaut == "fr" %}selected{% endif %}>Fran&ccedil;ais</option>
+            <option value="en" {% if langue_defaut == "en" %}selected{% endif %}>English</option>
+            <option value="de" {% if langue_defaut == "de" %}selected{% endif %}>Deutsch</option>
+            <option value="es" {% if langue_defaut == "es" %}selected{% endif %}>Espa&ntilde;ol</option>
+            <option value="it" {% if langue_defaut == "it" %}selected{% endif %}>Italiano</option>
+            <option value="pt" {% if langue_defaut == "pt" %}selected{% endif %}>Portugu&ecirc;s</option>
+            <option value="nl" {% if langue_defaut == "nl" %}selected{% endif %}>Nederlands</option>
+            <option value="ja" {% if langue_defaut == "ja" %}selected{% endif %}>&#26085;&#26412;&#35486;</option>
+            <option value="zh" {% if langue_defaut == "zh" %}selected{% endif %}>&#20013;&#25991;</option>
+            <option value="ar" {% if langue_defaut == "ar" %}selected{% endif %}>&#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577;</option>
+            <option value="ru" {% if langue_defaut == "ru" %}selected{% endif %}>&#1056;&#1091;&#1089;&#1089;&#1082;&#1080;&#1081;</option>
+            <option value="ko" {% if langue_defaut == "ko" %}selected{% endif %}>&#54620;&#44397;&#50612;</option>
+            <option value="hi" {% if langue_defaut == "hi" %}selected{% endif %}>&#2361;&#2367;&#2344;&#2381;&#2342;&#2368;</option>
+        </select>
+        <p class="text-xs text-slate-400 mt-1">Laissez sur &laquo; automatique &raquo; si vous ne connaissez pas la langue.</p>
+    </div>
+
+    {# Estimation cout / Cost estimate #}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-3 text-base mb-5" data-testid="estimation-cout-audio">
+        <div class="flex justify-between items-center text-amber-900">
+            <span class="font-bold text-lg">Co&ucirc;t estim&eacute;</span>
+            <span class="font-bold text-xl">&le; {{ cout_estime_euros|floatformat:2 }} &euro;</span>
+        </div>
+    </div>
+
+    {# Boutons d'action — grands et lisibles / Action buttons — large and readable #}
+    <div class="flex gap-4">
+        <button type="button"
+                class="btn-confirmer-transcription flex-1 px-6 py-4 text-base font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm"
+                data-chemin-temp="{{ chemin_fichier_temp }}"
+                data-nom-fichier="{{ nom_fichier }}"
+                data-testid="btn-lancer-transcription">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z"/>
+            </svg>
+            Lancer la transcription
+        </button>
+        <button type="button"
+                class="btn-annuler-transcription px-6 py-4 text-base font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                data-testid="btn-annuler-transcription">
+            Annuler
+        </button>
     </div>
 </div>

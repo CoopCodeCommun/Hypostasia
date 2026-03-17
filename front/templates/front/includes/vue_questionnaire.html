@@ -39,7 +39,7 @@
             {# En-tete de la question / Question header #}
             <div>
                 <div class="flex items-center justify-between mb-1">
-                    <span class="typo-lecteur-nom" style="font-size: 14px;">{{ question.user.first_name|default:question.user.username }}</span>
+                    <span class="typo-lecteur-nom" style="font-size: 14px;">{{ question.user.first_name|default:question.user.username|title }}</span>
                     <span class="text-[10px] text-slate-400">{{ question.created_at|date:"d/m H:i" }}</span>
                 </div>
                 <p class="typo-lecteur-corps">{{ question.texte_question }}</p>
@@ -49,7 +49,7 @@
             {% for reponse in question.reponses.all %}
             <div class="ml-6 border-l-2 border-indigo-100 pl-3">
                 <div class="flex items-center justify-between mb-0.5">
-                    <span class="typo-lecteur-nom" style="font-size: 14px;">{{ reponse.user.first_name|default:reponse.user.username }}</span>
+                    <span class="typo-lecteur-nom" style="font-size: 14px;">{{ reponse.user.first_name|default:reponse.user.username|title }}</span>
                     <span class="text-[10px] text-slate-400">{{ reponse.created_at|date:"d/m H:i" }}</span>
                 </div>
                 <p class="typo-lecteur-corps whitespace-pre-wrap">{{ reponse.texte_reponse }}</p>
