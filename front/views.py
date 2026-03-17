@@ -2529,13 +2529,11 @@ class ExtractionViewSet(viewsets.ViewSet):
         if start_char == -1:
             start_char = 0
 
-        # Liste des 4 attributs vides pour le formulaire de creation
-        # / 4 empty attributes for the creation form
+        # Attributs par defaut pour le formulaire de creation : resume + hypostase
+        # / Default attributes for the creation form: summary + hypostase
         liste_attributs_creation = [
-            ("tags", ""),
-            ("titre", ""),
-            ("badge", ""),
-            ("hashtags", ""),
+            ("r\u00e9sum\u00e9", ""),
+            ("hypostase", ""),
         ]
 
         html_formulaire = render_to_string(
@@ -2639,10 +2637,10 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / In edit mode, display the entity's actual keys
         liste_attributs = list(attributs.items())
 
-        # Pad a 4 elements pour avoir toujours 4 champs
-        # / Pad to 4 elements to always have 4 fields
-        noms_par_defaut = ["tags", "titre", "badge", "hashtags"]
-        while len(liste_attributs) < 4:
+        # Pad a 2 elements minimum (resume + hypostase) si pas assez d'attributs
+        # / Pad to 2 elements minimum (summary + hypostase) if not enough attributes
+        noms_par_defaut = ["r\u00e9sum\u00e9", "hypostase"]
+        while len(liste_attributs) < 2:
             index_suivant = len(liste_attributs)
             nom_defaut = noms_par_defaut[index_suivant] if index_suivant < len(noms_par_defaut) else f"attr_{index_suivant}"
             liste_attributs.append((nom_defaut, ""))
@@ -3994,10 +3992,12 @@ class ExtractionViewSet(viewsets.ViewSet):
             nombre_entites_creees, identifiant_page,
         )
 
-        # Re-rendre la page de lecture complete avec les nouvelles annotations
-        # / Re-render the full reading page with new annotations
-        reponse = self._render_lecture_complete(request, page)
+        # Re-rendre le panneau + OOB swap du texte annote
+        # / Re-render panel + OOB swap of annotated text
+        html_complet = self._render_panneau_complet_avec_oob(request, page)
+        reponse = HttpResponse(html_complet)
         reponse["HX-Trigger"] = json.dumps({
+            "ouvrirPanneauDroit": True,
             "showToast": {
                 "message": f"{nombre_entites_creees} extraction(s) IA cr\u00e9\u00e9e(s)",
                 "icon": "success",
