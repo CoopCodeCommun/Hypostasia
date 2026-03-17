@@ -265,6 +265,21 @@ EXTRACTIONS_OSTROM = [
         "class": "extension",
         "attributes": {"résumé": "Application des principes d\u2019Ostrom à la gouvernance de l\u2019IA comme commun numérique.", "hypostase": "Hypothèse"},
     },
+    {
+        "text": "Elinor Ostrom a surtout travaillé sur la notion de dilemme social, c\u2019est-à-dire les cas où la quête de l\u2019intérêt personnel conduit à un résultat plus mauvais pour tous que celui résultant d\u2019un autre type de comportement.",
+        "class": "concept",
+        "attributes": {"résumé": "Le dilemme social : quand l\u2019intérêt individuel nuit au bien collectif.", "hypostase": "Définition"},
+    },
+    {
+        "text": "Ostrom, au contraire, soutient qu\u2019il n\u2019y a pas un seul problème mais que chaque fois il existe de nombreuses solutions face à de nombreux problèmes différents.",
+        "class": "thèse",
+        "attributes": {"résumé": "Pluralité des solutions : chaque problème de communs a ses propres réponses.", "hypostase": "Principe"},
+    },
+    {
+        "text": "Le capital social pour Ostrom repose sur la confiance et la réciprocité, les réseaux et la participation civile, ainsi que sur le respect des règles et institutions formelles et informelles de l\u2019action collective.",
+        "class": "concept",
+        "attributes": {"résumé": "Le capital social chez Ostrom : confiance, réciprocité, participation civile.", "hypostase": "Structure"},
+    },
 ]
 
 EXTRACTIONS_ALEXANDRE = [
@@ -288,6 +303,21 @@ EXTRACTIONS_ALEXANDRE = [
         "class": "critique",
         "attributes": {"résumé": "Acrimed : Alexandre est un militant politique déguisé en vulgarisateur scientifique.", "hypostase": "Indice"},
     },
+    {
+        "text": "Il affirme notamment que l\u2019homme qui vivra mille ans est déjà né, prévoit la disparition du cancer dans une quinzaine d\u2019années, et considère que la science donnera à l\u2019homme le pouvoir d\u2019un dieu.",
+        "class": "prédiction",
+        "attributes": {"résumé": "Prédictions transhumanistes : vie millénaire, fin du cancer, pouvoir divin par la science.", "hypostase": "Conjecture"},
+    },
+    {
+        "text": "Le biologiste Jacques Testart émet de fortes réserves sur ces prévisions fondées sur la loi de Moore, qu\u2019il qualifie d\u2019énorme confusion.",
+        "class": "critique",
+        "attributes": {"résumé": "Testart réfute les prédictions d\u2019Alexandre : confusion entre loi de Moore et biologie.", "hypostase": "Problème"},
+    },
+    {
+        "text": "Il estime que seul le développement technologique peut décarboner l\u2019économie mondiale, que stopper le développement économique entraînerait guerres et famines.",
+        "class": "thèse",
+        "attributes": {"résumé": "Le techno-solutionnisme comme seule voie de décarbonation selon Alexandre.", "hypostase": "Principe"},
+    },
 ]
 
 EXTRACTIONS_SADIN = [
@@ -305,6 +335,21 @@ EXTRACTIONS_SADIN = [
         "text": "il nous reste deux ou trois ans pour agir, sinon il sera trop tard pour les réguler.",
         "class": "alerte",
         "attributes": {"résumé": "Urgence : fenêtre de 2-3 ans pour réguler l\u2019IA générative avant qu\u2019il ne soit trop tard.", "hypostase": "Conjecture"},
+    },
+    {
+        "text": "la société de l\u2019information est aussi une société de surveillance au service d\u2019intérêts économiques.",
+        "class": "thèse",
+        "attributes": {"résumé": "La société de l\u2019information comme société de surveillance au service du capitalisme.", "hypostase": "Phénomène"},
+    },
+    {
+        "text": "il estime que l\u2019IA est une révolution à laquelle il faut résister, tant elle engendre une mise au ban progressive de l\u2019humain.",
+        "class": "thèse",
+        "attributes": {"résumé": "L\u2019IA comme révolution anti-humaine exigeant une résistance active.", "hypostase": "Principe"},
+    },
+    {
+        "text": "les réseaux sociaux ont participé massivement à une exacerbation de l\u2019individualisme et une atomisation des sociétés.",
+        "class": "diagnostic",
+        "attributes": {"résumé": "Les réseaux sociaux exacerbent l\u2019individualisme et fragmentent la société.", "hypostase": "Phénomène"},
     },
 ]
 

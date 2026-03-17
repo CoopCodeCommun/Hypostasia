@@ -21,6 +21,13 @@
     var modeSelectionActif = false;
     var pagesSelectionnees = new Set();
 
+    // Memorise le dernier dossier aligne et la position de scroll
+    // pour restaurer la vue quand on revient avec le raccourci A
+    // / Remembers last aligned folder and scroll position
+    // / to restore the view when returning with the A shortcut
+    var dernierDossierIdAligne = null;
+    var dernierScrollTopModale = 0;
+
 
     // --- Utilitaires ---
     // / --- Utilities ---
@@ -337,10 +344,18 @@
         });
     }
 
-    // Ferme la modale d'alignement
-    // / Close the alignment modal
+    // Ferme la modale d'alignement en memorisant la position de scroll
+    // / Close the alignment modal, remembering scroll position
     function fermerModale() {
         if (!modaleOuverte) return;
+
+        // Sauvegarder la position de scroll avant fermeture
+        // / Save scroll position before closing
+        var corpsModale = document.querySelector('.alignement-body');
+        if (corpsModale) {
+            dernierScrollTopModale = corpsModale.scrollTop;
+        }
+
         modaleOuverte = false;
 
         var conteneur = document.getElementById('alignement-modale-container');
@@ -362,6 +377,11 @@
         // Empeche l'ouverture si deja ouverte / Prevent opening if already open
         if (modaleOuverte) return;
         modaleOuverte = true;
+
+        // Memorise le dossier pour le raccourci A
+        // / Remember folder for the A shortcut
+        var estMemeDossier = (dernierDossierIdAligne === dossierId);
+        dernierDossierIdAligne = dossierId;
 
         var conteneur = document.getElementById('alignement-modale-container');
         if (!conteneur) {
@@ -405,6 +425,15 @@
             swap: 'innerHTML',
         }).then(function() {
             installerListenersModale();
+
+            // Restaure la position de scroll si c'est le meme dossier qu'avant
+            // / Restore scroll position if it's the same folder as before
+            if (estMemeDossier && dernierScrollTopModale > 0) {
+                var corpsModale = document.querySelector('.alignement-body');
+                if (corpsModale) {
+                    corpsModale.scrollTop = dernierScrollTopModale;
+                }
+            }
         });
     }
 
@@ -526,11 +555,13 @@
     // / === Initialization on load ===
     document.addEventListener('DOMContentLoaded', function() {
         // Listener du bouton "Comparer" dans le footer de l'arbre
+        // Ouvre directement l'alignement du dossier courant (meme comportement que raccourci A)
         // / Listener on "Compare" button in tree footer
+        // / Opens alignment for current folder directly (same as A shortcut)
         var boutonComparer = document.getElementById('btn-comparer-arbre');
         if (boutonComparer) {
             boutonComparer.addEventListener('click', function() {
-                basculerSelection();
+                basculerAlignement();
             });
         }
 
