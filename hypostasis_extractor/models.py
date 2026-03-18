@@ -72,13 +72,39 @@ class ExtractionJob(models.Model):
     # Statistiques
     entities_count = models.PositiveIntegerField(default=0)
     processing_time_seconds = models.FloatField(blank=True, null=True)
-    
+
+    # Tokens reels et cout reel (renseignes apres completion par le LLM)
+    # / Real tokens and real cost (filled after LLM completion)
+    tokens_input_reels = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Nombre de tokens d'entree reels / Real input token count",
+    )
+    tokens_output_reels = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Nombre de tokens de sortie reels / Real output token count",
+    )
+    cout_reel_euros = models.FloatField(
+        null=True, blank=True,
+        help_text="Cout reel en euros / Real cost in euros",
+    )
+
+    # Lien vers la version de l'analyseur utilisee pour ce job
+    # / Link to the analyzer version used for this job
+    analyseur_version = models.ForeignKey(
+        'AnalyseurVersion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='extraction_jobs',
+        help_text="Version de l'analyseur au moment de l'extraction / Analyzer version at extraction time",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         ordering = ['-created_at']
-    
+
     def __str__(self):
         url_page = (self.page.url or "")[:50] if self.page else "page supprimée"
         return f"{self.name} sur {url_page}..."
@@ -602,3 +628,49 @@ class TestRunExtraction(models.Model):
 
     def __str__(self):
         return f"[{self.extraction_class}] {self.extraction_text[:50]}"
+
+
+# =============================================================================
+# Historique des versions d'analyseur
+# / Analyzer version history
+# =============================================================================
+
+class AnalyseurVersion(models.Model):
+    """
+    Snapshot historique d'un analyseur (pieces + exemples + extractions + attributs).
+    Cree automatiquement lors de mutations significatives (add/delete piece, example, etc.).
+    / Historical snapshot of an analyzer (pieces + examples + extractions + attributes).
+    Created automatically on significant mutations (add/delete piece, example, etc.).
+    """
+    analyseur = models.ForeignKey(
+        AnalyseurSyntaxique,
+        on_delete=models.CASCADE,
+        related_name='versions',
+    )
+    version_number = models.PositiveIntegerField(
+        help_text="Numero de version auto-incremente / Auto-incremented version number",
+    )
+    snapshot = models.JSONField(
+        help_text="Snapshot JSON complet (pieces, exemples, extractions, attributs) / Full JSON snapshot",
+    )
+    modified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='analyseur_versions',
+        help_text="Utilisateur ayant effectue la modification / User who made the modification",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    description_modification = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Description de la modification / Modification description",
+    )
+
+    class Meta:
+        ordering = ['-version_number']
+        unique_together = ['analyseur', 'version_number']
+
+    def __str__(self):
+        return f"{self.analyseur.name} v{self.version_number}"

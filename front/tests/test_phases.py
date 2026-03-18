@@ -9130,3 +9130,178 @@ class Phase26cSyncMasqueeTest(TestCase):
         entite.save()
         entite.refresh_from_db()
         self.assertFalse(entite.masquee)
+
+
+# =============================================================================
+# PHASE-26b — Bibliotheque d'analyseurs + couts + historique prompts
+# / PHASE-26b — Analyzer library + costs + prompt history
+# =============================================================================
+
+
+class Phase26bPermissionsTest(TestCase):
+    """Verifie que les mutations sont reservees au staff.
+    / Verify that mutations are staff-only."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user_normal = User.objects.create_user(
+            username='testuser_26b', password='test1234',
+        )
+        self.user_staff = User.objects.create_user(
+            username='staffuser_26b', password='test1234', is_staff=True,
+        )
+
+    def test_user_non_staff_get_liste_analyseurs_200(self):
+        """User authentifie non-staff peut lire la liste (GET /api/analyseurs/)."""
+        self.client.login(username='testuser_26b', password='test1234')
+        reponse = self.client.get('/api/analyseurs/')
+        self.assertIn(reponse.status_code, [200, 302])
+
+    def test_user_non_staff_post_create_403(self):
+        """User non-staff ne peut pas creer un analyseur (POST)."""
+        self.client.login(username='testuser_26b', password='test1234')
+        reponse = self.client.post('/api/analyseurs/', {
+            'name': 'Test interdit', 'description': 'Nope',
+        })
+        self.assertEqual(reponse.status_code, 403)
+
+    def test_user_non_staff_delete_403(self):
+        """User non-staff ne peut pas supprimer un analyseur (DELETE)."""
+        from hypostasis_extractor.models import AnalyseurSyntaxique
+        analyseur = AnalyseurSyntaxique.objects.create(
+            name='A supprimer 26b', is_active=True,
+        )
+        self.client.login(username='testuser_26b', password='test1234')
+        reponse = self.client.delete(f'/api/analyseurs/{analyseur.pk}/')
+        self.assertEqual(reponse.status_code, 403)
+
+    def test_user_anonyme_redirect_login(self):
+        """User anonyme est redirige vers le login."""
+        reponse = self.client.get('/api/analyseurs/')
+        # DRF IsAuthenticated renvoie 403 ou 302 selon les settings
+        self.assertIn(reponse.status_code, [302, 401, 403])
+
+    def test_staff_peut_creer_analyseur(self):
+        """Staff peut creer un analyseur (POST)."""
+        self.client.login(username='staffuser_26b', password='test1234')
+        reponse = self.client.post('/api/analyseurs/', {
+            'name': 'Test autorise 26b', 'description': 'OK',
+        })
+        self.assertIn(reponse.status_code, [200, 201])
+
+
+class Phase26bModelsTest(TestCase):
+    """Verifie les nouveaux champs et modeles PHASE-26b.
+    / Verify new fields and models for PHASE-26b."""
+
+    def test_extraction_job_a_champ_tokens_input_reels(self):
+        """ExtractionJob a le champ tokens_input_reels."""
+        from hypostasis_extractor.models import ExtractionJob
+        champs = [f.name for f in ExtractionJob._meta.get_fields()]
+        self.assertIn('tokens_input_reels', champs)
+
+    def test_extraction_job_a_champ_tokens_output_reels(self):
+        """ExtractionJob a le champ tokens_output_reels."""
+        from hypostasis_extractor.models import ExtractionJob
+        champs = [f.name for f in ExtractionJob._meta.get_fields()]
+        self.assertIn('tokens_output_reels', champs)
+
+    def test_extraction_job_a_champ_cout_reel_euros(self):
+        """ExtractionJob a le champ cout_reel_euros."""
+        from hypostasis_extractor.models import ExtractionJob
+        champs = [f.name for f in ExtractionJob._meta.get_fields()]
+        self.assertIn('cout_reel_euros', champs)
+
+    def test_extraction_job_a_champ_analyseur_version(self):
+        """ExtractionJob a le champ analyseur_version."""
+        from hypostasis_extractor.models import ExtractionJob
+        champs = [f.name for f in ExtractionJob._meta.get_fields()]
+        self.assertIn('analyseur_version', champs)
+
+    def test_modele_analyseur_version_existe(self):
+        """Le modele AnalyseurVersion existe avec les bons champs."""
+        from hypostasis_extractor.models import AnalyseurVersion
+        champs = [f.name for f in AnalyseurVersion._meta.get_fields()]
+        self.assertIn('analyseur', champs)
+        self.assertIn('version_number', champs)
+        self.assertIn('snapshot', champs)
+        self.assertIn('modified_by', champs)
+        self.assertIn('created_at', champs)
+        self.assertIn('description_modification', champs)
+
+
+class Phase26bSnapshotTest(TestCase):
+    """Verifie que creer_snapshot_analyseur retourne le bon format.
+    / Verify creer_snapshot_analyseur returns the correct format."""
+
+    def test_creer_snapshot_analyseur_format(self):
+        """creer_snapshot_analyseur retourne pieces + examples."""
+        from hypostasis_extractor.models import (
+            AnalyseurSyntaxique, PromptPiece, AnalyseurExample,
+            ExampleExtraction, ExtractionAttribute,
+        )
+        from hypostasis_extractor.services import creer_snapshot_analyseur
+
+        analyseur = AnalyseurSyntaxique.objects.create(
+            name='Test snapshot 26b', is_active=True,
+            type_analyseur='analyser',
+        )
+        PromptPiece.objects.create(
+            analyseur=analyseur, name='Piece 1',
+            role='instruction', content='Extraire les entites.', order=0,
+        )
+        exemple = AnalyseurExample.objects.create(
+            analyseur=analyseur, name='Exemple 1',
+            example_text='Texte test.', order=0,
+        )
+        extraction = ExampleExtraction.objects.create(
+            example=exemple, extraction_class='concept',
+            extraction_text='Texte test', order=0,
+        )
+        ExtractionAttribute.objects.create(
+            extraction=extraction, key='resume', value='Un test', order=0,
+        )
+
+        snapshot = creer_snapshot_analyseur(analyseur)
+        self.assertIn('pieces', snapshot)
+        self.assertIn('examples', snapshot)
+        self.assertEqual(len(snapshot['pieces']), 1)
+        self.assertEqual(len(snapshot['examples']), 1)
+        self.assertEqual(snapshot['pieces'][0]['name'], 'Piece 1')
+        self.assertEqual(len(snapshot['examples'][0]['extractions']), 1)
+        self.assertEqual(len(snapshot['examples'][0]['extractions'][0]['attributes']), 1)
+
+
+class Phase26bTemplatesTest(TestCase):
+    """Verifie que les templates PHASE-26b existent.
+    / Verify PHASE-26b templates exist."""
+
+    def test_template_bibliotheque_analyseurs_existe(self):
+        """bibliotheque_analyseurs.html est chargeable."""
+        template = get_template('front/includes/bibliotheque_analyseurs.html')
+        self.assertIsNotNone(template)
+
+    def test_template_carte_analyseur_existe(self):
+        """carte_analyseur.html est chargeable."""
+        template = get_template('front/includes/carte_analyseur.html')
+        self.assertIsNotNone(template)
+
+    def test_template_detail_analyseur_readonly_existe(self):
+        """detail_analyseur_readonly.html est chargeable."""
+        template = get_template('front/includes/detail_analyseur_readonly.html')
+        self.assertIsNotNone(template)
+
+    def test_template_dashboard_couts_existe(self):
+        """dashboard_couts.html est chargeable."""
+        template = get_template('front/includes/dashboard_couts.html')
+        self.assertIsNotNone(template)
+
+    def test_template_versions_list_existe(self):
+        """versions_list.html est chargeable."""
+        template = get_template('hypostasis_extractor/includes/versions_list.html')
+        self.assertIsNotNone(template)
+
+    def test_template_versions_diff_existe(self):
+        """versions_diff.html est chargeable."""
+        template = get_template('hypostasis_extractor/includes/versions_diff.html')
+        self.assertIsNotNone(template)

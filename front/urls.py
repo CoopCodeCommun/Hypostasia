@@ -6,6 +6,7 @@ from .views_auth import AuthViewSet
 from .views_explorer import ExplorerViewSet
 from .views_groupes import GroupeViewSet
 from .views_invitation import InvitationViewSet
+from .views_analyseurs import BibliothequeAnalyseursViewSet
 from .views_ws import WsTestViewSet
 
 app_name = "front"
@@ -26,6 +27,7 @@ router.register(r"auth", AuthViewSet, basename="auth")
 router.register(r"groupes", GroupeViewSet, basename="groupe")
 router.register(r"explorer", ExplorerViewSet, basename="explorer")
 router.register(r"invitation", InvitationViewSet, basename="invitation")
+router.register(r"analyseurs", BibliothequeAnalyseursViewSet, basename="analyseur-biblio")
 router.register(r"ws-test", WsTestViewSet, basename="ws-test")
 
 urlpatterns = [

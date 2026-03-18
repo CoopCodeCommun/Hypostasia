@@ -537,3 +537,106 @@ def generate_visualization_html(job) -> str:
     html_content = lx.visualize(temp_file)
 
     return html_content
+
+
+def creer_snapshot_analyseur(analyseur):
+    """
+    Cree un snapshot JSON complet d'un analyseur.
+    Le snapshot contient les pieces du prompt, les exemples few-shot,
+    les extractions attendues et leurs attributs.
+    Utilise pour l'historique des versions (AnalyseurVersion).
+    / Create a full JSON snapshot of an analyzer (pieces, examples, extractions, attributes).
+
+    LOCALISATION : hypostasis_extractor/services.py
+    """
+    from .models import PromptPiece, AnalyseurExample
+
+    # Recuperer toutes les pieces du prompt ordonnees par position
+    # / Fetch all prompt pieces ordered by position
+    toutes_les_pieces_ordonnees = PromptPiece.objects.filter(
+        analyseur=analyseur,
+    ).order_by('order')
+    toutes_les_pieces_snapshot = []
+    for piece in toutes_les_pieces_ordonnees:
+        toutes_les_pieces_snapshot.append({
+            'name': piece.name,
+            'role': piece.role,
+            'content': piece.content,
+            'order': piece.order,
+        })
+
+    # Recuperer tous les exemples avec leurs extractions et attributs pre-charges
+    # / Fetch all examples with prefetched extractions and attributes
+    tous_les_exemples_ordonnes = AnalyseurExample.objects.filter(
+        analyseur=analyseur,
+    ).order_by('order').prefetch_related('extractions__attributes')
+    tous_les_exemples_snapshot = []
+    for exemple in tous_les_exemples_ordonnes:
+        toutes_les_extractions_de_exemple = []
+        for extraction in exemple.extractions.all():
+            tous_les_attributs_de_extraction = []
+            for attribut in extraction.attributes.all():
+                tous_les_attributs_de_extraction.append({
+                    'key': attribut.key,
+                    'value': attribut.value,
+                    'order': attribut.order,
+                })
+            toutes_les_extractions_de_exemple.append({
+                'extraction_class': extraction.extraction_class,
+                'extraction_text': extraction.extraction_text,
+                'order': extraction.order,
+                'attributes': tous_les_attributs_de_extraction,
+            })
+        tous_les_exemples_snapshot.append({
+            'name': exemple.name,
+            'example_text': exemple.example_text,
+            'order': exemple.order,
+            'extractions': toutes_les_extractions_de_exemple,
+        })
+
+    return {
+        'name': analyseur.name,
+        'description': analyseur.description,
+        'type_analyseur': analyseur.type_analyseur,
+        'inclure_extractions': analyseur.inclure_extractions,
+        'inclure_texte_original': analyseur.inclure_texte_original,
+        'pieces': toutes_les_pieces_snapshot,
+        'examples': tous_les_exemples_snapshot,
+    }
+
+
+def creer_version_analyseur(analyseur, user, description=""):
+    """
+    Cree une AnalyseurVersion avec numero de version auto-incremente.
+    Prend un snapshot complet de l'analyseur et le stocke en JSON.
+    / Create an AnalyseurVersion with auto-incremented version number.
+
+    LOCALISATION : hypostasis_extractor/services.py
+    """
+    from .models import AnalyseurVersion
+    from django.db.models import Max
+
+    # Calculer le prochain numero de version a partir du max existant
+    # / Compute next version number from existing max
+    dernier_numero_version = analyseur.versions.aggregate(
+        max_num=Max('version_number'),
+    )['max_num'] or 0
+    prochain_numero_version = dernier_numero_version + 1
+
+    # Creer le snapshot complet et l'enregistrer en base
+    # / Create full snapshot and save to database
+    snapshot_complet = creer_snapshot_analyseur(analyseur)
+    nouvelle_version = AnalyseurVersion.objects.create(
+        analyseur=analyseur,
+        version_number=prochain_numero_version,
+        snapshot=snapshot_complet,
+        modified_by=user if user and user.is_authenticated else None,
+        description_modification=description[:500],
+    )
+    logger.info(
+        "creer_version_analyseur: analyseur=%d v%d par %s — %s",
+        analyseur.pk, prochain_numero_version,
+        user.username if user and user.is_authenticated else "anonyme",
+        description[:80],
+    )
+    return nouvelle_version

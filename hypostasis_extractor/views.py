@@ -372,16 +372,44 @@ class ExtractionExampleViewSet(viewsets.ViewSet):
 # / ViewSet for Syntactic Analyzers
 # =============================================================================
 
-@method_decorator(csrf_exempt, name='dispatch')
+def _exiger_staff(request):
+    """
+    Verifie que l'utilisateur est staff (admin).
+    Retourne None si l'utilisateur est staff.
+    Retourne une reponse HTTP 403 si non autorise (partial HTMX ou page complete).
+    / Checks that the user is staff (admin). Returns None if OK, or HTTP 403 response.
+
+    LOCALISATION : hypostasis_extractor/views.py
+    """
+    if not request.user.is_staff:
+        message_html = (
+            '<div class="flex items-center justify-center p-8 text-slate-500">'
+            '<p class="text-sm">Accès réservé aux administrateurs.</p>'
+            '</div>'
+        )
+        # Requete HTMX → partial seulement
+        # / HTMX request → partial only
+        if request.headers.get('HX-Request'):
+            return HttpResponse(message_html, status=403, content_type='text/html')
+        # Acces direct (F5) → page complete
+        # / Direct access (F5) → full page
+        return render(request, 'front/base.html', {
+            'acces_refuse_message': 'Accès réservé aux administrateurs.',
+        }, status=403)
+    return None
+
+
 class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     """
     ViewSet pour gerer les analyseurs syntaxiques configurables.
     CRUD complet + actions pour pieces, exemples, extractions, attributs.
+    Lecture : tous les users authentifies. Mutations : staff uniquement.
     / ViewSet for managing configurable syntactic analyzers.
     Full CRUD + actions for pieces, examples, extractions, attributes.
+    Read: all authenticated users. Mutations: staff only.
     """
 
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     # ---- CRUD Analyseur ----
 
@@ -454,7 +482,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         })
 
     def create(self, request):
-        """Creation d'un analyseur."""
+        """Creation d'un analyseur. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         serializer = AnalyseurSyntaxiqueCreateSerializer(data=request.data)
         if serializer.is_valid():
             analyseur = AnalyseurSyntaxique.objects.create(**serializer.validated_data)
@@ -466,7 +497,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def partial_update(self, request, pk=None):
-        """Mise a jour partielle (auto-save) / Partial update (auto-save)."""
+        """Mise a jour partielle (auto-save). Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = AnalyseurSyntaxiqueUpdateSerializer(data=request.data)
         if serializer.is_valid():
@@ -477,7 +511,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def destroy(self, request, pk=None):
-        """Suppression d'un analyseur / Delete an analyzer."""
+        """Suppression d'un analyseur. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         logger.info("Analyseur supprime: pk=%d name='%s'", analyseur.pk, analyseur.name)
         analyseur.delete()
@@ -488,7 +525,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def add_piece(self, request, pk=None):
-        """Ajoute une piece de prompt / Add a prompt piece."""
+        """Ajoute une piece de prompt. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = PromptPieceCreateSerializer(data=request.data)
         if serializer.is_valid():
@@ -502,7 +542,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['patch'])
     def update_piece(self, request, pk=None):
-        """Mise a jour partielle d'une piece (auto-save) / Partial update."""
+        """Mise a jour partielle d'une piece. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = PromptPieceUpdateSerializer(data=request.data)
         if serializer.is_valid():
@@ -516,7 +559,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['delete'])
     def delete_piece(self, request, pk=None):
-        """Supprime une piece / Delete a piece."""
+        """Supprime une piece. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         get_object_or_404(AnalyseurSyntaxique, pk=pk)
         piece_id = request.data.get('piece_id') or request.query_params.get('piece_id')
         piece = get_object_or_404(PromptPiece, pk=piece_id, analyseur_id=pk)
@@ -527,7 +573,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def add_example(self, request, pk=None):
-        """Ajoute un exemple / Add an example."""
+        """Ajoute un exemple. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = AnalyseurExampleCreateSerializer(data=request.data)
         if serializer.is_valid():
@@ -541,7 +590,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['patch'])
     def update_example(self, request, pk=None):
-        """Mise a jour partielle d'un exemple (auto-save) / Partial update."""
+        """Mise a jour partielle d'un exemple. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = AnalyseurExampleUpdateSerializer(data=request.data)
         if serializer.is_valid():
@@ -555,7 +607,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['delete'])
     def delete_example(self, request, pk=None):
-        """Supprime un exemple / Delete an example."""
+        """Supprime un exemple. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         get_object_or_404(AnalyseurSyntaxique, pk=pk)
         example_id = request.data.get('example_id') or request.query_params.get('example_id')
         example = get_object_or_404(AnalyseurExample, pk=example_id, analyseur_id=pk)
@@ -567,13 +622,16 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def add_extraction(self, request, pk=None):
         """
-        Ajoute une extraction a un exemple.
+        Ajoute une extraction a un exemple. Staff uniquement.
         Si l'exemple a deja des extractions, copie les cles d'attributs
         (avec ordre) de la premiere, valeurs vides.
-        / Add an extraction to an example.
+        / Add an extraction to an example. Staff only.
         If the example already has extractions, copy attribute keys
         (with order) from the first one, with empty values.
         """
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = ExampleExtractionCreateSerializer(data=request.data)
         if serializer.is_valid():
@@ -609,7 +667,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['patch'])
     def update_extraction(self, request, pk=None):
-        """Mise a jour partielle d'une extraction (auto-save) / Partial update."""
+        """Mise a jour partielle d'une extraction. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = ExampleExtractionUpdateSerializer(data=request.data)
         if serializer.is_valid():
@@ -627,8 +688,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['patch'])
     def save_all_extractions(self, request, pk=None):
         """
-        Sauvegarde de TOUTES les extractions d'un exemple d'un coup.
+        Sauvegarde de TOUTES les extractions d'un exemple d'un coup. Staff uniquement.
         Evite les ecrasements quand on modifie plusieurs extractions.
+        / Save ALL extractions for an example at once. Staff only.
         Payload JSON attendu :
         {
             "example_id": 1,
@@ -645,6 +707,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         / Save ALL extractions of an example at once.
         Prevents overwrites when multiple extractions are modified.
         """
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         from .serializers import sanitize_text
 
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
@@ -731,13 +796,14 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['delete'])
     def delete_extraction(self, request, pk=None):
         """
-        Supprime une extraction attendue.
+        Supprime une extraction attendue. Staff uniquement.
         Declenche un refresh des cartes de test si des TestRunExtraction
         pointaient vers cette extraction (promoted_to_extraction).
-        / Delete an expected extraction.
-        Triggers a test card refresh if TestRunExtractions
-        pointed to this extraction (promoted_to_extraction).
+        / Delete an expected extraction. Staff only.
         """
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         extraction_id = request.data.get('extraction_id') or request.query_params.get('extraction_id')
         extraction = get_object_or_404(
@@ -764,7 +830,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'])
     def add_attribute(self, request, pk=None):
-        """Ajoute un attribut a une extraction / Add an attribute."""
+        """Ajoute un attribut a une extraction. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         extraction_id = request.data.get('extraction_id')
         extraction = get_object_or_404(
@@ -803,7 +872,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['patch'])
     def update_attribute(self, request, pk=None):
-        """Mise a jour d'un attribut (auto-save) / Update attribute."""
+        """Mise a jour d'un attribut. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = ExtractionAttributeUpdateSerializer(data=request.data)
         if serializer.is_valid():
@@ -821,15 +893,13 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['patch'])
     def reorder_attribute(self, request, pk=None):
         """
-        Permute l'ordre d'un attribut avec son voisin (up/down).
-        Le swap est applique sur TOUTES les extractions de l'exemple
-        (cle:valeur restent groupees).
-        Retourne le bloc complet de toutes les extractions re-rendues.
-        / Swap an attribute's order with its neighbor (up/down).
-        The swap is applied on ALL extractions of the example
-        (key:value stay grouped).
-        Returns the full re-rendered extractions block.
+        Permute l'ordre d'un attribut avec son voisin. Staff uniquement.
+        Le swap est applique sur TOUTES les extractions de l'exemple.
+        / Swap an attribute's order with its neighbor. Staff only.
         """
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         attribute_id = request.data.get('attribute_id')
         direction = request.data.get('direction')  # "up" ou "down"
@@ -890,7 +960,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['delete'])
     def delete_attribute(self, request, pk=None):
-        """Supprime un attribut / Delete an attribute."""
+        """Supprime un attribut. Staff uniquement. / Staff only."""
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         attribute_id = request.data.get('attribute_id') or request.query_params.get('attribute_id')
         attribute = get_object_or_404(
@@ -906,13 +979,12 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def run_test(self, request, pk=None):
         """
-        Lance un entrainement LangExtract asynchrone sur un exemple via Celery.
-        - Si un entrainement est deja en cours pour cet exemple → renvoie le polling
-        - Sinon → cree un AnalyseurTestRun, lance la tache Celery, renvoie le polling
-        / Launches an async LangExtract training on an example via Celery.
-        - If training already running for this example → returns polling
-        - Otherwise → creates AnalyseurTestRun, launches Celery task, returns polling
+        Lance un entrainement LangExtract asynchrone. Staff uniquement.
+        / Launches an async LangExtract training. Staff only.
         """
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         from core.models import AIModel
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = RunAnalyseurTestSerializer(data=request.data)
@@ -1112,12 +1184,12 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def validate_test_extraction(self, request, pk=None):
         """
-        Valide une extraction obtenue : la copie comme ExampleExtraction attendue.
-        Utilise les CLES DE REFERENCE (premiere extraction humaine) et mappe
-        les VALEURS du LLM par position.
-        / Validate an obtained extraction: copy it as an expected ExampleExtraction.
-        Uses REFERENCE KEYS (first human extraction) and maps LLM VALUES by position.
+        Valide une extraction obtenue. Staff uniquement.
+        / Validate an obtained extraction. Staff only.
         """
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         from .models import TestRunExtractionAnnotation
 
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
@@ -1204,9 +1276,12 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def reject_test_extraction(self, request, pk=None):
         """
-        Marque une extraction obtenue comme inappropriee.
-        / Mark an obtained extraction as inappropriate.
+        Marque une extraction obtenue comme inappropriee. Staff uniquement.
+        / Mark an obtained extraction as inappropriate. Staff only.
         """
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
         from .models import TestRunExtractionAnnotation
 
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
@@ -1233,6 +1308,146 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         return render(request, 'hypostasis_extractor/includes/test_extraction_card.html', {
             'resolved': _resolve_single_test_extraction(test_extraction),
             'analyseur': analyseur,
+        })
+
+    # ---- Actions Historique / Versioning ----
+
+    @action(detail=True, methods=['get'], url_path='versions')
+    def versions(self, request, pk=None):
+        """
+        Liste toutes les versions historiques d'un analyseur. Staff uniquement.
+        / List all historical versions of an analyzer. Staff only.
+
+        LOCALISATION : hypostasis_extractor/views.py
+        """
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        toutes_les_versions_de_analyseur = analyseur.versions.select_related('modified_by').all()
+        return render(request, 'hypostasis_extractor/includes/versions_list.html', {
+            'analyseur': analyseur,
+            'versions': toutes_les_versions_de_analyseur,
+        })
+
+    @action(detail=True, methods=['get'], url_path='diff-versions')
+    def diff_versions(self, request, pk=None):
+        """
+        Comparaison side-by-side entre deux versions d'un analyseur. Staff uniquement.
+        Parametres GET : ?v1=numero_version_1&v2=numero_version_2
+        / Side-by-side comparison between two analyzer versions. Staff only.
+
+        LOCALISATION : hypostasis_extractor/views.py
+        """
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
+        from .models import AnalyseurVersion
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        numero_version_gauche = request.query_params.get('v1')
+        numero_version_droite = request.query_params.get('v2')
+        if not numero_version_gauche or not numero_version_droite:
+            return HttpResponse("Parametres v1 et v2 requis.", status=400)
+        version_gauche = get_object_or_404(
+            AnalyseurVersion, analyseur=analyseur, version_number=numero_version_gauche,
+        )
+        version_droite = get_object_or_404(
+            AnalyseurVersion, analyseur=analyseur, version_number=numero_version_droite,
+        )
+        return render(request, 'hypostasis_extractor/includes/versions_diff.html', {
+            'analyseur': analyseur,
+            'version_1': version_gauche,
+            'version_2': version_droite,
+        })
+
+    @action(detail=True, methods=['post'])
+    def rollback(self, request, pk=None):
+        """
+        Restaure un analyseur depuis un snapshot de version. Staff uniquement.
+        Cree une version de sauvegarde avant de restaurer, puis reconstruit
+        les pieces, exemples, extractions et attributs depuis le snapshot.
+        / Restore an analyzer from a version snapshot. Staff only.
+
+        LOCALISATION : hypostasis_extractor/views.py
+        """
+        reponse_refus = _exiger_staff(request)
+        if reponse_refus:
+            return reponse_refus
+        from .models import AnalyseurVersion, PromptPiece, ExtractionAttribute
+        from .services import creer_version_analyseur
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        numero_version_cible = request.data.get('version_number')
+        if not numero_version_cible:
+            return HttpResponse("version_number requis.", status=400)
+        version_source_pour_rollback = get_object_or_404(
+            AnalyseurVersion, analyseur=analyseur, version_number=numero_version_cible,
+        )
+
+        # Sauvegarder l'etat actuel dans une nouvelle version avant de restaurer
+        # / Save current state in a new version before restoring
+        creer_version_analyseur(
+            analyseur, request.user,
+            f"Sauvegarde avant rollback vers v{numero_version_cible}",
+        )
+
+        snapshot_a_restaurer = version_source_pour_rollback.snapshot
+
+        # Supprimer toutes les pieces existantes et les reconstruire depuis le snapshot
+        # / Delete all existing pieces and rebuild them from the snapshot
+        analyseur.pieces.all().delete()
+        for donnees_piece_snapshot in snapshot_a_restaurer.get('pieces', []):
+            PromptPiece.objects.create(
+                analyseur=analyseur,
+                name=donnees_piece_snapshot.get('name', ''),
+                role=donnees_piece_snapshot.get('role', 'instruction'),
+                content=donnees_piece_snapshot.get('content', ''),
+                order=donnees_piece_snapshot.get('order', 0),
+            )
+
+        # Supprimer tous les exemples existants et les reconstruire depuis le snapshot
+        # / Delete all existing examples and rebuild them from the snapshot
+        analyseur.examples.all().delete()
+        for donnees_exemple_snapshot in snapshot_a_restaurer.get('examples', []):
+            exemple_restaure = AnalyseurExample.objects.create(
+                analyseur=analyseur,
+                name=donnees_exemple_snapshot.get('name', ''),
+                example_text=donnees_exemple_snapshot.get('example_text', ''),
+                order=donnees_exemple_snapshot.get('order', 0),
+            )
+            for donnees_extraction_snapshot in donnees_exemple_snapshot.get('extractions', []):
+                extraction_restauree = ExampleExtraction.objects.create(
+                    example=exemple_restaure,
+                    extraction_class=donnees_extraction_snapshot.get('extraction_class', ''),
+                    extraction_text=donnees_extraction_snapshot.get('extraction_text', ''),
+                    order=donnees_extraction_snapshot.get('order', 0),
+                )
+                for donnees_attribut_snapshot in donnees_extraction_snapshot.get('attributes', []):
+                    ExtractionAttribute.objects.create(
+                        extraction=extraction_restauree,
+                        key=donnees_attribut_snapshot.get('key', ''),
+                        value=donnees_attribut_snapshot.get('value', ''),
+                        order=donnees_attribut_snapshot.get('order', 0),
+                    )
+
+        # Enregistrer la version post-rollback pour tracer l'operation
+        # / Record post-rollback version to track the operation
+        creer_version_analyseur(
+            analyseur, request.user, f"Rollback vers v{numero_version_cible}",
+        )
+
+        logger.info(
+            "rollback: analyseur=%d restaure depuis v%s",
+            analyseur.pk, numero_version_cible,
+        )
+
+        # Retourner l'editeur rechargé / Return reloaded editor
+        if request.headers.get('HX-Request'):
+            return HttpResponse(
+                status=200,
+                headers={'HX-Redirect': f'/api/analyseurs/{analyseur.pk}/'},
+            )
+        return render(request, 'front/base.html', {
+            'analyseur_preloaded': analyseur,
         })
 
 

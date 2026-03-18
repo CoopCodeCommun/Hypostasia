@@ -999,9 +999,40 @@ def analyser_page_task(self, job_id):
             "document_length": longueur_texte_total,
             "max_char_buffer": TAILLE_MAX_CHUNK,
         }
-        job_extraction.save(update_fields=[
+
+        # Capture des tokens reels et du cout (best-effort) — PHASE-26b
+        # Le modele LLM peut exposer les tokens via usage_metadata ou total_tokens.
+        # / Capture real tokens and cost (best-effort) — PHASE-26b
+        champs_a_sauvegarder = [
             "status", "entities_count", "processing_time_seconds", "raw_result",
-        ])
+        ]
+        try:
+            tokens_input = getattr(modele_llm, 'total_input_tokens', None)
+            tokens_output = getattr(modele_llm, 'total_output_tokens', None)
+            if tokens_input is not None:
+                job_extraction.tokens_input_reels = int(tokens_input)
+                champs_a_sauvegarder.append("tokens_input_reels")
+            if tokens_output is not None:
+                job_extraction.tokens_output_reels = int(tokens_output)
+                champs_a_sauvegarder.append("tokens_output_reels")
+            # Estimation du cout reel via le modele IA si les tokens sont disponibles
+            # / Estimate real cost via AI model if tokens available
+            if tokens_input is not None and tokens_output is not None and job_extraction.ai_model:
+                modele_ia = job_extraction.ai_model
+                if hasattr(modele_ia, 'estimer_cout_euros'):
+                    cout_estime = modele_ia.estimer_cout_euros(
+                        int(tokens_input), int(tokens_output),
+                    )
+                    if cout_estime is not None:
+                        job_extraction.cout_reel_euros = cout_estime
+                        champs_a_sauvegarder.append("cout_reel_euros")
+        except Exception as erreur_tokens:
+            logger.warning(
+                "analyser_page_task: impossible de capturer les tokens reels — %s",
+                erreur_tokens,
+            )
+
+        job_extraction.save(update_fields=champs_a_sauvegarder)
 
         logger.info(
             "analyser_page_task: termine job=%s — %d entites en %.1fs",

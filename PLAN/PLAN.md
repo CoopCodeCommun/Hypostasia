@@ -1843,6 +1843,39 @@ des fils, ce qui prend 30 minutes pour un document bien debattu.
 
 **Fichiers concernes** : `front/views.py` (ExtractionViewSet — action filtre par contributeur), `extraction_results.html` (drawer), `marginalia.js` (filtrage des pastilles), CSS (opacite reduite pour les commentaires hors filtre)
 
+### Etape 2.5 — Refonte UX edition extraction : modale + permissions contributeurs (PHASE-26f)
+
+**Fait le 2026-03-18.**
+
+**Probleme** : l'edition d'extraction utilisait un swap inline (la carte se remplacait par un formulaire),
+empechant de voir le texte source. De plus, seul le proprietaire pouvait editer — pas les contributeurs.
+
+**Ce qui a ete fait** :
+
+- [x] Migration : FK `cree_par` sur `ExtractedEntity` (nullable, legacy/IA sans auteur)
+- [x] `creer_manuelle()` passe `cree_par=request.user` a la creation
+- [x] Helpers `_peut_editer_extraction()` et `_peut_supprimer_extraction()` :
+  owner peut tout editer (nouveau/discutable sans commentaires), contributeur ne peut editer que ses propres extractions manuelles
+- [x] Modale d'edition : backdrop semi-transparent (texte source visible), zone source jaune Lora italique, formulaire reutilise, `aria-modal`, focus trap, autofocus
+- [x] Fermeture modale : Escape, clic backdrop, bouton ×, HX-Trigger apres soumission
+- [x] Annuler dans la modale : JS neutralise le `hx-post` du formulaire inclus et ferme la modale
+- [x] Apres modification : reponse minimale + `htmx.ajax GET carte_inline` pour rafraichir la carte inline sur place (pas de re-rendu du readability-content)
+- [x] Apres suppression : meme pattern que `masquer()` — triggers `drawerContenuChange` + `lectureReload`
+- [x] Bottom sheet mobile ferme avant ouverture de la modale
+- [x] CSS responsive : bottom sheet plein ecran sur mobile (< 640px)
+- [x] Templates `carte_inline.html` : `id="carte-inline-{{ entity.pk }}"` stable + conditions `entity.peut_editer`
+- [x] Annotation `peut_editer` sur chaque entite dans `_render_panneau_complet_avec_oob()` et `_render_readability_avec_panneau_oob()`
+- [x] Cache bust CSS v28 + JS v24
+
+**Probleme decouvert** : deux repertoires de fichiers statiques (`front/static/` = source dev,
+`staticfiles/` = copie collectstatic prod). Toujours modifier `front/static/`, jamais `staticfiles/`.
+Documente dans CLAUDE.md section 6.
+
+**Fichiers modifies** : `hypostasis_extractor/models.py`, `front/views.py`, `front/static/front/js/hypostasia.js`,
+`front/static/front/css/hypostasia.css`, `front/templates/front/includes/modale_edition_extraction.html` (nouveau),
+`front/templates/front/includes/carte_inline.html`, `front/templates/front/base.html`, `front/tests/test_phases.py`,
+`Dockerfile.dev` (nouveau), `CLAUDE.md`
+
 ### Tests E2E Phase 2
 
 - [ ] Login/logout/register
@@ -1851,6 +1884,10 @@ des fils, ce qui prend 30 minutes pour un document bien debattu.
 - [ ] Filtre contributeur : selectionner un user, verifier que seules ses extractions commentees sont visibles
 - [ ] Filtre contributeur : verifier que les commentaires des autres sont en opacite reduite (pas masques)
 - [ ] Filtre contributeur + heat map : verifier que la temperature reflette uniquement les commentaires du contributeur selectionne
+- [ ] Modale edition extraction : ouvrir, modifier, enregistrer, verifier mise a jour carte inline
+- [ ] Modale edition extraction : fermeture Escape, backdrop, bouton ×
+- [ ] Permissions contributeur : peut editer ses propres extractions, pas celles des autres
+- [ ] Verrou commentaires : bouton Modifier absent si commentaires existent
 
 ---
 
@@ -1911,39 +1948,62 @@ des fils, ce qui prend 30 minutes pour un document bien debattu.
 
 ---
 
-## 5. Phase 4 — Prompts et couts
+## 5. Phase 4 — Bibliotheque d'analyseurs et couts
 
-> Objectif : rendre la gestion des prompts user-friendly et fiabiliser le calcul des couts.
+> Objectif : securiser l'acces aux prompts (admin-only), offrir aux utilisateurs une
+> bibliotheque d'analyseurs prefabriques, et fiabiliser le calcul des couts.
+>
+> **Decision d'architecture** : les utilisateurs ne peuvent PAS editer les prompts.
+> Seuls les admins creent et maintiennent les analyseurs. Les utilisateurs choisissent
+> dans une bibliotheque. Raisons : securite (prompt injection), couts (surconsommation),
+> qualite (prompts mal ecrits), UX (editeur trop complexe pour un utilisateur final).
 
-### Etape 4.1 — Interface de gestion des analyseurs dans le front
+### Etape 4.0 — Permissions et verrouillage
+
+- [ ] Verrouiller toutes les mutations de `AnalyseurSyntaxiqueViewSet` derriere `is_staff=True`
+- [ ] `list()` et `retrieve()` accessibles aux users authentifies (lecture seule)
+- [ ] Acces direct `/api/analyseurs/` par non-staff → message "Acces reserve aux administrateurs"
+
+### Etape 4.1 — Bibliotheque d'analyseurs (vue utilisateur)
 
 **Actions** :
-- [ ] Sortir la gestion des analyseurs de l'admin Django
-- [ ] Creer des partials HTMX pour : liste analyseurs, edition prompt pieces, gestion exemples
-- [ ] Preview live du prompt assemble (avant test ou analyse)
-- [ ] Templates de prompts pre-configures (bouton "charger un template")
-- [ ] L'interface utilise la charte visuelle Yves : preview des cartes d'extraction avec polices B612/B612 Mono, couleurs par famille d'hypostase, distinction machine/citation
+- [ ] Vue bibliotheque : grille de cartes des analyseurs actifs (nom, description, type, badge exemples)
+- [ ] Bouton "Voir le prompt" → modale lecture seule du prompt assemble (pieces colorees par role)
+- [ ] Selection rapide depuis le drawer d'analyse (26g)
+- [ ] Filtre par type (analyser, reformuler, restituer)
+- [ ] Charte visuelle : polices B612/B612 Mono, couleurs par type d'analyseur
 
-**Fichiers concernes** : `front/views.py` (nouveau AnalyseurFrontViewSet ou actions sur ExtractionViewSet), templates `front/includes/`
+**Fichiers concernes** : `front/views.py` (BibliothequeAnalyseursViewSet), templates `front/includes/`
+
+### Etape 4.1b — Interface d'administration des analyseurs (vue admin)
+
+**Actions** :
+- [ ] Deplacer l'editeur existant de l'admin Django vers une page front dediee (`/analyseurs/admin/`)
+- [ ] Garder l'editeur HTMX existant (pieces, exemples, attributs, test runs)
+- [ ] Lien visible uniquement pour les `is_staff` dans la navigation
+
+**Fichiers concernes** : `hypostasis_extractor/views.py`, templates existants
 
 ### Etape 4.2 — Calcul des couts fiabilise
 
-**Probleme actuel** : l'estimation utilise `cl100k_base` (tokenizer GPT-4) pour tous les modeles, et 20% d'output par defaut, ce qui sous-estime pour Gemini et sur-estime pour les petits modeles.
+**Probleme actuel** : l'estimation utilise `cl100k_base` (tokenizer GPT-4) pour tous les modeles, et 20% d'output par defaut, ce qui sous-estime pour Gemini et sur-estime pour les petits modeles. Partiellement resolu via PHASE-26g (QAPromptGenerator + thinking tokens).
 
 **Actions** :
-- [ ] Utiliser le bon tokenizer par provider (tiktoken pour OpenAI, estimation caracteres pour Gemini, tokenizer Anthropic pour Claude)
 - [ ] Stocker les tokens reels consommes dans `ExtractionJob` (usage retourne par l'API)
 - [ ] Afficher le cout reel vs estime apres chaque analyse
-- [ ] Dashboard cumulatif des couts par modele/analyseur
+- [ ] Dashboard cumulatif des couts par modele/analyseur (vue admin)
+- [ ] Utiliser le bon tokenizer par provider (tiktoken OpenAI, estimation caracteres Gemini, tokenizer Anthropic Claude)
 
-**Fichiers concernes** : `front/views.py` (previsualiser_analyse), `core/models.py` (AIModel.estimer_cout_euros), `front/tasks.py`, `hypostasis_extractor/services.py`
+**Fichiers concernes** : `front/views.py`, `core/models.py` (AIModel), `front/tasks.py`, `hypostasis_extractor/services.py`
 
 ### Etape 4.3 — Historique des prompts
 
 **Actions** :
+- [ ] Table `AnalyseurVersion` : snapshot automatique a chaque modification d'un analyseur
 - [ ] Stocker un snapshot complet du prompt dans chaque ExtractionJob (deja fait partiellement via `prompt_description`)
-- [ ] Permettre de comparer deux versions de prompt
-- [ ] Rollback a une version precedente d'un analyseur
+- [ ] Diff side-by-side entre deux versions (vue admin)
+- [ ] Rollback a une version precedente d'un analyseur (action admin)
+- [ ] L'utilisateur voit la version de l'analyseur utilisee pour chaque extraction
 
 **Fichiers concernes** : `hypostasis_extractor/models.py`, `hypostasis_extractor/services.py`
 
@@ -1965,8 +2025,9 @@ des fils, ce qui prend 30 minutes pour un document bien debattu.
 
 ### Tests E2E Phase 4
 
-- [ ] Gestion des analyseurs dans le front (creer, editer prompt, ajouter exemple)
-- [ ] Preview du prompt assemble
+- [ ] Bibliotheque d'analyseurs : user voit les cartes, consulte le prompt, ne peut pas editer
+- [ ] Admin : editeur complet des analyseurs depuis le front (pas le Django admin)
+- [ ] Permissions : user non-staff ne peut pas muter un analyseur
 - [ ] Verification cout reel vs estime apres analyse mock
 - [ ] Recharge Stripe (mode test) + verification solde mis a jour
 - [ ] Gate analyse avec solde insuffisant
