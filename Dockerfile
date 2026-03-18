@@ -9,7 +9,7 @@ RUN apt-get update && apt-get upgrade -y \
 # Creer un user non-root avec uid 1000 (match le defaut docker-compose)
 # / Create a non-root user with uid 1000 (matches docker-compose default)
 RUN useradd -ms /bin/bash -u 1000 hypostasia
-COPY .bashrc.container /home/hypostasia/.bashrc
+COPY .bashrc /home/hypostasia/.bashrc
 USER hypostasia
 
 WORKDIR /app

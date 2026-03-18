@@ -506,6 +506,44 @@ def _get_ia_active():
     return Configuration.get_solo().ai_active
 
 
+# Delai maximum d'inactivite d'un job avant de le considerer comme bloque.
+# Si updated_at n'a pas bouge depuis ce delai, le job est marque en erreur.
+# / Maximum inactivity delay for a job before considering it stalled.
+# / If updated_at hasn't changed for this delay, the job is marked as error.
+DELAI_MAX_INACTIVITE_JOB = timedelta(minutes=5)
+
+
+def _verifier_et_nettoyer_job_bloque(job_en_cours):
+    """
+    Verifie si un job en cours est bloque (pas de progression depuis DELAI_MAX_INACTIVITE_JOB).
+    Si bloque → marque le job en erreur et retourne True.
+    Si actif → retourne False.
+    / Checks if an in-progress job is stalled (no progress for DELAI_MAX_INACTIVITE_JOB).
+    / If stalled → marks the job as error and returns True.
+    / If active → returns False.
+
+    LOCALISATION : front/views.py
+    """
+    if not job_en_cours:
+        return True
+
+    inactivite_du_job = timezone.now() - job_en_cours.updated_at
+    if inactivite_du_job > DELAI_MAX_INACTIVITE_JOB:
+        logger.warning(
+            "_verifier_et_nettoyer_job_bloque: job pk=%s inactif depuis %s — timeout",
+            job_en_cours.pk, inactivite_du_job,
+        )
+        job_en_cours.status = "error"
+        job_en_cours.error_message = (
+            f"Timeout : l'analyse est bloquée depuis {DELAI_MAX_INACTIVITE_JOB.total_seconds() // 60:.0f} "
+            "minutes sans progression. Vérifiez que le worker Celery tourne."
+        )
+        job_en_cours.save(update_fields=["status", "error_message"])
+        return True
+
+    return False
+
+
 class ConfigurationIAViewSet(viewsets.ViewSet):
     """
     ViewSet pour la configuration IA (toggle on/off, selection du modele).
@@ -1083,20 +1121,26 @@ class LectureViewSet(viewsets.ViewSet):
         if not request.headers.get("HX-Request"):
             return redirect(f"/lire/{pk}/")
 
-        # Verifier si un job est deja en cours pour cette page
-        # / Check if a job is already running for this page
+        # Verifier si un job est deja en cours ET actif pour cette page.
+        # Si le job est bloque → le marquer en erreur et afficher la confirmation.
+        # / Check if a job is already running AND active for this page.
+        # / If stalled → mark as error and show the confirmation.
         job_en_cours = ExtractionJob.objects.filter(
             page=page,
             status__in=["pending", "processing"],
         ).order_by("-created_at").first()
 
         if job_en_cours:
-            # Deja en cours → renvoyer le polling au lieu de la confirmation
-            # / Already running → return polling instead of confirmation
-            return render(request, "front/includes/analyse_en_cours.html", {
-                "page": page,
-                "job": job_en_cours,
-            })
+            job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
+            if not job_est_bloque:
+                # Deja en cours et actif → renvoyer le spinner dans le drawer
+                # / Already running and active → return spinner in the drawer
+                return render(request, "front/includes/panneau_analyse_en_cours.html", {
+                    "page": page,
+                    "job": job_en_cours,
+                })
+            # Job bloque → continuer vers la confirmation pour relancer
+            # / Stalled job → continue to confirmation to relaunch
 
         # Recupere l'analyseur depuis le query param, ou le premier actif par defaut
         # / Get analyzer from query param, or the first active one by default
@@ -1134,76 +1178,120 @@ class LectureViewSet(viewsets.ViewSet):
             })
             return reponse
 
-        # Construit le prompt complet depuis les pieces de l'analyseur
-        # / Build full prompt from analyzer pieces
+        # Construit le prompt complet en utilisant le meme pipeline que tasks.py.
+        # On instancie le QAPromptGenerator de LangExtract pour obtenir l'overhead exact
+        # (description + exemples formattés en JSON) envoye a chaque chunk.
+        # / Builds the full prompt using the same pipeline as tasks.py.
+        # / We instantiate LangExtract's QAPromptGenerator to get the exact overhead
+        # / (description + JSON-formatted examples) sent with each chunk.
+        import tiktoken
+        import math
+        import langextract.prompting as prompting_lx
+        from langextract.core import data as data_lx, format_handler as fh_lx
+        from hypostasis_extractor.services import _construire_exemples_langextract
+
+        # Pieces de prompt concatenees (description envoyee au LLM)
+        # / Prompt pieces concatenated (description sent to the LLM)
         pieces_ordonnees = PromptPiece.objects.filter(
             analyseur=analyseur,
         ).order_by("order")
-        # Concatene le contenu de chaque morceau de prompt en un seul texte
-        # / Concatenate the content of each prompt piece into a single text
         segments_contenu_prompt = []
         for piece in pieces_ordonnees:
             segments_contenu_prompt.append(piece.content)
         texte_prompt_pieces = "\n".join(segments_contenu_prompt)
 
-        # Serialise les exemples few-shot en texte lisible
-        # (few-shot = montrer au LLM quelques exemples pour guider sa reponse)
-        # / Serialize few-shot examples as readable text
-        # (few-shot = showing the LLM a few examples to guide its response)
+        # Exemples few-shot au format LangExtract (identique a tasks.py)
+        # / Few-shot examples in LangExtract format (same as tasks.py)
         tous_les_exemples = AnalyseurExample.objects.filter(
             analyseur=analyseur,
         ).order_by("order").prefetch_related("extractions__attributes")
+        liste_exemples_langextract = _construire_exemples_langextract(analyseur)
 
-        # Construire le texte des exemples (nom + texte source + extractions attendues)
-        # / Build example text (name + source text + expected extractions)
-        texte_exemples = ""
-        for exemple in tous_les_exemples:
-            texte_exemples += f"\n--- Exemple : {exemple.name} ---\n"
-            # Tronquer le texte source si plus de 500 caracteres
-            # / Truncate source text if longer than 500 characters
-            if len(exemple.example_text) > 500:
-                texte_source_exemple = f"{exemple.example_text[:500]}...\n"
-            else:
-                texte_source_exemple = f"{exemple.example_text}\n"
-            texte_exemples += f"Texte source :\n{texte_source_exemple}"
-            for extraction in exemple.extractions.all():
-                texte_exemples += f"\n  [{extraction.extraction_class}] {extraction.extraction_text}\n"
-                for attribut in extraction.attributes.all():
-                    texte_exemples += f"    {attribut.key}: {attribut.value}\n"
+        # Construire le PromptTemplate + QAPromptGenerator identique a tasks.py
+        # / Build PromptTemplate + QAPromptGenerator identical to tasks.py
+        modele_prompt = prompting_lx.PromptTemplateStructured(
+            description=texte_prompt_pieces,
+        )
+        modele_prompt.examples.extend(liste_exemples_langextract)
 
-        # Texte source de la page (sera envoye au LLM)
-        # / Source text from the page (will be sent to the LLM)
+        handler_format, _ = fh_lx.FormatHandler.from_resolver_params(
+            resolver_params={},
+            base_format_type=data_lx.FormatType.JSON,
+            base_use_fences=False,
+            base_attribute_suffix=data_lx.ATTRIBUTE_SUFFIX,
+            base_use_wrapper=True,
+            base_wrapper_key=data_lx.EXTRACTIONS_KEY,
+        )
+        generateur_prompt = prompting_lx.QAPromptGenerator(
+            template=modele_prompt,
+            format_handler=handler_format,
+        )
+
+        # Overhead = prompt complet SANS le texte a analyser (question vide).
+        # C'est exactement ce que le LLM recoit en plus du texte de chaque chunk.
+        # / Overhead = full prompt WITHOUT the text to analyze (empty question).
+        # / This is exactly what the LLM receives on top of each chunk's text.
+        prompt_overhead_reel = generateur_prompt.render(question="")
+
+        # Texte source de la page (sera envoye au LLM, reparti en chunks)
+        # / Source text from the page (will be sent to the LLM, split in chunks)
         texte_source_page = page.text_readability or ""
 
-        # Assemblage du prompt complet tel qu'il sera envoye au LLM
-        # / Assembly of the full prompt as it will be sent to the LLM
-        prompt_complet = (
-            f"{texte_prompt_pieces}\n\n"
-            f"=== EXEMPLES FEW-SHOT ===\n{texte_exemples}\n\n"
-            f"=== TEXTE A ANALYSER ===\n{texte_source_page}"
-        )
+        # Prompt complet pour l'affichage (overhead + texte source)
+        # / Full prompt for display (overhead + source text)
+        prompt_complet = generateur_prompt.render(question=texte_source_page)
 
-        # Comptage des tokens via tiktoken (tokenizer cl100k_base, universel)
-        # / Token counting via tiktoken (cl100k_base tokenizer, universal)
-        import tiktoken
+        # --- Estimation precise des tokens ---
+        # Le LLM recoit pour chaque chunk : prompt_overhead + texte_du_chunk.
+        # Donc : tokens_input_total = N_chunks × tokens(overhead) + tokens(texte_total).
+        # On utilise tiktoken (cl100k_base) comme approximation — le tokenizer reel
+        # varie selon le modele (Gemini, GPT, etc.) mais l'ecart est < 10%.
+        # / --- Precise token estimation ---
+        # / The LLM receives for each chunk: prompt_overhead + chunk_text.
+        # / So: total_input_tokens = N_chunks × tokens(overhead) + tokens(total_text).
+        # / We use tiktoken (cl100k_base) as approximation — the real tokenizer
+        # / varies by model (Gemini, GPT, etc.) but the gap is < 10%.
         encodeur_tokens = tiktoken.get_encoding("cl100k_base")
-        nombre_tokens_input = len(encodeur_tokens.encode(prompt_complet))
 
-        # Estimation du nombre de tokens output (50% de l'input)
-        # Mesure reelle sur 18 extractions : 52% — on arrondit a 50%
-        # / Estimate output token count (50% of input)
-        # Real measurement on 18 extractions: 52% — rounded to 50%
-        nombre_tokens_output_estime = int(nombre_tokens_input * 0.50)
+        tokens_overhead_par_chunk = len(encodeur_tokens.encode(prompt_overhead_reel))
+        tokens_texte_source = len(encodeur_tokens.encode(texte_source_page))
 
-        # Estimation du cout en euros via la methode du modele
-        # Marge x2 arrondi au centime superieur pour absorber les variations
-        # / Cost estimate in euros via the model method
-        # x2 margin rounded up to next cent to absorb variations
-        import math
+        # Nombre de chunks estimes (langextract coupe aux frontieres de phrases,
+        # mais on approxime avec un decoupage brut par taille de buffer)
+        # / Estimated chunk count (langextract cuts at sentence boundaries,
+        # / but we approximate with raw buffer size division)
+        taille_max_chunk = 1500
+        nombre_chunks_estime = max(1, math.ceil(len(texte_source_page) / taille_max_chunk))
+
+        # Total input = overhead repete N fois + texte source (reparti sur les chunks)
+        # / Total input = overhead repeated N times + source text (spread across chunks)
+        nombre_tokens_input = (nombre_chunks_estime * tokens_overhead_par_chunk) + tokens_texte_source
+
+        # Estimation du nombre de tokens output visible (50% de l'input).
+        # Mesure reelle sur 18 extractions : 52% — on arrondit a 50%.
+        # / Estimate visible output token count (50% of input).
+        # / Real measurement on 18 extractions: 52% — rounded to 50%.
+        nombre_tokens_output_visible = int(nombre_tokens_input * 0.50)
+
+        # Certains modeles (Gemini 2.5 Flash/Pro) ont un mode "thinking" qui genere
+        # des tokens de reflexion internes. Ces tokens sont factures au tarif output
+        # mais ne sont pas visibles dans la reponse.
+        # / Some models (Gemini 2.5 Flash/Pro) have a "thinking" mode that generates
+        # / internal reasoning tokens. These are billed at output rate but not visible.
+        multiplicateur_thinking = modele_ia_actif.multiplicateur_thinking()
+        nombre_tokens_thinking = nombre_tokens_output_visible * (multiplicateur_thinking - 1)
+        nombre_tokens_output_total = nombre_tokens_output_visible + nombre_tokens_thinking
+
+        # Estimation du cout en euros — on passe le total output (visible + thinking)
+        # Marge x1.5 arrondi au centime superieur pour absorber les variations
+        # (marge reduite car le thinking est deja une surestimation conservatrice)
+        # / Cost estimate in euros — pass total output (visible + thinking)
+        # / x1.5 margin rounded up to next cent to absorb variations
+        # / (reduced margin since thinking is already a conservative overestimate)
         cout_brut_euros = modele_ia_actif.estimer_cout_euros(
-            nombre_tokens_input, nombre_tokens_output_estime
+            nombre_tokens_input, nombre_tokens_output_total
         )
-        cout_estime_euros = max(0.01, math.ceil(cout_brut_euros * 2 * 100) / 100)
+        cout_estime_euros = max(0.01, math.ceil(cout_brut_euros * 1.5 * 100) / 100)
 
         return render(request, "front/includes/confirmation_analyse.html", {
             "page": page,
@@ -1211,11 +1299,16 @@ class LectureViewSet(viewsets.ViewSet):
             "analyseurs_actifs": tous_les_analyseurs_actifs,
             "modele_ia": modele_ia_actif,
             "nombre_tokens_input": nombre_tokens_input,
-            "nombre_tokens_output_estime": nombre_tokens_output_estime,
+            "nombre_tokens_output_visible": nombre_tokens_output_visible,
+            "nombre_tokens_thinking": nombre_tokens_thinking,
+            "nombre_tokens_output_total": nombre_tokens_output_total,
+            "multiplicateur_thinking": multiplicateur_thinking,
             "cout_estime_euros": cout_estime_euros,
             "prompt_complet": prompt_complet,
             "nombre_exemples": tous_les_exemples.count(),
             "nombre_pieces": pieces_ordonnees.count(),
+            "nombre_chunks_estime": nombre_chunks_estime,
+            "tokens_overhead_par_chunk": tokens_overhead_par_chunk,
         })
 
     @action(detail=True, methods=["POST"])
@@ -1257,14 +1350,14 @@ class LectureViewSet(viewsets.ViewSet):
         ).order_by("-created_at").first()
 
         if job_en_cours:
-            # Un job est deja en cours → renvoyer le template de polling sans re-lancer
-            # / A job is already running → return polling template without re-launching
+            # Un job est deja en cours → renvoyer le template de polling dans le drawer
+            # / A job is already running → return polling template in the drawer
             logger.info("analyser: job deja en cours pk=%s pour page=%s", job_en_cours.pk, pk)
-            reponse = render(request, "front/includes/analyse_en_cours.html", {
+            reponse = render(request, "front/includes/panneau_analyse_en_cours.html", {
                 "page": page,
                 "job": job_en_cours,
             })
-            reponse["HX-Trigger"] = "ouvrirPanneauDroit"
+            reponse["HX-Trigger"] = "ouvrirDrawer"
             return reponse
 
         # Si analyseur_id n'est pas fourni, utiliser le premier analyseur actif de type "analyser"
@@ -1334,16 +1427,17 @@ class LectureViewSet(viewsets.ViewSet):
             job_extraction.pk, pk, analyseur.name,
         )
 
-        # Retourner le template de polling et corriger l'URL
-        # L'URL etait sur /previsualiser_analyse/, on la remet sur /lire/{pk}/
-        # / Return the polling template and fix the URL
-        # / The URL was on /previsualiser_analyse/, reset it to /lire/{pk}/
-        reponse = render(request, "front/includes/analyse_en_cours.html", {
+        # Retourner le spinner dans le drawer — le texte reste visible dans #zone-lecture.
+        # Le polling dans panneau_analyse_en_cours.html cible #drawer-contenu.
+        # Les cartes d'extraction arrivent via WebSocket dans #streaming-extractions.
+        # / Return the spinner in the drawer — the text stays visible in #zone-lecture.
+        # / Polling in panneau_analyse_en_cours.html targets #drawer-contenu.
+        # / Extraction cards arrive via WebSocket in #streaming-extractions.
+        reponse = render(request, "front/includes/panneau_analyse_en_cours.html", {
             "page": page,
             "job": job_extraction,
         })
-        reponse["HX-Trigger"] = "ouvrirPanneauDroit"
-        reponse["HX-Push-Url"] = f"/lire/{pk}/"
+        reponse["HX-Trigger"] = "ouvrirDrawer"
         return reponse
 
     @action(detail=True, methods=["GET"])
@@ -1364,32 +1458,24 @@ class LectureViewSet(viewsets.ViewSet):
         ).order_by("-created_at").first()
 
         if job_en_cours:
-            # Timeout : si le job est bloque depuis plus de 5 minutes → erreur
-            # / Timeout: if job stuck for more than 5 minutes → error
-            delai_max_polling = timedelta(minutes=5)
-            age_du_job = timezone.now() - job_en_cours.created_at
-            if age_du_job > delai_max_polling:
-                logger.warning(
-                    "analyse_status: job pk=%s bloque depuis %s — timeout",
-                    job_en_cours.pk, age_du_job,
-                )
-                job_en_cours.status = "error"
-                job_en_cours.error_message = (
-                    "Timeout : l'analyse n'a pas repondu apres 5 minutes. "
-                    "Verifiez que le worker Celery tourne."
-                )
-                job_en_cours.save(update_fields=["status", "error_message"])
-                return render(request, "front/includes/extraction_results.html", {
-                    "error_message": job_en_cours.error_message,
-                    "error_job": job_en_cours,
+            # Verifier si le job est bloque (pas de progression depuis 5 min).
+            # Si bloque → le marquer en erreur et continuer vers le cas "completed/error".
+            # Si actif → renvoyer le spinner.
+            # / Check if the job is stalled (no progress for 5 min).
+            # / If stalled → mark as error and continue to "completed/error" case.
+            # / If active → return spinner.
+            job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
+            if not job_est_bloque:
+                # Toujours en cours → renvoyer le panneau complet avec le spinner.
+                # Ce cas arrive si le fragment WS hx-trigger="load" arrive avant la fin du job.
+                # / Still processing → return the full spinner panel.
+                # / This happens if the WS hx-trigger="load" fires before the job finishes.
+                return render(request, "front/includes/panneau_analyse_en_cours.html", {
+                    "page": page,
+                    "job": job_en_cours,
                 })
-
-            # Toujours en cours → renvoyer le partial de polling
-            # / Still processing → return polling partial
-            return render(request, "front/includes/analyse_en_cours.html", {
-                "page": page,
-                "job": job_en_cours,
-            })
+            # Job bloque → on continue vers le cas completed/error ci-dessous
+            # / Stalled job → fall through to completed/error case below
 
         # Recuperer le dernier job termine OU en erreur (le plus recent des deux)
         # / Get the latest completed OR error job (whichever is more recent)
@@ -1414,12 +1500,82 @@ class LectureViewSet(viewsets.ViewSet):
                 return render(request, "front/includes/extraction_results.html", {
                     "error_message": dernier_job_erreur.error_message or "Erreur inconnue",
                     "error_job": dernier_job_erreur,
+                    "page": page,
                 })
 
         if dernier_job_termine:
-            # Termine → recharger la page de lecture complete avec les annotations
-            # / Completed → reload the full reading page with annotations
-            reponse = self.retrieve(request, pk=pk)
+            # Termine → retourner le drawer_vue_liste (etat 4) + OOB texte annote
+            # / Completed → return drawer_vue_liste (state 4) + OOB annotated text
+
+            # Construire le HTML annote pour la zone de lecture
+            # / Build annotated HTML for the reading zone
+            entites_non_masquees, ids_entites_commentees = _annoter_entites_avec_commentaires(
+                dernier_job_termine.entities.filter(masquee=False)
+            )
+            scores_temperature = _calculer_scores_temperature(entites_non_masquees)
+            html_annote_pour_oob = annoter_html_avec_barres(
+                page.html_readability, page.text_readability,
+                entites_non_masquees, ids_entites_commentees,
+                scores_temperature_normalises=scores_temperature,
+            )
+
+            # Separer entites visibles et masquees pour le drawer
+            # / Separate visible and hidden entities for the drawer
+            toutes_entites_du_job = dernier_job_termine.entities.annotate(
+                nombre_commentaires=Count("commentaires"),
+            ).prefetch_related(
+                Prefetch(
+                    "commentaires",
+                    queryset=CommentaireExtraction.objects.select_related("user"),
+                ),
+            ).order_by("start_char")
+
+            entites_visibles_drawer = []
+            entites_masquees_drawer = []
+            for entite in toutes_entites_du_job:
+                if entite.masquee:
+                    entites_masquees_drawer.append(entite)
+                else:
+                    entites_visibles_drawer.append(entite)
+
+            est_proprietaire = _est_proprietaire_dossier(request.user, page)
+
+            html_drawer = render_to_string(
+                "front/includes/drawer_vue_liste.html",
+                {
+                    "page": page,
+                    "entites_visibles": entites_visibles_drawer,
+                    "entites_masquees": entites_masquees_drawer,
+                    "nombre_masquees": len(entites_masquees_drawer),
+                    "nombre_total": len(entites_visibles_drawer) + len(entites_masquees_drawer),
+                    "nombre_total_sans_filtre": len(entites_visibles_drawer) + len(entites_masquees_drawer),
+                    "tri_actuel": "position",
+                    "liste_contributeurs": [],
+                    "contributeurs_actifs": set(),
+                    "noms_contributeurs_actifs": [],
+                    "ids_entites_des_contributeurs": set(),
+                    "mode_filtre": "inclure",
+                    "est_proprietaire": est_proprietaire,
+                    "dernier_job": dernier_job_termine,
+                },
+                request=request,
+            )
+
+            # OOB swap du texte annote dans la zone de lecture
+            # / OOB swap of annotated text into the reading zone
+            html_oob_texte = (
+                '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
+                + (html_annote_pour_oob or page.html_readability)
+                + '</article>'
+            )
+
+            # L'appel vient du hx-trigger="load" injecte par le WS analyse_terminee.
+            # Le hx-target="#drawer-contenu" du fragment fait que html_drawer remplace le drawer.
+            # Le texte annote arrive en OOB sur #readability-content.
+            # / Call comes from hx-trigger="load" injected by WS analyse_terminee.
+            # / hx-target="#drawer-contenu" in the fragment makes html_drawer replace the drawer.
+            # / Annotated text arrives as OOB on #readability-content.
+            reponse = HttpResponse(html_drawer + html_oob_texte)
             reponse["HX-Trigger"] = json.dumps({
                 "showToast": {"message": "Analyse termin\u00e9e"},
             })
@@ -1431,11 +1587,14 @@ class LectureViewSet(viewsets.ViewSet):
             return render(request, "front/includes/extraction_results.html", {
                 "error_message": dernier_job_erreur.error_message or "Erreur inconnue",
                 "error_job": dernier_job_erreur,
+                "page": page,
             })
 
-        # Fallback : aucun job trouve / Fallback: no job found
+        # Fallback : aucun job trouve
+        # / Fallback: no job found
         return render(request, "front/includes/extraction_results.html", {
             "error_message": "Aucun job d'analyse trouv\u00e9.",
+            "page": page,
         })
 
     @action(detail=True, methods=["GET"], url_path="formulaire_renommer_locuteur")
@@ -4237,6 +4396,28 @@ class ExtractionViewSet(viewsets.ViewSet):
             return HttpResponse("page_id requis.", status=400)
 
         page = get_object_or_404(Page, pk=identifiant_page)
+
+        # Si un job est en cours ET actif → afficher l'etat 3 (analyse en cours).
+        # Si le job est bloque (pas de progression depuis 5 min) → le marquer en erreur
+        # et continuer vers l'affichage normal (etat 4 ou empty state).
+        # / If a job is running AND active → show state 3 (analysis in progress).
+        # / If the job is stalled (no progress for 5 min) → mark it as error
+        # / and continue to normal display (state 4 or empty state).
+        job_en_cours_pour_drawer = ExtractionJob.objects.filter(
+            page=page,
+            status__in=["pending", "processing"],
+        ).order_by("-created_at").first()
+
+        if job_en_cours_pour_drawer:
+            job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours_pour_drawer)
+            if not job_est_bloque:
+                return render(request, "front/includes/panneau_analyse_en_cours.html", {
+                    "page": page,
+                    "job": job_en_cours_pour_drawer,
+                })
+            # Job bloque → on continue vers l'affichage normal des resultats
+            # / Stalled job → continue to normal results display
+
         parametre_tri = request.query_params.get("tri", "position")
 
         # Parametre optionnel : filtre multi-contributeurs, virgule-separee (PHASE-26a-bis)
@@ -4367,6 +4548,10 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / Determine if user is the folder owner
         est_proprietaire = _est_proprietaire_dossier(request.user, page)
 
+        # Recuperer le dernier job termine pour le bandeau resume du drawer
+        # / Get the last completed job for the drawer summary banner
+        dernier_job_termine_pour_bandeau = tous_les_jobs_termines.order_by("-created_at").first()
+
         reponse = render(request, "front/includes/drawer_vue_liste.html", {
             "page": page,
             "entites_visibles": entites_visibles,
@@ -4381,6 +4566,7 @@ class ExtractionViewSet(viewsets.ViewSet):
             "ids_entites_des_contributeurs": ids_entites_des_contributeurs,
             "mode_filtre": mode_filtre,
             "est_proprietaire": est_proprietaire,
+            "dernier_job": dernier_job_termine_pour_bandeau,
         })
 
         reponse["HX-Trigger"] = donnees_trigger

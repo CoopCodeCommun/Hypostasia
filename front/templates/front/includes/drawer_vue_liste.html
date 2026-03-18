@@ -6,6 +6,27 @@
 {% load extractor_tags %}
 <div id="drawer-contenu-inner" aria-live="polite">
 
+    {# Etat 4 : bandeau resume + bouton nouvelle analyse (quand des entites existent) #}
+    {# Affiche en haut du drawer, avant le compteur et les filtres #}
+    {# / State 4: summary banner + new analysis button (when entities exist) #}
+    {# / Displayed at top of drawer, before counter and filters #}
+    {% if entites_visibles or entites_masquees %}
+    <div class="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-3"
+         data-testid="bandeau-resume-analyse">
+        <span class="text-sm text-emerald-700 font-medium">
+            &#10003; {{ nombre_total }} entit&eacute;{{ nombre_total|pluralize:"s" }}
+            {% if dernier_job and dernier_job.ai_model %} &middot; {{ dernier_job.ai_model.get_display_name }}{% endif %}
+        </span>
+        <button class="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:bg-indigo-50 rounded px-2 py-1 transition-colors"
+                hx-get="/lire/{{ page.pk }}/previsualiser_analyse/"
+                hx-target="#drawer-contenu"
+                hx-swap="innerHTML"
+                data-testid="btn-nouvelle-analyse">
+            Nouvelle analyse &#8635;
+        </button>
+    </div>
+    {% endif %}
+
     {# Header : compteur (N sur M si filtre actif) + select tri #}
     {# / Header: counter (N out of M if filter active) + sort select #}
     <div class="flex items-center justify-between mb-3">
@@ -92,11 +113,16 @@
                   style="background-color: var(--statut-{{ entity.statut_debat }}-accent);"
                   title="{{ entity.get_statut_debat_display }}"></span>
 
-            {# Badges hypostases / Hypostase badges #}
+            {# Badges hypostases colores par famille — meme style que _card_body.html #}
+            {# / Colored hypostase badges by family — same style as _card_body.html #}
             {% if entity_attrs.0 %}
-            <span class="typo-hypostase text-[10px] text-slate-500 truncate max-w-[8rem]">
-                {{ entity_attrs.0 }}
-            </span>
+            <div class="flex flex-wrap gap-0.5 min-w-0 overflow-hidden">
+                {% for tag in entity_attrs.0|split_comma %}
+                <span class="typo-hypostase inline-block px-1 py-0 rounded-full text-[9px] leading-tight"
+                      style="background: var(--hypostase-{{ tag|hypostase_famille }}-bg); color: var(--hypostase-{{ tag|hypostase_famille }}-text);"
+                      title="{{ tag }}">{{ tag }}</span>
+                {% endfor %}
+            </div>
             {% endif %}
 
             <span class="flex-1"></span>
@@ -180,10 +206,14 @@
     {% empty %}
     <div class="empty-state" data-testid="drawer-empty-state">
         <svg class="empty-state-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
         </svg>
-        <p class="empty-state-text">Aucune extraction pour cette page</p>
-        <button class="empty-state-action" onclick="document.getElementById('btn-toolbar-analyser').click()">
+        <p class="empty-state-text">Aucune analyse pour cette page</p>
+        <button class="empty-state-action"
+                hx-get="/lire/{{ page.pk }}/previsualiser_analyse/"
+                hx-target="#drawer-contenu"
+                hx-swap="innerHTML"
+                data-testid="btn-lancer-analyse-empty">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
             </svg>
@@ -243,3 +273,7 @@
     </div>
     {% endif %}
 </div>
+
+{# OOB : restaurer le titre "Analyses" dans le header du drawer #}
+{# / OOB: restore "Analyses" title in drawer header #}
+<span id="drawer-titre" hx-swap-oob="innerHTML:#drawer-titre">Analyses</span>

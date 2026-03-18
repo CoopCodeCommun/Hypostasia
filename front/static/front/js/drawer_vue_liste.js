@@ -1,11 +1,11 @@
 /**
- * Drawer vue liste des extractions — PHASE-10
- * Gere l'ouverture et la fermeture du drawer droit avec la liste compacte
- * de toutes les extractions d'une page. Supporte tri, masquer/restaurer,
- * et scroll bidirectionnel avec le texte.
- * / Drawer extraction list view — PHASE-10
- * / Manages the right drawer with compact list of all extractions for a page.
- * / Supports sort, hide/restore, and bidirectional scrolling with text.
+ * Drawer Analyses — hub d'analyse (ex "Extractions", PHASE-10)
+ * Gere l'ouverture et la fermeture du drawer droit (panneau E).
+ * Affiche les 4 etats : vide, confirmation, en cours, resultats.
+ * Supporte tri, masquer/restaurer, et scroll bidirectionnel avec le texte.
+ * / Drawer Analyses — analysis hub (formerly "Extractions", PHASE-10)
+ * / Manages the right drawer (E panel). Shows 4 states: empty, confirmation,
+ * / in progress, results. Supports sort, hide/restore, and bidirectional scroll.
  *
  * LOCALISATION : front/static/front/js/drawer_vue_liste.js
  *

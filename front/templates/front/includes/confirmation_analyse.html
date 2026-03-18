@@ -1,37 +1,37 @@
 {# Partial : confirmation avant lancement d'une analyse IA #}
-{# S'affiche dans #zone-lecture en mode mono-colonne #}
+{# S'affiche dans #drawer-contenu (panneau E) #}
 {# Affiche : selecteur analyseur, modele, tokens, cout estime, prompt complet #}
 {# / Partial: confirmation before launching an AI analysis #}
-{# / Displayed in #zone-lecture in single-column mode #}
+{# / Displayed in #drawer-contenu (E panel) #}
 {# / Shows: analyzer selector, model, tokens, estimated cost, full prompt #}
 
-<div class="max-w-2xl mx-auto py-6 px-4" id="confirmation-analyse" data-page-id="{{ page.pk }}" data-testid="confirmation-analyse">
+<div id="confirmation-analyse" class="py-4 px-1" data-page-id="{{ page.pk }}" data-testid="confirmation-analyse">
 
     {# En-tete avec titre de la page analysee / Header with analyzed page title #}
-    <div class="flex items-center gap-4 mb-6">
-        <div class="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
-            <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
             </svg>
         </div>
-        <div>
-            <h2 class="text-xl font-bold text-slate-900">Analyser cette page</h2>
-            <p class="text-base text-slate-500">{{ page.title|default:"Sans titre" }}</p>
+        <div class="min-w-0">
+            <h2 class="text-lg font-bold text-slate-900">Analyser cette page</h2>
+            <p class="text-sm text-slate-500 truncate">{{ page.title|default:"Sans titre" }}</p>
         </div>
     </div>
 
     {# Selecteur d'analyseur — recalcule l'estimation au changement #}
     {# / Analyzer selector — recalculates estimate on change #}
     {% if analyseurs_actifs.count > 1 %}
-    <div class="mb-5">
-        <label for="select-analyseur-confirmation" class="block text-sm font-medium text-slate-600 mb-1.5">Analyseur</label>
+    <div class="mb-4">
+        <label for="select-analyseur-confirmation" class="block text-xs font-medium text-slate-600 mb-1">Analyseur</label>
         <select id="select-analyseur-confirmation" name="analyseur_id"
                 data-testid="select-analyseur-confirmation"
                 hx-get="/lire/{{ page.pk }}/previsualiser_analyse/"
-                hx-target="#zone-lecture"
+                hx-target="#drawer-contenu"
                 hx-swap="innerHTML"
                 hx-include="this"
-                class="w-full text-base border border-slate-300 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400">
+                class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400">
             {% for a in analyseurs_actifs %}
                 <option value="{{ a.id }}" {% if a.id == analyseur.id %}selected{% endif %}>{{ a.name }}</option>
             {% endfor %}
@@ -40,7 +40,7 @@
     {% endif %}
 
     {# Infos resume / Summary info #}
-    <div class="bg-slate-50 rounded-xl p-5 space-y-3 text-base text-slate-600 mb-5">
+    <div class="bg-slate-50 rounded-lg p-4 space-y-2 text-sm text-slate-600 mb-4">
         <div class="flex justify-between items-center">
             <span>Analyseur</span>
             <span class="font-semibold text-slate-800">{{ analyseur.name }}</span>
@@ -59,46 +59,69 @@
         </div>
     </div>
 
-    {# Estimation tokens et cout / Token and cost estimate #}
-    <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-3 text-base mb-5" data-testid="estimation-tokens">
+    {# Estimation tokens et cout — calcul precis tenant compte du chunking LangExtract #}
+    {# et du mode thinking (tokens de reflexion internes factures au tarif output) #}
+    {# / Token and cost estimate — precise calculation accounting for LangExtract chunking #}
+    {# / and thinking mode (internal reasoning tokens billed at output rate) #}
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2 text-sm mb-4" data-testid="estimation-tokens">
+        {% if nombre_chunks_estime > 1 %}
+        <div class="flex justify-between items-center text-amber-600 text-xs">
+            <span>Morceaux (~1 500 car.)</span>
+            <span class="font-medium">~{{ nombre_chunks_estime }}</span>
+        </div>
+        <div class="flex justify-between items-center text-amber-600 text-xs">
+            <span>Prompt par morceau</span>
+            <span class="font-medium">{{ tokens_overhead_par_chunk }} tok.</span>
+        </div>
+        {% endif %}
         <div class="flex justify-between items-center text-amber-800">
-            <span>Tokens input estimes</span>
-            <span class="font-bold text-lg">{{ nombre_tokens_input|floatformat:0 }}</span>
+            <span>Tokens input{% if nombre_chunks_estime > 1 %} ({{ nombre_chunks_estime }} &times; {{ tokens_overhead_par_chunk }} + texte){% endif %}</span>
+            <span class="font-bold text-base">~{{ nombre_tokens_input|floatformat:0 }}</span>
         </div>
         <div class="flex justify-between items-center text-amber-700">
-            <span>Tokens output estimes (~50%)</span>
-            <span class="font-medium text-lg">~{{ nombre_tokens_output_estime|floatformat:0 }}</span>
+            <span>Tokens output (r&eacute;ponse)</span>
+            <span class="font-medium text-base">~{{ nombre_tokens_output_visible|floatformat:0 }}</span>
         </div>
-        <div class="flex justify-between items-center text-amber-900 border-t border-amber-300 pt-3 mt-3">
-            <span class="font-bold text-lg">Cout estime</span>
-            <span class="font-bold text-xl">&le; {{ cout_estime_euros|floatformat:2 }} &euro;</span>
+        {% if nombre_tokens_thinking > 0 %}
+        <div class="flex justify-between items-center text-amber-600 text-xs">
+            <span>Tokens thinking (&times;{{ multiplicateur_thinking }} interne)</span>
+            <span class="font-medium">~{{ nombre_tokens_thinking|floatformat:0 }}</span>
         </div>
+        {% endif %}
+        <div class="flex justify-between items-center text-amber-900 border-t border-amber-300 pt-2 mt-2">
+            <span class="font-bold">Cout estime</span>
+            <span class="font-bold text-lg">&le; {{ cout_estime_euros|floatformat:2 }} &euro;</span>
+        </div>
+        {% if nombre_tokens_thinking > 0 %}
+        <p class="text-[10px] text-amber-500 mt-1">Inclut les tokens de r&eacute;flexion interne (thinking) factur&eacute;s au tarif output.</p>
+        {% endif %}
     </div>
 
     {# Bouton pour voir le prompt complet / Button to view the full prompt #}
     <button type="button"
-            class="btn-voir-prompt-complet w-full text-base font-medium text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 rounded-xl px-4 py-3.5 transition-colors mb-5"
+            class="btn-voir-prompt-complet w-full text-sm font-medium text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 rounded-lg px-3 py-2.5 transition-colors mb-4"
             data-testid="btn-voir-prompt"
             data-prompt-visible="false">
         Voir le prompt complet
     </button>
 
-    {# Zone cachee du prompt complet (scrollable) #}
-    {# / Hidden zone for the full prompt (scrollable) #}
-    <div id="zone-prompt-complet" class="hidden mb-5">
-        <div class="bg-slate-900 text-slate-100 rounded-xl p-5 max-h-[32rem] overflow-y-auto text-xs font-mono whitespace-pre-wrap leading-relaxed">{{ prompt_complet }}</div>
+    {# Zone cachee du prompt complet (scrollable, reduite pour le drawer) #}
+    {# / Hidden zone for the full prompt (scrollable, reduced for drawer) #}
+    <div id="zone-prompt-complet" class="hidden mb-4">
+        <div class="bg-slate-900 text-slate-100 rounded-lg p-4 max-h-[20rem] overflow-y-auto text-xs font-mono whitespace-pre-wrap leading-relaxed">{{ prompt_complet }}</div>
     </div>
 
-    {# Boutons d'action — grands et lisibles / Action buttons — large and readable #}
-    <div class="flex gap-4">
+    {# Boutons d'action — grands, couleurs pastel coherentes avec le reste de l'app #}
+    {# / Action buttons — large, pastel colors consistent with the rest of the app #}
+    <div class="flex gap-3">
         <button type="button"
                 data-testid="btn-lancer-analyse"
                 hx-post="/lire/{{ page.pk }}/analyser/"
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                 hx-vals='{"analyseur_id": "{{ analyseur.id }}"}'
-                hx-target="#zone-lecture"
+                hx-target="#drawer-contenu"
                 hx-swap="innerHTML"
-                class="flex-1 px-6 py-4 text-base font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm">
+                class="flex-1 px-5 py-4 text-base font-bold text-indigo-700 bg-indigo-100 hover:bg-indigo-200 border border-indigo-200 rounded-xl transition-colors flex items-center justify-center gap-2">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
             </svg>
@@ -106,23 +129,29 @@
         </button>
         <button type="button"
                 data-testid="btn-annuler-analyse"
-                hx-get="/lire/{{ page.pk }}/"
-                hx-target="#zone-lecture"
+                hx-get="/extractions/drawer_contenu/?page_id={{ page.pk }}"
+                hx-target="#drawer-contenu"
                 hx-swap="innerHTML"
-                hx-push-url="/lire/{{ page.pk }}/"
-                class="px-6 py-4 text-base font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                class="px-5 py-4 text-base font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
             Annuler
         </button>
     </div>
 </div>
 
+{# OOB : changer le titre du drawer pour indiquer le retour possible #}
+{# / OOB: change drawer title to indicate back navigation #}
+<span id="drawer-titre" hx-swap-oob="innerHTML:#drawer-titre">
+    <button class="text-slate-400 hover:text-slate-600 mr-1 transition-colors"
+            hx-get="/extractions/drawer_contenu/?page_id={{ page.pk }}"
+            hx-target="#drawer-contenu"
+            hx-swap="innerHTML"
+            title="Retour aux analyses"
+            aria-label="Retour">&#9664;</button>
+    Analyse
+</span>
+
 <script>
 (function() {
-    // L'URL reste sur /lire/{pk}/ — pas de push vers previsualiser_analyse
-    // Un F5 sur cette page redirige vers le texte original
-    // / URL stays on /lire/{pk}/ — no push to previsualiser_analyse
-    // / F5 on this page redirects to the original text
-
     // Toggle du prompt complet / Toggle full prompt visibility
     var boutonVoirPrompt = document.querySelector('.btn-voir-prompt-complet');
     var zonePrompt = document.getElementById('zone-prompt-complet');

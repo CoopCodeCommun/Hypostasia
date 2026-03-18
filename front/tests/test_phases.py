@@ -2229,12 +2229,12 @@ class Phase10BaseHtmlDrawerTest(TestCase):
         """Le drawer overlay a un data-testid pour les tests E2E."""
         self.assertIn('data-testid="drawer-overlay"', self.contenu_base)
 
-    def test_drawer_largeur_32rem(self):
-        """Le drawer a une largeur de 32rem (avec responsive min).
-        / Drawer has 32rem width (with responsive min)."""
-        # Le template utilise min(32rem, 100vw) pour le responsive
-        # / Template uses min(32rem, 100vw) for responsive
-        self.assertIn('32rem', self.contenu_base)
+    def test_drawer_largeur_36rem(self):
+        """Le drawer a une largeur de 36rem (avec responsive min).
+        / Drawer has 36rem width (with responsive min)."""
+        # Le template utilise min(36rem, 100vw) pour le responsive
+        # / Template uses min(36rem, 100vw) for responsive
+        self.assertIn('36rem', self.contenu_base)
 
     def test_drawer_z_index_superieur_backdrop(self):
         """Le drawer (z-50) a un z-index superieur au backdrop (z-40)."""
@@ -5964,18 +5964,12 @@ class Phase23BoutonToolbarAnalyserHTMXTest(TestCase):
         )
         self.contenu_js = chemin_js.read_text(encoding="utf-8")
 
-    def test_oob_swap_bouton_analyser_dans_lecture(self):
-        """lecture_principale.html contient un OOB swap pour le bouton Analyser."""
-        self.assertIn("btn-toolbar-analyser", self.contenu_lecture)
-        self.assertIn("hx-swap-oob", self.contenu_lecture)
-
-    def test_oob_contient_hx_get_previsualiser(self):
-        """Le OOB swap contient un hx-get vers previsualiser_analyse."""
-        self.assertIn("previsualiser_analyse", self.contenu_lecture)
-
-    def test_oob_cible_zone_lecture(self):
-        """Le OOB swap cible #zone-lecture."""
-        self.assertIn('hx-target="#zone-lecture"', self.contenu_lecture)
+    def test_pas_de_bouton_analyser_dans_lecture(self):
+        """lecture_principale.html ne contient plus de bouton Analyser OOB.
+        Le bouton analyser a ete supprime — l'analyse se lance depuis le drawer.
+        / lecture_principale.html no longer contains an Analyze button OOB.
+        / The analyze button was removed — analysis is launched from the drawer."""
+        self.assertNotIn("btn-toolbar-analyser", self.contenu_lecture)
 
     def test_js_ne_gere_plus_bouton_analyser(self):
         """Le JS ne contient plus de handler addEventListener pour le bouton Analyser."""
@@ -6034,9 +6028,10 @@ class Phase23ConfirmationAnalyseTemplateTest(TestCase):
         """Le template a un bouton pour lancer l'analyse."""
         self.assertIn("Lancer l'analyse", self.contenu)
 
-    def test_bouton_lancer_cible_zone_lecture(self):
-        """Le bouton lancer cible #zone-lecture (pas #zone-resultats-extraction)."""
-        self.assertIn('hx-target="#zone-lecture"', self.contenu)
+    def test_bouton_lancer_cible_drawer_contenu(self):
+        """Le bouton lancer cible #drawer-contenu (analyse dans le drawer).
+        / The launch button targets #drawer-contenu (analysis in the drawer)."""
+        self.assertIn('hx-target="#drawer-contenu"', self.contenu)
 
     def test_bouton_annuler_recharge_page(self):
         """Le bouton annuler recharge la page de lecture via HTMX."""

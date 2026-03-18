@@ -34,4 +34,14 @@
 
         <p class="text-[10px] text-slate-300 mt-2">Mise &agrave; jour automatique toutes les 3s</p>
     </div>
+
+    {# Zone de stream WebSocket : les cartes arrivent au fur et a mesure de l'extraction #}
+    {# Videe et remplacee par extraction_results.html quand le job est termine #}
+    {# / WebSocket stream zone: entity cards arrive as extraction progresses #}
+    {# / Emptied and replaced by extraction_results.html when job completes #}
+    <div id="streaming-extractions"
+         class="space-y-2 mt-3"
+         aria-live="polite"
+         aria-label="Extractions en cours">
+    </div>
 </div>

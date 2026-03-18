@@ -466,6 +466,29 @@ body { font-family: 'B612', sans-serif; }
     animation: indeterminate-analyse 2s ease-in-out infinite;
 }
 
+/* Barre de progression determinee avec effet stries animees.
+   Indique visuellement que le traitement est actif entre deux mises a jour WS.
+   / Determinate progress bar with animated stripes effect.
+   / Visually indicates processing is active between WS updates. */
+@keyframes progres-stries {
+    0% { background-position: 1rem 0; }
+    100% { background-position: 0 0; }
+}
+.animate-progres-actif {
+    background-image: linear-gradient(
+        -45deg,
+        rgba(255,255,255,0.15) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255,255,255,0.15) 50%,
+        rgba(255,255,255,0.15) 75%,
+        transparent 75%,
+        transparent
+    );
+    background-size: 1rem 1rem;
+    animation: progres-stries 0.6s linear infinite;
+}
+
 
 /* === 10. Overlay arbre et toolbar ===
    Transitions overlay arbre (PHASE-08) et boutons toolbar.
@@ -1819,4 +1842,27 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
         bottom: 0.75rem;
         max-width: 100%;
     }
+}
+
+
+/* === 28. Animation d'entree pour les cartes extraites en streaming WS ===
+   Chaque carte poussee par NotificationConsumer glisse depuis le bas.
+   / === 28. Entry animation for extraction cards streamed via WS ===
+   / Each card pushed by NotificationConsumer slides in from below.
+   ========================================================================== */
+
+@keyframes ws-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(0.5rem);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Classe appliquee aux cartes streamees / Class applied to streamed cards */
+.animate-ws-slide-in {
+    animation: ws-slide-in 0.2s ease-out;
 }

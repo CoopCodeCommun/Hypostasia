@@ -32,6 +32,277 @@ def envoyer_progression_websocket(nom_groupe, type_message, donnees):
     )
 
 
+
+
+# ---------------------------------------------------------------------------
+# Sous-classe d'Annotator pour injecter un callback WebSocket par chunk.
+# Couple a langextract v1.1.1 — annotation.py._annotate_documents_single_pass.
+# / Annotator subclass to inject a WebSocket callback per chunk.
+# / Coupled to langextract v1.1.1 — annotation.py._annotate_documents_single_pass.
+# ---------------------------------------------------------------------------
+
+import collections
+from collections import defaultdict
+from typing import Iterable, Iterator
+
+
+def _creer_annotateur_avec_progression(
+    modele_llm,
+    prompt_template,
+    format_handler,
+    callback_par_chunk=None,
+):
+    """
+    Cree un Annotator dont la boucle interne appelle callback_par_chunk
+    apres chaque cycle resolve() + align() d'un chunk.
+    Copie de annotation.py._annotate_documents_single_pass (langextract v1.1.1)
+    avec injection du callback apres l'accumulation des extractions alignees.
+    / Creates an Annotator whose inner loop calls callback_par_chunk
+    / after each resolve() + align() cycle for a chunk.
+    / Copy of annotation.py._annotate_documents_single_pass (langextract v1.1.1)
+    / with callback injection after aligned extraction accumulation.
+    """
+    from langextract import annotation as annotation_lx
+    from langextract import chunking as chunking_lx
+    from langextract import progress as progress_lx
+    from langextract import resolver as resolver_lx
+    from langextract.core import data as data_lx
+    from langextract.core import exceptions as exceptions_lx
+
+    class AnnotateurAvecProgression(annotation_lx.Annotator):
+        """
+        Sous-classe d'Annotator qui injecte un callback apres chaque chunk.
+        IMPORTANT : couple a langextract v1.1.1 — si la lib evolue, cette methode
+        doit etre mise a jour en consequence.
+        / Annotator subclass that injects a callback after each chunk.
+        / IMPORTANT: coupled to langextract v1.1.1 — if the lib evolves, this method
+        / must be updated accordingly.
+        """
+
+        def _annotate_documents_single_pass(
+            self,
+            documents,
+            resolver,
+            max_char_buffer,
+            batch_length,
+            debug,
+            show_progress=True,
+            tokenizer=None,
+            **kwargs,
+        ):
+            """
+            Copie de Annotator._annotate_documents_single_pass (annotation.py:278-426)
+            avec injection de callback_par_chunk apres chaque chunk traite.
+            / Copy of Annotator._annotate_documents_single_pass (annotation.py:278-426)
+            / with callback_par_chunk injection after each processed chunk.
+            """
+            doc_order = []
+            doc_text_by_id = {}
+            per_doc = collections.defaultdict(list)
+            next_emit_idx = 0
+
+            def _capture_docs(src):
+                for document in src:
+                    document_id = document.document_id
+                    if document_id in doc_text_by_id:
+                        raise exceptions_lx.InvalidDocumentError(
+                            f"Duplicate document_id: {document_id}"
+                        )
+                    doc_order.append(document_id)
+                    doc_text_by_id[document_id] = document.text or ""
+                    yield document
+
+            def _emit_docs_iter(keep_last_doc):
+                nonlocal next_emit_idx
+                limit = max(0, len(doc_order) - 1) if keep_last_doc else len(doc_order)
+                while next_emit_idx < limit:
+                    document_id = doc_order[next_emit_idx]
+                    yield data_lx.AnnotatedDocument(
+                        document_id=document_id,
+                        extractions=per_doc.get(document_id, []),
+                        text=doc_text_by_id.get(document_id, ""),
+                    )
+                    per_doc.pop(document_id, None)
+                    doc_text_by_id.pop(document_id, None)
+                    next_emit_idx += 1
+
+            chunk_iter = annotation_lx._document_chunk_iterator(
+                _capture_docs(documents), max_char_buffer, tokenizer=tokenizer
+            )
+            batches = chunking_lx.make_batches_of_textchunk(chunk_iter, batch_length)
+
+            model_info = progress_lx.get_model_info(self._language_model)
+            batch_iter = progress_lx.create_extraction_progress_bar(
+                batches, model_info=model_info, disable=not show_progress
+            )
+
+            caracteres_traites = 0
+            numero_chunk = 0
+
+            try:
+                for batch in batch_iter:
+                    if not batch:
+                        continue
+
+                    # Construire le prompt pour chaque chunk du batch.
+                    # Le prompt = description + exemples few-shot + texte du chunk.
+                    # / Build prompt for each chunk in the batch.
+                    # / Prompt = description + few-shot examples + chunk text.
+                    prompts = [
+                        self._prompt_generator.render(
+                            question=text_chunk.chunk_text,
+                            additional_context=text_chunk.additional_context,
+                        )
+                        for text_chunk in batch
+                    ]
+
+                    # Envoyer les prompts au LLM. Avec batch_length=1,
+                    # on envoie un seul chunk a la fois (pas de parallelisme).
+                    # Le LLM repond avec du YAML/JSON contenant les extractions.
+                    # / Send prompts to the LLM. With batch_length=1,
+                    # / we send one chunk at a time (no parallelism).
+                    # / The LLM responds with YAML/JSON containing extractions.
+                    logger.debug(
+                        "  [langextract] envoi batch de %d chunk(s) au LLM",
+                        len(batch),
+                    )
+                    debut_appel_llm = time.time()
+                    outputs = self._language_model.infer(
+                        batch_prompts=prompts, **kwargs
+                    )
+                    if not isinstance(outputs, list):
+                        outputs = list(outputs)
+                    duree_appel_llm = time.time() - debut_appel_llm
+                    logger.debug(
+                        "  [langextract] reponse LLM recue en %.1fs pour %d chunk(s)",
+                        duree_appel_llm, len(batch),
+                    )
+
+                    for text_chunk, scored_outputs in zip(batch, outputs):
+                        numero_chunk += 1
+                        if not isinstance(scored_outputs, list):
+                            scored_outputs = list(scored_outputs)
+                        if not scored_outputs:
+                            raise exceptions_lx.InferenceOutputError(
+                                "No scored outputs from language model."
+                            )
+
+                        # Taille du chunk et position dans le texte original
+                        # / Chunk size and position in the original text
+                        taille_chunk = len(text_chunk.chunk_text)
+                        position_debut_chunk = (
+                            text_chunk.char_interval.start_pos
+                            if text_chunk.char_interval else 0
+                        )
+                        taille_reponse_llm = len(scored_outputs[0].output)
+                        logger.info(
+                            "  [chunk %d] pos=%d len=%d — reponse LLM: %d chars",
+                            numero_chunk, position_debut_chunk,
+                            taille_chunk, taille_reponse_llm,
+                        )
+
+                        # Etape 1 : Resolver — parse le YAML/JSON brut du LLM
+                        # en objets Extraction structurés.
+                        # Si le JSON est tronque et suppress_parse_errors=True,
+                        # le resolver retourne une liste vide au lieu de crasher.
+                        # / Step 1: Resolver — parse raw LLM YAML/JSON
+                        # / into structured Extraction objects.
+                        # / If JSON is truncated and suppress_parse_errors=True,
+                        # / resolver returns empty list instead of crashing.
+                        resolved_extractions = resolver.resolve(
+                            scored_outputs[0].output, debug=debug, **kwargs
+                        )
+                        nombre_extractions_resolues = len(resolved_extractions)
+                        logger.info(
+                            "  [chunk %d] resolve → %d extraction(s) parsees depuis le YAML/JSON",
+                            numero_chunk, nombre_extractions_resolues,
+                        )
+
+                        token_offset = (
+                            text_chunk.token_interval.start_index
+                            if text_chunk.token_interval
+                            else 0
+                        )
+                        char_offset = (
+                            text_chunk.char_interval.start_pos
+                            if text_chunk.char_interval
+                            else 0
+                        )
+
+                        # Etape 2 : Aligner — repositionne chaque extraction
+                        # dans le texte original (pas relatif au chunk).
+                        # Utilise le fuzzy matching si le texte exact n'est pas trouve.
+                        # / Step 2: Align — repositions each extraction
+                        # / in the original text (not relative to the chunk).
+                        # / Uses fuzzy matching if exact text is not found.
+                        aligned_extractions = resolver.align(
+                            resolved_extractions,
+                            text_chunk.chunk_text,
+                            token_offset,
+                            char_offset,
+                            tokenizer_inst=tokenizer,
+                            **kwargs,
+                        )
+
+                        # Materialiser le generateur pour pouvoir l'utiliser
+                        # a la fois dans per_doc et dans le callback.
+                        # / Materialize the generator to use it in both
+                        # / per_doc and the callback.
+                        liste_extractions_alignees = list(aligned_extractions)
+                        nombre_extractions_alignees = len(liste_extractions_alignees)
+
+                        if nombre_extractions_alignees != nombre_extractions_resolues:
+                            logger.info(
+                                "  [chunk %d] align → %d/%d (certaines n'ont pas pu "
+                                "etre positionnees dans le texte)",
+                                numero_chunk, nombre_extractions_alignees,
+                                nombre_extractions_resolues,
+                            )
+                        else:
+                            logger.info(
+                                "  [chunk %d] align → %d extraction(s) positionnees OK",
+                                numero_chunk, nombre_extractions_alignees,
+                            )
+
+                        for extraction in liste_extractions_alignees:
+                            per_doc[text_chunk.document_id].append(extraction)
+
+                        if text_chunk.char_interval is not None:
+                            caracteres_traites += (
+                                text_chunk.char_interval.end_pos
+                                - text_chunk.char_interval.start_pos
+                            )
+
+                        # --- INJECTION DU CALLBACK ---
+                        # Appelle le callback de la tache Celery pour creer
+                        # les entites en DB et envoyer les notifications WS.
+                        # / --- CALLBACK INJECTION ---
+                        # / Calls the Celery task callback to create
+                        # / entities in DB and send WS notifications.
+                        if callback_par_chunk:
+                            callback_par_chunk(
+                                extractions_du_chunk=liste_extractions_alignees,
+                                caracteres_traites=caracteres_traites,
+                            )
+
+                    yield from _emit_docs_iter(keep_last_doc=True)
+
+            finally:
+                batch_iter.close()
+
+            logger.info(
+                "  [langextract] pipeline termine — %d chunk(s), %d chars traites",
+                numero_chunk, caracteres_traites,
+            )
+            yield from _emit_docs_iter(keep_last_doc=False)
+
+    return AnnotateurAvecProgression(
+        language_model=modele_llm,
+        prompt_template=prompt_template,
+        format_handler=format_handler,
+    )
+
+
 @shared_task(bind=True)
 def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, langue=""):
     """
@@ -439,7 +710,13 @@ def analyser_page_task(self, job_id):
     from hypostasis_extractor.services import (
         _construire_exemples_langextract, resolve_model_params, _try_map_to_hypostasis,
     )
-    import langextract as lx
+    import langextract.prompting as prompting_lx
+    import langextract.factory as factory_lx
+    import langextract.resolver as resolver_lx
+    from langextract.core import data as data_lx
+    from langextract.core import format_handler as fh_lx
+
+    TAILLE_MAX_CHUNK = 1500
 
     debut_traitement = time.time()
 
@@ -454,6 +731,7 @@ def analyser_page_task(self, job_id):
         return
 
     page_associee = job_extraction.page
+    identifiant_utilisateur = page_associee.owner_id
 
     # Passer le job en PROCESSING
     # / Set job to PROCESSING
@@ -481,6 +759,8 @@ def analyser_page_task(self, job_id):
         if not texte_source:
             raise ValueError("La Page n'a pas de text_readability disponible")
 
+        longueur_texte_total = len(texte_source)
+
         # Construire les exemples few-shot depuis l'analyseur stocke dans raw_result
         # / Build few-shot examples from the analyzer stored in raw_result
         analyseur_id = (job_extraction.raw_result or {}).get("analyseur_id")
@@ -496,38 +776,217 @@ def analyser_page_task(self, job_id):
         else:
             parametres_modele = {"model_id": "gemini-2.5-flash"}
 
-        parametres_extraction = {
-            "text_or_documents": texte_source,
-            "prompt_description": job_extraction.prompt_description,
-            "examples": liste_exemples_langextract,
+        # --- Construction manuelle du pipeline langextract ---
+        # On replique le setup de lx.extract() (extraction.py:213-327)
+        # pour utiliser notre AnnotateurAvecProgression au lieu de Annotator.
+        # / --- Manual langextract pipeline setup ---
+        # / We replicate the lx.extract() setup (extraction.py:213-327)
+        # / to use our AnnotateurAvecProgression instead of Annotator.
+
+        # 1. PromptTemplate depuis les exemples few-shot
+        # / 1. PromptTemplate from few-shot examples
+        modele_prompt = prompting_lx.PromptTemplateStructured(
+            description=job_extraction.prompt_description
+        )
+        modele_prompt.examples.extend(liste_exemples_langextract)
+
+        # 2. Creer le modele LLM via la factory
+        # / 2. Create the LLM model via the factory
+        kwargs_modele_llm = {
+            "format_type": data_lx.FormatType.JSON,
+            "max_output_tokens": 8192,
         }
-        parametres_extraction.update(parametres_modele)
+        kwargs_modele_llm.update({
+            k: v for k, v in parametres_modele.items()
+            if k != "model_id" and v is not None
+        })
+        config_modele = factory_lx.ModelConfig(
+            model_id=parametres_modele.get("model_id", "gemini-2.5-flash"),
+            provider_kwargs=kwargs_modele_llm,
+        )
+        modele_llm = factory_lx.create_model(
+            config=config_modele,
+            examples=modele_prompt.examples,
+            use_schema_constraints=True,
+        )
+
+        # 3. FormatHandler et Resolver avec suppress_parse_errors
+        # / 3. FormatHandler and Resolver with suppress_parse_errors
+        parametres_resolution = {"suppress_parse_errors": True}
+        handler_format, parametres_restants = fh_lx.FormatHandler.from_resolver_params(
+            resolver_params=parametres_resolution,
+            base_format_type=data_lx.FormatType.JSON,
+            base_use_fences=modele_llm.requires_fence_output,
+            base_attribute_suffix=data_lx.ATTRIBUTE_SUFFIX,
+            base_use_wrapper=True,
+            base_wrapper_key=data_lx.EXTRACTIONS_KEY,
+        )
+
+        # Extraire les kwargs d'alignement (fuzzy, threshold, suppress...)
+        # / Extract alignment kwargs (fuzzy, threshold, suppress...)
+        kwargs_alignement = {}
+        for cle in resolver_lx.ALIGNMENT_PARAM_KEYS:
+            valeur = parametres_restants.pop(cle, None)
+            if valeur is not None:
+                kwargs_alignement[cle] = valeur
+
+        resolveur = resolver_lx.Resolver(
+            format_handler=handler_format,
+            **parametres_restants,
+        )
+
+        # Estimer le nombre de chunks que langextract va creer.
+        # Ce n'est qu'une estimation — le ChunkIterator coupe aux frontieres de phrases.
+        # / Estimate the number of chunks langextract will create.
+        # / This is just an estimate — ChunkIterator cuts at sentence boundaries.
+        import math
+        nombre_chunks_estime = max(1, math.ceil(longueur_texte_total / TAILLE_MAX_CHUNK))
 
         logger.info(
-            "analyser_page_task: appel lx.extract() job=%s model=%s text_len=%d examples=%d",
-            job_id, parametres_extraction.get("model_id", "?"),
-            len(texte_source), len(liste_exemples_langextract),
+            "analyser_page_task: pipeline langextract pret\n"
+            "  job=%s | model=%s | text=%d chars | ~%d chunks (max_char_buffer=%d)\n"
+            "  exemples=%d | suppress_parse_errors=True | max_output_tokens=8192\n"
+            "  batch_length=1 (sequentiel, 1 chunk a la fois pour streaming WS)",
+            job_id, parametres_modele.get("model_id", "?"),
+            longueur_texte_total, nombre_chunks_estime, TAILLE_MAX_CHUNK,
+            len(liste_exemples_langextract),
         )
-        resultat = lx.extract(**parametres_extraction)
 
-        # Supprimer les anciennes entites si re-extraction
-        # / Delete old entities if re-extraction
+        # Supprimer les anciennes entites AVANT de commencer l'extraction (re-extraction)
+        # / Delete old entities BEFORE starting extraction (re-extraction case)
         job_extraction.entities.all().delete()
 
-        # Creer les entites extraites / Create extracted entities
+        # 4. Callback appele apres chaque chunk resolve()+align()
+        # Cree les entites en DB et envoie les notifications WS en temps reel.
+        # / 4. Callback called after each chunk resolve()+align()
+        # / Creates entities in DB and sends real-time WS notifications.
         nombre_entites_creees = 0
-        for extraction in resultat.extractions or []:
-            intervalle_caracteres = extraction.char_interval
-            entite_creee = ExtractedEntity.objects.create(
-                job=job_extraction,
-                extraction_class=extraction.extraction_class,
-                extraction_text=extraction.extraction_text,
-                start_char=intervalle_caracteres.start_pos if intervalle_caracteres else 0,
-                end_char=intervalle_caracteres.end_pos if intervalle_caracteres else 0,
-                attributes=extraction.attributes or {},
+        numero_chunk_courant = 0
+
+        def callback_extraction_chunk(extractions_du_chunk, caracteres_traites):
+            """
+            Appele apres chaque cycle resolve()+align() d'un chunk LangExtract.
+            Cree les entites en DB, envoie les cartes WS, met a jour la progression.
+            / Called after each resolve()+align() cycle for a LangExtract chunk.
+            / Creates entities in DB, sends WS cards, updates progress.
+
+            LOCALISATION : front/tasks.py (closure dans analyser_page_task)
+
+            FLUX :
+            1. Recoit les extractions alignees depuis AnnotateurAvecProgression
+            2. Cree un ExtractedEntity en DB pour chaque extraction
+            3. Envoie extraction_carte WS → le navigateur affiche la carte en temps reel
+            4. Envoie analyse_progression WS → la barre de progression se met a jour
+            5. Sauvegarde entities_count → rafraichit updated_at pour le timeout
+
+            COMMUNICATION :
+            Recoit : appel direct depuis AnnotateurAvecProgression._annotate_documents_single_pass
+            Emet : extraction_carte + analyse_progression via envoyer_progression_websocket
+            """
+            nonlocal nombre_entites_creees, numero_chunk_courant
+            numero_chunk_courant += 1
+
+            logger.info(
+                "  [callback] %d extraction(s) recues, %d/%d chars traites (%d%%)",
+                len(extractions_du_chunk), caracteres_traites,
+                longueur_texte_total,
+                int(100 * caracteres_traites / longueur_texte_total) if longueur_texte_total else 0,
             )
-            nombre_entites_creees += 1
-            _try_map_to_hypostasis(entite_creee)
+
+            for extraction in extractions_du_chunk:
+                intervalle = extraction.char_interval
+                position_debut = intervalle.start_pos if intervalle else 0
+                position_fin = intervalle.end_pos if intervalle else 0
+
+                entite_creee = ExtractedEntity.objects.create(
+                    job=job_extraction,
+                    extraction_class=extraction.extraction_class,
+                    extraction_text=extraction.extraction_text,
+                    start_char=position_debut,
+                    end_char=position_fin,
+                    attributes=extraction.attributes or {},
+                )
+                nombre_entites_creees += 1
+                _try_map_to_hypostasis(entite_creee)
+
+                logger.debug(
+                    "  [callback] entite #%d creee: [%s] '%s' pos=%d-%d",
+                    nombre_entites_creees,
+                    extraction.extraction_class,
+                    extraction.extraction_text[:60],
+                    position_debut, position_fin,
+                )
+
+                # Pousser la carte d'extraction en temps reel via WebSocket.
+                # Le navigateur l'affiche immediatement dans #streaming-extractions.
+                # / Push extraction card in real-time via WebSocket.
+                # / The browser displays it immediately in #streaming-extractions.
+                if identifiant_utilisateur:
+                    envoyer_progression_websocket(
+                        f"notifications_user_{identifiant_utilisateur}",
+                        "extraction_carte",
+                        {"entite_pk": entite_creee.pk},
+                    )
+
+            # Mettre a jour la progression dans le panneau E.
+            # Le pourcentage est base sur les caracteres traites par rapport au total.
+            # / Update progress in the E panel.
+            # / Percentage is based on chars processed vs total.
+            pourcentage = 5 + int(
+                90 * caracteres_traites / longueur_texte_total
+            ) if longueur_texte_total > 0 else 50
+
+            if identifiant_utilisateur:
+                envoyer_progression_websocket(
+                    f"notifications_user_{identifiant_utilisateur}",
+                    "analyse_progression",
+                    {
+                        "pourcentage": pourcentage,
+                        "message": f"{nombre_entites_creees} entités trouvées",
+                        "chunk_courant": numero_chunk_courant,
+                        "chunks_total": nombre_chunks_estime,
+                    },
+                )
+
+            # Rafraichir updated_at pour le detecteur de timeout dans analyse_status.
+            # Le polling verifie updated_at toutes les 3s. Si pas de save() depuis 10min,
+            # il considere le job comme bloque.
+            # / Refresh updated_at for the timeout detector in analyse_status.
+            # / Polling checks updated_at every 3s. If no save() for 10min, job is stalled.
+            job_extraction.entities_count = nombre_entites_creees
+            job_extraction.save(update_fields=["entities_count"])
+
+        # 5. Creer l'annotateur avec callback et lancer l'extraction
+        # batch_length=1 pour que le callback se declenche apres chaque chunk.
+        # / 5. Create the annotator with callback and run extraction
+        # / batch_length=1 so the callback fires after each chunk.
+        annotateur = _creer_annotateur_avec_progression(
+            modele_llm=modele_llm,
+            prompt_template=modele_prompt,
+            format_handler=handler_format,
+            callback_par_chunk=callback_extraction_chunk,
+        )
+
+        resultat_annote = annotateur.annotate_text(
+            text=texte_source,
+            resolver=resolveur,
+            max_char_buffer=TAILLE_MAX_CHUNK,
+            batch_length=1,
+            show_progress=False,
+            **kwargs_alignement,
+        )
+
+        # Les entites ont deja ete creees dans le callback — on utilise le resultat
+        # uniquement pour verifier la coherence (le nombre d'extractions).
+        # / Entities were already created in the callback — we use the result
+        # / only to verify consistency (extraction count).
+        nombre_extractions_langextract = len(resultat_annote.extractions or [])
+        if nombre_extractions_langextract != nombre_entites_creees:
+            logger.warning(
+                "analyser_page_task: incoherence — callback a cree %d entites, "
+                "resultat_annote en contient %d",
+                nombre_entites_creees, nombre_extractions_langextract,
+            )
 
         # Mettre a jour le job (update_fields pour ne pas ecraser d'autres champs)
         # / Update the job (update_fields to avoid overwriting other fields)
@@ -537,7 +996,8 @@ def analyser_page_task(self, job_id):
         job_extraction.processing_time_seconds = duree_traitement
         job_extraction.raw_result = {
             "extractions_count": nombre_entites_creees,
-            "document_length": len(texte_source),
+            "document_length": longueur_texte_total,
+            "max_char_buffer": TAILLE_MAX_CHUNK,
         }
         job_extraction.save(update_fields=[
             "status", "entities_count", "processing_time_seconds", "raw_result",
@@ -555,6 +1015,21 @@ def analyser_page_task(self, job_id):
             "message": f"Analyse terminée — {nombre_entites_creees} entités extraites",
             "resultat": {"job_id": job_id, "entites": nombre_entites_creees},
         })
+
+        # Envoyer aussi via le NotificationConsumer pour que le drawer se mette a jour.
+        # Le consumer renvoie un OOB qui declenche le chargement du drawer final.
+        # / Also send via NotificationConsumer so the drawer updates.
+        # / The consumer returns an OOB that triggers loading the final drawer.
+        if identifiant_utilisateur:
+            envoyer_progression_websocket(
+                f"notifications_user_{identifiant_utilisateur}",
+                "analyse_terminee",
+                {
+                    "page_id": page_associee.pk,
+                    "job_id": job_id,
+                    "nombre_entites": nombre_entites_creees,
+                },
+            )
 
     except Exception as erreur_extraction:
         duree_traitement = time.time() - debut_traitement
@@ -579,3 +1054,16 @@ def analyser_page_task(self, job_id):
             "message": f"Erreur d'analyse : {message_erreur[:200]}",
             "resultat": {},
         })
+
+        # Envoyer aussi via le NotificationConsumer pour mettre a jour le drawer
+        # / Also send via NotificationConsumer to update the drawer
+        if identifiant_utilisateur:
+            envoyer_progression_websocket(
+                f"notifications_user_{identifiant_utilisateur}",
+                "analyse_terminee",
+                {
+                    "page_id": page_associee.pk,
+                    "job_id": job_id,
+                    "erreur": True,
+                },
+            )

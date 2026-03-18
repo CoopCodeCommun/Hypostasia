@@ -661,6 +661,31 @@ class AIModel(models.Model):
         "mock": (0.0, 0.0),
     }
 
+    # Multiplicateur de tokens output pour les modeles avec mode "thinking".
+    # Le thinking genere des tokens de reflexion internes factures au tarif output.
+    # Le ratio varie selon la complexite de la requete (3x a 8x observe).
+    # On utilise 5x comme estimation conservatrice.
+    # Les modeles absents de cette table n'ont pas de thinking (multiplicateur = 1).
+    # / Output token multiplier for models with "thinking" mode.
+    # / Thinking generates internal reasoning tokens billed at output rate.
+    # / Ratio varies by request complexity (3x to 8x observed).
+    # / We use 5x as a conservative estimate.
+    # / Models not in this table have no thinking (multiplier = 1).
+    MULTIPLICATEUR_THINKING = {
+        "gemini-2.5-pro": 5,
+        "gemini-2.5-flash": 5,
+    }
+
+    def multiplicateur_thinking(self):
+        """
+        Retourne le multiplicateur de tokens output lie au mode thinking.
+        1 si le modele n'a pas de thinking, N si oui.
+        / Returns the output token multiplier for thinking mode.
+        1 if the model has no thinking, N if it does.
+        """
+        nom_technique = self.technical_model_name.lower()
+        return self.MULTIPLICATEUR_THINKING.get(nom_technique, 1)
+
     def cout_par_million_tokens(self):
         """
         Retourne le tuple (cout_input, cout_output) en USD par million de tokens.

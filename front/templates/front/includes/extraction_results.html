@@ -19,9 +19,15 @@
                 &mdash; {{ error_job.created_at|date:"d/m H:i" }}
             </p>
             {% endif %}
-            <button class="empty-state-action mt-2" onclick="document.getElementById('btn-toolbar-analyser').click()">
+            {% if page %}
+            <button class="empty-state-action mt-2"
+                    hx-get="/lire/{{ page.pk }}/previsualiser_analyse/"
+                    hx-target="#drawer-contenu"
+                    hx-swap="innerHTML"
+                    data-testid="btn-reessayer-analyse">
                 R&eacute;essayer
             </button>
+            {% endif %}
         </div>
     </div>
 

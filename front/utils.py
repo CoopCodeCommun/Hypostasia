@@ -155,6 +155,45 @@ def _calculer_leading_offset(texte_extrait):
     return len(texte_extrait)
 
 
+def _retrouver_position_avant_normalisation(texte_original, index_dans_normalise):
+    """
+    Quand on trouve un match a la position index_dans_normalise dans le texte
+    normalise (whitespace compresses en un seul espace), on veut retrouver la
+    position correspondante dans texte_original (qui a encore ses \n, doubles espaces, etc.).
+    On parcourt texte_original caractere par caractere en comptant combien de
+    caracteres normalises on a produits, jusqu'a atteindre index_dans_normalise.
+    / When a match is found at index_dans_normalise in the normalized text,
+    / find the corresponding position in the original text (with \n, multiple spaces).
+    """
+    import re
+    compteur_normalise = 0
+    i = 0
+    longueur = len(texte_original)
+    en_whitespace = False
+
+    while i < longueur and compteur_normalise < index_dans_normalise:
+        caractere = texte_original[i]
+        est_whitespace = caractere in (' ', '\n', '\t', '\r', '\xa0')
+
+        if est_whitespace:
+            if not en_whitespace:
+                # Premier whitespace d'une sequence → compte comme 1 espace normalise
+                # / First whitespace in a sequence → counts as 1 normalized space
+                compteur_normalise += 1
+                en_whitespace = True
+            # Les whitespace suivants dans la sequence sont ignores (comprimes)
+            # / Subsequent whitespace in the sequence are ignored (compressed)
+        else:
+            compteur_normalise += 1
+            en_whitespace = False
+
+        i += 1
+
+    if compteur_normalise == index_dans_normalise:
+        return i
+    return None
+
+
 def _rechercher_texte_dans_contenu(texte_cible, extraction_text, hint_position=None):
     """
     Recherche extraction_text dans texte_cible.
@@ -193,6 +232,71 @@ def _rechercher_texte_dans_contenu(texte_cible, extraction_text, hint_position=N
         index_prefixe = texte_soft.find(prefixe)
         if index_prefixe != -1:
             return index_prefixe
+
+    # --- Strategie 4 : normalisation complete (whitespace + ponctuation typographique) ---
+    # Le LLM normalise souvent le texte quand il le recopie dans sa reponse :
+    #   - \n et \t deviennent des espaces
+    #   - les doubles espaces deviennent des espaces simples
+    #   - les apostrophes typographiques ' (U+2019) deviennent ' (U+0027)
+    #   - les guillemets typographiques " " deviennent "
+    #   - les tirets longs — – deviennent -
+    # On applique les memes normalisations aux deux textes pour la comparaison.
+    # ATTENTION : apres normalisation, les positions ne correspondent plus 1:1
+    # au texte original (un \n supprime = decalage). On retourne donc la position
+    # trouvee dans le texte ORIGINAL en recherchant le prefixe normalise.
+    # / Strategy 4: full normalization (whitespace + typographic punctuation)
+    # / The LLM normalizes text when copying it into its response.
+    # / We apply the same normalizations to both texts for comparison.
+    import re
+
+    def normaliser_texte_complet(texte):
+        """Normalise whitespace + ponctuation typographique pour comparaison."""
+        resultat = texte
+        # Ponctuation typographique → ASCII
+        # / Typographic punctuation → ASCII
+        resultat = resultat.replace('\u2019', "'")   # ' → apostrophe droite
+        resultat = resultat.replace('\u2018', "'")   # ' → apostrophe droite
+        resultat = resultat.replace('\u201c', '"')   # " → guillemet droit
+        resultat = resultat.replace('\u201d', '"')   # " → guillemet droit
+        resultat = resultat.replace('\u2013', '-')   # – → tiret
+        resultat = resultat.replace('\u2014', '-')   # — → tiret
+        # Whitespace : \n, \t, espaces multiples → un seul espace
+        # / Whitespace: \n, \t, multiple spaces → single space
+        resultat = re.sub(r'\s+', ' ', resultat)
+        return resultat
+
+    texte_normalise = normaliser_texte_complet(texte_soft)
+    search_normalise = normaliser_texte_complet(search_soft)
+
+    # Recherche exacte sur textes normalises.
+    # Si le match est trouve, on doit retrouver la position dans le texte ORIGINAL.
+    # On utilise le prefixe pour localiser dans le texte non-normalise.
+    # / Exact search on normalized texts.
+    # / If match found, we need the position in the ORIGINAL text.
+    # / We use the prefix to locate in the non-normalized text.
+    index_normalise = texte_normalise.find(search_normalise)
+    if index_normalise != -1:
+        # Retrouver la position originale : le caractere a index_normalise dans
+        # le texte normalise correspond a un caractere dans texte_soft.
+        # On parcourt texte_soft en comptant les caracteres normalises.
+        # / Find original position by walking texte_soft and counting normalized chars.
+        position_originale = _retrouver_position_avant_normalisation(
+            texte_soft, index_normalise
+        )
+        if position_originale is not None:
+            return position_originale
+
+    # Recherche du prefixe normalise (30 chars)
+    # / Normalized prefix search (30 chars)
+    prefixe_normalise = search_normalise[:30]
+    if len(prefixe_normalise) >= 10:
+        index_prefixe_normalise = texte_normalise.find(prefixe_normalise)
+        if index_prefixe_normalise != -1:
+            position_originale = _retrouver_position_avant_normalisation(
+                texte_soft, index_prefixe_normalise
+            )
+            if position_originale is not None:
+                return position_originale
 
     logger.debug(
         "_rechercher_texte: aucun match pour '%s'",
@@ -285,11 +389,16 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
             pos_debut_extrait = start_char + leading_offset
             pos_fin_extrait = end_char + leading_offset
 
-            # Verifier la coherence : le texte doit COMMENCER a cette position
-            # / Sanity check: text must START at this position
+            # Verifier la coherence : le texte doit COMMENCER a cette position.
+            # On normalise les whitespace et la ponctuation pour la comparaison
+            # car le LLM compresse souvent les \n et doubles espaces.
+            # / Sanity check: text must START at this position.
+            # / We normalize whitespace and punctuation for comparison
+            # / because the LLM often compresses \n and double spaces.
             if extraction_text and len(extraction_text) > 5:
-                texte_a_position = texte_extrait[pos_debut_extrait:pos_debut_extrait + 30].replace('\xa0', ' ')
-                debut_attendu = extraction_text[:15].replace('\xa0', ' ')
+                import re
+                texte_a_position = re.sub(r'\s+', ' ', texte_extrait[pos_debut_extrait:pos_debut_extrait + 30])
+                debut_attendu = re.sub(r'\s+', ' ', extraction_text[:15])
                 if debut_attendu and not texte_a_position.startswith(debut_attendu):
                     positions_valides = False
 
@@ -297,8 +406,12 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
                 pos_debut_texte = pos_debut_extrait
                 pos_fin_texte = pos_fin_extrait
 
-        # Fallback : recherche textuelle dans texte_extrait
-        # / Fallback: text search in texte_extrait
+        # Fallback : recherche textuelle dans texte_extrait.
+        # Si la recherche normalise les whitespace pour trouver le match,
+        # la fin du span doit couvrir les \n et doubles espaces du texte original.
+        # On utilise end_char - start_char (etendue originale) si positions valides.
+        # / Fallback: text search in texte_extrait.
+        # / If search normalizes whitespace, span end must cover \n and double spaces.
         if pos_debut_texte is None:
             pos_trouvee = _rechercher_texte_dans_contenu(
                 texte_extrait, extraction_text,
@@ -306,7 +419,14 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
             )
             if pos_trouvee is not None:
                 pos_debut_texte = pos_trouvee
-                pos_fin_texte = pos_trouvee + len(extraction_text)
+                # Utiliser l'etendue originale (end_char - start_char) si disponible.
+                # Sinon, estimer en marchant dans le texte original.
+                # / Use original span (end_char - start_char) if available.
+                etendue_originale = end_char - start_char if (end_char > start_char) else 0
+                if etendue_originale > 0:
+                    pos_fin_texte = pos_trouvee + etendue_originale
+                else:
+                    pos_fin_texte = pos_trouvee + len(extraction_text)
 
         if pos_debut_texte is None:
             logger.warning(

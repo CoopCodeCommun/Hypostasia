@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hypostasia — Bibliothèque</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
-    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=25">
+    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=26">
     <script src="{% static 'front/vendor/htmx-2.0.4.min.js' %}"></script>
     <script src="{% static 'front/vendor/htmx-ext-ws-2.0.4.js' %}"></script>
     <script src="{% static 'front/vendor/sweetalert2-11.min.js' %}"></script>
@@ -40,26 +40,11 @@
                 </svg>
                 <span class="btn-toolbar-label">Dashboard</span>
             </button>
-            <!-- Bouton Analyser — attributs HTMX mis a jour via OOB dans lecture_principale.html -->
-            <!-- / Analyze button — HTMX attributes updated via OOB in lecture_principale.html -->
-            <button id="btn-toolbar-analyser" class="btn-toolbar btn-desktop-only"
-                    title="Lancer une analyse IA sur la page courante"
-                    data-testid="btn-toolbar-analyser"
-                    {% if page_preloaded %}
-                    hx-get="/lire/{{ page_preloaded.pk }}/previsualiser_analyse/"
-                    hx-target="#zone-lecture"
-                    hx-swap="innerHTML"
-                    {% endif %}>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/>
-                </svg>
-                <span class="btn-toolbar-label">Analyser</span>
-            </button>
-            <button id="btn-toolbar-drawer" class="btn-toolbar btn-desktop-only" title="Vue liste des extractions (E)" data-testid="btn-toolbar-extractions">
+            <button id="btn-toolbar-drawer" class="btn-toolbar btn-desktop-only" title="Analyses (E)" data-testid="btn-toolbar-extractions">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
                 </svg>
-                <span class="btn-toolbar-label">Extractions</span>
+                <span class="btn-toolbar-label">Analyses</span>
                 {# Point indicateur filtre contributeur actif (PHASE-26a UX) #}
                 <span id="badge-filtre-contributeur" class="badge-filtre-contributeur hidden" data-testid="badge-filtre-contributeur"></span>
             </button>
@@ -266,14 +251,14 @@
 
     <!-- Overlay drawer vue liste (PHASE-10) -->
     <!-- / Drawer list view overlay (PHASE-10) -->
-    <aside id="drawer-overlay" class="fixed top-0 right-0 bottom-0 z-50 bg-white shadow-xl translate-x-full pointer-events-none flex flex-col" style="width: min(32rem, 100vw);" aria-label="Vue liste des extractions" data-testid="drawer-overlay">
+    <aside id="drawer-overlay" class="fixed top-0 right-0 bottom-0 z-50 bg-white shadow-xl translate-x-full pointer-events-none flex flex-col" style="width: min(36rem, 100vw);" aria-label="Analyses" data-testid="drawer-overlay">
         <!-- Header drawer -->
         <div class="h-12 border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
             <div class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
                 </svg>
-                <span id="drawer-titre" class="font-semibold text-sm text-slate-700">Extractions</span>
+                <span id="drawer-titre" class="font-semibold text-sm text-slate-700">Analyses</span>
             </div>
             <button id="btn-fermer-drawer" class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors" title="Fermer (Escape)" aria-label="Fermer le drawer" data-testid="btn-fermer-drawer">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">

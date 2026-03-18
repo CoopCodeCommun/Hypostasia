@@ -323,13 +323,27 @@ document.addEventListener('click', async function(evenement) {
 // / Right panel: open / close
 // ==========================================================================
 
-// Panneau droit : no-op en PHASE-07 (layout mono-colonne)
-// Sera re-implemente en PHASE-10 (drawer) / Will be reimplemented in PHASE-10
-function ouvrirPanneauDroit() {}
+// Panneau droit : delegue au drawer vue liste
+// / Right panel: delegates to drawer list view
+function ouvrirPanneauDroit() {
+    if (window.drawerVueListe) {
+        window.drawerVueListe.ouvrir();
+    }
+}
 
 // Ecoute l'evenement HTMX custom "ouvrirPanneauDroit"
 // envoye par le controleur via HX-Trigger dans la reponse
+// / Listens for HTMX custom event "ouvrirPanneauDroit"
+// / sent by the controller via HX-Trigger in the response
 document.body.addEventListener('ouvrirPanneauDroit', function() {
+    ouvrirPanneauDroit();
+});
+
+// Ecoute l'evenement HTMX custom "ouvrirDrawer"
+// envoye par analyser() via HX-Trigger pour ouvrir le drawer apres lancement
+// / Listens for HTMX custom event "ouvrirDrawer"
+// / sent by analyser() via HX-Trigger to open drawer after launch
+document.body.addEventListener('ouvrirDrawer', function() {
     ouvrirPanneauDroit();
 });
 

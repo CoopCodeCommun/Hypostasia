@@ -12,7 +12,6 @@
  * Ecoute : clic sur #btn-hamburger-arbre, #btn-fermer-arbre, #arbre-backdrop
  * Ecoute : clic delegue sur #arbre .lien-page (ferme apres navigation)
  * Ecoute : clic delegue sur [data-placeholder] (toast phase future)
- * Note : #btn-toolbar-analyser est gere par HTMX (OOB swap dans lecture_principale.html)
  * Ecoute : clic sur #btn-creer-dossier-overlay (SweetAlert + HTMX POST /dossiers/)
  * Ecoute : change sur #input-import-fichier-overlay (relaye vers input principal)
  * Ecoute : keydown T (toggle arbre), Escape (ferme arbre)

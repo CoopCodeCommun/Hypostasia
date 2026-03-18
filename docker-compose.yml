@@ -15,7 +15,7 @@
 #   cd /app && git pull
 #   uv sync
 #   uv run python manage.py migrate
-#   supervisorctl -c /app/supervisord.conf restart gunicorn celery_worker
+#   supervisorctl -c /app/supervisord.conf restart gunicorn daphne celery_worker
 # =============================================================================
 
 services:
@@ -64,6 +64,7 @@ services:
       # / Force PostgreSQL and Redis hosts to Docker service names
       POSTGRES_HOST: postgres
       CELERY_BROKER_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/0
       # Cache uv et home dans /app pour eviter les problemes de permissions
       # / uv cache and home in /app to avoid permission issues
       UV_CACHE_DIR: /app/.cache/uv
@@ -79,7 +80,7 @@ services:
     networks:
       - hypostasia
     # DEBUG=true → sleep infinity (on lance le serveur a la main)
-    # DEBUG=false → start.sh (supervisord : gunicorn + celery)
+    # DEBUG=false → start.sh (supervisord : gunicorn:8001 + daphne:8000 + celery)
     command: >
       bash -c '
         if [ "$DEBUG" = "true" ] || [ "$DEBUG" = "True" ]; then

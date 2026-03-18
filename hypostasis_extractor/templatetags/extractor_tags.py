@@ -169,23 +169,60 @@ def extraction_attr_key(extraction, index):
 def entity_json_attrs(entity):
     """
     Extrait les valeurs du JSONField attributes d'une ExtractedEntity.
-    Retourne une liste de 4 elements (valeurs dans l'ordre des cles, padde avec "").
-    Usage: {% entity_json_attrs entity as entity_attrs %}
+    Retourne un dict avec des cles normalisees pour le template _card_body.html :
+        attr_0 = hypostase (liste separee par virgules)
+        attr_1 = resume (texte libre, jamais splitte)
+        attr_2 = statut de debat
+        attr_3 = mots-cles (liste separee par virgules)
+
+    L'ordre des cles dans le JSON varie selon les modeles LLM.
+    On identifie chaque attribut par son nom (insensible a la casse et aux accents)
+    plutot que par sa position.
+
     / Extract values from an ExtractedEntity's JSONField attributes.
-    Returns a list of 4 elements (values in key order, padded with "").
+    / Returns a dict with normalized keys for the _card_body.html template.
+    / Attribute identification is by name (case/accent insensitive), not position.
+
+    LOCALISATION : hypostasis_extractor/templatetags/extractor_tags.py
     """
     try:
         attributes_dict = entity.attributes or {}
-        values_list = list(attributes_dict.values())
     except (AttributeError, TypeError):
-        values_list = []
+        attributes_dict = {}
 
-    # Pad a 4 elements pour attr_0..attr_3
-    # Pad to 4 elements for attr_0..attr_3
-    while len(values_list) < 4:
-        values_list.append("")
+    # Identifier chaque attribut par son nom normalise (sans accents, minuscule).
+    # Les noms possibles viennent des analyseurs configures par l'utilisateur.
+    # / Identify each attribute by its normalized name (no accents, lowercase).
+    # / Possible names come from user-configured analyzers.
+    hypostase = ""
+    resume = ""
+    statut = ""
+    mots_cles = ""
 
-    return values_list[:4]
+    for cle_brute, valeur in attributes_dict.items():
+        cle_normalisee = _normaliser_hypostase(cle_brute)
+
+        if cle_normalisee in ("hypostase", "hypostases"):
+            hypostase = valeur
+        elif cle_normalisee in ("resume", "résumé", "summary"):
+            resume = valeur
+        elif cle_normalisee in ("statut", "statut_debat", "status"):
+            statut = valeur
+        elif cle_normalisee in ("mots_cles", "mots-cles", "mots_clés", "keywords", "hashtags"):
+            mots_cles = valeur
+        else:
+            # Attribut inconnu : tenter de le placer dans le premier slot vide
+            # / Unknown attribute: try to place in first empty slot
+            if not hypostase:
+                hypostase = valeur
+            elif not resume:
+                resume = valeur
+            elif not statut:
+                statut = valeur
+            elif not mots_cles:
+                mots_cles = valeur
+
+    return [hypostase, resume, statut, mots_cles]
 
 
 @register.filter
