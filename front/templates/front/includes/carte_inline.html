@@ -3,6 +3,7 @@
 {% load extractor_tags %}
 {% entity_json_attrs entity as entity_attrs %}
 <div class="carte-inline carte-inline-entree"
+     id="carte-inline-{{ entity.pk }}"
      data-extraction-id="{{ entity.pk }}"
      data-statut="{{ entity.statut_debat }}"
      data-testid="carte-inline"
@@ -101,10 +102,9 @@
             </svg>
             Commenter
         </button>
-        {# Bouton Modifier — reserve au owner, seulement si nouveau ou discutable (pas de commentaires) #}
-        {# / Edit button — owner only, only if nouveau or discutable (no comments) #}
-        {% if est_proprietaire and not nombre_commentaires %}
-        {% if entity.statut_debat == "nouveau" or entity.statut_debat == "discutable" %}
+        {# Bouton Modifier — conditionne par peut_editer (PHASE-26f) #}
+        {# / Edit button — conditioned by peut_editer (PHASE-26f) #}
+        {% if entity.peut_editer %}
         <button class="btn-editer-extraction text-xs text-slate-400 hover:text-blue-600 transition-colors"
                 data-entity-id="{{ entity.pk }}"
                 data-page-id="{{ entity.job.page_id }}"
@@ -117,11 +117,10 @@
             Modifier
         </button>
         {% endif %}
-        {% endif %}
 
-        {# Bouton Supprimer — reserve au owner, seulement si pas de commentaires #}
-        {# / Delete button — owner only, only if no comments #}
-        {% if est_proprietaire and not nombre_commentaires %}
+        {# Bouton Supprimer — conditionne par peut_editer (PHASE-26f) #}
+        {# / Delete button — conditioned by peut_editer (PHASE-26f) #}
+        {% if entity.peut_editer %}
         <button class="btn-supprimer-extraction text-xs text-slate-400 hover:text-red-500 transition-colors"
                 data-entity-id="{{ entity.pk }}"
                 data-page-id="{{ entity.job.page_id }}"

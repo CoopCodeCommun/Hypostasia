@@ -1009,16 +1009,20 @@ class Phase04SuppressionExtractionManuelleTest(TestCase):
 
     def setUp(self):
         from django.contrib.auth.models import User
-        from core.models import Page
+        from core.models import Dossier, Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
 
         self.user_test = User.objects.create_user(username="test_user_suppr_ext", password="test1234")
         self.client.force_login(self.user_test)
+        # Dossier avec owner pour les permissions de suppression (PHASE-26f)
+        # / Folder with owner for deletion permissions (PHASE-26f)
+        self.dossier = Dossier.objects.create(name="Dossier test suppr", owner=self.user_test)
         self.page = Page.objects.create(
             title="Page pour extraction",
             html_original="<html><body>Texte de test</body></html>",
             html_readability="<article>Texte de test</article>",
             text_readability="Texte de test pour extraction manuelle.",
+            dossier=self.dossier,
         )
         self.job_manuel = ExtractionJob.objects.create(
             page=self.page,
@@ -1045,7 +1049,7 @@ class Phase04SuppressionExtractionManuelleTest(TestCase):
         self.assertFalse(ExtractedEntity.objects.filter(pk=self.entite.pk).exists())
 
     def test_supprimer_extraction_avec_commentaires_refuse(self):
-        """Impossible de supprimer une extraction qui a des commentaires."""
+        """Impossible de supprimer une extraction qui a des commentaires (renvoie 403 via _peut_supprimer)."""
         from hypostasis_extractor.models import CommentaireExtraction
         CommentaireExtraction.objects.create(
             entity=self.entite,
@@ -1056,7 +1060,9 @@ class Phase04SuppressionExtractionManuelleTest(TestCase):
             "/extractions/supprimer_entite/",
             data={"entity_id": self.entite.pk, "page_id": self.page.pk},
         )
-        self.assertEqual(reponse.status_code, 400)
+        # PHASE-26f : _peut_supprimer_extraction retourne False si commentaires → 403
+        # / PHASE-26f: _peut_supprimer_extraction returns False if comments → 403
+        self.assertEqual(reponse.status_code, 403)
 
 
 class Phase04ModifierCommentaireTest(TestCase):
@@ -2004,14 +2010,21 @@ class Phase09EndpointCarteInlineTest(TestCase):
     / Verify GET /extractions/carte_inline/ endpoint (PHASE-09)."""
 
     def setUp(self):
-        from core.models import Page
+        from django.contrib.auth.models import User
+        from core.models import Dossier, Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
 
+        # Utilisateur owner + dossier pour les permissions (PHASE-26f)
+        # / Owner user + folder for permissions (PHASE-26f)
+        self.user_owner = User.objects.create_user(username="test_carte_owner", password="test1234")
+        self.client.force_login(self.user_owner)
+        self.dossier = Dossier.objects.create(name="Dossier carte inline", owner=self.user_owner)
         self.page = Page.objects.create(
             title="Page carte inline",
             html_original="<html><body>Texte pour carte inline</body></html>",
             html_readability="<p>Texte pour carte inline</p>",
             text_readability="Texte pour carte inline.",
+            dossier=self.dossier,
         )
         self.job = ExtractionJob.objects.create(
             page=self.page,

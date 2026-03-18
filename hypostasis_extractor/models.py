@@ -211,6 +211,17 @@ class ExtractedEntity(models.Model):
     )
     user_notes = models.TextField(blank=True, help_text="Notes de validation")
 
+    # Auteur de l'extraction (null pour les extractions legacy/IA)
+    # / Extraction author (null for legacy/AI extractions)
+    cree_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="extractions_creees",
+        help_text="Utilisateur ayant cree cette extraction manuellement / User who manually created this extraction",
+    )
+
     # Statut du debat sur cette extraction
     # / Debate status for this extraction
     STATUT_DEBAT_CHOICES = [

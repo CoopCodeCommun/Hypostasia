@@ -298,6 +298,47 @@ def _rechercher_texte_dans_contenu(texte_cible, extraction_text, hint_position=N
             if position_originale is not None:
                 return position_originale
 
+    # --- Strategie 5 : sous-sequence de mots (PDF multi-colonnes) ---
+    # L'extraction PDF reordonne parfois les mots (layout multi-colonnes).
+    # Le LLM reconstruit l'ordre logique, mais les mots stockes sont melanges.
+    # On cherche la plus longue sous-sequence contigue de mots de l'extraction
+    # qui apparait dans le texte source. Si elle couvre >= 60% des mots, on ancre.
+    # / Strategy 5: word subsequence (multi-column PDF)
+    # / PDF extraction sometimes reorders words. The LLM reconstructs logical order,
+    # / but stored words are scrambled. We find the longest contiguous word subsequence
+    # / from the extraction that appears in the source. If >= 60% of words, we anchor.
+    mots_extraction = search_normalise.split()
+    if len(mots_extraction) >= 4:
+        meilleure_position = None
+        meilleure_longueur = 0
+        seuil_mots = max(4, int(len(mots_extraction) * 0.6))
+
+        # Fenetre glissante decroissante : on essaie d'abord les plus longs blocs
+        # / Decreasing sliding window: try longest blocks first
+        for taille_fenetre in range(len(mots_extraction), seuil_mots - 1, -1):
+            if meilleure_longueur >= taille_fenetre:
+                break
+            for debut_fenetre in range(len(mots_extraction) - taille_fenetre + 1):
+                bloc = ' '.join(mots_extraction[debut_fenetre:debut_fenetre + taille_fenetre])
+                index_bloc = texte_normalise.find(bloc)
+                if index_bloc != -1 and taille_fenetre > meilleure_longueur:
+                    meilleure_longueur = taille_fenetre
+                    meilleure_position = index_bloc
+                    break
+            if meilleure_longueur >= taille_fenetre:
+                break
+
+        if meilleure_position is not None:
+            logger.debug(
+                "_rechercher_texte: match partiel (strategie 5, %d/%d mots) pour '%s'",
+                meilleure_longueur, len(mots_extraction), extraction_text[:50],
+            )
+            position_originale = _retrouver_position_avant_normalisation(
+                texte_soft, meilleure_position
+            )
+            if position_originale is not None:
+                return position_originale
+
     logger.debug(
         "_rechercher_texte: aucun match pour '%s'",
         extraction_text[:50],

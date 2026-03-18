@@ -163,6 +163,44 @@ def _est_proprietaire_dossier(utilisateur, page):
     return page.dossier.owner == utilisateur
 
 
+def _peut_editer_extraction(utilisateur, entite):
+    """
+    Verifie si un utilisateur peut editer une extraction.
+    Conditions : authentifie, statut nouveau/discutable, aucun commentaire,
+    et (owner du dossier OU contributeur qui a cree l'extraction).
+    / Checks if a user can edit an extraction.
+    / Conditions: authenticated, status nouveau/discutable, no comments,
+    / and (folder owner OR contributor who created the extraction).
+
+    LOCALISATION : front/views.py
+    """
+    if not utilisateur or not utilisateur.is_authenticated:
+        return False
+    if entite.statut_debat not in ("nouveau", "discutable"):
+        return False
+    if CommentaireExtraction.objects.filter(entity=entite).exists():
+        return False
+    # Owner du dossier → peut editer toute extraction
+    # / Folder owner → can edit any extraction
+    if _est_proprietaire_dossier(utilisateur, entite.job.page):
+        return True
+    # Contributeur → peut editer uniquement ses propres extractions manuelles
+    # / Contributor → can only edit their own manual extractions
+    if entite.cree_par == utilisateur and _utilisateur_peut_ecrire_dossier(utilisateur, entite.job.page.dossier):
+        return True
+    return False
+
+
+def _peut_supprimer_extraction(utilisateur, entite):
+    """
+    Verifie si un utilisateur peut supprimer une extraction (meme logique que editer).
+    / Checks if a user can delete an extraction (same logic as edit).
+
+    LOCALISATION : front/views.py
+    """
+    return _peut_editer_extraction(utilisateur, entite)
+
+
 def _reponse_acces_refuse(request):
     """
     Construit la reponse 403 — toast SweetAlert pour HTMX, template complet sinon.
@@ -2521,6 +2559,11 @@ class ExtractionViewSet(viewsets.ViewSet):
             ).order_by("start_char")
         )
 
+        # Annoter chaque entite avec le droit d'edition (PHASE-26f)
+        # / Annotate each entity with edit permission (PHASE-26f)
+        for entite in entites_visibles:
+            entite.peut_editer = _peut_editer_extraction(request.user, entite)
+
         # Compteur d'entites masquees pour le drawer
         # / Hidden entities count for the drawer
         nombre_masquees = ExtractedEntity.objects.filter(
@@ -2591,6 +2634,11 @@ class ExtractionViewSet(viewsets.ViewSet):
                 masquee=False,
             ).order_by("start_char")
         )
+
+        # Annoter chaque entite avec le droit d'edition (PHASE-26f)
+        # / Annotate each entity with edit permission (PHASE-26f)
+        for entite in entites_visibles:
+            entite.peut_editer = _peut_editer_extraction(request.user, entite)
 
         # Compteur d'entites masquees pour le drawer
         # / Hidden entities count for the drawer
@@ -2753,6 +2801,7 @@ class ExtractionViewSet(viewsets.ViewSet):
             start_char=donnees["start_char"],
             end_char=donnees["end_char"],
             attributes=attributs_entite,
+            cree_par=request.user,
         )
 
         html_complet = self._render_panneau_complet_avec_oob(request, page)
@@ -2766,10 +2815,10 @@ class ExtractionViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["POST"])
     def editer(self, request):
         """
-        Affiche le formulaire d'edition inline pour une extraction existante.
-        Reserve au proprietaire du dossier, seulement si nouveau/discutable sans commentaires.
-        / Displays the inline edit form for an existing extraction.
-        / Owner only, only if nouveau/discutable with no comments.
+        Affiche la modale d'edition pour une extraction existante.
+        Verifie les permissions via _peut_editer_extraction().
+        / Displays the edit modal for an existing extraction.
+        / Checks permissions via _peut_editer_extraction().
         """
         refus = _exiger_authentification(request)
         if refus:
@@ -2780,13 +2829,10 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         entite = get_object_or_404(ExtractedEntity, pk=entity_id)
 
-        # Verifier ownership et statut / Check ownership and status
-        if not _est_proprietaire_dossier(request.user, entite.job.page):
+        # Verifier permissions / Check permissions
+        if not _peut_editer_extraction(request.user, entite):
             return _reponse_acces_refuse(request)
-        if entite.statut_debat not in ("nouveau", "discutable"):
-            return _reponse_acces_refuse(request)
-        if CommentaireExtraction.objects.filter(entity=entite).exists():
-            return _reponse_acces_refuse(request)
+
         attributs = entite.attributes or {}
 
         # Construire la liste des paires (cle, valeur) pour le template
@@ -2804,8 +2850,10 @@ class ExtractionViewSet(viewsets.ViewSet):
             nom_defaut = noms_par_defaut[index_suivant] if index_suivant < len(noms_par_defaut) else f"attr_{index_suivant}"
             liste_attributs.append((nom_defaut, ""))
 
-        html_formulaire = render_to_string(
-            "front/includes/extraction_manuelle_form.html",
+        # Rendre la modale d'edition (PHASE-26f)
+        # / Render the edit modal (PHASE-26f)
+        html_modale = render_to_string(
+            "front/includes/modale_edition_extraction.html",
             {
                 "entity": entite,
                 "page_id": page_id,
@@ -2813,7 +2861,12 @@ class ExtractionViewSet(viewsets.ViewSet):
             },
             request=request,
         )
-        return HttpResponse(html_formulaire)
+        reponse = HttpResponse(html_modale)
+        # Append la modale au body via HX-Retarget + HX-Reswap
+        # / Append modal to body via HX-Retarget + HX-Reswap
+        reponse["HX-Retarget"] = "body"
+        reponse["HX-Reswap"] = "beforeend"
+        return reponse
 
     @action(detail=False, methods=["POST"])
     def modifier(self, request):
@@ -2840,8 +2893,8 @@ class ExtractionViewSet(viewsets.ViewSet):
         entite = get_object_or_404(ExtractedEntity, pk=entity_id)
         page = get_object_or_404(Page, pk=page_id)
 
-        # Verifier ownership / Check ownership
-        if not _est_proprietaire_dossier(request.user, page):
+        # Verifier permissions / Check permissions
+        if not _peut_editer_extraction(request.user, entite):
             return _reponse_acces_refuse(request)
 
         # Lire les paires cle/valeur dynamiques depuis le formulaire
@@ -2859,11 +2912,16 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         logger.info("modifier: entite pk=%s modifiee attrs=%s", entite.pk, list(nouveaux_attributs.keys()))
 
-        html_complet = self._render_panneau_complet_avec_oob(request, page)
-        reponse = HttpResponse(html_complet)
+        # Reponse simple : HTML vide (le formulaire cible #panneau-extractions)
+        # Le JS ferme la modale et rafraichit la carte inline via htmx.ajax separe.
+        # Pas de re-rendu du readability-content : les attributs ne changent pas le texte annote.
+        # / Simple response: empty HTML (form targets #panneau-extractions)
+        # / JS closes modal and refreshes inline card via separate htmx.ajax.
+        # / No readability-content re-render: attributes don't change annotated text.
+        reponse = HttpResponse("")
         reponse["HX-Trigger"] = json.dumps({
-            "ouvrirPanneauDroit": True,
             "showToast": {"message": "Extraction modifi\u00e9e"},
+            "fermerModaleExtraction": {"entityId": entite.pk},
         })
         return reponse
 
@@ -2892,6 +2950,10 @@ class ExtractionViewSet(viewsets.ViewSet):
         # Determiner si l'utilisateur est proprietaire du dossier
         # / Determine if user is the folder owner
         est_proprietaire = _est_proprietaire_dossier(request.user, entite.job.page)
+
+        # Annoter avec le droit d'edition (PHASE-26f)
+        # / Annotate with edit permission (PHASE-26f)
+        entite.peut_editer = _peut_editer_extraction(request.user, entite)
 
         return render(request, "front/includes/carte_inline.html", {
             "entity": entite,
@@ -3191,13 +3253,9 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         entite_a_supprimer = get_object_or_404(ExtractedEntity, pk=entity_id)
 
-        # Verifier ownership / Check ownership
-        if not _est_proprietaire_dossier(request.user, entite_a_supprimer.job.page):
+        # Verifier permissions / Check permissions
+        if not _peut_supprimer_extraction(request.user, entite_a_supprimer):
             return _reponse_acces_refuse(request)
-
-        # Verifier qu'il n'y a pas de commentaires / Check no comments exist
-        if CommentaireExtraction.objects.filter(entity=entite_a_supprimer).exists():
-            return HttpResponse("Impossible de supprimer une extraction qui a des commentaires.", status=400)
 
         entite_a_supprimer.delete()
 

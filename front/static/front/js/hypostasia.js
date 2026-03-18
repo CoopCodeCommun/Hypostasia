@@ -980,8 +980,8 @@ document.addEventListener('click', function(evenement) {
 });
 
 // Delegation d'evenement : clic sur le bouton editer d'une carte
-// Ouvre le formulaire d'edition inline via HTMX
-// / Event delegation: click on card edit button, opens inline edit form via HTMX
+// Ouvre la modale d'edition via HTMX (PHASE-26f)
+// / Event delegation: click on card edit button, opens edit modal via HTMX (PHASE-26f)
 document.addEventListener('click', function(evenement) {
     var boutonEditer = evenement.target.closest('.btn-editer-extraction');
     if (!boutonEditer) return;
@@ -989,16 +989,146 @@ document.addEventListener('click', function(evenement) {
 
     var entityId = boutonEditer.dataset.entityId;
     var pageId = boutonEditer.dataset.pageId;
-    console.log('[Edition extraction] entity_id=' + entityId + ' page_id=' + pageId);
+    console.log('[Edition extraction modale] entity_id=' + entityId + ' page_id=' + pageId);
 
-    // Remplacer la carte par le formulaire d'edition
-    // / Replace the card with the edit form
-    var carte = boutonEditer.closest('.extraction-card');
+    // Ouvrir la modale d'edition (append au body via HX-Retarget)
+    // / Open edit modal (appended to body via HX-Retarget)
     htmx.ajax('POST', '/extractions/editer/', {
-        target: carte,
-        swap: 'outerHTML',
+        target: 'body',
+        swap: 'beforeend',
         values: {entity_id: entityId, page_id: pageId},
     });
+});
+
+// --- Modale edition extraction : fermeture et focus trap (PHASE-26f) ---
+// / Edit extraction modal: close and focus trap (PHASE-26f)
+
+// Fonction utilitaire : fermer et supprimer la modale d'edition
+// / Utility: close and remove the edit modal
+function fermerModaleExtraction() {
+    var modale = document.getElementById('modale-edition-extraction');
+    if (modale) modale.remove();
+}
+
+// Intercepter le bouton Annuler dans la modale — ferme la modale au lieu du hx-post inline
+// Le formulaire inclus a un hx-post="/extractions/panneau/" qui est valide en inline
+// mais dans la modale on veut juste fermer sans recharger le panneau.
+// Capture phase (3e arg true) pour intercepter avant HTMX.
+// / Intercept Cancel button inside modal — close modal instead of inline hx-post
+// / The included form has an hx-post that works inline but in modal we just close.
+document.addEventListener('click', function(evenement) {
+    var modale = document.getElementById('modale-edition-extraction');
+    if (!modale) return;
+    var boutonAnnuler = evenement.target.closest('[hx-post="/extractions/panneau/"]');
+    if (boutonAnnuler && modale.contains(boutonAnnuler)) {
+        evenement.preventDefault();
+        evenement.stopImmediatePropagation();
+        fermerModaleExtraction();
+    }
+}, true);
+
+// Fermer via Escape / Close via Escape
+document.addEventListener('keydown', function(evenement) {
+    if (evenement.key === 'Escape') {
+        fermerModaleExtraction();
+    }
+});
+
+// Fermer via clic sur le backdrop / Close via backdrop click
+document.addEventListener('click', function(evenement) {
+    if (evenement.target.id === 'modale-edition-extraction') {
+        fermerModaleExtraction();
+    }
+});
+
+// Fermer via bouton × / Close via × button
+document.addEventListener('click', function(evenement) {
+    var boutonFermer = evenement.target.closest('.btn-fermer-modale-extraction');
+    if (boutonFermer) {
+        fermerModaleExtraction();
+    }
+});
+
+// Fermer via HX-Trigger 'fermerModaleExtraction' (apres soumission du formulaire)
+// Rafraichit la carte inline ouverte via un GET separe sur carte_inline.
+// / Close via HX-Trigger 'fermerModaleExtraction' (after form submission)
+// / Refreshes the open inline card via a separate GET on carte_inline.
+document.body.addEventListener('fermerModaleExtraction', function(evenement) {
+    fermerModaleExtraction();
+
+    // Recuperer l'entity_id depuis le detail du trigger
+    // / Get entity_id from trigger detail
+    var detail = evenement.detail || {};
+    var entityId = detail.entityId;
+    if (!entityId) return;
+
+    // Rafraichir la carte inline si elle est ouverte dans le DOM
+    // / Refresh the inline card if it's open in the DOM
+    var carteExistante = document.getElementById('carte-inline-' + entityId);
+    if (carteExistante) {
+        htmx.ajax('GET', '/extractions/carte_inline/?entity_id=' + entityId, {
+            target: carteExistante,
+            swap: 'outerHTML',
+        });
+    }
+});
+
+// Focus trap dans la modale : piege Tab/Shift+Tab
+// / Focus trap in the modal: trap Tab/Shift+Tab
+document.addEventListener('keydown', function(evenement) {
+    if (evenement.key !== 'Tab') return;
+    var modale = document.getElementById('modale-edition-extraction');
+    if (!modale) return;
+
+    var elementsFocusables = modale.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (elementsFocusables.length === 0) return;
+
+    var premierElement = elementsFocusables[0];
+    var dernierElement = elementsFocusables[elementsFocusables.length - 1];
+
+    if (evenement.shiftKey) {
+        if (document.activeElement === premierElement) {
+            evenement.preventDefault();
+            dernierElement.focus();
+        }
+    } else {
+        if (document.activeElement === dernierElement) {
+            evenement.preventDefault();
+            premierElement.focus();
+        }
+    }
+});
+
+// Autofocus + neutralisation du bouton Annuler a l'ouverture de la modale
+// Le formulaire inclus a un bouton Annuler avec hx-post="/extractions/panneau/"
+// qui est valide en contexte inline mais doit juste fermer la modale ici.
+// / Autofocus + Cancel button neutralization when modal opens
+// / The included form has a Cancel button with hx-post that works inline
+// / but should just close the modal here.
+document.body.addEventListener('htmx:afterSwap', function(evenement) {
+    var modale = document.getElementById('modale-edition-extraction');
+    if (!modale) return;
+
+    // Autofocus le premier champ / Autofocus the first field
+    var premierChamp = modale.querySelector('input:not([type="hidden"]), select, textarea');
+    if (premierChamp) {
+        setTimeout(function() { premierChamp.focus(); }, 50);
+    }
+
+    // Neutraliser le bouton Annuler : retirer hx-post et ajouter onclick fermer
+    // / Neutralize Cancel button: remove hx-post and add onclick close
+    var boutonAnnuler = modale.querySelector('[hx-post="/extractions/panneau/"]');
+    if (boutonAnnuler) {
+        boutonAnnuler.removeAttribute('hx-post');
+        boutonAnnuler.removeAttribute('hx-target');
+        boutonAnnuler.removeAttribute('hx-swap');
+        boutonAnnuler.removeAttribute('hx-vals');
+        boutonAnnuler.addEventListener('click', function() {
+            fermerModaleExtraction();
+        });
+    }
 });
 
 // Delegation d'evenement : clic sur une carte d'extraction dans le panneau droit

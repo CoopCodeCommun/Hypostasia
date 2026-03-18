@@ -123,7 +123,7 @@ mais de la donner a voir pour que les participants et le facilitateur puissent d
 
 - **Trop de features, pas assez de focus** : 10 phases couvrant extension navigateur, import multi-format, transcription, LLM multi-provider, auth, collab, recherche semantique, deep research, live audio, boitier WiFi offline, tests E2E. C'est le plan d'un produit a 50 personnes sur 3 ans. Risque de dispersion.
 - **Phases 8 (live audio) et 9 (boitier WiFi) sont des produits a part entiere** : la transcription live est un marche sature (Otter, Fireflies, Granola). Le boitier WiFi est du hardware + reseau + ops. Le differenciateur d'Hypostasia n'est pas la transcription, c'est ce qu'on fait apres (extraction, debat, synthese).
-- **Pas de modele economique** : qui paie les appels LLM ? Abonnement ? Cle API utilisateur ? Hebergement ? Ca influence l'architecture (multi-tenant, quotas, facturation).
+- **~~Pas de modele economique~~** *(adresse par PHASE-26h)* : credits prepays via Stripe. L'utilisateur recharge, chaque analyse debite. Mode desactivable en self-hosted.
 - **Export / backup / portabilite** : adresse dans les regles transverses (regle 8), mais pas encore implemente. A traiter au fil des phases, en priorite avant toute mise en prod.
 - **Recommandation** : decouper en "Hypostasia Core" (Phases 1-5, le coeur deliberatif) et "Hypostasia Live" (Phases 8-9, produit separe si valide par des pilotes). Les Phases 6-7 sont des ameliorations de Core, pas des phases distinctes.
 
@@ -1947,11 +1947,29 @@ des fils, ce qui prend 30 minutes pour un document bien debattu.
 
 **Fichiers concernes** : `hypostasis_extractor/models.py`, `hypostasis_extractor/services.py`
 
+### Etape 4.4 — Credits prepays et paiement Stripe (PHASE-26h)
+
+**Probleme** : pas de modele de paiement — qui paie les appels LLM ?
+
+**Modele retenu** : credits prepays. L'utilisateur recharge via Stripe Checkout, chaque analyse debite le cout reel.
+
+**Actions** :
+- [ ] Modeles `CreditAccount` (solde) + `CreditTransaction` (journal)
+- [ ] Integration Stripe Checkout (recharge) + webhook (credit automatique)
+- [ ] Gate dans le drawer confirmation : solde vs cout estime, bouton desactive si insuffisant
+- [ ] Debit du cout reel apres analyse (dans la task Celery)
+- [ ] Badge solde dans la navbar + page historique
+- [ ] Mode `STRIPE_ENABLED=False` pour le self-hosted
+
+**Fichiers concernes** : voir [PHASE-26h](PHASES/PHASE-26h.md) pour le detail complet
+
 ### Tests E2E Phase 4
 
 - [ ] Gestion des analyseurs dans le front (creer, editer prompt, ajouter exemple)
 - [ ] Preview du prompt assemble
 - [ ] Verification cout reel vs estime apres analyse mock
+- [ ] Recharge Stripe (mode test) + verification solde mis a jour
+- [ ] Gate analyse avec solde insuffisant
 
 ---
 
@@ -3087,12 +3105,9 @@ Ces regles s'appliquent a TOUTES les phases :
 8. **Export et portabilite des donnees** : chaque fonctionnalite qui stocke des donnees utilisateur doit prevoir un export (Markdown, JSON). Backup de la base SQLite documente. Conformite RGPD (droit a l'effacement, droit a la portabilite)
 9. **Observabilite** : logging structure (django logging existant dans `logs/`), health check endpoint, monitoring des taches Celery (jobs en echec, timeouts)
 10. **Dark mode ready** : toutes les couleurs utilisees dans le CSS et les templates doivent passer par des CSS custom properties (`var(--xxx)`), jamais de hex en dur. Cela garantit qu'un theme dark pourra etre ajoute sans refactoring (un seul bloc `@media (prefers-color-scheme: dark)` a ajouter). Voir Etape 1.8, section "compatibilite dark mode"
-11. **Modele economique** : a clarifier avant la mise en prod. Options envisagees :
-    - *Cle API utilisateur* : chaque user fournit sa propre cle OpenAI/Gemini/Anthropic (zero cout serveur IA)
-    - *Abonnement SaaS* : hebergement + quotas d'appels LLM inclus (necessite multi-tenant)
-    - *Auto-heberge* : l'organisation deploie sa propre instance (modele open-core ou licence commerciale)
-    - *Mode local* : vente du boitier physique (hardware + logiciel pre-installe) ou licence pour l'image deployable
-    - Le choix impacte l'architecture (multi-tenant ou non, quotas, facturation, gestion des cles API)
+11. **Modele economique** : **credits prepays via Stripe** (PHASE-26h). L'utilisateur recharge son compte, chaque analyse debite le cout reel. Gate avant analyse : si solde insuffisant, invitation a recharger via Stripe Checkout. Mode `STRIPE_ENABLED=False` pour le self-hosted (analyses illimitees, l'organisation gere ses cles API).
+    - Voir [PHASE-26h](PHASES/PHASE-26h.md) pour les details d'implementation
+    - Modes alternatifs toujours envisageables a terme : abonnement SaaS avec quotas, auto-heberge, boitier local
 
 ---
 
