@@ -1,0 +1,13 @@
+Bonjour,
+
+{{ invite_par_username }} vous invite a consulter le dossier « {{ dossier_nom }} » sur Hypostasia.
+
+Cliquez sur le lien ci-dessous pour accepter l'invitation :
+{{ lien_invitation }}
+
+Ce lien expire le {{ date_expiration|date:"d/m/Y" }}.
+
+Si vous n'avez pas de compte, vous serez invite a en creer un.
+
+---
+Hypostasia — Plateforme de lecture collaborative

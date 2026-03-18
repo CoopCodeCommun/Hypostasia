@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #1e293b;">Invitation Hypostasia</h2>
+    <p><strong>{{ invite_par_username }}</strong> vous invite a rejoindre le groupe « <strong>{{ groupe_nom }}</strong> ».</p>
+    <p style="margin: 24px 0;">
+        <a href="{{ lien_invitation }}"
+           style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 8px; font-weight: 500;">
+            Accepter l'invitation
+        </a>
+    </p>
+    <p style="color: #64748b; font-size: 14px;">Ce lien expire le {{ date_expiration|date:"d/m/Y" }}.</p>
+    <p style="color: #64748b; font-size: 14px;">Si vous n'avez pas de compte, vous serez invite a en creer un.</p>
+    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+    <p style="color: #94a3b8; font-size: 12px;">Hypostasia — Plateforme de lecture collaborative</p>
+</body>
+</html>

@@ -1,0 +1,58 @@
+{% load static %}
+{# Page d'erreur 403 — acces refuse (PHASE-25c) #}
+{# / 403 error page — access denied (PHASE-25c) #}
+{# LOCALISATION : front/templates/front/acces_refuse.html #}
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acces refuse — Hypostasia</title>
+    <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
+</head>
+<body class="h-full bg-slate-50 flex items-center justify-center px-4">
+
+    <div class="w-full max-w-sm text-center" data-testid="page-403">
+        {# Icone cadenas / Lock icon #}
+        <div class="mx-auto w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
+            </svg>
+        </div>
+
+        <h1 class="text-xl font-bold text-slate-800 mb-2">Acces refuse</h1>
+        <p class="text-sm text-slate-500 mb-6">
+            Vous n'avez pas les droits pour acceder a cette page.
+            {% if not user.is_authenticated %}
+            Connectez-vous pour acceder a vos dossiers.
+            {% endif %}
+        </p>
+
+        <div class="flex flex-col gap-3 items-center">
+            {% if user.is_authenticated %}
+            <a href="/"
+               class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+               data-testid="btn-retour-accueil">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"/>
+                </svg>
+                Retour a l'accueil
+            </a>
+            {% else %}
+            <a href="/auth/login/"
+               class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+               data-testid="btn-se-connecter">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/>
+                </svg>
+                Se connecter
+            </a>
+            <a href="/" class="text-sm text-slate-500 hover:text-slate-700 transition-colors">
+                Retour a l'accueil
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+</body>
+</html>

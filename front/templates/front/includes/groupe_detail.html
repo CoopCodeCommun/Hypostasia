@@ -1,0 +1,58 @@
+{# Partial : detail inline d'un groupe avec ses membres (PHASE-25c) #}
+{# / Partial: inline group detail with its members (PHASE-25c) #}
+{# LOCALISATION : front/templates/front/includes/groupe_detail.html #}
+{# Variables attendues : groupe, tous_les_membres #}
+
+<div class="p-2 bg-slate-50 rounded space-y-2" data-testid="groupe-detail-{{ groupe.pk }}">
+    <div class="flex items-center justify-between">
+        <span class="text-sm font-medium text-slate-700">{{ groupe.nom }}</span>
+        <button hx-delete="/groupes/{{ groupe.pk }}/"
+                hx-target="closest .groupe-item"
+                hx-swap="outerHTML"
+                hx-confirm="Supprimer le groupe « {{ groupe.nom }} » ?"
+                data-testid="btn-supprimer-groupe"
+                class="text-xs text-red-400 hover:text-red-600"
+                aria-label="Supprimer le groupe {{ groupe.nom }}">Supprimer</button>
+    </div>
+
+    {# Formulaire d'ajout de membre au groupe #}
+    {# / Form to add a member to the group #}
+    <form hx-post="/groupes/{{ groupe.pk }}/ajouter_membre/"
+          hx-target="closest .groupe-item"
+          hx-swap="innerHTML"
+          class="flex items-center gap-1"
+          aria-label="Ajouter un membre au groupe {{ groupe.nom }}">
+        <input type="text" name="username" placeholder="Ajouter un membre"
+               data-testid="groupe-input-membre"
+               class="flex-1 text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+               required>
+        <button type="submit"
+                data-testid="groupe-btn-ajouter-membre"
+                class="px-2 py-1 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded"
+                aria-label="Ajouter le membre">+</button>
+    </form>
+
+    {# Liste des membres du groupe #}
+    {# / List of group members #}
+    {% if tous_les_membres %}
+    <div class="space-y-1" aria-live="polite">
+        {% for membre in tous_les_membres %}
+        <div class="flex items-center justify-between py-0.5 px-1" data-testid="groupe-membre-row">
+            <span class="text-xs text-slate-600">{{ membre.username }}</span>
+            <form hx-post="/groupes/{{ groupe.pk }}/retirer_membre/"
+                  hx-target="closest .groupe-item"
+                  hx-swap="innerHTML" class="inline">
+                <input type="hidden" name="user_id" value="{{ membre.pk }}">
+                <button type="submit"
+                        data-testid="groupe-btn-retirer-membre"
+                        class="text-xs text-red-400 hover:text-red-600"
+                        title="Retirer {{ membre.username }}"
+                        aria-label="Retirer {{ membre.username }} du groupe">&#x2715;</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-xs text-slate-400">Aucun membre.</p>
+    {% endif %}
+</div>

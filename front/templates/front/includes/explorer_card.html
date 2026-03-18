@@ -1,0 +1,84 @@
+{# Card individuelle d'un dossier dans l'Explorer (PHASE-25d) #}
+{# / Individual folder card in Explorer (PHASE-25d) #}
+{# LOCALISATION : front/templates/front/includes/explorer_card.html #}
+{# Variables : dossier, ids_dossiers_suivis (set d'int), est_suivi (bool, optionnel) #}
+
+<div class="bg-white rounded-lg border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all"
+     data-testid="explorer-card" data-dossier-id="{{ dossier.pk }}">
+    <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+            {# Nom du dossier (lien cliquable) #}
+            {# / Folder name (clickable link) #}
+            <a href="/lire/{{ dossier.pk }}/" class="text-sm font-medium text-slate-800 hover:text-blue-600 block truncate"
+               data-testid="explorer-card-lien">{{ dossier.name }}</a>
+
+            {# Description courte si presente #}
+            {# / Short description if present #}
+            {% if dossier.description %}
+            <p class="text-xs text-slate-500 mt-0.5 line-clamp-1">{{ dossier.description }}</p>
+            {% endif %}
+
+            {# Metadonnees : auteur, pages, suivis, date #}
+            {# / Metadata: author, pages, follows, date #}
+            <div class="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-x-1">
+                {% if dossier.owner %}
+                <span>par {{ dossier.owner.username }}</span>
+                {% endif %}
+                {% if dossier.nombre_pages is not None %}
+                <span>· {{ dossier.nombre_pages }} page{{ dossier.nombre_pages|pluralize:"s" }}</span>
+                {% endif %}
+                {% if dossier.nombre_suivis %}
+                <span class="text-amber-500" title="{{ dossier.nombre_suivis }} personne{{ dossier.nombre_suivis|pluralize:"s" }} sui{{ dossier.nombre_suivis|pluralize:"t,vent" }} ce dossier">· {{ dossier.nombre_suivis }} suivi{{ dossier.nombre_suivis|pluralize:"s" }}</span>
+                {% endif %}
+                <span>· {{ dossier.created_at|date:"d/m/Y" }}</span>
+            </div>
+
+            {# Preview des premieres pages du dossier (si disponible) #}
+            {# / Preview of first pages in folder (if available) #}
+            {% if dossier.preview_pages %}
+            <div class="mt-1.5 flex flex-wrap gap-1">
+                {% for titre_page in dossier.preview_pages %}
+                <span class="inline-block text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded truncate max-w-[150px]" title="{{ titre_page }}">{{ titre_page|truncatechars:25 }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        {# Bouton Suivre/Ne plus suivre — visible uniquement pour les connectes #}
+        {# / Follow/Unfollow button — visible only for authenticated users #}
+        {% if user.is_authenticated %}
+        <div class="shrink-0 pt-0.5">
+            {% if est_suivi == True or dossier.pk in ids_dossiers_suivis %}
+            <button hx-post="/explorer/{{ dossier.pk }}/ne-plus-suivre/"
+                    hx-target="#explorer-card-{{ dossier.pk }}"
+                    hx-swap="innerHTML"
+                    data-testid="btn-ne-plus-suivre"
+                    aria-label="Ne plus suivre le dossier {{ dossier.name }}"
+                    class="text-xs px-2.5 py-1.5 text-amber-600 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition-colors">
+                Ne plus suivre
+            </button>
+            {% elif est_suivi == False %}
+            <button hx-post="/explorer/{{ dossier.pk }}/suivre/"
+                    hx-target="#explorer-card-{{ dossier.pk }}"
+                    hx-swap="innerHTML"
+                    data-testid="btn-suivre"
+                    aria-label="Suivre le dossier {{ dossier.name }}"
+                    class="text-xs px-2.5 py-1.5 text-blue-600 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors">
+                Suivre
+            </button>
+            {% else %}
+            {# Cas par defaut : verifier dans ids_dossiers_suivis (appel depuis la liste) #}
+            {# / Default case: check in ids_dossiers_suivis (call from list) #}
+            <button hx-post="/explorer/{{ dossier.pk }}/suivre/"
+                    hx-target="#explorer-card-{{ dossier.pk }}"
+                    hx-swap="innerHTML"
+                    data-testid="btn-suivre"
+                    aria-label="Suivre le dossier {{ dossier.name }}"
+                    class="text-xs px-2.5 py-1.5 text-blue-600 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors">
+                Suivre
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>

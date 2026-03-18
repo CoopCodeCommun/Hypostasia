@@ -1,0 +1,31 @@
+{# Page d'erreur pour les invitations invalides/expirees (PHASE-25d) #}
+{# / Error page for invalid/expired invitations (PHASE-25d) #}
+{# LOCALISATION : front/templates/front/invitation_erreur.html #}
+{% load static %}
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invitation — Hypostasia</title>
+    <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
+</head>
+<body class="h-full bg-slate-50 flex items-center justify-center px-4">
+    <div class="w-full max-w-sm text-center">
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Hypostasia</h1>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6" role="alert">
+            <svg class="w-12 h-12 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
+            </svg>
+            <p class="text-sm text-slate-700 mb-4" data-testid="invitation-erreur-message">{{ message_erreur }}</p>
+            <a href="/"
+               data-testid="invitation-erreur-lien-retour"
+               class="inline-block w-full px-4 py-2.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+                Retour a l'accueil
+            </a>
+        </div>
+    </div>
+</body>
+</html>

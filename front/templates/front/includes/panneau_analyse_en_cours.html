@@ -1,0 +1,58 @@
+{# Partial : spinner d'analyse dans le drawer, pendant qu'une tache Celery tourne. #}
+{# Pas de polling HTTP — la progression arrive par WebSocket (analyse_progression). #}
+{# Les cartes arrivent dans #streaming-extractions via WebSocket (extraction_carte). #}
+{# Quand le job termine, le WS envoie un OOB qui charge le drawer final. #}
+{# / Partial: analysis spinner in the drawer while a Celery task is running. #}
+{# / No HTTP polling — progress comes via WebSocket (analyse_progression). #}
+{# / Cards arrive in #streaming-extractions via WebSocket (extraction_carte). #}
+{# / When job completes, WS sends an OOB that loads the final drawer. #}
+
+<div>
+
+    {# Spinner et informations sur le job / Spinner and job info #}
+    <div class="flex flex-col items-center py-4 text-center">
+        <svg class="w-8 h-8 text-indigo-500 animate-pulse mb-2"
+             fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+             aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+        </svg>
+        <p class="text-sm font-medium text-slate-600 mb-1">Analyse IA en cours…</p>
+        {% if job %}
+            <p class="text-xs text-slate-400 mb-3">
+                {{ job.name }}
+                {% if job.ai_model %}&mdash; {{ job.ai_model.get_display_name }}{% endif %}
+            </p>
+        {% endif %}
+
+        {# Barre de progression mise a jour par WebSocket a chaque morceau #}
+        {# ws_analyse_progression.html remplace le contenu de #barre-progression-analyse via OOB #}
+        {# Affiche le numero du morceau et le pourcentage #}
+        {# / Progress bar updated by WebSocket at each chunk #}
+        {# / ws_analyse_progression.html replaces #barre-progression-analyse content via OOB #}
+        {# / Shows chunk number and percentage #}
+        <div id="barre-progression-analyse" class="w-full px-2">
+            <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
+                <div class="bg-indigo-500 h-1.5 rounded-full animate-indeterminate-analyse"></div>
+            </div>
+            <p class="text-[10px] text-slate-300 mt-1">En attente du premier morceau…</p>
+        </div>
+
+        <p class="text-[10px] text-slate-300 mt-2">Les extractions apparaissent ci-dessous</p>
+    </div>
+
+    {# Zone de stream : les cartes d'extraction arrivent ici via WebSocket, une par une #}
+    {# Jamais ecrasee — seuls les OOB WebSocket y ajoutent du contenu (beforeend) #}
+    {# / Stream zone: extraction cards arrive here via WebSocket, one by one #}
+    {# / Never overwritten — only WebSocket OOB appends content here (beforeend) #}
+    <div id="streaming-extractions"
+         class="space-y-2"
+         aria-live="polite"
+         aria-label="Extractions en cours">
+    </div>
+
+</div>
+
+{# OOB : restaurer le titre "Analyses" dans le header du drawer #}
+{# / OOB: restore "Analyses" title in drawer header #}
+<span id="drawer-titre" hx-swap-oob="innerHTML:#drawer-titre">Analyses</span>
