@@ -3257,14 +3257,18 @@ class ExtractionViewSet(viewsets.ViewSet):
         if not _peut_supprimer_extraction(request.user, entite_a_supprimer):
             return _reponse_acces_refuse(request)
 
+        page_id_pour_reload = entite_a_supprimer.job.page_id
         entite_a_supprimer.delete()
 
-        page = get_object_or_404(Page, pk=page_id)
-        html_complet = self._render_panneau_complet_avec_oob(request, page)
-        reponse = HttpResponse(html_complet)
+        # Meme pattern que masquer() : reponse minimale + triggers pour recharger
+        # les zones concernees (drawer + lecture) sans detruire les cartes ouvertes.
+        # / Same pattern as masquer(): minimal response + triggers to reload
+        # / affected zones (drawer + lecture) without destroying open cards.
+        reponse = HttpResponse("<span></span>")
         reponse["HX-Trigger"] = json.dumps({
-            "ouvrirPanneauDroit": True,
             "showToast": {"message": "Extraction supprim\u00e9e"},
+            "drawerContenuChange": True,
+            "lectureReload": {"page_id": str(page_id_pour_reload)},
         })
         return reponse
 

@@ -991,6 +991,12 @@ document.addEventListener('click', function(evenement) {
     var pageId = boutonEditer.dataset.pageId;
     console.log('[Edition extraction modale] entity_id=' + entityId + ' page_id=' + pageId);
 
+    // Fermer le bottom sheet mobile s'il est ouvert (PHASE-26f)
+    // / Close mobile bottom sheet if open (PHASE-26f)
+    if (window.bottomSheet && window.bottomSheet.estOuvert()) {
+        window.bottomSheet.fermer();
+    }
+
     // Ouvrir la modale d'edition (append au body via HX-Retarget)
     // / Open edit modal (appended to body via HX-Retarget)
     htmx.ajax('POST', '/extractions/editer/', {
@@ -1207,6 +1213,20 @@ document.addEventListener('click', async function(evenement) {
     if (!resultat.isConfirmed) return;
 
     var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    // Retirer la carte inline du DOM immediatement (PHASE-26f)
+    // / Remove inline card from DOM immediately (PHASE-26f)
+    var carteInline = document.getElementById('carte-inline-' + entityId);
+    if (carteInline) {
+        carteInline.remove();
+    }
+
+    // Fermer le bottom sheet mobile s'il est ouvert (PHASE-26f)
+    // / Close mobile bottom sheet if open (PHASE-26f)
+    if (window.bottomSheet && window.bottomSheet.estOuvert()) {
+        window.bottomSheet.fermer();
+    }
+
     htmx.ajax('POST', '/extractions/supprimer_entite/', {
         target: '#panneau-extractions',
         swap: 'innerHTML',
