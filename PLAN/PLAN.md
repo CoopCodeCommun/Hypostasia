@@ -1919,6 +1919,8 @@ Documente dans CLAUDE.md section 6.
 - Si le merge est refuse : forker la lib et maintenir notre version (`hypostasia-langextract` ou fork GitHub)
 - La couche d'abstraction LLM (`core/llm_providers.py`) est concue pour que ce remplacement soit possible sans toucher au reste du code
 
+**Surcharges actives** : le pipeline surcharge `Annotator._annotate_documents_single_pass()` (methode interne non documentee) pour injecter un callback de progression par chunk + auto-wrapping des reponses LLM mal formatees. Voir `PLAN/LANGEXTRACT_OVERRIDES.md` pour le detail des workarounds et la procedure de verification a chaque montee de version.
+
 **Fichiers concernes** : nouveau `core/llm_providers.py`, `front/tasks.py`, `hypostasis_extractor/services.py`
 
 ### Etape 3.2 — Modele AIModel etendu

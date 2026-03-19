@@ -209,8 +209,50 @@ def _creer_annotateur_avec_progression(
                         # / into structured Extraction objects.
                         # / If JSON is truncated and suppress_parse_errors=True,
                         # / resolver returns empty list instead of crashing.
+
+                        # Correction : certains LLM renvoient un tableau JSON brut
+                        # au lieu de {"extractions": [...]}.
+                        # On wrappe automatiquement si c'est le cas.
+                        # / Fix: some LLMs return a bare JSON array
+                        # / instead of {"extractions": [...]}.
+                        # / We auto-wrap if that's the case.
+                        texte_sortie_llm = scored_outputs[0].output
+                        texte_sortie_llm_stripped = texte_sortie_llm.strip()
+
+                        # Retirer les fences ```json ... ``` si presentes
+                        # / Remove ```json ... ``` fences if present
+                        if texte_sortie_llm_stripped.startswith("```"):
+                            lignes_sortie = texte_sortie_llm_stripped.split("\n")
+                            lignes_sortie = lignes_sortie[1:]  # enlever ```json
+                            if lignes_sortie and lignes_sortie[-1].strip() == "```":
+                                lignes_sortie = lignes_sortie[:-1]
+                            texte_sortie_llm_stripped = "\n".join(lignes_sortie).strip()
+
+                        # Si la sortie est un tableau JSON nu, le wrapper
+                        # dans {"extractions": [...]} pour que le Resolver l'accepte.
+                        # / If output is a bare JSON array, wrap it
+                        # / in {"extractions": [...]} so the Resolver accepts it.
+                        if texte_sortie_llm_stripped.startswith("["):
+                            import json as json_stdlib
+                            try:
+                                tableau_extractions_brut = json_stdlib.loads(
+                                    texte_sortie_llm_stripped
+                                )
+                                texte_sortie_llm = json_stdlib.dumps(
+                                    {"extractions": tableau_extractions_brut}
+                                )
+                                logger.info(
+                                    "  [chunk %d] reponse LLM wrappee dans"
+                                    " {'extractions': [...]}",
+                                    numero_chunk,
+                                )
+                            except json_stdlib.JSONDecodeError:
+                                # JSON tronque — laisser le resolver gerer
+                                # / Truncated JSON — let the resolver handle it
+                                pass
+
                         resolved_extractions = resolver.resolve(
-                            scored_outputs[0].output, debug=debug, **kwargs
+                            texte_sortie_llm, debug=debug, **kwargs
                         )
                         nombre_extractions_resolues = len(resolved_extractions)
                         logger.info(
@@ -1033,6 +1075,42 @@ def analyser_page_task(self, job_id):
             )
 
         job_extraction.save(update_fields=champs_a_sauvegarder)
+
+        # Debit post-completion (PHASE-26h) — debiter le compte du proprietaire
+        # si STRIPE_ENABLED et cout_reel_euros disponible
+        # / Post-completion debit (PHASE-26h) — debit owner's account
+        # if STRIPE_ENABLED and cout_reel_euros available
+        from django.conf import settings as django_settings
+        if django_settings.STRIPE_ENABLED and job_extraction.cout_reel_euros:
+            try:
+                from core.models import CreditAccount, SoldeInsuffisantError
+                proprietaire_page = page.owner or (
+                    page.dossier.owner if page.dossier else None
+                )
+                if proprietaire_page and not proprietaire_page.is_superuser:
+                    compte_credits_proprietaire = CreditAccount.get_ou_creer(proprietaire_page)
+                    compte_credits_proprietaire.debiter(
+                        montant=job_extraction.cout_reel_euros,
+                        extraction_job=job_extraction,
+                        description=f"Analyse #{job_extraction.pk} — {job_extraction.name}",
+                    )
+                    logger.info(
+                        "analyser_page_task: debite %s EUR du compte de %s pour job=%s",
+                        job_extraction.cout_reel_euros,
+                        proprietaire_page.username,
+                        job_id,
+                    )
+            except SoldeInsuffisantError:
+                logger.warning(
+                    "analyser_page_task: solde insuffisant post-completion pour job=%s "
+                    "(l'analyse est deja faite, pas de blocage)",
+                    job_id,
+                )
+            except Exception as erreur_debit:
+                logger.error(
+                    "analyser_page_task: erreur debit credits job=%s — %s",
+                    job_id, erreur_debit,
+                )
 
         logger.info(
             "analyser_page_task: termine job=%s — %d entites en %.1fs",

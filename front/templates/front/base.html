@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hypostasia — Bibliothèque</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
-    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=28">
+    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=29">
     <script src="{% static 'front/vendor/htmx-2.0.4.min.js' %}"></script>
     <script src="{% static 'front/vendor/htmx-ext-ws-2.0.4.js' %}"></script>
     <script src="{% static 'front/vendor/sweetalert2-11.min.js' %}"></script>
@@ -26,7 +26,13 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
                 </svg>
             </button>
-            <span class="titre-app-desktop font-semibold text-lg tracking-tight shrink-0">Hypostasia</span>
+            <a href="/"
+               hx-get="/"
+               hx-target="#zone-lecture"
+               hx-swap="innerHTML"
+               hx-push-url="/"
+               class="titre-app-desktop font-semibold text-lg tracking-tight shrink-0 hover:text-blue-600 transition-colors no-underline text-slate-800"
+               data-testid="lien-accueil">Hypostasia</a>
             <span id="titre-toolbar" class="text-sm text-slate-400 truncate" data-testid="titre-toolbar">{% if page_preloaded %}{{ page_preloaded.title|default:"Sans titre" }}{% endif %}</span>
         </div>
         <!-- Droite : boutons d'action (ne se compresse jamais) + separateur + import + config -->
@@ -161,6 +167,24 @@
             {% endif %}
             <!-- Menu utilisateur (PHASE-25) -->
             <!-- / User menu (PHASE-25) -->
+            {# Badge solde credits (PHASE-26h) — visible si STRIPE_ENABLED #}
+            {# / Credit balance badge (PHASE-26h) — visible if STRIPE_ENABLED #}
+            {% if stripe_enabled and solde_credits_euros is not None %}
+            <a href="/credits/"
+               hx-get="/credits/"
+               hx-target="#zone-lecture"
+               hx-swap="innerHTML"
+               hx-push-url="/credits/"
+               id="badge-solde-credits"
+               class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-full hover:bg-emerald-100 transition-colors"
+               title="Mes credits"
+               data-testid="badge-solde-credits">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"/>
+                </svg>
+                {{ solde_credits_euros|floatformat:2 }} &euro;
+            </a>
+            {% endif %}
             {% if user.is_authenticated %}
             <div class="relative" id="user-menu-container">
                 <button id="btn-user-menu" data-testid="btn-user-menu"
@@ -176,6 +200,15 @@
                     <hr class="my-1 border-slate-100">
                     <a href="/auth/token/" class="block px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
                        data-testid="btn-token-api">Mon token API</a>
+                    {% if stripe_enabled %}
+                    <a href="/credits/"
+                       hx-get="/credits/"
+                       hx-target="#zone-lecture"
+                       hx-swap="innerHTML"
+                       hx-push-url="/credits/"
+                       class="block px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+                       data-testid="btn-mes-credits">Mes credits</a>
+                    {% endif %}
                     <form method="POST" action="/auth/logout/">{% csrf_token %}
                         <button type="submit" class="w-full text-left px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50" data-testid="btn-logout">Deconnexion</button>
                     </form>
@@ -314,7 +347,13 @@
         <!-- / Reading zone -->
         <main id="zone-lecture" class="overflow-y-auto p-8 h-full" aria-live="polite" data-testid="bibliotheque-colonne-lecture"
               data-est-proprietaire="{% if est_proprietaire %}true{% else %}false{% endif %}">
-            {% if bibliotheque_analyseurs_preloaded %}
+            {% if credits_page_preloaded %}
+                {% include "front/includes/credits_page.html" %}
+            {% elif credits_succes_preloaded %}
+                {% include "front/includes/credits_succes.html" %}
+            {% elif credits_annule_preloaded %}
+                {% include "front/includes/credits_annule.html" %}
+            {% elif bibliotheque_analyseurs_preloaded %}
                 {% include "front/includes/bibliotheque_analyseurs.html" %}
             {% elif detail_analyseur_preloaded %}
                 {% include "front/includes/detail_analyseur_readonly.html" %}
@@ -392,40 +431,7 @@
          aria-label="Notifications temps réel">
     </div>
 
-    <script>
-    /*
-     * Auto-suppression des toasts WS apres 6 secondes.
-     * Ecoute htmx:wsAfterMessage sur #ws-hub : chaque nouveau toast recoit
-     * un setTimeout qui ajoute ws-toast--sortie (fondu CSS) puis supprime le noeud.
-     * / Auto-dismiss WS toasts after 6 seconds.
-     * Listens to htmx:wsAfterMessage on #ws-hub: each new toast gets a setTimeout
-     * that adds ws-toast--sortie (CSS fade) then removes the node.
-     */
-    (function () {
-        var delai_auto_suppression_ms = 6000;
-        var hub_websocket = document.getElementById('ws-hub');
-        if (!hub_websocket) { return; }
-
-        hub_websocket.addEventListener('htmx:wsAfterMessage', function () {
-            /* Trouve tous les toasts sans timer deja en cours */
-            /* / Find all toasts without a timer already running */
-            var tous_les_toasts = document.querySelectorAll('.ws-toast:not([data-autohide-set])');
-            tous_les_toasts.forEach(function (toast_element) {
-                toast_element.setAttribute('data-autohide-set', '1');
-                setTimeout(function () {
-                    toast_element.classList.add('ws-toast--sortie');
-                    /* Supprime le noeud apres la fin de la transition CSS (300ms) */
-                    /* / Remove the node after the CSS transition ends (300ms) */
-                    setTimeout(function () {
-                        if (toast_element.parentNode) {
-                            toast_element.parentNode.removeChild(toast_element);
-                        }
-                    }, 300);
-                }, delai_auto_suppression_ms);
-            });
-        });
-    }());
-    </script>
+    <script src="{% static 'front/js/ws_toast_autohide.js' %}?v=1"></script>
     {% endif %}
 
 </body>

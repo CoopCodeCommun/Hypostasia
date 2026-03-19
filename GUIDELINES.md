@@ -244,6 +244,23 @@ def ma_tache_longue(self, job_id, chemin_fichier):
 En production, `supervisord.conf` gere gunicorn + celery worker dans un seul conteneur.
 Le `start.sh` fait les migrations puis lance supervisord.
 
+### Surcharges LangExtract (dette technique)
+
+Le pipeline d'extraction repose sur une sous-classe custom de `Annotator` de langextract
+(`AnnotateurAvecProgression` dans `front/tasks.py`). Cette classe surcharge
+`_annotate_documents_single_pass()` — une methode interne non documentee, couplee a
+la v1.1.1 de la lib.
+
+**Workarounds actifs** :
+- **Auto-wrap des tableaux JSON nus** : certains LLM renvoient `[...]` au lieu de
+  `{"extractions": [...]}`. Le code detecte et wrappe automatiquement avant de passer
+  au `Resolver.resolve()`. Sans ce fix, les extractions sont silencieusement perdues
+  (resolve retourne 0 extractions avec `suppress_parse_errors=True`).
+
+**Risque** : toute mise a jour de langextract peut casser `AnnotateurAvecProgression`.
+Voir `PLAN/LANGEXTRACT_OVERRIDES.md` pour la procedure de verification a chaque montee
+de version.
+
 ---
 
 ## 8. Docker : environnement unique dev/prod

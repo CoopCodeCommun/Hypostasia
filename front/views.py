@@ -4,6 +4,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 
+from django.conf import settings
 from django.db.models import Case, Count, Prefetch, Value, When
 from django.utils import timezone
 from django.utils.html import escape, strip_tags
@@ -132,13 +133,12 @@ def _utilisateur_a_acces_dossier(utilisateur, dossier):
 def _utilisateur_peut_ecrire_dossier(utilisateur, dossier):
     """
     Verifie si un utilisateur peut ecrire dans un dossier.
-    Meme logique que _utilisateur_a_acces_dossier, sauf :
-    - Exige authentification
-    - Anonymes sur dossiers publics → non
+    L'ecriture exige : authentification + etre owner, partage direct ou via groupe.
+    Un dossier public est lisible par tous mais inscriptible seulement par
+    le proprietaire et les invites (partage direct ou groupe).
     / Checks if a user can write to a folder.
-    Same logic as _utilisateur_a_acces_dossier, except:
-    - Requires authentication
-    - Anonymous on public folders → no
+    / Writing requires: authentication + being owner, direct share or group share.
+    / A public folder is readable by all but writable only by owner and invitees.
 
     LOCALISATION : front/views.py
     """
@@ -146,7 +146,34 @@ def _utilisateur_peut_ecrire_dossier(utilisateur, dossier):
         return False
     if dossier is None:
         return False
-    return _utilisateur_a_acces_dossier(utilisateur, dossier)
+
+    # Owner du dossier → toujours ecriture
+    # / Folder owner → always write
+    if dossier.owner == utilisateur:
+        return True
+
+    # Legacy (owner=None) → tout utilisateur authentifie peut ecrire
+    # / Legacy (owner=None) → any authenticated user can write
+    if dossier.owner is None:
+        return True
+
+    # Partage direct (DossierPartage.utilisateur)
+    # / Direct share (DossierPartage.utilisateur)
+    partage_direct_existe = DossierPartage.objects.filter(
+        dossier=dossier, utilisateur=utilisateur,
+    ).exists()
+    if partage_direct_existe:
+        return True
+
+    # Partage via groupe (DossierPartage.groupe.membres)
+    # / Share via group (DossierPartage.groupe.membres)
+    partage_groupe_existe = DossierPartage.objects.filter(
+        dossier=dossier, groupe__membres=utilisateur,
+    ).exists()
+    if partage_groupe_existe:
+        return True
+
+    return False
 
 
 def _est_proprietaire_dossier(utilisateur, page):
@@ -1331,6 +1358,25 @@ class LectureViewSet(viewsets.ViewSet):
         )
         cout_estime_euros = max(0.01, math.ceil(cout_brut_euros * 1.5 * 100) / 100)
 
+        # Gate solde credits (PHASE-26h) — verifier si le solde est suffisant
+        # Si l'utilisateur n'a pas de compte credits, on n'affiche pas la gate
+        # (il n'a jamais recharge, pas de contrainte).
+        # / Credit balance gate (PHASE-26h) — check if balance is sufficient
+        # / If user has no credit account, don't show the gate.
+        contexte_credits = {}
+        utilisateur_authentifie = hasattr(request, "user") and request.user.is_authenticated
+        if settings.STRIPE_ENABLED and utilisateur_authentifie and not request.user.is_superuser:
+            from core.models import CreditAccount
+            compte_existant = CreditAccount.objects.filter(user=request.user).first()
+            if compte_existant:
+                solde_utilisateur_euros = compte_existant.solde_euros
+                solde_suffisant = solde_utilisateur_euros >= cout_estime_euros
+                contexte_credits = {
+                    "stripe_enabled": True,
+                    "solde_suffisant": solde_suffisant,
+                    "solde_utilisateur_euros": solde_utilisateur_euros,
+                }
+
         return render(request, "front/includes/confirmation_analyse.html", {
             "page": page,
             "analyseur": analyseur,
@@ -1347,6 +1393,7 @@ class LectureViewSet(viewsets.ViewSet):
             "nombre_pieces": pieces_ordonnees.count(),
             "nombre_chunks_estime": nombre_chunks_estime,
             "tokens_overhead_par_chunk": tokens_overhead_par_chunk,
+            **contexte_credits,
         })
 
     @action(detail=True, methods=["POST"])
@@ -1379,6 +1426,27 @@ class LectureViewSet(viewsets.ViewSet):
         # / Check write permissions on the page's folder
         if page.dossier and not _utilisateur_peut_ecrire_dossier(request.user, page.dossier):
             return _reponse_acces_refuse(request)
+
+        # Guard credits (PHASE-26h) : verifie que le solde est suffisant
+        # On ne bloque que si l'utilisateur a un compte credits avec solde insuffisant.
+        # Si aucun compte n'existe, on ne bloque pas (l'utilisateur n'a pas encore recharge).
+        # Place apres les guards auth/IA/permissions pour ne pas masquer les 403.
+        # / Credit guard (PHASE-26h): check that balance is sufficient
+        # / Only block if user has a credit account with insufficient balance.
+        # / If no account exists, don't block (user hasn't topped up yet).
+        # / Placed after auth/AI/permissions guards to not mask 403s.
+        if settings.STRIPE_ENABLED and not request.user.is_superuser:
+            from core.models import CreditAccount
+            compte_existant = CreditAccount.objects.filter(user=request.user).first()
+            if compte_existant and compte_existant.solde_euros < 0.01:
+                reponse_solde = HttpResponse(status=402)
+                reponse_solde["HX-Trigger"] = json.dumps({
+                    "showToast": {
+                        "message": "Solde insuffisant. Rechargez vos cr\u00e9dits avant de lancer une analyse.",
+                        "icon": "warning",
+                    },
+                })
+                return reponse_solde
 
         # Guard anti-doublon : verifier s'il y a deja un job en cours pour cette page
         # / Anti-duplicate guard: check if a job is already running for this page

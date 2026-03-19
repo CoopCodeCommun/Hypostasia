@@ -753,7 +753,8 @@ class Phase03AnalyserPageTaskUtiliseFonctionCommuneTest(TestCase):
             self.assertEqual(analyseur_passe.pk, analyseur.pk)
 
     def test_task_sans_analyseur_id_retourne_liste_vide(self):
-        """Sans analyseur_id dans raw_result, la tache utilise une liste vide d'exemples."""
+        """Sans analyseur_id dans raw_result, _construire_exemples_langextract n'est pas appele.
+        / Without analyseur_id in raw_result, _construire_exemples_langextract is not called."""
         from unittest.mock import patch, MagicMock
         from core.models import AIModel, Page, Provider
         from hypostasis_extractor.models import ExtractionJob
@@ -778,19 +779,30 @@ class Phase03AnalyserPageTaskUtiliseFonctionCommuneTest(TestCase):
             raw_result={},
         )
 
+        # Patch _construire_exemples_langextract a la source pour verifier
+        # qu'il n'est PAS appele quand analyseur_id est absent du raw_result.
+        # On patche aussi _creer_annotateur_avec_progression pour eviter
+        # l'appel reel au LLM.
+        # / Patch _construire_exemples at source to verify it's NOT called when
+        # / analyseur_id is absent. Also patch the annotator factory to avoid real LLM calls.
         mock_resultat = MagicMock()
         mock_resultat.extractions = []
 
-        with patch("langextract.extract", return_value=mock_resultat) as mock_extract:
+        mock_annotateur = MagicMock()
+        mock_annotateur.annotate.return_value = mock_resultat
+
+        with patch(
+            "hypostasis_extractor.services._construire_exemples_langextract"
+        ) as mock_construire, patch(
+            "front.tasks._creer_annotateur_avec_progression",
+            return_value=mock_annotateur,
+        ):
             from front.tasks import analyser_page_task
             analyser_page_task(job.pk)
 
-            # Verifier que lx.extract recoit une liste vide d'exemples
-            # / Verify lx.extract receives an empty list of examples
-            mock_extract.assert_called_once()
-            appel_kwargs = mock_extract.call_args
-            exemples_passes = appel_kwargs[1].get("examples", [])
-            self.assertEqual(exemples_passes, [])
+            # Sans analyseur_id, _construire_exemples ne doit pas etre appele
+            # / Without analyseur_id, _construire_exemples must not be called
+            mock_construire.assert_not_called()
 
 
 class Phase03GrepRunLangextractJobTest(TestCase):
@@ -871,14 +883,18 @@ class Phase04SuppressionPageTest(TestCase):
 
     def setUp(self):
         from django.contrib.auth.models import User
-        from core.models import Page
+        from core.models import Dossier, Page
         self.user_test = User.objects.create_user(username="test_user_suppr_page", password="test1234")
         self.client.force_login(self.user_test)
+        # La page doit etre dans un dossier appartenant a l'utilisateur
+        # / Page must be in a folder owned by the user
+        self.dossier = Dossier.objects.create(name="Dossier suppression", owner=self.user_test)
         self.page = Page.objects.create(
             title="Page a supprimer",
             html_original="<html>test</html>",
             html_readability="<article>test</article>",
             text_readability="test suppression",
+            dossier=self.dossier,
         )
 
     def test_supprimer_page_retourne_200(self):
@@ -2236,7 +2252,7 @@ class Phase10BaseHtmlDrawerTest(TestCase):
 
     def test_drawer_a_aria_label(self):
         """Le drawer overlay a un aria-label pour l'accessibilite."""
-        self.assertIn('aria-label="Vue liste des extractions"', self.contenu_base)
+        self.assertIn('aria-label="Analyses"', self.contenu_base)
 
     def test_drawer_a_data_testid(self):
         """Le drawer overlay a un data-testid pour les tests E2E."""
@@ -3804,9 +3820,12 @@ class Phase18BaseHTMLTest(TestCase):
         self.assertIn('id="alignement-modale-container"', self.contenu_html)
 
     def test_base_html_contient_bouton_comparer(self):
-        """base.html contient le bouton Comparer dans le footer de l'arbre."""
-        self.assertIn('id="btn-comparer-arbre"', self.contenu_html)
-        self.assertIn("Comparer", self.contenu_html)
+        """base.html charge alignement.js qui fournit la comparaison par dossier."""
+        # Le bouton comparer est dans _dossier_node.html (btn-aligner-dossier),
+        # pas dans base.html. On verifie que le JS est charge.
+        # / Compare button is in _dossier_node.html (btn-aligner-dossier),
+        # / not in base.html. We verify the JS is loaded.
+        self.assertIn("alignement.js", self.contenu_html)
 
 
 class Phase18AlignementJSContenuTest(TestCase):
@@ -3823,13 +3842,13 @@ class Phase18AlignementJSContenuTest(TestCase):
         """alignement.js expose window.alignement."""
         self.assertIn("window.alignement", self.contenu_js)
 
-    def test_expose_activerSelection(self):
-        """alignement.js expose activerSelection."""
-        self.assertIn("activerSelection", self.contenu_js)
+    def test_expose_ouvrirDossier(self):
+        """alignement.js expose ouvrirDossier."""
+        self.assertIn("ouvrirDossier", self.contenu_js)
 
-    def test_expose_desactiverSelection(self):
-        """alignement.js expose desactiverSelection."""
-        self.assertIn("desactiverSelection", self.contenu_js)
+    def test_expose_basculerAlignement(self):
+        """alignement.js expose basculerAlignement."""
+        self.assertIn("basculerAlignement", self.contenu_js)
 
     def test_expose_estOuvert(self):
         """alignement.js expose estOuvert."""
@@ -4484,10 +4503,12 @@ class Phase18bAlignementJSTest(TestCase):
         """Le JS toggle la classe alignement-mode-source."""
         self.assertIn("alignement-mode-source", self.contenu_js)
 
-    def test_export_utilise_dossier_id_ou_page_ids(self):
-        """L'export Markdown utilise dossier_id ou page_ids selon le mode."""
+    def test_export_utilise_dossier_id(self):
+        """L'export Markdown utilise dossier_id."""
         self.assertIn("modale.dataset.dossierId", self.contenu_js)
-        self.assertIn("modale.dataset.pageIds", self.contenu_js)
+        # L'export utilise dossierId (le mode pageIds a ete remplace par le mode dossier)
+        # / Export uses dossierId (pageIds mode was replaced by folder mode)
+        self.assertIn("dossier_id=", self.contenu_js)
 
 
 class Phase18bCSSTest(TestCase):
@@ -4681,9 +4702,9 @@ class DrawerAmelioreEndpointTest(TestCase):
         url = f"/extractions/drawer_contenu/?page_id={self.page_test.pk}"
         reponse = self.client.get(url)
         contenu = reponse.content.decode("utf-8")
-        self.assertIn("alice_drawer", contenu)
+        self.assertIn("Alice_Drawer", contenu)
         self.assertIn("Je suis d&#x27;accord", contenu)
-        self.assertIn("bob_drawer", contenu)
+        self.assertIn("Bob_Drawer", contenu)
 
     def test_drawer_contenu_affiche_compteur_commentaires(self):
         """Le drawer affiche le compteur de commentaires."""
@@ -6014,7 +6035,7 @@ class Phase23ConfirmationAnalyseTemplateTest(TestCase):
 
     def test_affiche_tokens_output(self):
         """Le template affiche l'estimation de tokens output."""
-        self.assertIn("nombre_tokens_output_estime", self.contenu)
+        self.assertIn("nombre_tokens_output_visible", self.contenu)
 
     def test_affiche_cout_estime(self):
         """Le template affiche le cout estime en euros."""
@@ -6164,7 +6185,8 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         """L'endpoint retourne 200 meme sans analyseur_id (utilise le premier actif)."""
         from front.views import LectureViewSet
         requete = self.factory.get(
-            f"/lire/{self.page_test.pk}/previsualiser_analyse/"
+            f"/lire/{self.page_test.pk}/previsualiser_analyse/",
+            HTTP_HX_REQUEST="true",
         )
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
@@ -6176,6 +6198,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         requete = self.factory.get(
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             {"analyseur_id": self.analyseur.pk},
+            HTTP_HX_REQUEST="true",
         )
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
@@ -6185,7 +6208,8 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         """La reponse contient l'estimation de tokens."""
         from front.views import LectureViewSet
         requete = self.factory.get(
-            f"/lire/{self.page_test.pk}/previsualiser_analyse/"
+            f"/lire/{self.page_test.pk}/previsualiser_analyse/",
+            HTTP_HX_REQUEST="true",
         )
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
@@ -6196,7 +6220,8 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         """La reponse contient le cout estime en euros."""
         from front.views import LectureViewSet
         requete = self.factory.get(
-            f"/lire/{self.page_test.pk}/previsualiser_analyse/"
+            f"/lire/{self.page_test.pk}/previsualiser_analyse/",
+            HTTP_HX_REQUEST="true",
         )
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
@@ -6210,7 +6235,8 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         """La reponse contient le prompt complet dans une zone cachee."""
         from front.views import LectureViewSet
         requete = self.factory.get(
-            f"/lire/{self.page_test.pk}/previsualiser_analyse/"
+            f"/lire/{self.page_test.pk}/previsualiser_analyse/",
+            HTTP_HX_REQUEST="true",
         )
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
@@ -6226,7 +6252,8 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         """La reponse mentionne le nombre d'exemples few-shot."""
         from front.views import LectureViewSet
         requete = self.factory.get(
-            f"/lire/{self.page_test.pk}/previsualiser_analyse/"
+            f"/lire/{self.page_test.pk}/previsualiser_analyse/",
+            HTTP_HX_REQUEST="true",
         )
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
@@ -6239,7 +6266,8 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         """La reponse contient le nom de l'analyseur."""
         from front.views import LectureViewSet
         requete = self.factory.get(
-            f"/lire/{self.page_test.pk}/previsualiser_analyse/"
+            f"/lire/{self.page_test.pk}/previsualiser_analyse/",
+            HTTP_HX_REQUEST="true",
         )
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
@@ -6250,7 +6278,8 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         """La reponse contient les boutons Lancer et Annuler."""
         from front.views import LectureViewSet
         requete = self.factory.get(
-            f"/lire/{self.page_test.pk}/previsualiser_analyse/"
+            f"/lire/{self.page_test.pk}/previsualiser_analyse/",
+            HTTP_HX_REQUEST="true",
         )
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
@@ -7660,7 +7689,7 @@ class Phase25cEcriturePubliqueRefuseeTest(TestCase):
 
     def setUp(self):
         from django.contrib.auth.models import User
-        from core.models import Dossier, Page, VisibiliteDossier
+        from core.models import AIModel, Configuration, Dossier, Page, VisibiliteDossier
         self.owner = User.objects.create_user(username="owner_epr", password="test1234")
         self.intrus = User.objects.create_user(username="intrus_epr", password="test1234")
         self.dossier = Dossier.objects.create(
@@ -7672,6 +7701,15 @@ class Phase25cEcriturePubliqueRefuseeTest(TestCase):
             html_readability="<p>test</p>", text_readability="test",
             dossier=self.dossier, owner=self.owner,
         )
+        # Activer l'IA pour que le guard IA ne bloque pas avant le check d'autorisation
+        # / Enable AI so the AI guard doesn't block before the authorization check
+        modele_ia = AIModel.objects.create(
+            name="Mock EPR", model_choice="mock_default", is_active=True,
+        )
+        configuration = Configuration.get_solo()
+        configuration.ai_active = True
+        configuration.ai_model = modele_ia
+        configuration.save()
 
     def test_non_invite_ecriture_refusee(self):
         self.client.login(username="intrus_epr", password="test1234")
@@ -8295,8 +8333,8 @@ class Phase26aListeContributeursTest(_Phase26aSetupMixin, TestCase):
         self.assertIn('pilule-contributeur', contenu)
         # Les deux contributeurs doivent apparaitre
         # / Both contributors must appear
-        self.assertIn('p26a_alice', contenu)
-        self.assertIn('p26a_bob', contenu)
+        self.assertIn('P26a_Alice', contenu)
+        self.assertIn('P26a_Bob', contenu)
 
 
 class Phase26aFiltreContributeurTest(_Phase26aSetupMixin, TestCase):
@@ -8491,7 +8529,7 @@ class Phase26aChipContributeurActifTest(_Phase26aSetupMixin, TestCase):
         )
         contenu = reponse.content.decode()
         self.assertIn('pilule-active', contenu)
-        self.assertIn('p26a_alice', contenu)
+        self.assertIn('P26a_Alice', contenu)
         # Le bouton reset "Tous x" doit etre present
         # / The "Tous x" reset button must be present
         self.assertIn('btn-reset-contributeurs', contenu)
@@ -8689,7 +8727,7 @@ class Phase26aBisCompteurNomsTest(_Phase26aSetupMixin, TestCase):
         contenu = reponse.content.decode()
         # Le compteur contient le nom du contributeur filtre
         # / Counter contains the filtered contributor name
-        self.assertIn("p26a_alice", contenu)
+        self.assertIn("P26A_Alice", contenu)
         self.assertIn('data-testid="drawer-compteur-noms"', contenu)
 
 
@@ -9304,4 +9342,303 @@ class Phase26bTemplatesTest(TestCase):
     def test_template_versions_diff_existe(self):
         """versions_diff.html est chargeable."""
         template = get_template('hypostasis_extractor/includes/versions_diff.html')
+        self.assertIsNotNone(template)
+
+
+# =============================================================================
+# PHASE-26h — Credits prepays + paiement Stripe
+# / PHASE-26h — Prepaid credits + Stripe payment
+# =============================================================================
+
+
+class Phase26hCreditAccountCreationTest(TestCase):
+    """test_credit_account_creation — get_or_create, solde initial 0."""
+
+    def test_credit_account_creation(self):
+        """CreditAccount.get_ou_creer cree un compte avec solde 0."""
+        from django.contrib.auth.models import User
+        from core.models import CreditAccount
+
+        utilisateur = User.objects.create_user(
+            username="test_credit_user", password="testpass",
+        )
+        compte = CreditAccount.get_ou_creer(utilisateur)
+        self.assertEqual(compte.solde_euros, 0)
+        self.assertEqual(compte.user, utilisateur)
+
+        # get_or_create retourne le meme compte / returns same account
+        compte_bis = CreditAccount.get_ou_creer(utilisateur)
+        self.assertEqual(compte.pk, compte_bis.pk)
+
+
+class Phase26hDebiterSuffisantTest(TestCase):
+    """test_debiter_suffisant — crediter 10, debiter 3, solde = 7."""
+
+    def test_debiter_suffisant(self):
+        from django.contrib.auth.models import User
+        from core.models import CreditAccount
+        from decimal import Decimal
+
+        utilisateur = User.objects.create_user(
+            username="test_debit_ok", password="testpass",
+        )
+        compte = CreditAccount.get_ou_creer(utilisateur)
+        compte.crediter(montant=10, type_transaction="RECHARGE", description="Test recharge")
+        transaction_debit = compte.debiter(montant=3, description="Test debit")
+
+        compte.refresh_from_db()
+        self.assertEqual(compte.solde_euros, Decimal("7.00"))
+        self.assertEqual(transaction_debit.montant_euros, Decimal("-3.00"))
+        self.assertEqual(transaction_debit.solde_apres_euros, Decimal("7.00"))
+
+
+class Phase26hDebiterInsuffisantTest(TestCase):
+    """test_debiter_insuffisant — solde 0 → SoldeInsuffisantError."""
+
+    def test_debiter_insuffisant(self):
+        from django.contrib.auth.models import User
+        from core.models import CreditAccount, SoldeInsuffisantError
+
+        utilisateur = User.objects.create_user(
+            username="test_debit_ko", password="testpass",
+        )
+        compte = CreditAccount.get_ou_creer(utilisateur)
+        with self.assertRaises(SoldeInsuffisantError):
+            compte.debiter(montant=5, description="Test debit insuffisant")
+
+
+class Phase26hCrediterRechargeTest(TestCase):
+    """test_crediter_recharge — crediter 20, solde = 20."""
+
+    def test_crediter_recharge(self):
+        from django.contrib.auth.models import User
+        from core.models import CreditAccount
+        from decimal import Decimal
+
+        utilisateur = User.objects.create_user(
+            username="test_credit_ok", password="testpass",
+        )
+        compte = CreditAccount.get_ou_creer(utilisateur)
+        transaction = compte.crediter(
+            montant=20, type_transaction="RECHARGE", description="Test recharge",
+        )
+
+        compte.refresh_from_db()
+        self.assertEqual(compte.solde_euros, Decimal("20.00"))
+        self.assertEqual(transaction.montant_euros, Decimal("20.00"))
+        self.assertEqual(transaction.solde_apres_euros, Decimal("20.00"))
+        self.assertEqual(transaction.type_transaction, "RECHARGE")
+
+
+class Phase26hIdempotenceStripePITest(TestCase):
+    """test_idempotence_stripe_pi — meme PI 2x → 1 seule transaction."""
+
+    def test_idempotence_stripe_pi(self):
+        from django.contrib.auth.models import User
+        from django.db import IntegrityError
+        from core.models import CreditAccount, CreditTransaction
+
+        utilisateur = User.objects.create_user(
+            username="test_idemp", password="testpass",
+        )
+        compte = CreditAccount.get_ou_creer(utilisateur)
+        compte.crediter(
+            montant=10, type_transaction="RECHARGE",
+            stripe_payment_intent_id="pi_test_unique_123",
+            description="Premier credit",
+        )
+
+        # Deuxieme tentative avec le meme PI → IntegrityError
+        # / Second attempt with same PI → IntegrityError
+        with self.assertRaises(IntegrityError):
+            compte.crediter(
+                montant=10, type_transaction="RECHARGE",
+                stripe_payment_intent_id="pi_test_unique_123",
+                description="Doublon",
+            )
+
+        # Verifier qu'il n'y a qu'une transaction avec ce PI
+        # / Verify only one transaction with this PI
+        nombre_transactions = CreditTransaction.objects.filter(
+            stripe_payment_intent_id="pi_test_unique_123",
+        ).count()
+        self.assertEqual(nombre_transactions, 1)
+
+
+class Phase26hGatePrevisualiserSoldeInsuffisantTest(TestCase):
+    """test_gate_previsualiser_solde_insuffisant — 'Solde insuffisant' dans template."""
+
+    def test_gate_previsualiser_solde_insuffisant(self):
+        chemin_template = (
+            BASE_DIR / "front" / "templates" / "front" / "includes"
+            / "confirmation_analyse.html"
+        )
+        contenu = chemin_template.read_text(encoding="utf-8")
+        self.assertIn("Solde insuffisant", contenu)
+        self.assertIn("solde_suffisant", contenu)
+        self.assertIn("alerte-solde-insuffisant", contenu)
+
+
+class Phase26hGateSuperuserBypassTest(TestCase):
+    """test_gate_superuser_bypass — superuser solde 0, bouton actif."""
+
+    def test_gate_superuser_bypass(self):
+        chemin_template = (
+            BASE_DIR / "front" / "templates" / "front" / "includes"
+            / "confirmation_analyse.html"
+        )
+        contenu = chemin_template.read_text(encoding="utf-8")
+        # Le template verifie is_superuser pour le bypass
+        # / The template checks is_superuser for bypass
+        self.assertIn("is_superuser", contenu)
+
+
+class Phase26hStripeDisabledPasDeGateTest(TestCase):
+    """test_stripe_disabled_pas_de_gate — STRIPE_ENABLED=False, analyse OK."""
+
+    def test_stripe_disabled_pas_de_gate(self):
+        chemin_template = (
+            BASE_DIR / "front" / "templates" / "front" / "includes"
+            / "confirmation_analyse.html"
+        )
+        contenu = chemin_template.read_text(encoding="utf-8")
+        # Le template conditionne la gate sur stripe_enabled
+        # / The template conditions the gate on stripe_enabled
+        self.assertIn("stripe_enabled", contenu)
+
+
+class Phase26hContextProcessorInjecteSoldeTest(TestCase):
+    """test_context_processor_injecte_solde — solde_credits_euros dans contexte."""
+
+    def test_context_processor_injecte_solde(self):
+        from django.contrib.auth.models import User
+        from front.context_processors import solde_credits
+
+        utilisateur = User.objects.create_user(
+            username="test_ctx_proc", password="testpass",
+        )
+
+        # Simuler une requete avec un utilisateur authentifie
+        # / Simulate a request with authenticated user
+        factory = RequestFactory()
+        requete = factory.get("/")
+        requete.user = utilisateur
+
+        with self.settings(STRIPE_ENABLED=True):
+            contexte = solde_credits(requete)
+            self.assertIn("stripe_enabled", contexte)
+            self.assertIn("solde_credits_euros", contexte)
+            self.assertTrue(contexte["stripe_enabled"])
+            self.assertEqual(contexte["solde_credits_euros"], 0)
+
+        with self.settings(STRIPE_ENABLED=False):
+            contexte = solde_credits(requete)
+            self.assertFalse(contexte["stripe_enabled"])
+            self.assertIsNone(contexte["solde_credits_euros"])
+
+
+class Phase26hModelesExistentTest(TestCase):
+    """test_modeles_existent — CreditAccount + CreditTransaction champs OK."""
+
+    def test_modeles_existent(self):
+        from core.models import CreditAccount, CreditTransaction, TypeTransaction
+
+        # Verifier que les champs existent via le meta
+        # / Verify fields exist via meta
+        champs_compte = [f.name for f in CreditAccount._meta.get_fields()]
+        self.assertIn("user", champs_compte)
+        self.assertIn("solde_euros", champs_compte)
+        self.assertIn("created_at", champs_compte)
+        self.assertIn("updated_at", champs_compte)
+
+        champs_transaction = [f.name for f in CreditTransaction._meta.get_fields()]
+        self.assertIn("compte", champs_transaction)
+        self.assertIn("type_transaction", champs_transaction)
+        self.assertIn("montant_euros", champs_transaction)
+        self.assertIn("solde_apres_euros", champs_transaction)
+        self.assertIn("stripe_payment_intent_id", champs_transaction)
+        self.assertIn("extraction_job", champs_transaction)
+        self.assertIn("description", champs_transaction)
+        self.assertIn("cree_par", champs_transaction)
+        self.assertIn("created_at", champs_transaction)
+
+        # Verifier les choix de type de transaction
+        # / Verify transaction type choices
+        types_attendus = ["RECHARGE", "DEBIT_ANALYSE", "AJUSTEMENT", "REMBOURSEMENT"]
+        for type_attendu in types_attendus:
+            self.assertTrue(
+                hasattr(TypeTransaction, type_attendu),
+                f"TypeTransaction.{type_attendu} manquant",
+            )
+
+
+class Phase26hCadeauBienvenueTest(TestCase):
+    """test_cadeau_bienvenue — nouvel user recoit 3 EUR si STRIPE_ENABLED."""
+
+    def test_cadeau_bienvenue_stripe_enabled(self):
+        """Un nouvel utilisateur inscrit via register recoit 3 EUR."""
+        from django.test import Client
+        from core.models import CreditAccount
+        from decimal import Decimal
+
+        client = Client()
+        with self.settings(STRIPE_ENABLED=True):
+            client.post("/auth/register/", {
+                "username": "nouveau_bienvenue",
+                "email": "test@test.com",
+                "password": "monmotdepasse123",
+                "password_confirm": "monmotdepasse123",
+            })
+            from django.contrib.auth.models import User
+            utilisateur = User.objects.get(username="nouveau_bienvenue")
+            compte = CreditAccount.get_ou_creer(utilisateur)
+            self.assertEqual(compte.solde_euros, Decimal("3.00"))
+
+    def test_pas_de_cadeau_stripe_disabled(self):
+        """Pas de credit bienvenue si STRIPE_ENABLED=False."""
+        from django.test import Client
+        from core.models import CreditAccount
+
+        client = Client()
+        with self.settings(STRIPE_ENABLED=False):
+            client.post("/auth/register/", {
+                "username": "nouveau_sans_stripe",
+                "email": "test2@test.com",
+                "password": "monmotdepasse123",
+                "password_confirm": "monmotdepasse123",
+            })
+            from django.contrib.auth.models import User
+            utilisateur = User.objects.get(username="nouveau_sans_stripe")
+            # Pas de compte cree automatiquement si Stripe desactive
+            # / No account auto-created if Stripe disabled
+            existe = CreditAccount.objects.filter(user=utilisateur).exists()
+            self.assertFalse(existe)
+
+
+class Phase26hTemplatesExistentTest(TestCase):
+    """test_templates_existent — tous les templates chargeables."""
+
+    def test_template_credits_page_existe(self):
+        """credits_page.html est chargeable."""
+        template = get_template('front/includes/credits_page.html')
+        self.assertIsNotNone(template)
+
+    def test_template_credits_solde_badge_existe(self):
+        """credits_solde_badge.html est chargeable."""
+        template = get_template('front/includes/credits_solde_badge.html')
+        self.assertIsNotNone(template)
+
+    def test_template_credits_recharger_existe(self):
+        """credits_recharger.html est chargeable."""
+        template = get_template('front/includes/credits_recharger.html')
+        self.assertIsNotNone(template)
+
+    def test_template_credits_succes_existe(self):
+        """credits_succes.html est chargeable."""
+        template = get_template('front/includes/credits_succes.html')
+        self.assertIsNotNone(template)
+
+    def test_template_credits_annule_existe(self):
+        """credits_annule.html est chargeable."""
+        template = get_template('front/includes/credits_annule.html')
         self.assertIsNotNone(template)

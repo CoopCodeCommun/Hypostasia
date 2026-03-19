@@ -1964,3 +1964,24 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
 .animate-ws-slide-in {
     animation: ws-slide-in 0.2s ease-out;
 }
+
+
+/* ==========================================================================
+   HTMX indicators — spinners et etats de chargement (PHASE-26h)
+   / HTMX indicators — spinners and loading states (PHASE-26h)
+   ========================================================================== */
+
+/* Masquer le texte du bouton de recharge quand htmx-request est actif
+   Le spinner absolu se superpose — on cache le label en dessous
+   / Hide recharge button text when htmx-request is active
+   / The absolute spinner overlays — hide the label underneath */
+.htmx-request .btn-recharge-label {
+    visibility: hidden;
+}
+
+/* Desactiver visuellement le bouton pendant la requete
+   / Visually disable button during request */
+.htmx-request[data-testid^="btn-recharger-"] {
+    pointer-events: none;
+    opacity: 0.7;
+}

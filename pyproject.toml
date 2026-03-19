@@ -33,4 +33,5 @@ dependencies = [
     "channels>=4.0",
     "daphne>=4.0",
     "channels-redis>=4.1",
+    "stripe>=8.0",
 ]
