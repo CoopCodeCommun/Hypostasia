@@ -1,0 +1,25 @@
+{# Partial : paiement Stripe annule par l'utilisateur #}
+{# / Partial: Stripe payment cancelled by user #}
+
+<div class="max-w-md mx-auto py-12 px-4 text-center" data-testid="credits-annule">
+    <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+        <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+    </div>
+    <h2 class="text-xl font-bold text-slate-900 mb-2">Paiement annule</h2>
+    <p class="text-sm text-slate-500 mb-6">Vous avez annule la recharge. Aucun montant n'a ete debite.</p>
+    <a href="/credits/"
+       hx-get="/credits/"
+       hx-target="#zone-lecture"
+       hx-swap="innerHTML"
+       hx-push-url="/credits/"
+       hx-indicator="#spinner-retour-credits-annule"
+       class="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+        Retour a mes credits
+        <svg id="spinner-retour-credits-annule" class="htmx-indicator animate-spin h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+    </a>
+</div>

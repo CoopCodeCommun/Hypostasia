@@ -1,0 +1,31 @@
+<!-- Carte analyseur individuelle (lecture seule) PHASE-26b -->
+<!-- / Individual analyzer card (read-only) PHASE-26b -->
+<!-- LOCALISATION : front/templates/front/includes/carte_analyseur.html -->
+<div class="bg-white border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+     data-testid="carte-analyseur-{{ analyseur.pk }}">
+    <div class="flex items-start justify-between mb-2">
+        <h3 class="text-sm font-semibold text-slate-800 line-clamp-1" data-testid="nom-analyseur">{{ analyseur.name }}</h3>
+        <!-- Badge type avec couleur / Type badge with color -->
+        {% if analyseur.type_analyseur == 'analyser' %}
+        <span class="shrink-0 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700" data-testid="badge-type">Analyser</span>
+        {% elif analyseur.type_analyseur == 'reformuler' %}
+        <span class="shrink-0 px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700" data-testid="badge-type">Reformuler</span>
+        {% elif analyseur.type_analyseur == 'restituer' %}
+        <span class="shrink-0 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700" data-testid="badge-type">Restituer</span>
+        {% endif %}
+    </div>
+    <p class="text-xs text-slate-500 mb-3 line-clamp-2" data-testid="description-analyseur">{{ analyseur.description|default:"Pas de description" }}</p>
+    <div class="flex items-center justify-between">
+        <span class="text-xs text-slate-400" data-testid="badge-exemples">{{ analyseur.nombre_exemples }} exemple{{ analyseur.nombre_exemples|pluralize }}</span>
+        <a href="/analyseurs/{{ analyseur.pk }}/"
+           hx-get="/analyseurs/{{ analyseur.pk }}/"
+           hx-target="#zone-lecture"
+           hx-swap="innerHTML"
+           hx-push-url="/analyseurs/{{ analyseur.pk }}/"
+           class="text-xs text-blue-600 hover:text-blue-800 font-medium"
+           aria-label="Voir le détail du prompt {{ analyseur.name }}"
+           data-testid="btn-voir-prompt-{{ analyseur.pk }}">
+            Voir le prompt
+        </a>
+    </div>
+</div>

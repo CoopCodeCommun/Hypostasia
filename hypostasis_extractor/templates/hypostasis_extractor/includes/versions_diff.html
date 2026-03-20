@@ -1,0 +1,115 @@
+<!-- Diff side-by-side entre deux versions avec surlignage inline (PHASE-26b) -->
+<!-- / Side-by-side diff between two versions with inline highlighting (PHASE-26b) -->
+<!-- LOCALISATION : hypostasis_extractor/templates/hypostasis_extractor/includes/versions_diff.html -->
+
+<!-- Bouton retour vers la liste des versions / Back to version list button -->
+<button class="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 mb-3"
+        hx-get="/api/analyseurs/{{ analyseur.pk }}/versions/"
+        hx-target="#zone-lecture"
+        hx-swap="innerHTML"
+        hx-push-url="/api/analyseurs/{{ analyseur.pk }}/versions/"
+        data-testid="btn-retour-versions">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
+    </svg>
+    Retour à la liste des versions
+</button>
+
+<div id="versions-diff" class="p-4" data-testid="versions-diff">
+    <h3 class="text-sm font-semibold text-slate-700 mb-2" data-testid="titre-diff-versions">
+        Comparaison — {{ analyseur.name }} : v{{ version_1.version_number }} → v{{ version_2.version_number }}
+    </h3>
+
+    <!-- Legende / Legend -->
+    <div class="flex gap-4 text-[10px] text-slate-400 mb-4">
+        <span class="flex items-center gap-1">
+            <span class="inline-block px-1 rounded bg-red-200 text-red-800 font-mono">abc</span> Supprimé
+        </span>
+        <span class="flex items-center gap-1">
+            <span class="inline-block px-1 rounded bg-green-200 text-green-800 font-mono">xyz</span> Ajouté
+        </span>
+    </div>
+
+    <!-- Pieces du prompt / Prompt pieces -->
+    <h4 class="text-xs font-semibold text-slate-600 mb-2">Pièces du prompt</h4>
+    <div class="space-y-2 mb-6">
+        {% for paire in pieces_comparees %}
+        <div class="grid grid-cols-2 gap-2">
+            <!-- Colonne gauche (ancienne version) / Left column (old version) -->
+            <div class="rounded-lg p-2 text-xs border
+                {% if paire.statut == 'supprimee' %}bg-red-50 border-red-200
+                {% elif paire.statut == 'ajoutee' %}border-dashed border-slate-200
+                {% else %}border-slate-200
+                {% endif %}">
+                {% if paire.gauche %}
+                <div class="font-medium text-slate-500 mb-1">
+                    <span class="text-slate-400">[{{ paire.gauche.role }}]</span> {{ paire.gauche.name }}
+                </div>
+                {% if paire.statut == 'modifiee' %}
+                <div class="whitespace-pre-wrap font-mono text-[11px] text-slate-600 leading-relaxed max-h-40 overflow-y-auto">{{ paire.html_gauche|safe }}</div>
+                {% else %}
+                <pre class="whitespace-pre-wrap font-mono text-[11px] text-slate-500 leading-relaxed max-h-40 overflow-y-auto">{{ paire.gauche.content }}</pre>
+                {% endif %}
+                {% else %}
+                <span class="text-slate-300 italic">—</span>
+                {% endif %}
+            </div>
+
+            <!-- Colonne droite (nouvelle version) / Right column (new version) -->
+            <div class="rounded-lg p-2 text-xs border
+                {% if paire.statut == 'ajoutee' %}bg-green-50 border-green-200
+                {% elif paire.statut == 'supprimee' %}border-dashed border-slate-200
+                {% else %}border-slate-200
+                {% endif %}">
+                {% if paire.droite %}
+                <div class="font-medium text-slate-500 mb-1">
+                    <span class="text-slate-400">[{{ paire.droite.role }}]</span> {{ paire.droite.name }}
+                </div>
+                {% if paire.statut == 'modifiee' %}
+                <div class="whitespace-pre-wrap font-mono text-[11px] text-slate-600 leading-relaxed max-h-40 overflow-y-auto">{{ paire.html_droite|safe }}</div>
+                {% else %}
+                <pre class="whitespace-pre-wrap font-mono text-[11px] text-slate-500 leading-relaxed max-h-40 overflow-y-auto">{{ paire.droite.content }}</pre>
+                {% endif %}
+                {% else %}
+                <span class="text-slate-300 italic">—</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Exemples / Examples -->
+    <h4 class="text-xs font-semibold text-slate-600 mb-2">Exemples few-shot</h4>
+    <div class="space-y-2">
+        {% for paire in exemples_compares %}
+        <div class="grid grid-cols-2 gap-2">
+            <div class="rounded-lg p-2 text-xs border
+                {% if paire.statut == 'modifiee' %}border-amber-200
+                {% elif paire.statut == 'supprimee' %}bg-red-50 border-red-200
+                {% elif paire.statut == 'ajoutee' %}border-dashed border-slate-200
+                {% else %}border-slate-200
+                {% endif %}">
+                {% if paire.gauche %}
+                <span class="font-medium text-slate-600">{{ paire.gauche.name }}</span>
+                <span class="text-slate-400">— {{ paire.gauche.extractions|length }} extraction{{ paire.gauche.extractions|length|pluralize }}</span>
+                {% else %}
+                <span class="text-slate-300 italic">—</span>
+                {% endif %}
+            </div>
+            <div class="rounded-lg p-2 text-xs border
+                {% if paire.statut == 'modifiee' %}border-amber-200
+                {% elif paire.statut == 'ajoutee' %}bg-green-50 border-green-200
+                {% elif paire.statut == 'supprimee' %}border-dashed border-slate-200
+                {% else %}border-slate-200
+                {% endif %}">
+                {% if paire.droite %}
+                <span class="font-medium text-slate-600">{{ paire.droite.name }}</span>
+                <span class="text-slate-400">— {{ paire.droite.extractions|length }} extraction{{ paire.droite.extractions|length|pluralize }}</span>
+                {% else %}
+                <span class="text-slate-300 italic">—</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>

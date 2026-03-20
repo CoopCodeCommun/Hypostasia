@@ -1,0 +1,42 @@
+<!-- Dashboard couts par modele et par mois (admin) PHASE-26b -->
+<!-- / Cost dashboard by model and month (admin) PHASE-26b -->
+<!-- LOCALISATION : front/templates/front/includes/dashboard_couts.html -->
+<div id="dashboard-couts" class="p-6 max-w-5xl mx-auto" data-testid="dashboard-couts">
+    <h1 class="text-xl font-semibold text-slate-800 mb-6" data-testid="titre-dashboard-couts">Dashboard des coûts LLM</h1>
+
+    {% if couts_par_mois %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm border-collapse"
+               aria-label="Tableau des coûts LLM par mois et par modèle"
+               data-testid="tableau-couts-par-mois">
+            <thead>
+                <tr class="border-b border-slate-200 text-left text-xs text-slate-500 uppercase tracking-wider">
+                    <th class="py-2 px-3">Mois</th>
+                    <th class="py-2 px-3">Modèle</th>
+                    <th class="py-2 px-3 text-right">Jobs</th>
+                    <th class="py-2 px-3 text-right">Tokens in</th>
+                    <th class="py-2 px-3 text-right">Tokens out</th>
+                    <th class="py-2 px-3 text-right">Coût (€)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ligne in couts_par_mois %}
+                <tr class="border-b border-slate-100 hover:bg-slate-50" data-testid="ligne-cout">
+                    <td class="py-2 px-3 text-slate-600">{{ ligne.mois|date:"M Y" }}</td>
+                    <td class="py-2 px-3 text-slate-600">{{ ligne.ai_model__provider|default:"?" }} / {{ ligne.ai_model__model_name|default:"?" }}</td>
+                    <td class="py-2 px-3 text-right text-slate-600">{{ ligne.nombre_jobs }}</td>
+                    <td class="py-2 px-3 text-right text-slate-500 font-mono text-xs">{{ ligne.tokens_input_total|default:"—" }}</td>
+                    <td class="py-2 px-3 text-right text-slate-500 font-mono text-xs">{{ ligne.tokens_output_total|default:"—" }}</td>
+                    <td class="py-2 px-3 text-right font-semibold text-slate-800">{{ ligne.cout_total|floatformat:4 }} €</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-12 text-slate-400" data-testid="etat-vide-couts">
+        <p>Aucune donnée de coût disponible.</p>
+        <p class="text-xs mt-1">Les coûts sont enregistrés après chaque analyse terminée.</p>
+    </div>
+    {% endif %}
+</div>

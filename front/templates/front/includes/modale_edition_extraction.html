@@ -1,0 +1,41 @@
+{# Modale d'edition d'une extraction (PHASE-26f) #}
+{# Backdrop semi-transparent pour voir le texte source en arriere-plan #}
+{# / Extraction edit modal (PHASE-26f) #}
+{# / Semi-transparent backdrop to see source text in background #}
+
+<div id="modale-edition-extraction"
+     class="modale-extraction-backdrop"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="modale-edition-titre"
+     data-testid="modale-edition-extraction">
+
+    <div class="modale-extraction">
+        {# Header : titre + bouton fermer / Header: title + close button #}
+        <div class="modale-extraction-header">
+            <h2 id="modale-edition-titre" class="text-sm font-semibold text-slate-700" style="font-family: 'B612', sans-serif;">
+                Modifier l&rsquo;extraction
+            </h2>
+            <button class="btn-fermer-modale-extraction"
+                    aria-label="Fermer la modale"
+                    data-testid="modale-btn-fermer"
+                    type="button">
+                &times;
+            </button>
+        </div>
+
+        {# Zone source : extrait du texte en Lora italique #}
+        {# / Source zone: text excerpt in italic Lora #}
+        <div class="modale-extraction-source">
+            <p class="text-xs leading-relaxed" style="font-family: 'Lora', serif; font-style: italic; color: var(--text-secondary);">
+                {{ entity.extraction_text|truncatechars:400 }}
+            </p>
+        </div>
+
+        {# Body : formulaire d'edition reutilise #}
+        {# / Body: reused edit form #}
+        <div class="modale-extraction-body">
+            {% include "front/includes/extraction_manuelle_form.html" %}
+        </div>
+    </div>
+</div>

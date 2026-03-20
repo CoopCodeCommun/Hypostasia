@@ -1,0 +1,67 @@
+<!-- Bibliotheque d'analyseurs — grille de cartes (lecture seule) PHASE-26b -->
+<!-- / Analyzer library — card grid (read-only) PHASE-26b -->
+<!-- LOCALISATION : front/templates/front/includes/bibliotheque_analyseurs.html -->
+<div id="bibliotheque-analyseurs" class="p-6 max-w-5xl mx-auto" data-testid="bibliotheque-analyseurs">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-xl font-semibold text-slate-800" data-testid="titre-bibliotheque">Bibliothèque d'analyseurs</h1>
+        {% if request.user.is_staff %}
+        <a href="/api/analyseurs/"
+           hx-get="/api/analyseurs/"
+           hx-target="#zone-lecture"
+           hx-swap="innerHTML"
+           hx-push-url="/api/analyseurs/"
+           class="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+           aria-label="Accéder à l'interface d'administration des analyseurs"
+           data-testid="lien-admin-analyseurs">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"/></svg>
+            Admin analyseurs
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Boutons filtre par type d'analyseur / Filter buttons by analyzer type -->
+    <div class="flex gap-2 mb-6" role="group" aria-label="Filtrer par type d'analyseur" data-testid="filtres-type-analyseur">
+        <button class="px-3 py-1.5 text-sm rounded-full transition-colors {% if not type_filtre %}bg-blue-600 text-white{% else %}bg-slate-100 text-slate-600 hover:bg-slate-200{% endif %}"
+                hx-get="/analyseurs/"
+                hx-target="#zone-lecture"
+                hx-swap="innerHTML"
+                hx-push-url="/analyseurs/"
+                aria-label="Afficher tous les analyseurs"
+                data-testid="filtre-tous">Tous</button>
+        <button class="px-3 py-1.5 text-sm rounded-full transition-colors {% if type_filtre == 'analyser' %}bg-blue-600 text-white{% else %}bg-slate-100 text-slate-600 hover:bg-slate-200{% endif %}"
+                hx-get="/analyseurs/?type=analyser"
+                hx-target="#zone-lecture"
+                hx-swap="innerHTML"
+                hx-push-url="/analyseurs/?type=analyser"
+                aria-label="Filtrer par type Analyser"
+                data-testid="filtre-analyser">Analyser</button>
+        <button class="px-3 py-1.5 text-sm rounded-full transition-colors {% if type_filtre == 'reformuler' %}bg-blue-600 text-white{% else %}bg-slate-100 text-slate-600 hover:bg-slate-200{% endif %}"
+                hx-get="/analyseurs/?type=reformuler"
+                hx-target="#zone-lecture"
+                hx-swap="innerHTML"
+                hx-push-url="/analyseurs/?type=reformuler"
+                aria-label="Filtrer par type Reformuler"
+                data-testid="filtre-reformuler">Reformuler</button>
+        <button class="px-3 py-1.5 text-sm rounded-full transition-colors {% if type_filtre == 'restituer' %}bg-blue-600 text-white{% else %}bg-slate-100 text-slate-600 hover:bg-slate-200{% endif %}"
+                hx-get="/analyseurs/?type=restituer"
+                hx-target="#zone-lecture"
+                hx-swap="innerHTML"
+                hx-push-url="/analyseurs/?type=restituer"
+                aria-label="Filtrer par type Restituer"
+                data-testid="filtre-restituer">Restituer</button>
+    </div>
+
+    <!-- Grille de cartes des analyseurs / Analyzer card grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+         aria-live="polite"
+         aria-label="Liste des analyseurs disponibles"
+         data-testid="grille-analyseurs">
+        {% for analyseur in analyseurs %}
+        {% include "front/includes/carte_analyseur.html" with analyseur=analyseur %}
+        {% empty %}
+        <div class="col-span-full text-center py-12 text-slate-400" data-testid="etat-vide-analyseurs">
+            <p>Aucun analyseur disponible{% if type_filtre %} pour ce type{% endif %}.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>

@@ -1,0 +1,70 @@
+<!-- Modale lecture seule du prompt d'un analyseur PHASE-26b -->
+<!-- / Read-only prompt modal for an analyzer PHASE-26b -->
+<div id="modale-prompt-readonly" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+     data-testid="modale-prompt-readonly"
+     onclick="if(event.target===this) this.remove()">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col mx-4"
+         onclick="event.stopPropagation()">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-800" data-testid="modale-titre">{{ analyseur.name }}</h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    {% if analyseur.type_analyseur == 'analyser' %}
+                    <span class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">Analyser</span>
+                    {% elif analyseur.type_analyseur == 'reformuler' %}
+                    <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Reformuler</span>
+                    {% elif analyseur.type_analyseur == 'restituer' %}
+                    <span class="px-1.5 py-0.5 rounded bg-green-100 text-green-700">Restituer</span>
+                    {% endif %}
+                </p>
+            </div>
+            <button class="text-slate-400 hover:text-slate-600" onclick="this.closest('#modale-prompt-readonly').remove()"
+                    data-testid="btn-fermer-modale">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <!-- Corps scrollable / Scrollable body -->
+        <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            <!-- Pieces du prompt / Prompt pieces -->
+            {% if pieces %}
+            <div>
+                <h3 class="text-sm font-semibold text-slate-600 mb-2">Prompt</h3>
+                {% for piece in pieces %}
+                <div class="mb-3 rounded-lg border border-slate-200 overflow-hidden">
+                    <div class="px-3 py-1.5 text-xs font-medium
+                        {% if piece.role == 'definition' %}bg-purple-50 text-purple-700
+                        {% elif piece.role == 'instruction' %}bg-blue-50 text-blue-700
+                        {% elif piece.role == 'format' %}bg-green-50 text-green-700
+                        {% elif piece.role == 'context' %}bg-amber-50 text-amber-700
+                        {% endif %}">
+                        {{ piece.get_role_display }} — {{ piece.name }}
+                    </div>
+                    <pre class="px-3 py-2 text-xs text-slate-700 whitespace-pre-wrap bg-slate-50 font-mono" data-testid="piece-content">{{ piece.content }}</pre>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Exemples few-shot / Few-shot examples -->
+            {% if exemples %}
+            <div>
+                <h3 class="text-sm font-semibold text-slate-600 mb-2">Exemples few-shot</h3>
+                {% for exemple in exemples %}
+                <div class="mb-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
+                    <p class="text-xs font-medium text-slate-600 mb-1">{{ exemple.name }}</p>
+                    <p class="text-xs text-slate-500 mb-2 line-clamp-3">{{ exemple.example_text|truncatechars:200 }}</p>
+                    {% for extraction in exemple.extractions.all %}
+                    <div class="ml-2 mb-1 text-xs">
+                        <span class="font-mono text-blue-600">[{{ extraction.extraction_class }}]</span>
+                        <span class="text-slate-600">{{ extraction.extraction_text|truncatechars:100 }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
