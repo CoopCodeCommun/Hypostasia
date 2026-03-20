@@ -1366,19 +1366,52 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['get'], url_path='versions')
     def versions(self, request, pk=None):
         """
-        Liste toutes les versions historiques d'un analyseur. Staff uniquement.
-        / List all historical versions of an analyzer. Staff only.
+        Liste toutes les versions historiques d'un analyseur.
+        Accessible a tous les utilisateurs authentifies (transparence).
+        Les boutons Restaurer et Comparer ne sont visibles que pour les staff.
+        / List all historical versions of an analyzer.
+        / Accessible to all authenticated users (transparency).
+        / Restore and Compare buttons are only visible for staff.
 
         LOCALISATION : hypostasis_extractor/views.py
         """
-        reponse_refus = _exiger_staff(request)
-        if reponse_refus:
-            return reponse_refus
+        if not request.user.is_authenticated:
+            return HttpResponse("Authentification requise.", status=401)
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
-        toutes_les_versions_de_analyseur = analyseur.versions.select_related('modified_by').all()
-        return render(request, 'hypostasis_extractor/includes/versions_list.html', {
+        toutes_les_versions_de_analyseur = list(
+            analyseur.versions.select_related('modified_by').all()
+        )
+
+        # Construire des paires (version, version_precedente) pour le bouton "Comparer"
+        # L'ordering est -version_number, donc l'element suivant est la version precedente.
+        # / Build pairs (version, previous_version) for the "Compare" button.
+        # / Ordering is -version_number, so the next element is the previous version.
+        versions_avec_precedente = []
+        for index_version, version_courante in enumerate(toutes_les_versions_de_analyseur):
+            version_precedente = (
+                toutes_les_versions_de_analyseur[index_version + 1]
+                if index_version + 1 < len(toutes_les_versions_de_analyseur)
+                else None
+            )
+            versions_avec_precedente.append({
+                'version': version_courante,
+                'version_precedente': version_precedente,
+            })
+
+        contexte_versions = {
             'analyseur': analyseur,
-            'versions': toutes_les_versions_de_analyseur,
+            'versions_avec_precedente': versions_avec_precedente,
+        }
+
+        # Requete HTMX → partial seulement / HTMX request → partial only
+        if request.headers.get('HX-Request'):
+            return render(request, 'hypostasis_extractor/includes/versions_list.html', contexte_versions)
+
+        # Acces direct (F5) → page complete avec vue pre-chargee
+        # / Direct access (F5) → full page with pre-loaded view
+        return render(request, 'front/base.html', {
+            'versions_list_preloaded': True,
+            **contexte_versions,
         })
 
     @action(detail=True, methods=['get'], url_path='diff-versions')
@@ -1405,10 +1438,130 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         version_droite = get_object_or_404(
             AnalyseurVersion, analyseur=analyseur, version_number=numero_version_droite,
         )
-        return render(request, 'hypostasis_extractor/includes/versions_diff.html', {
+
+        # Generer le diff inline mot par mot avec <del> et <ins>
+        # Utilise difflib.SequenceMatcher pour comparer les mots.
+        # / Generate inline word-level diff with <del> and <ins> tags.
+        # / Uses difflib.SequenceMatcher to compare words.
+        import difflib
+        from django.utils.html import escape
+
+        def _diff_inline_mots(texte_ancien, texte_nouveau):
+            """
+            Compare deux textes mot par mot et retourne deux HTML :
+            - html_ancien avec <del> sur les mots supprimes
+            - html_nouveau avec <ins> sur les mots ajoutes
+            / Compare two texts word by word and return two HTMLs.
+            """
+            mots_anciens = texte_ancien.split()
+            mots_nouveaux = texte_nouveau.split()
+            matcher = difflib.SequenceMatcher(None, mots_anciens, mots_nouveaux)
+
+            fragments_ancien = []
+            fragments_nouveau = []
+
+            for operation, i1, i2, j1, j2 in matcher.get_opcodes():
+                if operation == 'equal':
+                    texte_egal = escape(' '.join(mots_anciens[i1:i2]))
+                    fragments_ancien.append(texte_egal)
+                    fragments_nouveau.append(texte_egal)
+                elif operation == 'replace':
+                    fragments_ancien.append(
+                        '<del class="bg-red-200 text-red-800 no-underline rounded px-0.5">'
+                        + escape(' '.join(mots_anciens[i1:i2]))
+                        + '</del>'
+                    )
+                    fragments_nouveau.append(
+                        '<ins class="bg-green-200 text-green-800 no-underline rounded px-0.5">'
+                        + escape(' '.join(mots_nouveaux[j1:j2]))
+                        + '</ins>'
+                    )
+                elif operation == 'delete':
+                    fragments_ancien.append(
+                        '<del class="bg-red-200 text-red-800 no-underline rounded px-0.5">'
+                        + escape(' '.join(mots_anciens[i1:i2]))
+                        + '</del>'
+                    )
+                elif operation == 'insert':
+                    fragments_nouveau.append(
+                        '<ins class="bg-green-200 text-green-800 no-underline rounded px-0.5">'
+                        + escape(' '.join(mots_nouveaux[j1:j2]))
+                        + '</ins>'
+                    )
+
+            return ' '.join(fragments_ancien), ' '.join(fragments_nouveau)
+
+        # Comparer les pieces une par une pour marquer les differences
+        # / Compare pieces one by one to mark differences.
+        pieces_gauche = version_gauche.snapshot.get('pieces', [])
+        pieces_droite = version_droite.snapshot.get('pieces', [])
+        nombre_pieces_max = max(len(pieces_gauche), len(pieces_droite))
+
+        pieces_comparees = []
+        for index_piece in range(nombre_pieces_max):
+            piece_g = pieces_gauche[index_piece] if index_piece < len(pieces_gauche) else None
+            piece_d = pieces_droite[index_piece] if index_piece < len(pieces_droite) else None
+
+            if piece_g is None:
+                pieces_comparees.append({
+                    'gauche': None, 'droite': piece_d,
+                    'statut': 'ajoutee', 'html_gauche': '', 'html_droite': escape(piece_d.get('content', '')),
+                })
+            elif piece_d is None:
+                pieces_comparees.append({
+                    'gauche': piece_g, 'droite': None,
+                    'statut': 'supprimee', 'html_gauche': escape(piece_g.get('content', '')), 'html_droite': '',
+                })
+            elif piece_g.get('content') != piece_d.get('content') or piece_g.get('name') != piece_d.get('name') or piece_g.get('role') != piece_d.get('role'):
+                html_ancien, html_nouveau = _diff_inline_mots(
+                    piece_g.get('content', ''), piece_d.get('content', ''),
+                )
+                pieces_comparees.append({
+                    'gauche': piece_g, 'droite': piece_d,
+                    'statut': 'modifiee', 'html_gauche': html_ancien, 'html_droite': html_nouveau,
+                })
+            else:
+                pieces_comparees.append({
+                    'gauche': piece_g, 'droite': piece_d,
+                    'statut': 'identique', 'html_gauche': '', 'html_droite': '',
+                })
+
+        # Comparer les exemples / Compare examples
+        exemples_gauche = version_gauche.snapshot.get('examples', [])
+        exemples_droite = version_droite.snapshot.get('examples', [])
+        nombre_exemples_max = max(len(exemples_gauche), len(exemples_droite))
+
+        exemples_compares = []
+        for index_exemple in range(nombre_exemples_max):
+            ex_g = exemples_gauche[index_exemple] if index_exemple < len(exemples_gauche) else None
+            ex_d = exemples_droite[index_exemple] if index_exemple < len(exemples_droite) else None
+
+            if ex_g is None:
+                exemples_compares.append({'gauche': None, 'droite': ex_d, 'statut': 'ajoutee'})
+            elif ex_d is None:
+                exemples_compares.append({'gauche': ex_g, 'droite': None, 'statut': 'supprimee'})
+            elif ex_g != ex_d:
+                exemples_compares.append({'gauche': ex_g, 'droite': ex_d, 'statut': 'modifiee'})
+            else:
+                exemples_compares.append({'gauche': ex_g, 'droite': ex_d, 'statut': 'identique'})
+
+        contexte_diff = {
             'analyseur': analyseur,
             'version_1': version_gauche,
             'version_2': version_droite,
+            'pieces_comparees': pieces_comparees,
+            'exemples_compares': exemples_compares,
+        }
+
+        # Requete HTMX → partial seulement / HTMX request → partial only
+        if request.headers.get('HX-Request'):
+            return render(request, 'hypostasis_extractor/includes/versions_diff.html', contexte_diff)
+
+        # Acces direct (F5) → page complete avec vue pre-chargee
+        # / Direct access (F5) → full page with pre-loaded view
+        return render(request, 'front/base.html', {
+            'versions_diff_preloaded': True,
+            **contexte_diff,
         })
 
     @action(detail=True, methods=['post'])

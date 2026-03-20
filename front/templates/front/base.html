@@ -357,6 +357,10 @@
                 {% include "front/includes/bibliotheque_analyseurs.html" %}
             {% elif detail_analyseur_preloaded %}
                 {% include "front/includes/detail_analyseur_readonly.html" %}
+            {% elif versions_list_preloaded %}
+                {% include "hypostasis_extractor/includes/versions_list.html" %}
+            {% elif versions_diff_preloaded %}
+                {% include "hypostasis_extractor/includes/versions_diff.html" %}
             {% elif dashboard_couts_preloaded %}
                 {% include "front/includes/dashboard_couts.html" %}
             {% elif configuration_llm_preloaded %}

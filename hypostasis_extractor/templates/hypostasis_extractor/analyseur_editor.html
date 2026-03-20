@@ -26,6 +26,7 @@
         <a hx-get="/api/analyseurs/{{ analyseur.pk }}/versions/"
            hx-target="#zone-lecture"
            hx-swap="innerHTML"
+           hx-push-url="/api/analyseurs/{{ analyseur.pk }}/versions/"
            class="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
            aria-label="Historique des versions de {{ analyseur.name }}"
            data-testid="lien-versions-analyseur-editeur">
