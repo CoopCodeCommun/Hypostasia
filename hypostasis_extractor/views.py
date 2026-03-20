@@ -535,6 +535,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             piece = PromptPiece.objects.create(
                 analyseur=analyseur, **serializer.validated_data
             )
+            # Auto-snapshot apres ajout de piece / Auto-snapshot after adding piece
+            from .services import creer_version_analyseur
+            creer_version_analyseur(analyseur, request.user, f"Ajout piece: {piece.name}")
             return render(request, 'hypostasis_extractor/includes/piece_row.html', {
                 'piece': piece, 'analyseur': analyseur
             }, status=status.HTTP_201_CREATED)
@@ -554,6 +557,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             for field_name, field_value in serializer.validated_data.items():
                 setattr(piece, field_name, field_value)
             piece.save()
+            # Auto-snapshot apres modification de piece / Auto-snapshot after updating piece
+            analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+            from .services import creer_version_analyseur
+            creer_version_analyseur(analyseur, request.user, f"Modification piece: {piece.name}")
             return _saved_response()
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -566,7 +573,12 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         get_object_or_404(AnalyseurSyntaxique, pk=pk)
         piece_id = request.data.get('piece_id') or request.query_params.get('piece_id')
         piece = get_object_or_404(PromptPiece, pk=piece_id, analyseur_id=pk)
+        nom_piece_supprimee = piece.name
         piece.delete()
+        # Auto-snapshot apres suppression de piece / Auto-snapshot after deleting piece
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        from .services import creer_version_analyseur
+        creer_version_analyseur(analyseur, request.user, f"Suppression piece: {nom_piece_supprimee}")
         return HttpResponse(status=200)
 
     # ---- Actions AnalyseurExample ----
@@ -583,6 +595,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             example = AnalyseurExample.objects.create(
                 analyseur=analyseur, **serializer.validated_data
             )
+            # Auto-snapshot apres ajout d'exemple / Auto-snapshot after adding example
+            from .services import creer_version_analyseur
+            creer_version_analyseur(analyseur, request.user, f"Ajout exemple: {example.name}")
             return render(request, 'hypostasis_extractor/includes/example_card.html', {
                 'example': example, 'analyseur': analyseur
             }, status=status.HTTP_201_CREATED)
@@ -602,6 +617,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             for field_name, field_value in serializer.validated_data.items():
                 setattr(example, field_name, field_value)
             example.save()
+            # Auto-snapshot apres modification d'exemple / Auto-snapshot after updating example
+            analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+            from .services import creer_version_analyseur
+            creer_version_analyseur(analyseur, request.user, f"Modification exemple: {example.name}")
             return _saved_response()
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -614,7 +633,12 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         get_object_or_404(AnalyseurSyntaxique, pk=pk)
         example_id = request.data.get('example_id') or request.query_params.get('example_id')
         example = get_object_or_404(AnalyseurExample, pk=example_id, analyseur_id=pk)
+        nom_exemple_supprime = example.name
         example.delete()
+        # Auto-snapshot apres suppression d'exemple / Auto-snapshot after deleting example
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        from .services import creer_version_analyseur
+        creer_version_analyseur(analyseur, request.user, f"Suppression exemple: {nom_exemple_supprime}")
         return HttpResponse(status=200)
 
     # ---- Actions ExampleExtraction ----
@@ -656,6 +680,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
                     )
 
             _normalize_attribute_orders_for_analyseur(analyseur.pk)
+            # Auto-snapshot apres ajout d'extraction / Auto-snapshot after adding extraction
+            from .services import creer_version_analyseur
+            creer_version_analyseur(analyseur, request.user, f"Ajout extraction dans: {example.name}")
             extraction_count = example.extractions.count()
             # Nouvelle extraction = jamais la premiere (first_sibling existait)
             is_first = not first_sibling
@@ -682,6 +709,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             for field_name, field_value in serializer.validated_data.items():
                 setattr(extraction, field_name, field_value)
             extraction.save()
+            # Auto-snapshot apres modification d'extraction / Auto-snapshot after updating extraction
+            from .services import creer_version_analyseur
+            creer_version_analyseur(analyseur, request.user, "Modification extraction")
             return _saved_response()
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -791,6 +821,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
                     ids_to_delete = [a.pk for a in existing_attrs[len(reference_attributes):]]
                     ExtractionAttribute.objects.filter(pk__in=ids_to_delete).delete()
 
+        # Auto-snapshot apres sauvegarde groupee / Auto-snapshot after bulk save
+        from .services import creer_version_analyseur
+        creer_version_analyseur(analyseur, request.user, f"Sauvegarde extractions: {example.name}")
         return _saved_response()
 
     @action(detail=True, methods=['delete'])
@@ -813,6 +846,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
         example_id = extraction.example_id
         extraction.delete()
+
+        # Auto-snapshot apres suppression d'extraction / Auto-snapshot after deleting extraction
+        from .services import creer_version_analyseur
+        creer_version_analyseur(analyseur, request.user, "Suppression extraction")
 
         # Declenche un refresh du container de test pour cet exemple
         # Les cartes "Obtenu" verront que promoted_to_extraction est devenu null (SET_NULL)
@@ -864,6 +901,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
                     )
 
             _normalize_attribute_orders_for_analyseur(analyseur.pk)
+            # Auto-snapshot apres ajout d'attribut / Auto-snapshot after adding attribute
+            from .services import creer_version_analyseur
+            creer_version_analyseur(analyseur, request.user, f"Ajout attribut: {attribute.key}")
             attribute.refresh_from_db()
             return render(request, 'hypostasis_extractor/includes/attribute_row.html', {
                 'attribute': attribute, 'analyseur': analyseur
@@ -887,6 +927,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             for field_name, field_value in serializer.validated_data.items():
                 setattr(attribute, field_name, field_value)
             attribute.save()
+            # Auto-snapshot apres modification d'attribut / Auto-snapshot after updating attribute
+            from .services import creer_version_analyseur
+            creer_version_analyseur(analyseur, request.user, f"Modification attribut: {attribute.key}")
             return _saved_response()
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -950,6 +993,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
                 attr_a.save(update_fields=['order'])
                 attr_b.save(update_fields=['order'])
 
+        # Auto-snapshot apres reordonnancement / Auto-snapshot after reordering
+        from .services import creer_version_analyseur
+        creer_version_analyseur(analyseur, request.user, "Reordonnancement attributs")
+
         # Recharge l'exemple avec toutes ses relations
         example = AnalyseurExample.objects.prefetch_related(
             'extractions__attributes'
@@ -970,8 +1017,12 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             ExtractionAttribute.objects.filter(extraction__example__analyseur=analyseur),
             pk=attribute_id
         )
+        nom_attribut_supprime = attribute.key
         attribute.delete()
         _normalize_attribute_orders_for_analyseur(analyseur.pk)
+        # Auto-snapshot apres suppression d'attribut / Auto-snapshot after deleting attribute
+        from .services import creer_version_analyseur
+        creer_version_analyseur(analyseur, request.user, f"Suppression attribut: {nom_attribut_supprime}")
         return HttpResponse(status=200)
 
     # ---- Actions Test & Benchmark LLM ----

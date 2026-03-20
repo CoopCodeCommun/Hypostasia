@@ -760,7 +760,7 @@ class LectureViewSet(viewsets.ViewSet):
         dernier_job_termine = ExtractionJob.objects.filter(
             page=page,
             status="completed",
-        ).order_by("-created_at").first()
+        ).select_related("analyseur_version").order_by("-created_at").first()
 
         # Pour les pages audio avec transcription_raw, regenerer le HTML diarise
         # afin de garantir les data attributes PHASE-15 (fonds pales, data-speaker, etc.)
@@ -968,7 +968,7 @@ class LectureViewSet(viewsets.ViewSet):
         analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
         dernier_job_termine = ExtractionJob.objects.filter(
             page=page, status="completed",
-        ).order_by("-created_at").first()
+        ).select_related("analyseur_version").order_by("-created_at").first()
 
         entites_existantes = None
         html_annote = None
@@ -1588,7 +1588,7 @@ class LectureViewSet(viewsets.ViewSet):
         dernier_job_termine = ExtractionJob.objects.filter(
             page=page,
             status="completed",
-        ).order_by("-created_at").first()
+        ).select_related("analyseur_version").order_by("-created_at").first()
 
         dernier_job_erreur = ExtractionJob.objects.filter(
             page=page,
@@ -2002,7 +2002,7 @@ class LectureViewSet(viewsets.ViewSet):
         html_annote = None
         dernier_job_termine = ExtractionJob.objects.filter(
             page=page, status="completed",
-        ).order_by("-created_at").first()
+        ).select_related("analyseur_version").order_by("-created_at").first()
         if dernier_job_termine:
             # Exclure les entites masquees / Exclude hidden entities
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
@@ -2089,7 +2089,7 @@ class LectureViewSet(viewsets.ViewSet):
         html_annote = None
         dernier_job_termine = ExtractionJob.objects.filter(
             page=page, status="completed",
-        ).order_by("-created_at").first()
+        ).select_related("analyseur_version").order_by("-created_at").first()
         if dernier_job_termine:
             # Exclure les entites masquees / Exclude hidden entities
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(

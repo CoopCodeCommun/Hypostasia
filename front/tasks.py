@@ -738,6 +738,37 @@ def restituer_debat_task(self, entity_id, analyseur_id):
         entite.save(update_fields=["restitution_ia_en_cours", "restitution_ia_erreur"])
 
 
+class ModeleAvecCompteurTokens:
+    """
+    Proxy autour du modele LLM langextract qui accumule les tokens.
+    Utilise len(texte) // 4 comme estimation generique (ratio caracteres/tokens).
+    / Proxy around the langextract LLM model that accumulates tokens.
+    / Uses len(text) // 4 as a generic estimate (chars/tokens ratio).
+
+    LOCALISATION : front/tasks.py
+    """
+    def __init__(self, modele_llm_original):
+        self._modele = modele_llm_original
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+
+    def infer(self, batch_prompts, **kwargs):
+        # Compter tokens input (estimation) / Count input tokens (estimate)
+        for prompt in batch_prompts:
+            self.total_input_tokens += len(str(prompt)) // 4
+        # Appeler le vrai modele / Call the real model
+        outputs = self._modele.infer(batch_prompts=batch_prompts, **kwargs)
+        resultats = list(outputs)
+        # Compter tokens output (estimation) / Count output tokens (estimate)
+        for scored_list in resultats:
+            for scored in (scored_list if isinstance(scored_list, list) else [scored_list]):
+                self.total_output_tokens += len(scored.output) // 4
+        return resultats
+
+    def __getattr__(self, name):
+        return getattr(self._modele, name)
+
+
 @shared_task(bind=True)
 def analyser_page_task(self, job_id):
     """
@@ -809,6 +840,23 @@ def analyser_page_task(self, job_id):
         if analyseur_id:
             analyseur = AnalyseurSyntaxique.objects.get(pk=analyseur_id)
             liste_exemples_langextract = _construire_exemples_langextract(analyseur)
+
+            # Rattacher la derniere version de l'analyseur au job (PHASE-26b)
+            # Si aucune version n'existe, creer un snapshot initial automatique.
+            # / Attach the latest analyzer version to the job (PHASE-26b)
+            # / If no version exists, create an automatic initial snapshot.
+            from hypostasis_extractor.models import AnalyseurVersion
+            from hypostasis_extractor.services import creer_version_analyseur
+            derniere_version_analyseur = (
+                AnalyseurVersion.objects.filter(analyseur=analyseur)
+                .order_by('-version_number').first()
+            )
+            if derniere_version_analyseur is None:
+                derniere_version_analyseur = creer_version_analyseur(
+                    analyseur, None, "Snapshot initial automatique",
+                )
+            job_extraction.analyseur_version = derniere_version_analyseur
+            job_extraction.save(update_fields=["analyseur_version"])
         else:
             liste_exemples_langextract = []
 
@@ -846,11 +894,14 @@ def analyser_page_task(self, job_id):
             model_id=parametres_modele.get("model_id", "gemini-2.5-flash"),
             provider_kwargs=kwargs_modele_llm,
         )
-        modele_llm = factory_lx.create_model(
+        modele_llm_brut = factory_lx.create_model(
             config=config_modele,
             examples=modele_prompt.examples,
             use_schema_constraints=True,
         )
+        # Wrapper le modele pour comptabiliser les tokens (PHASE-26b)
+        # / Wrap the model to track tokens (PHASE-26b)
+        modele_llm = ModeleAvecCompteurTokens(modele_llm_brut)
 
         # 3. FormatHandler et Resolver avec suppress_parse_errors
         # / 3. FormatHandler and Resolver with suppress_parse_errors

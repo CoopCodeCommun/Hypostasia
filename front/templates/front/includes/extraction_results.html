@@ -98,6 +98,29 @@
         <div id="zone-promouvoir-entrainement"></div>
         {% endif %}
 
+        {# Footer : cout reel, tokens, version analyseur (PHASE-26b) #}
+        {# / Footer: real cost, tokens, analyzer version (PHASE-26b) #}
+        {% if job and job.cout_reel_euros %}
+        <div class="mt-3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 space-y-0.5" data-testid="footer-cout-reel">
+            <div class="flex items-center justify-between">
+                <span>Coût réel</span>
+                <span class="font-mono">{{ job.cout_reel_euros|floatformat:4 }} €</span>
+            </div>
+            {% if job.tokens_input_reels %}
+            <div class="flex items-center justify-between">
+                <span>Tokens</span>
+                <span class="font-mono">{{ job.tokens_input_reels }} in / {{ job.tokens_output_reels }} out</span>
+            </div>
+            {% endif %}
+            {% if job.analyseur_version %}
+            <div class="flex items-center justify-between">
+                <span>Version analyseur</span>
+                <span class="font-mono">v{{ job.analyseur_version.version_number }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
     {% else %}
     <div class="text-center py-8 text-slate-400 border border-dashed border-slate-200 rounded-xl">
         <p class="text-sm">Lancez une analyse pour voir les resultats ici.</p>
