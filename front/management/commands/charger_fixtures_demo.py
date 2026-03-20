@@ -152,6 +152,26 @@ COULEURS_LOCUTEURS = {
 
 
 # =============================================================================
+# Synthese du debat V2 — texte restitue apres deliberation (PHASE-27b)
+# Le texte reprend la structure du debat V1 mais integre les points
+# consensuels, reformule les passages controverses, et ajoute une conclusion.
+# / Debate synthesis V2 — restituted text after deliberation (PHASE-27b)
+# =============================================================================
+
+TEXTE_SYNTHESE_DEBAT_V2 = """L'intelligence artificielle constitue une transformation majeure de nos sociétés, comparable par son ampleur aux grandes révolutions technologiques. Les pays qui n'anticipent pas cette transition risquent d'être marginalisés. Toutefois, cette transformation ne doit pas être présentée comme une fatalité : elle relève de choix politiques collectifs.
+
+Le débat opposant accélération technologique et refus radical ne couvre pas l'ensemble des positions possibles. Une troisième voie existe : l'IA peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage. Cette approche s'inscrit dans la lignée des travaux d'Elinor Ostrom sur la gouvernance polycentrique des ressources partagées.
+
+Les algorithmes de recommandation posent un problème démocratique réel : ils influencent ce que nous lisons, achetons et pensons, sans mandat démocratique. La question de la gouvernance de ces systèmes ne peut être éludée. Ni le marché pur ni l'État centralisé ne constituent des réponses satisfaisantes. Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.
+
+La vitesse d'évolution de l'IA pose un défi d'adaptation pour nos institutions. L'éducation et l'investissement dans la complémentarité humain-machine sont nécessaires, mais ils ne suffisent pas sans un cadre de gouvernance démocratique. Le risque d'une bifurcation entre une élite cognitive augmentée et le reste de la population doit être anticipé par des politiques publiques inclusives.
+
+Les logiciels libres, Wikipédia et les coopératives de données constituent des preuves vivantes que des communautés peuvent gouverner des ressources numériques de manière démocratique. L'enjeu central n'est pas de refuser l'IA ni de l'embrasser aveuglément, mais de construire des institutions polycentriques qui empêchent sa capture par quelques acteurs privés.
+
+En synthèse, trois conditions émergent du débat pour une gouvernance responsable de l'IA : des règles claires co-construites avec les usagers, une participation effective des communautés concernées aux décisions, et des mécanismes de contrôle gradués permettant l'adaptation aux contextes locaux. La convergence de ces trois exigences dessine un cadre à la fois ambitieux et réaliste pour accompagner la transition numérique."""
+
+
+# =============================================================================
 # Users de demonstration (PHASE-25)
 # / Demo users (PHASE-25)
 # =============================================================================
@@ -660,7 +680,7 @@ class Command(BaseCommand):
             {
                 "title": "Débat IA — Laurent Alexandre, Éric Sadin, Elinor Ostrom",
                 "texte": TEXTE_DEBAT,
-                "url": "",
+                "url": None,
                 "type_html": "debat",
                 "source_type": "audio",
             },
@@ -733,6 +753,10 @@ class Command(BaseCommand):
         # 8. Redistribuer les statuts de debat sur les pages HORS debat fictif
         # / Redistribute debate statuses on pages OUTSIDE fictional debate
         self._redistribuer_statuts_debat()
+
+        # 9. Creer la synthese V2 du debat (PHASE-27b — fixture pour diff side-by-side)
+        # / Create the debate V2 synthesis (PHASE-27b — fixture for side-by-side diff)
+        self._creer_synthese_debat_v2(dossier, user_admin)
 
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(
@@ -1259,6 +1283,54 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(
             f"  Pages Wikipedia : {nombre_total_commentaires_crees} commentaires créés au total"
+        ))
+
+    def _creer_synthese_debat_v2(self, dossier, user_admin):
+        """
+        Cree une V2 du debat fictif — synthese integrant les points debattus.
+        La V2 est liee a la V1 via parent_page. Idempotent.
+        / Create a V2 of the fictional debate — synthesis integrating debated points.
+        V2 is linked to V1 via parent_page. Idempotent.
+        """
+        # Retrouver la page V1 du debat
+        # / Find the debate V1 page
+        page_debat_v1 = Page.objects.filter(title__icontains="Débat IA").first()
+        if not page_debat_v1:
+            self.stdout.write("  Synthèse V2 : page débat V1 introuvable — ignorée")
+            return
+
+        # Verifier si la V2 existe deja
+        # / Check if V2 already exists
+        titre_v2 = "Débat IA — Synthèse délibérative"
+        page_v2_existante = Page.objects.filter(title=titre_v2).first()
+        if page_v2_existante:
+            self.stdout.write(f"  Synthèse V2 existante : {titre_v2} (pk={page_v2_existante.pk})")
+            return
+
+        # Construire le HTML a partir du texte de synthese
+        # / Build HTML from the synthesis text
+        texte_synthese = TEXTE_SYNTHESE_DEBAT_V2.strip()
+        html_synthese = _construire_html_depuis_texte(texte_synthese)
+
+        # Creer la page V2 liee a la V1
+        # / Create V2 page linked to V1
+        page_synthese_v2 = Page.objects.create(
+            title=titre_v2,
+            html_original=f"<html><body>{html_synthese}</body></html>",
+            html_readability=html_synthese,
+            text_readability=texte_synthese,
+            source_type="web",
+            status="completed",
+            dossier=dossier,
+            owner=user_admin,
+            parent_page=page_debat_v1,
+            version_number=2,
+            version_label="Synthèse délibérative",
+        )
+
+        self.stdout.write(self.style.SUCCESS(
+            f"  Synthèse V2 créée : {titre_v2} (pk={page_synthese_v2.pk}, "
+            f"parent=V1 pk={page_debat_v1.pk})"
         ))
 
     def _redistribuer_statuts_debat(self):

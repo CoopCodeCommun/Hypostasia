@@ -1458,3 +1458,134 @@ class CreditTransaction(models.Model):
         ordering = ["-created_at"]
         verbose_name = "Transaction de credits"
         verbose_name_plural = "Transactions de credits"
+
+
+# =============================================================================
+# Tracabilite — historique des editions manuelles et liens de provenance
+# / Traceability — manual edit history and provenance links
+# =============================================================================
+
+
+class TypeEdit(models.TextChoices):
+    """Type d'edition manuelle sur une Page.
+    / Manual edit type on a Page.
+    """
+    TITRE = "titre", "Titre modifié"
+    CONTENU = "contenu", "Contenu modifié"
+    BLOC_TRANSCRIPTION = "bloc_transcription", "Bloc de transcription modifié"
+    LOCUTEUR = "locuteur", "Locuteur renommé"
+
+
+class PageEdit(models.Model):
+    """
+    Historique des editions manuelles sur une Page.
+    Chaque modification (titre, contenu, bloc transcription, locuteur)
+    cree une entree avec l'etat avant et apres.
+    / Manual edit history on a Page.
+    Each modification (title, content, transcription block, speaker)
+    creates an entry with the before and after state.
+    """
+    page = models.ForeignKey(
+        Page, on_delete=models.CASCADE,
+        related_name="edits",
+        help_text="Page concernee par l'edition / Page affected by the edit",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="page_edits",
+        help_text="Utilisateur ayant fait l'edition / User who made the edit",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    type_edit = models.CharField(
+        max_length=30, choices=TypeEdit.choices,
+        help_text="Type d'edition / Edit type",
+    )
+    description = models.CharField(
+        max_length=500,
+        help_text="Resume humain de l'edition / Human-readable edit summary",
+    )
+    donnees_avant = models.JSONField(
+        default=dict,
+        help_text="Etat avant l'edition / State before the edit",
+    )
+    donnees_apres = models.JSONField(
+        default=dict,
+        help_text="Etat apres l'edition / State after the edit",
+    )
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        verbose_name = "Edition de page"
+        verbose_name_plural = "Editions de pages"
+
+    def __str__(self):
+        return f"PageEdit #{self.pk} — {self.get_type_edit_display()} — {self.page}"
+
+
+class TypeLien(models.TextChoices):
+    """Type de lien de provenance entre un passage cible et sa source.
+    / Provenance link type between a target passage and its source.
+    """
+    IDENTIQUE = "identique", "Identique"
+    MODIFIE = "modifie", "Modifié"
+    NOUVEAU = "nouveau", "Nouveau"
+    SUPPRIME = "supprime", "Supprimé"
+
+
+class SourceLink(models.Model):
+    """
+    Lien de provenance entre un passage dans une page cible et son origine.
+    Permet de remonter le fil d'un paragraphe jusqu'au texte source original.
+    / Provenance link between a passage in a target page and its origin.
+    Allows tracing a paragraph back to the original source text.
+    """
+    page_cible = models.ForeignKey(
+        Page, on_delete=models.CASCADE,
+        related_name="source_links_cible",
+        help_text="Page contenant le passage cible / Page containing the target passage",
+    )
+    start_char_cible = models.PositiveIntegerField(
+        help_text="Position de debut dans le texte cible / Start position in target text",
+    )
+    end_char_cible = models.PositiveIntegerField(
+        help_text="Position de fin dans le texte cible / End position in target text",
+    )
+    page_source = models.ForeignKey(
+        Page, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="source_links_source",
+        help_text="Page source du passage / Source page for the passage",
+    )
+    start_char_source = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Position de debut dans le texte source / Start position in source text",
+    )
+    end_char_source = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Position de fin dans le texte source / End position in source text",
+    )
+    extraction_source = models.ForeignKey(
+        "hypostasis_extractor.ExtractedEntity", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="source_links",
+        help_text="Extraction a l'origine du passage / Extraction that originated the passage",
+    )
+    commentaires_source = models.ManyToManyField(
+        "hypostasis_extractor.CommentaireExtraction", blank=True,
+        related_name="source_links",
+        help_text="Commentaires a l'origine du passage / Comments that originated the passage",
+    )
+    type_lien = models.CharField(
+        max_length=20, choices=TypeLien.choices,
+        help_text="Type de lien de provenance / Provenance link type",
+    )
+    justification = models.TextField(
+        blank=True,
+        help_text="Justification du lien / Justification for the link",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Lien de provenance"
+        verbose_name_plural = "Liens de provenance"
+
+    def __str__(self):
+        return f"SourceLink #{self.pk} — {self.get_type_lien_display()} — {self.page_cible}"

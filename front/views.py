@@ -1,4 +1,6 @@
+import difflib
 import hashlib
+import itertools
 import json
 import logging
 import os
@@ -16,7 +18,7 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, Configuration, Dossier, DossierPartage, DossierSuivi, GroupeUtilisateurs, Invitation, Page, Question, ReponseQuestion, TranscriptionConfig, VisibiliteDossier
+from core.models import AIModel, Configuration, Dossier, DossierPartage, DossierSuivi, GroupeUtilisateurs, Invitation, Page, PageEdit, Question, ReponseQuestion, TranscriptionConfig, VisibiliteDossier
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
     ExampleExtraction, ExtractionAttribute,
@@ -571,6 +573,155 @@ def _get_ia_active():
     return Configuration.get_solo().ai_active
 
 
+def _diff_inline_mots(texte_ancien, texte_nouveau):
+    """
+    Compare deux textes mot par mot et retourne deux HTML :
+    - html_ancien avec <del> sur les mots supprimes
+    - html_nouveau avec <ins> sur les mots ajoutes
+    Les textes sont echappes pour eviter les XSS.
+    / Compare two texts word by word and return two HTMLs:
+    - html_ancien with <del> on removed words
+    - html_nouveau with <ins> on added words
+    Texts are escaped to prevent XSS.
+    """
+    mots_anciens = texte_ancien.split()
+    mots_nouveaux = texte_nouveau.split()
+    matcher = difflib.SequenceMatcher(None, mots_anciens, mots_nouveaux)
+
+    fragments_ancien = []
+    fragments_nouveau = []
+
+    # Parcourir les operations diff et construire les fragments HTML
+    # / Iterate over diff operations and build HTML fragments
+    for operation, i1, i2, j1, j2 in matcher.get_opcodes():
+        if operation == "equal":
+            texte_egal = escape(" ".join(mots_anciens[i1:i2]))
+            fragments_ancien.append(texte_egal)
+            fragments_nouveau.append(texte_egal)
+        elif operation == "replace":
+            fragments_ancien.append(
+                '<del class="bg-red-200 text-red-800 no-underline rounded px-0.5">'
+                + escape(" ".join(mots_anciens[i1:i2]))
+                + "</del>"
+            )
+            fragments_nouveau.append(
+                '<ins class="bg-green-200 text-green-800 no-underline rounded px-0.5">'
+                + escape(" ".join(mots_nouveaux[j1:j2]))
+                + "</ins>"
+            )
+        elif operation == "delete":
+            fragments_ancien.append(
+                '<del class="bg-red-200 text-red-800 no-underline rounded px-0.5">'
+                + escape(" ".join(mots_anciens[i1:i2]))
+                + "</del>"
+            )
+        elif operation == "insert":
+            fragments_nouveau.append(
+                '<ins class="bg-green-200 text-green-800 no-underline rounded px-0.5">'
+                + escape(" ".join(mots_nouveaux[j1:j2]))
+                + "</ins>"
+            )
+
+    return " ".join(fragments_ancien), " ".join(fragments_nouveau)
+
+
+def _diff_paragraphes(texte_ancien, texte_nouveau):
+    """
+    Compare deux textes au niveau paragraphe, puis mot-a-mot dans les paragraphes modifies.
+    Retourne une liste de dicts avec cles : operation, contenu_gauche, contenu_droite.
+    / Compare two texts at paragraph level, then word-by-word within modified paragraphs.
+    Returns a list of dicts with keys: operation, contenu_gauche, contenu_droite.
+    """
+    # Gerer les textes vides ou None
+    # / Handle empty or None texts
+    if not texte_ancien and not texte_nouveau:
+        return []
+
+    texte_ancien = texte_ancien or ""
+    texte_nouveau = texte_nouveau or ""
+
+    # Decouper en paragraphes (double saut de ligne), filtrer les vides
+    # / Split into paragraphs (double newline), filter empty ones
+    paragraphes_anciens = []
+    for paragraphe_candidat in texte_ancien.split("\n\n"):
+        if paragraphe_candidat.strip():
+            paragraphes_anciens.append(paragraphe_candidat)
+
+    paragraphes_nouveaux = []
+    for paragraphe_candidat in texte_nouveau.split("\n\n"):
+        if paragraphe_candidat.strip():
+            paragraphes_nouveaux.append(paragraphe_candidat)
+
+    # Si les deux listes sont vides apres filtrage
+    # / If both lists are empty after filtering
+    if not paragraphes_anciens and not paragraphes_nouveaux:
+        return []
+
+    matcher = difflib.SequenceMatcher(None, paragraphes_anciens, paragraphes_nouveaux)
+    resultats = []
+
+    # Parcourir les operations diff au niveau paragraphe
+    # / Iterate over paragraph-level diff operations
+    for operation, i1, i2, j1, j2 in matcher.get_opcodes():
+        if operation == "equal":
+            for paragraphe in paragraphes_anciens[i1:i2]:
+                resultats.append({
+                    "operation": "equal",
+                    "contenu_gauche": escape(paragraphe),
+                    "contenu_droite": escape(paragraphe),
+                })
+        elif operation == "replace":
+            # Aligner les paires de paragraphes, remplir les manquants avec ""
+            # / Align paragraph pairs, fill missing ones with ""
+            paires = itertools.zip_longest(
+                paragraphes_anciens[i1:i2],
+                paragraphes_nouveaux[j1:j2],
+                fillvalue="",
+            )
+            for para_ancien, para_nouveau in paires:
+                if not para_ancien:
+                    # Paragraphe insere (pas de correspondant a gauche)
+                    # / Inserted paragraph (no left counterpart)
+                    resultats.append({
+                        "operation": "insert",
+                        "contenu_gauche": "",
+                        "contenu_droite": escape(para_nouveau),
+                    })
+                elif not para_nouveau:
+                    # Paragraphe supprime (pas de correspondant a droite)
+                    # / Deleted paragraph (no right counterpart)
+                    resultats.append({
+                        "operation": "delete",
+                        "contenu_gauche": escape(para_ancien),
+                        "contenu_droite": "",
+                    })
+                else:
+                    # Les deux paragraphes existent → diff mot-a-mot
+                    # / Both paragraphs exist → word-level diff
+                    html_ancien, html_nouveau = _diff_inline_mots(para_ancien, para_nouveau)
+                    resultats.append({
+                        "operation": "replace",
+                        "contenu_gauche": html_ancien,
+                        "contenu_droite": html_nouveau,
+                    })
+        elif operation == "delete":
+            for paragraphe in paragraphes_anciens[i1:i2]:
+                resultats.append({
+                    "operation": "delete",
+                    "contenu_gauche": escape(paragraphe),
+                    "contenu_droite": "",
+                })
+        elif operation == "insert":
+            for paragraphe in paragraphes_nouveaux[j1:j2]:
+                resultats.append({
+                    "operation": "insert",
+                    "contenu_gauche": "",
+                    "contenu_droite": escape(paragraphe),
+                })
+
+    return resultats
+
+
 # Delai maximum d'inactivite d'un job avant de le considerer comme bloque.
 # Si updated_at n'a pas bouge depuis ce delai, le job est marque en erreur.
 # / Maximum inactivity delay for a job before considering it stalled.
@@ -957,11 +1108,27 @@ class LectureViewSet(viewsets.ViewSet):
         serializer_titre.is_valid(raise_exception=True)
         nouveau_titre = serializer_titre.validated_data["nouveau_titre"]
 
+        # Capturer le titre avant modification pour l'historique
+        # / Capture old title before modification for history
+        ancien_titre = page.title or ""
+
         # Mise a jour du titre de la page
         # / Update the page title
         page.title = nouveau_titre
         page.save(update_fields=["title"])
         logger.info("modifier_titre: page pk=%s titre='%s'", page.pk, nouveau_titre)
+
+        # Enregistrer l'edition dans l'historique (PHASE-27a)
+        # / Record the edit in history (PHASE-27a)
+        description_edition_titre = f"Titre changé : '{ancien_titre}' → '{nouveau_titre}'"
+        PageEdit.objects.create(
+            page=page,
+            user=request.user if request.user.is_authenticated else None,
+            type_edit="titre",
+            description=description_edition_titre[:500],
+            donnees_avant={"titre": ancien_titre},
+            donnees_apres={"titre": nouveau_titre},
+        )
 
         # Rendu du partial de lecture (meme logique que retrieve)
         # / Render reading partial (same logic as retrieve)
@@ -1018,6 +1185,143 @@ class LectureViewSet(viewsets.ViewSet):
             "showToast": {"message": "Titre modifi\u00e9"},
         })
         return reponse
+
+    @action(detail=True, methods=["GET"], url_path="historique")
+    def historique(self, request, pk=None):
+        """
+        Affiche l'historique des editions manuelles d'une page (PHASE-27a).
+        - Requete HTMX → partial historique_page.html
+        - Acces direct (F5) → page complete base.html avec historique pre-charge
+        / Displays the manual edit history of a page (PHASE-27a).
+        - HTMX request → historique_page.html partial
+        - Direct access (F5) → full base.html page with preloaded history
+        """
+        page = get_object_or_404(Page, pk=pk)
+
+        # Verifier l'acces en lecture a la page via son dossier
+        # / Check read access to the page via its folder
+        refus_acces = _verifier_acces_page(request, page)
+        if refus_acces:
+            return refus_acces
+
+        # Recuperer tous les edits de cette page, ordonnes par date decroissante
+        # / Retrieve all edits for this page, ordered by most recent first
+        # Le tri est gere par PageEdit.Meta.ordering (-created_at, -pk)
+        # / Ordering is handled by PageEdit.Meta.ordering (-created_at, -pk)
+        tous_les_edits = PageEdit.objects.filter(page=page).select_related("user")
+
+        toutes_les_versions = page.toutes_les_versions
+
+        contexte_historique = {
+            "page": page,
+            "edits": tous_les_edits,
+            "versions": toutes_les_versions,
+        }
+
+        if request.headers.get("HX-Request"):
+            # Requete HTMX → partial uniquement
+            # / HTMX request → partial only
+            return render(request, "front/includes/historique_page.html", contexte_historique)
+
+        # Acces direct (F5) → page complete
+        # / Direct access (F5) → full page
+        est_proprietaire = _est_proprietaire_dossier(request.user, page)
+        return render(request, "front/base.html", {
+            "historique_preloaded": True,
+            "page_preloaded": page,
+            "edits": tous_les_edits,
+            "versions": toutes_les_versions,
+            "est_proprietaire": est_proprietaire,
+        })
+
+    @action(detail=True, methods=["GET"], url_path="comparer")
+    def comparer(self, request, pk=None):
+        """
+        Affiche le diff side-by-side entre deux versions d'une page (PHASE-27b).
+        - ?v2={pk2} pour specifier la version droite
+        - Sans v2 → compare avec la version parent
+        - Requete HTMX → partial diff_versions_pages.html
+        - Acces direct (F5) → page complete base.html avec diff pre-charge
+        / Displays the side-by-side diff between two page versions (PHASE-27b).
+        - ?v2={pk2} to specify the right version
+        - Without v2 → compare with the parent version
+        - HTMX request → diff_versions_pages.html partial
+        - Direct access (F5) → full base.html page with preloaded diff
+        """
+        page_gauche = get_object_or_404(Page, pk=pk)
+
+        # Verifier l'acces en lecture a la page
+        # / Check read access to the page
+        refus_acces = _verifier_acces_page(request, page_gauche)
+        if refus_acces:
+            return refus_acces
+
+        # Determiner la version droite : v2 explicite ou parent
+        # / Determine the right version: explicit v2 or parent
+        pk_version_droite = request.query_params.get("v2")
+        if pk_version_droite:
+            page_droite = get_object_or_404(Page, pk=pk_version_droite)
+
+            # Verifier que les deux pages sont dans la meme chaine de versions
+            # / Verify both pages are in the same version chain
+            if page_gauche.page_racine.pk != page_droite.page_racine.pk:
+                return HttpResponse(
+                    '<div class="p-8 text-center text-slate-500">'
+                    "Ces deux pages ne font pas partie de la même chaîne de versions."
+                    "</div>",
+                    status=400,
+                )
+        else:
+            page_droite = page_gauche.parent_page
+
+        # Si pas de version a comparer (page unique sans parent)
+        # / If no version to compare (single page without parent)
+        if page_droite is None:
+            return HttpResponse(
+                '<div class="p-8 text-center text-slate-500">'
+                "Pas d'autre version à comparer."
+                "</div>",
+            )
+
+        # Ordonner : version_number le plus petit a gauche
+        # / Order: smallest version_number on the left
+        if page_gauche.version_number > page_droite.version_number:
+            page_gauche, page_droite = page_droite, page_gauche
+
+        # Calculer le diff paragraphe par paragraphe
+        # / Compute the paragraph-level diff
+        resultats_diff = _diff_paragraphes(
+            page_gauche.text_readability,
+            page_droite.text_readability,
+        )
+
+        # Recuperer toutes les versions pour les selecteurs
+        # / Retrieve all versions for the selectors
+        toutes_les_versions = page_gauche.toutes_les_versions
+
+        contexte_diff = {
+            "page_gauche": page_gauche,
+            "page_droite": page_droite,
+            "resultats_diff": resultats_diff,
+            "versions": toutes_les_versions,
+        }
+
+        if request.headers.get("HX-Request"):
+            # Requete HTMX → partial uniquement
+            # / HTMX request → partial only
+            return render(request, "front/includes/diff_versions_pages.html", contexte_diff)
+
+        # Acces direct (F5) → page complete
+        # / Direct access (F5) → full page
+        est_proprietaire = _est_proprietaire_dossier(request.user, page_gauche)
+        return render(request, "front/base.html", {
+            "diff_preloaded": True,
+            "page_gauche": page_gauche,
+            "page_droite": page_droite,
+            "resultats_diff": resultats_diff,
+            "versions": toutes_les_versions,
+            "est_proprietaire": est_proprietaire,
+        })
 
     @action(detail=True, methods=["GET"], url_path="telecharger_source")
     def telecharger_source(self, request, pk=None):
@@ -1817,6 +2121,18 @@ class LectureViewSet(viewsets.ViewSet):
         page.text_readability = texte_reconstruit
         page.save()
 
+        # Enregistrer l'edition dans l'historique (PHASE-27a)
+        # / Record the edit in history (PHASE-27a)
+        description_edition_locuteur = f"Locuteur renommé : '{ancien_nom_locuteur}' → '{nouveau_nom_locuteur}' ({portee_renommage})"
+        PageEdit.objects.create(
+            page=page,
+            user=request.user if request.user.is_authenticated else None,
+            type_edit="locuteur",
+            description=description_edition_locuteur[:500],
+            donnees_avant={"locuteur": ancien_nom_locuteur, "portee": portee_renommage},
+            donnees_apres={"locuteur": nouveau_nom_locuteur},
+        )
+
         # Retourner le partial de lecture mis a jour / Return updated reading partial
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
@@ -1949,6 +2265,14 @@ class LectureViewSet(viewsets.ViewSet):
         if not indices_segments_bloc:
             return HttpResponse("Bloc introuvable.", status=400)
 
+        # Capturer le texte original du bloc avant modification (PHASE-27a)
+        # / Capture original block text before modification (PHASE-27a)
+        texte_original_bloc = "\n".join(
+            segments_existants[i].get("text", "").strip()
+            for i in indices_segments_bloc
+        )
+        nom_locuteur_original = segments_existants[indices_segments_bloc[0]].get("speaker", "Inconnu")
+
         # Decouper le nouveau texte en lignes (une par segment)
         # / Split new text into lines (one per segment)
         nouvelles_lignes = [ligne.strip() for ligne in nouveau_texte_brut.split("\n") if ligne.strip()]
@@ -1996,6 +2320,18 @@ class LectureViewSet(viewsets.ViewSet):
         page.html_readability = html_reconstruit
         page.text_readability = texte_reconstruit
         page.save()
+
+        # Enregistrer l'edition dans l'historique (PHASE-27a)
+        # / Record the edit in history (PHASE-27a)
+        description_edition_bloc = f"Bloc {index_bloc_cible} modifié ({nom_locuteur_original})"
+        PageEdit.objects.create(
+            page=page,
+            user=request.user if request.user.is_authenticated else None,
+            type_edit="bloc_transcription",
+            description=description_edition_bloc[:500],
+            donnees_avant={"index": index_bloc_cible, "texte": texte_original_bloc, "locuteur": nom_locuteur_original},
+            donnees_apres={"index": index_bloc_cible, "texte": nouveau_texte_brut},
+        )
 
         # Re-annoter le HTML avec les barres d'extraction si un job existe
         # / Re-annotate HTML with extraction bars if a job exists

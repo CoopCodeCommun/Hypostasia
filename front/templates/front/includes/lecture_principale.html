@@ -76,8 +76,41 @@
                 </a>
             {% endif %}
         {% endfor %}
+
+        {# Bouton Comparer les versions (PHASE-27b) #}
+        {# / Compare versions button (PHASE-27b) #}
+        <a href="/lire/{{ page.pk }}/comparer/"
+           hx-get="/lire/{{ page.pk }}/comparer/"
+           hx-target="#zone-lecture"
+           hx-swap="innerHTML"
+           hx-push-url="true"
+           class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 hover:bg-amber-100 hover:text-amber-700 transition-colors"
+           data-testid="btn-comparer-versions"
+           title="Comparer les versions">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>
+            </svg>
+            Comparer
+        </a>
     </div>
     {% endif %}
+
+    {# Bouton Historique des editions (PHASE-27a) #}
+    {# / Edit history button (PHASE-27a) #}
+    <div class="mb-4">
+        <a href="/lire/{{ page.pk }}/historique/"
+           hx-get="/lire/{{ page.pk }}/historique/"
+           hx-target="#zone-lecture"
+           hx-swap="innerHTML"
+           hx-push-url="true"
+           class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+           data-testid="btn-historique">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Historique
+        </a>
+    </div>
 
     {# Bandeau de notifications de progression (PHASE-20) #}
     {# / Progression notification banner (PHASE-20) #}

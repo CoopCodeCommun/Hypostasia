@@ -347,7 +347,11 @@
         <!-- / Reading zone -->
         <main id="zone-lecture" class="overflow-y-auto p-8 h-full" aria-live="polite" data-testid="bibliotheque-colonne-lecture"
               data-est-proprietaire="{% if est_proprietaire %}true{% else %}false{% endif %}">
-            {% if credits_page_preloaded %}
+            {% if historique_preloaded %}
+                {% include "front/includes/historique_page.html" with page=page_preloaded %}
+            {% elif diff_preloaded %}
+                {% include "front/includes/diff_versions_pages.html" %}
+            {% elif credits_page_preloaded %}
                 {% include "front/includes/credits_page.html" %}
             {% elif credits_succes_preloaded %}
                 {% include "front/includes/credits_succes.html" %}

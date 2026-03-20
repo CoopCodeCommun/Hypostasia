@@ -2,6 +2,7 @@ from django.contrib import admin
 from solo.admin import SingletonModelAdmin
 from .models import (
     Page,
+    PageEdit,
     Argument,
     ArgumentComment,
     Configuration,
@@ -13,6 +14,7 @@ from .models import (
     Reformulation,
     HypostasisTag,
     Dossier,
+    SourceLink,
     TranscriptionConfig,
     TranscriptionJob,
     Question,
@@ -203,3 +205,26 @@ class ReponseQuestionAdmin(admin.ModelAdmin):
     list_display = ("user", "question", "created_at")
     list_filter = ("question__page",)
     search_fields = ("user__username", "texte_reponse")
+
+
+@admin.register(PageEdit)
+class PageEditAdmin(admin.ModelAdmin):
+    """
+    Admin pour l'historique des editions de pages.
+    / Admin for page edit history.
+    """
+    list_display = ("page", "type_edit", "user", "description", "created_at")
+    list_filter = ("type_edit", "page")
+    search_fields = ("description",)
+    readonly_fields = ("created_at", "donnees_avant", "donnees_apres")
+
+
+@admin.register(SourceLink)
+class SourceLinkAdmin(admin.ModelAdmin):
+    """
+    Admin pour les liens de provenance.
+    / Admin for provenance links.
+    """
+    list_display = ("page_cible", "type_lien", "page_source", "created_at")
+    list_filter = ("type_lien",)
+    readonly_fields = ("created_at",)
