@@ -1149,6 +1149,109 @@ document.addEventListener('click', function(evenement) {
     scrollToExtraction(carte);
 });
 
+// ==========================================================================
+// Navigation depuis les tableaux d'alignement (cross-documents + versions)
+// Clic sur une cellule .alignement-cell → charge la page, scroll + surligne l'extraction
+// / Navigation from alignment tables (cross-documents + versions)
+// / Click on a .alignement-cell → load page, scroll + highlight the extraction
+// ==========================================================================
+document.addEventListener('click', function(evenement) {
+    var cellule = evenement.target.closest('.alignement-cell[data-extraction-id]');
+    if (!cellule) return;
+
+    var pageId = cellule.getAttribute('data-page-id');
+    var extractionId = cellule.getAttribute('data-extraction-id');
+    if (!pageId || !extractionId) return;
+
+    // Verifier si on est deja sur cette page (conteneur de lecture, pas les cellules d'alignement)
+    // / Check if we're already on this page (reading container, not alignment cells)
+    var elementPageActuel = document.querySelector('#zone-lecture .lecture-zone-conteneur[data-page-id]');
+    var surMemePageDeja = elementPageActuel && elementPageActuel.dataset.pageId === pageId;
+
+    if (surMemePageDeja) {
+        // Deja sur la bonne page : scroll direct + ouvrir l'extraction
+        // / Already on the right page: direct scroll + open extraction
+        _naviguerVersExtraction(extractionId);
+        return;
+    }
+
+    // Charger la page puis, apres le swap, scroller vers l'extraction
+    // / Load the page then, after swap, scroll to the extraction
+    var zoneLecture = document.getElementById('zone-lecture');
+    if (!zoneLecture) return;
+
+    // Charger la page puis attendre que marginalia.js ait injecte les spans
+    // / Load the page then wait for marginalia.js to inject the spans
+    htmx.ajax('GET', '/lire/' + pageId + '/', {target: '#zone-lecture', swap: 'innerHTML', pushUrl: true});
+
+    // Polling : attendre que le span ou la pastille apparaisse (marginalia.js les cree apres le swap)
+    // / Polling: wait for the span or dot to appear (marginalia.js creates them after swap)
+    _attendreEtNaviguer(extractionId, 0);
+});
+
+/**
+ * Attend que le span hl-extraction ou la pastille apparaisse dans le DOM, puis navigue.
+ * Retry toutes les 200ms, max 15 tentatives (3 secondes).
+ * / Waits for the hl-extraction span or dot to appear in the DOM, then navigates.
+ * / Retries every 200ms, max 15 attempts (3 seconds).
+ */
+function _attendreEtNaviguer(extractionId, tentative) {
+    var maxTentatives = 15;
+    var spanTrouve = document.querySelector(
+        '#readability-content .hl-extraction[data-extraction-id="' + extractionId + '"]'
+    );
+    var pastilleTrouvee = document.querySelector(
+        '.pastille-extraction[data-extraction-id="' + extractionId + '"]'
+    );
+
+    if (spanTrouve || pastilleTrouvee) {
+        _naviguerVersExtraction(extractionId);
+        return;
+    }
+
+    if (tentative < maxTentatives) {
+        setTimeout(function() {
+            _attendreEtNaviguer(extractionId, tentative + 1);
+        }, 200);
+    }
+}
+
+/**
+ * Scroll vers le span surligne dans le texte + ouvre la carte inline de l'extraction.
+ * Positionne le texte en haut de la fenetre (block: start).
+ * / Scroll to the highlighted span in text + open the inline extraction card.
+ * / Positions the text at the top of the viewport (block: start).
+ */
+function _naviguerVersExtraction(extractionId) {
+    // 1. Surligner le span dans le texte (ancre-active avec animation)
+    // / 1. Highlight the span in text (ancre-active with animation)
+    document.querySelectorAll('.hl-extraction.ancre-active').forEach(function(el) {
+        el.classList.remove('ancre-active');
+    });
+
+    var spanExtraction = document.querySelector(
+        '#readability-content .hl-extraction[data-extraction-id="' + extractionId + '"]'
+    );
+
+    if (spanExtraction) {
+        spanExtraction.classList.remove('ancre-active');
+        void spanExtraction.offsetWidth;
+        spanExtraction.classList.add('ancre-active');
+        spanExtraction.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // 2. Ouvrir la carte inline via la pastille (si elle existe)
+    // / 2. Open the inline card via the dot (if it exists)
+    var pastille = document.querySelector('.pastille-extraction[data-extraction-id="' + extractionId + '"]');
+    if (pastille) {
+        // Delai pour laisser le scroll se terminer avant d'ouvrir la carte
+        // / Delay to let scroll finish before opening the card
+        setTimeout(function() {
+            pastille.click();
+        }, 500);
+    }
+}
+
 // --- Supprimer une page via SweetAlert ---
 // / Delete a page via SweetAlert
 document.addEventListener('click', async function(evenement) {

@@ -66,22 +66,22 @@
         </span>
     </div>
 
-    {# Onglets : Diff texte | Hypostases #}
-    {# / Tabs: Text diff | Hypostases #}
+    {# Onglets : Hypostases (premier, actif) | Diff texte #}
+    {# / Tabs: Hypostases (first, active) | Text diff #}
     <div class="flex gap-1 mb-4" data-testid="onglets-comparaison">
-        <button data-onglet="diff-texte" class="onglet-comparaison active"
-                data-testid="onglet-diff-texte">Diff texte</button>
-        <button data-onglet="alignement-hypostases" class="onglet-comparaison"
+        <button data-onglet="alignement-hypostases" class="onglet-comparaison active"
                 data-testid="onglet-hypostases"
                 hx-get="/lire/{{ page_gauche.pk }}/comparer_hypostases/?v2={{ page_droite.pk }}"
                 hx-target="#onglet-contenu-alignement"
                 hx-swap="innerHTML"
-                hx-trigger="click once">Hypostases</button>
+                hx-trigger="load, click once">Hypostases</button>
+        <button data-onglet="diff-texte" class="onglet-comparaison"
+                data-testid="onglet-diff-texte">Diff texte</button>
     </div>
 
-    {# Contenu onglet Diff texte (affiche par defaut) #}
-    {# / Text diff tab content (shown by default) #}
-    <div id="onglet-contenu-diff">
+    {# Contenu onglet Diff texte (masque par defaut) #}
+    {# / Text diff tab content (hidden by default) #}
+    <div id="onglet-contenu-diff" class="hidden">
 
     {# Grille 2 colonnes / 2-column grid #}
     <div class="grid grid-cols-2 gap-0 border border-slate-200 rounded-lg overflow-hidden" data-testid="diff-colonnes">
@@ -157,9 +157,9 @@
 
     </div>{# /onglet-contenu-diff #}
 
-    {# Contenu onglet Hypostases (charge via HTMX au premier clic) #}
-    {# / Hypostases tab content (lazy-loaded via HTMX on first click) #}
-    <div id="onglet-contenu-alignement" class="hidden">
+    {# Contenu onglet Hypostases (charge via HTMX au load) #}
+    {# / Hypostases tab content (loaded via HTMX on load) #}
+    <div id="onglet-contenu-alignement">
         <div class="p-8 text-center text-sm text-slate-400">
             Chargement...
         </div>

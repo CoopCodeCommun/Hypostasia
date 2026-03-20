@@ -1272,10 +1272,14 @@ class LectureViewSet(viewsets.ViewSet):
                     status=400,
                 )
         else:
+            # Fallback : parent (si V2+) ou premiere restitution (si V1)
+            # / Fallback: parent (if V2+) or first child restitution (if V1)
             page_droite = page_gauche.parent_page
+            if page_droite is None:
+                page_droite = page_gauche.restitutions.order_by("version_number").first()
 
-        # Si pas de version a comparer (page unique sans parent)
-        # / If no version to compare (single page without parent)
+        # Si pas de version a comparer (page unique sans parent ni enfant)
+        # / If no version to compare (single page without parent or child)
         if page_droite is None:
             return HttpResponse(
                 '<div class="p-8 text-center text-slate-500">'

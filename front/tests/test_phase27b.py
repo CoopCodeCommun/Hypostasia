@@ -160,14 +160,32 @@ class ComparerActionTest(TestCase):
         self.assertIn("diff-versions-pages", contenu)
 
     def test_comparer_sans_parent_affiche_message(self):
-        """Comparer une page V1 sans v2 et sans parent affiche un message."""
+        """Comparer une page unique (sans parent ni enfant) affiche un message."""
+        # Creer une page isolee sans version liee
+        # / Create an isolated page with no linked version
+        page_isolee = Page.objects.create(
+            title="Page isolee",
+            text_readability="Contenu unique.",
+            dossier=self.dossier_test,
+            version_number=1,
+        )
+        reponse = self.client.get(
+            f"/lire/{page_isolee.pk}/comparer/",
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        contenu = reponse.content.decode()
+        self.assertIn("Pas d", contenu)
+
+    def test_comparer_v1_sans_v2_trouve_enfant(self):
+        """Comparer V1 sans v2 trouve automatiquement la V2 (enfant)."""
         reponse = self.client.get(
             f"/lire/{self.page_v1.pk}/comparer/",
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(reponse.status_code, 200)
         contenu = reponse.content.decode()
-        self.assertIn("Pas d", contenu)
+        self.assertIn("diff-versions-pages", contenu)
 
     def test_comparer_f5_page_complete(self):
         """Acces direct (F5) retourne la page complete avec le diff."""

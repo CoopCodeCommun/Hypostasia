@@ -272,6 +272,7 @@
             + ligneRaccourci('X', 'Masquer l\u2019extraction')
             + ligneRaccourci('H', 'Heat map du d\u00e9bat')
             + ligneRaccourci('A', 'Comparer / Aligner des pages')
+            + ligneRaccourci('Z', 'Comparer les versions')
             + ligneRaccourci('?', 'Afficher cette aide')
             + ligneRaccourci('Esc', 'Fermer le panneau actif')
             + '</div>';
@@ -384,6 +385,26 @@
 
     // Placeholder recherche (/)
     // / Search placeholder (/)
+    // Z → Ouvrir la comparaison de versions pour la page courante
+    // / Z → Open version comparison for the current page
+    function comparerVersionsPageCourante() {
+        var elementPage = document.querySelector('#zone-lecture [data-page-id]');
+        if (!elementPage) return;
+        var pageId = elementPage.dataset.pageId;
+
+        // Verifier si on est deja sur la vue de comparaison
+        // / Check if we're already on the comparison view
+        var diffExistant = document.querySelector('[data-testid="diff-versions-pages"]');
+        if (diffExistant) {
+            // Deja sur la comparaison → retour a la lecture
+            // / Already on comparison → back to reading
+            htmx.ajax('GET', '/lire/' + pageId + '/', {target: '#zone-lecture', swap: 'innerHTML', pushUrl: true});
+            return;
+        }
+
+        htmx.ajax('GET', '/lire/' + pageId + '/comparer/', {target: '#zone-lecture', swap: 'innerHTML', pushUrl: true});
+    }
+
     function placeholderRecherche() {
         Swal.fire({
             toast: true,
@@ -577,6 +598,13 @@
                 if (window.alignement) {
                     window.alignement.basculerAlignement();
                 }
+                evenement.preventDefault();
+                break;
+
+            // Z → Comparer les versions (diff + hypostases)
+            // / Z → Compare versions (diff + hypostases)
+            case 'z':
+                comparerVersionsPageCourante();
                 evenement.preventDefault();
                 break;
 
