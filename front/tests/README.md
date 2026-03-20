@@ -2,20 +2,30 @@
 
 Tests de validation des phases de développement de l'app `front`.
 
-## Lancer les tests
+## Commandes rapides
 
 ```bash
-# Tous les tests front
-uv run python manage.py test front.tests -v2
+# Tests unitaires rapides (~20s, ~800 tests) — a lancer souvent
+docker exec hypostasia_web uv run python manage.py test front.tests.test_phases front.tests.test_phase27a front.tests.test_phase27b front.tests.test_langextract_overrides -v2 --keepdb
 
+# Tests E2E cibles (~40s) — verification ponctuelle
+docker exec hypostasia_web uv run python manage.py test front.tests.e2e.test_20_tracabilite -v2 --keepdb
+
+# Tests E2E complets (~19 min) — avant un jalon
+docker exec hypostasia_web uv run python manage.py test front.tests.e2e -v2 --keepdb
+```
+
+## Autres commandes utiles
+
+```bash
 # Un seul fichier
-uv run python manage.py test front.tests.test_phases -v2
+docker exec hypostasia_web uv run python manage.py test front.tests.test_phase27b -v2 --keepdb
 
 # Une seule classe
-uv run python manage.py test front.tests.test_phases.Phase01ExtractionCSSJSTest -v2
+docker exec hypostasia_web uv run python manage.py test front.tests.test_phase27b.DiffParagraphesTest -v2 --keepdb
 
 # Un seul test
-uv run python manage.py test front.tests.test_phases.Phase02PolicesLocalesTest.test_toutes_les_polices_presentes -v2
+docker exec hypostasia_web uv run python manage.py test front.tests.test_phase27b.DiffParagraphesTest.test_paragraphe_modifie -v2 --keepdb
 ```
 
 ## Structure

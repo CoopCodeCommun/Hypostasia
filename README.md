@@ -274,16 +274,23 @@ Contenu cree :
 
 ## Tests
 
+Toutes les commandes se lancent dans le container Docker.
+
 ```bash
 # Verification Django (0 issues attendues)
-uv run python manage.py check
+docker exec hypostasia_web uv run python manage.py check
 
-# Tests unitaires (712 tests)
-uv run python manage.py test front.tests.test_phases -v0
+# Tests unitaires rapides (~20s, ~800 tests) — a lancer souvent
+docker exec hypostasia_web uv run python manage.py test front.tests.test_phases front.tests.test_phase27a front.tests.test_phase27b front.tests.test_langextract_overrides -v2 --keepdb
 
-# Tests E2E (Playwright)
-npx playwright test
+# Tests E2E cibles (~40s) — verification ponctuelle
+docker exec hypostasia_web uv run python manage.py test front.tests.e2e.test_20_tracabilite -v2 --keepdb
+
+# Tests E2E complets (~19 min) — avant un jalon
+docker exec hypostasia_web uv run python manage.py test front.tests.e2e -v2 --keepdb
 ```
+
+Voir `front/tests/PLAN_TEST.md` pour la philosophie et l'inventaire complet.
 
 ---
 

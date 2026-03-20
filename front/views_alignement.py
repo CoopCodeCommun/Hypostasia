@@ -209,6 +209,70 @@ def _preparer_lignes_tableau(donnees_par_famille, pages_selectionnees):
     return sections
 
 
+def construire_alignement_versions(page_gauche, page_droite):
+    """
+    Construit le contexte d'alignement des hypostases entre 2 versions d'un meme texte.
+    Reutilise les helpers existants et enrichit chaque ligne avec un delta (ajoute/supprime/conserve).
+    / Build the hypostase alignment context between 2 versions of the same text.
+    / Reuses existing helpers and enriches each row with a delta (added/removed/kept).
+    """
+    pages_selectionnees = [page_gauche, page_droite]
+
+    # Construit les donnees d'alignement via les helpers existants
+    # / Build alignment data via existing helpers
+    donnees_par_famille, toutes_hypostases = _construire_donnees_alignement(pages_selectionnees)
+    sections_tableau = _preparer_lignes_tableau(donnees_par_famille, pages_selectionnees)
+
+    # Enrichit chaque ligne avec un delta : ajoute, supprime, conserve
+    # / Enrich each row with a delta: added, removed, kept
+    for section in sections_tableau:
+        for ligne in section['lignes']:
+            cellule_v1 = ligne['cellules'][0]
+            cellule_v2 = ligne['cellules'][1]
+
+            if cellule_v1['remplie'] and not cellule_v2['remplie']:
+                ligne['delta_type'] = 'supprime'
+                ligne['delta_statut'] = None
+            elif not cellule_v1['remplie'] and cellule_v2['remplie']:
+                ligne['delta_type'] = 'ajoute'
+                ligne['delta_statut'] = None
+            else:
+                ligne['delta_type'] = 'conserve'
+
+                # Compare le statut_debat dominant entre V1 et V2
+                # / Compare the dominant statut_debat between V1 and V2
+                statut_v1 = _statut_dominant(cellule_v1.get('entites', []))
+                statut_v2 = _statut_dominant(cellule_v2.get('entites', []))
+                if statut_v1 != statut_v2 and statut_v1 and statut_v2:
+                    ligne['delta_statut'] = {'de': statut_v1, 'vers': statut_v2}
+                else:
+                    ligne['delta_statut'] = None
+
+    return {
+        'pages_selectionnees': pages_selectionnees,
+        'page_gauche': page_gauche,
+        'page_droite': page_droite,
+        'sections_tableau': sections_tableau,
+        'nombre_hypostases': len(toutes_hypostases),
+    }
+
+
+def _statut_dominant(entites):
+    """
+    Retourne le statut_debat le plus frequent parmi une liste d'entites.
+    / Returns the most frequent statut_debat among a list of entities.
+    """
+    if not entites:
+        return None
+    compteur_statuts = {}
+    for entite in entites:
+        statut = getattr(entite, 'statut_debat', 'nouveau')
+        compteur_statuts[statut] = compteur_statuts.get(statut, 0) + 1
+    # Retourne le statut avec le plus de votes
+    # / Return the status with the most votes
+    return max(compteur_statuts, key=compteur_statuts.get)
+
+
 class AlignementViewSet(viewsets.ViewSet):
     """
     Alignement cross-documents par hypostases (PHASE-18).

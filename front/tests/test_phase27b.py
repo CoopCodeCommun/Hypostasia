@@ -11,6 +11,8 @@ from django.test import TestCase, RequestFactory
 
 from core.models import Dossier, Page
 from front.views import _diff_inline_mots, _diff_paragraphes
+from front.views_alignement import construire_alignement_versions
+from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
 
 
 # =============================================================================
@@ -192,3 +194,128 @@ class ComparerActionTest(TestCase):
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(reponse.status_code, 400)
+
+
+# =============================================================================
+# Tests alignement des hypostases entre versions (PHASE-27b extension)
+# / Version hypostase alignment tests (PHASE-27b extension)
+# =============================================================================
+
+
+class AlignementVersionsTest(TestCase):
+    """Tests pour l'alignement des hypostases entre 2 versions.
+    / Tests for hypostase alignment between 2 versions."""
+
+    def setUp(self):
+        # Creer un utilisateur et se connecter
+        # / Create a user and log in
+        self.utilisateur_test = User.objects.create_user(
+            username="testeur_align", password="testpass123",
+        )
+        self.client.login(username="testeur_align", password="testpass123")
+
+        # Creer un dossier et deux versions de page
+        # / Create a folder and two page versions
+        self.dossier_test = Dossier.objects.create(
+            name="Dossier alignement", owner=self.utilisateur_test,
+        )
+        self.page_v1 = Page.objects.create(
+            title="V1 Debat IA",
+            text_readability="L'IA est un outil.",
+            dossier=self.dossier_test,
+            version_number=1,
+        )
+        self.page_v2 = Page.objects.create(
+            title="V2 Synthese",
+            text_readability="L'IA est un outil au service de l'humain.",
+            dossier=self.dossier_test,
+            parent_page=self.page_v1,
+            version_number=2,
+        )
+
+    def _creer_extraction(self, page, hypostase, resume="Un resume", statut_debat="nouveau"):
+        """Helper : cree un ExtractionJob completed + une ExtractedEntity avec l'hypostase donnee.
+        / Helper: create a completed ExtractionJob + an ExtractedEntity with the given hypostase."""
+        job = ExtractionJob.objects.create(
+            page=page,
+            status="completed",
+        )
+        entite = ExtractedEntity.objects.create(
+            job=job,
+            extraction_text="Texte source pour " + hypostase,
+            attributes={"hypostase": hypostase, "resume": resume},
+            statut_debat=statut_debat,
+            start_char=0,
+            end_char=10,
+        )
+        return entite
+
+    def test_alignement_2_versions_avec_extractions(self):
+        """Retourne le tableau avec les bonnes sections quand les 2 versions ont des extractions.
+        / Returns the table with correct sections when both versions have extractions."""
+        # V1 et V2 partagent 'hypothese', seul V1 a 'axiome'
+        # / V1 and V2 share 'hypothese', only V1 has 'axiome'
+        self._creer_extraction(self.page_v1, "hypothese", "Hyp v1")
+        self._creer_extraction(self.page_v2, "hypothese", "Hyp v2")
+        self._creer_extraction(self.page_v1, "axiome", "Axiome v1")
+
+        resultat = construire_alignement_versions(self.page_v1, self.page_v2)
+
+        self.assertIn('sections_tableau', resultat)
+        self.assertGreater(len(resultat['sections_tableau']), 0)
+        self.assertEqual(resultat['nombre_hypostases'], 2)
+
+    def test_delta_supprime_si_hypostase_absente_v2(self):
+        """Delta 'supprime' si l'hypostase est dans V1 mais pas V2.
+        / Delta 'supprime' if the hypostase is in V1 but not V2."""
+        self._creer_extraction(self.page_v1, "axiome", "Axiome v1 only")
+
+        resultat = construire_alignement_versions(self.page_v1, self.page_v2)
+
+        # Cherche la ligne 'axiome' et verifie son delta
+        # / Find the 'axiome' row and check its delta
+        ligne_axiome = None
+        for section in resultat['sections_tableau']:
+            for ligne in section['lignes']:
+                if ligne['hypostase'] == 'axiome':
+                    ligne_axiome = ligne
+                    break
+        self.assertIsNotNone(ligne_axiome)
+        self.assertEqual(ligne_axiome['delta_type'], 'supprime')
+
+    def test_delta_ajoute_si_hypostase_absente_v1(self):
+        """Delta 'ajoute' si l'hypostase est dans V2 mais pas V1.
+        / Delta 'ajoute' if the hypostase is in V2 but not V1."""
+        self._creer_extraction(self.page_v2, "phenomene", "Pheno v2 only")
+
+        resultat = construire_alignement_versions(self.page_v1, self.page_v2)
+
+        ligne_phenomene = None
+        for section in resultat['sections_tableau']:
+            for ligne in section['lignes']:
+                if ligne['hypostase'] == 'phenomene':
+                    ligne_phenomene = ligne
+                    break
+        self.assertIsNotNone(ligne_phenomene)
+        self.assertEqual(ligne_phenomene['delta_type'], 'ajoute')
+
+    def test_sans_extraction_message_vide(self):
+        """Si aucune extraction n'existe, sections_tableau est vide.
+        / If no extraction exists, sections_tableau is empty."""
+        resultat = construire_alignement_versions(self.page_v1, self.page_v2)
+
+        self.assertEqual(resultat['sections_tableau'], [])
+        self.assertEqual(resultat['nombre_hypostases'], 0)
+
+    def test_comparer_hypostases_htmx_200(self):
+        """L'action comparer_hypostases retourne 200 en HTMX.
+        / The comparer_hypostases action returns 200 via HTMX."""
+        self._creer_extraction(self.page_v1, "hypothese", "Hyp v1")
+
+        reponse = self.client.get(
+            f"/lire/{self.page_v1.pk}/comparer_hypostases/?v2={self.page_v2.pk}",
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        contenu = reponse.content.decode()
+        self.assertIn("alignement-versions", contenu)

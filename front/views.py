@@ -1323,6 +1323,60 @@ class LectureViewSet(viewsets.ViewSet):
             "est_proprietaire": est_proprietaire,
         })
 
+    @action(detail=True, methods=["GET"], url_path="comparer_hypostases")
+    def comparer_hypostases(self, request, pk=None):
+        """
+        Affiche l'alignement des hypostases entre deux versions (onglet dans le diff).
+        GET /lire/{pk}/comparer_hypostases/?v2={pk2}
+        Retourne un partial HTMX uniquement.
+        / Displays the hypostase alignment between two versions (tab in the diff).
+        / GET /lire/{pk}/comparer_hypostases/?v2={pk2}
+        / Returns an HTMX partial only.
+        """
+        from front.views_alignement import construire_alignement_versions
+
+        page_gauche = get_object_or_404(Page, pk=pk)
+
+        # Verifier l'acces en lecture a la page
+        # / Check read access to the page
+        refus_acces = _verifier_acces_page(request, page_gauche)
+        if refus_acces:
+            return refus_acces
+
+        # Recuperer la version droite
+        # / Retrieve the right version
+        pk_version_droite = request.query_params.get("v2")
+        if not pk_version_droite:
+            return HttpResponse(
+                '<div class="p-8 text-center text-slate-500">'
+                "Paramètre v2 requis pour comparer les hypostases."
+                "</div>",
+                status=400,
+            )
+
+        page_droite = get_object_or_404(Page, pk=pk_version_droite)
+
+        # Verifier que les deux pages sont dans la meme chaine de versions
+        # / Verify both pages are in the same version chain
+        if page_gauche.page_racine.pk != page_droite.page_racine.pk:
+            return HttpResponse(
+                '<div class="p-8 text-center text-slate-500">'
+                "Ces deux pages ne font pas partie de la même chaîne de versions."
+                "</div>",
+                status=400,
+            )
+
+        # Ordonner : version_number le plus petit a gauche
+        # / Order: smallest version_number on the left
+        if page_gauche.version_number > page_droite.version_number:
+            page_gauche, page_droite = page_droite, page_gauche
+
+        # Construire l'alignement des hypostases entre les 2 versions
+        # / Build the hypostase alignment between the 2 versions
+        contexte_alignement = construire_alignement_versions(page_gauche, page_droite)
+
+        return render(request, "front/includes/alignement_versions.html", contexte_alignement)
+
     @action(detail=True, methods=["GET"], url_path="telecharger_source")
     def telecharger_source(self, request, pk=None):
         """

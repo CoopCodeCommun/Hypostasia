@@ -66,6 +66,23 @@
         </span>
     </div>
 
+    {# Onglets : Diff texte | Hypostases #}
+    {# / Tabs: Text diff | Hypostases #}
+    <div class="flex gap-1 mb-4" data-testid="onglets-comparaison">
+        <button data-onglet="diff-texte" class="onglet-comparaison active"
+                data-testid="onglet-diff-texte">Diff texte</button>
+        <button data-onglet="alignement-hypostases" class="onglet-comparaison"
+                data-testid="onglet-hypostases"
+                hx-get="/lire/{{ page_gauche.pk }}/comparer_hypostases/?v2={{ page_droite.pk }}"
+                hx-target="#onglet-contenu-alignement"
+                hx-swap="innerHTML"
+                hx-trigger="click once">Hypostases</button>
+    </div>
+
+    {# Contenu onglet Diff texte (affiche par defaut) #}
+    {# / Text diff tab content (shown by default) #}
+    <div id="onglet-contenu-diff">
+
     {# Grille 2 colonnes / 2-column grid #}
     <div class="grid grid-cols-2 gap-0 border border-slate-200 rounded-lg overflow-hidden" data-testid="diff-colonnes">
 
@@ -137,10 +154,21 @@
             {% endfor %}
         </div>
     </div>
+
+    </div>{# /onglet-contenu-diff #}
+
+    {# Contenu onglet Hypostases (charge via HTMX au premier clic) #}
+    {# / Hypostases tab content (lazy-loaded via HTMX on first click) #}
+    <div id="onglet-contenu-alignement" class="hidden">
+        <div class="p-8 text-center text-sm text-slate-400">
+            Chargement...
+        </div>
+    </div>
+
 </div>
 
-{# Script : scroll synchronise + navigation inter-versions #}
-{# / Script: synchronized scroll + inter-version navigation #}
+{# Script : scroll synchronise + navigation inter-versions + onglets #}
+{# / Script: synchronized scroll + inter-version navigation + tabs #}
 <script>
 (function() {
     // Scroll synchronise entre les deux colonnes
@@ -185,5 +213,32 @@
     const selectDroite = document.getElementById('select-version-droite');
     if (selectGauche) selectGauche.addEventListener('change', naviguerDiff);
     if (selectDroite) selectDroite.addEventListener('change', naviguerDiff);
+
+    // Onglets : bascule entre Diff texte et Hypostases
+    // / Tabs: toggle between Text diff and Hypostases
+    const conteneurDiff = document.getElementById('onglet-contenu-diff');
+    const conteneurAlignement = document.getElementById('onglet-contenu-alignement');
+    const boutons_onglets = document.querySelectorAll('.onglet-comparaison');
+
+    boutons_onglets.forEach(function(bouton) {
+        bouton.addEventListener('click', function() {
+            const ongletCible = this.getAttribute('data-onglet');
+
+            // Met a jour les classes active sur les boutons
+            // / Update active classes on buttons
+            boutons_onglets.forEach(function(b) { b.classList.remove('active'); });
+            this.classList.add('active');
+
+            // Bascule la visibilite des conteneurs
+            // / Toggle container visibility
+            if (ongletCible === 'diff-texte') {
+                conteneurDiff.classList.remove('hidden');
+                conteneurAlignement.classList.add('hidden');
+            } else {
+                conteneurDiff.classList.add('hidden');
+                conteneurAlignement.classList.remove('hidden');
+            }
+        });
+    });
 })();
 </script>

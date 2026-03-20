@@ -4,6 +4,19 @@
 > A relire en debut de session quand on travaille sur les tests ou quand on ajoute une phase.
 > Derniere mise a jour : 2026-03-20
 
+## Copier-coller rapide
+
+```bash
+# Unitaires rapides (~20s) — a lancer souvent
+docker exec hypostasia_web uv run python manage.py test front.tests.test_phases front.tests.test_phase27a front.tests.test_phase27b front.tests.test_langextract_overrides -v2 --keepdb
+
+# E2E cibles (~40s) — verification ponctuelle
+docker exec hypostasia_web uv run python manage.py test front.tests.e2e.test_20_tracabilite -v2 --keepdb
+
+# E2E complets (~19 min) — avant un jalon
+docker exec hypostasia_web uv run python manage.py test front.tests.e2e -v2 --keepdb
+```
+
 ---
 
 ## 1. Philosophie des tests
