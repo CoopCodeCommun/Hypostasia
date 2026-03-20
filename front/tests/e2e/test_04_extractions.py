@@ -17,9 +17,10 @@ class E2EExtractionsTest(PlaywrightLiveTestCase):
 
     def setUp(self):
         super().setUp()
-        # Creer un utilisateur de test pour les commentaires
-        # / Create a test user for comments
+        # Creer un utilisateur de test et se connecter
+        # / Create a test user and log in
         self.user_test = User.objects.create_user(username="e2e_test_user", password="test1234")
+        self.se_connecter("e2e_test_user", "test1234")
 
         # Creer une page avec contenu pour les extractions
         # / Create a page with content for extractions
@@ -29,6 +30,7 @@ class E2EExtractionsTest(PlaywrightLiveTestCase):
             "<p>Deuxieme paragraphe avec contenu controverse.</p>"
             "<p>Troisieme paragraphe consensuel.</p>"
             "<p>Quatrieme paragraphe discute.</p>",
+            owner=self.user_test,
         )
 
         # Creer un modele IA mock

@@ -1,7 +1,16 @@
 """
 Tests E2E — Confirmation analyse : tokens, cout, prompt, selecteur analyseur.
 / E2E tests — Analysis confirmation: tokens, cost, prompt, analyzer selector.
+
+DESACTIVE (2026-03-20) : le bouton btn-toolbar-analyser n'existe plus dans la toolbar.
+Le workflow d'analyse a ete refonde en PHASE-26g (Hub d'analyse via le drawer).
+Ces tests doivent etre reecrits pour le nouveau workflow (analyser depuis le drawer).
+/ DISABLED (2026-03-20): btn-toolbar-analyser no longer exists in the toolbar.
+The analysis workflow was redesigned in PHASE-26g (analysis hub via drawer).
+These tests must be rewritten for the new workflow (analyze from the drawer).
 """
+import unittest
+
 from front.tests.e2e.base import PlaywrightLiveTestCase
 from core.models import AIModel, Configuration
 from hypostasis_extractor.models import (
@@ -13,17 +22,24 @@ from hypostasis_extractor.models import (
 )
 
 
+@unittest.skip("PHASE-26g a supprime btn-toolbar-analyser — tests a reecrire pour le workflow drawer")
 class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     """Tests de la boite de confirmation avant analyse IA."""
 
     def setUp(self):
         super().setUp()
+        # Creer un utilisateur et se connecter
+        # / Create a user and log in
+        self.utilisateur_test = self.creer_utilisateur_demo()
+        self.se_connecter("testuser", "testpass123")
+
         # Creer une page avec du contenu pour l'analyse
         # / Create a page with content for analysis
         self.page_analyse = self.creer_page_demo(
             "Page analyse E2E",
             "<p>L'intelligence artificielle est une revolution technologique majeure.</p>"
             "<p>Les enjeux ethiques restent a debattre.</p>",
+            owner=self.utilisateur_test,
         )
 
         # Creer un modele IA actif

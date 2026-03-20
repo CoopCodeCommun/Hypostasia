@@ -12,9 +12,14 @@ class E2EAlignementTest(PlaywrightLiveTestCase):
 
     def setUp(self):
         super().setUp()
+        # Creer un utilisateur et se connecter
+        # / Create a user and log in
+        self.utilisateur_test = self.creer_utilisateur_demo()
+        self.se_connecter("testuser", "testpass123")
+
         # Creer 1 dossier avec 3 pages ayant des hypostases differentes
         # / Create 1 folder with 3 pages having different hypostases
-        self.dossier_alignement = self.creer_dossier_demo("Dossier Alignement")
+        self.dossier_alignement = self.creer_dossier_demo("Dossier Alignement", owner=self.utilisateur_test)
 
         modele_mock = AIModel.objects.create(
             name="Mock Alignement",
@@ -36,9 +41,7 @@ class E2EAlignementTest(PlaywrightLiveTestCase):
 
         # Page 1 : axiome + hypothese
         # / Page 1: axiom + hypothesis
-        self.page_1 = self.creer_page_demo("Page Align 1", "<p>Contenu page 1 alignement.</p>")
-        self.page_1.dossier = self.dossier_alignement
-        self.page_1.save()
+        self.page_1 = self.creer_page_demo("Page Align 1", "<p>Contenu page 1 alignement.</p>", owner=self.utilisateur_test, dossier=self.dossier_alignement)
         job_1 = ExtractionJob.objects.create(
             page=self.page_1, ai_model=modele_mock, name="Job 1",
             prompt_description="Test", status="completed", entities_count=2,
@@ -54,9 +57,7 @@ class E2EAlignementTest(PlaywrightLiveTestCase):
 
         # Page 2 : hypothese + probleme
         # / Page 2: hypothesis + problem
-        self.page_2 = self.creer_page_demo("Page Align 2", "<p>Contenu page 2 alignement.</p>")
-        self.page_2.dossier = self.dossier_alignement
-        self.page_2.save()
+        self.page_2 = self.creer_page_demo("Page Align 2", "<p>Contenu page 2 alignement.</p>", owner=self.utilisateur_test, dossier=self.dossier_alignement)
         job_2 = ExtractionJob.objects.create(
             page=self.page_2, ai_model=modele_mock, name="Job 2",
             prompt_description="Test", status="completed", entities_count=2,
@@ -72,9 +73,7 @@ class E2EAlignementTest(PlaywrightLiveTestCase):
 
         # Page 3 : axiome seulement (gap sur hypothese et probleme)
         # / Page 3: axiom only (gap on hypothesis and problem)
-        self.page_3 = self.creer_page_demo("Page Align 3", "<p>Contenu page 3 alignement.</p>")
-        self.page_3.dossier = self.dossier_alignement
-        self.page_3.save()
+        self.page_3 = self.creer_page_demo("Page Align 3", "<p>Contenu page 3 alignement.</p>", owner=self.utilisateur_test, dossier=self.dossier_alignement)
         job_3 = ExtractionJob.objects.create(
             page=self.page_3, ai_model=modele_mock, name="Job 3",
             prompt_description="Test", status="completed", entities_count=1,

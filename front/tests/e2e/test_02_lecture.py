@@ -10,12 +10,18 @@ class E2ELectureTest(PlaywrightLiveTestCase):
 
     def setUp(self):
         super().setUp()
+        # Creer un utilisateur et se connecter pour acceder aux pages
+        # / Create a user and log in to access pages
+        self.utilisateur_test = self.creer_utilisateur_demo()
+        self.se_connecter("testuser", "testpass123")
+
         # Creer une page avec du contenu pour les tests de lecture
         # / Create a page with content for reading tests
         self.page_lecture = self.creer_page_demo(
             "Article E2E",
             "<p>Ceci est le paragraphe principal de l'article de test E2E.</p>"
             "<p>Deuxieme paragraphe avec du contenu supplementaire.</p>",
+            owner=self.utilisateur_test,
         )
 
     def test_ouvrir_page_titre_et_contenu_visible(self):

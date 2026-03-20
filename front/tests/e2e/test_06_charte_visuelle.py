@@ -10,11 +10,17 @@ class E2ECharteVisuelleTest(PlaywrightLiveTestCase):
 
     def setUp(self):
         super().setUp()
+        # Creer un utilisateur et se connecter
+        # / Create a user and log in
+        self.utilisateur_test = self.creer_utilisateur_demo()
+        self.se_connecter("testuser", "testpass123")
+
         # Creer une page minimale pour charger les styles
         # / Create a minimal page to load styles
         self.page_test = self.creer_page_demo(
             "Page charte visuelle",
             "<p>Contenu pour tester la charte visuelle.</p>",
+            owner=self.utilisateur_test,
         )
 
     def test_police_b612_chargee(self):

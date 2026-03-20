@@ -72,24 +72,48 @@ par test (`setUp`). Les tests E2E partagent le meme processus navigateur.
 - **Pas de pytest** — pas de conftest.py, pytest.ini, tox.ini, setup.cfg
 - **Decouverte** : auto (classes heritant de TestCase)
 
+### Quand lancer quoi
+
+| Moment | Quoi lancer | Temps | Commande |
+|--------|-------------|-------|----------|
+| Apres chaque modification | Tests unitaires de la phase en cours | ~5s | `test front.tests.test_phase27b` |
+| Avant de valider une phase | Tous les tests unitaires | ~20s | `test front.tests --keepdb` |
+| Verification ciblee E2E | Tests E2E du fichier concerne | ~40s | `test front.tests.e2e.test_20_tracabilite` |
+| Avant un commit important | Suite E2E complete | ~19min | `test front.tests.e2e --keepdb` |
+| Debug d'un test precis | Un seul test | ~3s | `test front.tests.e2e.test_20_tracabilite.E2ETracabiliteTest.test_bouton_historique_visible_dans_lecture` |
+
+> **Regle d'or** : les unitaires tournent a chaque changement. Les E2E se lancent en cible
+> ou en suite complete uniquement avant un jalon.
+
 ### Commandes
 
 ```bash
-# Dans Docker (environnement de reference)
-docker exec hypostasia_web uv run python manage.py test front.tests.test_phase27b -v2
+# === FREQUENTS (a chaque modification) ===
 
-# Tous les tests front (unitaires + E2E)
-docker exec hypostasia_web uv run python manage.py test front -v2
+# Tests unitaires d'une phase (rapide, ~5s apres premiere run)
+docker exec hypostasia_web uv run python manage.py test front.tests.test_phase27b -v2 --keepdb
 
-# Un seul fichier
-docker exec hypostasia_web uv run python manage.py test front.tests.test_phase27a -v2
+# Tous les tests unitaires (sans E2E)
+docker exec hypostasia_web uv run python manage.py test front.tests.test_phases front.tests.test_phase27a front.tests.test_phase27b front.tests.test_langextract_overrides -v2 --keepdb
 
-# Une seule classe
-docker exec hypostasia_web uv run python manage.py test front.tests.test_phase27b.DiffParagraphesTest -v2
+# === CIBLES (verification ponctuelle) ===
 
-# Garder la base de test entre les runs (accelere les runs suivants)
-docker exec hypostasia_web uv run python manage.py test front --keepdb -v2
+# Tests E2E d'un seul fichier
+docker exec hypostasia_web uv run python manage.py test front.tests.e2e.test_20_tracabilite -v2 --keepdb
+
+# Un seul test precis
+docker exec hypostasia_web uv run python manage.py test front.tests.e2e.test_20_tracabilite.E2ETracabiliteTest.test_bouton_historique_visible_dans_lecture -v2 --keepdb
+
+# === COMPLETS (avant jalon) ===
+
+# Suite E2E complete (~19 min)
+docker exec hypostasia_web uv run python manage.py test front.tests.e2e -v2 --keepdb
+
+# TOUT (unitaires + E2E, ~20 min)
+docker exec hypostasia_web uv run python manage.py test front -v2 --keepdb
 ```
+
+> **Toujours utiliser `--keepdb`** — economise ~12s de creation de base a chaque run.
 
 ### Structure des fichiers
 
@@ -173,18 +197,24 @@ Fichier : `front/tests/e2e/base.py`
 
 Mode headed (debug visuel) : `PLAYWRIGHT_HEADED=1`
 
-### Probleme connu : Playwright Sync API + asyncio
+### Probleme resolu (2026-03-20) : Chromium ne demarre pas
 
-**Statut : BLOQUE** — les 24 classes E2E echouent toutes avec :
-```
-playwright._impl._errors.Error: It looks like you are using Playwright Sync API
-inside the asyncio loop. Please use the Async API instead.
+**Statut : CORRIGE** — l'erreur "Playwright Sync API inside asyncio loop" etait un
+faux diagnostic. La vraie cause : **librairies systeme manquantes** pour Chromium
+dans le container Docker (`libnspr4`, `libnss3`, etc.).
+
+**Symptome** : Chromium crash au lancement → Playwright renvoyait une erreur trompeuse.
+
+**Fix applique** :
+```bash
+docker exec -u root hypostasia_web apt-get install -y \
+  libnspr4 libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 \
+  libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
+  libpango-1.0-0 libcairo2 libasound2t64 libxshmfence1
 ```
 
-**Cause** : conflit entre Playwright Sync API et la boucle asyncio de Django/Daphne (ASGI).
-**Impact** : 0 test E2E ne tourne actuellement.
-**Piste de correction** : migrer vers `AsyncPlaywright` ou isoler les tests E2E
-hors du contexte ASGI.
+**Attention** : ce fix est ephemere (perdu au rebuild du container). A ajouter dans
+le `Dockerfile` ou `install.sh` pour que ce soit permanent.
 
 ---
 
@@ -331,12 +361,12 @@ Les tests E2E creent les donnees en `setUp` via ORM, puis naviguent dans le navi
 
 ## 7. Problemes connus et axes d'amelioration
 
-### P1 — Tests E2E bloques (Playwright Sync + asyncio)
+### P1 — Deps systeme Chromium manquantes dans le container (CORRIGE 2026-03-20)
 
-- **Impact** : 0/169 tests E2E ne tournent
-- **Cause** : conflit Playwright Sync API / boucle asyncio Django/Daphne
-- **Piste** : migrer `PlaywrightLiveTestCase` vers async, ou lancer les tests
-  avec un runner non-ASGI
+- **Impact** : 0/169 tests E2E ne tournaient
+- **Cause** : librairies systeme manquantes pour Chromium (libnspr4, libnss3, etc.)
+- **Fix** : `apt-get install` des deps — ephemere, a ajouter au Dockerfile
+- **Statut** : corrige, les E2E tournent maintenant
 
 ### P2 — test_phases.py est un monolithe (9644 lignes)
 
@@ -366,10 +396,12 @@ Les tests E2E creent les donnees en `setUp` via ORM, puis naviguent dans le navi
 | Metrique | Valeur | Date |
 |----------|--------|------|
 | Tests unitaires (front) | ~796 | 2026-03-20 |
-| Tests E2E definis | ~169 | 2026-03-20 |
-| Tests E2E fonctionnels | 0 (Playwright bloque) | 2026-03-20 |
-| Temps d'execution unitaires | ~17s (34 tests 27a+27b) | 2026-03-20 |
-| Temps creation base test | ~12s | 2026-03-20 |
+| Tests E2E definis | 121 (dont 12 skipped) | 2026-03-20 |
+| Tests E2E qui passent | 109/121 (90%) | 2026-03-20 |
+| Tests E2E en echec | 12 (timeouts fragiles + cosmétiques) | 2026-03-20 |
+| Temps unitaires complets | ~20s | 2026-03-20 |
+| Temps E2E complets | ~19min | 2026-03-20 |
+| Temps creation base test | ~12s (economise avec --keepdb) | 2026-03-20 |
 | Fichiers test | 24 | 2026-03-20 |
 | Classes test | ~247 | 2026-03-20 |
 | Lignes de code test | ~14700 | 2026-03-20 |

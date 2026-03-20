@@ -26,9 +26,10 @@ class E2EMobileTest(PlaywrightLiveTestCase):
 
     def setUp(self):
         super().setUp()
-        # Creer un utilisateur de test pour les commentaires
-        # / Create a test user for comments
+        # Creer un utilisateur de test et se connecter
+        # / Create a test user and log in
         self.user_test = User.objects.create_user(username="e2e_test_user", password="test1234")
+        self.se_connecter("e2e_test_user", "test1234")
 
         # Creer une page avec du contenu et des extractions pour tester le mobile
         # / Create a page with content and extractions to test mobile
@@ -36,6 +37,7 @@ class E2EMobileTest(PlaywrightLiveTestCase):
             "Eric Sadin — Critique de la technologie et intelligence artificielle",
             "<p>Premier paragraphe pour test mobile bottom sheet extraction.</p>"
             "<p>Deuxieme paragraphe avec du contenu supplementaire.</p>",
+            owner=self.user_test,
         )
         modele_mock = AIModel.objects.create(
             name="Mock Mobile",
@@ -345,7 +347,7 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         self.page.click('[data-testid="btn-toolbar-aide-mobile"]')
         self.page.wait_for_selector('[data-testid="modale-aide"]', timeout=5000)
         contenu = self.page.text_content('[data-testid="modale-aide"]')
-        self.assertIn("souligne", contenu)
+        self.assertIn("souligné", contenu)
         self.assertIn("Commenter", contenu)
         self.assertIn("Menu", contenu)
 

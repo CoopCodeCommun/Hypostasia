@@ -60,7 +60,8 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
             name="Test E2E", type_analyseur="analyser", is_active=True,
         )
         job = ExtractionJob.objects.create(
-            page=page_doc, analyseur=analyseur, status="completed",
+            page=page_doc, name="Extraction E2E 26a",
+            prompt_description="Test filtre contributeur", status="completed",
         )
 
         # Entite commentee par Alice et Bob
@@ -105,7 +106,7 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
         """
         self.naviguer_vers(f"/lire/{page_doc.pk}/")
         self.page.wait_for_load_state("networkidle")
-        self.page.click('[data-testid="btn-toolbar-drawer"]')
+        self.page.click('[data-testid="btn-toolbar-extractions"]')
         self.page.wait_for_selector('[data-testid="pilules-contributeurs"]', timeout=5000)
 
     # ====================================================================

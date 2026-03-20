@@ -86,10 +86,12 @@ class PlaywrightLiveTestCase(StaticLiveServerTestCase):
             timeout=timeout_ms,
         )
 
-    def creer_page_demo(self, titre="Page de test", texte="<p>Contenu de test.</p>"):
+    def creer_page_demo(self, titre="Page de test", texte="<p>Contenu de test.</p>", owner=None, dossier=None):
         """
         Cree une Page via l'ORM pour les tests.
+        Si owner est fourni, la page lui appartient (necessaire pour l'acces /lire/).
         / Create a Page via ORM for tests.
+        If owner is provided, the page belongs to them (required for /lire/ access).
         """
         page_demo = Page.objects.create(
             title=titre,
@@ -97,15 +99,19 @@ class PlaywrightLiveTestCase(StaticLiveServerTestCase):
             text_readability=texte,
             source_type="file",
             status="completed",
+            owner=owner,
+            dossier=dossier,
         )
         return page_demo
 
-    def creer_dossier_demo(self, nom="Dossier test"):
+    def creer_dossier_demo(self, nom="Dossier test", owner=None):
         """
         Cree un Dossier via l'ORM pour les tests.
+        Si owner est fourni, le dossier lui appartient.
         / Create a Dossier via ORM for tests.
+        If owner is provided, the folder belongs to them.
         """
-        dossier_demo = Dossier.objects.create(name=nom)
+        dossier_demo = Dossier.objects.create(name=nom, owner=owner)
         return dossier_demo
 
     def ouvrir_arbre(self):
@@ -131,6 +137,25 @@ class PlaywrightLiveTestCase(StaticLiveServerTestCase):
             timeout=3000,
         )
         self.attendre_htmx()
+
+    def assertTrueWithRetry(self, condition_callable, message="", timeout_ms=5000, interval_ms=200):
+        """
+        Reassaye une condition jusqu'a ce qu'elle soit vraie ou que le timeout expire.
+        Utile pour attendre qu'un element HTMX apparaisse apres un swap.
+        / Retry a condition until true or timeout. Useful for HTMX swaps.
+        """
+        import time
+        debut = time.time()
+        limite = timeout_ms / 1000.0
+        intervalle = interval_ms / 1000.0
+        while time.time() - debut < limite:
+            try:
+                if condition_callable():
+                    return
+            except Exception:
+                pass
+            time.sleep(intervalle)
+        self.assertTrue(False, message or "Condition non remplie apres timeout")
 
     def creer_utilisateur_demo(self, username="testuser", password="testpass123"):
         """

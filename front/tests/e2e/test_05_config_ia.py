@@ -11,9 +11,14 @@ class E2EConfigIATest(PlaywrightLiveTestCase):
 
     def setUp(self):
         super().setUp()
+        # Creer un utilisateur et se connecter
+        # / Create a user and log in
+        self.utilisateur_test = self.creer_utilisateur_demo()
+        self.se_connecter("testuser", "testpass123")
+
         # Creer une page pour avoir un contexte de lecture
         # / Create a page to have a reading context
-        self.page_test = self.creer_page_demo("Page config IA", "<p>Test config.</p>")
+        self.page_test = self.creer_page_demo("Page config IA", "<p>Test config.</p>", owner=self.utilisateur_test)
         # Creer 2 modeles IA mock
         # / Create 2 mock AI models
         self.modele_1 = AIModel.objects.create(

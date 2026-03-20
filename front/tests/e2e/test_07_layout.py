@@ -12,11 +12,17 @@ class E2ELayoutTest(PlaywrightLiveTestCase):
 
     def setUp(self):
         super().setUp()
+        # Creer un utilisateur et se connecter
+        # / Create a user and log in
+        self.utilisateur_test = self.creer_utilisateur_demo()
+        self.se_connecter("testuser", "testpass123")
+
         # Creer une page avec des extractions pour tester les raccourcis
         # / Create a page with extractions to test shortcuts
         self.page_layout = self.creer_page_demo(
             "Page layout E2E",
             "<p>Contenu pour tester le layout et les raccourcis.</p>",
+            owner=self.utilisateur_test,
         )
         modele_mock = AIModel.objects.create(
             name="Mock Layout",

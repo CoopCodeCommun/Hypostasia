@@ -17,9 +17,10 @@ class E2ECurationTest(PlaywrightLiveTestCase):
 
     def setUp(self):
         super().setUp()
-        # Creer un utilisateur de test pour les commentaires
-        # / Create a test user for comments
+        # Creer un utilisateur de test et se connecter
+        # / Create a test user and log in
         self.user_test = User.objects.create_user(username="e2e_test_user", password="test1234")
+        self.se_connecter("e2e_test_user", "test1234")
 
         # Creer une page avec 2 extractions (1 avec commentaire, 1 sans)
         # / Create a page with 2 extractions (1 with comment, 1 without)
@@ -27,6 +28,7 @@ class E2ECurationTest(PlaywrightLiveTestCase):
             "Page curation E2E",
             "<p>Contenu premier paragraphe curation.</p>"
             "<p>Contenu deuxieme paragraphe curation.</p>",
+            owner=self.user_test,
         )
         modele_mock = AIModel.objects.create(
             name="Mock Curation",
