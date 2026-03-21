@@ -220,7 +220,7 @@ function ouvrirModaleSynthese(pageId, seuilAtteint, pourcentage, seuil) {
     var messageModale = seuilAtteint
         ? '<p class="text-sm text-slate-600 mb-3">Vous allez générer une nouvelle version du texte intégrant le débat structuré (hypostases + commentaires + statuts).</p>'
         : '<p class="text-sm text-amber-700 mb-2 font-semibold">Le seuil de consensus n\'est pas atteint (' + pourcentage + '% / ' + seuil + '%).</p>'
-          + '<p class="text-sm text-slate-600 mb-3">Le cycle de débat est encore vierge ou incomplet. La synthèse générée sera basée sur des données partielles. Vous pouvez continuer la curation avant de synthétiser.</p>';
+          + '<p class="text-sm text-slate-600 mb-3">La synthèse sera basée sur des données partielles. Vous pouvez lancer quand même ou continuer la curation.</p>';
 
     // Construire le HTML de la modale / Build modal HTML
     var htmlModale = ''
@@ -235,7 +235,7 @@ function ouvrirModaleSynthese(pageId, seuilAtteint, pourcentage, seuil) {
         + '              hx-target="#zone-btn-synthese"'
         + '              hx-swap="outerHTML"'
         + '              hx-on::after-request="fermerModaleSynthese()">'
-        + '        Confirmer la synthèse'
+        + '        ' + (seuilAtteint ? 'Confirmer la synthèse' : 'Lancer quand même')
         + '      </button>'
         + '    </div>'
         + '  </div>'

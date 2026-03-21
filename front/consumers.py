@@ -105,11 +105,13 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
         / Updates the progress bar in the E panel (OOB on #barre-progression-analyse).
         / Sent at the start of each LangExtract chunk.
         """
+        message_progression = evenement.get('message', '')
         contexte_progression = {
             'pourcentage': evenement.get('pourcentage', 0),
-            'message': evenement.get('message', ''),
+            'message': message_progression,
             'chunk_courant': evenement.get('chunk_courant', 0),
             'chunks_total': evenement.get('chunks_total', 0),
+            'has_warning': '—' in message_progression and len(message_progression) > 30,
         }
 
         html_progression = await sync_to_async(render_to_string)(

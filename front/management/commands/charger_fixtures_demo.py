@@ -177,13 +177,13 @@ En synthèse, trois conditions émergent du débat pour une gouvernance responsa
 # =============================================================================
 
 USERS_DEMO = [
-    {"username": "marie", "first_name": "Marie", "password": "demo1234"},
-    {"username": "thomas", "first_name": "Thomas", "password": "demo1234"},
-    {"username": "fatima", "first_name": "Fatima", "password": "demo1234"},
-    {"username": "pierre", "first_name": "Pierre", "password": "demo1234"},
+    {"username": "marie", "first_name": "Marie", "email": "marie@demo.hypostasia.org", "password": "demo1234"},
+    {"username": "thomas", "first_name": "Thomas", "email": "thomas@demo.hypostasia.org", "password": "demo1234"},
+    {"username": "fatima", "first_name": "Fatima", "email": "fatima@demo.hypostasia.org", "password": "demo1234"},
+    {"username": "pierre", "first_name": "Pierre", "email": "pierre@demo.hypostasia.org", "password": "demo1234"},
 ]
 
-USER_ADMIN = {"username": "jonas", "first_name": "Jonas", "password": "admin1234", "is_staff": True}
+USER_ADMIN = {"username": "jonas", "first_name": "Jonas", "email": "jonas@demo.hypostasia.org", "password": "admin1234", "is_staff": True}
 
 
 # =============================================================================
@@ -776,6 +776,7 @@ class Command(BaseCommand):
                 username=definition_user["username"],
                 defaults={
                     "first_name": definition_user["first_name"],
+                    "email": definition_user.get("email", ""),
                 },
             )
             if cree:
@@ -785,6 +786,11 @@ class Command(BaseCommand):
                     f"  User créé : {utilisateur.username}"
                 ))
             else:
+                # Mettre a jour l'email si manquant (users existants sans email)
+                # / Update email if missing (existing users without email)
+                if not utilisateur.email and definition_user.get("email"):
+                    utilisateur.email = definition_user["email"]
+                    utilisateur.save(update_fields=["email"])
                 self.stdout.write(f"  User existant : {utilisateur.username}")
             tous_les_users[utilisateur.username] = utilisateur
 
@@ -794,6 +800,7 @@ class Command(BaseCommand):
             username=admin_definition["username"],
             defaults={
                 "first_name": admin_definition["first_name"],
+                "email": admin_definition.get("email", ""),
                 "is_staff": admin_definition.get("is_staff", False),
             },
         )
@@ -804,6 +811,10 @@ class Command(BaseCommand):
                 f"  User admin créé : {utilisateur_admin.username}"
             ))
         else:
+            # Mettre a jour l'email si manquant / Update email if missing
+            if not utilisateur_admin.email and admin_definition.get("email"):
+                utilisateur_admin.email = admin_definition["email"]
+                utilisateur_admin.save(update_fields=["email"])
             self.stdout.write(f"  User admin existant : {utilisateur_admin.username}")
         tous_les_users[utilisateur_admin.username] = utilisateur_admin
 

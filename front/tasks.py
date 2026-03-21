@@ -46,6 +46,90 @@ from collections import defaultdict
 from typing import Iterable, Iterator
 
 
+def _recuperer_extractions_json_corrompu(
+    texte_sortie_llm, resolver, format_handler, numero_chunk, debug, **kwargs
+):
+    """
+    Tente de recuperer les extractions valides d'un JSON LLM corrompu.
+    Cas typique : boucle de repetition Gemini qui produit un JSON tronque.
+    Strategie : trouver le dernier objet JSON complet et re-parser.
+    / Attempts to recover valid extractions from corrupted LLM JSON.
+    / Typical case: Gemini repetition loop producing truncated JSON.
+    / Strategy: find last complete JSON object and re-parse.
+    """
+    import json as json_stdlib
+    import re
+
+    logger.warning(
+        "  [chunk %d] tentative de recuperation partielle du JSON corrompu (%d chars)",
+        numero_chunk, len(texte_sortie_llm),
+    )
+
+    # Retirer les fences si presentes / Strip fences if present
+    texte_nettoye = texte_sortie_llm.strip()
+    if texte_nettoye.startswith("```"):
+        lignes = texte_nettoye.split("\n")
+        lignes = lignes[1:]
+        if lignes and lignes[-1].strip() == "```":
+            lignes = lignes[:-1]
+        texte_nettoye = "\n".join(lignes).strip()
+
+    # Chercher les objets JSON complets entre accolades dans le tableau
+    # On extrait chaque {...} au niveau racine du tableau d'extractions
+    # / Find complete JSON objects between braces in the array
+    # / Extract each {...} at the root level of the extractions array
+    objets_extraits = []
+    profondeur = 0
+    debut_objet = -1
+
+    for position, caractere in enumerate(texte_nettoye):
+        if caractere == '{':
+            if profondeur == 0:
+                debut_objet = position
+            profondeur += 1
+        elif caractere == '}':
+            profondeur -= 1
+            if profondeur == 0 and debut_objet >= 0:
+                fragment_json = texte_nettoye[debut_objet:position + 1]
+                try:
+                    objet_parse = json_stdlib.loads(fragment_json)
+                    # Verifier que c'est un objet d'extraction (pas le wrapper)
+                    # / Check it's an extraction object (not the wrapper)
+                    if "extractions" not in objet_parse:
+                        objets_extraits.append(objet_parse)
+                except json_stdlib.JSONDecodeError:
+                    # Objet JSON incomplet ou corrompu — on le saute
+                    # / Incomplete or corrupted JSON object — skip it
+                    pass
+                debut_objet = -1
+
+    if not objets_extraits:
+        logger.warning(
+            "  [chunk %d] recuperation partielle echouee : aucun objet JSON valide",
+            numero_chunk,
+        )
+        return []
+
+    # Re-construire le JSON wrappé et le repasser au resolver
+    # / Rebuild wrapped JSON and re-pass to resolver
+    json_reconstruit = json_stdlib.dumps({"extractions": objets_extraits})
+    try:
+        extractions_recuperees = resolver.resolve(
+            json_reconstruit, debug=debug, **kwargs
+        )
+        logger.info(
+            "  [chunk %d] recuperation partielle reussie : %d/%d extraction(s) sauvees",
+            numero_chunk, len(extractions_recuperees), len(objets_extraits),
+        )
+        return extractions_recuperees
+    except Exception as erreur_recuperation:
+        logger.warning(
+            "  [chunk %d] recuperation partielle echouee au resolve : %s",
+            numero_chunk, erreur_recuperation,
+        )
+        return []
+
+
 def _creer_annotateur_avec_progression(
     modele_llm,
     prompt_template,
@@ -187,19 +271,33 @@ def _creer_annotateur_avec_progression(
                                 "No scored outputs from language model."
                             )
 
-                        # Taille du chunk et position dans le texte original
-                        # / Chunk size and position in the original text
+                        # Taille du chunk, position et temps de reponse LLM
+                        # / Chunk size, position and LLM response time
+                        temps_fin_llm = time.time()
                         taille_chunk = len(text_chunk.chunk_text)
                         position_debut_chunk = (
                             text_chunk.char_interval.start_pos
                             if text_chunk.char_interval else 0
                         )
                         taille_reponse_llm = len(scored_outputs[0].output)
+                        duree_llm_secondes = duree_appel_llm
                         logger.info(
-                            "  [chunk %d] pos=%d len=%d — reponse LLM: %d chars",
+                            "  [chunk %d] pos=%d len=%d — reponse LLM: %d chars en %.1fs",
                             numero_chunk, position_debut_chunk,
                             taille_chunk, taille_reponse_llm,
+                            duree_llm_secondes,
                         )
+                        # Collecter les warnings pour ce chunk (envoyes au callback → WS)
+                        # / Collect warnings for this chunk (sent to callback → WS)
+                        warnings_chunk = []
+                        if duree_llm_secondes > 60:
+                            logger.warning(
+                                "  [chunk %d] reponse LLM anormalement lente: %.0fs",
+                                numero_chunk, duree_llm_secondes,
+                            )
+                            warnings_chunk.append(
+                                f"Réponse LLM très lente ({int(duree_llm_secondes)}s)"
+                            )
 
                         # Etape 1 : Resolver — parse le YAML/JSON brut du LLM
                         # en objets Extraction structurés.
@@ -254,6 +352,27 @@ def _creer_annotateur_avec_progression(
                         resolved_extractions = resolver.resolve(
                             texte_sortie_llm, debug=debug, **kwargs
                         )
+
+                        # Recuperation partielle si le resolve a echoue (0 extraction)
+                        # mais que la reponse LLM contient du JSON parsable.
+                        # Cas typique : boucle de repetition Gemini qui corrompt la fin du JSON.
+                        # / Partial recovery if resolve failed (0 extractions)
+                        # / but the LLM response contains parseable JSON.
+                        # / Typical case: Gemini repetition loop corrupting end of JSON.
+                        if not resolved_extractions and taille_reponse_llm > 200:
+                            resolved_extractions = _recuperer_extractions_json_corrompu(
+                                texte_sortie_llm, resolver, format_handler,
+                                numero_chunk, debug, **kwargs,
+                            )
+                            if resolved_extractions:
+                                warnings_chunk.append(
+                                    f"Réponse LLM corrompue — {len(resolved_extractions)} extraction(s) récupérée(s)"
+                                )
+                            else:
+                                warnings_chunk.append(
+                                    "Réponse LLM corrompue — aucune extraction récupérable"
+                                )
+
                         nombre_extractions_resolues = len(resolved_extractions)
                         logger.info(
                             "  [chunk %d] resolve → %d extraction(s) parsees depuis le YAML/JSON",
@@ -325,6 +444,7 @@ def _creer_annotateur_avec_progression(
                             callback_par_chunk(
                                 extractions_du_chunk=liste_extractions_alignees,
                                 caracteres_traites=caracteres_traites,
+                                warnings_chunk=warnings_chunk,
                             )
 
                     yield from _emit_docs_iter(keep_last_doc=True)
@@ -1205,7 +1325,7 @@ def analyser_page_task(self, job_id):
         nombre_entites_creees = 0
         numero_chunk_courant = 0
 
-        def callback_extraction_chunk(extractions_du_chunk, caracteres_traites):
+        def callback_extraction_chunk(extractions_du_chunk, caracteres_traites, warnings_chunk=None):
             """
             Appele apres chaque cycle resolve()+align() d'un chunk LangExtract.
             Cree les entites en DB, envoie les cartes WS, met a jour la progression.
@@ -1284,12 +1404,18 @@ def analyser_page_task(self, job_id):
             ) if longueur_texte_total > 0 else 50
 
             if identifiant_utilisateur:
+                # Construire le message de progression, avec warnings si presents
+                # / Build progress message, with warnings if any
+                message_progression = f"{nombre_entites_creees} entités trouvées"
+                if warnings_chunk:
+                    message_progression += " — " + " | ".join(warnings_chunk)
+
                 envoyer_progression_websocket(
                     f"notifications_user_{identifiant_utilisateur}",
                     "analyse_progression",
                     {
                         "pourcentage": pourcentage,
-                        "message": f"{nombre_entites_creees} entités trouvées",
+                        "message": message_progression,
                         "chunk_courant": numero_chunk_courant,
                         "chunks_total": nombre_chunks_estime,
                     },

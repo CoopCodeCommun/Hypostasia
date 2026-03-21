@@ -1739,6 +1739,19 @@ class LectureViewSet(viewsets.ViewSet):
                     "solde_utilisateur_euros": solde_utilisateur_euros,
                 }
 
+        # Compter les entites IA sans commentaires pour proposer le nettoyage
+        # avant re-analyse (eviter les doublons)
+        # / Count AI entities without comments to offer cleanup
+        # / before re-analysis (avoid duplicates)
+        entites_ia_sans_commentaires = ExtractedEntity.objects.filter(
+            job__page=page,
+            job__status="completed",
+            cree_par__isnull=True,
+            masquee=False,
+        ).exclude(
+            commentaires__isnull=False,
+        ).count()
+
         return render(request, "front/includes/confirmation_analyse.html", {
             "page": page,
             "analyseur": analyseur,
@@ -1755,6 +1768,7 @@ class LectureViewSet(viewsets.ViewSet):
             "nombre_pieces": pieces_ordonnees.count(),
             "nombre_chunks_estime": nombre_chunks_estime,
             "tokens_overhead_par_chunk": tokens_overhead_par_chunk,
+            "nombre_entites_ia_sans_commentaires": entites_ia_sans_commentaires,
             **contexte_credits,
         })
 
@@ -1862,6 +1876,30 @@ class LectureViewSet(viewsets.ViewSet):
             return render(request, "front/includes/extraction_results.html", {
                 "error_message": "Aucun modele IA selectionne. Choisissez un modele dans la sidebar.",
             })
+
+        # Nettoyage des entites IA sans commentaires si demande (checkbox)
+        # Supprime les extractions IA non commentees pour eviter les doublons
+        # Les extractions manuelles (cree_par != NULL) et commentees sont conservees
+        # / Cleanup AI entities without comments if requested (checkbox)
+        # / Deletes uncommented AI extractions to avoid duplicates
+        # / Manual extractions (cree_par != NULL) and commented ones are kept
+        nettoyer_ia = request.data.get("nettoyer_ia") == "1"
+        if nettoyer_ia:
+            entites_ia_a_supprimer = ExtractedEntity.objects.filter(
+                job__page=page,
+                job__status="completed",
+                cree_par__isnull=True,
+                masquee=False,
+            ).exclude(
+                commentaires__isnull=False,
+            )
+            nombre_supprimees = entites_ia_a_supprimer.count()
+            entites_ia_a_supprimer.delete()
+            if nombre_supprimees:
+                logger.info(
+                    "analyser: %d entite(s) IA sans commentaire supprimee(s) pour page=%s",
+                    nombre_supprimees, pk,
+                )
 
         # Construire le prompt snapshot depuis les pieces de l'analyseur
         # / Build prompt snapshot from the analyzer's prompt pieces

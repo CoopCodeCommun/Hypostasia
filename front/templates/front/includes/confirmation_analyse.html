@@ -140,6 +140,23 @@
     </div>
     {% endif %}
 
+    {# Option de nettoyage des entites IA sans commentaires (eviter les doublons) #}
+    {# / Cleanup option for AI entities without comments (avoid duplicates) #}
+    {% if nombre_entites_ia_sans_commentaires > 0 %}
+    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4">
+        <label class="flex items-start gap-2 cursor-pointer">
+            <input type="checkbox" name="nettoyer_ia" value="1" checked
+                   id="checkbox-nettoyer-ia"
+                   class="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+            <span class="text-sm text-slate-600">
+                Supprimer les <strong class="text-slate-800">{{ nombre_entites_ia_sans_commentaires }}</strong>
+                extraction{{ nombre_entites_ia_sans_commentaires|pluralize }} IA sans commentaire
+                <span class="text-slate-400">(les extractions manuelles et comment&eacute;es sont conserv&eacute;es)</span>
+            </span>
+        </label>
+    </div>
+    {% endif %}
+
     {# Boutons d'action — grands, couleurs pastel coherentes avec le reste de l'app #}
     {# / Action buttons — large, pastel colors consistent with the rest of the app #}
     <div class="flex gap-3">
@@ -148,6 +165,7 @@
                 hx-post="/lire/{{ page.pk }}/analyser/"
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                 hx-vals='{"analyseur_id": "{{ analyseur.id }}"}'
+                hx-include="#checkbox-nettoyer-ia"
                 hx-target="#drawer-contenu"
                 hx-swap="innerHTML"
                 {% if stripe_enabled and not solde_suffisant and not request.user.is_superuser %}disabled aria-disabled="true"{% endif %}
