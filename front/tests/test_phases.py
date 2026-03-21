@@ -3888,8 +3888,20 @@ class Phase18KeyboardJSTest(TestCase):
         self.assertIn("alignement.fermer()", self.contenu_js)
 
     def test_aide_modale_contient_raccourci_a(self):
-        """La modale d'aide contient le raccourci A."""
-        self.assertIn("Comparer / Aligner des pages", self.contenu_js)
+        """La modale d'aide serveur contient le raccourci A et Z."""
+        # / The server-side help modal contains shortcuts A and Z
+        # La modale est chargee via HTMX depuis /lire/aide/, pas construite en JS.
+        # On verifie la liste Python dans views.py via un appel HTTP.
+        # / Modal is loaded via HTMX from /lire/aide/, not built in JS.
+        from django.contrib.auth.models import User
+        from django.test import Client
+        utilisateur = User.objects.create_user("test_aide_a", password="test1234")
+        client = Client()
+        client.login(username="test_aide_a", password="test1234")
+        reponse = client.get("/lire/aide/", HTTP_HX_REQUEST="true")
+        contenu = reponse.content.decode("utf-8")
+        self.assertIn("Comparer / Aligner des pages", contenu)
+        self.assertIn("Comparer les versions", contenu)
 
 
 class Phase18CSSStylesTest(TestCase):

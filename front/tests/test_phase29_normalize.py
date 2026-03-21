@@ -245,3 +245,132 @@ class NormaliserTexteTest(TestCase):
     def test_chaine_vide(self):
         """Chaine vide retourne chaine vide."""
         self.assertEqual(_normaliser_texte(""), "")
+
+
+# ========================================================================
+# Tests des synonymes d'hypostases (LLM produit "proposition" → "hypothese")
+# / Tests for hypostase synonyms (LLM produces "proposition" → "hypothese")
+# ========================================================================
+
+class SynonymesHypostasesTest(TestCase):
+    """Tests pour le mapping SYNONYMES_HYPOSTASES dans normaliser_valeur_hypostase."""
+
+    def test_proposition_mappee_vers_hypothese(self):
+        """'proposition' est mappee vers 'hypothese'."""
+        # / 'proposition' is mapped to 'hypothese'
+        resultat = normaliser_valeur_hypostase("proposition")
+        self.assertEqual(resultat, "hypothese")
+
+    def test_prediction_mappee_vers_conjecture(self):
+        """'prediction' est mappee vers 'conjecture'."""
+        # / 'prediction' is mapped to 'conjecture'
+        resultat = normaliser_valeur_hypostase("prédiction")
+        self.assertEqual(resultat, "conjecture")
+
+    def test_these_mappee_vers_theorie(self):
+        """'these' est mappee vers 'theorie'."""
+        # / 'these' is mapped to 'theorie'
+        resultat = normaliser_valeur_hypostase("thèse")
+        self.assertEqual(resultat, "theorie")
+
+    def test_critique_mappee_vers_probleme(self):
+        """'critique' est mappee vers 'probleme'."""
+        # / 'critique' is mapped to 'probleme'
+        resultat = normaliser_valeur_hypostase("critique")
+        self.assertEqual(resultat, "probleme")
+
+    def test_defi_mappe_vers_probleme(self):
+        """'defi' est mappe vers 'probleme'."""
+        # / 'defi' is mapped to 'probleme'
+        resultat = normaliser_valeur_hypostase("défi")
+        self.assertEqual(resultat, "probleme")
+
+    def test_synonyme_dans_liste_multi_valeurs(self):
+        """Les synonymes sont resolus dans une liste multi-valeurs."""
+        # / Synonyms are resolved in a multi-value list
+        resultat = normaliser_valeur_hypostase("proposition, théorie")
+        self.assertEqual(resultat, "hypothese, theorie")
+
+    def test_hypostase_valide_pas_mappee_par_synonyme(self):
+        """Une hypostase valide n'est pas ecrasee par le mapping synonyme."""
+        # / A valid hypostase is not overridden by synonym mapping
+        resultat = normaliser_valeur_hypostase("hypothese")
+        self.assertEqual(resultat, "hypothese")
+
+
+# ========================================================================
+# Tests annotation multi-jobs (pastilles de toutes les extractions)
+# / Tests for multi-job annotation (pastilles from all extractions)
+# ========================================================================
+
+class AnnotationMultiJobsTest(TestCase):
+    """Tests que la vue lecture affiche les pastilles de TOUS les jobs completed."""
+
+    def setUp(self):
+        """Cree une page avec 2 jobs completed et des entites dans chacun."""
+        # / Create a page with 2 completed jobs and entities in each
+        from django.contrib.auth.models import User
+        from core.models import Page, Dossier, VisibiliteDossier
+        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
+
+        self.utilisateur = User.objects.create_user("test_multijob", password="test1234")
+        self.dossier = Dossier.objects.create(
+            name="Test multi-jobs", owner=self.utilisateur,
+            visibilite=VisibiliteDossier.PUBLIC,
+        )
+        self.page = Page.objects.create(
+            title="Page multi-jobs",
+            html_readability="<p>Premier passage. Deuxieme passage. Troisieme passage.</p>",
+            text_readability="Premier passage. Deuxieme passage. Troisieme passage.",
+            status="completed",
+            dossier=self.dossier,
+            owner=self.utilisateur,
+        )
+
+        # Job 1 : 1 entite sur "Premier passage"
+        # / Job 1: 1 entity on "Premier passage"
+        self.job_1 = ExtractionJob.objects.create(
+            page=self.page, name="Job 1", status="completed",
+        )
+        self.entite_1 = ExtractedEntity.objects.create(
+            job=self.job_1,
+            extraction_class="theorie",
+            extraction_text="Premier passage",
+            start_char=0, end_char=15,
+            attributes={"resume": "test1", "hypostases": "theorie"},
+        )
+
+        # Job 2 : 1 entite sur "Troisieme passage"
+        # / Job 2: 1 entity on "Troisieme passage"
+        self.job_2 = ExtractionJob.objects.create(
+            page=self.page, name="Job 2", status="completed",
+        )
+        self.entite_2 = ExtractedEntity.objects.create(
+            job=self.job_2,
+            extraction_class="probleme",
+            extraction_text="Troisieme passage",
+            start_char=34, end_char=51,
+            attributes={"resume": "test2", "hypostases": "probleme"},
+        )
+
+        self.client.login(username="test_multijob", password="test1234")
+
+    def test_lecture_affiche_pastilles_de_tous_les_jobs(self):
+        """La page de lecture affiche les pastilles des 2 jobs (pas seulement le dernier)."""
+        # / The reading page shows pastilles from both jobs (not just the last one)
+        reponse = self.client.get(f"/lire/{self.page.pk}/", HTTP_HX_REQUEST="true")
+        contenu = reponse.content.decode("utf-8")
+
+        # Les deux entites doivent etre presentes dans le HTML annote
+        # / Both entities must be present in the annotated HTML
+        self.assertIn(f"data-extraction-id=\"{self.entite_1.pk}\"", contenu)
+        self.assertIn(f"data-extraction-id=\"{self.entite_2.pk}\"", contenu)
+
+    def test_lecture_f5_affiche_pastilles_de_tous_les_jobs(self):
+        """L'acces direct (F5) affiche aussi les pastilles des 2 jobs."""
+        # / Direct access (F5) also shows pastilles from both jobs
+        reponse = self.client.get(f"/lire/{self.page.pk}/")
+        contenu = reponse.content.decode("utf-8")
+
+        self.assertIn(f"data-extraction-id=\"{self.entite_1.pk}\"", contenu)
+        self.assertIn(f"data-extraction-id=\"{self.entite_2.pk}\"", contenu)

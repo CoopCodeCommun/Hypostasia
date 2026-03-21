@@ -90,15 +90,19 @@
         {% endif %}
 
         {# Bouton synthese / Synthesis button #}
+        {# Les analyseurs sont passes en JSON pour le selecteur dans la modale #}
+        {# / Analyzers are passed as JSON for the selector in the modal #}
         <div class="mt-4" id="zone-btn-synthese">
             {% if seuil_atteint %}
                 <button class="btn-synthese" data-testid="btn-lancer-synthese"
-                        onclick="ouvrirModaleSynthese({{ page.pk }}, true, {{ pourcentage_consensus }}, {{ seuil_consensus }})">
+                        data-analyseurs='[{% for a in analyseurs_synthese %}{"id":{{ a.pk }},"name":"{{ a.name }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+                        onclick="ouvrirModaleSynthese({{ page.pk }}, true, {{ pourcentage_consensus }}, {{ seuil_consensus }}, this.dataset.analyseurs)">
                     Lancer la synth&egrave;se
                 </button>
             {% else %}
                 <button class="btn-synthese btn-synthese-avertissement" data-testid="btn-lancer-synthese"
-                        onclick="ouvrirModaleSynthese({{ page.pk }}, false, {{ pourcentage_consensus }}, {{ seuil_consensus }})">
+                        data-analyseurs='[{% for a in analyseurs_synthese %}{"id":{{ a.pk }},"name":"{{ a.name }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+                        onclick="ouvrirModaleSynthese({{ page.pk }}, false, {{ pourcentage_consensus }}, {{ seuil_consensus }}, this.dataset.analyseurs)">
                     Lancer la synth&egrave;se
                 </button>
                 <p class="text-[10px] text-amber-600 mt-1 text-center">

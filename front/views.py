@@ -939,16 +939,22 @@ class LectureViewSet(viewsets.ViewSet):
                 page.text_readability = texte_brut_regenere
                 page.save(update_fields=["html_readability", "text_readability"])
 
-        # Si un job existe, on recupere ses entites pour les afficher
-        # / If a job exists, retrieve its entities for display
+        # Si un job existe, on recupere les entites de TOUS les jobs termines
+        # (pas seulement le dernier) pour etre coherent avec le drawer E.
+        # / If a job exists, retrieve entities from ALL completed jobs
+        # / (not just the last one) to be consistent with the E drawer.
         entites_existantes = None
         html_annote = None
         ids_entites_commentees = set()
         if dernier_job_termine:
-            # Exclure les entites masquees de l'annotation
-            # / Exclude hidden entities from annotation
+            tous_les_jobs_de_la_page = ExtractionJob.objects.filter(
+                page=page, status="completed",
+            )
+            toutes_entites_non_masquees = ExtractedEntity.objects.filter(
+                job__in=tous_les_jobs_de_la_page, masquee=False,
+            )
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
+                toutes_entites_non_masquees
             )
             # Annoter le HTML avec des ancres pour le scroll-to-extraction
             # / Annotate HTML with anchors for scroll-to-extraction
@@ -1153,10 +1159,12 @@ class LectureViewSet(viewsets.ViewSet):
         html_annote = None
         ids_entites_commentees = set()
         if dernier_job_termine:
-            # Exclure les entites masquees de l'annotation
-            # / Exclude hidden entities from annotation
+            # Entites de TOUS les jobs termines (coherent avec le drawer E)
+            # / Entities from ALL completed jobs (consistent with the E drawer)
+            tous_les_jobs_page = ExtractionJob.objects.filter(page=page, status="completed")
+            toutes_entites = ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
+                toutes_entites
             )
             scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
@@ -2038,10 +2046,12 @@ class LectureViewSet(viewsets.ViewSet):
             # Termine → retourner le drawer_vue_liste (etat 4) + OOB texte annote
             # / Completed → return drawer_vue_liste (state 4) + OOB annotated text
 
-            # Construire le HTML annote pour la zone de lecture
-            # / Build annotated HTML for the reading zone
+            # Entites de TOUS les jobs termines (coherent avec le drawer E)
+            # / Entities from ALL completed jobs (consistent with the E drawer)
+            tous_les_jobs_page = ExtractionJob.objects.filter(page=page, status="completed")
+            toutes_entites_page = ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             entites_non_masquees, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
+                toutes_entites_page
             )
             scores_temperature = _calculer_scores_temperature(entites_non_masquees)
             html_annote_pour_oob = annoter_html_avec_barres(
@@ -2197,10 +2207,19 @@ class LectureViewSet(viewsets.ViewSet):
                 "page": page,
             })
 
-        # Trouver l'analyseur de type synthetiser / Find the synthetiser analyzer
-        analyseur_synthese = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="synthetiser",
-        ).first()
+        # Trouver l'analyseur de synthese : depuis le formulaire ou le premier actif
+        # / Find synthesis analyzer: from form data or first active one
+        analyseur_id_choisi = request.data.get("select-analyseur-synthese")
+        if analyseur_id_choisi:
+            analyseur_synthese = AnalyseurSyntaxique.objects.filter(
+                pk=analyseur_id_choisi, is_active=True, type_analyseur="synthetiser",
+            ).first()
+        else:
+            analyseur_synthese = None
+        if not analyseur_synthese:
+            analyseur_synthese = AnalyseurSyntaxique.objects.filter(
+                is_active=True, type_analyseur="synthetiser",
+            ).first()
         if not analyseur_synthese:
             reponse_erreur = HttpResponse(status=400)
             reponse_erreur["HX-Trigger"] = json.dumps({
@@ -2663,9 +2682,11 @@ class LectureViewSet(viewsets.ViewSet):
             page=page, status="completed",
         ).select_related("analyseur_version").order_by("-created_at").first()
         if dernier_job_termine:
-            # Exclure les entites masquees / Exclude hidden entities
+            # Entites de TOUS les jobs termines (coherent avec le drawer E)
+            # / Entities from ALL completed jobs (consistent with the E drawer)
+            tous_les_jobs_page = ExtractionJob.objects.filter(page=page, status="completed")
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
+                ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             )
             scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
@@ -2750,9 +2771,11 @@ class LectureViewSet(viewsets.ViewSet):
             page=page, status="completed",
         ).select_related("analyseur_version").order_by("-created_at").first()
         if dernier_job_termine:
-            # Exclure les entites masquees / Exclude hidden entities
+            # Entites de TOUS les jobs termines (coherent avec le drawer E)
+            # / Entities from ALL completed jobs (consistent with the E drawer)
+            tous_les_jobs_page = ExtractionJob.objects.filter(page=page, status="completed")
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
+                ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             )
             scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
@@ -4854,8 +4877,7 @@ class ExtractionViewSet(viewsets.ViewSet):
             return reponse
 
         # Construire le prompt et les exemples / Build prompt and examples
-        from front.tasks import _construire_exemples_langextract
-        from hypostasis_extractor.services import resolve_model_params
+        from hypostasis_extractor.services import _construire_exemples_langextract, resolve_model_params
         import langextract as lx
 
         pieces_ordonnees = PromptPiece.objects.filter(analyseur=analyseur).order_by("order")
@@ -5174,6 +5196,9 @@ class ExtractionViewSet(viewsets.ViewSet):
             "seuil_consensus": SEUIL_CONSENSUS_DEFAUT,
             "seuil_atteint": seuil_atteint,
             "extractions_bloquantes": extractions_bloquantes,
+            "analyseurs_synthese": AnalyseurSyntaxique.objects.filter(
+                is_active=True, type_analyseur="synthetiser",
+            ).order_by("name"),
         }
 
         return render(request, "front/includes/dashboard_consensus.html", contexte)

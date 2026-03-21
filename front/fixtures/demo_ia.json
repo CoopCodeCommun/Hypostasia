@@ -63,20 +63,6 @@
 },
 {
   "model": "hypostasis_extractor.analyseursyntaxique",
-  "pk": 3,
-  "fields": {
-    "name": "Restitution",
-    "description": "",
-    "is_active": true,
-    "type_analyseur": "restituer",
-    "inclure_extractions": true,
-    "inclure_texte_original": true,
-    "created_at": "2026-03-21T12:25:09.963Z",
-    "updated_at": "2026-03-21T12:25:09.963Z"
-  }
-},
-{
-  "model": "hypostasis_extractor.analyseursyntaxique",
   "pk": 4,
   "fields": {
     "name": "Rhétorique",
@@ -87,6 +73,20 @@
     "inclure_texte_original": false,
     "created_at": "2026-03-21T13:25:06.030Z",
     "updated_at": "2026-03-21T13:25:06.030Z"
+  }
+},
+{
+  "model": "hypostasis_extractor.analyseursyntaxique",
+  "pk": 5,
+  "fields": {
+    "name": "Synthèse délibérative",
+    "description": "Génère une nouvelle version du texte intégrant le débat structuré (hypostases + commentaires + statuts). Pondère les passages selon leur statut de consensus.",
+    "is_active": true,
+    "type_analyseur": "synthetiser",
+    "inclure_extractions": false,
+    "inclure_texte_original": false,
+    "created_at": "2026-03-21T14:21:06.896Z",
+    "updated_at": "2026-03-21T14:21:06.896Z"
   }
 },
 {
@@ -168,17 +168,6 @@
 },
 {
   "model": "hypostasis_extractor.promptpiece",
-  "pk": 8,
-  "fields": {
-    "analyseur": 3,
-    "name": "",
-    "role": "instruction",
-    "content": "Prend en compte le texte original et les commentaires sur cette partie de l'extraction.\nEssaye de synthétiser la discussion autour de cette extraction du texte original.\nPrend en compte les pour et les contre s'ils sont bien exprimés.\nN'hallucine pas de nouvelles idées, résume la discussion en FALC.",
-    "order": 0
-  }
-},
-{
-  "model": "hypostasis_extractor.promptpiece",
   "pk": 9,
   "fields": {
     "analyseur": 4,
@@ -241,6 +230,39 @@
     "role": "format",
     "content": "RÈGLES DE FORMAT STRICTES — chaque extraction DOIT suivre ce schéma exact :\n\n{\n  \"extraction_class\": \"thèse\",\n  \"extraction_text\": \"citation exacte du texte source\",\n  \"attributes\": {\n    \"resume\": \"synthèse en une phrase\",\n    \"hypostases\": \"théorie, problème\",\n    \"mots_cles\": \"mot1, mot2, mot3\"\n  }\n}\n\nRègles :\n- \"extraction_class\" : la nature rhétorique de l'argument (thèse, critique, proposition...), PAS une hypostase\n- \"extraction_text\" : toujours une chaîne (string), citation EXACTE du texte, JAMAIS une liste ou un objet\n- \"attributes\" : toujours un objet JSON plat { \"clé\": \"valeur\" } avec exactement 3 clés : resume, hypostases, mots_cles\n- \"hypostases\" : 1 à 3 hypostases UNIQUEMENT parmi les 30 définies plus haut (classification, axiome, théorie, etc.). Ne JAMAIS en inventer. Ne JAMAIS lister les 30.\n- Si une valeur contient plusieurs éléments, les séparer par des virgules dans une seule chaîne\n- Ne JAMAIS utiliser le format \"thèse\": \"texte\", \"thèse_attributes\": {...} — utiliser extraction_class/extraction_text/attributes\n- Ne JAMAIS répéter la même extraction ni boucler sur les mêmes données",
     "order": 5
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 15,
+  "fields": {
+    "analyseur": 5,
+    "name": "",
+    "role": "context",
+    "content": "Tu es un rédacteur expert en synthèse délibérative. Ta mission est de produire une nouvelle version d'un texte qui intègre les résultats d'un débat structuré.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 16,
+  "fields": {
+    "analyseur": 5,
+    "name": "",
+    "role": "instruction",
+    "content": "Règles de pondération par statut de débat :\n\n- CONSENSUEL : intégrer pleinement, ces points font l'objet d'un accord du groupe.\n- DISCUTABLE : mentionner avec nuance, le débat n'a pas encore eu lieu.\n- DISCUTÉ : présenter les différents points de vue exprimés dans les commentaires.\n- CONTROVERSÉ : expliciter la controverse sans trancher, citer les arguments des deux côtés.\n- Les extractions NON PERTINENTES sont exclues du prompt, ignore-les.\n\nLe texte produit doit être :\n1. Une version autonome et lisible (pas un résumé du débat)\n2. Rédigé dans un style cohérent avec le texte original\n3. Fidèle aux sources : chaque affirmation doit pouvoir être reliée à une extraction\n4. Équilibré : les passages controversés ne doivent pas être supprimés mais contextualisés",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 17,
+  "fields": {
+    "analyseur": 5,
+    "name": "",
+    "role": "instruction",
+    "content": "Produis la synthèse délibérative de ce débat en intégrant les pondérations par statut définies dans tes instructions. Le texte produit doit être une nouvelle version autonome et lisible du document.",
+    "order": 2
   }
 },
 {

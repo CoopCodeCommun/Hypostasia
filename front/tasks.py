@@ -569,6 +569,43 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
             job_id, page_associee.pk, len(segments_transcrits), duree_traitement,
         )
 
+        # Debit post-completion (PHASE-26h) — debiter le cout de la transcription audio
+        # Le cout est base sur la duree de traitement (tarif par minute selon le modele)
+        # / Post-completion debit (PHASE-26h) — debit audio transcription cost
+        # / Cost is based on processing time (per-minute rate for the model)
+        from django.conf import settings as django_settings
+        if django_settings.STRIPE_ENABLED and config_transcription:
+            try:
+                from core.models import CreditAccount, SoldeInsuffisantError
+                cout_transcription = config_transcription.estimer_cout_euros(
+                    duree_traitement,
+                ) if hasattr(config_transcription, 'estimer_cout_euros') else None
+
+                if cout_transcription and cout_transcription > 0:
+                    proprietaire_audio = page_associee.owner or (
+                        page_associee.dossier.owner if page_associee.dossier else None
+                    )
+                    if proprietaire_audio and not proprietaire_audio.is_superuser:
+                        compte_credits_audio = CreditAccount.get_ou_creer(proprietaire_audio)
+                        compte_credits_audio.debiter(
+                            montant=cout_transcription,
+                            description=f"Transcription audio #{job_id} — {duree_traitement:.0f}s",
+                        )
+                        logger.info(
+                            "transcrire_audio_task: debite %s EUR du compte de %s pour job=%s",
+                            cout_transcription, proprietaire_audio.username, job_id,
+                        )
+            except SoldeInsuffisantError:
+                logger.warning(
+                    "transcrire_audio_task: solde insuffisant post-completion job=%s",
+                    job_id,
+                )
+            except Exception as erreur_debit_audio:
+                logger.error(
+                    "transcrire_audio_task: erreur debit credits job=%s — %s",
+                    job_id, erreur_debit_audio,
+                )
+
         # Notifier le navigateur que la transcription est terminee
         # / Notify the browser that transcription is complete
         envoyer_progression_websocket(nom_groupe_transcription, "terminee", {
@@ -1079,21 +1116,45 @@ def synthetiser_page_task(self, job_id):
             "resultat": {"page_synthese_id": page_synthese.pk},
         })
 
-        # Debiter les credits si Stripe actif / Debit credits if Stripe active
-        try:
-            from django.conf import settings as django_settings
-            if django_settings.STRIPE_ENABLED:
-                from core.models import CreditAccount
-                compte_credits = CreditAccount.objects.filter(user=page_source.owner).first()
-                if compte_credits:
-                    # Estimation du cout (tokens input + output) / Cost estimate (input + output tokens)
-                    tokens_input_estimes = len(message_complet) // 4
-                    tokens_output_estimes = len(texte_synthese) // 4
-                    cout_estime = (tokens_input_estimes * 0.000003) + (tokens_output_estimes * 0.000015)
-                    compte_credits.solde_euros -= cout_estime
-                    compte_credits.save(update_fields=["solde_euros"])
-        except Exception as erreur_credits:
-            logger.warning("synthetiser_page_task: erreur debit credits — %s", erreur_credits)
+        # Debit post-completion (PHASE-26h) — debiter le compte du proprietaire
+        # Utilise le modele IA pour estimer le cout reel a partir des tokens
+        # / Post-completion debit (PHASE-26h) — debit owner's account
+        # / Uses the AI model to estimate real cost from tokens
+        from django.conf import settings as django_settings
+        if django_settings.STRIPE_ENABLED:
+            try:
+                from core.models import CreditAccount, SoldeInsuffisantError
+                tokens_input_estimes = len(message_complet) // 4
+                tokens_output_estimes = len(texte_synthese) // 4
+                cout_reel = modele_ia.estimer_cout_euros(
+                    tokens_input_estimes, tokens_output_estimes,
+                ) if hasattr(modele_ia, 'estimer_cout_euros') else None
+
+                if cout_reel and cout_reel > 0:
+                    proprietaire_synthese = page_source.owner or (
+                        page_source.dossier.owner if page_source.dossier else None
+                    )
+                    if proprietaire_synthese and not proprietaire_synthese.is_superuser:
+                        compte_credits = CreditAccount.get_ou_creer(proprietaire_synthese)
+                        compte_credits.debiter(
+                            montant=cout_reel,
+                            extraction_job=job_synthese,
+                            description=f"Synthèse #{job_synthese.pk} — {tokens_input_estimes}+{tokens_output_estimes} tokens",
+                        )
+                        logger.info(
+                            "synthetiser_page_task: debite %s EUR du compte de %s pour job=%s",
+                            cout_reel, proprietaire_synthese.username, job_id,
+                        )
+            except SoldeInsuffisantError:
+                logger.warning(
+                    "synthetiser_page_task: solde insuffisant post-completion job=%s",
+                    job_id,
+                )
+            except Exception as erreur_credits:
+                logger.error(
+                    "synthetiser_page_task: erreur debit credits job=%s — %s",
+                    job_id, erreur_credits,
+                )
 
     except Exception as erreur_synthese:
         # Erreur : marquer le job en erreur / Error: mark job as error
