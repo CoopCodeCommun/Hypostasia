@@ -3607,9 +3607,9 @@ class Phase17FichierKeyboardJSTest(TestCase):
         self.assertIn("extractionSuivante", self.contenu_js)
         self.assertIn("extractionPrecedente", self.contenu_js)
 
-    def test_js_contient_ouvrirAideRaccourcis(self):
-        """keyboard.js contient la modale aide (?)."""
-        self.assertIn("ouvrirAideRaccourcis", self.contenu_js)
+    def test_js_contient_fermerAideRaccourcis(self):
+        """keyboard.js contient la fermeture de la modale aide (Escape)."""
+        self.assertIn("fermerAideRaccourcis", self.contenu_js)
 
     def test_js_contient_listener_unique(self):
         """keyboard.js utilise un seul addEventListener keydown."""

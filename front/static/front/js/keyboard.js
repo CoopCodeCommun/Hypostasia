@@ -26,7 +26,7 @@
 //   ?       → Modale aide raccourcis
 //   Escape  → Cascade fermeture (modale alignement > modale aide > focus > dashboard > drawer > arbre > carte > selection)
 //
-// Expose : window.raccourcisClavier = { ouvrirAide, fermerAide }
+// Expose : window.raccourcisClavier = { fermerAide }
 // ==========================================================================
 (function() {
     'use strict';
@@ -180,103 +180,11 @@
 
 
     // === Modale aide raccourcis (?) ===
+    // La modale est chargee via HTMX depuis /lire/aide/ (template serveur).
+    // fermerAideRaccourcis() est appele par la touche Escape.
     // / === Keyboard shortcuts help modal (?) ===
-
-    // Ouvre la modale d'aide — contenu adapte au contexte (mobile ou desktop)
-    // / Open help modal — content adapted to context (mobile or desktop)
-    function ouvrirAideRaccourcis() {
-        if (modaleAideOuverte) return;
-        modaleAideOuverte = true;
-
-        // Detecter si on est en contexte mobile (< 768px)
-        // / Detect if we're in mobile context (< 768px)
-        var estMobile = window.innerWidth <= 768;
-
-        var contenuAide = '';
-        if (estMobile) {
-            contenuAide = construireAideMobile();
-        } else {
-            contenuAide = construireAideDesktop();
-        }
-
-        var html = '<div class="modale-raccourcis-backdrop" id="modale-raccourcis">'
-            + '<div class="modale-raccourcis">'
-            + contenuAide
-            + '</div>'
-            + '</div>';
-
-        document.body.insertAdjacentHTML('beforeend', html);
-
-        // Clic sur le bouton fermer ou sur le backdrop / Click close button or backdrop
-        var modale = document.getElementById('modale-raccourcis');
-        modale.addEventListener('click', function(evenement) {
-            if (evenement.target === modale || evenement.target.id === 'btn-fermer-modale-raccourcis') {
-                fermerAideRaccourcis();
-            }
-        });
-    }
-
-    // Genere une ligne de raccourci HTML (touche + description)
-    // / Generate a shortcut HTML line (key + description)
-    function ligneRaccourci(touche, description) {
-        return '<div class="flex items-center gap-3">'
-            + '<span class="raccourci-touche">' + touche + '</span>'
-            + '<span>' + description + '</span>'
-            + '</div>';
-    }
-
-    // Genere une ligne de geste mobile HTML (icone emoji + description)
-    // / Generate a mobile gesture HTML line (emoji icon + description)
-    function ligneGesteMobile(icone, description) {
-        return '<div class="flex items-start gap-3 py-1">'
-            + '<span class="text-lg shrink-0 w-6 text-center">' + icone + '</span>'
-            + '<span class="text-sm text-slate-700">' + description + '</span>'
-            + '</div>';
-    }
-
-    // Construit le contenu de l'aide mobile (gestes tactiles)
-    // / Build mobile help content (touch gestures)
-    function construireAideMobile() {
-        return '<div class="flex items-center justify-between mb-4">'
-            + '<h2 class="text-base font-semibold text-slate-800">Aide Hypostasia</h2>'
-            + '<button id="btn-fermer-modale-raccourcis" class="text-slate-400 hover:text-slate-700 text-2xl leading-none p-1">&times;</button>'
-            + '</div>'
-            + '<p class="text-xs text-slate-500 mb-3">Comment utiliser Hypostasia sur mobile</p>'
-            + '<div class="space-y-1">'
-            + ligneGesteMobile('\ud83d\udc46', '<strong>Tapez sur un texte soulign\u00e9</strong> pour voir l\u2019extraction (carte en bas)')
-            + ligneGesteMobile('\u2b07\ufe0f', '<strong>Glissez la poign\u00e9e vers le bas</strong> pour fermer la carte')
-            + ligneGesteMobile('\ud83d\udcac', '<strong>Tapez Commenter</strong> dans la carte pour r\u00e9agir')
-            + ligneGesteMobile('\u2261', '<strong>Hamburger</strong> (en haut \u00e0 gauche) pour ouvrir la biblioth\u00e8que')
-            + ligneGesteMobile('\u2728', '<strong>Analyser</strong> pour lancer l\u2019analyse IA')
-            + ligneGesteMobile('\u2b50', 'Boutons <strong>Consensuel / Controvers\u00e9</strong> pour voter sur une extraction')
-            + ligneGesteMobile('\ud83d\udcc1', '<strong>Extractions</strong> pour voir la liste compl\u00e8te')
-            + '</div>'
-            + '<p class="text-[10px] text-slate-400 mt-4 border-t border-slate-100 pt-2">Les textes soulign\u00e9s dans l\u2019article sont des extractions IA. Tapez dessus pour les explorer.</p>';
-    }
-
-    // Construit le contenu de l'aide desktop (raccourcis clavier)
-    // / Build desktop help content (keyboard shortcuts)
-    function construireAideDesktop() {
-        return '<div class="flex items-center justify-between mb-4">'
-            + '<h2 class="text-base font-semibold text-slate-800">Raccourcis clavier</h2>'
-            + '<button id="btn-fermer-modale-raccourcis" class="text-slate-400 hover:text-slate-700 text-lg leading-none">&times;</button>'
-            + '</div>'
-            + '<div class="space-y-2 text-sm text-slate-600">'
-            + ligneRaccourci('T', 'Ouvrir/fermer la biblioth\u00e8que')
-            + ligneRaccourci('E', 'Ouvrir/fermer le panneau extractions')
-            + ligneRaccourci('L', 'Mode focus lecture')
-            + ligneRaccourci('J', 'Extraction suivante')
-            + ligneRaccourci('K', 'Extraction pr\u00e9c\u00e9dente')
-            + ligneRaccourci('C', 'Commenter l\u2019extraction s\u00e9lectionn\u00e9e')
-            + ligneRaccourci('S', 'Marquer consensuelle')
-            + ligneRaccourci('X', 'Masquer l\u2019extraction')
-            + ligneRaccourci('H', 'Heat map du d\u00e9bat')
-            + ligneRaccourci('A', 'Comparer / Aligner des pages')
-            + ligneRaccourci('Z', 'Comparer les versions')
-            + ligneRaccourci('?', 'Afficher cette aide')
-            + ligneRaccourci('Esc', 'Fermer le panneau actif')
-            + '</div>';
-    }
+    // / The modal is loaded via HTMX from /lire/aide/ (server template).
+    // / fermerAideRaccourcis() is called by the Escape key.
 
     // Ferme la modale d'aide
     // / Close help modal
@@ -738,7 +646,6 @@
     // Expose l'API publique
     // / Expose public API
     window.raccourcisClavier = {
-        ouvrirAide: ouvrirAideRaccourcis,
         fermerAide: fermerAideRaccourcis,
     };
 

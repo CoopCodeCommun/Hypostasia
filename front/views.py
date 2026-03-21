@@ -1542,6 +1542,7 @@ class LectureViewSet(viewsets.ViewSet):
             ("X", "Masquer l\u2019extraction"),
             ("H", "Heat map du d\u00e9bat"),
             ("A", "Comparer / Aligner des pages"),
+            ("Z", "Comparer les versions"),
             ("?", "Afficher cette aide"),
             ("Esc", "Fermer le panneau actif"),
         ]
