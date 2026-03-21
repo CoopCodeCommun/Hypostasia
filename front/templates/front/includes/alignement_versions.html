@@ -1,0 +1,187 @@
+{# Alignement des hypostases entre 2 versions (PHASE-27b extension) #}
+{# / Hypostase alignment between 2 versions (PHASE-27b extension) #}
+
+{# Variables de contexte : #}
+{#   - page_gauche, page_droite : les 2 pages comparees #}
+{#   - sections_tableau : liste de { famille, nom_famille, lignes } avec delta #}
+{#   - nombre_hypostases : total d'hypostases distinctes #}
+
+<div class="alignement-versions-conteneur" data-testid="alignement-versions">
+
+    {# Header : titre + bouton toggle source/resume #}
+    {# / Header: title + toggle source/summary button #}
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+            <h3 class="text-base font-semibold text-slate-800">
+                Alignement des hypostases
+            </h3>
+            <span class="text-xs text-slate-400">{{ nombre_hypostases }} hypostase{{ nombre_hypostases|pluralize:"s" }}</span>
+        </div>
+        <button id="btn-bascule-source-versions" class="text-sm text-slate-500 hover:text-indigo-600 px-3 py-1.5 rounded hover:bg-slate-50 transition-colors"
+                data-testid="btn-bascule-source-versions" title="Basculer texte source / résumé IA">
+            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+            <span id="btn-bascule-source-versions-label">Source</span>
+        </button>
+    </div>
+
+    {% if sections_tableau %}
+    {# Tableau d'alignement 2 versions #}
+    {# / 2-version alignment table #}
+    <div class="overflow-x-auto">
+        <table class="alignement-table w-full">
+            <thead>
+                <tr>
+                    <th class="alignement-td-hypostase alignement-th-corner">Hypostase</th>
+                    <th class="alignement-th-page" title="V{{ page_gauche.version_number }} — {{ page_gauche.title|default:'Sans titre' }}">
+                        V{{ page_gauche.version_number }}{% if page_gauche.version_label %} — {{ page_gauche.version_label }}{% endif %}
+                    </th>
+                    <th class="alignement-th-page" title="V{{ page_droite.version_number }} — {{ page_droite.title|default:'Sans titre' }}">
+                        V{{ page_droite.version_number }}{% if page_droite.version_label %} — {{ page_droite.version_label }}{% endif %}
+                    </th>
+                    <th class="alignement-delta px-3 py-2 text-xs font-medium text-slate-500 bg-slate-50 border-b border-slate-200">
+                        Évolution
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for section in sections_tableau %}
+                {# En-tete de famille : bandeau colore #}
+                {# / Family header: colored banner #}
+                <tr class="alignement-famille-header" data-famille="{{ section.famille }}" style="cursor: pointer;">
+                    <td colspan="4" class="px-4 py-2 text-xs font-semibold tracking-wider uppercase"
+                        style="background-color: var(--hypostase-{{ section.famille }}-bg); color: var(--hypostase-{{ section.famille }}-text);">
+                        <span class="inline-flex items-center gap-2">
+                            <svg class="w-3 h-3 tree-arrow open" fill="currentColor" viewBox="0 0 20 20"><path d="M6 6l4 4 4-4"/></svg>
+                            {{ section.nom_famille }}
+                            <span class="text-[0.625rem] font-normal opacity-70">({{ section.lignes|length }})</span>
+                        </span>
+                    </td>
+                </tr>
+
+                {% for ligne in section.lignes %}
+                <tr class="alignement-ligne" data-famille="{{ section.famille }}">
+                    {# Colonne hypostase (sticky left) #}
+                    <td class="alignement-td-hypostase">
+                        <span class="typo-hypostase" style="color: var(--hypostase-{{ section.famille }}-text);">
+                            {{ ligne.hypostase }}
+                        </span>
+                    </td>
+
+                    {# Cellule V1 #}
+                    {% with cellule=ligne.cellules.0 %}
+                    {% if cellule.remplie %}
+                    <td class="alignement-cell{% if ligne.delta_type == 'supprime' %} alignement-cell-supprime{% endif %}"
+                        data-page-id="{{ cellule.page_id }}" data-extraction-id="{{ cellule.entites.0.pk }}">
+                        <span class="alignement-cell-count">{{ cellule.count }}</span>
+                        <span class="alignement-texte-resume typo-machine text-xs leading-snug">{{ cellule.resume_complet }}</span>
+                        <span class="alignement-texte-origine typo-citation text-sm leading-relaxed">{{ cellule.texte_origine }}</span>
+                    </td>
+                    {% else %}
+                    <td class="alignement-cell alignement-cell-gap{% if ligne.delta_type == 'ajoute' %} alignement-cell-ajoute{% endif %}">
+                        —
+                    </td>
+                    {% endif %}
+                    {% endwith %}
+
+                    {# Cellule V2 #}
+                    {% with cellule=ligne.cellules.1 %}
+                    {% if cellule.remplie %}
+                    <td class="alignement-cell{% if ligne.delta_type == 'ajoute' %} alignement-cell-ajoute{% endif %}"
+                        data-page-id="{{ cellule.page_id }}" data-extraction-id="{{ cellule.entites.0.pk }}">
+                        <span class="alignement-cell-count">{{ cellule.count }}</span>
+                        <span class="alignement-texte-resume typo-machine text-xs leading-snug">{{ cellule.resume_complet }}</span>
+                        <span class="alignement-texte-origine typo-citation text-sm leading-relaxed">{{ cellule.texte_origine }}</span>
+                    </td>
+                    {% else %}
+                    <td class="alignement-cell alignement-cell-gap{% if ligne.delta_type == 'supprime' %} alignement-cell-supprime{% endif %}">
+                        —
+                    </td>
+                    {% endif %}
+                    {% endwith %}
+
+                    {# Colonne delta / Delta column #}
+                    <td class="alignement-delta px-3 py-2">
+                        {% if ligne.delta_type == 'supprime' %}
+                            <span class="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                                Supprimée
+                            </span>
+                        {% elif ligne.delta_type == 'ajoute' %}
+                            <span class="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                Ajoutée
+                            </span>
+                        {% elif ligne.delta_statut %}
+                            <span class="inline-flex items-center gap-1 text-xs text-slate-600">
+                                <span class="statut-badge statut-{{ ligne.delta_statut.de }}" style="font-size: 0.625rem; padding: 0 0.25rem;">{{ ligne.delta_statut.de }}</span>
+                                <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/>
+                                </svg>
+                                <span class="statut-badge statut-{{ ligne.delta_statut.vers }}" style="font-size: 0.625rem; padding: 0 0.25rem;">{{ ligne.delta_statut.vers }}</span>
+                            </span>
+                        {% else %}
+                            <span class="text-xs text-slate-300">=</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% else %}
+    {# Aucune extraction sur les deux versions #}
+    {# / No extraction on either version #}
+    <div class="empty-state" style="min-height: 12rem;" data-testid="alignement-versions-vide">
+        <svg class="empty-state-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z"/>
+        </svg>
+        <p class="empty-state-text">Aucune hypostase trouvée</p>
+        <p class="empty-state-subtext">Lancez une analyse sur les deux versions pour comparer leurs hypostases.</p>
+    </div>
+    {% endif %}
+
+</div>
+
+{# Script : toggle source/resume + navigation vers extraction #}
+{# / Script: toggle source/summary + navigation to extraction #}
+<script>
+(function() {
+    // Toggle source / resume via la classe CSS alignement-mode-source sur le conteneur
+    // / Toggle source / summary via the alignement-mode-source CSS class on the container
+    var btnBascule = document.getElementById('btn-bascule-source-versions');
+    var labelBascule = document.getElementById('btn-bascule-source-versions-label');
+    var conteneurVersions = document.querySelector('[data-testid="alignement-versions"]');
+    if (btnBascule && conteneurVersions) {
+        btnBascule.addEventListener('click', function() {
+            conteneurVersions.classList.toggle('alignement-mode-source');
+            var estSource = conteneurVersions.classList.contains('alignement-mode-source');
+            labelBascule.textContent = estSource ? 'Résumé' : 'Source';
+        });
+    }
+
+    // Clic sur cellule : gere par delegation dans hypostasia.js (_naviguerVersExtraction)
+    // / Cell click: handled by delegation in hypostasia.js (_naviguerVersExtraction)
+
+    // Collapse/expand des familles (reutilise le pattern du tableau alignement)
+    // / Collapse/expand families (reuses the alignment table pattern)
+    var familleHeaders = document.querySelectorAll('[data-testid="alignement-versions"] .alignement-famille-header');
+    for (var i = 0; i < familleHeaders.length; i++) {
+        familleHeaders[i].addEventListener('click', function() {
+            var famille = this.getAttribute('data-famille');
+            var fleche = this.querySelector('.tree-arrow');
+            var lignes = document.querySelectorAll('[data-testid="alignement-versions"] .alignement-ligne[data-famille="' + famille + '"]');
+            var estOuvert = fleche && fleche.classList.contains('open');
+
+            for (var j = 0; j < lignes.length; j++) {
+                lignes[j].style.display = estOuvert ? 'none' : '';
+            }
+            if (fleche) {
+                fleche.classList.toggle('open');
+            }
+        });
+    }
+})();
+</script>

@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+
+# Environnements Python locaux / Local Python environments
+.venv
+__pycache__
+*.pyc
+
+# Cache uv local / Local uv cache
+.cache
+
+# Node
+node_modules
+
+# Fichiers generes / Generated files
+staticfiles
+media
+db
+logs
+tmp
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# Docker
+Dockerfile.dev
+
+# Fichiers temporaires et screenshots / Temp files and screenshots
+*.png
+*.txt
+.bash_history
+.ipython
+.playwright-mcp
+.local
