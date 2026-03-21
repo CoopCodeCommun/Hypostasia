@@ -43,9 +43,8 @@ USER hypostasia
 
 WORKDIR /app
 
-# Copier les fichiers de dependances en premier (layer cache Docker)
-# / Copy dependency files first (Docker layer cache)
-COPY --chown=hypostasia:hypostasia pyproject.toml uv.lock ./
+# Cloner le depot / Clone the repository
+RUN git clone https://github.com/CoopCodeCommun/Hypostasia .
 
 # Installer les dependances Python / Install Python dependencies
 RUN uv sync --frozen
@@ -53,13 +52,6 @@ RUN uv sync --frozen
 # Installer les browsers Playwright (Chromium uniquement)
 # / Install Playwright browsers (Chromium only)
 RUN uv run playwright install chromium
-
-# Copier le code source / Copy source code
-# En dev, le volume mount ecrase ce COPY — c'est voulu.
-# En prod sans volume, le code est dans l'image.
-# / In dev, the volume mount overrides this COPY — that's intentional.
-# / In prod without volume, the code is baked in the image.
-COPY --chown=hypostasia:hypostasia . .
 
 # Creer les repertoires necessaires / Create required directories
 RUN mkdir -p db staticfiles logs tmp/audio media
