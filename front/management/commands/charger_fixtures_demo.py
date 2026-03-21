@@ -273,37 +273,37 @@ EXTRACTIONS_OSTROM = [
     {
         "text": "elle est la première femme à recevoir le «\u00a0prix Nobel d\u2019économie\u00a0», avec Oliver Williamson, pour son analyse de la gouvernance économique, et en particulier, des biens communs.",
         "class": "événement",
-        "attributes": {"résumé": "Ostrom première femme Nobel d\u2019économie pour ses travaux sur les biens communs.", "hypostase": "Événement"},
+        "attributes": {"resume": "Ostrom première femme Nobel d\u2019économie pour ses travaux sur les biens communs.", "hypostases": "Événement"},
     },
     {
         "text": "L\u2019\u0153uvre d\u2019Ostrom tend à montrer qu\u2019il existe un autre type de solutions, l\u2019autogouvernement, dont elle définit les huit principes caractéristiques nécessaires à sa pérennité, ainsi que les deux éléments clés de son émergence\u00a0: la réciprocité et la confiance.",
         "class": "théorie",
-        "attributes": {"résumé": "L\u2019autogouvernement comme troisième voie fondée sur réciprocité et confiance.", "hypostase": "Théorie"},
+        "attributes": {"resume": "L\u2019autogouvernement comme troisième voie fondée sur réciprocité et confiance.", "hypostases": "Théorie"},
     },
     {
         "text": "la rationalité économique doit a priori pousser des individus qui se partagent un bien en commun à le surexploiter.",
         "class": "thèse",
-        "attributes": {"résumé": "La tragédie des communs de Hardin : la rationalité individuelle mène à la surexploitation.", "hypostase": "Axiome"},
+        "attributes": {"resume": "La tragédie des communs de Hardin : la rationalité individuelle mène à la surexploitation.", "hypostases": "Axiome"},
     },
     {
         "text": "La question de la gouvernance de l\u2019intelligence artificielle comme commun numérique \u2014 avec des règles claires, une participation des usagers et des mécanismes de contrôle gradués \u2014 s\u2019inscrit directement dans la lignée de ses travaux.",
         "class": "extension",
-        "attributes": {"résumé": "Application des principes d\u2019Ostrom à la gouvernance de l\u2019IA comme commun numérique.", "hypostase": "Hypothèse"},
+        "attributes": {"resume": "Application des principes d\u2019Ostrom à la gouvernance de l\u2019IA comme commun numérique.", "hypostases": "Hypothèse"},
     },
     {
         "text": "Elinor Ostrom a surtout travaillé sur la notion de dilemme social, c\u2019est-à-dire les cas où la quête de l\u2019intérêt personnel conduit à un résultat plus mauvais pour tous que celui résultant d\u2019un autre type de comportement.",
         "class": "concept",
-        "attributes": {"résumé": "Le dilemme social : quand l\u2019intérêt individuel nuit au bien collectif.", "hypostase": "Définition"},
+        "attributes": {"resume": "Le dilemme social : quand l\u2019intérêt individuel nuit au bien collectif.", "hypostases": "Définition"},
     },
     {
         "text": "Ostrom, au contraire, soutient qu\u2019il n\u2019y a pas un seul problème mais que chaque fois il existe de nombreuses solutions face à de nombreux problèmes différents.",
         "class": "thèse",
-        "attributes": {"résumé": "Pluralité des solutions : chaque problème de communs a ses propres réponses.", "hypostase": "Principe"},
+        "attributes": {"resume": "Pluralité des solutions : chaque problème de communs a ses propres réponses.", "hypostases": "Principe"},
     },
     {
         "text": "Le capital social pour Ostrom repose sur la confiance et la réciprocité, les réseaux et la participation civile, ainsi que sur le respect des règles et institutions formelles et informelles de l\u2019action collective.",
         "class": "concept",
-        "attributes": {"résumé": "Le capital social chez Ostrom : confiance, réciprocité, participation civile.", "hypostase": "Structure"},
+        "attributes": {"resume": "Le capital social chez Ostrom : confiance, réciprocité, participation civile.", "hypostases": "Structure"},
     },
 ]
 
@@ -311,37 +311,37 @@ EXTRACTIONS_ALEXANDRE = [
     {
         "text": "Laurent Alexandre est l\u2019un des principaux représentants du mouvement transhumaniste en France, bien qu\u2019il affirme ne pas en être un adepte et accréditer seulement le diagnostic technologique des transhumanistes.",
         "class": "positionnement",
-        "attributes": {"résumé": "Alexandre se présente comme non-transhumaniste tout en validant le diagnostic transhumaniste.", "hypostase": "Paradoxe"},
+        "attributes": {"resume": "Alexandre se présente comme non-transhumaniste tout en validant le diagnostic transhumaniste.", "hypostases": "Paradoxe"},
     },
     {
         "text": "il s\u2019oppose à l\u2019instauration d\u2019un revenu universel et plaide pour une éducation visant à permettre à nos cerveaux biologiques d\u2019être le plus complémentaires possible de l\u2019intelligence artificielle.",
         "class": "proposition",
-        "attributes": {"résumé": "Opposition au revenu universel, priorité à l\u2019éducation pour la complémentarité humain-IA.", "hypostase": "Principe"},
+        "attributes": {"resume": "Opposition au revenu universel, priorité à l\u2019éducation pour la complémentarité humain-IA.", "hypostases": "Principe"},
     },
     {
         "text": "Luc Julia, vice-président innovation de Samsung Monde, affirme que Laurent Alexandre dit n\u2019importe quoi sur ce sujet, tout en changeant d\u2019avis tous les trois mois.",
         "class": "critique",
-        "attributes": {"résumé": "Critique de Julia (Samsung) : Alexandre manque de rigueur et change de position fréquemment.", "hypostase": "Indice"},
+        "attributes": {"resume": "Critique de Julia (Samsung) : Alexandre manque de rigueur et change de position fréquemment.", "hypostases": "Indice"},
     },
     {
         "text": "le site Acrimed décrit Laurent Alexandre comme un militant politique agissant sous couvert de vulgarisation scientifique au détriment de l\u2019honnêteté intellectuelle et de la rigueur scientifique.",
         "class": "critique",
-        "attributes": {"résumé": "Acrimed : Alexandre est un militant politique déguisé en vulgarisateur scientifique.", "hypostase": "Indice"},
+        "attributes": {"resume": "Acrimed : Alexandre est un militant politique déguisé en vulgarisateur scientifique.", "hypostases": "Indice"},
     },
     {
         "text": "Il affirme notamment que l\u2019homme qui vivra mille ans est déjà né, prévoit la disparition du cancer dans une quinzaine d\u2019années, et considère que la science donnera à l\u2019homme le pouvoir d\u2019un dieu.",
         "class": "prédiction",
-        "attributes": {"résumé": "Prédictions transhumanistes : vie millénaire, fin du cancer, pouvoir divin par la science.", "hypostase": "Conjecture"},
+        "attributes": {"resume": "Prédictions transhumanistes : vie millénaire, fin du cancer, pouvoir divin par la science.", "hypostases": "Conjecture"},
     },
     {
         "text": "Le biologiste Jacques Testart émet de fortes réserves sur ces prévisions fondées sur la loi de Moore, qu\u2019il qualifie d\u2019énorme confusion.",
         "class": "critique",
-        "attributes": {"résumé": "Testart réfute les prédictions d\u2019Alexandre : confusion entre loi de Moore et biologie.", "hypostase": "Problème"},
+        "attributes": {"resume": "Testart réfute les prédictions d\u2019Alexandre : confusion entre loi de Moore et biologie.", "hypostases": "Problème"},
     },
     {
         "text": "Il estime que seul le développement technologique peut décarboner l\u2019économie mondiale, que stopper le développement économique entraînerait guerres et famines.",
         "class": "thèse",
-        "attributes": {"résumé": "Le techno-solutionnisme comme seule voie de décarbonation selon Alexandre.", "hypostase": "Principe"},
+        "attributes": {"resume": "Le techno-solutionnisme comme seule voie de décarbonation selon Alexandre.", "hypostases": "Principe"},
     },
 ]
 
@@ -349,32 +349,32 @@ EXTRACTIONS_SADIN = [
     {
         "text": "ce livre fait d\u2019Éric Sadin l\u2019un des rares penseurs à s\u2019interroger sur les limites de la révolution numérique en cours et à en proposer une analyse multidimensionnelle \u2014 historique, philosophique, économique, idéologique et sociologique.",
         "class": "reconnaissance",
-        "attributes": {"résumé": "Le Monde salue l\u2019approche multidimensionnelle de Sadin sur le numérique.", "hypostase": "Classification"},
+        "attributes": {"resume": "Le Monde salue l\u2019approche multidimensionnelle de Sadin sur le numérique.", "hypostases": "Classification"},
     },
     {
         "text": "Le terme «\u00a0silicolonisation\u00a0» \u2014 forgé par Sadin \u2014 désigne l\u2019expansion d\u2019un modèle économique et idéologique issu de la Silicon Valley qui colonise progressivement toutes les sphères de l\u2019existence.",
         "class": "concept",
-        "attributes": {"résumé": "La silicolonisation : expansion du modèle Silicon Valley dans toutes les sphères.", "hypostase": "Définition"},
+        "attributes": {"resume": "La silicolonisation : expansion du modèle Silicon Valley dans toutes les sphères.", "hypostases": "Définition"},
     },
     {
         "text": "il nous reste deux ou trois ans pour agir, sinon il sera trop tard pour les réguler.",
         "class": "alerte",
-        "attributes": {"résumé": "Urgence : fenêtre de 2-3 ans pour réguler l\u2019IA générative avant qu\u2019il ne soit trop tard.", "hypostase": "Conjecture"},
+        "attributes": {"resume": "Urgence : fenêtre de 2-3 ans pour réguler l\u2019IA générative avant qu\u2019il ne soit trop tard.", "hypostases": "Conjecture"},
     },
     {
         "text": "la société de l\u2019information est aussi une société de surveillance au service d\u2019intérêts économiques.",
         "class": "thèse",
-        "attributes": {"résumé": "La société de l\u2019information comme société de surveillance au service du capitalisme.", "hypostase": "Phénomène"},
+        "attributes": {"resume": "La société de l\u2019information comme société de surveillance au service du capitalisme.", "hypostases": "Phénomène"},
     },
     {
         "text": "il estime que l\u2019IA est une révolution à laquelle il faut résister, tant elle engendre une mise au ban progressive de l\u2019humain.",
         "class": "thèse",
-        "attributes": {"résumé": "L\u2019IA comme révolution anti-humaine exigeant une résistance active.", "hypostase": "Principe"},
+        "attributes": {"resume": "L\u2019IA comme révolution anti-humaine exigeant une résistance active.", "hypostases": "Principe"},
     },
     {
         "text": "les réseaux sociaux ont participé massivement à une exacerbation de l\u2019individualisme et une atomisation des sociétés.",
         "class": "diagnostic",
-        "attributes": {"résumé": "Les réseaux sociaux exacerbent l\u2019individualisme et fragmentent la société.", "hypostase": "Phénomène"},
+        "attributes": {"resume": "Les réseaux sociaux exacerbent l\u2019individualisme et fragmentent la société.", "hypostases": "Phénomène"},
     },
 ]
 
@@ -383,7 +383,7 @@ EXTRACTIONS_DEBAT = [
     {
         "text": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
         "class": "thèse",
-        "attributes": {"résumé": "L\u2019IA comparée à l\u2019écriture comme rupture civilisationnelle majeure.", "hypostase": "Théorie"},
+        "attributes": {"resume": "L\u2019IA comparée à l\u2019écriture comme rupture civilisationnelle majeure.", "hypostases": "Théorie"},
         "statut": "controverse",
     },
     # 1 — Non pertinent : faux sophisme identifie a tort par l'IA
@@ -391,9 +391,9 @@ EXTRACTIONS_DEBAT = [
         "text": "La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
         "class": "sophisme",
         "attributes": {
-            "résumé": "Faux dilemme : l\u2019auteur présente deux options (investir massivement ou échouer) en excluant toute alternative nuancée.",
-            "hypostase": "Aporie",
-            "statut_debat": "non_pertinent",
+            "resume": "Faux dilemme : l\u2019auteur présente deux options (investir massivement ou échouer) en excluant toute alternative nuancée.",
+            "hypostases": "Aporie",
+            "statut": "non_pertinent",
         },
         "statut": "non_pertinent",
     },
@@ -401,77 +401,77 @@ EXTRACTIONS_DEBAT = [
     {
         "text": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
         "class": "thèse",
-        "attributes": {"résumé": "L\u2019IA n\u2019est pas une fatalité mais un choix politique déguisé en progrès.", "hypostase": "Principe"},
+        "attributes": {"resume": "L\u2019IA n\u2019est pas une fatalité mais un choix politique déguisé en progrès.", "hypostases": "Principe"},
         "statut": "discute",
     },
     # 3 — Elinor : commun numerique
     {
         "text": "C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
         "class": "proposition",
-        "attributes": {"résumé": "L\u2019IA comme commun numérique gouverné par les communautés d\u2019usagers.", "hypostase": "Structure"},
+        "attributes": {"resume": "L\u2019IA comme commun numérique gouverné par les communautés d\u2019usagers.", "hypostases": "Structure"},
         "statut": "consensuel",
     },
     # 4 — Laurent : guerre des intelligences
     {
         "text": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences.",
         "class": "objection",
-        "attributes": {"résumé": "Rejet de la gouvernance commune au profit de la compétition technologique entre nations.", "hypostase": "Problème"},
+        "attributes": {"resume": "Rejet de la gouvernance commune au profit de la compétition technologique entre nations.", "hypostases": "Problème"},
         "statut": "discute",
     },
     # 5 — Eric : gouvernement non elu (discutable — pas de commentaire)
     {
         "text": "Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.",
         "class": "phénomène",
-        "attributes": {"résumé": "Les algorithmes exercent un pouvoir de gouvernement non démocratique sur nos comportements.", "hypostase": "Phénomène"},
+        "attributes": {"resume": "Les algorithmes exercent un pouvoir de gouvernement non démocratique sur nos comportements.", "hypostases": "Phénomène"},
         "statut": "discutable",
     },
     # 6 — Elinor : auto-organisation (nouveau — pas de commentaire)
     {
         "text": "Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
         "class": "proposition",
-        "attributes": {"résumé": "L\u2019auto-organisation communautaire comme modèle de gouvernance de l\u2019IA.", "hypostase": "Hypothèse"},
+        "attributes": {"resume": "L\u2019auto-organisation communautaire comme modèle de gouvernance de l\u2019IA.", "hypostases": "Hypothèse"},
         "statut": "nouveau",
     },
     # 7 — Laurent : bifurcation
     {
         "text": "Dans dix ans, les machines auront une intelligence supérieure à la nôtre. Si nous n'avons pas préparé nos sociétés par l'éducation et l'investissement massif, nous assisterons à une bifurcation entre une élite cognitive augmentée et le reste de l'humanité laissé pour compte.",
         "class": "prédiction",
-        "attributes": {"résumé": "Prédiction d\u2019une bifurcation entre élite augmentée et humanité laissée pour compte.", "hypostase": "Conjecture"},
+        "attributes": {"resume": "Prédiction d\u2019une bifurcation entre élite augmentée et humanité laissée pour compte.", "hypostases": "Conjecture"},
         "statut": "controverse",
     },
     # 8 — Eric : insurrection civique
     {
         "text": "Nous avons besoin d'une insurrection civique contre la délégation du jugement aux machines.",
         "class": "appel",
-        "attributes": {"résumé": "Appel à une mobilisation citoyenne contre l\u2019automatisation du jugement.", "hypostase": "Principe"},
+        "attributes": {"resume": "Appel à une mobilisation citoyenne contre l\u2019automatisation du jugement.", "hypostases": "Principe"},
         "statut": "discute",
     },
     # 9 — Elinor : preuves empiriques
     {
         "text": "Regardez les logiciels libres, Wikipédia, les coopératives de données : ce sont des preuves vivantes que des communautés peuvent gouverner des ressources numériques de manière démocratique.",
         "class": "argument",
-        "attributes": {"résumé": "Linux, Wikipédia et les coopératives comme preuves empiriques de gouvernance collective.", "hypostase": "Donnée"},
+        "attributes": {"resume": "Linux, Wikipédia et les coopératives comme preuves empiriques de gouvernance collective.", "hypostases": "Donnée"},
         "statut": "consensuel",
     },
     # 10 — Laurent : transhumanisme
     {
         "text": "Le transhumanisme n'est pas une idéologie, c'est la description lucide de ce qui arrive. La convergence des nanotechnologies, de la biologie et de l'informatique va transformer l'espèce humaine, que cela nous plaise ou non.",
         "class": "thèse",
-        "attributes": {"résumé": "Le transhumanisme présenté comme description objective de la convergence NBIC.", "hypostase": "Théorie"},
+        "attributes": {"resume": "Le transhumanisme présenté comme description objective de la convergence NBIC.", "hypostases": "Théorie"},
         "statut": "controverse",
     },
     # 11 — Eric : projet politique
     {
         "text": "C'est un projet politique porté par des intérêts économiques colossaux. Et c'est notre responsabilité collective de dire non à cette vision du monde qui réduit l'humanité à un problème d'optimisation.",
         "class": "critique",
-        "attributes": {"résumé": "Le transhumanisme dénoncé comme projet politique servant des intérêts économiques.", "hypostase": "Valeur"},
+        "attributes": {"resume": "Le transhumanisme dénoncé comme projet politique servant des intérêts économiques.", "hypostases": "Valeur"},
         "statut": "discute",
     },
     # 12 — Elinor : conclusion
     {
         "text": "l'IA est un outil d'empuissancement formidable si — et seulement si — nous construisons les institutions capables de la gouverner collectivement.",
         "class": "synthèse",
-        "attributes": {"résumé": "L\u2019IA bénéfique uniquement sous condition de gouvernance collective institutionnelle.", "hypostase": "Principe"},
+        "attributes": {"resume": "L\u2019IA bénéfique uniquement sous condition de gouvernance collective institutionnelle.", "hypostases": "Principe"},
         "statut": "consensuel",
     },
 ]
@@ -904,9 +904,9 @@ class Command(BaseCommand):
                 extraction_class="théorie",
                 extraction_text="L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
             )
-            ExtractionAttribute.objects.create(extraction=ext1, key="résumé", value="L'IA comparée à l'écriture comme rupture civilisationnelle.", order=0)
-            ExtractionAttribute.objects.create(extraction=ext1, key="hypostase", value="théorie, conjecture", order=1)
-            ExtractionAttribute.objects.create(extraction=ext1, key="mots_clés", value="intelligence artificielle, révolution", order=2)
+            ExtractionAttribute.objects.create(extraction=ext1, key="resume", value="L'IA comparée à l'écriture comme rupture civilisationnelle.", order=0)
+            ExtractionAttribute.objects.create(extraction=ext1, key="hypostases", value="théorie, conjecture", order=1)
+            ExtractionAttribute.objects.create(extraction=ext1, key="mots_cles", value="intelligence artificielle, révolution", order=2)
 
             # Extraction 2 du debat / Debate extraction 2
             ext2 = ExampleExtraction.objects.create(
@@ -914,9 +914,9 @@ class Command(BaseCommand):
                 extraction_class="problème",
                 extraction_text="On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
             )
-            ExtractionAttribute.objects.create(extraction=ext2, key="résumé", value="L'IA est un choix politique déguisé en progrès.", order=0)
-            ExtractionAttribute.objects.create(extraction=ext2, key="hypostase", value="définition, problème", order=1)
-            ExtractionAttribute.objects.create(extraction=ext2, key="mots_clés", value="choix politique, fatalité", order=2)
+            ExtractionAttribute.objects.create(extraction=ext2, key="resume", value="L'IA est un choix politique déguisé en progrès.", order=0)
+            ExtractionAttribute.objects.create(extraction=ext2, key="hypostases", value="définition, problème", order=1)
+            ExtractionAttribute.objects.create(extraction=ext2, key="mots_cles", value="choix politique, fatalité", order=2)
 
             # Extraction 3 du debat / Debate extraction 3
             ext3 = ExampleExtraction.objects.create(
@@ -924,9 +924,9 @@ class Command(BaseCommand):
                 extraction_class="hypothèse",
                 extraction_text="Je crois qu'il y a une troisième voie que vous négligez tous les deux.",
             )
-            ExtractionAttribute.objects.create(extraction=ext3, key="résumé", value="Il existe une approche alternative non considérée.", order=0)
-            ExtractionAttribute.objects.create(extraction=ext3, key="hypostase", value="hypothèse, paradigme", order=1)
-            ExtractionAttribute.objects.create(extraction=ext3, key="mots_clés", value="troisième voie, alternative", order=2)
+            ExtractionAttribute.objects.create(extraction=ext3, key="resume", value="Il existe une approche alternative non considérée.", order=0)
+            ExtractionAttribute.objects.create(extraction=ext3, key="hypostases", value="hypothèse, paradigme", order=1)
+            ExtractionAttribute.objects.create(extraction=ext3, key="mots_cles", value="troisième voie, alternative", order=2)
 
             # Exemple Ostrom / Ostrom example
             exemple_ostrom = AnalyseurExample.objects.create(
@@ -943,16 +943,16 @@ class Command(BaseCommand):
                 extraction_class="domaine",
                 extraction_text="Ni le marché pur ni l'État centralisé ne sont les seules options.",
             )
-            ExtractionAttribute.objects.create(extraction=ext4, key="résumé", value="Le marché et l'État ne sont pas les seules options de gouvernance.", order=0)
-            ExtractionAttribute.objects.create(extraction=ext4, key="hypostase", value="domaine, classification", order=1)
+            ExtractionAttribute.objects.create(extraction=ext4, key="resume", value="Le marché et l'État ne sont pas les seules options de gouvernance.", order=0)
+            ExtractionAttribute.objects.create(extraction=ext4, key="hypostases", value="domaine, classification", order=1)
 
             ext5 = ExampleExtraction.objects.create(
                 example=exemple_ostrom, order=1,
                 extraction_class="phénomène",
                 extraction_text="Les logiciels libres, Wikipédia, les coopératives de données sont des preuves vivantes que des alternatives existent.",
             )
-            ExtractionAttribute.objects.create(extraction=ext5, key="résumé", value="Des exemples prouvent que des alternatives aux modèles classiques existent.", order=0)
-            ExtractionAttribute.objects.create(extraction=ext5, key="hypostase", value="phénomène, donnée", order=1)
+            ExtractionAttribute.objects.create(extraction=ext5, key="resume", value="Des exemples prouvent que des alternatives aux modèles classiques existent.", order=0)
+            ExtractionAttribute.objects.create(extraction=ext5, key="hypostases", value="phénomène, donnée", order=1)
 
             self.stdout.write(self.style.SUCCESS("  2 exemples few-shot créés (5 extractions, 13 attributs)"))
         else:

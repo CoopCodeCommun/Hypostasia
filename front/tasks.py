@@ -771,7 +771,7 @@ def _construire_prompt_synthese(page, dernier_job_analyse):
     for entite in entites_du_job:
         # Resume IA depuis le JSONField attributes / AI summary from JSONField attributes
         attributs = entite.attributes or {}
-        resume_ia = attributs.get("resume", attributs.get("Résumé", ""))
+        resume_ia = attributs.get("resume", "")
 
         # Statut formate en majuscules / Status formatted in uppercase
         statut_affiche = (entite.statut_debat or "nouveau").upper()
@@ -1240,13 +1240,18 @@ def analyser_page_task(self, job_id):
                 position_debut = intervalle.start_pos if intervalle else 0
                 position_fin = intervalle.end_pos if intervalle else 0
 
+                # Normalise les attributs LLM vers les 4 cles canoniques avant stockage
+                # / Normalize LLM attributes to 4 canonical keys before storage
+                from front.normalisation import normaliser_attributs_entite
+                attributs_normalises = normaliser_attributs_entite(extraction.attributes or {})
+
                 entite_creee = ExtractedEntity.objects.create(
                     job=job_extraction,
                     extraction_class=extraction.extraction_class,
                     extraction_text=extraction.extraction_text,
                     start_char=position_debut,
                     end_char=position_fin,
-                    attributes=extraction.attributes or {},
+                    attributes=attributs_normalises,
                 )
                 nombre_entites_creees += 1
                 _try_map_to_hypostasis(entite_creee)

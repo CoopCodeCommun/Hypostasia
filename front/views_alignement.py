@@ -7,14 +7,13 @@ LOCALISATION : front/views_alignement.py
 Compare 2 a 6 documents : tableau croise hypostases (lignes) x documents (colonnes).
 Revele les gaps argumentatifs entre les textes.
 """
-import unicodedata
-
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from rest_framework import viewsets
 from rest_framework.decorators import action
 
 from core.models import Dossier, Page
+from front.normalisation import _normaliser_texte
 from hypostasis_extractor.models import ExtractedEntity
 
 
@@ -55,16 +54,6 @@ NOMS_FAMILLES = {
 }
 
 
-def _normaliser_hypostase(valeur):
-    """
-    Normalise un nom d'hypostase : minuscule, sans accents.
-    / Normalize a hypostase name: lowercase, no accents.
-    """
-    texte = str(valeur).strip().lower()
-    texte_nfkd = unicodedata.normalize('NFKD', texte)
-    return ''.join(c for c in texte_nfkd if not unicodedata.combining(c))
-
-
 def _extraire_hypostases_de_entite(entite):
     """
     Extrait les hypostases d'une entite a partir de attr_0 (premier attribut).
@@ -74,13 +63,22 @@ def _extraire_hypostases_de_entite(entite):
     """
     resultats = []
 
-    # Cherche la cle 'hypostase' dans attributes, fallback sur la premiere valeur
-    # / Look for 'hypostase' key in attributes, fallback to first value
     attributs = entite.attributes or {}
     if not attributs:
         return resultats
 
-    premiere_valeur = attributs.get('hypostase') or next(iter(attributs.values()), '')
+    # Lecture directe de la cle canonique (normalisee au stockage par front.normalisation)
+    # / Direct read of canonical key (normalized at storage by front.normalisation)
+    premiere_valeur = attributs.get('hypostases', '')
+
+    # Fallback de compatibilite pour les entites non migrees
+    # / Compatibility fallback for non-migrated entities
+    if not premiere_valeur:
+        for cle_attribut, valeur_attribut in attributs.items():
+            if 'hypostas' in cle_attribut.lower():
+                premiere_valeur = valeur_attribut
+                break
+
     if not premiere_valeur:
         return resultats
 
@@ -89,7 +87,7 @@ def _extraire_hypostases_de_entite(entite):
     fragments = str(premiere_valeur).split(',')
 
     for fragment in fragments:
-        hypostase_normalisee = _normaliser_hypostase(fragment)
+        hypostase_normalisee = _normaliser_texte(fragment)
         if not hypostase_normalisee:
             continue
         famille = HYPOSTASE_VERS_FAMILLE.get(hypostase_normalisee, 'objet')
@@ -164,11 +162,11 @@ def _preparer_lignes_tableau(donnees_par_famille, pages_selectionnees):
             for identifiant_page in identifiants_pages:
                 entites_page = hypostases_de_famille[hypostase].get(identifiant_page, [])
                 if entites_page:
-                    # Prend le resume depuis la cle 'resume' ou 'résumé' de la premiere entite
-                    # / Take summary from 'resume' or 'résumé' key of first entity
+                    # Prend le resume depuis la cle canonique 'resume'
+                    # / Take summary from canonical key 'resume'
                     premiere_entite = entites_page[0]
                     attributs = premiere_entite.attributes or {}
-                    resume = attributs.get('resume', '') or attributs.get('r\u00e9sum\u00e9', '')
+                    resume = attributs.get('resume', '')
                     resume_tronque = (str(resume)[:60] + '...') if len(str(resume)) > 60 else str(resume)
 
                     # Concatene les extraction_text de toutes les entites (texte source)

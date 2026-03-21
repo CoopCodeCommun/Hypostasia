@@ -128,10 +128,21 @@ def recuperer_cle_api_depuis_django():
     # On cherche le premier modele actif
     modele_ia = AIModel.objects.filter(is_active=True).first()
 
-    if modele_ia and modele_ia.api_key:
-        return modele_ia.api_key, modele_ia.provider, modele_ia.model_name
+    if modele_ia:
+        # Cles API lues depuis .env uniquement / API keys from .env only
+        import os
+        provider_env_map = {
+            "google": "GOOGLE_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "ollama": "OLLAMA_API_KEY",
+        }
+        env_var = provider_env_map.get(modele_ia.provider, "")
+        cle_api = os.environ.get(env_var, "") if env_var else ""
+        if cle_api:
+            return cle_api, modele_ia.provider, modele_ia.model_name
 
-    # Aucune cle trouvee
+    # Aucune cle trouvee / No key found
     return None, None, None
 
 

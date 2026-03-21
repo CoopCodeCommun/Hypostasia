@@ -122,38 +122,108 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
     async def analyse_terminee(self, evenement):
         """
         Handler pour les messages de type 'analyse_terminee' envoyes par la tache Celery.
-        Envoie un fragment OOB qui declenche automatiquement le chargement du drawer final.
-        Le fragment contient un div invisible avec hx-get + hx-trigger="load" :
-        HTMX le traite automatiquement et fait le GET vers analyse_status,
-        qui retourne le drawer complet (etat 4) en OOB sur #drawer-contenu.
+        Envoie directement le texte annote en OOB + un script qui recharge le drawer.
+        L'ancien pattern (hx-trigger="load" injecte via OOB) ne fonctionnait pas car
+        htmx-ext-ws n'execute pas les attributs HTMX sur les fragments OOB injectes.
         / Handler for 'analyse_terminee' messages sent by the Celery task.
-        / Sends an OOB fragment that automatically triggers loading the final drawer.
-        / The fragment contains an invisible div with hx-get + hx-trigger="load":
-        / HTMX processes it and GETs analyse_status, which returns the full drawer (state 4)
-        / via OOB on #drawer-contenu.
+        / Directly sends the annotated text as OOB + a script that reloads the drawer.
+        / The old pattern (hx-trigger="load" injected via OOB) didn't work because
+        / htmx-ext-ws doesn't process HTMX attributes on injected OOB fragments.
         """
         page_id = evenement.get('page_id')
+        job_id = evenement.get('job_id')
+        est_erreur = evenement.get('erreur', False)
         if not page_id:
             return
 
-        # Fragment OOB insere dans #barre-progression-analyse.
-        # Le div avec hx-trigger="load" declenche immediatement un GET vers analyse_status.
-        # analyse_status detecte le job completed et retourne le drawer final en OOB.
-        # / OOB fragment inserted into #barre-progression-analyse.
-        # / The div with hx-trigger="load" immediately triggers a GET to analyse_status.
-        # / analyse_status detects the completed job and returns the final drawer via OOB.
-        html_declencheur = (
-            '<div id="barre-progression-analyse" hx-swap-oob="innerHTML">'
-            f'<div hx-get="/lire/{page_id}/analyse_status/"'
-            ' hx-trigger="load"'
-            ' hx-target="#drawer-contenu"'
-            ' hx-swap="innerHTML">'
-            '<p class="text-xs text-emerald-600 text-center py-2">Analyse terminée, chargement…</p>'
-            '</div>'
-            '</div>'
-        )
+        if est_erreur:
+            # En cas d'erreur, recharger le drawer via script JS
+            # / On error, reload the drawer via JS script
+            html_erreur = (
+                '<div id="barre-progression-analyse" hx-swap-oob="innerHTML">'
+                '<p class="text-xs text-red-600 text-center py-2">Erreur d\'analyse</p>'
+                '</div>'
+                '<script>'
+                f'htmx.ajax("GET", "/lire/{page_id}/analyse_status/", '
+                '{"target": "#drawer-contenu", "swap": "innerHTML"});'
+                '</script>'
+            )
+            await self.send(text_data=html_erreur)
+            return
 
-        await self.send(text_data=html_declencheur)
+        # Import local pour eviter la circularite / Local import to avoid circular dependency
+        from django.db.models import Count, Prefetch
+        from core.models import Page
+        from hypostasis_extractor.models import CommentaireExtraction, ExtractedEntity, ExtractionJob
+        from front.utils import annoter_html_avec_barres
+
+        try:
+            # Charger la page et le dernier job termine
+            # / Load the page and the latest completed job
+            page = await sync_to_async(Page.objects.get)(pk=page_id)
+
+            dernier_job_termine = await sync_to_async(
+                ExtractionJob.objects.filter(
+                    page=page, status="completed",
+                ).select_related("analyseur_version").order_by("-created_at").first
+            )()
+
+            if not dernier_job_termine:
+                logger.warning("analyse_terminee: aucun job completed pour page=%s", page_id)
+                return
+
+            # Charger les entites non masquees pour l'annotation du texte
+            # / Load non-hidden entities for text annotation
+            entites_non_masquees = await sync_to_async(list)(
+                ExtractedEntity.objects.filter(
+                    job=dernier_job_termine, masquee=False,
+                )
+            )
+
+            # Annoter le HTML de la page / Annotate the page HTML
+            html_annote = await sync_to_async(annoter_html_avec_barres)(
+                page.html_readability or '',
+                page.text_readability or '',
+                entites_non_masquees,
+            )
+
+            # Construire la reponse : texte annote en OOB + script pour recharger le drawer
+            # / Build response: annotated text as OOB + script to reload the drawer
+            html_reponse = (
+                # OOB 1 : texte annote dans la zone de lecture
+                # / OOB 1: annotated text in the reading zone
+                '<article id="readability-content" hx-swap-oob="innerHTML">'
+                + (html_annote or page.html_readability or '')
+                + '</article>'
+                # OOB 2 : barre de progression → message "termine"
+                # / OOB 2: progress bar → "completed" message
+                '<div id="barre-progression-analyse" hx-swap-oob="innerHTML">'
+                '<p class="text-xs text-emerald-600 text-center py-2">'
+                'Analyse terminée</p>'
+                '</div>'
+                # Script : recharger le drawer via htmx.ajax (fiable, pas d'attributs HTMX)
+                # / Script: reload the drawer via htmx.ajax (reliable, no HTMX attributes)
+                '<script>'
+                f'htmx.ajax("GET", "/lire/{page_id}/analyse_status/", '
+                '{"target": "#drawer-contenu", "swap": "innerHTML"});'
+                '</script>'
+            )
+
+            await self.send(text_data=html_reponse)
+
+        except Exception as erreur_consumer:
+            logger.error(
+                "analyse_terminee: erreur consumer page=%s — %s",
+                page_id, erreur_consumer, exc_info=True,
+            )
+            # Fallback : recharger via script JS / Fallback: reload via JS script
+            html_fallback = (
+                '<script>'
+                f'htmx.ajax("GET", "/lire/{page_id}/analyse_status/", '
+                '{"target": "#drawer-contenu", "swap": "innerHTML"});'
+                '</script>'
+            )
+            await self.send(text_data=html_fallback)
 
     async def extraction_carte(self, evenement):
         """

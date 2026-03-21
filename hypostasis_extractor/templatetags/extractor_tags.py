@@ -4,24 +4,11 @@ Template tags pour hypostasis_extractor.
 
 LOCALISATION : hypostasis_extractor/templatetags/extractor_tags.py
 """
-import unicodedata
-
 from django import template
 
+from front.normalisation import _normaliser_texte
+
 register = template.Library()
-
-
-def _normaliser_hypostase(valeur):
-    """
-    Normalise un nom d'hypostase : minuscule, sans accents.
-    Ex: 'Théorie' → 'theorie', 'Phénomène' → 'phenomene'
-    / Normalize a hypostase name: lowercase, no accents.
-    """
-    texte = str(valeur).strip().lower()
-    # Decompose en caracteres de base + diacritiques, puis retire les diacritiques
-    # / Decompose into base characters + diacritics, then strip diacritics
-    texte_nfkd = unicodedata.normalize('NFKD', texte)
-    return ''.join(c for c in texte_nfkd if not unicodedata.combining(c))
 
 
 # Mapping de chaque hypostase vers sa famille de couleur (8 familles)
@@ -190,37 +177,38 @@ def entity_json_attrs(entity):
     except (AttributeError, TypeError):
         attributes_dict = {}
 
-    # Identifier chaque attribut par son nom normalise (sans accents, minuscule).
-    # Les noms possibles viennent des analyseurs configures par l'utilisateur.
-    # / Identify each attribute by its normalized name (no accents, lowercase).
-    # / Possible names come from user-configured analyzers.
-    hypostase = ""
-    resume = ""
-    statut = ""
-    mots_cles = ""
+    # Lecture directe des cles canoniques (normalisees au stockage)
+    # / Direct read of canonical keys (normalized at storage time)
+    hypostase = attributes_dict.get("hypostases", "")
+    resume = attributes_dict.get("resume", "")
+    statut = attributes_dict.get("statut", "")
+    mots_cles = attributes_dict.get("mots_cles", "")
 
-    for cle_brute, valeur in attributes_dict.items():
-        cle_normalisee = _normaliser_hypostase(cle_brute)
+    # Fallback de compatibilite pour les entites non migrees :
+    # si les 4 slots sont vides et le dict n'est pas vide, appliquer l'ancienne logique
+    # / Compatibility fallback for non-migrated entities:
+    # / if all 4 slots are empty and dict is not empty, apply legacy logic
+    if not any([hypostase, resume, statut, mots_cles]) and attributes_dict:
+        for cle_brute, valeur in attributes_dict.items():
+            cle_normalisee = _normaliser_texte(cle_brute)
 
-        if cle_normalisee in ("hypostase", "hypostases"):
-            hypostase = valeur
-        elif cle_normalisee in ("resume", "résumé", "summary"):
-            resume = valeur
-        elif cle_normalisee in ("statut", "statut_debat", "status"):
-            statut = valeur
-        elif cle_normalisee in ("mots_cles", "mots-cles", "mots_clés", "keywords", "hashtags"):
-            mots_cles = valeur
-        else:
-            # Attribut inconnu : tenter de le placer dans le premier slot vide
-            # / Unknown attribute: try to place in first empty slot
-            if not hypostase:
+            if cle_normalisee in ("hypostase", "hypostases"):
                 hypostase = valeur
-            elif not resume:
+            elif cle_normalisee in ("resume", "summary"):
                 resume = valeur
-            elif not statut:
+            elif cle_normalisee in ("statut", "statut_debat", "status"):
                 statut = valeur
-            elif not mots_cles:
+            elif cle_normalisee in ("mots_cles", "keywords", "hashtags"):
                 mots_cles = valeur
+            else:
+                if not hypostase:
+                    hypostase = valeur
+                elif not resume:
+                    resume = valeur
+                elif not statut:
+                    statut = valeur
+                elif not mots_cles:
+                    mots_cles = valeur
 
     return [hypostase, resume, statut, mots_cles]
 
@@ -250,7 +238,7 @@ def hypostase_famille(value):
     """
     if not value:
         return 'objet'
-    hypostase_normalisee = _normaliser_hypostase(value)
+    hypostase_normalisee = _normaliser_texte(value)
     return HYPOSTASE_VERS_FAMILLE.get(hypostase_normalisee, 'objet')
 
 
@@ -263,7 +251,7 @@ def statut_icone(value):
     """
     if not value:
         return ''
-    statut_normalise = _normaliser_hypostase(value)
+    statut_normalise = _normaliser_texte(value)
     return STATUT_ICONES.get(statut_normalise, '')
 
 
@@ -275,5 +263,5 @@ def hypostase_definition(value):
     """
     if not value:
         return ''
-    hypostase_normalisee = _normaliser_hypostase(value)
+    hypostase_normalisee = _normaliser_texte(value)
     return HYPOSTASE_DEFINITIONS.get(hypostase_normalisee, '')

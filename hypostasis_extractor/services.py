@@ -67,18 +67,18 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
     }
 
     # Configuration specifique par provider
-    # Cle API : priorite au champ DB, fallback sur variable d'environnement
+    # Cles API lues exclusivement depuis les variables d'environnement (.env)
     # / Provider-specific configuration
-    # / API key: DB field priority, fallback to environment variable
+    # / API keys read exclusively from environment variables (.env)
     if ai_model.provider == Provider.GOOGLE:
-        cle_api_google = ai_model.api_key or os.environ.get("GOOGLE_API_KEY", "")
+        cle_api_google = os.environ.get("GOOGLE_API_KEY", "")
         if cle_api_google:
             params['api_key'] = cle_api_google
 
     elif ai_model.provider == Provider.OPENAI:
-        cle_api_openai = ai_model.api_key or os.environ.get("OPENAI_API_KEY", "")
+        cle_api_openai = os.environ.get("OPENAI_API_KEY", "")
         if not cle_api_openai:
-            raise ValueError("Clé API OpenAI manquante. Renseignez OPENAI_API_KEY dans .env ou dans l'admin (AIModel).")
+            raise ValueError("Clé API OpenAI manquante. Renseignez OPENAI_API_KEY dans .env.")
         params['api_key'] = cle_api_openai
         # OpenAI necessite des parametres specifiques dans LangExtract
         # / OpenAI requires specific params in LangExtract
@@ -90,7 +90,7 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
         # / Ollama is natively supported by LangExtract (OllamaLanguageModel)
         base_url_ollama = ai_model.base_url or "http://localhost:11434"
         params['model_url'] = base_url_ollama
-        cle_api_ollama = ai_model.api_key or os.environ.get("OLLAMA_API_KEY", "")
+        cle_api_ollama = os.environ.get("OLLAMA_API_KEY", "")
         if cle_api_ollama:
             params['api_key'] = cle_api_ollama
 

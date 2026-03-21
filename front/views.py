@@ -2385,15 +2385,23 @@ class LectureViewSet(viewsets.ViewSet):
             donnees_apres={"locuteur": nouveau_nom_locuteur},
         )
 
-        # Retourner le partial de lecture mis a jour / Return updated reading partial
+        # Retourner le partial de lecture mis a jour + fermer la modale
+        # / Return updated reading partial + close the modal
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
 
-        return render(request, "front/includes/lecture_principale.html", {
+        reponse_renommage = render(request, "front/includes/lecture_principale.html", {
             "page": page,
             "versions": toutes_les_versions,
             "page_racine": page_racine,
         })
+        # Fermer la modale de renommage via un event HTMX
+        # / Close the rename modal via an HTMX event
+        reponse_renommage["HX-Trigger"] = json.dumps({
+            "showToast": {"message": f"Locuteur renommé : {nouveau_nom_locuteur}"},
+            "fermerModaleRenommer": True,
+        })
+        return reponse_renommage
 
     @action(detail=True, methods=["GET"], url_path="formulaire_editer_bloc")
     def formulaire_editer_bloc(self, request, pk=None):
@@ -5048,6 +5056,13 @@ class ExtractionViewSet(viewsets.ViewSet):
         compteur_discute = compteurs_par_statut.get("discute", 0)
         compteur_controverse = compteurs_par_statut.get("controverse", 0)
         compteur_non_pertinent = compteurs_par_statut.get("non_pertinent", 0)
+        # Total toutes entites visibles (pour l'etat vide du dashboard)
+        # / Total all visible entities (for dashboard empty state)
+        total_entites_toutes = (
+            compteur_nouveau + compteur_consensuel + compteur_discutable
+            + compteur_discute + compteur_controverse + compteur_non_pertinent
+        )
+
         # Total pour le consensus : exclure nouveau et non_pertinent (pas dans le cycle deliberatif)
         # / Total for consensus: exclude nouveau and non_pertinent (not in deliberative cycle)
         total_entites = compteur_consensuel + compteur_discutable + compteur_discute + compteur_controverse
@@ -5090,6 +5105,7 @@ class ExtractionViewSet(viewsets.ViewSet):
             "compteur_discute": compteur_discute,
             "compteur_controverse": compteur_controverse,
             "compteur_non_pertinent": compteur_non_pertinent,
+            "total_entites_toutes": total_entites_toutes,
             "total_entites": total_entites,
             "pourcentage_consensus": pourcentage_consensus,
             "seuil_consensus": SEUIL_CONSENSUS_DEFAUT,

@@ -793,6 +793,15 @@ document.addEventListener('click', function(evenement) {
     });
 });
 
+// Fermer la modale de renommage apres un renommage reussi
+// / Close the rename modal after a successful rename
+document.body.addEventListener('fermerModaleRenommer', function() {
+    var zoneModale = document.getElementById('zone-modal-locuteur');
+    if (zoneModale) zoneModale.innerHTML = '';
+    var modale = document.getElementById('modal-renommer-locuteur');
+    if (modale) modale.remove();
+});
+
 // --- Edition inline des blocs de transcription ---
 // Sauvegarde auto : on submit le formulaire ouvert quand on clique en dehors
 // ou quand on ouvre un autre bloc. Le bloc precedent se sauve et se ferme.

@@ -543,9 +543,6 @@ class AIModel(models.Model):
         help_text="[LEGACY] Nom technique - déduit automatiquement du modèle choisi",
     )
 
-    api_key = models.CharField(
-        max_length=255, blank=True, help_text="Clé API (laisser vide pour Mock)"
-    )
     base_url = models.CharField(
         max_length=500,
         blank=True,
@@ -875,11 +872,6 @@ class TranscriptionConfig(models.Model):
         help_text="[LEGACY] Nom technique - deduit automatiquement du modele choisi",
     )
 
-    api_key = models.CharField(
-        max_length=255,
-        blank=True,
-        help_text="Cle API Mistral (laisser vide pour Mock)",
-    )
     language = models.CharField(
         max_length=10,
         default="fr",

@@ -456,9 +456,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         )
 
         from core.models import AIModel
-        active_ai_models = AIModel.objects.filter(
-            api_key__isnull=False,
-        )
+        # Tous les modeles IA actifs / All active AI models
+        active_ai_models = AIModel.objects.filter(is_active=True)
 
         # Contexte commun onglet/scroll
         active_tab = request.query_params.get('tab', 'prompt')
@@ -1046,7 +1045,7 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         example_id = serializer.validated_data['example_id']
         ai_model_id = serializer.validated_data['ai_model_id']
         example = get_object_or_404(AnalyseurExample, pk=example_id, analyseur=analyseur)
-        ai_model = get_object_or_404(AIModel, pk=ai_model_id, api_key__isnull=False)
+        ai_model = get_object_or_404(AIModel, pk=ai_model_id, is_active=True)
 
         # Guard anti-doublon : verifier s'il y a deja un entrainement en cours pour cet exemple
         # / Anti-duplicate guard: check if training already running for this example

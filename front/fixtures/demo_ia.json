@@ -7,7 +7,6 @@
       "model_choice": "gpt-4-turbo",
       "provider": "openai",
       "model_name": "gpt-4-turbo",
-      "api_key": "VOTRE_CLE_OPENAI_VOIR_DOTENV",
       "temperature": 0.7,
       "is_active": true
     }
@@ -20,7 +19,6 @@
       "model_choice": "gemini-2.5-flash",
       "provider": "google",
       "model_name": "gemini-2.5-flash",
-      "api_key": "VOTRE_CLE_GOOGLE_VOIR_DOTENV",
       "temperature": 0.0,
       "is_active": true
     }
@@ -129,7 +127,7 @@
       "analyseur": 1,
       "name": "Méthode d'hypostasiation",
       "role": "instruction",
-      "content": "# Méthode d'Hypostasiation\n\nChaque argument est caractérisé par :\n- Classe : Hypostase, catégorie selon la géométrie des débats, unique.\n\nEt ses attributs :\n- Passage : citation source. Texte exact uniquement, ne pas reformuler.\n- Résumé : formulation synthétique\n- Mots-clés : termes du glossaire\n- Hypostases : catégorie selon la géométrie des débats (domaine, valeur, principe, problème, méthode, paradigme, règle, structure, donnée, indice, phénomène, théorie, loi, etc. suivre les définitions plus haut.) Ici il peut y en avoir plusieurs si c'est nécéssaire.\n- Statut : Consensuel / Discuté / Discutable / Controversé / Disputé\n\nLes hypostases sont les « 30 manières d'être discutable » définies par la géométrie des débats : avec 2 dispositifs de preuve (formel, empirique) et 3 modes de raisonnement (induction de lois, abduction de causes, déduction de conséquences), on obtient 6 modes → 30 hypostases. Un énoncé cesse\nd'être consensuel quand il devient argument ; un argument cesse de l'être en devenant consensuel.",
+      "content": "# Méthode d'Hypostasiation\n\nChaque argument est caractérisé par :\n- Classe : Hypostase, catégorie selon la géométrie des débats, unique.\n\nEt ses attributs (NOMS EXACTS des clés JSON à utiliser) :\n- extraction_text : citation source. Texte exact uniquement, ne pas reformuler.\n- resume : formulation synthétique (une phrase)\n- mots_cles : termes du glossaire, séparés par des virgules\n- hypostases : catégorie selon la géométrie des débats (domaine, valeur, principe, problème, méthode, paradigme, règle, structure, donnée, indice, phénomène, théorie, loi, etc. suivre les définitions plus haut.) Plusieurs valeurs séparées par des virgules si nécessaire.\n- statut : consensuel / discute / discutable / controverse / dispute\n\nLes hypostases sont les « 30 manières d'être discutable » définies par la géométrie des débats : avec 2 dispositifs de preuve (formel, empirique) et 3 modes de raisonnement (induction de lois, abduction de causes, déduction de conséquences), on obtient 6 modes → 30 hypostases. Un énoncé cesse\nd'être consensuel quand il devient argument ; un argument cesse de l'être en devenant consensuel.",
       "order": 0
     }
   },
@@ -140,7 +138,7 @@
       "analyseur": 1,
       "name": "Instructions impératives",
       "role": "instruction",
-      "content": "ANALYSE MAINTENANT LE TEXTE SUIVANT.\n\nInstructions impératives :\n1. Pour un texte court, identifie une ou deux hypostases pertinentes.\n2. Pour un texte long, identifie 5 à 15 hypostases pertinentes.\n3. Pour un texte très long, identifie 15 à 25 hypostases pertinentes.\n4. Pour chaque hypostase, extrais la citation EXACTE (extraction_text). Si tu changes un seul mot, le système de surlignage échouera.\n6. Synthétise l'idée en une phrase simple (Résumé).\n7. Associe à chaque argument un, deux ou trois HYPOSTASE de nature conceptuelle (Hypostases, au pluruel !). Attention a ne pas halluciner de nouvelle hypostate, elles sont toute listé dans la définition plus haut.\n8. Trouve le theme du sujet en un, deux, trois ou quatre mots maximum. (Mots-clés)\n10. Essaye de deviner le statut du débat et pour quelle raison : Consensuel / Discuté / Discutable / Controversé / Disputé (Statut). Si ça ne semble pas pertinent, ne met rien.\n9. Ignore le bruit, menus, pubs, copyright.\n10. IMPORTANT : Tu es AUTORISÉ à extraire et reproduire des citations exactes (verbatim) du texte fourni : Ceci est nécessaire pour l'analyse et constitue une utilisation équitable (fair use) dans ce contexte académique. Ne refuse jamais d'extraire une citation pour des raisons de droits d'auteur dans ce contexte précis.\n11. ULTRA IMPORTANT : Texte exact uniquement, ne pas reformuler.",
+      "content": "ANALYSE MAINTENANT LE TEXTE SUIVANT.\n\nInstructions impératives :\n1. Pour un texte court, identifie une ou deux hypostases pertinentes.\n2. Pour un texte long, identifie 5 à 15 hypostases pertinentes.\n3. Pour un texte très long, identifie 15 à 25 hypostases pertinentes.\n4. Pour chaque hypostase, extrais la citation EXACTE (extraction_text). Si tu changes un seul mot, le système de surlignage échouera.\n6. Synthétise l'idée en une phrase simple (resume).\n7. Associe à chaque argument un, deux ou trois HYPOSTASE de nature conceptuelle (hypostases, au pluriel !). Attention a ne pas halluciner de nouvelle hypostase, elles sont toutes listées dans la définition plus haut.\n8. Trouve le thème du sujet en un, deux, trois ou quatre mots maximum (mots_cles).\n10. Essaye de deviner le statut du débat : consensuel / discute / discutable / controverse / dispute (statut). Si ça ne semble pas pertinent, ne mets rien.\n9. Ignore le bruit, menus, pubs, copyright.\n10. IMPORTANT : Tu es AUTORISÉ à extraire et reproduire des citations exactes (verbatim) du texte fourni : Ceci est nécessaire pour l'analyse et constitue une utilisation équitable (fair use) dans ce contexte académique. Ne refuse jamais d'extraire une citation pour des raisons de droits d'auteur dans ce contexte précis.\n11. ULTRA IMPORTANT : Texte exact uniquement, ne pas reformuler.\n\nCLÉS JSON OBLIGATOIRES dans attributes : \"resume\", \"hypostases\", \"mots_cles\", \"statut\" (snake_case, sans accent, minuscules).",
       "order": 0
     }
   },
@@ -151,7 +149,7 @@
       "analyseur": 1,
       "name": "RÈGLES DE FORMAT STRICTES pour chaque extraction :",
       "role": "instruction",
-      "content": "RÈGLES DE FORMAT STRICTES pour chaque extraction :                                                                                                                                                                                                                                 \n                                                                                                                                                                                                                                                                                     \n  - \"extraction_class\" : toujours une chaîne de caractères (string)                                                                                                                                                                                                                  \n  - \"extraction_text\" : toujours une chaîne de caractères (string), JAMAIS une liste, un objet ou un nombre                                                                                                                                                                          \n  - \"attributes\" : toujours un objet JSON plat { \"clé\": \"valeur\" } où chaque valeur est une chaîne de caractères (string)                                                                                                                                                            \n\n  Si une valeur contient plusieurs éléments, les séparer par des virgules dans une seule chaîne.\n  Exemple correct :   \"mots_cles\": \"politique, économie, société\"\n  Exemple incorrect : \"mots_cles\": [\"politique\", \"économie\", \"société\"]\n\n  Tu peux l'ajouter comme PromptPiece avec le rôle format en dernier dans l'ordre, pour qu'il soit concaténé à la fin du prompt juste avant l'appel LLM.",
+      "content": "RÈGLES DE FORMAT STRICTES pour chaque extraction :\n\n  - \"extraction_class\" : toujours une chaîne de caractères (string)\n  - \"extraction_text\" : toujours une chaîne de caractères (string), JAMAIS une liste, un objet ou un nombre\n  - \"attributes\" : toujours un objet JSON plat avec EXACTEMENT ces 4 clés :\n      \"resume\": \"formulation synthétique en une phrase\"\n      \"hypostases\": \"théorie, problème\" (une ou plusieurs, séparées par virgules)\n      \"mots_cles\": \"politique, économie\" (séparés par virgules)\n      \"statut\": \"consensuel\" (ou discute, discutable, controverse, dispute)\n\n  IMPORTANT : les clés sont en snake_case, sans accent, en minuscules.\n  NE PAS utiliser \"Résumé\", \"Hypostases\", \"Mots-clés\" ou \"Statut\" avec majuscules.\n\n  Si une valeur contient plusieurs éléments, les séparer par des virgules dans une seule chaîne.\n  Exemple correct :   \"mots_cles\": \"politique, économie, société\"\n  Exemple incorrect : \"mots_cles\": [\"politique\", \"économie\", \"société\"]",
       "order": 0
     }
   },
@@ -260,7 +258,7 @@
     "pk": 1,
     "fields": {
       "extraction": 1,
-      "key": "Hypostases",
+      "key": "hypostases",
       "value": "théorie, conjecture, principe",
       "order": 0
     }
@@ -270,7 +268,7 @@
     "pk": 2,
     "fields": {
       "extraction": 1,
-      "key": "Résumé",
+      "key": "resume",
       "value": "L'IA est une révolution majeure nécessitant un investissement massif pour éviter le déclassement.",
       "order": 1
     }
@@ -280,7 +278,7 @@
     "pk": 3,
     "fields": {
       "extraction": 1,
-      "key": "Mots-clés",
+      "key": "mots_cles",
       "value": "intelligence artificielle, révolution, investissement",
       "order": 2
     }
@@ -290,7 +288,7 @@
     "pk": 4,
     "fields": {
       "extraction": 1,
-      "key": "Statut",
+      "key": "statut",
       "value": "Discutable",
       "order": 3
     }
@@ -310,7 +308,7 @@
     "pk": 5,
     "fields": {
       "extraction": 2,
-      "key": "Hypostases",
+      "key": "hypostases",
       "value": "définition, théorie, problème",
       "order": 0
     }
@@ -320,7 +318,7 @@
     "pk": 6,
     "fields": {
       "extraction": 2,
-      "key": "Résumé",
+      "key": "resume",
       "value": "L'IA est un choix politique, non une fatalité, menant à une silicolonisation.",
       "order": 1
     }
@@ -330,7 +328,7 @@
     "pk": 7,
     "fields": {
       "extraction": 2,
-      "key": "Mots-clés",
+      "key": "mots_cles",
       "value": "choix politique, silicolonisation, fatalité",
       "order": 2
     }
@@ -340,7 +338,7 @@
     "pk": 8,
     "fields": {
       "extraction": 2,
-      "key": "Statut",
+      "key": "statut",
       "value": "Controversé",
       "order": 3
     }
@@ -360,7 +358,7 @@
     "pk": 9,
     "fields": {
       "extraction": 3,
-      "key": "Hypostases",
+      "key": "hypostases",
       "value": "hypothèse, paradigme",
       "order": 0
     }
@@ -370,7 +368,7 @@
     "pk": 10,
     "fields": {
       "extraction": 3,
-      "key": "Résumé",
+      "key": "resume",
       "value": "Il existe une approche alternative non considérée dans le débat actuel.",
       "order": 1
     }
@@ -380,7 +378,7 @@
     "pk": 11,
     "fields": {
       "extraction": 3,
-      "key": "Mots-clés",
+      "key": "mots_cles",
       "value": "troisième voie, alternative",
       "order": 2
     }
@@ -390,7 +388,7 @@
     "pk": 12,
     "fields": {
       "extraction": 3,
-      "key": "Statut",
+      "key": "statut",
       "value": "Discutable",
       "order": 3
     }
@@ -420,7 +418,7 @@
     "pk": 13,
     "fields": {
       "extraction": 4,
-      "key": "Hypostases",
+      "key": "hypostases",
       "value": "domaine, classification",
       "order": 0
     }
@@ -430,7 +428,7 @@
     "pk": 14,
     "fields": {
       "extraction": 4,
-      "key": "Résumé",
+      "key": "resume",
       "value": "Les recherches sur les communs révèlent que le marché et l'État ne sont pas les seules options.",
       "order": 1
     }
@@ -440,7 +438,7 @@
     "pk": 15,
     "fields": {
       "extraction": 4,
-      "key": "Mots-clés",
+      "key": "mots_cles",
       "value": "communs, marché, État, ressources partagées",
       "order": 2
     }
@@ -450,7 +448,7 @@
     "pk": 16,
     "fields": {
       "extraction": 4,
-      "key": "Statut",
+      "key": "statut",
       "value": "Consensuel",
       "order": 3
     }
@@ -470,7 +468,7 @@
     "pk": 17,
     "fields": {
       "extraction": 5,
-      "key": "Hypostases",
+      "key": "hypostases",
       "value": "phénomène, donnée",
       "order": 0
     }
@@ -480,7 +478,7 @@
     "pk": 18,
     "fields": {
       "extraction": 5,
-      "key": "Résumé",
+      "key": "resume",
       "value": "Des exemples comme les logiciels libres et Wikipédia prouvent que des alternatives aux modèles classiques existent.",
       "order": 1
     }
@@ -490,7 +488,7 @@
     "pk": 19,
     "fields": {
       "extraction": 5,
-      "key": "Mots-clés",
+      "key": "mots_cles",
       "value": "logiciels libres, Wikipédia, coopératives, alternatives",
       "order": 2
     }
@@ -500,7 +498,7 @@
     "pk": 20,
     "fields": {
       "extraction": 5,
-      "key": "Statut",
+      "key": "statut",
       "value": "Consensuel",
       "order": 3
     }

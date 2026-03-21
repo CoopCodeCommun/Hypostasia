@@ -6387,7 +6387,6 @@ class Phase24LlmProvidersGoogleMockTest(TestCase):
 
         modele_google = AIModel(
             name="Gemini Test", model_choice="gemini-2.5-flash",
-            api_key="key-test-google",
         )
         modele_google.save()
 
@@ -6399,11 +6398,12 @@ class Phase24LlmProvidersGoogleMockTest(TestCase):
         mock_generative_model.generate_content.return_value = mock_reponse_genai
 
         with patch("google.generativeai.configure") as mock_configure, \
-             patch("google.generativeai.GenerativeModel", return_value=mock_generative_model):
+             patch("google.generativeai.GenerativeModel", return_value=mock_generative_model), \
+             patch.dict("os.environ", {"GOOGLE_API_KEY": "key-test-google"}):
             resultat = appeler_llm(modele_google, "Texte source")
 
-            # Verifie que la cle API a ete configuree
-            # / Verify API key was configured
+            # Verifie que la cle API a ete configuree depuis .env
+            # / Verify API key was configured from .env
             mock_configure.assert_called_once_with(api_key="key-test-google")
             mock_generative_model.generate_content.assert_called_once_with("Texte source")
             self.assertEqual(resultat, "Reponse de Gemini")
@@ -6481,7 +6481,6 @@ class Phase24LlmProvidersAnthropicMockTest(TestCase):
 
         modele_anthropic = AIModel(
             name="Claude Sonnet", model_choice="claude-sonnet-4-20250514",
-            api_key="sk-test-123",
         )
         modele_anthropic.save()
 
@@ -6494,11 +6493,12 @@ class Phase24LlmProvidersAnthropicMockTest(TestCase):
         mock_client_anthropic = MagicMock()
         mock_client_anthropic.messages.create.return_value = mock_reponse_messages
 
-        with patch("anthropic.Anthropic", return_value=mock_client_anthropic) as mock_anthropic_cls:
+        with patch("anthropic.Anthropic", return_value=mock_client_anthropic) as mock_anthropic_cls, \
+             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test-123"}):
             resultat = appeler_llm(modele_anthropic, "Un texte")
 
-            # Verifie que le client a ete cree avec la bonne cle API
-            # / Verify client was created with correct API key
+            # Verifie que le client a ete cree avec la cle API depuis .env
+            # / Verify client was created with API key from .env
             mock_anthropic_cls.assert_called_once_with(api_key="sk-test-123")
 
             # Verifie les parametres de l'appel messages.create
@@ -6556,19 +6556,20 @@ class Phase24ResolveModelParamsOllamaTest(TestCase):
         params_langextract = resolve_model_params(modele_ollama_defaut)
         self.assertEqual(params_langextract["model_url"], "http://localhost:11434")
 
-    def test_ollama_api_key_transmise_si_presente(self):
-        """Si le modele Ollama a une api_key, elle doit etre dans les params."""
+    def test_ollama_api_key_transmise_si_env(self):
+        """Si OLLAMA_API_KEY est dans .env, elle doit etre dans les params."""
+        from unittest.mock import patch
         from core.models import AIModel
         from hypostasis_extractor.services import resolve_model_params
 
         modele_ollama_avec_cle = AIModel(
             name="Ollama Auth", model_choice="llama3",
-            api_key="ollama-key-123",
         )
         modele_ollama_avec_cle.save()
 
-        params_langextract = resolve_model_params(modele_ollama_avec_cle)
-        self.assertEqual(params_langextract["api_key"], "ollama-key-123")
+        with patch.dict("os.environ", {"OLLAMA_API_KEY": "ollama-key-123"}):
+            params_langextract = resolve_model_params(modele_ollama_avec_cle)
+            self.assertEqual(params_langextract["api_key"], "ollama-key-123")
 
 
 class Phase24ResolveModelParamsAnthropicTest(TestCase):
@@ -6583,7 +6584,6 @@ class Phase24ResolveModelParamsAnthropicTest(TestCase):
 
         modele_anthropic = AIModel(
             name="Claude", model_choice="claude-sonnet-4-20250514",
-            api_key="sk-test",
         )
         modele_anthropic.save()
 

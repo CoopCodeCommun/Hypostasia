@@ -48,7 +48,6 @@ class E2EProvidersIADropdownTest(PlaywrightLiveTestCase):
         self.modele_anthropic = AIModel.objects.create(
             name="Claude Sonnet 4",
             model_choice="claude-sonnet-4-20250514",
-            api_key="sk-test-e2e",
             is_active=True,
         )
 
@@ -152,7 +151,6 @@ class E2EProvidersIAModelesBDDTest(PlaywrightLiveTestCase):
         modele_anthropic = AIModel.objects.create(
             name="Anthropic E2E",
             model_choice="claude-sonnet-4-20250514",
-            api_key="sk-e2e-test",
             is_active=True,
         )
         modele_anthropic.refresh_from_db()
