@@ -68,6 +68,43 @@ HYPOSTASES_CONNUES = {
     'objet', 'methode',
 }
 
+# Synonymes courants que les LLM produisent a la place des 30 hypostases.
+# Mapping semantique : le LLM pense "proposition" mais l'hypostase est "hypothese".
+# / Common synonyms that LLMs produce instead of the 30 hypostases.
+# / Semantic mapping: the LLM thinks "proposition" but the hypostasis is "hypothese".
+SYNONYMES_HYPOSTASES = {
+    'proposition': 'hypothese',
+    'prediction': 'conjecture',
+    'consequence': 'conjecture',
+    'reference': 'donnee',
+    'influence': 'phenomene',
+    'defi': 'probleme',
+    'condition': 'principe',
+    'argument': 'hypothese',
+    'these': 'theorie',
+    'constat': 'phenomene',
+    'critique': 'probleme',
+    'alerte': 'conjecture',
+    'synthese': 'theorie',
+    'objection': 'probleme',
+    'regle': 'loi',
+    'concept': 'definition',
+    'categorie': 'classification',
+    'preuve': 'donnee',
+    'observation': 'phenomene',
+    'conviction': 'croyance',
+    'dilemme': 'aporie',
+    'contradiction': 'paradoxe',
+    'tendance': 'variation',
+    'modele': 'paradigme',
+    'processus': 'methode',
+    'limite': 'dimension',
+    'norme': 'loi',
+    'postulat': 'axiome',
+    'supposition': 'hypothese',
+    'estimation': 'approximation',
+}
+
 
 def normaliser_valeur_hypostase(valeur_brute):
     """
@@ -91,6 +128,17 @@ def normaliser_valeur_hypostase(valeur_brute):
         # / Exact match in known hypostases
         if fragment_normalise in HYPOSTASES_CONNUES:
             hypostases_normalisees.append(fragment_normalise)
+            continue
+
+        # Correspondance via synonymes courants (le LLM pense "proposition" → "hypothese")
+        # / Match via common synonyms (LLM thinks "proposition" → "hypothese")
+        if fragment_normalise in SYNONYMES_HYPOSTASES:
+            hypostase_mappee = SYNONYMES_HYPOSTASES[fragment_normalise]
+            logger.info(
+                "Hypostase '%s' mappee vers '%s' via synonyme",
+                fragment_normalise, hypostase_mappee,
+            )
+            hypostases_normalisees.append(hypostase_mappee)
             continue
 
         # Tentative de correction par fuzzy match (seuil 0.8)

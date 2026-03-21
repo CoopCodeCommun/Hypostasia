@@ -1250,10 +1250,17 @@ def analyser_page_task(self, job_id):
         modele_prompt.examples.extend(liste_exemples_langextract)
 
         # 2. Creer le modele LLM via la factory
+        # Limiter max_output_tokens proportionnellement au texte source
+        # pour empecher les boucles de repetition Gemini (277k chars observes).
+        # ~3 tokens par char de texte source, minimum 2048, maximum 8192.
         # / 2. Create the LLM model via the factory
+        # / Limit max_output_tokens proportionally to source text
+        # / to prevent Gemini repetition loops (277k chars observed).
+        # / ~3 tokens per source char, min 2048, max 8192.
+        max_output_tokens_calcule = min(8192, max(2048, longueur_texte_total * 3))
         kwargs_modele_llm = {
             "format_type": data_lx.FormatType.JSON,
-            "max_output_tokens": 8192,
+            "max_output_tokens": max_output_tokens_calcule,
         }
         kwargs_modele_llm.update({
             k: v for k, v in parametres_modele.items()
@@ -1307,11 +1314,11 @@ def analyser_page_task(self, job_id):
         logger.info(
             "analyser_page_task: pipeline langextract pret\n"
             "  job=%s | model=%s | text=%d chars | ~%d chunks (max_char_buffer=%d)\n"
-            "  exemples=%d | suppress_parse_errors=True | max_output_tokens=8192\n"
+            "  exemples=%d | suppress_parse_errors=True | max_output_tokens=%d\n"
             "  batch_length=1 (sequentiel, 1 chunk a la fois pour streaming WS)",
             job_id, parametres_modele.get("model_id", "?"),
             longueur_texte_total, nombre_chunks_estime, TAILLE_MAX_CHUNK,
-            len(liste_exemples_langextract),
+            len(liste_exemples_langextract), max_output_tokens_calcule,
         )
 
         # Supprimer les anciennes entites AVANT de commencer l'extraction (re-extraction)

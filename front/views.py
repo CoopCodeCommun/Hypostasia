@@ -760,6 +760,18 @@ def _verifier_et_nettoyer_job_bloque(job_en_cours):
     return False
 
 
+def _entites_deja_creees_pour_job(job):
+    """
+    Retourne les entites deja creees pour un job en cours.
+    Sert a les afficher quand l'utilisateur rouvre le drawer pendant une analyse.
+    / Returns entities already created for an in-progress job.
+    / Used to display them when the user reopens the drawer during an analysis.
+    """
+    return ExtractedEntity.objects.filter(
+        job=job,
+    ).select_related("job").order_by("start_char")
+
+
 class ConfigurationIAViewSet(viewsets.ViewSet):
     """
     ViewSet pour la configuration IA (toggle on/off, selection du modele).
@@ -1560,11 +1572,12 @@ class LectureViewSet(viewsets.ViewSet):
         if job_en_cours:
             job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
             if not job_est_bloque:
-                # Deja en cours et actif → renvoyer le spinner dans le drawer
-                # / Already running and active → return spinner in the drawer
+                # Deja en cours et actif → renvoyer le spinner + entites deja trouvees
+                # / Already running and active → return spinner + already found entities
                 return render(request, "front/includes/panneau_analyse_en_cours.html", {
                     "page": page,
                     "job": job_en_cours,
+                    "entites_deja_creees": _entites_deja_creees_pour_job(job_en_cours),
                 })
             # Job bloque → continuer vers la confirmation pour relancer
             # / Stalled job → continue to confirmation to relaunch
@@ -1832,12 +1845,13 @@ class LectureViewSet(viewsets.ViewSet):
         ).order_by("-created_at").first()
 
         if job_en_cours:
-            # Un job est deja en cours → renvoyer le template de polling dans le drawer
-            # / A job is already running → return polling template in the drawer
+            # Un job est deja en cours → renvoyer le template + entites deja trouvees
+            # / A job is already running → return template + already found entities
             logger.info("analyser: job deja en cours pk=%s pour page=%s", job_en_cours.pk, pk)
             reponse = render(request, "front/includes/panneau_analyse_en_cours.html", {
                 "page": page,
                 "job": job_en_cours,
+                "entites_deja_creees": _entites_deja_creees_pour_job(job_en_cours),
             })
             reponse["HX-Trigger"] = "ouvrirDrawer"
             return reponse
@@ -1972,13 +1986,14 @@ class LectureViewSet(viewsets.ViewSet):
             # / If active → return spinner.
             job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
             if not job_est_bloque:
-                # Toujours en cours → renvoyer le panneau complet avec le spinner.
+                # Toujours en cours → renvoyer le panneau + entites deja trouvees.
                 # Ce cas arrive si le fragment WS hx-trigger="load" arrive avant la fin du job.
-                # / Still processing → return the full spinner panel.
+                # / Still processing → return panel + already found entities.
                 # / This happens if the WS hx-trigger="load" fires before the job finishes.
                 return render(request, "front/includes/panneau_analyse_en_cours.html", {
                     "page": page,
                     "job": job_en_cours,
+                    "entites_deja_creees": _entites_deja_creees_pour_job(job_en_cours),
                 })
             # Job bloque → on continue vers le cas completed/error ci-dessous
             # / Stalled job → fall through to completed/error case below
@@ -5186,6 +5201,7 @@ class ExtractionViewSet(viewsets.ViewSet):
                 return render(request, "front/includes/panneau_analyse_en_cours.html", {
                     "page": page,
                     "job": job_en_cours_pour_drawer,
+                    "entites_deja_creees": _entites_deja_creees_pour_job(job_en_cours_pour_drawer),
                 })
             # Job bloque → on continue vers l'affichage normal des resultats
             # / Stalled job → continue to normal results display
