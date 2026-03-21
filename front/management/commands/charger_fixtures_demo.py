@@ -393,7 +393,6 @@ EXTRACTIONS_DEBAT = [
         "attributes": {
             "resume": "Faux dilemme : l\u2019auteur présente deux options (investir massivement ou échouer) en excluant toute alternative nuancée.",
             "hypostases": "Aporie",
-            "statut": "non_pertinent",
         },
         "statut": "non_pertinent",
     },
