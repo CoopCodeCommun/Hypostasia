@@ -196,3 +196,68 @@
     };
 
 })();
+
+/**
+ * Ouvre une modale de confirmation avant de lancer la synthese deliberative.
+ * Si le seuil est atteint : message simple. Sinon : avertissement renforce.
+ * / Opens a confirmation modal before launching deliberative synthesis.
+ * / If threshold is met: simple message. Otherwise: reinforced warning.
+ *
+ * LOCALISATION : front/static/front/js/dashboard_consensus.js
+ */
+function ouvrirModaleSynthese(pageId, seuilAtteint, pourcentage, seuil) {
+    'use strict';
+
+    // Supprimer une eventuelle modale existante / Remove any existing modal
+    var modaleExistante = document.getElementById('modale-synthese');
+    if (modaleExistante) modaleExistante.remove();
+
+    // Construire le message selon le seuil / Build message based on threshold
+    var titreModale = seuilAtteint
+        ? 'Lancer la synthèse délibérative'
+        : '⚠ Seuil de consensus non atteint';
+
+    var messageModale = seuilAtteint
+        ? '<p class="text-sm text-slate-600 mb-3">Vous allez générer une nouvelle version du texte intégrant le débat structuré (hypostases + commentaires + statuts).</p>'
+        : '<p class="text-sm text-amber-700 mb-2 font-semibold">Le seuil de consensus n\'est pas atteint (' + pourcentage + '% / ' + seuil + '%).</p>'
+          + '<p class="text-sm text-slate-600 mb-3">Le cycle de débat est encore vierge ou incomplet. La synthèse générée sera basée sur des données partielles. Vous pouvez continuer la curation avant de synthétiser.</p>';
+
+    // Construire le HTML de la modale / Build modal HTML
+    var htmlModale = ''
+        + '<div id="modale-synthese" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true" aria-labelledby="titre-modale-synthese">'
+        + '  <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">'
+        + '    <h3 id="titre-modale-synthese" class="text-lg font-semibold text-slate-800 mb-3">' + titreModale + '</h3>'
+        + '    ' + messageModale
+        + '    <div class="flex justify-end gap-2 mt-4">'
+        + '      <button onclick="fermerModaleSynthese()" class="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded hover:bg-slate-200">Annuler</button>'
+        + '      <button class="px-4 py-2 text-sm text-white rounded ' + (seuilAtteint ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700') + '"'
+        + '              hx-post="/lire/' + pageId + '/synthetiser/"'
+        + '              hx-target="#zone-btn-synthese"'
+        + '              hx-swap="outerHTML"'
+        + '              hx-on::after-request="fermerModaleSynthese()">'
+        + '        Confirmer la synthèse'
+        + '      </button>'
+        + '    </div>'
+        + '  </div>'
+        + '</div>';
+
+    // Inserer dans le DOM et activer HTMX / Insert into DOM and activate HTMX
+    document.body.insertAdjacentHTML('beforeend', htmlModale);
+    var elementModale = document.getElementById('modale-synthese');
+    htmx.process(elementModale);
+
+    // Fermer via clic sur le backdrop / Close on backdrop click
+    elementModale.addEventListener('click', function(evenement) {
+        if (evenement.target === elementModale) {
+            fermerModaleSynthese();
+        }
+    });
+}
+
+/**
+ * Ferme la modale de synthese / Close the synthesis modal
+ */
+function fermerModaleSynthese() {
+    var modale = document.getElementById('modale-synthese');
+    if (modale) modale.remove();
+}

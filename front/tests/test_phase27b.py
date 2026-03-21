@@ -325,6 +325,28 @@ class AlignementVersionsTest(TestCase):
         self.assertEqual(resultat['sections_tableau'], [])
         self.assertEqual(resultat['nombre_hypostases'], 0)
 
+    def test_delta_conserve_avec_changement_statut(self):
+        """Delta 'conserve' + delta_statut si le statut a change entre V1 et V2.
+        / Delta 'conserve' + delta_statut if the status changed between V1 and V2."""
+        self._creer_extraction(self.page_v1, "hypothese", "Hyp v1", statut_debat="discutable")
+        self._creer_extraction(self.page_v2, "hypothese", "Hyp v2", statut_debat="consensuel")
+
+        resultat = construire_alignement_versions(self.page_v1, self.page_v2)
+
+        # Cherche la ligne 'hypothese'
+        # / Find the 'hypothese' row
+        ligne_hypothese = None
+        for section in resultat['sections_tableau']:
+            for ligne in section['lignes']:
+                if ligne['hypostase'] == 'hypothese':
+                    ligne_hypothese = ligne
+                    break
+        self.assertIsNotNone(ligne_hypothese)
+        self.assertEqual(ligne_hypothese['delta_type'], 'conserve')
+        self.assertIsNotNone(ligne_hypothese['delta_statut'])
+        self.assertEqual(ligne_hypothese['delta_statut']['de'], 'discutable')
+        self.assertEqual(ligne_hypothese['delta_statut']['vers'], 'consensuel')
+
     def test_comparer_hypostases_htmx_200(self):
         """L'action comparer_hypostases retourne 200 en HTMX.
         / The comparer_hypostases action returns 200 via HTMX."""
@@ -337,3 +359,25 @@ class AlignementVersionsTest(TestCase):
         self.assertEqual(reponse.status_code, 200)
         contenu = reponse.content.decode()
         self.assertIn("alignement-versions", contenu)
+
+    def test_comparer_hypostases_sans_v2_retourne_400(self):
+        """L'action comparer_hypostases sans v2 retourne 400.
+        / The comparer_hypostases action without v2 returns 400."""
+        reponse = self.client.get(
+            f"/lire/{self.page_v1.pk}/comparer_hypostases/",
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(reponse.status_code, 400)
+
+    def test_comparer_hypostases_contient_onglets(self):
+        """La page de comparaison contient les onglets Hypostases et Diff texte.
+        / The comparison page contains Hypostases and Text diff tabs."""
+        reponse = self.client.get(
+            f"/lire/{self.page_v1.pk}/comparer/?v2={self.page_v2.pk}",
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(reponse.status_code, 200)
+        contenu = reponse.content.decode()
+        self.assertIn("onglets-comparaison", contenu)
+        self.assertIn("onglet-hypostases", contenu)
+        self.assertIn("onglet-diff-texte", contenu)

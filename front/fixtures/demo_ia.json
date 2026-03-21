@@ -189,6 +189,53 @@
     }
   },
   {
+    "model": "hypostasis_extractor.analyseursyntaxique",
+    "pk": 5,
+    "fields": {
+      "name": "Synthèse délibérative",
+      "description": "Produit une nouvelle version du texte intégrant le débat structuré (hypostases + commentaires + statuts). Pondère les points consensuels (poids fort) et ignore les non pertinents.",
+      "is_active": true,
+      "type_analyseur": "synthetiser",
+      "inclure_extractions": true,
+      "inclure_texte_original": true,
+      "created_at": "2026-03-20 20:00:00.000000",
+      "updated_at": "2026-03-20 20:00:00.000000"
+    }
+  },
+  {
+    "model": "hypostasis_extractor.promptpiece",
+    "pk": 11,
+    "fields": {
+      "analyseur": 5,
+      "name": "Contexte et mission",
+      "role": "context",
+      "content": "Tu es un moteur de synthèse délibérative. Ta mission est de produire une nouvelle version d'un texte qui intègre les résultats d'un cycle de débat structuré.\n\nTu reçois :\n1. Le TEXTE ORIGINAL (transcription ou document source)\n2. Les HYPOSTASES EXTRAITES — unités argumentatives typées avec leur statut de débat\n3. Les COMMENTAIRES des contributeurs sur ces hypostases\n4. Les RÉSUMÉS IA de chaque hypostase\n\nLes hypostases sont les « 30 manières d'être discutable » définies par la géométrie des débats : avec 2 dispositifs de preuve (formel, empirique) et 3 modes de raisonnement (induction de lois, abduction de causes, déduction de conséquences), on obtient 6 modes → 30 hypostases. Un énoncé cesse d'être consensuel quand il devient argument ; un argument cesse de l'être en devenant consensuel.",
+      "order": 0
+    }
+  },
+  {
+    "model": "hypostasis_extractor.promptpiece",
+    "pk": 12,
+    "fields": {
+      "analyseur": 5,
+      "name": "Définitions informelles des hypostases",
+      "role": "definition",
+      "content": "# Définitions informelles des hypostases\n\nLes hypostases ont des définitions venant des dictionnaires :\n\n- paradigme : un paradigme est un modèle ou un exemple.\n- objet : Un objet est ce sur quoi porte le discours, la pensée, la connaissance.\n- principe : les principes sont les causes a priori d'une connaissance\n- domaine : un domaine est un champ discerné par des limites, bornes, confins, frontières, démarcations.\n- loi : les lois expriment des corrélations.\n- phénomène : les phénomènes se manifestent à la connaissance via les sens.\n- variable : une variable est ce qui prend différentes valeurs et ce dont dépend l'état d'un système.\n- variance : Une variance caractérise une dispersion d'une distribution ou d'un échantillon.\n- indice : Un indice est un indicateur numérique ou littéral qui sert à distinguer ou classer.\n- donnée : Une donnée est ce qui est admis, donné, qui sert à découvrir ou à raisonner.\n- méthode : Une méthode est une procédure qui indique ce que l'on doit faire ou comment le faire.\n- définition : Une définition est la détermination, la caractérisation du contenu d'un concept.\n- hypothèse : Une hypothèse concerne l'explication ou la possibilité d'un événement.\n- problème : Un problème est une difficulté à résoudre\n- théorie : Une théorie est une construction intellectuelle explicative, hypothétique et synthétique.\n- approximation : Une approximation est un calcul approché d'une grandeur réelle.\n- classification : Les classifications sont le fait de distribuer en classes, en catégories.\n- aporie : Les apories sont des difficultés d'ordre rationnel apparemment sans issues.\n- paradoxe : Les paradoxes sont des propositions à la fois vraies et fausses.\n- formalisme : Un formalisme est la considération de la forme d'un raisonnement.\n- événement : Les événements sont ce qui arrive.\n- variation : les variations sont des changements d'un état dans un autre.\n- dimension : Les dimensions sont des grandeurs mesurables qui déterminent des positions.\n- mode : Les modes sont les manières d'être d'un système.\n- croyance : Les croyances sont des certitudes ou des convictions qui font croire une chose vraie, vraisemblable ou possible.\n- invariant : Les invariants sont des grandeurs, relations ou propriétés conservées lors d'une transformation\n- valeur : Une valeur est une mesure d'une grandeur variable.\n- structure : Les structures sont l'organisation des parties d'un système.\n- axiome : Les axiomes sont des propositions admises au départ d'une théorie.\n- conjecture : Les conjectures sont des opinions ou propositions non vérifiées.",
+      "order": 1
+    }
+  },
+  {
+    "model": "hypostasis_extractor.promptpiece",
+    "pk": 13,
+    "fields": {
+      "analyseur": 5,
+      "name": "Règles de pondération et rédaction",
+      "role": "instruction",
+      "content": "RÈGLES DE PONDÉRATION PAR STATUT :\n\n- CONSENSUEL (poids fort) : Intégrer comme acquis. Ces points font accord — les affirmer clairement dans la synthèse.\n- DISCUTABLE (poids moyen) : Intégrer avec nuance. Mentionner que le point mérite discussion ou examen.\n- DISCUTÉ (poids moyen-faible) : Présenter les termes du débat. Reprendre les arguments des commentaires pour et contre.\n- CONTROVERSÉ (poids faible) : Exposer le désaccord sans trancher. Citer les positions en présence. Ne pas prendre parti.\n- NON_PERTINENT (poids zéro) : Ignorer complètement. Ces éléments ont été écartés par les contributeurs.\n- NOUVEAU (poids faible) : Intégrer seulement si pertinent pour la cohérence. Ces éléments n'ont pas encore été évalués par les contributeurs.\n\nRÈGLES DE RÉDACTION :\n\n- Écris à la troisième personne, en voix neutre et synthétique\n- Structure le texte en paragraphes thématiques (pas de listes à puces)\n- Chaque affirmation doit pouvoir être rattachée à une hypostase source\n- Préserve la richesse argumentative : ne simplifie pas à l'excès\n- Longueur cible : 40-60% du texte original (synthèse, pas résumé)\n- Si des commentaires apportent des précisions factuelles, intègre-les dans le fil du texte\n- Les points controversés doivent être présentés comme tels : « Sur ce point, les avis divergent... » / « Cette position est contestée... »\n- Ne fabrique aucune information absente des matériaux fournis\n- N'ajoute pas d'opinion personnelle ni de recommandation",
+      "order": 2
+    }
+  },
+  {
     "model": "hypostasis_extractor.analyseurexample",
     "pk": 1,
     "fields": {

@@ -38,7 +38,7 @@ from .serializers import (
     QuestionSerializer, RenommerLocuteurSerializer, ReponseQuestionSerializer,
     RunAnalyseSerializer, RunReformulationSerializer,
     RunRestitutionSerializer, SelectModelSerializer,
-    SupprimerBlocSerializer, SupprimerCommentaireSerializer,
+    SupprimerBlocSerializer, SupprimerCommentaireSerializer, SynthetiserSerializer,
     est_fichier_audio, est_fichier_json,
 )
 from .utils import annoter_html_avec_barres
@@ -2063,6 +2063,200 @@ class LectureViewSet(viewsets.ViewSet):
         return render(request, "front/includes/extraction_results.html", {
             "error_message": "Aucun job d'analyse trouv\u00e9.",
             "page": page,
+        })
+
+    @action(detail=True, methods=["POST"])
+    def synthetiser(self, request, pk=None):
+        """
+        Lance une synthese deliberative asynchrone sur une page via Celery.
+        Collecte texte + hypostases + commentaires + statuts, appelle un LLM,
+        et cree une Page enfant (nouvelle version).
+        / Launches an async deliberative synthesis on a page via Celery.
+        Collects text + hypostases + comments + statuses, calls an LLM,
+        and creates a child Page (new version).
+        """
+        # Guard : authentification / Authentication guard
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
+
+        # Validation via serializer DRF (vide — le pk vient de l'URL detail=True)
+        # / Validation via DRF serializer (empty — pk comes from URL detail=True)
+        serializer_synthese = SynthetiserSerializer(data=request.data)
+        serializer_synthese.is_valid(raise_exception=True)
+
+        # Guard : verifie que l'IA est activee / Check AI is enabled
+        if not _get_ia_active():
+            reponse = HttpResponse(status=400)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "IA non activée. Configurez un modèle dans /api/analyseurs/ ou ajoutez une clé API dans .env.",
+                    "icon": "warning",
+                },
+            })
+            return reponse
+
+        page = get_object_or_404(Page, pk=pk)
+
+        # Verifier les droits d'ecriture sur le dossier de la page
+        # / Check write permissions on the page's folder
+        if page.dossier and not _utilisateur_peut_ecrire_dossier(request.user, page.dossier):
+            return _reponse_acces_refuse(request)
+
+        # Guard credits (PHASE-26h) : verifie que le solde est suffisant
+        # / Credit guard (PHASE-26h): check that balance is sufficient
+        if settings.STRIPE_ENABLED and not request.user.is_superuser:
+            from core.models import CreditAccount
+            compte_existant = CreditAccount.objects.filter(user=request.user).first()
+            if compte_existant and compte_existant.solde_euros < 0.01:
+                reponse_solde = HttpResponse(status=402)
+                reponse_solde["HX-Trigger"] = json.dumps({
+                    "showToast": {
+                        "message": "Solde insuffisant. Rechargez vos crédits avant de lancer une synthèse.",
+                        "icon": "warning",
+                    },
+                })
+                return reponse_solde
+
+        # Guard anti-doublon : verifier s'il y a deja une synthese en cours
+        # / Anti-duplicate guard: check if a synthesis is already running
+        job_synthese_en_cours = ExtractionJob.objects.filter(
+            page=page,
+            status__in=["pending", "processing"],
+            raw_result__est_synthese=True,
+        ).order_by("-created_at").first()
+
+        if job_synthese_en_cours:
+            # Une synthese est deja en cours → renvoyer le template de polling
+            # / A synthesis is already running → return polling template
+            logger.info("synthetiser: job deja en cours pk=%s pour page=%s", job_synthese_en_cours.pk, pk)
+            return render(request, "front/includes/synthese_en_cours.html", {
+                "page": page,
+            })
+
+        # Trouver l'analyseur de type synthetiser / Find the synthetiser analyzer
+        analyseur_synthese = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="synthetiser",
+        ).first()
+        if not analyseur_synthese:
+            reponse_erreur = HttpResponse(status=400)
+            reponse_erreur["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Aucun analyseur de synthèse actif. Chargez la fixture demo_ia.json.",
+                    "icon": "warning",
+                },
+            })
+            return reponse_erreur
+
+        # Utiliser le modele selectionne dans la configuration singleton
+        # / Use the model selected in the singleton configuration
+        configuration_ia = Configuration.get_solo()
+        modele_ia_actif = configuration_ia.ai_model
+        if not modele_ia_actif:
+            reponse_erreur = HttpResponse(status=400)
+            reponse_erreur["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Aucun modèle IA sélectionné. Choisissez un modèle dans la sidebar.",
+                    "icon": "warning",
+                },
+            })
+            return reponse_erreur
+
+        # Construire le prompt snapshot depuis les pieces de l'analyseur
+        # / Build prompt snapshot from the analyzer's prompt pieces
+        pieces_ordonnees = PromptPiece.objects.filter(
+            analyseur=analyseur_synthese,
+        ).order_by("order")
+        prompt_snapshot = "\n".join(piece.content for piece in pieces_ordonnees)
+
+        # Creer le job d'extraction en status PENDING
+        # / Create extraction job in PENDING status
+        job_synthese = ExtractionJob.objects.create(
+            page=page,
+            ai_model=modele_ia_actif,
+            name="Synthèse délibérative",
+            prompt_description=prompt_snapshot,
+            status="pending",
+            raw_result={
+                "analyseur_id": analyseur_synthese.pk,
+                "est_synthese": True,
+            },
+        )
+
+        # Lancer la tache Celery en arriere-plan
+        # / Launch the Celery task in background
+        from front.tasks import synthetiser_page_task
+        synthetiser_page_task.delay(job_synthese.pk)
+
+        logger.info(
+            "synthetiser: job pk=%s cree pour page=%s — tache Celery lancee",
+            job_synthese.pk, pk,
+        )
+
+        # Retourner le spinner de polling dans la zone du bouton
+        # / Return polling spinner in the button zone
+        reponse = render(request, "front/includes/synthese_en_cours.html", {
+            "page": page,
+        })
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {
+                "message": "Synthèse lancée...",
+                "icon": "info",
+            },
+        })
+        return reponse
+
+    @action(detail=True, methods=["GET"], url_path="synthese_status")
+    def synthese_status(self, request, pk=None):
+        """
+        Endpoint de polling HTMX pour suivre la progression d'une synthese.
+        - pending/processing → re-render le spinner
+        - completed → render bouton "Voir la synthese (V2)" avec lien
+        - error → render message d'erreur + bouton retry
+        / HTMX polling endpoint to track synthesis progress.
+        - pending/processing → re-render spinner
+        - completed → render "View synthesis (V2)" button with link
+        - error → render error message + retry button
+        """
+        page = get_object_or_404(Page, pk=pk)
+
+        # Chercher le dernier job de synthese / Find the latest synthesis job
+        dernier_job_synthese = ExtractionJob.objects.filter(
+            page=page,
+            raw_result__est_synthese=True,
+        ).order_by("-created_at").first()
+
+        if not dernier_job_synthese:
+            return render(request, "front/includes/synthese_en_cours.html", {
+                "page": page,
+                "erreur_synthese": "Aucun job de synthèse trouvé.",
+            })
+
+        if dernier_job_synthese.status in ("pending", "processing"):
+            # Toujours en cours → renvoyer le spinner
+            # / Still running → return spinner
+            return render(request, "front/includes/synthese_en_cours.html", {
+                "page": page,
+            })
+
+        if dernier_job_synthese.status == "completed":
+            # Termine → renvoyer le bouton "Voir la synthese"
+            # / Completed → return "View synthesis" button
+            page_synthese_id = dernier_job_synthese.raw_result.get("page_synthese_id")
+            numero_version = dernier_job_synthese.raw_result.get("version_number", 2)
+            return render(request, "front/includes/synthese_en_cours.html", {
+                "page": page,
+                "synthese_terminee": True,
+                "page_synthese_id": page_synthese_id,
+                "version_number": numero_version,
+            })
+
+        # Erreur → afficher le message et un bouton retry
+        # / Error → show message and retry button
+        message_erreur = dernier_job_synthese.error_message or "Erreur inconnue lors de la synthèse."
+        return render(request, "front/includes/synthese_en_cours.html", {
+            "page": page,
+            "erreur_synthese": message_erreur,
         })
 
     @action(detail=True, methods=["GET"], url_path="formulaire_renommer_locuteur")

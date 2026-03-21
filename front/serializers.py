@@ -506,6 +506,16 @@ class RestitutionDebatSerializer(serializers.Serializer):
         return bleach.clean(valeur, tags=[], strip=True).strip()
 
 
+class SynthetiserSerializer(serializers.Serializer):
+    """
+    Serializer vide pour l'action synthetiser (detail=True, le pk vient de l'URL).
+    Convention du projet : chaque action POST a un serializer.
+    / Empty serializer for the synthetiser action (detail=True, pk comes from URL).
+    Project convention: every POST action has a serializer.
+    """
+    pass
+
+
 class ChangerStatutSerializer(serializers.Serializer):
     """
     Validation pour le changement de statut de debat d'une extraction.

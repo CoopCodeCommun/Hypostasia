@@ -738,6 +738,255 @@ def restituer_debat_task(self, entity_id, analyseur_id):
         entite.save(update_fields=["restitution_ia_en_cours", "restitution_ia_erreur"])
 
 
+def _construire_prompt_synthese(page, dernier_job_analyse):
+    """
+    Construit le prompt utilisateur pour la synthese deliberative.
+    Rassemble texte original + hypostases triees par statut + commentaires.
+    / Builds the user prompt for deliberative synthesis.
+    Gathers original text + hypostases sorted by status + comments.
+    """
+    from django.db.models import Case, Value, When
+    from hypostasis_extractor.models import ExtractedEntity
+
+    # Recuperer les entites du dernier job d'analyse, exclure non_pertinent et masquees
+    # / Get entities from latest analysis job, exclude non_pertinent and hidden
+    entites_du_job = ExtractedEntity.objects.filter(
+        job=dernier_job_analyse,
+        masquee=False,
+    ).exclude(
+        statut_debat="non_pertinent",
+    ).prefetch_related("commentaires__user").order_by(
+        Case(
+            When(statut_debat="consensuel", then=Value(0)),
+            When(statut_debat="discutable", then=Value(1)),
+            When(statut_debat="discute", then=Value(2)),
+            When(statut_debat="controverse", then=Value(3)),
+            When(statut_debat="nouveau", then=Value(4)),
+            default=Value(5),
+        ),
+    )
+
+    # Construire les blocs pour chaque entite / Build blocks for each entity
+    blocs_entites = []
+    for entite in entites_du_job:
+        # Resume IA depuis le JSONField attributes / AI summary from JSONField attributes
+        attributs = entite.attributes or {}
+        resume_ia = attributs.get("resume", attributs.get("Résumé", ""))
+
+        # Statut formate en majuscules / Status formatted in uppercase
+        statut_affiche = (entite.statut_debat or "nouveau").upper()
+
+        # Hypostase (classe d'extraction) / Hypostasis (extraction class)
+        classe_hypostase = entite.extraction_class or "hypostase"
+
+        # Texte de la citation / Citation text
+        texte_citation = entite.extraction_text or ""
+
+        # Resume a afficher / Summary to display
+        resume_affiche = resume_ia or texte_citation[:80]
+
+        # Commentaires / Comments
+        lignes_commentaires = []
+        for commentaire in entite.commentaires.all():
+            nom_auteur = commentaire.user.username if commentaire.user else "Anonyme"
+            lignes_commentaires.append(f'  - {nom_auteur} : "{commentaire.commentaire}"')
+
+        # Assemblage du bloc / Block assembly
+        bloc = f'**[{statut_affiche}] {classe_hypostase} — {resume_affiche}**\n'
+        bloc += f'Citation : "{texte_citation}"\n'
+        if resume_ia:
+            bloc += f'Résumé IA : "{resume_ia}"\n'
+        if lignes_commentaires:
+            bloc += "Commentaires :\n" + "\n".join(lignes_commentaires) + "\n"
+
+        blocs_entites.append(bloc)
+
+    # Assemblage final du prompt / Final prompt assembly
+    texte_original = page.text_readability or ""
+    blocs_formates = "\n\n".join(blocs_entites) if blocs_entites else "(aucune hypostase extraite)"
+
+    prompt_utilisateur = (
+        f"=== TEXTE ORIGINAL ===\n{texte_original}\n\n"
+        f"=== HYPOSTASES ET DEBAT ===\n{blocs_formates}\n\n"
+        f"=== CONSIGNE ===\n"
+        f"Produis la synthèse délibérative de ce débat en intégrant les pondérations "
+        f"par statut définies dans tes instructions. Le texte produit doit être une "
+        f"nouvelle version autonome et lisible du document."
+    )
+
+    return prompt_utilisateur
+
+
+@shared_task(bind=True)
+def synthetiser_page_task(self, job_id):
+    """
+    Tache Celery : lance la synthese deliberative sur une Page.
+    Construit un prompt a partir du texte + hypostases + commentaires,
+    appelle le LLM, et cree une Page enfant (nouvelle version).
+    / Celery task: runs deliberative synthesis on a Page.
+    Builds a prompt from text + hypostases + comments,
+    calls the LLM, and creates a child Page (new version).
+    """
+    from django.utils.html import escape as html_escape
+
+    from core.models import Configuration, Page
+    from hypostasis_extractor.models import (
+        AnalyseurSyntaxique, ExtractionJob, PromptPiece,
+    )
+
+    debut_traitement = time.time()
+
+    # Charger le job / Load the job
+    try:
+        job_synthese = ExtractionJob.objects.get(pk=job_id)
+    except ExtractionJob.DoesNotExist:
+        logger.error("synthetiser_page_task: job_id=%s introuvable", job_id)
+        return
+
+    try:
+        # Marquer comme en cours / Mark as processing
+        job_synthese.status = "processing"
+        job_synthese.save(update_fields=["status"])
+
+        page_source = job_synthese.page
+        if not page_source:
+            raise ValueError("Le job n'a pas de page associee")
+
+        # Charger l'analyseur depuis raw_result / Load analyzer from raw_result
+        analyseur_id = job_synthese.raw_result.get("analyseur_id")
+        analyseur_synthese = AnalyseurSyntaxique.objects.get(pk=analyseur_id)
+
+        # Recuperer le modele IA actif / Get active AI model
+        configuration = Configuration.get_solo()
+        modele_ia = configuration.ai_model
+        if not modele_ia:
+            raise ValueError("Aucun modele IA selectionne dans la configuration")
+
+        # Construire le prompt systeme depuis les pieces de l'analyseur
+        # / Build system prompt from analyzer pieces
+        pieces_ordonnees = PromptPiece.objects.filter(
+            analyseur=analyseur_synthese,
+        ).order_by("order")
+        prompt_systeme = "\n".join(piece.content for piece in pieces_ordonnees)
+
+        if not prompt_systeme.strip():
+            raise ValueError(f"L'analyseur '{analyseur_synthese.name}' n'a aucune piece de prompt")
+
+        # Trouver le dernier job d'analyse complete (pas de synthese)
+        # / Find the latest completed analysis job (not a synthesis)
+        # NOTE : on utilise __contains au lieu de __est_synthese car .exclude()
+        # sur un lookup JSONField standard exclut aussi les lignes ou la cle est absente
+        # (le lookup renvoie NULL, et NOT NULL = NULL est falsy).
+        # / NOTE: we use __contains instead of __est_synthese because .exclude()
+        # on a standard JSONField lookup also excludes rows where the key is absent.
+        dernier_job_analyse = ExtractionJob.objects.filter(
+            page=page_source, status="completed",
+        ).exclude(
+            raw_result__contains={"est_synthese": True},
+        ).order_by("-created_at").first()
+
+        if not dernier_job_analyse:
+            raise ValueError("Aucun job d'analyse termine pour cette page. Lancez d'abord une analyse.")
+
+        # Construire le prompt utilisateur / Build user prompt
+        prompt_utilisateur = _construire_prompt_synthese(page_source, dernier_job_analyse)
+
+        # Assemblage message complet / Full message assembly
+        message_complet = prompt_systeme + "\n\n" + prompt_utilisateur
+
+        logger.info(
+            "synthetiser_page_task: job=%s page=%s model=%s msg_len=%d",
+            job_id, page_source.pk, modele_ia.model_name, len(message_complet),
+        )
+
+        # Appel au LLM via la couche unifiee / Call LLM via unified layer
+        from core.llm_providers import appeler_llm
+        texte_synthese = appeler_llm(modele_ia, message_complet)
+
+        if not texte_synthese or not texte_synthese.strip():
+            raise ValueError("Le LLM a retourne une reponse vide")
+
+        # Formater en HTML : split paragraphes → balises <p>
+        # / Format as HTML: split paragraphs → <p> tags
+        paragraphes = texte_synthese.strip().split("\n\n")
+        html_synthese = "\n".join(
+            f"<p>{html_escape(paragraphe.strip())}</p>"
+            for paragraphe in paragraphes
+            if paragraphe.strip()
+        )
+        texte_brut = texte_synthese.strip()
+
+        # Creer la Page enfant (nouvelle version) / Create child Page (new version)
+        page_racine = page_source.page_racine
+        prochain_numero = page_racine.restitutions.count() + 2
+        hash_contenu = hashlib.sha256(texte_brut.encode("utf-8")).hexdigest()
+
+        page_synthese = Page.objects.create(
+            parent_page=page_racine,
+            version_number=prochain_numero,
+            version_label="Synthèse délibérative",
+            dossier=page_racine.dossier,
+            source_type=page_racine.source_type,
+            url=None,
+            title=page_racine.title,
+            html_original=html_synthese,
+            html_readability=html_synthese,
+            text_readability=texte_brut,
+            content_hash=hash_contenu,
+            owner=page_source.owner,
+        )
+
+        # Stocker page_synthese_id dans raw_result pour le polling
+        # / Store page_synthese_id in raw_result for polling
+        donnees_resultat = job_synthese.raw_result or {}
+        donnees_resultat["page_synthese_id"] = page_synthese.pk
+        donnees_resultat["version_number"] = prochain_numero
+        job_synthese.raw_result = donnees_resultat
+        job_synthese.status = "completed"
+        job_synthese.save(update_fields=["raw_result", "status"])
+
+        duree = time.time() - debut_traitement
+        logger.info(
+            "synthetiser_page_task: termine job=%s page_synthese=%s en %.1fs — %d chars",
+            job_id, page_synthese.pk, duree, len(texte_synthese),
+        )
+
+        # Notifier le navigateur via WebSocket
+        # / Notify browser via WebSocket
+        envoyer_progression_websocket(f"tache_{self.request.id}", "terminee", {
+            "status": "completed",
+            "message": "Synthèse délibérative terminée",
+            "resultat": {"page_synthese_id": page_synthese.pk},
+        })
+
+        # Debiter les credits si Stripe actif / Debit credits if Stripe active
+        try:
+            from django.conf import settings as django_settings
+            if django_settings.STRIPE_ENABLED:
+                from core.models import CreditAccount
+                compte_credits = CreditAccount.objects.filter(user=page_source.owner).first()
+                if compte_credits:
+                    # Estimation du cout (tokens input + output) / Cost estimate (input + output tokens)
+                    tokens_input_estimes = len(message_complet) // 4
+                    tokens_output_estimes = len(texte_synthese) // 4
+                    cout_estime = (tokens_input_estimes * 0.000003) + (tokens_output_estimes * 0.000015)
+                    compte_credits.solde_euros -= cout_estime
+                    compte_credits.save(update_fields=["solde_euros"])
+        except Exception as erreur_credits:
+            logger.warning("synthetiser_page_task: erreur debit credits — %s", erreur_credits)
+
+    except Exception as erreur_synthese:
+        # Erreur : marquer le job en erreur / Error: mark job as error
+        message_erreur = str(erreur_synthese)[:500]
+        logger.error(
+            "synthetiser_page_task: erreur job=%s — %s",
+            job_id, message_erreur, exc_info=True,
+        )
+        job_synthese.status = "error"
+        job_synthese.error_message = message_erreur
+        job_synthese.save(update_fields=["status", "error_message"])
+
+
 class ModeleAvecCompteurTokens:
     """
     Proxy autour du modele LLM langextract qui accumule les tokens.

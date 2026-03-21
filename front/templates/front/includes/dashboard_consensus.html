@@ -90,15 +90,15 @@
         {% endif %}
 
         {# Bouton synthese / Synthesis button #}
-        <div class="mt-4">
+        <div class="mt-4" id="zone-btn-synthese">
             {% if seuil_atteint %}
-                <button class="btn-synthese" data-testid="btn-lancer-synthese" disabled
-                        title="Synthèse (prévu en PHASE-22)">
+                <button class="btn-synthese" data-testid="btn-lancer-synthese"
+                        onclick="ouvrirModaleSynthese({{ page.pk }}, true, {{ pourcentage_consensus }}, {{ seuil_consensus }})">
                     Lancer la synth&egrave;se
                 </button>
             {% else %}
-                <button class="btn-synthese btn-synthese-avertissement" data-testid="btn-lancer-synthese" disabled
-                        title="Le seuil de {{ seuil_consensus }}% n'est pas atteint">
+                <button class="btn-synthese btn-synthese-avertissement" data-testid="btn-lancer-synthese"
+                        onclick="ouvrirModaleSynthese({{ page.pk }}, false, {{ pourcentage_consensus }}, {{ seuil_consensus }})">
                     Lancer la synth&egrave;se
                 </button>
                 <p class="text-[10px] text-amber-600 mt-1 text-center">

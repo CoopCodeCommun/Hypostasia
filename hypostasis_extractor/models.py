@@ -349,6 +349,7 @@ class AnalyseurSyntaxique(models.Model):
         ANALYSER = "analyser", "Analyser"
         REFORMULER = "reformuler", "Reformuler"
         RESTITUER = "restituer", "Restituer"
+        SYNTHETISER = "synthetiser", "Synthétiser"
 
     name = models.CharField(max_length=200, help_text="Nom de l'analyseur")
     description = models.TextField(blank=True, help_text="Description de l'analyseur")
