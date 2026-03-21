@@ -1315,9 +1315,18 @@ class LectureViewSet(viewsets.ViewSet):
         # / Retrieve all versions for the selectors
         toutes_les_versions = page_gauche.toutes_les_versions
 
+        # La page d'origine est celle de l'URL (pk) — c'est la page que
+        # l'utilisateur lisait avant d'appuyer Z. On la passe au template
+        # pour que le bouton "Retour" ramene a la bonne page.
+        # / The origin page is the URL one (pk) — the page the user
+        # / was reading before pressing Z. We pass it to the template
+        # / so the "Back" button returns to the right page.
+        page_origine = get_object_or_404(Page, pk=pk)
+
         contexte_diff = {
             "page_gauche": page_gauche,
             "page_droite": page_droite,
+            "page_origine": page_origine,
             "resultats_diff": resultats_diff,
             "versions": toutes_les_versions,
         }

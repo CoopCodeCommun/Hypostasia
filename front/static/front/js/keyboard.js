@@ -388,19 +388,24 @@
     // Z → Ouvrir la comparaison de versions pour la page courante
     // / Z → Open version comparison for the current page
     function comparerVersionsPageCourante() {
-        var elementPage = document.querySelector('#zone-lecture [data-page-id]');
-        if (!elementPage) return;
-        var pageId = elementPage.dataset.pageId;
-
         // Verifier si on est deja sur la vue de comparaison
         // / Check if we're already on the comparison view
         var diffExistant = document.querySelector('[data-testid="diff-versions-pages"]');
         if (diffExistant) {
-            // Deja sur la comparaison → retour a la lecture
-            // / Already on comparison → back to reading
-            htmx.ajax('GET', '/lire/' + pageId + '/', {target: '#zone-lecture', swap: 'innerHTML', pushUrl: true});
+            // Deja sur la comparaison → retour a la page d'origine (data-page-id sur le conteneur diff)
+            // / Already on comparison → back to origin page (data-page-id on the diff container)
+            var pageOrigineId = diffExistant.dataset.pageId;
+            if (pageOrigineId) {
+                htmx.ajax('GET', '/lire/' + pageOrigineId + '/', {target: '#zone-lecture', swap: 'innerHTML', pushUrl: true});
+            }
             return;
         }
+
+        // Mode lecture normal → ouvrir la comparaison
+        // / Normal reading mode → open comparison
+        var elementPage = document.querySelector('#zone-lecture [data-page-id]');
+        if (!elementPage) return;
+        var pageId = elementPage.dataset.pageId;
 
         htmx.ajax('GET', '/lire/' + pageId + '/comparer/', {target: '#zone-lecture', swap: 'innerHTML', pushUrl: true});
     }
