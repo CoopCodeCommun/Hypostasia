@@ -1,0 +1,67 @@
+{# Card resultat document — mode recherche Explorer (PHASE-25d-v2) #}
+{# / Document result card — Explorer search mode (PHASE-25d-v2) #}
+{# LOCALISATION : front/templates/front/includes/explorer_card_document.html #}
+{# Variables : page_item (Page avec snippet, mots_cles_preview, hypostases_preview), #}
+{#            ids_dossiers_suivis (set d'int) #}
+
+<div class="bg-white rounded-lg border border-slate-200 p-4 hover:border-blue-300 hover:shadow-sm transition-all"
+     data-testid="explorer-card-document">
+
+    {# Titre du document (lien HTMX vers la lecture) #}
+    {# / Document title (HTMX link to reading view) #}
+    <a href="/lire/{{ page_item.pk }}/"
+       hx-get="/lire/{{ page_item.pk }}/"
+       hx-target="#zone-lecture"
+       hx-swap="innerHTML"
+       hx-push-url="/lire/{{ page_item.pk }}/"
+       class="text-sm font-medium text-slate-800 hover:text-blue-600 block"
+       data-testid="explorer-doc-lien">
+        {{ page_item.title|default:"Sans titre" }}
+    </a>
+
+    {# Dossier parent + auteur + bouton Suivre le dossier #}
+    {# / Parent folder + author + Follow folder button #}
+    <div class="text-xs text-slate-400 mt-0.5 flex items-center gap-1 flex-wrap">
+        <span>dans {{ page_item.dossier.name }}</span>
+        {% if page_item.dossier.owner %}
+        <span>&middot; par {{ page_item.dossier.owner.username }}</span>
+        {% endif %}
+        {% if user.is_authenticated and page_item.dossier.owner != user and page_item.dossier.visibilite == "public" %}
+            {% if page_item.dossier.pk in ids_dossiers_suivis %}
+            <span class="text-amber-500 ml-1">&middot; suivi</span>
+            {% else %}
+            <button hx-post="/explorer/{{ page_item.dossier.pk }}/suivre/"
+                    hx-swap="none"
+                    class="text-xs text-blue-500 hover:text-blue-700 ml-1"
+                    data-testid="btn-suivre-dossier-document"
+                    aria-label="Suivre le dossier {{ page_item.dossier.name }}">
+                Suivre &rsaquo;
+            </button>
+            {% endif %}
+        {% elif user.is_authenticated and page_item.dossier.owner == user %}
+        <span class="text-slate-300 ml-1">&middot; votre dossier</span>
+        {% endif %}
+    </div>
+
+    {# Snippet contextuel avec surlignage du terme recherche #}
+    {# / Contextual snippet with search term highlighting #}
+    {% if page_item.snippet %}
+    <blockquote class="text-xs text-slate-500 mt-2 pl-3 border-l-2 border-slate-200 italic line-clamp-3 font-serif">
+        {{ page_item.snippet }}
+    </blockquote>
+    {% endif %}
+
+    {# Hypostases + mots-cles de la premiere extraction #}
+    {# / Hypostases + keywords from first extraction #}
+    {% if page_item.hypostases_preview or page_item.mots_cles_preview %}
+    <div class="mt-1.5 flex flex-wrap gap-1 items-center">
+        {% for hypostase_nom in page_item.hypostases_preview %}
+        <span class="inline-block text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded"
+              data-testid="explorer-doc-hypostase">{{ hypostase_nom }}</span>
+        {% endfor %}
+        {% if page_item.mots_cles_preview %}
+        <span class="text-[10px] text-slate-400">{{ page_item.mots_cles_preview|truncatechars:60 }}</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>

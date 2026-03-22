@@ -1,0 +1,43 @@
+{# Preview depliable d'un dossier — pages + extraits de texte (PHASE-25d-v2) #}
+{# / Collapsible folder preview — pages + text excerpts (PHASE-25d-v2) #}
+{# LOCALISATION : front/templates/front/includes/explorer_preview.html #}
+{# Variables : dossier, pages_preview, nombre_total_pages, nombre_pages_restantes #}
+
+<div class="border-t border-slate-100 pt-3 mt-3 space-y-1" data-testid="explorer-preview">
+    {% for page_item in pages_preview %}
+    <a href="/lire/{{ page_item.pk }}/"
+       hx-get="/lire/{{ page_item.pk }}/"
+       hx-target="#zone-lecture"
+       hx-swap="innerHTML"
+       hx-push-url="/lire/{{ page_item.pk }}/"
+       class="block p-2 rounded hover:bg-slate-50 transition-colors group"
+       data-testid="explorer-preview-page">
+        {# Titre de la page #}
+        {# / Page title #}
+        <span class="text-xs font-medium text-slate-700 group-hover:text-blue-600">{{ page_item.title|default:"Sans titre" }}</span>
+        {# Extrait du texte en italique (provenance humaine → Lora) #}
+        {# / Text excerpt in italics (human provenance → Lora) #}
+        {% if page_item.text_readability %}
+        <p class="text-xs text-slate-400 italic mt-0.5 line-clamp-2 font-serif">
+            {{ page_item.text_readability|truncatechars:150 }}
+        </p>
+        {% endif %}
+    </a>
+    {% empty %}
+    <p class="text-xs text-slate-400 italic py-2">Aucune page dans ce dossier.</p>
+    {% endfor %}
+
+    {# Lien vers les pages restantes #}
+    {# / Link to remaining pages #}
+    {% if nombre_pages_restantes > 0 %}
+    <a href="/lire/{{ dossier.pk }}/"
+       hx-get="/lire/{{ dossier.pk }}/"
+       hx-target="#zone-lecture"
+       hx-swap="innerHTML"
+       hx-push-url="/lire/{{ dossier.pk }}/"
+       class="text-xs text-blue-500 hover:text-blue-700 block pt-1 pl-2"
+       data-testid="explorer-preview-voir-plus">
+        + {{ nombre_pages_restantes }} autre{{ nombre_pages_restantes|pluralize:"s" }} page{{ nombre_pages_restantes|pluralize:"s" }}…
+    </a>
+    {% endif %}
+</div>
