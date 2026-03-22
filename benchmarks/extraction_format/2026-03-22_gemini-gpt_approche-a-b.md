@@ -209,22 +209,30 @@ Le script utilise l'annotateur **natif** de LangExtract (pas notre override `Ann
 
 ## 4. Résultats synthétiques
 
-| Test | Modèle | Extractions | Temps | Classes distinctes | Erreurs |
-|---|---|---|---|---|---|
-| **A** (classe unique `"hypostase"`) | Gemini 2.5 Flash | **118** | 157.5s | 1 | 0 |
-| **B** (classe spécifique) | Gemini 2.5 Flash | 112 | 176.7s | 2 | 0 |
-| **A** (classe unique `"hypostase"`) | GPT-4o Mini | 104 | 220.5s | 1 | 0 |
-| **B** (classe spécifique) | GPT-4o Mini | 95 | 180.2s | **14** | 0 |
+### 4.1 Tableau comparatif
 
-### Répartition des classes (Approche B)
+| Test | Modèle | Extr. | Temps | Classes | Hyp. attributs | Couverture /30 | Moy. hyp/extr. | Erreurs |
+|---|---|---|---|---|---|---|---|---|
+| **A** (classe unique) | Gemini 2.5 Flash | **118** | 157.5s | 1 | 27 | **27/30** | 2.9 | 0 |
+| **B** (classe spécifique) | Gemini 2.5 Flash | 112 | 176.7s | 2 | 28 | **28/30** | 3.0 | 0 |
+| **A** (classe unique) | GPT-4o Mini | 104 | 220.5s | 1 | 28 | **28/30** | 2.0 | 0 |
+| **B** (classe spécifique) | GPT-4o Mini | 95 | 180.2s | **14** | 26 | 26/30 | 2.1 | 0 |
 
-**Gemini 2.5 Flash** :
+**Légende** :
+- **Classes** = hypostases distinctes dans `extraction_class` (1 pour approche A, variable pour B)
+- **Hyp. attributs** = hypostases distinctes trouvées dans `attributes["hypostases"]`
+- **Couverture /30** = nombre des 30 hypostases effectivement utilisées (dans attributs)
+- **Moy. hyp/extr.** = nombre moyen d'hypostases attribuées par extraction
+
+### 4.2 Richesse dans `extraction_class` (Approche B seulement)
+
+**Gemini 2.5 Flash** — 2 classes :
 | Classe | Nombre | % |
 |---|---|---|
 | théorie | 97 | 86.6% |
 | problème | 15 | 13.4% |
 
-**GPT-4o Mini** :
+**GPT-4o Mini** — 14 classes :
 | Classe | Nombre | % |
 |---|---|---|
 | théorie | 59 | 62.1% |
@@ -241,6 +249,82 @@ Le script utilise l'annotateur **natif** de LangExtract (pas notre override `Ann
 | paradoxe | 1 | 1.1% |
 | phénomène | 1 | 1.1% |
 | principe | 1 | 1.1% |
+
+### 4.3 Richesse dans `attributes["hypostases"]` (les 4 tests)
+
+**Gemini 2.5 Flash — Approche A** (27/30, 345 attributions, moy. 2.9/extr.) :
+| Hypostase | Freq. | | Hypostase | Freq. | | Hypostase | Freq. |
+|---|---|---|---|---|---|---|---|
+| méthode | 43 | | structure | 41 | | définition | 41 |
+| principe | 38 | | formalisme | 20 | | problème | 16 |
+| phénomène | 16 | | loi | 15 | | événement | 11 |
+| théorie | 11 | | valeur | 10 | | croyance | 8 |
+| domaine | 8 | | axiome | 7 | | mode | 7 |
+| paradigme | 6 | | classification | 6 | | hypothèse | 5 |
+| invariant | 5 | | conjecture | 4 | | dimension | 3 |
+| donnée | 3 | | indice | 2 | | variable | 2 |
+| paradoxe | 1 | | variation | 1 | | aporie | 1 |
+| *Manquantes : objet, variance, approximation* |||||||
+
+**Gemini 2.5 Flash — Approche B** (28/30, 335 attributions, moy. 3.0/extr.) :
+| Hypostase | Freq. | | Hypostase | Freq. | | Hypostase | Freq. |
+|---|---|---|---|---|---|---|---|
+| principe | 41 | | définition | 37 | | méthode | 36 |
+| structure | 30 | | théorie | 27 | | loi | 18 |
+| problème | 17 | | formalisme | 17 | | phénomène | 16 |
+| événement | 11 | | objet | 11 | | croyance | 10 |
+| mode | 8 | | domaine | 7 | | axiome | 7 |
+| hypothèse | 7 | | valeur | 7 | | paradigme | 5 |
+| classification | 5 | | invariant | 4 | | conjecture | 3 |
+| dimension | 3 | | donnée | 2 | | aporie | 2 |
+| variable | 1 | | variation | 1 | | indice | 1 |
+| paradoxe | 1 | | *Manquantes : variance, approximation* |||||
+
+**GPT-4o Mini — Approche A** (28/30, 208 attributions, moy. 2.0/extr.) :
+| Hypostase | Freq. | | Hypostase | Freq. | | Hypostase | Freq. |
+|---|---|---|---|---|---|---|---|
+| phénomène | 23 | | structure | 17 | | principe | 16 |
+| méthode | 16 | | axiome | 15 | | théorie | 13 |
+| domaine | 13 | | définition | 11 | | valeur | 10 |
+| objet | 9 | | loi | 9 | | paradigme | 7 |
+| problème | 5 | | formalisme | 5 | | paradoxe | 5 |
+| dimension | 4 | | événement | 3 | | hypothèse | 3 |
+| invariant | 3 | | conjecture | 2 | | classification | 2 |
+| variable | 2 | | donnée | 2 | | croyance | 2 |
+| mode | 1 | | variation | 1 | | aporie | 1 |
+| indice | 1 | | *Manquantes : variance, approximation* |||||
+| *Hallucinations : système, interaction, interface, dimenssion, étude, principes, invariants* |||||||
+
+**GPT-4o Mini — Approche B** (26/30, 204 attributions, moy. 2.1/extr.) :
+| Hypostase | Freq. | | Hypostase | Freq. | | Hypostase | Freq. |
+|---|---|---|---|---|---|---|---|
+| théorie | 28 | | axiome | 21 | | phénomène | 19 |
+| structure | 15 | | principe | 14 | | problème | 11 |
+| hypothèse | 10 | | loi | 10 | | méthode | 9 |
+| dimension | 8 | | définition | 7 | | domaine | 7 |
+| événement | 7 | | formalisme | 6 | | objet | 5 |
+| valeur | 5 | | conjecture | 3 | | croyance | 3 |
+| donnée | 3 | | variation | 2 | | mode | 2 |
+| paradoxe | 2 | | variable | 2 | | paradigme | 2 |
+| invariant | 1 | | variance | 1 | ||||
+| *Manquantes : classification, aporie, indice, approximation* |||||||
+
+### 4.4 Hypostases jamais utilisées
+
+**`approximation`** est absente des 4 tests. **`variance`** est quasi-absente (1 seule occurrence sur GPT-B). Le texte source ne contient probablement pas d'arguments de ce type.
+
+### 4.5 Hallucinations
+
+Les LLM inventent parfois des hypostases hors-liste :
+
+| Modèle | Approche | Hallucinations |
+|---|---|---|
+| Gemini | A | illustration, histoire, rôle, application, modélisation |
+| Gemini | B | transformation, application, publication |
+| GPT | A | système, interaction, interface, dimenssion, étude, principes, invariants |
+| GPT | B | problématique |
+
+GPT hallucine plus que Gemini (7 vs 5 en approche A), mais les hallucinations sont filtrées par la normalisation côté code (`front/normalisation.py`).
 
 ---
 
@@ -391,14 +475,29 @@ Le script utilise l'annotateur **natif** de LangExtract (pas notre override `Ann
 
 L'approche A produit plus d'extractions (118/104) que l'approche B (112/95). Le format plus simple laisse au LLM plus de "bande passante" pour extraire du contenu au lieu de classifier.
 
-### 6.3 Richesse de classification
+### 6.3 Richesse de classification — deux niveaux de lecture
+
+**Niveau 1 : `extraction_class`** (la clé JSON)
 
 | | Approche A | Approche B |
 |---|---|---|
-| **Gemini** | 1 classe (hypostase) | 2 classes (théorie 87%, problème 13%) |
-| **GPT** | 1 classe (hypostase) | 14 classes (théorie 62%, problème 10%, hypothèse 7%, ...) |
+| **Gemini** | 1 classe (`hypostase`) | 2 classes (`théorie` 87%, `problème` 13%) |
+| **GPT** | 1 classe (`hypostase`) | 14 classes variées |
 
-Gemini en approche B est très pauvre — il classe presque tout en "théorie". GPT en approche B est nettement plus riche avec 14 classes distinctes.
+Gemini en approche B est très pauvre en `extraction_class` — il reproduit les seules classes vues dans les few-shot (qui n'en montrent que 2). **Biais probable des few-shot.**
+
+**Niveau 2 : `attributes["hypostases"]`** (la vraie richesse sémantique)
+
+| | Approche A | Approche B |
+|---|---|---|
+| **Gemini** | **27/30** (345 attributions, moy. 2.9/extr.) | **28/30** (335 attributions, moy. 3.0/extr.) |
+| **GPT** | **28/30** (208 attributions, moy. 2.0/extr.) | 26/30 (204 attributions, moy. 2.1/extr.) |
+
+**Constat clé** : la richesse dans les attributs est comparable entre les 4 tests (26 à 28 sur 30). Même quand Gemini ne produit que 2 `extraction_class` en approche B, il utilise 28 hypostases distinctes dans les attributs. **Les attributs portent la vraie diversité, pas la clé JSON.**
+
+Gemini est plus généreux en attributions (3 hypostases par extraction en moyenne) que GPT (2 par extraction).
+
+Les hypostases `approximation` et `variance` sont absentes des 4 tests — elles ne correspondent probablement pas au contenu du texte analysé.
 
 ### 6.4 Performance
 
@@ -407,21 +506,32 @@ Gemini en approche B est très pauvre — il classe presque tout en "théorie". 
 | **Gemini** | 157.5s | 176.7s |
 | **GPT** | 220.5s | 180.2s |
 
-Gemini est plus rapide que GPT dans les deux approches. L'approche B est légèrement plus lente pour Gemini, légèrement plus rapide pour GPT.
+Gemini est plus rapide que GPT dans les deux approches.
 
 ### 6.5 Trade-offs
 
 | Critère | Approche A (classe unique) | Approche B (classe spécifique) |
 |---|---|---|
 | Stabilité | Excellente | Excellente |
-| Volume | Plus d'extractions | Moins d'extractions |
-| Classification | Pas de classification en `extraction_class` | Classification riche (avec GPT) |
-| Utilisation front | Le badge doit lire `attributes["hypostases"]` | Le badge lit directement `extraction_class` |
-| Avec Gemini | ✓ Stable | ⚠ Pauvre (2 classes) |
-| Avec GPT | ✓ Stable | ✓ Riche (14 classes) |
+| Volume | Plus d'extractions (118/104) | Moins d'extractions (112/95) |
+| `extraction_class` | Toujours `"hypostase"` (inutile) | Variable (riche avec GPT, pauvre avec Gemini) |
+| `attributes["hypostases"]` | 27-28/30 couverture | 26-28/30 couverture |
+| Richesse réelle | **Équivalente** (dans les attributs) | **Équivalente** (dans les attributs) |
+| Front-end | Le badge doit lire `attributes` | Le badge lit `extraction_class` |
+| Biais few-shot | Aucun (une seule classe) | **Fort avec Gemini** (reproduit les few-shot) |
 
-### 6.6 Points d'attention
+### 6.6 Biais des few-shot
 
-- **Hallucinations** : GPT en approche A hallucine parfois des hypostases hors-liste dans les attributs (`"système"`, `"interaction"`, `"dimenssion"`). La normalisation existante (`front/normalisation.py`) les filtre.
-- **Gemini vs GPT** : Le choix d'approche dépend du modèle. Gemini bénéficie peu de l'approche B. GPT en tire un vrai avantage.
-- **Cohérence prompt/few-shot** : Les deux approches fonctionnent sans erreur quand le prompt, les few-shot et le format attendu par LangExtract sont cohérents.
+Ce test utilise seulement 2 extractions en few-shot : une `"théorie"` et un `"problème"`. Gemini en approche B reproduit ce pattern exactement (87% théorie, 13% problème). GPT extrapole à 14 classes.
+
+**Hypothèse** : si les few-shot montraient les 30 hypostases, Gemini diversifierait ses `extraction_class`. À vérifier dans un prochain test avec des few-shot couvrant les 30 classes.
+
+### 6.7 Hallucinations
+
+Les LLM inventent parfois des hypostases hors-liste. GPT hallucine plus que Gemini (7 vs 5), mais les hallucinations sont filtrées côté code par la normalisation. Exemples : `"système"`, `"interaction"`, `"problématique"`, `"application"`.
+
+### 6.8 Recommandation
+
+La richesse sémantique est **dans les attributs, pas dans `extraction_class`**. Les deux approches couvrent 26 à 28 des 30 hypostases dans les attributs. Le choix entre A et B est donc un choix d'**affichage front-end**, pas de qualité d'analyse.
+
+**Prochaine étape** : refaire le test avec des few-shot couvrant les 30 hypostases pour vérifier si Gemini diversifie ses `extraction_class` quand il voit plus d'exemples.
