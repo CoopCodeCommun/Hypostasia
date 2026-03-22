@@ -886,85 +886,199 @@ class Command(BaseCommand):
         if analyseur_cree:
             self.stdout.write(self.style.SUCCESS("  Analyseur créé : Hypostasia"))
 
-            # 6 pieces du prompt originales (extraites de la base SQLite de reference)
-            # / 6 original prompt pieces (extracted from the reference SQLite database)
-            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=0, role="context", content="Tu es Hypostasia, un expert mondial en analyse syntaxique et en logique argumentative.\nTa mission est de déconstruire le texte fourni pour en extraire l'ossature argumentative via les hypostases (définitions plus bas). \nTu agis avec une neutralité absolue et une précision chirurgicale.")
-            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=1, role="definition", content="# Définitions formelles des 30 hypostases\n\n- classification : non réfuté par induction empirique et non prouvé par abduction empirique\n- aporie : non réfuté par induction empirique et non prouvé par déduction empirique\n- approximation : non réfuté par induction empirique et non prouvé par déduction formelle\n- paradoxe : non réfuté par induction empirique et non prouvé par abduction formelle\n- formalisme : non réfuté par induction empirique et non prouvé par induction formelle\n- événement : non réfuté par déduction empirique et non prouvé par déduction formelle\n- variation : non réfuté par déduction empirique et non prouvé par abduction empirique\n- dimension : non réfuté par déduction empirique et non prouvé par abduction formelle\n- mode : non réfuté par déduction empirique et non prouvé par induction empirique\n- croyance : non réfuté par déduction empirique et non prouvé par induction formelle\n- invariant : non réfuté par induction formelle et non prouvé par déduction formelle\n- valeur : non réfuté par induction formelle et non prouvé par abduction empirique\n- structure : non réfuté par induction formelle et non prouvé par abduction formelle\n- axiome : non réfuté par induction formelle et non prouvé par induction empirique\n- conjecture : non réfuté par induction formelle et non prouvé par déduction empirique\n- paradigme : non réfuté par déduction formelle et non prouvé par abduction empirique.\n- objet : non réfuté par déduction formelle et non prouvé par abduction formelle.\n- principe : non réfuté par déduction formelle et non prouvé par induction empirique.\n- domaine : non réfuté par déduction formelle et non prouvé par déduction formelle.\n- loi : non réfuté par déduction formelle et non prouvé par induction empirique.\n- phénomène : non réfuté par abduction empirique et non prouvé par déduction formelle.\n- variable : non réfuté par abduction empirique et non prouvé par abduction formelle.\n- variance : non réfuté par abduction empirique et non prouvé par induction empirique.\n- indice : non réfuté par abduction empirique et non prouvé par déduction empirique.\n- donnée : non réfuté par abduction empirique et non prouvé par induction formelle.\n- méthode : non réfuté par abduction formelle et non prouvé par déduction formelle.\n- définition : non réfuté par abduction formelle et non prouvé par abduction empirique.\n- hypothèse : non réfuté par abduction formelle et non prouvé par induction empirique.\n- problème : non réfuté par abduction formelle et non prouvé par déduction empirique\n- théorie : non réfuté par abduction formelle et non prouvé par induction formelle.\n\nCe sont les uniques choix que tu peux avoir pour la clé \"hypostase\" dans l'instruction de sortie pour chaque argument trouvé.")
-            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=2, role="definition", content="# Définitions informelles des hypostases\n\nLes hypostases ont des définitions venant des dictionnaires :\n\n- paradigme : un paradigme est un modèle ou un exemple.\n- objet : Un objet est ce sur quoi porte le discours, la pensée, la connaissance.\n- principe : les principes sont les causes a priori d'une connaissance\n- domaine : un domaine est un champ discerné par des limites, bornes, confins, frontières, démarcations.\n- loi : les lois expriment des corrélations.\n- phénomène : les phénomènes se manifestent à la connaissance via les sens.\n- variable : une variable est ce qui prend différentes valeurs et ce dont dépend l'état d'un système.\n- variance : Une variance caractérise une dispersion d'une distribution ou d'un échantillon.\n- indice : Un indice est un indicateur numérique ou littéral qui sert à distinguer ou classer.\n- donnée : Une donnée est ce qui est admis, donné, qui sert à découvrir ou à raisonner.\n- méthode : Une méthode est une procédure qui indique ce que l'on doit faire ou comment le faire.\n- définition : Une définition est la détermination, la caractérisation du contenu d'un concept.\n- hypothèse : Une hypothèse concerne l'explication ou la possibilité d'un événement.\n- problème : Un problème est une difficulté à résoudre\n- théorie : Une théorie est une construction intellectuelle explicative, hypothétique et synthétique.\n- approximation : Une approximation est un calcul approché d'une grandeur réelle.\n- classification : Les classifications sont le fait de distribuer en classes, en catégories.\n- aporie : Les apories sont des difficultés d'ordre rationnel apparemment sans issues.\n- paradoxe : Les paradoxes sont des propositions à la fois vraies et fausses.\n- formalisme : Un formalisme est la considération de la forme d'un raisonnement.\n- événement : Les événements sont ce qui arrive.\n- variation : les variations sont des changements d'un état dans un autre.\n- dimension : Les dimensions sont des grandeurs mesurables qui déterminent des positions.\n- mode : Les modes sont les manières d'être d'un système.\n- croyance : Les croyances sont des certitudes ou des convictions qui font croire une chose vraie, vraisemblable ou possible.\n- invariant : Les invariants sont des grandeurs, relations ou propriétés conservées lors d'une transformation\n- valeur : Une valeur est une mesure d'une grandeur variable.\n- structure : Les structures sont l'organisation des parties d'un système.\n- axiome : Les axiomes sont des propositions admises au départ d'une théorie.\n- conjecture : Les conjectures sont des opinions ou propositions non vérifiées.")
-            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=3, role="instruction", content="# Méthode d'Hypostasiation\n\nChaque extraction est un objet JSON avec 2 clés :\n- \"hypostase\" : citation exacte du texte source. Ne pas reformuler. Texte exact uniquement.\n- \"hypostase_attributes\" : un objet avec les clés suivantes :\n  - resume : formulation synthétique en une phrase\n  - hypostases : 1 à 3 hypostases pertinentes parmi les 30 définies plus haut, séparées par des virgules\n  - mots_cles : termes du glossaire, séparés par des virgules\n\nLes hypostases sont les « 30 manières d'être discutable » définies par la géométrie des débats : avec 2 dispositifs de preuve (formel, empirique) et 3 modes de raisonnement (induction de lois, abduction de causes, déduction de conséquences), on obtient 6 modes → 30 hypostases. Un énoncé cesse d'être consensuel quand il devient argument ; un argument cesse de l'être en devenant consensuel.")
-            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=4, role="instruction", content="ANALYSE MAINTENANT LE TEXTE SUIVANT.\n\nInstructions impératives :\n1. Pour un texte court, identifie une ou deux hypostases pertinentes.\n2. Pour un texte long, identifie 5 à 15 hypostases pertinentes.\n3. Pour un texte très long, identifie 15 à 25 hypostases pertinentes.\n4. Pour chaque hypostase, extrais la citation EXACTE (extraction_text). Si tu changes un seul mot, le système de surlignage échouera.\n6. Synthétise l'idée en une phrase simple (Résumé).\n7. Associe à chaque argument un, deux ou trois HYPOSTASE de nature conceptuelle (Hypostases, au pluriel !). Attention à ne pas halluciner de nouvelle hypostase, elles sont toutes listées dans la définition plus haut.\n8. Trouve le thème du sujet en un, deux, trois ou quatre mots maximum. (Mots-clés)\n10. Essaye de deviner le statut du débat et pour quelle raison : Consensuel / Discuté / Discutable / Controversé / Disputé (Statut). Si ça ne semble pas pertinent, ne met rien.\n9. Ignore le bruit, menus, pubs, copyright.\n10. IMPORTANT : Tu es AUTORISÉ à extraire et reproduire des citations exactes (verbatim) du texte fourni. Ceci est nécessaire pour l'analyse et constitue une utilisation équitable (fair use) dans ce contexte académique.\n11. ULTRA IMPORTANT : Texte exact uniquement, ne pas reformuler.")
-            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=5, role="format", content="RÈGLES DE FORMAT STRICTES — chaque extraction DOIT suivre ce schéma exact :\n\n{\n  \"hypostase\": \"citation exacte du texte source\",\n  \"hypostase_attributes\": {\n    \"resume\": \"synthèse en une phrase\",\n    \"hypostases\": \"hypothèse, théorie\",\n    \"mots_cles\": \"mot1, mot2, mot3\"\n  }\n}\n\nRègles :\n- La clé est TOUJOURS \"hypostase\" (pas le nom de l'hypostase spécifique)\n- Sa valeur est toujours une chaîne (string), citation EXACTE du texte source\n- \"hypostase_attributes\" contient exactement 3 clés : resume, hypostases, mots_cles\n- \"hypostases\" : 1 à 3 hypostases parmi les 30 définies. Ne JAMAIS en inventer. Ne JAMAIS lister les 30.\n- Le tout est enveloppé dans {\"extractions\": [...]}\n- Ne JAMAIS répéter la même extraction ni boucler sur les mêmes données")
-            self.stdout.write(self.style.SUCCESS("  6 pièces de prompt créées"))
+            # 4 pieces du prompt par familles epistemiques (Approche A validee par benchmarks)
+            # / 4 prompt pieces by epistemic families (Approach A validated by benchmarks)
+            contenu_piece_0_contexte = (
+                "Tu es Hypostasia, un expert en analyse argumentative et en géométrie des débats.\n"
+                "Ta mission est d'extraire l'ossature argumentative du texte en identifiant les hypostases.\n"
+                "Tu agis avec neutralité et précision."
+            )
+            contenu_piece_1_definitions = (
+                "# Les 30 hypostases — classées par famille épistémique\n\n"
+                "Les hypostases sont les « 30 manières d'être discutable » définies par la géométrie des débats.\n"
+                "Avec 2 dispositifs de preuve (formel, empirique) et 3 modes de raisonnement (induction, abduction, déduction), on obtient 6 modes → 30 hypostases.\n\n"
+                "## Famille 1 — Non réfuté par induction empirique (ce qu'on observe sans pouvoir généraliser)\n\n"
+                "- **classification** : distribuer en classes, en catégories. — *non prouvé par abduction empirique*\n"
+                "- **aporie** : difficulté d'ordre rationnel apparemment sans issue. — *non prouvé par déduction empirique*\n"
+                "- **approximation** : calcul approché d'une grandeur réelle. — *non prouvé par déduction formelle*\n"
+                "- **paradoxe** : proposition à la fois vraie et fausse. — *non prouvé par abduction formelle*\n"
+                "- **formalisme** : considération de la forme d'un raisonnement. — *non prouvé par induction formelle*\n\n"
+                "## Famille 2 — Non réfuté par déduction empirique (ce qui se produit sans cadre formel)\n\n"
+                "- **événement** : ce qui arrive. — *non prouvé par déduction formelle*\n"
+                "- **variation** : changement d'un état dans un autre. — *non prouvé par abduction empirique*\n"
+                "- **dimension** : grandeur mesurable qui détermine des positions. — *non prouvé par abduction formelle*\n"
+                "- **mode** : manière d'être d'un système. — *non prouvé par induction empirique*\n"
+                "- **croyance** : certitude ou conviction qui fait croire une chose vraie ou possible. — *non prouvé par induction formelle*\n\n"
+                "## Famille 3 — Non réfuté par induction formelle (ce qu'on formalise sans pouvoir vérifier)\n\n"
+                "- **invariant** : grandeur, relation ou propriété conservée lors d'une transformation. — *non prouvé par déduction formelle*\n"
+                "- **valeur** : mesure d'une grandeur variable. — *non prouvé par abduction empirique*\n"
+                "- **structure** : organisation des parties d'un système. — *non prouvé par abduction formelle*\n"
+                "- **axiome** : proposition admise au départ d'une théorie. — *non prouvé par induction empirique*\n"
+                "- **conjecture** : opinion ou proposition non vérifiée. — *non prouvé par déduction empirique*\n\n"
+                "## Famille 4 — Non réfuté par déduction formelle (ce qu'on déduit formellement)\n\n"
+                "- **paradigme** : modèle ou exemple. — *non prouvé par abduction empirique*\n"
+                "- **objet** : ce sur quoi porte le discours, la pensée, la connaissance. — *non prouvé par abduction formelle*\n"
+                "- **principe** : cause a priori d'une connaissance. — *non prouvé par induction empirique*\n"
+                "- **domaine** : champ discerné par des limites, bornes, frontières. — *non prouvé par déduction formelle*\n"
+                "- **loi** : corrélation. — *non prouvé par induction empirique*\n\n"
+                "## Famille 5 — Non réfuté par abduction empirique (ce qu'on constate sans pouvoir l'expliquer)\n\n"
+                "- **phénomène** : ce qui se manifeste à la connaissance via les sens. — *non prouvé par déduction formelle*\n"
+                "- **variable** : ce qui prend différentes valeurs, dont dépend l'état d'un système. — *non prouvé par abduction formelle*\n"
+                "- **variance** : dispersion d'une distribution ou d'un échantillon. — *non prouvé par induction empirique*\n"
+                "- **indice** : indicateur numérique ou littéral qui sert à distinguer ou classer. — *non prouvé par déduction empirique*\n"
+                "- **donnée** : ce qui est admis, donné, qui sert à découvrir ou à raisonner. — *non prouvé par induction formelle*\n\n"
+                "## Famille 6 — Non réfuté par abduction formelle (ce qu'on propose sans pouvoir le confirmer)\n\n"
+                "- **méthode** : procédure qui indique ce que l'on doit faire ou comment le faire. — *non prouvé par déduction formelle*\n"
+                "- **définition** : détermination, caractérisation du contenu d'un concept. — *non prouvé par abduction empirique*\n"
+                "- **hypothèse** : explication ou possibilité d'un événement. — *non prouvé par induction empirique*\n"
+                "- **problème** : difficulté à résoudre. — *non prouvé par déduction empirique*\n"
+                "- **théorie** : construction intellectuelle explicative, hypothétique et synthétique. — *non prouvé par induction formelle*"
+            )
+            contenu_piece_2_instructions = (
+                "ANALYSE LE TEXTE SUIVANT.\n\n"
+                "Instructions :\n"
+                "1. Pour un texte court (< 2000 chars) : identifie 3 à 8 arguments.\n"
+                "2. Pour un texte moyen (2000–10000 chars) : identifie 5 à 15 arguments.\n"
+                "3. Pour un texte long (> 10000 chars) : identifie 10 à 25 arguments.\n"
+                "4. Extrais la citation EXACTE du texte. Ne reformule jamais.\n"
+                "5. Synthétise l'idée en une phrase (résumé).\n"
+                "6. Associe 1 à 3 hypostases parmi les 30 définies.\n"
+                "7. Ignore le bruit : menus, pubs, copyright, URLs.\n"
+                "8. Tu es AUTORISÉ à reproduire des citations exactes (fair use académique)."
+            )
+            contenu_piece_3_format = (
+                "RÈGLES DE FORMAT :\n\n"
+                "{\n"
+                '  "hypostase": "citation exacte du texte source",\n'
+                '  "hypostase_attributes": {\n'
+                '    "resume": "synthèse en une phrase",\n'
+                '    "hypostases": "hypothèse, théorie",\n'
+                '    "mots_cles": "mot1, mot2"\n'
+                "  }\n"
+                "}\n\n"
+                '- La clé est TOUJOURS "hypostase"\n'
+                '- Les hypostases spécifiques sont dans "hypostases" (1 à 3 parmi les 30)\n'
+                "- Ne JAMAIS lister les 30. Ne JAMAIS boucler."
+            )
+            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=0, role="context", content=contenu_piece_0_contexte)
+            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=1, role="definition", content=contenu_piece_1_definitions)
+            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=2, role="instruction", content=contenu_piece_2_instructions)
+            PromptPiece.objects.create(analyseur=analyseur_hypostasia, order=3, role="format", content=contenu_piece_3_format)
+            self.stdout.write(self.style.SUCCESS("  4 pièces de prompt créées (approche A, familles épistémiques)"))
 
-            # Exemples few-shot avec extractions structurees
-            # / Few-shot examples with structured extractions
-            exemple_debat = AnalyseurExample.objects.create(
+            # Exemple few-shot unique avec 30 extractions (une par hypostase)
+            # Source : benchmarks/extraction_format/fewshot_30_hypostases.py
+            # / Single few-shot example with 30 extractions (one per hypostase)
+            # / Source: benchmarks/extraction_format/fewshot_30_hypostases.py
+            texte_fewshot_30 = (
+                "Le débat sur l'intelligence artificielle dans l'éducation\n\n"
+                "On distingue trois catégories d'usage de l'IA dans l'enseignement : l'aide à la rédaction, "
+                "l'évaluation automatisée et la recherche documentaire. Comment évaluer un travail quand on "
+                "ne sait plus qui l'a réellement produit ? C'est une impasse dont personne ne voit la sortie. "
+                "Les estimations actuelles suggèrent que 40% des mémoires contiennent des passages générés "
+                "par IA, mais ce chiffre reste une approximation grossière. L'IA aide les étudiants à mieux "
+                "écrire mais les empêche d'apprendre à écrire : voilà le paradoxe central de cette révolution. "
+                "Le cadre logique impose de distinguer clairement l'outil de son usage, sous peine de confondre "
+                "le formalisme avec la réalité.\n\n"
+                "En mars 2026, une étudiante de la Sorbonne a fait rédiger son mémoire de fin d'études par "
+                "une IA, créant un événement sans précédent dans le monde universitaire. Le rapport des "
+                "étudiants à l'écriture académique a radicalement changé en moins de deux ans, une variation "
+                "que personne n'avait anticipée. Le temps moyen consacré à la rédaction d'un mémoire a "
+                "diminué de 60%, une dimension mesurable du phénomène. L'enseignement supérieur fonctionne "
+                "désormais selon un mode hybride où l'IA est omniprésente mais rarement encadrée. Beaucoup "
+                "d'enseignants croient sincèrement que l'IA finira par remplacer la dissertation comme "
+                "exercice pédagogique, une croyance qui influence déjà les programmes.\n\n"
+                "Quelle que soit la technologie utilisée, l'esprit critique reste la compétence indispensable "
+                "que l'éducation doit transmettre : c'est l'invariant de toute pédagogie. Le taux de plagiat "
+                "détecté a augmenté de 300% en un an, une valeur qui alarme les institutions. L'université "
+                "s'organise en trois niveaux de contrôle — département, commission pédagogique, conseil "
+                "d'administration — une structure qui peine à suivre le rythme du changement. Tout étudiant "
+                "a le droit d'utiliser les outils de son époque : cet axiome, rarement contesté, fonde le débat. "
+                "On suppose que l'interdiction totale de l'IA serait contre-productive et pousserait les usages "
+                "dans la clandestinité, mais cette conjecture n'a pas encore été vérifiée.\n\n"
+                "Le modèle finlandais, où l'IA est intégrée dans les cursus depuis 2024, constitue un paradigme "
+                "pour les autres pays européens. L'objet de ce débat est la place de l'IA dans l'évaluation "
+                "des compétences, pas dans l'enseignement lui-même. Le principe d'autonomie intellectuelle, "
+                "qui fonde l'éducation depuis les Lumières, exige que l'étudiant pense par lui-même. Ce débat "
+                "concerne exclusivement le domaine de l'enseignement supérieur et ne s'applique pas à "
+                "l'enseignement primaire. Plus l'accès à l'IA est facile et gratuit, plus son usage non encadré "
+                "augmente : c'est une loi empirique observée dans tous les pays.\n\n"
+                "On observe une baisse significative de la qualité argumentative dans les travaux rendus, un "
+                "phénomène qui inquiète les jurys de soutenance. Le niveau d'appropriation de l'IA par les "
+                "étudiants varie considérablement selon les disciplines, la variable clé étant la nature du "
+                "travail demandé. Les résultats de l'enquête montrent une grande variance entre établissements, "
+                "certains ayant 10% d'usage et d'autres 80%. Le nombre de citations exactes dans un mémoire "
+                "est devenu un indice fiable de travail personnel. Les données de l'enquête PISA 2025 montrent "
+                "que les pays qui encadrent l'IA obtiennent de meilleurs résultats que ceux qui l'interdisent.\n\n"
+                "La méthode proposée consiste à encadrer l'usage plutôt qu'à l'interdire, en s'inspirant des "
+                "chartes universitaires existantes. On entend par « usage acceptable » toute utilisation de "
+                "l'IA qui est déclarée, sourcée et vérifiable par l'enseignant : c'est la définition retenue par "
+                "la commission. Si l'on autorise l'IA sous conditions strictes, la qualité des travaux pourrait "
+                "s'améliorer plutôt que se dégrader, c'est l'hypothèse de travail de cette commission. Le "
+                "problème central reste l'absence de règles claires et partagées entre les établissements. La "
+                "théorie des communs d'Elinor Ostrom offre un cadre pour penser la gouvernance collective de "
+                "l'IA comme ressource partagée par une communauté éducative."
+            )
+
+            exemple_30_hypostases = AnalyseurExample.objects.create(
                 analyseur=analyseur_hypostasia,
-                name="Débat IA — 3 arguments",
-                example_text=(
-                    "L'intelligence artificielle est la révolution la plus importante "
-                    "depuis l'invention de l'écriture. On nous présente l'IA comme une "
-                    "fatalité historique, alors qu'il s'agit d'un choix politique. "
-                    "Je crois qu'il y a une troisième voie que vous négligez tous les deux."
-                ),
+                name="IA & éducation — 30 hypostases",
+                example_text=texte_fewshot_30,
             )
-            # Extraction 1 du debat / Debate extraction 1
-            ext1 = ExampleExtraction.objects.create(
-                example=exemple_debat, order=0,
-                extraction_class="hypostase",
-                extraction_text="L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
-            )
-            ExtractionAttribute.objects.create(extraction=ext1, key="resume", value="L'IA comparée à l'écriture comme rupture civilisationnelle.", order=0)
-            ExtractionAttribute.objects.create(extraction=ext1, key="hypostases", value="théorie, conjecture", order=1)
-            ExtractionAttribute.objects.create(extraction=ext1, key="mots_cles", value="intelligence artificielle, révolution", order=2)
 
-            # Extraction 2 du debat / Debate extraction 2
-            ext2 = ExampleExtraction.objects.create(
-                example=exemple_debat, order=1,
-                extraction_class="hypostase",
-                extraction_text="On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
-            )
-            ExtractionAttribute.objects.create(extraction=ext2, key="resume", value="L'IA est un choix politique déguisé en progrès.", order=0)
-            ExtractionAttribute.objects.create(extraction=ext2, key="hypostases", value="définition, problème", order=1)
-            ExtractionAttribute.objects.create(extraction=ext2, key="mots_cles", value="choix politique, fatalité", order=2)
+            # 30 extractions — une par hypostase, organisees par famille
+            # / 30 extractions — one per hypostase, organized by family
+            liste_extractions_30 = [
+                # Famille 1 : Induction empirique / Family 1: Empirical induction
+                ("On distingue trois catégories d'usage de l'IA dans l'enseignement : l'aide à la rédaction, l'évaluation automatisée et la recherche documentaire.", "Trois catégories d'usage de l'IA identifiées.", "classification", "IA, éducation, catégories"),
+                ("Comment évaluer un travail quand on ne sait plus qui l'a réellement produit ?", "Impasse sur l'évaluation de l'originalité.", "aporie, problème", "évaluation, authenticité"),
+                ("Les estimations actuelles suggèrent que 40% des mémoires contiennent des passages générés par IA, mais ce chiffre reste une approximation grossière.", "Estimation imprécise de l'usage de l'IA dans les mémoires.", "approximation, donnée", "estimation, mémoires, 40%"),
+                ("L'IA aide les étudiants à mieux écrire mais les empêche d'apprendre à écrire : voilà le paradoxe central de cette révolution.", "L'IA améliore et dégrade simultanément l'écriture.", "paradoxe, problème", "écriture, apprentissage, paradoxe"),
+                ("Le cadre logique impose de distinguer clairement l'outil de son usage, sous peine de confondre le formalisme avec la réalité.", "Nécessité de séparer l'outil de son usage dans le cadre logique.", "formalisme, méthode", "logique, outil, usage"),
+                # Famille 2 : Deduction empirique / Family 2: Empirical deduction
+                ("En mars 2026, une étudiante de la Sorbonne a fait rédiger son mémoire de fin d'études par une IA, créant un événement sans précédent dans le monde universitaire.", "Un mémoire rédigé par IA crée un précédent à la Sorbonne.", "événement, problème", "Sorbonne, mémoire, IA"),
+                ("Le rapport des étudiants à l'écriture académique a radicalement changé en moins de deux ans, une variation que personne n'avait anticipée.", "Changement rapide du rapport à l'écriture académique.", "variation, phénomène", "écriture, changement"),
+                ("Le temps moyen consacré à la rédaction d'un mémoire a diminué de 60%, une dimension mesurable du phénomène.", "Le temps de rédaction a baissé de 60%.", "dimension, donnée", "temps, rédaction, 60%"),
+                ("L'enseignement supérieur fonctionne désormais selon un mode hybride où l'IA est omniprésente mais rarement encadrée.", "L'enseignement supérieur est en mode hybride non encadré.", "mode, structure", "hybride, enseignement"),
+                ("Beaucoup d'enseignants croient sincèrement que l'IA finira par remplacer la dissertation comme exercice pédagogique, une croyance qui influence déjà les programmes.", "Croyance répandue que l'IA remplacera la dissertation.", "croyance, conjecture", "dissertation, remplacement"),
+                # Famille 3 : Induction formelle / Family 3: Formal induction
+                ("Quelle que soit la technologie utilisée, l'esprit critique reste la compétence indispensable que l'éducation doit transmettre : c'est l'invariant de toute pédagogie.", "L'esprit critique est l'invariant de toute pédagogie.", "invariant, principe", "esprit critique, pédagogie"),
+                ("Le taux de plagiat détecté a augmenté de 300% en un an, une valeur qui alarme les institutions.", "Le plagiat a triplé en un an.", "valeur, donnée", "plagiat, 300%"),
+                ("L'université s'organise en trois niveaux de contrôle — département, commission pédagogique, conseil d'administration — une structure qui peine à suivre le rythme du changement.", "La structure universitaire à 3 niveaux est trop lente.", "structure, problème", "université, contrôle, niveaux"),
+                ("Tout étudiant a le droit d'utiliser les outils de son époque : cet axiome, rarement contesté, fonde le débat.", "Le droit aux outils de son époque est un axiome du débat.", "axiome, principe", "droit, outils, époque"),
+                ("On suppose que l'interdiction totale de l'IA serait contre-productive et pousserait les usages dans la clandestinité, mais cette conjecture n'a pas encore été vérifiée.", "L'interdiction serait contre-productive — hypothèse non vérifiée.", "conjecture, hypothèse", "interdiction, clandestinité"),
+                # Famille 4 : Deduction formelle / Family 4: Formal deduction
+                ("Le modèle finlandais, où l'IA est intégrée dans les cursus depuis 2024, constitue un paradigme pour les autres pays européens.", "La Finlande est un modèle d'intégration de l'IA.", "paradigme, méthode", "Finlande, modèle, intégration"),
+                ("L'objet de ce débat est la place de l'IA dans l'évaluation des compétences, pas dans l'enseignement lui-même.", "Le débat porte sur l'évaluation, pas l'enseignement.", "objet, domaine", "évaluation, compétences"),
+                ("Le principe d'autonomie intellectuelle, qui fonde l'éducation depuis les Lumières, exige que l'étudiant pense par lui-même.", "L'autonomie intellectuelle est un principe fondateur.", "principe, axiome", "autonomie, Lumières"),
+                ("Ce débat concerne exclusivement le domaine de l'enseignement supérieur et ne s'applique pas à l'enseignement primaire.", "Le périmètre est limité à l'enseignement supérieur.", "domaine, classification", "supérieur, primaire"),
+                ("Plus l'accès à l'IA est facile et gratuit, plus son usage non encadré augmente : c'est une loi empirique observée dans tous les pays.", "Corrélation entre accessibilité et usage non encadré.", "loi, phénomène", "accès, corrélation"),
+                # Famille 5 : Abduction empirique / Family 5: Empirical abduction
+                ("On observe une baisse significative de la qualité argumentative dans les travaux rendus, un phénomène qui inquiète les jurys de soutenance.", "Baisse observée de la qualité argumentative.", "phénomène, problème", "qualité, argumentation"),
+                ("Le niveau d'appropriation de l'IA par les étudiants varie considérablement selon les disciplines, la variable clé étant la nature du travail demandé.", "L'appropriation varie selon la discipline.", "variable, dimension", "disciplines, appropriation"),
+                ("Les résultats de l'enquête montrent une grande variance entre établissements, certains ayant 10% d'usage et d'autres 80%.", "Grande disparité d'usage entre établissements.", "variance, donnée", "établissements, disparité"),
+                ("Le nombre de citations exactes dans un mémoire est devenu un indice fiable de travail personnel.", "Les citations exactes sont un indicateur de travail personnel.", "indice, méthode", "citations, indicateur"),
+                ("Les données de l'enquête PISA 2025 montrent que les pays qui encadrent l'IA obtiennent de meilleurs résultats que ceux qui l'interdisent.", "PISA 2025 : encadrer l'IA donne de meilleurs résultats.", "donnée, loi", "PISA, résultats, encadrement"),
+                # Famille 6 : Abduction formelle / Family 6: Formal abduction
+                ("La méthode proposée consiste à encadrer l'usage plutôt qu'à l'interdire, en s'inspirant des chartes universitaires existantes.", "Encadrer plutôt qu'interdire.", "méthode, principe", "encadrement, chartes"),
+                ("On entend par « usage acceptable » toute utilisation de l'IA qui est déclarée, sourcée et vérifiable par l'enseignant : c'est la définition retenue par la commission.", "Définition de l'usage acceptable : déclaré, sourcé, vérifiable.", "définition, méthode", "usage acceptable, définition"),
+                ("Si l'on autorise l'IA sous conditions strictes, la qualité des travaux pourrait s'améliorer plutôt que se dégrader, c'est l'hypothèse de travail de cette commission.", "Hypothèse : autoriser sous conditions améliorerait la qualité.", "hypothèse, conjecture", "conditions, qualité"),
+                ("Le problème central reste l'absence de règles claires et partagées entre les établissements.", "Absence de règles claires entre établissements.", "problème, structure", "règles, établissements"),
+                ("La théorie des communs d'Elinor Ostrom offre un cadre pour penser la gouvernance collective de l'IA comme ressource partagée par une communauté éducative.", "La théorie des communs comme cadre de gouvernance de l'IA.", "théorie, paradigme", "Ostrom, communs, gouvernance"),
+            ]
 
-            # Extraction 3 du debat / Debate extraction 3
-            ext3 = ExampleExtraction.objects.create(
-                example=exemple_debat, order=2,
-                extraction_class="hypostase",
-                extraction_text="Je crois qu'il y a une troisième voie que vous négligez tous les deux.",
-            )
-            ExtractionAttribute.objects.create(extraction=ext3, key="resume", value="Il existe une approche alternative non considérée.", order=0)
-            ExtractionAttribute.objects.create(extraction=ext3, key="hypostases", value="hypothèse, paradigme", order=1)
-            ExtractionAttribute.objects.create(extraction=ext3, key="mots_cles", value="troisième voie, alternative", order=2)
+            for numero_extraction, (texte, resume, hypostases, mots_cles) in enumerate(liste_extractions_30):
+                extraction_exemple = ExampleExtraction.objects.create(
+                    example=exemple_30_hypostases,
+                    order=numero_extraction,
+                    extraction_class="hypostase",
+                    extraction_text=texte,
+                )
+                ExtractionAttribute.objects.create(extraction=extraction_exemple, key="resume", value=resume, order=0)
+                ExtractionAttribute.objects.create(extraction=extraction_exemple, key="hypostases", value=hypostases, order=1)
+                ExtractionAttribute.objects.create(extraction=extraction_exemple, key="mots_cles", value=mots_cles, order=2)
 
-            # Exemple Ostrom / Ostrom example
-            exemple_ostrom = AnalyseurExample.objects.create(
-                analyseur=analyseur_hypostasia,
-                name="Ostrom — Gouvernance des communs",
-                example_text=(
-                    "Mes recherches montrent que ni le marché pur ni l'État centralisé "
-                    "ne sont les seules options. Les logiciels libres, Wikipédia, les "
-                    "coopératives de données sont des preuves vivantes que des alternatives existent."
-                ),
-            )
-            ext4 = ExampleExtraction.objects.create(
-                example=exemple_ostrom, order=0,
-                extraction_class="hypostase",
-                extraction_text="Ni le marché pur ni l'État centralisé ne sont les seules options.",
-            )
-            ExtractionAttribute.objects.create(extraction=ext4, key="resume", value="Le marché et l'État ne sont pas les seules options de gouvernance.", order=0)
-            ExtractionAttribute.objects.create(extraction=ext4, key="hypostases", value="domaine, classification", order=1)
-
-            ext5 = ExampleExtraction.objects.create(
-                example=exemple_ostrom, order=1,
-                extraction_class="hypostase",
-                extraction_text="Les logiciels libres, Wikipédia, les coopératives de données sont des preuves vivantes que des alternatives existent.",
-            )
-            ExtractionAttribute.objects.create(extraction=ext5, key="resume", value="Des exemples prouvent que des alternatives aux modèles classiques existent.", order=0)
-            ExtractionAttribute.objects.create(extraction=ext5, key="hypostases", value="phénomène, donnée", order=1)
-
-            self.stdout.write(self.style.SUCCESS("  2 exemples few-shot créés (5 extractions, 13 attributs)"))
+            self.stdout.write(self.style.SUCCESS("  1 exemple few-shot créé (30 extractions, 90 attributs)"))
         else:
             self.stdout.write(f"  Analyseur existant : {analyseur_hypostasia.name}")
 

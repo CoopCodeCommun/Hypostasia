@@ -6,11 +6,38 @@
 {% load extractor_tags %}
 <div id="drawer-contenu-inner" aria-live="polite">
 
-    {# Etat 4 : bandeau resume + bouton nouvelle analyse (quand des entites existent) #}
-    {# Affiche en haut du drawer, avant le compteur et les filtres #}
-    {# / State 4: summary banner + new analysis button (when entities exist) #}
-    {# / Displayed at top of drawer, before counter and filters #}
-    {% if entites_visibles or entites_masquees %}
+    {# Bandeau contextuel : progression si analyse en cours, resume si terminee #}
+    {# / Contextual banner: progress if analysis running, summary if completed #}
+    {% if analyse_en_cours %}
+    {# Bandeau de progression — spinner + barre mise a jour par WebSocket OOB #}
+    {# / Progress banner — spinner + bar updated via WebSocket OOB #}
+    <div class="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-3 mb-3"
+         data-testid="bandeau-analyse-en-cours">
+        <div class="flex items-center gap-2 mb-2">
+            <svg class="w-5 h-5 text-indigo-500 animate-pulse flex-shrink-0"
+                 fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                 aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+            </svg>
+            <span class="text-sm text-indigo-700 font-medium">Analyse IA en cours&hellip;</span>
+            {% if job_en_cours and job_en_cours.ai_model %}
+            <span class="text-xs text-indigo-400">&mdash; {{ job_en_cours.ai_model.get_display_name }}</span>
+            {% endif %}
+        </div>
+        {# Barre de progression mise a jour par WebSocket (OOB sur #barre-progression-analyse) #}
+        {# / Progress bar updated by WebSocket (OOB on #barre-progression-analyse) #}
+        <div id="barre-progression-analyse">
+            <div class="w-full bg-indigo-100 rounded-full h-1.5 overflow-hidden" aria-hidden="true">
+                <div class="bg-indigo-500 h-1.5 rounded-full animate-indeterminate-analyse"></div>
+            </div>
+            <p class="text-[10px] text-indigo-300 mt-1">En attente du premier morceau&hellip;</p>
+        </div>
+    </div>
+
+    {% elif entites_visibles or entites_masquees %}
+    {# Bandeau resume + bouton nouvelle analyse (quand des entites existent) #}
+    {# / Summary banner + new analysis button (when entities exist) #}
     <div class="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-3"
          data-testid="bandeau-resume-analyse">
         <span class="text-sm text-emerald-700 font-medium">
@@ -94,8 +121,11 @@
     </div>
     {% endif %}
 
-    {# Cartes lisibles des entites visibles #}
-    {# / Readable cards for visible entities #}
+    {# Zone des cartes — ciblee par le signal WS rafraichir_drawer pour mise a jour partielle #}
+    {# sans ecraser le bandeau de progression en haut du drawer. #}
+    {# / Cards zone — targeted by WS signal rafraichir_drawer for partial update #}
+    {# / without overwriting the progress banner at the top of the drawer. #}
+    <div id="drawer-cartes-liste">
     {% for entity in entites_visibles %}
     {% entity_json_attrs entity as entity_attrs %}
     <div class="drawer-carte-compacte mb-2 rounded-lg border border-slate-100 overflow-hidden cursor-pointer hover:border-slate-200 transition-colors group"
@@ -204,6 +234,13 @@
         {% endfor %}
     </div>
     {% empty %}
+    {% if analyse_en_cours %}
+    {# Analyse en cours mais pas encore d'entites — message d'attente #}
+    {# / Analysis running but no entities yet — waiting message #}
+    <div class="text-center py-6 text-slate-400" data-testid="drawer-attente-extractions">
+        <p class="text-sm">Les extractions apparaissent ici au fur et &agrave; mesure</p>
+    </div>
+    {% else %}
     <div class="empty-state" data-testid="drawer-empty-state">
         <svg class="empty-state-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
@@ -220,6 +257,7 @@
             Lancer une analyse
         </button>
     </div>
+    {% endif %}
     {% endfor %}
 
     {# Section entites non pertinentes (ex-masquees) / Non-relevant entities section (formerly hidden) #}
@@ -241,9 +279,9 @@
                       data-statut="{{ entity.statut_debat }}"
                       style="background-color: var(--statut-{{ entity.statut_debat }}-accent);"></span>
 
-                {% if entity.extraction_class %}
+                {% if entity_attrs.0 %}
                 <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 flex-shrink-0 max-w-[5rem] truncate">
-                    {{ entity.extraction_class }}
+                    {{ entity_attrs.0 }}
                 </span>
                 {% endif %}
 
@@ -272,6 +310,7 @@
         </div>
     </div>
     {% endif %}
+    </div>{# fin #drawer-cartes-liste #}
 </div>
 
 {# OOB : restaurer le titre "Analyses" dans le header du drawer #}

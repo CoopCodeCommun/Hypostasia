@@ -1537,11 +1537,13 @@ def analyser_page_task(self, job_id):
                 )
 
             # Signaler au front qu'il y a de nouvelles entites en DB (une fois par chunk).
-            # Le consumer envoie un OOB swap sur #signal-rafraichir-drawer,
-            # le JS detecte le changement et recharge le drawer via analyse_status.
+            # Le consumer envoie un hx-get auto-load vers analyse_status?cartes_only=1
+            # qui met a jour uniquement les cartes (#drawer-cartes-liste) sans ecraser
+            # le bandeau de progression (#barre-progression-analyse).
             # / Notify the front that new entities are in DB (once per chunk).
-            # / Consumer sends OOB swap on #signal-rafraichir-drawer,
-            # / JS detects the change and reloads the drawer via analyse_status.
+            # / Consumer sends auto-load hx-get to analyse_status?cartes_only=1
+            # / which updates only the cards (#drawer-cartes-liste) without overwriting
+            # / the progress banner (#barre-progression-analyse).
             if identifiant_utilisateur:
                 envoyer_progression_websocket(
                     f"notifications_user_{identifiant_utilisateur}",

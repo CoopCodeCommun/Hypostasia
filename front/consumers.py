@@ -6,6 +6,7 @@ Handles user notifications and Celery task progress tracking.
 """
 
 import logging
+import time
 
 from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
@@ -124,33 +125,35 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
     async def analyse_terminee(self, evenement):
         """
         Signal de fin d'analyse (succes ou erreur).
-        Envoie un OOB swap sur #signal-rafraichir-drawer pour que le JS
-        declenche un rechargement du drawer via analyse_status.
+        Envoie un div OOB avec hx-get + hx-trigger="load" qui force HTMX
+        a recharger le drawer depuis analyse_status.
         Pas de requete DB ni de rendu HTML dans le consumer.
         / Analysis complete signal (success or error).
-        / Sends OOB swap on #signal-rafraichir-drawer so JS triggers
-        / a drawer reload via analyse_status.
+        / Sends OOB div with hx-get + hx-trigger="load" that forces HTMX
+        / to reload the drawer from analyse_status.
         / No DB queries or HTML rendering in the consumer.
 
         LOCALISATION : front/consumers.py
 
         COMMUNICATION :
         Recoit : message 'analyse_terminee' depuis front/tasks.py (analyser_page_task)
-        Emet : OOB swap sur #signal-rafraichir-drawer → JS MutationObserver → htmx.ajax
+        Emet : OOB div avec hx-get auto-load → analyse_status → drawer final
         """
         page_id = evenement.get('page_id')
         if not page_id:
             return
 
-        # OOB swap sur le div signal — le MutationObserver JS detecte le changement
-        # et recharge le drawer depuis analyse_status (qui gere succes/erreur/texte annote)
-        # / OOB swap on the signal div — JS MutationObserver detects the change
-        # / and reloads the drawer from analyse_status (handles success/error/annotated text)
+        # Un div OOB avec hx-get + hx-trigger="load" declenche automatiquement
+        # un rechargement HTMX du drawer des qu'il est injecte dans le DOM.
+        # / An OOB div with hx-get + hx-trigger="load" automatically triggers
+        # / an HTMX reload of the drawer as soon as it's injected into the DOM.
         html_signal = (
             f'<div id="signal-rafraichir-drawer" '
             f'hx-swap-oob="innerHTML:#signal-rafraichir-drawer" '
             f'data-page-id="{page_id}">'
-            f'{page_id}'
+            f'<div hx-get="/lire/{page_id}/analyse_status/" '
+            f'hx-target="#drawer-contenu" hx-swap="innerHTML" '
+            f'hx-trigger="load"></div>'
             f'</div>'
         )
         await self.send(text_data=html_signal)
@@ -158,31 +161,37 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
     async def rafraichir_drawer(self, evenement):
         """
         Signal leger via OOB swap sur un div cache.
-        Le JS (hypostasia.js) observe ce div et declenche un refresh HTMX
-        vers analyse_status qui charge les entites depuis la DB.
+        Injecte un div avec hx-get + hx-trigger="load" qui declenche
+        automatiquement un rechargement HTMX du drawer via analyse_status.
         Pas de requete DB ni de rendu HTML dans le consumer.
         / Lightweight signal via OOB swap on a hidden div.
-        / JS (hypostasia.js) observes this div and triggers an HTMX refresh
-        / to analyse_status which loads entities from DB.
+        / Injects a div with hx-get + hx-trigger="load" that automatically
+        / triggers an HTMX reload of the drawer via analyse_status.
         / No DB queries or HTML rendering in the consumer.
 
         LOCALISATION : front/consumers.py
 
         COMMUNICATION :
         Recoit : message 'rafraichir_drawer' depuis front/tasks.py (callback_extraction_chunk)
-        Emet : OOB swap sur #signal-rafraichir-drawer → JS MutationObserver → htmx.ajax
+        Emet : OOB div avec hx-get auto-load → analyse_status → drawer mis a jour
         """
         page_id = evenement.get('page_id')
         if not page_id:
             return
 
-        # OOB swap sur le div signal — le MutationObserver JS detecte le changement
-        # / OOB swap on the signal div — JS MutationObserver detects the change
+        # Un div OOB avec hx-get + hx-trigger="load" declenche automatiquement
+        # un rechargement des cartes (sans ecraser le bandeau de progression).
+        # Cible #drawer-cartes-liste au lieu de #drawer-contenu.
+        # / An OOB div with hx-get + hx-trigger="load" automatically triggers
+        # / a card reload (without overwriting the progress banner).
+        # / Targets #drawer-cartes-liste instead of #drawer-contenu.
         html_signal = (
             f'<div id="signal-rafraichir-drawer" '
             f'hx-swap-oob="innerHTML:#signal-rafraichir-drawer" '
             f'data-page-id="{page_id}">'
-            f'{page_id}'
+            f'<div hx-get="/lire/{page_id}/analyse_status/?cartes_only=1" '
+            f'hx-target="#drawer-cartes-liste" hx-swap="innerHTML" '
+            f'hx-trigger="load"></div>'
             f'</div>'
         )
         await self.send(text_data=html_signal)

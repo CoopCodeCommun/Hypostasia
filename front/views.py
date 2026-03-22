@@ -772,6 +772,44 @@ def _entites_deja_creees_pour_job(job):
     ).select_related("job").order_by("start_char")
 
 
+def _rendre_drawer_analyse_en_cours(request, page, job_en_cours):
+    """
+    Construit le contexte et rend drawer_vue_liste.html en mode analyse en cours.
+    Utilise le meme template que le resultat final pour garantir
+    des cartes identiques (pastille, statut, citation, resume).
+    / Build context and render drawer_vue_liste.html in analysis-in-progress mode.
+    / Uses the same template as the final result to guarantee
+    / identical cards (status dot, citation, summary).
+
+    LOCALISATION : front/views.py
+    """
+    entites_partielles = list(_entites_deja_creees_pour_job(job_en_cours))
+    est_proprietaire = _est_proprietaire_dossier(request.user, page)
+
+    return render_to_string(
+        "front/includes/drawer_vue_liste.html",
+        {
+            "page": page,
+            "analyse_en_cours": True,
+            "job_en_cours": job_en_cours,
+            "entites_visibles": entites_partielles,
+            "entites_masquees": [],
+            "nombre_masquees": 0,
+            "nombre_total": len(entites_partielles),
+            "nombre_total_sans_filtre": len(entites_partielles),
+            "tri_actuel": "position",
+            "liste_contributeurs": [],
+            "contributeurs_actifs": set(),
+            "noms_contributeurs_actifs": [],
+            "ids_entites_des_contributeurs": set(),
+            "mode_filtre": "inclure",
+            "est_proprietaire": est_proprietaire,
+            "dernier_job": None,
+        },
+        request=request,
+    ), entites_partielles
+
+
 class ConfigurationIAViewSet(viewsets.ViewSet):
     """
     ViewSet pour la configuration IA (toggle on/off, selection du modele).
@@ -1140,12 +1178,10 @@ class LectureViewSet(viewsets.ViewSet):
                 request=request,
             )
 
-            # 2. OOB : panneau en cours avec entites deja trouvees
-            # / 2. OOB: in-progress panel with already found entities
-            html_panneau_en_cours = render_to_string(
-                "front/includes/panneau_analyse_en_cours.html",
-                {"page": page, "job": job_en_cours, "entites_deja_creees": entites_deja_creees},
-                request=request,
+            # 2. OOB : drawer en cours avec entites deja trouvees (meme template que le final)
+            # / 2. OOB: in-progress drawer with already found entities (same template as final)
+            html_panneau_en_cours, _ = _rendre_drawer_analyse_en_cours(
+                request, page, job_en_cours,
             )
             html_panneau_oob = (
                 '<div id="panneau-extractions" hx-swap-oob="innerHTML:#panneau-extractions">'
@@ -1702,13 +1738,12 @@ class LectureViewSet(viewsets.ViewSet):
         if job_en_cours:
             job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
             if not job_est_bloque:
-                # Deja en cours et actif → renvoyer le spinner + entites deja trouvees
-                # / Already running and active → return spinner + already found entities
-                return render(request, "front/includes/panneau_analyse_en_cours.html", {
-                    "page": page,
-                    "job": job_en_cours,
-                    "entites_deja_creees": _entites_deja_creees_pour_job(job_en_cours),
-                })
+                # Deja en cours et actif → renvoyer le drawer en mode analyse en cours
+                # / Already running and active → return drawer in analysis-in-progress mode
+                html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
+                    request, page, job_en_cours,
+                )
+                return HttpResponse(html_drawer_en_cours)
             # Job bloque → continuer vers la confirmation pour relancer
             # / Stalled job → continue to confirmation to relaunch
 
@@ -1975,14 +2010,13 @@ class LectureViewSet(viewsets.ViewSet):
         ).order_by("-created_at").first()
 
         if job_en_cours:
-            # Un job est deja en cours → renvoyer le template + entites deja trouvees
-            # / A job is already running → return template + already found entities
+            # Un job est deja en cours → renvoyer le drawer en mode analyse en cours
+            # / A job is already running → return drawer in analysis-in-progress mode
             logger.info("analyser: job deja en cours pk=%s pour page=%s", job_en_cours.pk, pk)
-            reponse = render(request, "front/includes/panneau_analyse_en_cours.html", {
-                "page": page,
-                "job": job_en_cours,
-                "entites_deja_creees": _entites_deja_creees_pour_job(job_en_cours),
-            })
+            html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
+                request, page, job_en_cours,
+            )
+            reponse = HttpResponse(html_drawer_en_cours)
             reponse["HX-Trigger"] = "ouvrirDrawer"
             return reponse
 
@@ -2077,16 +2111,14 @@ class LectureViewSet(viewsets.ViewSet):
             job_extraction.pk, pk, analyseur.name,
         )
 
-        # Retourner le spinner dans le drawer — le texte reste visible dans #zone-lecture.
-        # Le polling dans panneau_analyse_en_cours.html cible #drawer-contenu.
-        # Les cartes d'extraction arrivent via WebSocket dans #streaming-extractions.
-        # / Return the spinner in the drawer — the text stays visible in #zone-lecture.
-        # / Polling in panneau_analyse_en_cours.html targets #drawer-contenu.
-        # / Extraction cards arrive via WebSocket in #streaming-extractions.
-        reponse = render(request, "front/includes/panneau_analyse_en_cours.html", {
-            "page": page,
-            "job": job_extraction,
-        })
+        # Retourner le drawer en mode analyse en cours — le texte reste visible dans #zone-lecture.
+        # Le signal WS rafraichir_drawer declenche analyse_status qui recharge le drawer.
+        # / Return drawer in analysis-in-progress mode — text stays visible in #zone-lecture.
+        # / WS signal rafraichir_drawer triggers analyse_status which reloads the drawer.
+        html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
+            request, page, job_extraction,
+        )
+        reponse = HttpResponse(html_drawer_en_cours)
         reponse["HX-Trigger"] = "ouvrirDrawer"
         return reponse
 
@@ -2116,35 +2148,46 @@ class LectureViewSet(viewsets.ViewSet):
             # / If active → return spinner.
             job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
             if not job_est_bloque:
-                # Toujours en cours → renvoyer le panneau + entites deja trouvees + OOB texte annote.
-                # Le signal WS rafraichir_drawer declenche cet endpoint via JS MutationObserver.
-                # / Still processing → return panel + already found entities + OOB annotated text.
-                # / WS signal rafraichir_drawer triggers this endpoint via JS MutationObserver.
                 entites_partielles = list(_entites_deja_creees_pour_job(job_en_cours))
-
-                # Annoter le texte avec les entites deja trouvees (pastilles progressives)
-                # / Annotate text with already found entities (progressive highlights)
-                html_annote_partiel = annoter_html_avec_barres(
-                    page.html_readability or '', page.text_readability or '',
-                    entites_partielles,
-                ) if entites_partielles else None
-
-                html_panneau = render_to_string(
-                    "front/includes/panneau_analyse_en_cours.html",
-                    {"page": page, "job": job_en_cours, "entites_deja_creees": entites_partielles},
-                    request=request,
-                )
+                cartes_seulement = request.query_params.get("cartes_only") == "1"
 
                 # OOB : texte annote avec pastilles dans la zone de lecture
                 # / OOB: annotated text with highlights in the reading zone
                 html_oob_texte = ''
-                if html_annote_partiel:
-                    html_oob_texte = (
-                        '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
-                        + html_annote_partiel
-                        + '</article>'
+                if entites_partielles:
+                    html_annote_partiel = annoter_html_avec_barres(
+                        page.html_readability or '', page.text_readability or '',
+                        entites_partielles,
                     )
+                    if html_annote_partiel:
+                        html_oob_texte = (
+                            '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
+                            + html_annote_partiel
+                            + '</article>'
+                        )
 
+                if cartes_seulement:
+                    # Mode cartes_only : retourner seulement les cartes (pour rafraichir_drawer WS)
+                    # sans ecraser le bandeau de progression ni le header du drawer.
+                    # / Cards-only mode: return only cards (for rafraichir_drawer WS)
+                    # / without overwriting progress banner or drawer header.
+                    est_proprietaire_cartes = _est_proprietaire_dossier(request.user, page)
+                    html_cartes = render_to_string(
+                        "front/includes/drawer_cartes_partielles.html",
+                        {
+                            "entites_partielles": entites_partielles,
+                            "page": page,
+                            "est_proprietaire": est_proprietaire_cartes,
+                        },
+                        request=request,
+                    )
+                    return HttpResponse(html_cartes + html_oob_texte)
+
+                # Mode complet : retourner le drawer entier (fermer/rouvrir E)
+                # / Full mode: return the entire drawer (close/reopen E)
+                html_panneau, _ = _rendre_drawer_analyse_en_cours(
+                    request, page, job_en_cours,
+                )
                 return HttpResponse(html_panneau + html_oob_texte)
             # Job bloque → on continue vers le cas completed/error ci-dessous
             # / Stalled job → fall through to completed/error case below
@@ -5366,11 +5409,10 @@ class ExtractionViewSet(viewsets.ViewSet):
         if job_en_cours_pour_drawer:
             job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours_pour_drawer)
             if not job_est_bloque:
-                return render(request, "front/includes/panneau_analyse_en_cours.html", {
-                    "page": page,
-                    "job": job_en_cours_pour_drawer,
-                    "entites_deja_creees": _entites_deja_creees_pour_job(job_en_cours_pour_drawer),
-                })
+                html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
+                    request, page, job_en_cours_pour_drawer,
+                )
+                return HttpResponse(html_drawer_en_cours)
             # Job bloque → on continue vers l'affichage normal des resultats
             # / Stalled job → continue to normal results display
 
