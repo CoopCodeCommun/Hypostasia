@@ -1,11 +1,11 @@
 {# Partial : spinner d'analyse dans le drawer, pendant qu'une tache Celery tourne. #}
-{# Pas de polling HTTP — la progression arrive par WebSocket (analyse_progression). #}
-{# Les cartes arrivent dans #streaming-extractions via WebSocket (extraction_carte). #}
-{# Quand le job termine, le WS envoie un OOB qui charge le drawer final. #}
+{# La progression arrive par WebSocket (analyse_progression). #}
+{# Les cartes sont chargees depuis la DB via analyse_status (signal WS rafraichir_drawer). #}
+{# Quand le job termine, le WS signale un refresh et analyse_status charge le drawer final. #}
 {# / Partial: analysis spinner in the drawer while a Celery task is running. #}
-{# / No HTTP polling — progress comes via WebSocket (analyse_progression). #}
-{# / Cards arrive in #streaming-extractions via WebSocket (extraction_carte). #}
-{# / When job completes, WS sends an OOB that loads the final drawer. #}
+{# / Progress comes via WebSocket (analyse_progression). #}
+{# / Cards are loaded from DB via analyse_status (WS signal rafraichir_drawer). #}
+{# / When job completes, WS signals a refresh and analyse_status loads the final drawer. #}
 
 <div>
 

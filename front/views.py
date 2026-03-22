@@ -918,6 +918,22 @@ class LectureViewSet(viewsets.ViewSet):
 
         analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
 
+        # Verifier si un job est en cours pour cette page
+        # Si oui, renvoyer le panneau d'analyse en cours avec les entites deja trouvees
+        # / Check if a job is currently running for this page
+        # / If so, return the in-progress analysis panel with already found entities
+        job_en_cours = ExtractionJob.objects.filter(
+            page=page,
+            status__in=["pending", "processing"],
+        ).order_by("-created_at").first()
+
+        if job_en_cours:
+            job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
+            if not job_est_bloque:
+                # Job actif → utiliser le panneau en cours au lieu du panneau standard
+                # / Active job → use the in-progress panel instead of the standard one
+                return self._retrieve_avec_job_en_cours(request, page, job_en_cours, analyseurs_actifs)
+
         # Recupere le dernier job d'extraction termine pour cette page
         # pour afficher les resultats existants dans le panneau droit
         dernier_job_termine = ExtractionJob.objects.filter(
@@ -1060,6 +1076,102 @@ class LectureViewSet(viewsets.ViewSet):
             "html_filtre_locuteurs": html_filtre_locuteurs,
             "html_timeline": html_timeline,
             "est_proprietaire": est_proprietaire,
+        })
+
+    def _retrieve_avec_job_en_cours(self, request, page, job_en_cours, analyseurs_actifs):
+        """
+        Rendu de la page quand un job d'extraction est en cours.
+        Affiche le texte brut (sans annotations) + le panneau en cours avec
+        les entites deja extraites par le callback Celery.
+        / Page render when an extraction job is in progress.
+        / Shows raw text (no annotations) + in-progress panel with
+        / entities already extracted by the Celery callback.
+        """
+        # Recuperer les entites deja creees par le callback Celery
+        # / Retrieve entities already created by the Celery callback
+        entites_deja_creees = _entites_deja_creees_pour_job(job_en_cours)
+
+        # Annoter le texte avec les entites deja trouvees (annotations partielles)
+        # / Annotate text with already found entities (partial annotations)
+        html_annote = None
+        if entites_deja_creees.exists():
+            html_annote = annoter_html_avec_barres(
+                page.html_readability or '',
+                page.text_readability or '',
+                list(entites_deja_creees),
+            )
+
+        # Versions de la page / Page versions
+        toutes_les_versions = page.toutes_les_versions
+        page_racine = page.page_racine
+
+        # Widgets audio (PHASE-15) / Audio widgets (PHASE-15)
+        html_filtre_locuteurs = ""
+        html_timeline = ""
+        if page.source_type == "audio" and page.transcription_raw:
+            from .services.transcription_audio import construire_widgets_audio
+            html_filtre_locuteurs, html_timeline = construire_widgets_audio(
+                page.transcription_raw,
+            )
+
+        ia_active = _get_ia_active()
+        est_requete_htmx = bool(request.headers.get('HX-Request'))
+
+        contexte_lecture = {
+            "page": page,
+            "html_annote": html_annote,
+            "analyseurs_actifs": analyseurs_actifs,
+            "job": None,
+            "entities": None,
+            "ia_active": ia_active,
+            "versions": toutes_les_versions,
+            "page_racine": page_racine,
+            "html_filtre_locuteurs": html_filtre_locuteurs,
+            "html_timeline": html_timeline,
+            "est_requete_htmx": est_requete_htmx,
+        }
+
+        if est_requete_htmx:
+            # 1. Partial principal : contenu de lecture (avec annotations partielles)
+            # / 1. Main partial: reading content (with partial annotations)
+            html_lecture = render_to_string(
+                "front/includes/lecture_principale.html",
+                contexte_lecture,
+                request=request,
+            )
+
+            # 2. OOB : panneau en cours avec entites deja trouvees
+            # / 2. OOB: in-progress panel with already found entities
+            html_panneau_en_cours = render_to_string(
+                "front/includes/panneau_analyse_en_cours.html",
+                {"page": page, "job": job_en_cours, "entites_deja_creees": entites_deja_creees},
+                request=request,
+            )
+            html_panneau_oob = (
+                '<div id="panneau-extractions" hx-swap-oob="innerHTML:#panneau-extractions">'
+                + html_panneau_en_cours
+                + '</div>'
+            )
+
+            return HttpResponse(html_lecture + html_panneau_oob)
+
+        # Acces direct (F5) → page complete
+        # / Direct access (F5) → full page
+        est_proprietaire = _est_proprietaire_dossier(request.user, page)
+        return render(request, "front/base.html", {
+            "page_preloaded": page,
+            "html_annote": html_annote,
+            "analyseurs_actifs": analyseurs_actifs,
+            "job": None,
+            "entities": None,
+            "ia_active": ia_active,
+            "versions": toutes_les_versions,
+            "page_racine": page_racine,
+            "html_filtre_locuteurs": html_filtre_locuteurs,
+            "html_timeline": html_timeline,
+            "est_proprietaire": est_proprietaire,
+            "job_en_cours": job_en_cours,
+            "entites_deja_creees": entites_deja_creees,
         })
 
     @action(detail=True, methods=["GET"], url_path="notifications")
@@ -2004,15 +2116,36 @@ class LectureViewSet(viewsets.ViewSet):
             # / If active → return spinner.
             job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
             if not job_est_bloque:
-                # Toujours en cours → renvoyer le panneau + entites deja trouvees.
-                # Ce cas arrive si le fragment WS hx-trigger="load" arrive avant la fin du job.
-                # / Still processing → return panel + already found entities.
-                # / This happens if the WS hx-trigger="load" fires before the job finishes.
-                return render(request, "front/includes/panneau_analyse_en_cours.html", {
-                    "page": page,
-                    "job": job_en_cours,
-                    "entites_deja_creees": _entites_deja_creees_pour_job(job_en_cours),
-                })
+                # Toujours en cours → renvoyer le panneau + entites deja trouvees + OOB texte annote.
+                # Le signal WS rafraichir_drawer declenche cet endpoint via JS MutationObserver.
+                # / Still processing → return panel + already found entities + OOB annotated text.
+                # / WS signal rafraichir_drawer triggers this endpoint via JS MutationObserver.
+                entites_partielles = list(_entites_deja_creees_pour_job(job_en_cours))
+
+                # Annoter le texte avec les entites deja trouvees (pastilles progressives)
+                # / Annotate text with already found entities (progressive highlights)
+                html_annote_partiel = annoter_html_avec_barres(
+                    page.html_readability or '', page.text_readability or '',
+                    entites_partielles,
+                ) if entites_partielles else None
+
+                html_panneau = render_to_string(
+                    "front/includes/panneau_analyse_en_cours.html",
+                    {"page": page, "job": job_en_cours, "entites_deja_creees": entites_partielles},
+                    request=request,
+                )
+
+                # OOB : texte annote avec pastilles dans la zone de lecture
+                # / OOB: annotated text with highlights in the reading zone
+                html_oob_texte = ''
+                if html_annote_partiel:
+                    html_oob_texte = (
+                        '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
+                        + html_annote_partiel
+                        + '</article>'
+                    )
+
+                return HttpResponse(html_panneau + html_oob_texte)
             # Job bloque → on continue vers le cas completed/error ci-dessous
             # / Stalled job → fall through to completed/error case below
 

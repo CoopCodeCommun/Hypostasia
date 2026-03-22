@@ -1605,3 +1605,44 @@ document.addEventListener('click', async function(evenement) {
         values: {commentaire_id: commentaireId},
     });
 });
+
+
+// ---------------------------------------------------------------------------
+// Signal WS : rafraichissement du drawer d'analyse depuis la DB.
+// Le consumer WS envoie un OOB swap sur #signal-rafraichir-drawer
+// avec le page_id. Le MutationObserver detecte le changement et
+// declenche un rechargement HTMX du drawer via analyse_status.
+// Debounce a 800ms pour eviter les rafales (un signal par chunk).
+// / WS signal: analysis drawer refresh from DB.
+// / WS consumer sends OOB swap on #signal-rafraichir-drawer
+// / with page_id. MutationObserver detects the change and
+// / triggers HTMX drawer reload via analyse_status.
+// / Debounced at 800ms to avoid bursts (one signal per chunk).
+//
+// LOCALISATION : front/static/front/js/hypostasia.js
+//
+// COMMUNICATION :
+// Recoit : OOB swap sur #signal-rafraichir-drawer (depuis consumers.py)
+// Emet : htmx.ajax GET vers /lire/{pageId}/analyse_status/
+// ---------------------------------------------------------------------------
+(function() {
+    const signalRafraichir = document.getElementById('signal-rafraichir-drawer');
+    if (!signalRafraichir) return;
+
+    let timerDebounce = null;
+
+    new MutationObserver(function() {
+        const pageId = signalRafraichir.dataset.pageId;
+        if (!pageId) return;
+
+        // Debounce 800ms — les chunks arrivent en rafale avec batch_length=5
+        // / Debounce 800ms — chunks arrive in bursts with batch_length=5
+        clearTimeout(timerDebounce);
+        timerDebounce = setTimeout(function() {
+            htmx.ajax('GET', '/lire/' + pageId + '/analyse_status/', {
+                target: '#drawer-contenu',
+                swap: 'innerHTML'
+            });
+        }, 800);
+    }).observe(signalRafraichir, { childList: true, attributes: true });
+})();

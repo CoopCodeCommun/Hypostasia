@@ -6101,25 +6101,6 @@ class Phase23ConfirmationAnalyseTemplateTest(TestCase):
         self.assertIn('data-testid="estimation-tokens"', self.contenu)
 
 
-class Phase23AnalyseEnCoursTemplateTest(TestCase):
-    """Verifie que le template de polling cible #zone-lecture."""
-
-    def setUp(self):
-        chemin_template = (
-            BASE_DIR / "front" / "templates" / "front" / "includes"
-            / "analyse_en_cours.html"
-        )
-        self.contenu = chemin_template.read_text(encoding="utf-8")
-
-    def test_polling_cible_zone_lecture(self):
-        """Le polling HTMX cible #zone-lecture (pas #zone-resultats-extraction)."""
-        self.assertIn('hx-target="#zone-lecture"', self.contenu)
-        self.assertNotIn('hx-target="#zone-resultats-extraction"', self.contenu)
-
-    def test_polling_every_3s(self):
-        """Le polling se declenche toutes les 3 secondes."""
-        self.assertIn('hx-trigger="every 3s"', self.contenu)
-
 
 class Phase23PrevisualiserAnalyseViewTest(TestCase):
     """Teste l'endpoint previsualiser_analyse via RequestFactory."""

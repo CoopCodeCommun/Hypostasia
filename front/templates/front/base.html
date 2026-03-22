@@ -392,7 +392,11 @@
                         data-onglet="commentaires">Tous les commentaires</button>
             </nav>
             <div id="panneau-extractions">
-                {% if page_preloaded and analyseurs_actifs %}
+                {% if job_en_cours %}
+                    {# Job en cours : afficher le panneau de progression + entites deja trouvees #}
+                    {# / Running job: show progress panel + already found entities #}
+                    {% include "front/includes/panneau_analyse_en_cours.html" with page=page_preloaded job=job_en_cours entites_deja_creees=entites_deja_creees %}
+                {% elif page_preloaded and analyseurs_actifs %}
                     {# Cas F5 sur une page : on pre-charge le selecteur et le bouton #}
                     {% include "front/includes/panneau_analyse.html" with page=page_preloaded analyseurs_actifs=analyseurs_actifs %}
                 {% else %}
@@ -432,6 +436,11 @@
          aria-hidden="true"
          style="display:none">
     </div>
+    <!-- Recepteur signal WS : le consumer envoie un OOB swap ici pour notifier -->
+    <!-- le JS de rafraichir le drawer depuis la DB (analyse en cours). -->
+    <!-- / WS signal receptor: consumer sends OOB swap here to notify -->
+    <!-- / JS to refresh the drawer from DB (analysis in progress). -->
+    <div id="signal-rafraichir-drawer" style="display:none" data-page-id="" aria-hidden="true"></div>
     <div id="ws-toasts"
          class="ws-toasts-container"
          aria-live="polite"

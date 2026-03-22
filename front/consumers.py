@@ -123,169 +123,69 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
 
     async def analyse_terminee(self, evenement):
         """
-        Handler pour les messages de type 'analyse_terminee' envoyes par la tache Celery.
-        Envoie directement le texte annote en OOB + un script qui recharge le drawer.
-        L'ancien pattern (hx-trigger="load" injecte via OOB) ne fonctionnait pas car
-        htmx-ext-ws n'execute pas les attributs HTMX sur les fragments OOB injectes.
-        / Handler for 'analyse_terminee' messages sent by the Celery task.
-        / Directly sends the annotated text as OOB + a script that reloads the drawer.
-        / The old pattern (hx-trigger="load" injected via OOB) didn't work because
-        / htmx-ext-ws doesn't process HTMX attributes on injected OOB fragments.
+        Signal de fin d'analyse (succes ou erreur).
+        Envoie un OOB swap sur #signal-rafraichir-drawer pour que le JS
+        declenche un rechargement du drawer via analyse_status.
+        Pas de requete DB ni de rendu HTML dans le consumer.
+        / Analysis complete signal (success or error).
+        / Sends OOB swap on #signal-rafraichir-drawer so JS triggers
+        / a drawer reload via analyse_status.
+        / No DB queries or HTML rendering in the consumer.
+
+        LOCALISATION : front/consumers.py
+
+        COMMUNICATION :
+        Recoit : message 'analyse_terminee' depuis front/tasks.py (analyser_page_task)
+        Emet : OOB swap sur #signal-rafraichir-drawer → JS MutationObserver → htmx.ajax
         """
         page_id = evenement.get('page_id')
-        job_id = evenement.get('job_id')
-        est_erreur = evenement.get('erreur', False)
         if not page_id:
             return
 
-        if est_erreur:
-            # En cas d'erreur, recharger le drawer via script JS
-            # / On error, reload the drawer via JS script
-            html_erreur = (
-                '<div id="barre-progression-analyse" hx-swap-oob="innerHTML">'
-                '<p class="text-xs text-red-600 text-center py-2">Erreur d\'analyse</p>'
-                '</div>'
-                '<script>'
-                f'htmx.ajax("GET", "/lire/{page_id}/analyse_status/", '
-                '{"target": "#drawer-contenu", "swap": "innerHTML"});'
-                '</script>'
-            )
-            await self.send(text_data=html_erreur)
-            return
+        # OOB swap sur le div signal — le MutationObserver JS detecte le changement
+        # et recharge le drawer depuis analyse_status (qui gere succes/erreur/texte annote)
+        # / OOB swap on the signal div — JS MutationObserver detects the change
+        # / and reloads the drawer from analyse_status (handles success/error/annotated text)
+        html_signal = (
+            f'<div id="signal-rafraichir-drawer" '
+            f'hx-swap-oob="innerHTML:#signal-rafraichir-drawer" '
+            f'data-page-id="{page_id}">'
+            f'{page_id}'
+            f'</div>'
+        )
+        await self.send(text_data=html_signal)
 
-        # Import local pour eviter la circularite / Local import to avoid circular dependency
-        from django.db.models import Count, Prefetch
-        from core.models import Page
-        from hypostasis_extractor.models import CommentaireExtraction, ExtractedEntity, ExtractionJob
-        from front.utils import annoter_html_avec_barres
-
-        try:
-            # Charger la page et le dernier job termine
-            # / Load the page and the latest completed job
-            page = await sync_to_async(Page.objects.get)(pk=page_id)
-
-            dernier_job_termine = await sync_to_async(
-                ExtractionJob.objects.filter(
-                    page=page, status="completed",
-                ).select_related("analyseur_version").order_by("-created_at").first
-            )()
-
-            if not dernier_job_termine:
-                logger.warning("analyse_terminee: aucun job completed pour page=%s", page_id)
-                return
-
-            # Charger les entites non masquees pour l'annotation du texte
-            # / Load non-hidden entities for text annotation
-            entites_non_masquees = await sync_to_async(list)(
-                ExtractedEntity.objects.filter(
-                    job=dernier_job_termine, masquee=False,
-                )
-            )
-
-            # Annoter le HTML de la page / Annotate the page HTML
-            html_annote = await sync_to_async(annoter_html_avec_barres)(
-                page.html_readability or '',
-                page.text_readability or '',
-                entites_non_masquees,
-            )
-
-            # Construire la reponse : texte annote en OOB + script pour recharger le drawer
-            # / Build response: annotated text as OOB + script to reload the drawer
-            html_reponse = (
-                # OOB 1 : texte annote dans la zone de lecture
-                # / OOB 1: annotated text in the reading zone
-                '<article id="readability-content" hx-swap-oob="innerHTML">'
-                + (html_annote or page.html_readability or '')
-                + '</article>'
-                # OOB 2 : barre de progression → message "termine"
-                # / OOB 2: progress bar → "completed" message
-                '<div id="barre-progression-analyse" hx-swap-oob="innerHTML">'
-                '<p class="text-xs text-emerald-600 text-center py-2">'
-                'Analyse terminée</p>'
-                '</div>'
-                # Script : recharger le drawer via htmx.ajax (fiable, pas d'attributs HTMX)
-                # / Script: reload the drawer via htmx.ajax (reliable, no HTMX attributes)
-                '<script>'
-                f'htmx.ajax("GET", "/lire/{page_id}/analyse_status/", '
-                '{"target": "#drawer-contenu", "swap": "innerHTML"});'
-                '</script>'
-            )
-
-            await self.send(text_data=html_reponse)
-
-        except Exception as erreur_consumer:
-            logger.error(
-                "analyse_terminee: erreur consumer page=%s — %s",
-                page_id, erreur_consumer, exc_info=True,
-            )
-            # Fallback : recharger via script JS / Fallback: reload via JS script
-            html_fallback = (
-                '<script>'
-                f'htmx.ajax("GET", "/lire/{page_id}/analyse_status/", '
-                '{"target": "#drawer-contenu", "swap": "innerHTML"});'
-                '</script>'
-            )
-            await self.send(text_data=html_fallback)
-
-    async def extraction_carte(self, evenement):
+    async def rafraichir_drawer(self, evenement):
         """
-        Handler pour les messages de type 'extraction_carte' envoyes par la tache Celery.
-        Envoie un message WebSocket unique contenant deux fragments OOB :
-        1. La carte d'extraction → ajoutee dans #streaming-extractions (panneau E)
-        2. Le texte annote avec toutes les entites du job → remplace #readability-content
+        Signal leger via OOB swap sur un div cache.
+        Le JS (hypostasia.js) observe ce div et declenche un refresh HTMX
+        vers analyse_status qui charge les entites depuis la DB.
+        Pas de requete DB ni de rendu HTML dans le consumer.
+        / Lightweight signal via OOB swap on a hidden div.
+        / JS (hypostasia.js) observes this div and triggers an HTMX refresh
+        / to analyse_status which loads entities from DB.
+        / No DB queries or HTML rendering in the consumer.
 
-        Le navigateur reste sur le texte pendant l'analyse. Les surlignages apparaissent
-        progressivement a chaque nouvelle extraction.
+        LOCALISATION : front/consumers.py
 
-        / Handler for 'extraction_carte' messages sent by the Celery task.
-        / Sends a single WebSocket message containing two OOB fragments:
-        / 1. Extraction card → appended to #streaming-extractions (E panel)
-        / 2. Annotated text with all job entities → replaces #readability-content
-        / The browser stays on the text during analysis. Highlights appear progressively.
+        COMMUNICATION :
+        Recoit : message 'rafraichir_drawer' depuis front/tasks.py (callback_extraction_chunk)
+        Emet : OOB swap sur #signal-rafraichir-drawer → JS MutationObserver → htmx.ajax
         """
-        entite_pk = evenement.get('entite_pk')
-        if not entite_pk:
-            logger.warning("extraction_carte: entite_pk manquant dans l'evenement")
+        page_id = evenement.get('page_id')
+        if not page_id:
             return
 
-        # Import local pour eviter la circularite au chargement du module
-        # / Local import to avoid circular dependency at module load
-        from hypostasis_extractor.models import ExtractedEntity
-        from front.utils import annoter_html_avec_barres
-
-        # Recuperer l'entite avec son job et sa page
-        # / Fetch the entity with its job and page
-        try:
-            entite = await sync_to_async(
-                ExtractedEntity.objects.select_related('job__page').get
-            )(pk=entite_pk)
-        except ExtractedEntity.DoesNotExist:
-            logger.warning("extraction_carte: entite pk=%s introuvable", entite_pk)
-            return
-
-        # Charger toutes les entites du job jusqu'ici pour annoter le texte complet
-        # / Load all job entities so far to annotate the full text
-        toutes_les_entites_du_job = await sync_to_async(list)(
-            ExtractedEntity.objects.filter(job=entite.job).select_related('job')
+        # OOB swap sur le div signal — le MutationObserver JS detecte le changement
+        # / OOB swap on the signal div — JS MutationObserver detects the change
+        html_signal = (
+            f'<div id="signal-rafraichir-drawer" '
+            f'hx-swap-oob="innerHTML:#signal-rafraichir-drawer" '
+            f'data-page-id="{page_id}">'
+            f'{page_id}'
+            f'</div>'
         )
-
-        # Annoter le HTML de la page avec toutes les entites connues
-        # / Annotate the page HTML with all known entities
-        page = entite.job.page
-        html_annote = await sync_to_async(annoter_html_avec_barres)(
-            page.html_readability or '',
-            page.text_readability or '',
-            toutes_les_entites_du_job,
-        )
-
-        # Rendre le message WS complet : carte + texte annote (deux OOB en un)
-        # / Render the complete WS message: card + annotated text (two OOBs in one)
-        html_message = await sync_to_async(render_to_string)(
-            'front/includes/ws_extraction_complete.html',
-            {'entite': entite, 'html_annote': html_annote},
-        )
-
-        await self.send(text_data=html_message)
+        await self.send(text_data=html_signal)
 
 
 class ProgressionTacheConsumer(AsyncJsonWebsocketConsumer):
