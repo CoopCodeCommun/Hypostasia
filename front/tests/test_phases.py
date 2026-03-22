@@ -8104,21 +8104,33 @@ class Phase25dExplorerAnonymeTest(TestCase):
 
 
 class Phase25dExplorerRechercheTest(TestCase):
-    """Recherche par nom.
-    / Search by name."""
+    """Recherche document-centrique (PHASE-25d-v2).
+    Quand un terme est saisi, la recherche renvoie des Pages (documents).
+    / Document-centric search (PHASE-25d-v2).
+    When a term is entered, search returns Pages (documents)."""
 
     def setUp(self):
         from django.contrib.auth.models import User
-        from core.models import Dossier, VisibiliteDossier
+        from core.models import Dossier, Page, VisibiliteDossier
         owner = User.objects.create_user(username="exp_own2", password="test1234")
-        Dossier.objects.create(name="Alpha search", owner=owner, visibilite=VisibiliteDossier.PUBLIC)
-        Dossier.objects.create(name="Beta search", owner=owner, visibilite=VisibiliteDossier.PUBLIC)
+        dossier_alpha = Dossier.objects.create(name="Alpha search", owner=owner, visibilite=VisibiliteDossier.PUBLIC)
+        dossier_beta = Dossier.objects.create(name="Beta search", owner=owner, visibilite=VisibiliteDossier.PUBLIC)
+        Page.objects.create(
+            title="Page Alpha contenu", dossier=dossier_alpha, owner=owner,
+            text_readability="Texte Alpha recherchable.",
+            html_original="<p>t</p>", html_readability="<p>t</p>",
+        )
+        Page.objects.create(
+            title="Page Beta contenu", dossier=dossier_beta, owner=owner,
+            text_readability="Texte Beta autre sujet.",
+            html_original="<p>t</p>", html_readability="<p>t</p>",
+        )
 
     def test_recherche_filtre(self):
-        reponse = self.client.get("/explorer/", {"q": "Alpha"}, HTTP_HX_REQUEST="true")
+        reponse = self.client.get("/explorer/", {"q": "Alpha"}, HTTP_HX_REQUEST="true", HTTP_HX_TARGET="explorer-resultats")
         self.assertEqual(reponse.status_code, 200)
-        self.assertContains(reponse, "Alpha search")
-        self.assertNotContains(reponse, "Beta search")
+        self.assertContains(reponse, "Page Alpha contenu")
+        self.assertNotContains(reponse, "Page Beta contenu")
 
 
 class Phase25dExplorerFiltreAuteurTest(TestCase):

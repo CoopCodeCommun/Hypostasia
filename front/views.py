@@ -97,6 +97,11 @@ def _utilisateur_a_acces_dossier(utilisateur, dossier):
     if dossier is None:
         return False
 
+    # Superuser → acces a tous les dossiers (PHASE-25d-v2)
+    # / Superuser → access to all folders (PHASE-25d-v2)
+    if utilisateur and utilisateur.is_authenticated and utilisateur.is_superuser:
+        return True
+
     # Dossier public → accessible a tous (y compris anonymes)
     # / Public folder → accessible to all (including anonymous)
     if dossier.visibilite == VisibiliteDossier.PUBLIC:

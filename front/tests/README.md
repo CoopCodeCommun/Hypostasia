@@ -296,6 +296,29 @@ Tests de validation de la robustesse de l'extension navigateur (PHASE-05).
 | `test_lecture_contient_oob_titre_toolbar` | `GET /lire/{id}/` renvoie un snippet OOB pour `#titre-toolbar` avec le titre |
 | `test_lecture_page_sans_titre_affiche_sans_titre` | Page sans titre → "Sans titre" dans le OOB |
 
+### Session 2026-03-22 — Flux d'analyse unifie + WebSocket OOB
+
+**Fichier :** `test_analyse_drawer_unifie.py` (16 tests)
+
+Verifie que le flux d'analyse utilise un seul template (`drawer_vue_liste.html`)
+pendant et apres l'analyse, et que les signaux WebSocket ciblent les bonnes zones.
+
+| Classe | Tests | Vérifie |
+|--------|-------|---------|
+| `AnalyseStatusEnCoursTest` | 6 | Bandeau progression, pas "Aucune analyse", cartes partielles, drawer_vue_liste |
+| `AnalyseStatusCartesOnlyTest` | 4 | `?cartes_only=1` retourne cartes seules + OOB texte, pas de bandeau |
+| `AnalyseStatusTermineeTest` | 4 | Bandeau vert, pas de progression, drawer_vue_liste, cartes |
+| `AnalyseConsumerSignalTest` | 2 | `rafraichir_drawer` → `#drawer-cartes-liste`, `analyse_terminee` → `#drawer-contenu` |
+
+**Pieges resolus (documentes dans les tests) :**
+
+1. **MutationObserver + HTMX-WS = incompatible** — les OOB swaps ne declenchent pas les Observers. Solution : `hx-trigger="load"`.
+2. **Deux templates differents** pendant/apres l'analyse → un seul `drawer_vue_liste.html` avec `analyse_en_cours=True`.
+3. **OOB en conflit** : `rafraichir_drawer` ecrasait `#barre-progression-analyse` → cibler `#drawer-cartes-liste` via `?cartes_only=1`.
+4. **`{% empty %}` affichait "Aucune analyse"** pendant l'analyse → conditionner avec `{% if analyse_en_cours %}`.
+
+---
+
 ## Ajouter des tests pour les phases suivantes
 
 Créer un nouveau fichier `test_phase_XX.py` dans `front/tests/` et l'importer dans `__init__.py` :

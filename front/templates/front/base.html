@@ -128,9 +128,13 @@
                 <input type="file" class="hidden" id="input-import-fichier"
                        accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
             </label>
-            <!-- Lien Explorer les dossiers publics (PHASE-25d) -->
-            <!-- / Explore public folders link (PHASE-25d) -->
+            <!-- Lien Explorer les dossiers publics (PHASE-25d-v2) -->
+            <!-- / Explore public folders link (PHASE-25d-v2) -->
             <a href="/explorer/"
+               hx-get="/explorer/"
+               hx-target="#zone-lecture"
+               hx-swap="innerHTML"
+               hx-push-url="/explorer/"
                class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors btn-desktop-only"
                title="Explorer les dossiers publics" data-testid="btn-toolbar-explorer" aria-label="Explorer les dossiers publics">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -274,13 +278,13 @@
                 </label>
             </div>
             <div class="arbre-footer-rangee">
-                <!-- Lien Explorer les dossiers publics (PHASE-25d) -->
-                <!-- / Explore public folders link (PHASE-25d) -->
+                <!-- Lien Explorer les dossiers publics (PHASE-25d-v2) -->
+                <!-- / Explore public folders link (PHASE-25d-v2) -->
                 <a href="/explorer/"
                    hx-get="/explorer/"
                    hx-target="#zone-lecture"
                    hx-swap="innerHTML"
-                   hx-push-url="true"
+                   hx-push-url="/explorer/"
                    class="arbre-footer-btn"
                    data-testid="btn-explorer-publics"
                    title="Explorer les dossiers publics">
@@ -375,6 +379,8 @@
                 </div>
             {% elif analyseur_preloaded %}
                 {% include "hypostasis_extractor/analyseur_editor.html" with analyseur=analyseur_preloaded %}
+            {% elif explorer_preloaded %}
+                {% include "front/includes/explorer_contenu.html" %}
             {% elif page_preloaded %}
                 {% include "front/includes/lecture_principale.html" with page=page_preloaded %}
             {% else %}
@@ -409,7 +415,7 @@
     {% include "front/includes/selection_menu.html" %}
 
 
-    <script src="{% static 'front/js/hypostasia.js' %}?v=28"></script>
+    <script src="{% static 'front/js/hypostasia.js' %}?v=33"></script>
     <script src="{% static 'front/js/marginalia.js' %}?v=21"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
     <script src="{% static 'front/js/arbre_overlay.js' %}?v=23"></script>

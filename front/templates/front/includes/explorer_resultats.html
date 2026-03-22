@@ -1,22 +1,28 @@
-{# Resultats pagines de l'Explorer (PHASE-25d) #}
-{# / Paginated Explorer results (PHASE-25d) #}
+{# Resultats pagines de l'Explorer — double mode navigation/recherche (PHASE-25d-v2) #}
+{# / Paginated Explorer results — dual browse/search mode (PHASE-25d-v2) #}
 {# LOCALISATION : front/templates/front/includes/explorer_resultats.html #}
 
-{% if page_dossiers %}
-<div class="space-y-3" data-testid="explorer-resultats-liste">
-    {% for dossier in page_dossiers %}
-    <div id="explorer-card-{{ dossier.pk }}">
-        {% include "front/includes/explorer_card.html" %}
-    </div>
+{% if mode_recherche %}
+{# ═══ MODE RECHERCHE : affiche des documents avec snippets ═══ #}
+{# / ═══ SEARCH MODE: shows documents with snippets ═══ #}
+
+{% if page_documents %}
+<p class="text-xs text-slate-400 mb-3" data-testid="explorer-resultats-compteur">
+    {{ paginateur.count }} resultat{{ paginateur.count|pluralize:"s" }}
+    {% if terme_recherche %}pour &laquo;&nbsp;{{ terme_recherche }}&nbsp;&raquo;{% endif %}
+</p>
+<div class="space-y-3" data-testid="explorer-resultats-documents">
+    {% for page_item in page_documents %}
+    {% include "front/includes/explorer_card_document.html" %}
     {% endfor %}
 </div>
 
-{# Pagination — boutons precedent/suivant #}
-{# / Pagination — previous/next buttons #}
-{% if page_dossiers.has_other_pages %}
+{# Pagination mode recherche #}
+{# / Search mode pagination #}
+{% if page_documents.has_other_pages %}
 <nav class="flex items-center justify-center gap-2 mt-6" aria-label="Pagination des resultats" data-testid="explorer-pagination">
-    {% if page_dossiers.has_previous %}
-    <button hx-get="/explorer/?page_num={{ page_dossiers.previous_page_number }}&q={{ terme_recherche }}&auteur={{ id_auteur_filtre|default:'' }}"
+    {% if page_documents.has_previous %}
+    <button hx-get="/explorer/?page_num={{ page_documents.previous_page_number }}&q={{ terme_recherche }}&auteur={{ id_auteur_filtre|default:'' }}"
             hx-target="#explorer-resultats"
             hx-swap="innerHTML"
             data-testid="explorer-btn-precedent"
@@ -26,10 +32,10 @@
     </button>
     {% endif %}
     <span class="text-sm text-slate-500">
-        Page {{ page_dossiers.number }} sur {{ page_dossiers.paginator.num_pages }}
+        Page {{ page_documents.number }} sur {{ page_documents.paginator.num_pages }}
     </span>
-    {% if page_dossiers.has_next %}
-    <button hx-get="/explorer/?page_num={{ page_dossiers.next_page_number }}&q={{ terme_recherche }}&auteur={{ id_auteur_filtre|default:'' }}"
+    {% if page_documents.has_next %}
+    <button hx-get="/explorer/?page_num={{ page_documents.next_page_number }}&q={{ terme_recherche }}&auteur={{ id_auteur_filtre|default:'' }}"
             hx-target="#explorer-resultats"
             hx-swap="innerHTML"
             data-testid="explorer-btn-suivant"
@@ -46,6 +52,60 @@
     <svg class="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
     </svg>
-    <p class="text-sm text-slate-400">Aucun dossier public trouve.</p>
+    <p class="text-sm text-slate-400">Aucun document ne correspond a votre recherche.</p>
 </div>
+{% endif %}
+
+{% else %}
+{# ═══ MODE NAVIGATION : affiche des dossiers (comportement original) ═══ #}
+{# / ═══ BROWSE MODE: shows folders (original behavior) ═══ #}
+
+{% if page_dossiers %}
+<div class="space-y-3" data-testid="explorer-resultats-liste">
+    {% for dossier in page_dossiers %}
+    <div id="explorer-card-{{ dossier.pk }}">
+        {% include "front/includes/explorer_card.html" %}
+    </div>
+    {% endfor %}
+</div>
+
+{# Pagination mode navigation #}
+{# / Browse mode pagination #}
+{% if page_dossiers.has_other_pages %}
+<nav class="flex items-center justify-center gap-2 mt-6" aria-label="Pagination des resultats" data-testid="explorer-pagination">
+    {% if page_dossiers.has_previous %}
+    <button hx-get="/explorer/?page_num={{ page_dossiers.previous_page_number }}&auteur={{ id_auteur_filtre|default:'' }}"
+            hx-target="#explorer-resultats"
+            hx-swap="innerHTML"
+            data-testid="explorer-btn-precedent"
+            aria-label="Page precedente"
+            class="px-3 py-1.5 text-sm border border-slate-300 rounded hover:bg-slate-50">
+        Precedent
+    </button>
+    {% endif %}
+    <span class="text-sm text-slate-500">
+        Page {{ page_dossiers.number }} sur {{ page_dossiers.paginator.num_pages }}
+    </span>
+    {% if page_dossiers.has_next %}
+    <button hx-get="/explorer/?page_num={{ page_dossiers.next_page_number }}&auteur={{ id_auteur_filtre|default:'' }}"
+            hx-target="#explorer-resultats"
+            hx-swap="innerHTML"
+            data-testid="explorer-btn-suivant"
+            aria-label="Page suivante"
+            class="px-3 py-1.5 text-sm border border-slate-300 rounded hover:bg-slate-50">
+        Suivant
+    </button>
+    {% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="text-center py-12" data-testid="explorer-vide">
+    <svg class="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+    </svg>
+    <p class="text-sm text-slate-400">Aucun dossier public pour le moment.</p>
+</div>
+{% endif %}
+
 {% endif %}

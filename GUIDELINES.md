@@ -263,6 +263,73 @@ de version.
 
 ---
 
+## 7b. WebSocket + OOB : patterns et pieges
+
+Le suivi de progression de l'analyse IA utilise **Django Channels** (WebSocket)
+avec des **OOB swaps HTMX**. Voici les patterns valides et les pieges a eviter.
+
+### Architecture du flux temps reel
+
+```
+Celery task (front/tasks.py)
+    ↓ envoyer_progression_websocket()
+NotificationConsumer (front/consumers.py)
+    ↓ send(text_data=html_oob)
+HTMX WS extension (htmx-ext-ws)
+    ↓ applique les OOB swaps dans le DOM
+```
+
+### Pattern valide : hx-trigger="load" dans un OOB swap
+
+Pour forcer HTMX a recharger une zone apres un signal WS, injecter un div
+OOB contenant un `hx-get` avec `hx-trigger="load"` :
+
+```python
+# Consumer envoie un fragment qui declenche un GET auto
+# / Consumer sends a fragment that auto-triggers a GET
+html_signal = (
+    f'<div id="signal-div" hx-swap-oob="innerHTML:#signal-div">'
+    f'<div hx-get="/lire/{page_id}/analyse_status/" '
+    f'hx-target="#zone-cible" hx-swap="innerHTML" '
+    f'hx-trigger="load"></div>'
+    f'</div>'
+)
+await self.send(text_data=html_signal)
+```
+
+### Piege 1 : MutationObserver ne detecte pas les OOB swaps
+
+**NE PAS** utiliser un MutationObserver JS pour detecter un OOB swap HTMX-WS.
+L'extension HTMX-WS applique les swaps sans declencher les MutationObserver.
+Utiliser `hx-trigger="load"` dans le fragment OOB a la place.
+
+### Piege 2 : deux zones OOB qui se battent
+
+Si le signal A met a jour `#zone-complete` (tout le drawer) et le signal B
+met a jour `#barre-progression` (sous-zone du drawer), le signal A ecrase
+le contenu de B. Solution : **cibler des sous-zones distinctes**.
+
+```
+Signal rafraichir_drawer → cible #drawer-cartes-liste (sous-zone cartes)
+Signal analyse_progression → cible #barre-progression-analyse (sous-zone barre)
+Signal analyse_terminee → cible #drawer-contenu (refresh complet final)
+```
+
+### Piege 3 : template different pendant et apres
+
+Utiliser **un seul template** pour l'etat "en cours" et l'etat "termine".
+La variable `analyse_en_cours` conditionne le bandeau (progression vs succes).
+
+### Consumer : 3 types de messages
+
+| Message | Quand | Cible | Source |
+|---------|-------|-------|--------|
+| `analyse_progression` | Chaque chunk | `#barre-progression-analyse` (OOB template) | `front/tasks.py` callback |
+| `rafraichir_drawer` | Chaque chunk | `#drawer-cartes-liste` via `?cartes_only=1` | `front/tasks.py` callback |
+| `analyse_terminee` | Fin du job | `#drawer-contenu` (refresh complet) | `front/tasks.py` fin |
+
+---
+
 ## 8. Docker : environnement unique dev/prod
 
 Tout tourne dans Docker. Un seul `docker-compose.yml` gere dev et prod.
