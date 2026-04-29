@@ -1,0 +1,150 @@
+# =============================================================================
+# Hypostasia — docker-compose unique dev/prod
+#
+# Le comportement est determine par les variables dans .env :
+#   DEBUG=true  → dev  (sleep infinity, ports exposes, volumes locaux)
+#   DEBUG=false → prod (supervisord, reseau interne, volumes Docker)
+#
+# DEV :
+#   docker compose up -d
+#   docker exec -it hypostasia_web bash
+#   uv run python manage.py runserver 0.0.0.0:8123
+#
+# PROD — mise a jour rapide :
+#   docker exec -it hypostasia_web bash
+#   cd /app && git pull
+#   uv sync
+#   uv run python manage.py migrate
+#   supervisorctl -c /app/supervisord.conf restart gunicorn daphne celery_worker
+# =============================================================================
+
+services:
+  #########
+  # TRAEFIK PROXY
+  #########
+  traefik:
+    image: "traefik:latest"
+    container_name: "traefik"
+    hostname: "traefik"
+    command:
+      - "--log.level=INFO"
+      - "--providers.docker=true"
+      - "--providers.docker.network=frontend"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.entrypoints-https.address=:443"
+      - "--entrypoints.entrypoints-http.address=:80"
+      - "--entrypoints.entrypoints-http.http.redirections.entryPoint.to=entrypoints-https"
+      - "--entrypoints.entrypoints-http.http.redirections.entryPoint.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    restart: unless-stopped
+    networks:
+      - frontend
+
+
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: hypostasia_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hypostasia}
+      POSTGRES_USER: ${POSTGRES_USER:-hypostasia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hypostasia}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - hypostasia
+
+  redis:
+    image: redis:7-alpine
+    container_name: hypostasia_redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - hypostasia
+
+  web:
+    build: .
+    container_name: hypostasia_web
+    # Utilise le meme uid:gid que l'utilisateur hote pour que les volumes
+    # montes (media/, logs/, tmp/) soient accessibles en ecriture.
+    # Par defaut 1000:1000 (premier user Linux). Surcharger dans .env si different.
+    # / Uses the same uid:gid as the host user so that mounted volumes
+    # / (media/, logs/, tmp/) are writable. Default 1000:1000 (first Linux user).
+    # user: "${UID:-1000}:${GID:-1000}"
+    env_file: .env
+    environment:
+      # Force le host PostgreSQL et Redis vers les noms de service Docker
+      # / Force PostgreSQL and Redis hosts to Docker service names
+      POSTGRES_HOST: postgres
+      CELERY_BROKER_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/0
+      # Cache uv et home dans /app pour eviter les problemes de permissions
+      # / uv cache and home in /app to avoid permission issues
+      UV_CACHE_DIR: /app/.cache/uv
+      HOME: /app
+    volumes:
+      - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hypostasia
+    # DEBUG=true → sleep infinity (on lance le serveur a la main)
+    # DEBUG=false → start.sh (supervisord : gunicorn:8001 + daphne:8000 + celery)
+    command: >
+      bash -c '
+        if [ "$DEBUG" = "true" ] || [ "$DEBUG" = "True" ]; then
+          echo "Mode dev — sleep infinity. Lancer le serveur manuellement."
+          sleep infinity
+        else
+          bash start.sh
+        fi
+      '
+
+  nginx:
+    image: nginx:alpine
+    container_name: hypostasia_nginx
+    volumes:
+      - ./nginx/${NGINX_CONF:-default.conf}:/etc/nginx/conf.d/default.conf
+      - ./staticfiles:/app/staticfiles:ro
+      - ./media:/app/media:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - web
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frontend"
+      - "traefik.http.routers.hypostasia.tls.certresolver=myresolver"
+      - "traefik.http.services.hypostasia.loadbalancer.server.port=80"
+      - "traefik.http.routers.hypostasia.rule=Host(`${DOMAIN}`)"
+#      - "traefik.http.routers.hypostasia.middlewares=crowdsec@file"
+    networks:
+      - frontend
+      - hypostasia
+
+networks:
+  frontend:
+    external: true
+  hypostasia:
+
+volumes:
+  pgdata:
