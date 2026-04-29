@@ -350,7 +350,10 @@ class SyntheseStatusTests(TestCase):
         self.assertIn("synthese_status", contenu)
         self.assertIn("Synthèse en cours", contenu)
 
-    def test_synthese_status_completed_renvoie_oob_et_fermer_drawer(self):
+    def test_synthese_status_completed_renvoie_hx_location_et_fermer_drawer(self):
+        # PHASE-29 simplifie : completed renvoie un HX-Location vers /lire/V/
+        # (HTMX swap natif de zone-lecture) au lieu d'un OOB complexe.
+        # / Simplified: completed returns HX-Location to /lire/V/ instead of OOB.
         from hypostasis_extractor.models import ExtractionJob
         from core.models import Page
         page_v2 = Page.objects.create(
@@ -372,10 +375,10 @@ class SyntheseStatusTests(TestCase):
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(reponse.status_code, 200)
-        contenu = reponse.content.decode("utf-8")
-        # OOB swap de zone-lecture / OOB swap of zone-lecture
-        self.assertIn("zone-lecture", contenu)
-        self.assertIn("indicateur-synthese", contenu)
+        # HX-Location pointe vers la V2 / HX-Location points to V2
+        location = reponse.headers.get("HX-Location", "")
+        self.assertIn(f"/lire/{page_v2.pk}/", location)
+        self.assertIn("zone-lecture", location)
         # HX-Trigger fermerDrawer / HX-Trigger fermerDrawer
         trigger = reponse.headers.get("HX-Trigger", "")
         self.assertIn("fermerDrawer", trigger)

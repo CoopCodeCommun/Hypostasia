@@ -436,20 +436,17 @@ class SyntheseStatusTest(TestCase):
             f"/lire/{self.fixtures['page_source'].pk}/synthese_status/",
             HTTP_HX_REQUEST="true",
         )
-        contenu = reponse.content.decode("utf-8")
         self.assertEqual(reponse.status_code, 200)
-        # PHASE-29 : la reponse est un OOB qui recharge zone-lecture vers la V2
-        # + HX-Trigger fermerDrawer + pill V2 dans le switcher.
-        # / PHASE-29: response is an OOB that reloads zone-lecture to V2
-        # / + HX-Trigger fermerDrawer + V2 pill in the switcher.
-        self.assertIn(f"/lire/{page_synthese.pk}/", contenu)
-        self.assertIn("indicateur-synthese", contenu)
-        self.assertIn("V2", contenu)
+        # PHASE-29 simplifie : la reponse renvoie un HX-Location vers /lire/V2/
+        # (HTMX fait un GET natif et swap zone-lecture) + HX-Trigger fermerDrawer.
+        # Plus d'OOB complexe ni de polling actif.
+        # / Simplified: response returns HX-Location to /lire/V2/ + fermerDrawer.
+        location = reponse.headers.get("HX-Location", "")
+        self.assertIn(f"/lire/{page_synthese.pk}/", location)
+        self.assertIn("zone-lecture", location)
         # HX-Trigger doit fermer le drawer / HX-Trigger must close the drawer
         trigger = reponse.headers.get("HX-Trigger", "")
         self.assertIn("fermerDrawer", trigger)
-        # Pas de polling (plus de hx-trigger every) / No polling (no hx-trigger every)
-        self.assertNotIn("every 3s", contenu)
 
     def test_status_error_retourne_message_et_retry(self):
         """Un job error retourne le message d'erreur et un bouton retry."""

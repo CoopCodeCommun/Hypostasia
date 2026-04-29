@@ -36,15 +36,24 @@
     <span id="drawer-titre" hx-swap-oob="innerHTML:#drawer-titre">Erreur de synthèse</span>
 
 {% else %}
-    {# En cours : spinner large + polling toutes les 3s #}
-    {# / In progress: large spinner + polling every 3s #}
+    {% comment %}
+    En cours : spinner large + polling toutes les 3s.
+    Le polling ne se declenche QUE si l'utilisateur est encore sur la page
+    source (verifie via le data-page-id de #zone-lecture). Si l'utilisateur
+    a navigue ailleurs, le filtre [expression] retourne false et HTMX
+    n'envoie pas la requete. Empeche les requetes zombies en arriere-plan.
+    / Polling triggers ONLY if user is still on source page (checks data-page-id
+    of #zone-lecture). If user navigated away, filter returns false → no request.
+    Prevents zombie requests in background.
+    {% endcomment %}
     <div id="drawer-contenu-inner"
          class="py-8 px-4"
          hx-get="/lire/{{ page.pk }}/synthese_status/"
-         hx-trigger="every 3s"
+         hx-trigger="every 3s [document.querySelector('#zone-lecture [data-page-id]')?.dataset.pageId === '{{ page.pk }}']"
          hx-target="#drawer-contenu"
          hx-swap="innerHTML"
          aria-live="polite"
+         data-source-page-id="{{ page.pk }}"
          data-testid="synthese-en-cours-drawer">
         <div class="flex flex-col items-center text-center py-8">
             <div class="w-16 h-16 rounded-full bg-violet-100 flex items-center justify-center mb-4">

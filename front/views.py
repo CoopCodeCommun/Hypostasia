@@ -1678,11 +1678,20 @@ class LectureViewSet(viewsets.ViewSet):
         """
         Affiche l'alignement des hypostases entre deux versions (onglet dans le diff).
         GET /lire/{pk}/comparer_hypostases/?v2={pk2}
-        Retourne un partial HTMX uniquement.
+        Vue HTMX-only : si acces direct (F5/lien partage), redirige vers la vue
+        comparer parente qui affiche l'onglet correctement.
         / Displays the hypostase alignment between two versions (tab in the diff).
-        / GET /lire/{pk}/comparer_hypostases/?v2={pk2}
-        / Returns an HTMX partial only.
+        / HTMX-only: on direct access (F5/shared link), redirect to the parent
+        / comparer view that displays the tab correctly.
         """
+        # Acces direct (F5) → rediriger vers le diff comparer
+        # / Direct access (F5) → redirect to the parent comparer view
+        if not request.headers.get("HX-Request"):
+            pk_v2 = request.query_params.get("v2")
+            if pk_v2:
+                return redirect(f"/lire/{pk}/comparer/?v2={pk_v2}")
+            return redirect(f"/lire/{pk}/")
+
         from front.views_alignement import construire_alignement_versions
 
         page_gauche = get_object_or_404(Page, pk=pk)
@@ -2882,31 +2891,22 @@ class LectureViewSet(viewsets.ViewSet):
 
         if dernier_job_synthese.status == "completed":
             # Termine → renvoyer le partial OOB qui :
-            # - recharge zone-lecture vers la V2 (hx-trigger="load")
-            # - met a jour le pill switcher de versions
-            # + HX-Trigger fermerDrawer pour fermer le drawer automatiquement
-            # / Completed → return OOB partial that:
-            # - reloads zone-lecture to V2 (hx-trigger="load")
-            # - updates version switcher pill
-            # + HX-Trigger fermerDrawer to close drawer automatically
+            # PHASE-29 simplifie : on remplace l'OOB complexe (qui rechargeait
+            # zone-lecture + mettait a jour le pill switcher) par un HX-Location
+            # qui force HTMX a faire un GET sur /lire/V{N}/ et a swap dans
+            # zone-lecture. Le pill switcher est dans lecture_principale.html
+            # donc rendu naturellement par cette navigation. Plus simple, plus
+            # robuste : URL pushed, etat coherent, pas d'OOB fragile.
+            # Pas de showToast : deja envoye via WebSocket avec lien cliquable.
+            # / Simplified: replaced complex OOB with HX-Location → HTMX does a
+            # / GET on /lire/V{N}/ and swaps zone-lecture. Cleaner state, URL pushed.
             page_synthese_id = dernier_job_synthese.raw_result.get("page_synthese_id")
-            numero_version = dernier_job_synthese.raw_result.get("version_number", 2)
-            html_oob = render_to_string(
-                "front/includes/synthese_terminee_oob.html",
-                {
-                    "page_synthese_id": page_synthese_id,
-                    "version_number": numero_version,
-                },
-                request=request,
-            )
-            reponse = HttpResponse(html_oob)
-            # Pas de showToast ici : le toast est deja envoye via WebSocket par
-            # synthetiser_page_task (signal synthese_terminee → ws_synthese_terminee.html).
-            # Ajouter un showToast SweetAlert ferait doublon avec le toast WS qui est
-            # plus riche (lien cliquable vers la V2).
-            # / No showToast here: the toast is already sent via WebSocket by
-            # / synthetiser_page_task. Adding a SweetAlert toast would duplicate the
-            # / richer WS toast (with clickable link to V2).
+            reponse = HttpResponse(status=200)
+            reponse["HX-Location"] = json.dumps({
+                "path": f"/lire/{page_synthese_id}/",
+                "target": "#zone-lecture",
+                "swap": "innerHTML",
+            })
             reponse["HX-Trigger"] = json.dumps({
                 "fermerDrawer": True,
             })
