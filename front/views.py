@@ -1136,11 +1136,15 @@ class LectureViewSet(viewsets.ViewSet):
                 page.transcription_raw, entites_extraction=entites_existantes,
             )
 
-        # Contexte commun pour les deux partials
-        # est_requete_htmx sert a conditionner les blocs OOB dans les templates
-        # / est_requete_htmx is used to conditionally render OOB blocks in templates
+        # Contexte commun pour les deux partials (HTMX et F5).
+        # est_requete_htmx sert a conditionner les blocs OOB dans les templates.
+        # est_proprietaire conditionne l'affichage des boutons reserves au proprio
+        # (supprimer une version, masquer/restaurer extractions, etc.).
+        # / Common context for both partials (HTMX and F5).
+        # / est_proprietaire conditions display of owner-only buttons.
         ia_active = _get_ia_active()
         est_requete_htmx = bool(request.headers.get('HX-Request'))
+        est_proprietaire = _est_proprietaire_dossier(request.user, page)
         contexte_partage = {
             "page": page,
             "html_annote": html_annote,
@@ -1153,6 +1157,7 @@ class LectureViewSet(viewsets.ViewSet):
             "html_filtre_locuteurs": html_filtre_locuteurs,
             "html_timeline": html_timeline,
             "est_requete_htmx": est_requete_htmx,
+            "est_proprietaire": est_proprietaire,
         }
 
         if request.headers.get('HX-Request'):
@@ -1486,6 +1491,85 @@ class LectureViewSet(viewsets.ViewSet):
             "versions": toutes_les_versions,
             "est_proprietaire": est_proprietaire,
         })
+
+    def destroy(self, request, pk=None):
+        """
+        Supprime une version d'une page (parent_page non NULL). Refuse de supprimer
+        la racine. Le proprietaire du dossier seul peut supprimer.
+        Apres suppression, redirige le navigateur vers la racine via HX-Location
+        (qui fait un GET HTMX et swap zone-lecture).
+        / Deletes a page version (parent_page non-null). Refuses to delete the root.
+        / Only the folder owner can delete. Redirects via HX-Location to root.
+        """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
+
+        version_a_supprimer = get_object_or_404(Page, pk=pk)
+
+        # Refuser la suppression de la racine via cet endpoint
+        # / Refuse deletion of the root via this endpoint
+        if version_a_supprimer.parent_page is None:
+            reponse_refus = HttpResponse(status=400)
+            reponse_refus["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Impossible de supprimer la version racine. Supprimez plutôt le document depuis l'arbre.",
+                    "icon": "warning",
+                },
+            })
+            return reponse_refus
+
+        # Verifier ownership du dossier / Check folder ownership
+        if not _est_proprietaire_dossier(request.user, version_a_supprimer):
+            return _reponse_acces_refuse(request)
+
+        # Garde-fou : ne pas supprimer si des extractions de cette version ont
+        # recu des commentaires. Le travail collaboratif (commentaires) merite
+        # une protection. Les extractions sans commentaires sont OK a effacer.
+        # / Safeguard: refuse deletion if any extraction has comments. Collaborative
+        # / work (comments) deserves protection. Empty extractions are OK to wipe.
+        nombre_commentaires_lies = CommentaireExtraction.objects.filter(
+            entity__job__page=version_a_supprimer,
+        ).count()
+        if nombre_commentaires_lies > 0:
+            reponse_refus_commentaires = HttpResponse(status=409)
+            reponse_refus_commentaires["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": (
+                        f"Impossible de supprimer cette version : {nombre_commentaires_lies} "
+                        f"commentaire(s) y sont rattaché(s). "
+                        f"Supprimez d'abord les commentaires, ou conservez la version pour préserver les échanges."
+                    ),
+                    "icon": "warning",
+                },
+            })
+            return reponse_refus_commentaires
+
+        page_racine = version_a_supprimer.page_racine
+        nom_version = (
+            version_a_supprimer.version_label or f"V{version_a_supprimer.version_number}"
+        )
+        logger.info(
+            "destroy version: pk=%s racine=%s par user=%s",
+            pk, page_racine.pk, request.user.username,
+        )
+        version_a_supprimer.delete()
+
+        # Rediriger vers la racine via HX-Location (HTMX swap automatique)
+        # / Redirect to root via HX-Location (automatic HTMX swap)
+        reponse = HttpResponse(status=200)
+        reponse["HX-Location"] = json.dumps({
+            "path": f"/lire/{page_racine.pk}/",
+            "target": "#zone-lecture",
+            "swap": "innerHTML",
+        })
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {
+                "message": f"Version « {nom_version} » supprimée.",
+                "icon": "success",
+            },
+        })
+        return reponse
 
     @action(detail=True, methods=["GET"], url_path="comparer")
     def comparer(self, request, pk=None):
@@ -2654,9 +2738,12 @@ class LectureViewSet(viewsets.ViewSet):
             reponse["HX-Trigger"] = "ouvrirDrawer"
             return reponse
 
-        # Trouver l'analyseur de synthese : depuis le formulaire ou le premier actif
-        # / Find synthesis analyzer: from form data or first active one
-        analyseur_id_choisi = request.data.get("select-analyseur-synthese")
+        # Trouver l'analyseur de synthese : depuis le formulaire ou le default.
+        # Le bouton Lancer envoie soit `analyseur_id` (via hx-include du select
+        # `name="analyseur_id"`) si plusieurs analyseurs, soit `analyseur_id` via
+        # hx-vals (default rendu serveur) si un seul.
+        # / Find synthesis analyzer: from form (live select) or fallback default.
+        analyseur_id_choisi = request.data.get("analyseur_id")
         if analyseur_id_choisi:
             analyseur_synthese = AnalyseurSyntaxique.objects.filter(
                 pk=analyseur_id_choisi, is_active=True, type_analyseur="synthetiser",
@@ -2666,7 +2753,7 @@ class LectureViewSet(viewsets.ViewSet):
         if not analyseur_synthese:
             analyseur_synthese = AnalyseurSyntaxique.objects.filter(
                 is_active=True, type_analyseur="synthetiser",
-            ).first()
+            ).order_by("-est_par_defaut", "name").first()
         if not analyseur_synthese:
             reponse_erreur = HttpResponse(status=400)
             reponse_erreur["HX-Trigger"] = json.dumps({
@@ -6245,6 +6332,12 @@ class ImportViewSet(viewsets.ViewSet):
 
         html_complet = html_lecture + html_arbre_oob + html_panneau_oob
         reponse = HttpResponse(html_complet)
+        # Indique au front l'URL a pusher dans l'historique navigateur.
+        # L'import est fait via XMLHttpRequest (pas HTMX direct), donc le JS
+        # d'import lit ce header et appelle history.pushState manuellement.
+        # / Tells the front the URL to push in browser history. Import goes
+        # / via XMLHttpRequest, so the JS reads this header and pushState manually.
+        reponse["X-Hypostasia-Page-Url"] = f"/lire/{page_importee.pk}/"
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": "Fichier import\u00e9"},
         })

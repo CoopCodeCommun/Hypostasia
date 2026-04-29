@@ -624,7 +624,9 @@ class SynthetiserTaskTest(TestCase):
     @patch("core.llm_providers.appeler_llm", return_value="Synthese.")
     @patch("front.tasks.envoyer_progression_websocket")
     def test_task_version_label_correcte(self, mock_ws, mock_llm):
-        """La page creee a le version_label 'Synthese deliberative'."""
+        """La page creee a le version_label = nom de l'analyseur (PHASE-29).
+        Permet de distinguer V2-Mathemagique de V3-Charte si analyseurs differents.
+        / Page version_label = analyzer name (PHASE-29) — distinguishes different analyzers."""
         job_synthese = ExtractionJob.objects.create(
             page=self.fixtures["page_source"],
             ai_model=self.fixtures["modele_ia"],
@@ -642,7 +644,8 @@ class SynthetiserTaskTest(TestCase):
 
         job_synthese.refresh_from_db()
         page_synthese = Page.objects.get(pk=job_synthese.raw_result["page_synthese_id"])
-        self.assertEqual(page_synthese.version_label, "Synthèse délibérative")
+        # version_label = nom de l'analyseur utilise / version_label = analyzer name
+        self.assertEqual(page_synthese.version_label, self.fixtures["analyseur"].name)
 
     @patch("core.llm_providers.appeler_llm", return_value="Synthese sans analyse.")
     @patch("front.tasks.envoyer_progression_websocket")

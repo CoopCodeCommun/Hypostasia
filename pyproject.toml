@@ -34,4 +34,5 @@ dependencies = [
     "daphne>=4.0",
     "channels-redis>=4.1",
     "stripe>=8.0",
+    "markdown>=3.10.2",
 ]

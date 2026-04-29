@@ -145,10 +145,32 @@ function traiterReponseAvecOob(htmlComplet) {
     htmx.process(document.getElementById('zone-lecture'));
 }
 
+// Guard authentification : bloque l'import si l'utilisateur n'est pas connecte.
+// Dispatch l'event 'authRequise' qui ouvre le SweetAlert "Connexion requise" deja
+// existant. Reset l'input pour permettre un nouvel essai apres connexion.
+// / Auth guard: blocks import if user not logged in.
+// / Dispatches 'authRequise' event that opens the existing "Connexion requise" SweetAlert.
+function utilisateurEstAuthentifie() {
+    return document.body.dataset.userAuthenticated === '1';
+}
+function bloquerSiNonAuthentifie(inputFichier) {
+    if (utilisateurEstAuthentifie()) return false;
+    inputFichier.value = '';
+    document.body.dispatchEvent(new CustomEvent('authRequise', {
+        detail: {
+            titre: 'Connexion requise',
+            message: 'Connectez-vous pour importer un fichier.',
+            url_login: '/auth/login/',
+        },
+    }));
+    return true;
+}
+
 document.getElementById('input-import-fichier').addEventListener('change', function() {
     var inputFichier = this;
     var fichierSelectionne = inputFichier.files[0];
     if (!fichierSelectionne) return;
+    if (bloquerSiNonAuthentifie(inputFichier)) return;
 
     var formulaireDonnees = new FormData();
     formulaireDonnees.append('fichier', fichierSelectionne);
@@ -211,6 +233,10 @@ document.getElementById('input-import-fichier').addEventListener('change', funct
     requeteUpload.addEventListener('load', function() {
         if (requeteUpload.status >= 200 && requeteUpload.status < 300) {
             var htmlComplet = requeteUpload.responseText;
+            // Le serveur indique l'URL a pusher dans l'historique navigateur via
+            // un header custom X-Hypostasia-Page-Url. On l'applique apres le swap.
+            // / Server tells the URL to push via X-Hypostasia-Page-Url header.
+            var urlACTuelle = requeteUpload.getResponseHeader('X-Hypostasia-Page-Url');
             if (estFichierAudio(fichierSelectionne.name)) {
                 // Audio : afficher la confirmation dans zone-lecture
                 // / Audio: show confirmation in zone-lecture
@@ -220,6 +246,9 @@ document.getElementById('input-import-fichier').addEventListener('change', funct
                 // Document : traiter les OOB + toast
                 // / Document: process OOB + toast
                 traiterReponseAvecOob(htmlComplet);
+                if (urlACTuelle) {
+                    history.pushState({}, '', urlACTuelle);
+                }
                 Swal.fire({
                     toast: true, position: 'top-end', icon: 'success',
                     title: 'Fichier import\u00e9', showConfirmButton: false, timer: 2500,

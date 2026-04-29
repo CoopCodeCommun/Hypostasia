@@ -1047,13 +1047,27 @@ def _construire_prompt_synthese(page, dernier_job_analyse, analyseur_synthese):
         blocs_formates = "\n\n".join(blocs_entites) if blocs_entites else "(aucune hypostase extraite)"
         sections_du_prompt.append(f"=== HYPOSTASES ET DEBAT ===\n{blocs_formates}")
 
-    # Bloc CONSIGNE — toujours present
-    # / INSTRUCTION block — always present
+    # Bloc CONSIGNE + FORMAT — toujours present
+    # Format Markdown impose : on parse cote serveur via la lib `markdown`.
+    # / INSTRUCTION + FORMAT block — always present.
+    # / Markdown format imposed: parsed server-side via the `markdown` library.
     sections_du_prompt.append(
         "=== CONSIGNE ===\n"
         "Produis la synthèse délibérative de ce débat en intégrant les pondérations "
         "par statut définies dans tes instructions. Le texte produit doit être une "
-        "nouvelle version autonome et lisible du document."
+        "nouvelle version autonome et lisible du document.\n\n"
+        "=== FORMAT DE SORTIE ===\n"
+        "Réponds UNIQUEMENT en Markdown propre :\n"
+        "- `# Titre` pour le titre principal (un seul)\n"
+        "- `## Section` pour les sous-parties\n"
+        "- `**gras**` pour les concepts clés\n"
+        "- `*italique*` pour les nuances\n"
+        "- Paragraphes courts séparés par des lignes vides\n"
+        "- `> citation` pour les citations directes du texte source\n"
+        "- `-` pour les listes à puces (rare, seulement si vraiment liste)\n"
+        "- Pas de blocs de code, pas de tableaux, pas de HTML brut\n"
+        "- Ne précède PAS ta réponse par « Voici la synthèse » ou un préambule : "
+        "commence directement par le titre ou le premier paragraphe."
     )
 
     return "\n\n".join(sections_du_prompt)
@@ -1069,8 +1083,6 @@ def synthetiser_page_task(self, job_id):
     Builds a prompt from text + hypostases + comments,
     calls the LLM, and creates a child Page (new version).
     """
-    from django.utils.html import escape as html_escape
-
     from core.models import Configuration, Page
     from hypostasis_extractor.models import (
         AnalyseurSyntaxique, ExtractionJob, PromptPiece,
@@ -1151,25 +1163,39 @@ def synthetiser_page_task(self, job_id):
         if not texte_synthese or not texte_synthese.strip():
             raise ValueError("Le LLM a retourne une reponse vide")
 
-        # Formater en HTML : split paragraphes → balises <p>
-        # / Format as HTML: split paragraphs → <p> tags
-        paragraphes = texte_synthese.strip().split("\n\n")
-        html_synthese = "\n".join(
-            f"<p>{html_escape(paragraphe.strip())}</p>"
-            for paragraphe in paragraphes
-            if paragraphe.strip()
-        )
+        # Format markdown impose dans la consigne — on parse cote serveur.
+        # On echappe d'abord le HTML brut (anti-XSS) AVANT de passer au parser
+        # markdown : la syntaxe markdown (`**bold**`, `# Titre`, `> citation`)
+        # ne contient pas de `<` `>` `&` donc l'echappement la preserve, mais
+        # tout `<script>` ou autre balise HTML eventuellement injectee par le
+        # LLM est neutralisee en `&lt;script&gt;`.
+        # `extra` ajoute tables/footnotes/etc. `nl2br` convertit les retours
+        # a la ligne simples en <br>.
+        # / Markdown format imposed in the prompt — parsed server-side.
+        # / We escape raw HTML FIRST (anti-XSS) then pass to markdown parser.
+        import html
+        import markdown
         texte_brut = texte_synthese.strip()
+        texte_html_safe = html.escape(texte_brut)
+        html_synthese = markdown.markdown(
+            texte_html_safe,
+            extensions=["extra", "nl2br"],
+        )
 
         # Creer la Page enfant (nouvelle version) / Create child Page (new version)
         page_racine = page_source.page_racine
         prochain_numero = page_racine.restitutions.count() + 2
         hash_contenu = hashlib.sha256(texte_brut.encode("utf-8")).hexdigest()
 
+        # Le label de version reprend le nom de l'analyseur de synthese utilise.
+        # Permet de distinguer V2 — Mathemagique de V3 — Charte (memes types,
+        # mais analyseurs differents).
+        # / Version label uses the synthesis analyzer's name to distinguish
+        # / between different analyzers of the same type.
         page_synthese = Page.objects.create(
             parent_page=page_racine,
             version_number=prochain_numero,
-            version_label="Synthèse délibérative",
+            version_label=analyseur_synthese.name,
             dossier=page_racine.dossier,
             source_type=page_racine.source_type,
             url=None,
