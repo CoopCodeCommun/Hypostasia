@@ -97,6 +97,11 @@ def _utilisateur_a_acces_dossier(utilisateur, dossier):
     if dossier is None:
         return False
 
+    # Superuser → acces a tous les dossiers (PHASE-25d-v2)
+    # / Superuser → access to all folders (PHASE-25d-v2)
+    if utilisateur and utilisateur.is_authenticated and utilisateur.is_superuser:
+        return True
+
     # Dossier public → accessible a tous (y compris anonymes)
     # / Public folder → accessible to all (including anonymous)
     if dossier.visibilite == VisibiliteDossier.PUBLIC:
@@ -760,6 +765,56 @@ def _verifier_et_nettoyer_job_bloque(job_en_cours):
     return False
 
 
+def _entites_deja_creees_pour_job(job):
+    """
+    Retourne les entites deja creees pour un job en cours.
+    Sert a les afficher quand l'utilisateur rouvre le drawer pendant une analyse.
+    / Returns entities already created for an in-progress job.
+    / Used to display them when the user reopens the drawer during an analysis.
+    """
+    return ExtractedEntity.objects.filter(
+        job=job,
+    ).select_related("job").order_by("start_char")
+
+
+def _rendre_drawer_analyse_en_cours(request, page, job_en_cours):
+    """
+    Construit le contexte et rend drawer_vue_liste.html en mode analyse en cours.
+    Utilise le meme template que le resultat final pour garantir
+    des cartes identiques (pastille, statut, citation, resume).
+    / Build context and render drawer_vue_liste.html in analysis-in-progress mode.
+    / Uses the same template as the final result to guarantee
+    / identical cards (status dot, citation, summary).
+
+    LOCALISATION : front/views.py
+    """
+    entites_partielles = list(_entites_deja_creees_pour_job(job_en_cours))
+    est_proprietaire = _est_proprietaire_dossier(request.user, page)
+
+    return render_to_string(
+        "front/includes/drawer_vue_liste.html",
+        {
+            "page": page,
+            "analyse_en_cours": True,
+            "job_en_cours": job_en_cours,
+            "entites_visibles": entites_partielles,
+            "entites_masquees": [],
+            "nombre_masquees": 0,
+            "nombre_total": len(entites_partielles),
+            "nombre_total_sans_filtre": len(entites_partielles),
+            "tri_actuel": "position",
+            "liste_contributeurs": [],
+            "contributeurs_actifs": set(),
+            "noms_contributeurs_actifs": [],
+            "ids_entites_des_contributeurs": set(),
+            "mode_filtre": "inclure",
+            "est_proprietaire": est_proprietaire,
+            "dernier_job": None,
+        },
+        request=request,
+    ), entites_partielles
+
+
 class ConfigurationIAViewSet(viewsets.ViewSet):
     """
     ViewSet pour la configuration IA (toggle on/off, selection du modele).
@@ -906,6 +961,22 @@ class LectureViewSet(viewsets.ViewSet):
 
         analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
 
+        # Verifier si un job est en cours pour cette page
+        # Si oui, renvoyer le panneau d'analyse en cours avec les entites deja trouvees
+        # / Check if a job is currently running for this page
+        # / If so, return the in-progress analysis panel with already found entities
+        job_en_cours = ExtractionJob.objects.filter(
+            page=page,
+            status__in=["pending", "processing"],
+        ).order_by("-created_at").first()
+
+        if job_en_cours:
+            job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
+            if not job_est_bloque:
+                # Job actif → utiliser le panneau en cours au lieu du panneau standard
+                # / Active job → use the in-progress panel instead of the standard one
+                return self._retrieve_avec_job_en_cours(request, page, job_en_cours, analyseurs_actifs)
+
         # Recupere le dernier job d'extraction termine pour cette page
         # pour afficher les resultats existants dans le panneau droit
         dernier_job_termine = ExtractionJob.objects.filter(
@@ -927,16 +998,22 @@ class LectureViewSet(viewsets.ViewSet):
                 page.text_readability = texte_brut_regenere
                 page.save(update_fields=["html_readability", "text_readability"])
 
-        # Si un job existe, on recupere ses entites pour les afficher
-        # / If a job exists, retrieve its entities for display
+        # Si un job existe, on recupere les entites de TOUS les jobs termines
+        # (pas seulement le dernier) pour etre coherent avec le drawer E.
+        # / If a job exists, retrieve entities from ALL completed jobs
+        # / (not just the last one) to be consistent with the E drawer.
         entites_existantes = None
         html_annote = None
         ids_entites_commentees = set()
         if dernier_job_termine:
-            # Exclure les entites masquees de l'annotation
-            # / Exclude hidden entities from annotation
+            tous_les_jobs_de_la_page = ExtractionJob.objects.filter(
+                page=page, status="completed",
+            )
+            toutes_entites_non_masquees = ExtractedEntity.objects.filter(
+                job__in=tous_les_jobs_de_la_page, masquee=False,
+            )
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
+                toutes_entites_non_masquees
             )
             # Annoter le HTML avec des ancres pour le scroll-to-extraction
             # / Annotate HTML with anchors for scroll-to-extraction
@@ -1044,6 +1121,100 @@ class LectureViewSet(viewsets.ViewSet):
             "est_proprietaire": est_proprietaire,
         })
 
+    def _retrieve_avec_job_en_cours(self, request, page, job_en_cours, analyseurs_actifs):
+        """
+        Rendu de la page quand un job d'extraction est en cours.
+        Affiche le texte brut (sans annotations) + le panneau en cours avec
+        les entites deja extraites par le callback Celery.
+        / Page render when an extraction job is in progress.
+        / Shows raw text (no annotations) + in-progress panel with
+        / entities already extracted by the Celery callback.
+        """
+        # Recuperer les entites deja creees par le callback Celery
+        # / Retrieve entities already created by the Celery callback
+        entites_deja_creees = _entites_deja_creees_pour_job(job_en_cours)
+
+        # Annoter le texte avec les entites deja trouvees (annotations partielles)
+        # / Annotate text with already found entities (partial annotations)
+        html_annote = None
+        if entites_deja_creees.exists():
+            html_annote = annoter_html_avec_barres(
+                page.html_readability or '',
+                page.text_readability or '',
+                list(entites_deja_creees),
+            )
+
+        # Versions de la page / Page versions
+        toutes_les_versions = page.toutes_les_versions
+        page_racine = page.page_racine
+
+        # Widgets audio (PHASE-15) / Audio widgets (PHASE-15)
+        html_filtre_locuteurs = ""
+        html_timeline = ""
+        if page.source_type == "audio" and page.transcription_raw:
+            from .services.transcription_audio import construire_widgets_audio
+            html_filtre_locuteurs, html_timeline = construire_widgets_audio(
+                page.transcription_raw,
+            )
+
+        ia_active = _get_ia_active()
+        est_requete_htmx = bool(request.headers.get('HX-Request'))
+
+        contexte_lecture = {
+            "page": page,
+            "html_annote": html_annote,
+            "analyseurs_actifs": analyseurs_actifs,
+            "job": None,
+            "entities": None,
+            "ia_active": ia_active,
+            "versions": toutes_les_versions,
+            "page_racine": page_racine,
+            "html_filtre_locuteurs": html_filtre_locuteurs,
+            "html_timeline": html_timeline,
+            "est_requete_htmx": est_requete_htmx,
+        }
+
+        if est_requete_htmx:
+            # 1. Partial principal : contenu de lecture (avec annotations partielles)
+            # / 1. Main partial: reading content (with partial annotations)
+            html_lecture = render_to_string(
+                "front/includes/lecture_principale.html",
+                contexte_lecture,
+                request=request,
+            )
+
+            # 2. OOB : drawer en cours avec entites deja trouvees (meme template que le final)
+            # / 2. OOB: in-progress drawer with already found entities (same template as final)
+            html_panneau_en_cours, _ = _rendre_drawer_analyse_en_cours(
+                request, page, job_en_cours,
+            )
+            html_panneau_oob = (
+                '<div id="panneau-extractions" hx-swap-oob="innerHTML:#panneau-extractions">'
+                + html_panneau_en_cours
+                + '</div>'
+            )
+
+            return HttpResponse(html_lecture + html_panneau_oob)
+
+        # Acces direct (F5) → page complete
+        # / Direct access (F5) → full page
+        est_proprietaire = _est_proprietaire_dossier(request.user, page)
+        return render(request, "front/base.html", {
+            "page_preloaded": page,
+            "html_annote": html_annote,
+            "analyseurs_actifs": analyseurs_actifs,
+            "job": None,
+            "entities": None,
+            "ia_active": ia_active,
+            "versions": toutes_les_versions,
+            "page_racine": page_racine,
+            "html_filtre_locuteurs": html_filtre_locuteurs,
+            "html_timeline": html_timeline,
+            "est_proprietaire": est_proprietaire,
+            "job_en_cours": job_en_cours,
+            "entites_deja_creees": entites_deja_creees,
+        })
+
     @action(detail=True, methods=["GET"], url_path="notifications")
     def notifications(self, request, pk=None):
         """
@@ -1141,10 +1312,12 @@ class LectureViewSet(viewsets.ViewSet):
         html_annote = None
         ids_entites_commentees = set()
         if dernier_job_termine:
-            # Exclure les entites masquees de l'annotation
-            # / Exclude hidden entities from annotation
+            # Entites de TOUS les jobs termines (coherent avec le drawer E)
+            # / Entities from ALL completed jobs (consistent with the E drawer)
+            tous_les_jobs_page = ExtractionJob.objects.filter(page=page, status="completed")
+            toutes_entites = ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
+                toutes_entites
             )
             scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
@@ -1303,9 +1476,18 @@ class LectureViewSet(viewsets.ViewSet):
         # / Retrieve all versions for the selectors
         toutes_les_versions = page_gauche.toutes_les_versions
 
+        # La page d'origine est celle de l'URL (pk) — c'est la page que
+        # l'utilisateur lisait avant d'appuyer Z. On la passe au template
+        # pour que le bouton "Retour" ramene a la bonne page.
+        # / The origin page is the URL one (pk) — the page the user
+        # / was reading before pressing Z. We pass it to the template
+        # / so the "Back" button returns to the right page.
+        page_origine = get_object_or_404(Page, pk=pk)
+
         contexte_diff = {
             "page_gauche": page_gauche,
             "page_droite": page_droite,
+            "page_origine": page_origine,
             "resultats_diff": resultats_diff,
             "versions": toutes_les_versions,
         }
@@ -1521,6 +1703,7 @@ class LectureViewSet(viewsets.ViewSet):
             ("X", "Masquer l\u2019extraction"),
             ("H", "Heat map du d\u00e9bat"),
             ("A", "Comparer / Aligner des pages"),
+            ("Z", "Comparer les versions"),
             ("?", "Afficher cette aide"),
             ("Esc", "Fermer le panneau actif"),
         ]
@@ -1560,12 +1743,12 @@ class LectureViewSet(viewsets.ViewSet):
         if job_en_cours:
             job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
             if not job_est_bloque:
-                # Deja en cours et actif → renvoyer le spinner dans le drawer
-                # / Already running and active → return spinner in the drawer
-                return render(request, "front/includes/panneau_analyse_en_cours.html", {
-                    "page": page,
-                    "job": job_en_cours,
-                })
+                # Deja en cours et actif → renvoyer le drawer en mode analyse en cours
+                # / Already running and active → return drawer in analysis-in-progress mode
+                html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
+                    request, page, job_en_cours,
+                )
+                return HttpResponse(html_drawer_en_cours)
             # Job bloque → continuer vers la confirmation pour relancer
             # / Stalled job → continue to confirmation to relaunch
 
@@ -1739,6 +1922,19 @@ class LectureViewSet(viewsets.ViewSet):
                     "solde_utilisateur_euros": solde_utilisateur_euros,
                 }
 
+        # Compter les entites IA sans commentaires pour proposer le nettoyage
+        # avant re-analyse (eviter les doublons)
+        # / Count AI entities without comments to offer cleanup
+        # / before re-analysis (avoid duplicates)
+        entites_ia_sans_commentaires = ExtractedEntity.objects.filter(
+            job__page=page,
+            job__status="completed",
+            cree_par__isnull=True,
+            masquee=False,
+        ).exclude(
+            commentaires__isnull=False,
+        ).count()
+
         return render(request, "front/includes/confirmation_analyse.html", {
             "page": page,
             "analyseur": analyseur,
@@ -1755,6 +1951,7 @@ class LectureViewSet(viewsets.ViewSet):
             "nombre_pieces": pieces_ordonnees.count(),
             "nombre_chunks_estime": nombre_chunks_estime,
             "tokens_overhead_par_chunk": tokens_overhead_par_chunk,
+            "nombre_entites_ia_sans_commentaires": entites_ia_sans_commentaires,
             **contexte_credits,
         })
 
@@ -1818,13 +2015,13 @@ class LectureViewSet(viewsets.ViewSet):
         ).order_by("-created_at").first()
 
         if job_en_cours:
-            # Un job est deja en cours → renvoyer le template de polling dans le drawer
-            # / A job is already running → return polling template in the drawer
+            # Un job est deja en cours → renvoyer le drawer en mode analyse en cours
+            # / A job is already running → return drawer in analysis-in-progress mode
             logger.info("analyser: job deja en cours pk=%s pour page=%s", job_en_cours.pk, pk)
-            reponse = render(request, "front/includes/panneau_analyse_en_cours.html", {
-                "page": page,
-                "job": job_en_cours,
-            })
+            html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
+                request, page, job_en_cours,
+            )
+            reponse = HttpResponse(html_drawer_en_cours)
             reponse["HX-Trigger"] = "ouvrirDrawer"
             return reponse
 
@@ -1863,6 +2060,30 @@ class LectureViewSet(viewsets.ViewSet):
                 "error_message": "Aucun modele IA selectionne. Choisissez un modele dans la sidebar.",
             })
 
+        # Nettoyage des entites IA sans commentaires si demande (checkbox)
+        # Supprime les extractions IA non commentees pour eviter les doublons
+        # Les extractions manuelles (cree_par != NULL) et commentees sont conservees
+        # / Cleanup AI entities without comments if requested (checkbox)
+        # / Deletes uncommented AI extractions to avoid duplicates
+        # / Manual extractions (cree_par != NULL) and commented ones are kept
+        nettoyer_ia = request.data.get("nettoyer_ia") == "1"
+        if nettoyer_ia:
+            entites_ia_a_supprimer = ExtractedEntity.objects.filter(
+                job__page=page,
+                job__status="completed",
+                cree_par__isnull=True,
+                masquee=False,
+            ).exclude(
+                commentaires__isnull=False,
+            )
+            nombre_supprimees = entites_ia_a_supprimer.count()
+            entites_ia_a_supprimer.delete()
+            if nombre_supprimees:
+                logger.info(
+                    "analyser: %d entite(s) IA sans commentaire supprimee(s) pour page=%s",
+                    nombre_supprimees, pk,
+                )
+
         # Construire le prompt snapshot depuis les pieces de l'analyseur
         # / Build prompt snapshot from the analyzer's prompt pieces
         pieces_ordonnees = PromptPiece.objects.filter(
@@ -1895,16 +2116,14 @@ class LectureViewSet(viewsets.ViewSet):
             job_extraction.pk, pk, analyseur.name,
         )
 
-        # Retourner le spinner dans le drawer — le texte reste visible dans #zone-lecture.
-        # Le polling dans panneau_analyse_en_cours.html cible #drawer-contenu.
-        # Les cartes d'extraction arrivent via WebSocket dans #streaming-extractions.
-        # / Return the spinner in the drawer — the text stays visible in #zone-lecture.
-        # / Polling in panneau_analyse_en_cours.html targets #drawer-contenu.
-        # / Extraction cards arrive via WebSocket in #streaming-extractions.
-        reponse = render(request, "front/includes/panneau_analyse_en_cours.html", {
-            "page": page,
-            "job": job_extraction,
-        })
+        # Retourner le drawer en mode analyse en cours — le texte reste visible dans #zone-lecture.
+        # Le signal WS rafraichir_drawer declenche analyse_status qui recharge le drawer.
+        # / Return drawer in analysis-in-progress mode — text stays visible in #zone-lecture.
+        # / WS signal rafraichir_drawer triggers analyse_status which reloads the drawer.
+        html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
+            request, page, job_extraction,
+        )
+        reponse = HttpResponse(html_drawer_en_cours)
         reponse["HX-Trigger"] = "ouvrirDrawer"
         return reponse
 
@@ -1934,14 +2153,47 @@ class LectureViewSet(viewsets.ViewSet):
             # / If active → return spinner.
             job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
             if not job_est_bloque:
-                # Toujours en cours → renvoyer le panneau complet avec le spinner.
-                # Ce cas arrive si le fragment WS hx-trigger="load" arrive avant la fin du job.
-                # / Still processing → return the full spinner panel.
-                # / This happens if the WS hx-trigger="load" fires before the job finishes.
-                return render(request, "front/includes/panneau_analyse_en_cours.html", {
-                    "page": page,
-                    "job": job_en_cours,
-                })
+                entites_partielles = list(_entites_deja_creees_pour_job(job_en_cours))
+                cartes_seulement = request.query_params.get("cartes_only") == "1"
+
+                # OOB : texte annote avec pastilles dans la zone de lecture
+                # / OOB: annotated text with highlights in the reading zone
+                html_oob_texte = ''
+                if entites_partielles:
+                    html_annote_partiel = annoter_html_avec_barres(
+                        page.html_readability or '', page.text_readability or '',
+                        entites_partielles,
+                    )
+                    if html_annote_partiel:
+                        html_oob_texte = (
+                            '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
+                            + html_annote_partiel
+                            + '</article>'
+                        )
+
+                if cartes_seulement:
+                    # Mode cartes_only : retourner seulement les cartes (pour rafraichir_drawer WS)
+                    # sans ecraser le bandeau de progression ni le header du drawer.
+                    # / Cards-only mode: return only cards (for rafraichir_drawer WS)
+                    # / without overwriting progress banner or drawer header.
+                    est_proprietaire_cartes = _est_proprietaire_dossier(request.user, page)
+                    html_cartes = render_to_string(
+                        "front/includes/drawer_cartes_partielles.html",
+                        {
+                            "entites_partielles": entites_partielles,
+                            "page": page,
+                            "est_proprietaire": est_proprietaire_cartes,
+                        },
+                        request=request,
+                    )
+                    return HttpResponse(html_cartes + html_oob_texte)
+
+                # Mode complet : retourner le drawer entier (fermer/rouvrir E)
+                # / Full mode: return the entire drawer (close/reopen E)
+                html_panneau, _ = _rendre_drawer_analyse_en_cours(
+                    request, page, job_en_cours,
+                )
+                return HttpResponse(html_panneau + html_oob_texte)
             # Job bloque → on continue vers le cas completed/error ci-dessous
             # / Stalled job → fall through to completed/error case below
 
@@ -1975,10 +2227,12 @@ class LectureViewSet(viewsets.ViewSet):
             # Termine → retourner le drawer_vue_liste (etat 4) + OOB texte annote
             # / Completed → return drawer_vue_liste (state 4) + OOB annotated text
 
-            # Construire le HTML annote pour la zone de lecture
-            # / Build annotated HTML for the reading zone
+            # Entites de TOUS les jobs termines (coherent avec le drawer E)
+            # / Entities from ALL completed jobs (consistent with the E drawer)
+            tous_les_jobs_page = ExtractionJob.objects.filter(page=page, status="completed")
+            toutes_entites_page = ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             entites_non_masquees, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
+                toutes_entites_page
             )
             scores_temperature = _calculer_scores_temperature(entites_non_masquees)
             html_annote_pour_oob = annoter_html_avec_barres(
@@ -2134,10 +2388,19 @@ class LectureViewSet(viewsets.ViewSet):
                 "page": page,
             })
 
-        # Trouver l'analyseur de type synthetiser / Find the synthetiser analyzer
-        analyseur_synthese = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="synthetiser",
-        ).first()
+        # Trouver l'analyseur de synthese : depuis le formulaire ou le premier actif
+        # / Find synthesis analyzer: from form data or first active one
+        analyseur_id_choisi = request.data.get("select-analyseur-synthese")
+        if analyseur_id_choisi:
+            analyseur_synthese = AnalyseurSyntaxique.objects.filter(
+                pk=analyseur_id_choisi, is_active=True, type_analyseur="synthetiser",
+            ).first()
+        else:
+            analyseur_synthese = None
+        if not analyseur_synthese:
+            analyseur_synthese = AnalyseurSyntaxique.objects.filter(
+                is_active=True, type_analyseur="synthetiser",
+            ).first()
         if not analyseur_synthese:
             reponse_erreur = HttpResponse(status=400)
             reponse_erreur["HX-Trigger"] = json.dumps({
@@ -2600,9 +2863,11 @@ class LectureViewSet(viewsets.ViewSet):
             page=page, status="completed",
         ).select_related("analyseur_version").order_by("-created_at").first()
         if dernier_job_termine:
-            # Exclure les entites masquees / Exclude hidden entities
+            # Entites de TOUS les jobs termines (coherent avec le drawer E)
+            # / Entities from ALL completed jobs (consistent with the E drawer)
+            tous_les_jobs_page = ExtractionJob.objects.filter(page=page, status="completed")
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
+                ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             )
             scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
@@ -2687,9 +2952,11 @@ class LectureViewSet(viewsets.ViewSet):
             page=page, status="completed",
         ).select_related("analyseur_version").order_by("-created_at").first()
         if dernier_job_termine:
-            # Exclure les entites masquees / Exclude hidden entities
+            # Entites de TOUS les jobs termines (coherent avec le drawer E)
+            # / Entities from ALL completed jobs (consistent with the E drawer)
+            tous_les_jobs_page = ExtractionJob.objects.filter(page=page, status="completed")
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                dernier_job_termine.entities.filter(masquee=False)
+                ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             )
             scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
@@ -4791,8 +5058,7 @@ class ExtractionViewSet(viewsets.ViewSet):
             return reponse
 
         # Construire le prompt et les exemples / Build prompt and examples
-        from front.tasks import _construire_exemples_langextract
-        from hypostasis_extractor.services import resolve_model_params
+        from hypostasis_extractor.services import _construire_exemples_langextract, resolve_model_params
         import langextract as lx
 
         pieces_ordonnees = PromptPiece.objects.filter(analyseur=analyseur).order_by("order")
@@ -5111,6 +5377,9 @@ class ExtractionViewSet(viewsets.ViewSet):
             "seuil_consensus": SEUIL_CONSENSUS_DEFAUT,
             "seuil_atteint": seuil_atteint,
             "extractions_bloquantes": extractions_bloquantes,
+            "analyseurs_synthese": AnalyseurSyntaxique.objects.filter(
+                is_active=True, type_analyseur="synthetiser",
+            ).order_by("name"),
         }
 
         return render(request, "front/includes/dashboard_consensus.html", contexte)
@@ -5145,10 +5414,10 @@ class ExtractionViewSet(viewsets.ViewSet):
         if job_en_cours_pour_drawer:
             job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours_pour_drawer)
             if not job_est_bloque:
-                return render(request, "front/includes/panneau_analyse_en_cours.html", {
-                    "page": page,
-                    "job": job_en_cours_pour_drawer,
-                })
+                html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
+                    request, page, job_en_cours_pour_drawer,
+                )
+                return HttpResponse(html_drawer_en_cours)
             # Job bloque → on continue vers l'affichage normal des resultats
             # / Stalled job → continue to normal results display
 

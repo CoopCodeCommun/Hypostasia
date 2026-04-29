@@ -21,8 +21,7 @@ echo "PostgreSQL is ready!"
 # / Install / update (idempotent)
 bash /app/install.sh
 
-# Demarrer supervisord (gunicorn + celery worker)
-# / Start supervisord (gunicorn + celery worker)
+# Demarrer supervisord au premier plan (logs vers stdout/stderr)
+# / Start supervisord in foreground (logs to stdout/stderr)
 echo "Starting services via supervisord..."
-uv run supervisord -c /app/supervisord.conf &
-tail -f /app/logs/*
+exec uv run supervisord -c /app/supervisord.conf

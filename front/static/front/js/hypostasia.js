@@ -466,6 +466,112 @@ document.getElementById('zone-lecture').addEventListener('htmx:afterSwap', funct
     if (lienActif) {
         lienActif.classList.add('bg-blue-50', 'text-blue-700', 'font-medium', 'rounded');
     }
+
+});
+
+// === Focus extraction depuis URL (PHASE-25d-v2) ===
+// Apres chaque navigation HTMX avec push URL, on verifie si l'URL contient
+// ?extraction={id}. Si oui, on scroll vers le passage surligne et on l'ouvre.
+// On ecoute 'htmx:pushedIntoHistory' car c'est l'evenement qui se declenche
+// APRES que l'URL soit mise a jour (afterSwap se declenche avant le push URL).
+// / After each HTMX navigation with push URL, check if URL contains
+// / ?extraction={id}. If so, scroll to highlighted passage and open it.
+// / We listen to 'htmx:pushedIntoHistory' because it fires AFTER the URL is updated.
+// Flag pour eviter que _focusExtractionDepuisUrl s'execute deux fois
+// (htmx:afterSettle et htmx:pushedIntoHistory se declenchent tous les deux)
+// / Flag to prevent _focusExtractionDepuisUrl from running twice
+var _focusExtractionDejaExecute = false;
+
+// Fonction reutilisable pour scroller vers une extraction cible
+// / Reusable function to scroll to a target extraction
+function _focusExtractionDepuisUrl() {
+    if (_focusExtractionDejaExecute) return;
+
+    var parametresUrl = new URLSearchParams(window.location.search);
+    var extractionCible = parametresUrl.get('extraction');
+    if (!extractionCible) return;
+
+    _focusExtractionDejaExecute = true;
+    // Reset le flag apres 3 secondes pour permettre de re-naviguer
+    // / Reset flag after 3 seconds to allow re-navigation
+    setTimeout(function() { _focusExtractionDejaExecute = false; }, 3000);
+
+    var spanDansTexte = document.querySelector(
+        '#readability-content .hl-extraction[data-extraction-id="' + extractionCible + '"]'
+    );
+    if (!spanDansTexte) return;
+
+    // Surligner et scroller vers le passage
+    // / Highlight and scroll to the passage
+    spanDansTexte.classList.remove('ancre-active');
+    void spanDansTexte.offsetWidth;
+    spanDansTexte.classList.add('ancre-active');
+    spanDansTexte.scrollIntoView({ behavior: 'instant', block: 'center' });
+
+    // Ouvrir la carte inline via la pastille en marge, puis ouvrir les commentaires
+    // et focus sur l'input. La pastille declenche un chargement HTMX — on attend
+    // que la carte inline apparaisse dans le DOM avant de cliquer sur "Commenter".
+    // / Open inline card via the margin dot, then open comments and focus input.
+    // / The dot triggers an HTMX load — we wait for the inline card to appear
+    // / in the DOM before clicking "Comment".
+    var pastille = document.querySelector(
+        '.pastille-extraction[data-extraction-id="' + extractionCible + '"]'
+    );
+    if (pastille) {
+        setTimeout(function() {
+            // Ne cliquer que si la carte inline n'est pas deja ouverte (evite le toggle fermer)
+            // / Only click if inline card is not already open (avoids toggle close)
+            var carteDejaOuverte = document.querySelector(
+                '.carte-inline[data-extraction-id="' + extractionCible + '"]'
+            );
+            if (!carteDejaOuverte) {
+                pastille.click();
+            }
+            // Attendre que la carte inline soit chargee (HTMX async)
+            // puis cliquer sur le bouton commenter et focus l'input
+            // / Wait for inline card to load (HTMX async)
+            // / then click comment button and focus input
+            var tentatives = 0;
+            var intervalVerification = setInterval(function() {
+                tentatives++;
+                var carteInline = document.querySelector(
+                    '.carte-inline[data-extraction-id="' + extractionCible + '"]'
+                );
+                if (carteInline) {
+                    clearInterval(intervalVerification);
+                    // Cliquer sur le bouton commenter dans la carte
+                    // / Click the comment button in the card
+                    var boutonCommenter = carteInline.querySelector('.btn-commenter-extraction');
+                    if (boutonCommenter) {
+                        boutonCommenter.click();
+                        // Attendre que le fil de discussion s'ouvre puis focus l'input
+                        // / Wait for discussion thread to open then focus input
+                        setTimeout(function() {
+                            var inputCommentaire = carteInline.querySelector('textarea, input[type="text"]');
+                            if (inputCommentaire) {
+                                inputCommentaire.focus();
+                            }
+                        }, 500);
+                    }
+                }
+                // Abandonner apres 3 secondes (15 tentatives x 200ms)
+                // / Give up after 3 seconds (15 attempts x 200ms)
+                if (tentatives > 15) clearInterval(intervalVerification);
+            }, 200);
+        }, 400);
+    }
+}
+
+// Ecouter htmx:pushedIntoHistory (navigation HTMX depuis Explorer)
+// / Listen to htmx:pushedIntoHistory (HTMX navigation from Explorer)
+document.body.addEventListener('htmx:pushedIntoHistory', function() {
+    setTimeout(_focusExtractionDepuisUrl, 800);
+});
+
+// Ecouter aussi htmx:afterSettle sur zone-lecture (backup si pushedIntoHistory rate)
+// / Also listen to htmx:afterSettle on zone-lecture (backup if pushedIntoHistory misses)
+document.getElementById('zone-lecture').addEventListener('htmx:afterSettle', function() {
+    setTimeout(_focusExtractionDepuisUrl, 500);
 });
 
 // ==========================================================================
@@ -1605,3 +1711,60 @@ document.addEventListener('click', async function(evenement) {
         values: {commentaire_id: commentaireId},
     });
 });
+
+
+// ---------------------------------------------------------------------------
+// Signal WS : rafraichissement du drawer d'analyse depuis la DB.
+// Le consumer WS envoie un OOB swap sur #signal-rafraichir-drawer
+// avec le page_id. Le MutationObserver detecte le changement et
+// declenche un rechargement HTMX du drawer via analyse_status.
+// Debounce a 800ms pour eviter les rafales (un signal par chunk).
+// / WS signal: analysis drawer refresh from DB.
+// / WS consumer sends OOB swap on #signal-rafraichir-drawer
+// / with page_id. MutationObserver detects the change and
+// / triggers HTMX drawer reload via analyse_status.
+// / Debounced at 800ms to avoid bursts (one signal per chunk).
+//
+// LOCALISATION : front/static/front/js/hypostasia.js
+//
+// COMMUNICATION :
+// Recoit : OOB swap sur #signal-rafraichir-drawer (depuis consumers.py)
+// Emet : htmx.ajax GET vers /lire/{pageId}/analyse_status/
+// ---------------------------------------------------------------------------
+(function() {
+    const signalRafraichir = document.getElementById('signal-rafraichir-drawer');
+    if (!signalRafraichir) return;
+
+    let timerDebounce = null;
+
+    new MutationObserver(function() {
+        const pageId = signalRafraichir.dataset.pageId;
+        if (!pageId) return;
+
+        // Debounce 800ms — les chunks arrivent en rafale avec batch_length=5
+        // / Debounce 800ms — chunks arrive in bursts with batch_length=5
+        clearTimeout(timerDebounce);
+        timerDebounce = setTimeout(function() {
+            htmx.ajax('GET', '/lire/' + pageId + '/analyse_status/', {
+                target: '#drawer-contenu',
+                swap: 'innerHTML'
+            });
+        }, 800);
+    }).observe(signalRafraichir, { childList: true, attributes: true });
+})();
+
+
+// ==========================================================================
+// Focus extraction au chargement initial (F5 avec ?extraction={id}) — PHASE-25d-v2
+// / Focus extraction on initial page load (F5 with ?extraction={id}) — PHASE-25d-v2
+// ==========================================================================
+(function() {
+    var parametresUrl = new URLSearchParams(window.location.search);
+    if (!parametresUrl.get('extraction')) return;
+
+    // Attendre que le DOM soit completement rendu
+    // / Wait for the DOM to be fully rendered
+    window.addEventListener('load', function() {
+        setTimeout(_focusExtractionDepuisUrl, 800);
+    });
+})();

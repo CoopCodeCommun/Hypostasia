@@ -6,9 +6,10 @@
 
 *Deliberative reading platform: read, extract and collectively debate a text — AI-augmented.*
 
-[![Python 3.13+](https://img.shields.io/badge/python-3.13+-3776AB?logo=python&logoColor=white)](https://python.org)
+[![Python 3.14+](https://img.shields.io/badge/python-3.14+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![Django 6.0](https://img.shields.io/badge/django-6.0-092E20?logo=django&logoColor=white)](https://djangoproject.com)
-[![HTMX](https://img.shields.io/badge/htmx-1.27+-3366CC?logo=htmx&logoColor=white)](https://htmx.org)
+[![HTMX](https://img.shields.io/badge/htmx-2.0-3366CC?logo=htmx&logoColor=white)](https://htmx.org)
+[![Tests](https://img.shields.io/badge/tests-865_passed-brightgreen?logo=pytest&logoColor=white)](#tests)
 [![License](https://img.shields.io/badge/license-AGPLv3-blue)](LICENSE)
 
 </div>
@@ -274,23 +275,161 @@ Contenu cree :
 
 ## Tests
 
-Toutes les commandes se lancent dans le container Docker.
+Le projet a deux niveaux de tests avec des roles distincts.
+
+*The project has two test levels with distinct roles.*
+
+### Tests unitaires (~35s) — apres chaque modification
+
+Tests Django classiques (pas de navigateur). Verifient les modeles, les vues, les taches Celery, la normalisation des donnees et les helpers. Rapides, fiables, a lancer souvent.
+
+*Standard Django tests (no browser). Check models, views, Celery tasks, data normalization and helpers. Fast, reliable, run often.*
 
 ```bash
-# Verification Django (0 issues attendues)
+# Verification Django (0 issues attendues) / Django check (0 issues expected)
 docker exec hypostasia_web uv run python manage.py check
 
-# Tests unitaires rapides (~20s, ~800 tests) — a lancer souvent
-docker exec hypostasia_web uv run python manage.py test front.tests.test_phases front.tests.test_phase27a front.tests.test_phase27b front.tests.test_langextract_overrides -v2 --keepdb
-
-# Tests E2E cibles (~40s) — verification ponctuelle
-docker exec hypostasia_web uv run python manage.py test front.tests.e2e.test_20_tracabilite -v2 --keepdb
-
-# Tests E2E complets (~19 min) — avant un jalon
-docker exec hypostasia_web uv run python manage.py test front.tests.e2e -v2 --keepdb
+# Tous les tests unitaires (~35s, 78 tests)
+# / All unit tests (~35s, 78 tests)
+docker exec hypostasia_web uv run python manage.py test \
+  front.tests.test_phases \
+  front.tests.test_phase27a \
+  front.tests.test_phase27b \
+  front.tests.test_phase28_light \
+  front.tests.test_phase29_normalize \
+  front.tests.test_langextract_overrides \
+  -v2 --keepdb
 ```
 
-Voir `front/tests/PLAN_TEST.md` pour la philosophie et l'inventaire complet.
+| Module | Tests | Ce qu'il verifie |
+|--------|-------|------------------|
+| `test_phases` | ~200 | CRUD pages/dossiers, import, extraction, transcription, config IA |
+| `test_phase27a` | 19 | Modele PageEdit, historique, diff de contenu |
+| `test_phase27b` | 24 | Diff side-by-side, alignement hypostases entre versions |
+| `test_phase28_light` | 31 | Synthese deliberative : prompt, tache Celery, anti-doublon, XSS |
+| `test_phase29_normalize` | 23 | Normalisation des attributs LLM (cles, hypostases, fuzzy match) |
+| `test_langextract_overrides` | ~5 | Compatibilite des surcharges LangExtract |
+
+### Tests E2E (~8 min) — avant un jalon
+
+Tests Playwright dans un vrai navigateur Chromium. Verifient le rendu HTML, les interactions HTMX, les WebSockets et le CSS. Plus lents, necessitent Playwright installe.
+
+*Playwright tests in a real Chromium browser. Check HTML rendering, HTMX interactions, WebSockets and CSS. Slower, require Playwright installed.*
+
+```bash
+# Un module E2E cible (~40s) / A targeted E2E module (~40s)
+docker exec hypostasia_web uv run python manage.py test \
+  front.tests.e2e.test_09_alignement -v2 --keepdb
+
+# Tous les tests E2E (~8 min, ~790 tests)
+# / All E2E tests (~8 min, ~790 tests)
+docker exec hypostasia_web uv run python manage.py test \
+  front.tests.e2e -v2 --keepdb
+```
+
+| Module E2E | Ce qu'il verifie |
+|------------|------------------|
+| `test_01_navigation` | Arbre de dossiers, toolbar, raccourcis clavier |
+| `test_02_lecture` | Zone de lecture, pastilles de marge, surlignage |
+| `test_03_import` | Import PDF, Word, audio, page web |
+| `test_04_extractions` | Cartes d'extraction, extraction manuelle, drawer |
+| `test_05_config_ia` | Toggle IA, selecteur de modele, tarifs |
+| `test_08_curation` | Statuts de debat, commentaires, masquage |
+| `test_09_alignement` | Tableau d'alignement cross-documents |
+| `test_13_auth` | Authentification, permissions, roles |
+| `test_17_filtre_contributeur` | Filtre par contributeur, palette daltonien-safe |
+| `test_20_tracabilite` | Historique, diff versions, comparaison |
+
+### Suite complete (~9 min)
+
+```bash
+# Tout d'un coup / Everything at once
+docker exec hypostasia_web uv run python manage.py test front.tests -v1 --keepdb
+```
+
+---
+
+## Cycle deliberatif / Deliberative cycle
+
+Le coeur d'Hypostasia est un cycle en 4 etapes qui transforme un texte brut en synthese collective.
+
+*The core of Hypostasia is a 4-step cycle that transforms raw text into a collective synthesis.*
+
+### 1. Extraction
+
+L'IA (ou l'utilisateur) extrait les passages cles du texte et les classe par **hypostase** — un type d'argument parmi 30 categories (theorie, hypothese, paradoxe, donnee, principe...) regroupees en 8 familles.
+
+*The AI (or the user) extracts key passages and classifies them by **hypostasis** — an argument type among 30 categories grouped into 8 families.*
+
+### 2. Debat
+
+Chaque extraction recoit un statut de debat qui evolue avec les commentaires :
+
+| Statut | Signification |
+|--------|---------------|
+| **Consensuel** | Accord atteint |
+| **Discutable** | A debattre |
+| **Discute** | Debat en cours |
+| **Controverse** | Desaccord fort |
+
+### 3. Alignement et comparaison
+
+Le **tableau d'alignement** croise hypostases (lignes) et documents (colonnes) pour reveler les gaps argumentatifs entre 2 a 6 textes. Chaque cellule montre le nombre d'extractions et un resume.
+
+Entre deux **versions** d'un meme texte, la comparaison affiche :
+- Un **diff side-by-side** mot a mot (ajouts en vert, suppressions en rouge)
+- Un **tableau d'alignement des hypostases** avec deltas (ajoute / supprime / conserve + evolution du statut)
+
+### 4. Synthese deliberative
+
+Quand le consensus atteint 80%, l'IA peut generer une **nouvelle version** du texte qui integre les ponderations par statut. Le texte produit est une V2 autonome, chainnee a la V1 d'origine.
+
+Le prompt complet est visible, le cout est estime avant l'appel, et la V2 peut etre re-analysee pour relancer un nouveau cycle.
+
+---
+
+## Demarrage depuis zero / Starting from scratch
+
+Apres un `docker compose down -v` (qui supprime la base de donnees), tout est recree automatiquement au redemarrage.
+
+*After a `docker compose down -v` (which deletes the database), everything is recreated automatically on restart.*
+
+```bash
+# Detruire et reconstruire / Destroy and rebuild
+docker compose down -v
+docker compose build
+docker compose up -d
+
+# En mode dev (DEBUG=true), lancer manuellement :
+# / In dev mode (DEBUG=true), start manually:
+docker exec -it hypostasia_web bash
+bash install.sh                                      # migrations + fixtures
+uv run python manage.py runserver 0.0.0.0:8123       # serveur
+```
+
+`install.sh` execute dans l'ordre :
+
+1. `uv sync` — dependances Python
+2. `migrate` — schema + migration de normalisation des attributs
+3. `collectstatic` — fichiers CSS/JS
+4. `charger_fixtures_demo` — donnees de demo completes
+
+Resultat : 5 utilisateurs, 1 dossier "Demonstration" avec 4 documents analyses, 33 extractions avec hypostases, 49 commentaires, debat V1 + synthese V2 chainees — pret a l'emploi.
+
+*Result: 5 users, 1 "Demonstration" folder with 4 analyzed documents, 33 extractions with hypostases, 49 comments, debate V1 + synthesis V2 chained — ready to use.*
+
+### Fixtures disponibles / Available fixtures
+
+| Fixture | Contenu | Commande |
+|---------|---------|----------|
+| `charger_fixtures_demo` | Tout (users, dossiers, pages, extractions, commentaires, V1+V2) | `uv run python manage.py charger_fixtures_demo` |
+| `demo_ia.json` | Config IA seule (modeles, analyseurs, prompts) | `uv run python manage.py loaddata front/fixtures/demo_ia.json` |
+| `exemple_deliberation.json` | 1 page + 7 extractions + 4 commentaires (demo minimale) | `uv run python manage.py loaddata front/fixtures/exemple_deliberation.json` |
+| `demo_alignement_versions.json` | Debat V1 + Synthese V2 (30 entites, alignement entre versions) | `uv run python manage.py loaddata front/fixtures/demo_alignement_versions.json` |
+
+Toutes les fixtures utilisent des cles d'attributs canoniques (`resume`, `hypostases`, `mots_cles`, `statut`).
+
+*All fixtures use canonical attribute keys (`resume`, `hypostases`, `mots_cles`, `statut`).*
 
 ---
 

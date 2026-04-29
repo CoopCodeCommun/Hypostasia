@@ -30,7 +30,7 @@ Independants : PHASE-03, PHASE-04, PHASE-05, PHASE-06, PHASE-22
 PHASE-03 ──► PHASE-24 (providers IA)
 PHASE-22 ──► PHASE-25 (users base) ──► PHASE-25b (auth extension navigateur)
                                    ──► PHASE-25c (visibilite 3 niveaux + groupes)
-                                   │       └── PHASE-25d (invitations email + Explorer)
+                                   │       └── PHASE-25d (invitations email + Explorer) ──► PHASE-25d-v2 (Explorer v2 UX)
                                    ──► PHASE-26a (filtre contributeur) ◄── PHASE-19 (heat map)
                                    │       └── PHASE-26a-bis (filtre multi-contributeurs)
                                    │               └── 26a-ux (scroll, noms, entites, HSL, sauf)
@@ -112,6 +112,7 @@ Toutes Phase 1 ──► PHASE-23 (Playwright)
 | [27b](PHASE-27b.md) | Tracabilite : diff side-by-side entre versions | M | [x] | 2026-03-20 | — |
 | [28-light](PHASE-28-light.md) | Synthese deliberative (bouton + prompt + V2 auto) | M | [x] | 2026-03-20 | — |
 | [29-normalize](PHASE-29-normalize.md) | Normalisation deterministe des attributs d'extraction (independant) | S | [x] | 2026-03-21 | — |
+| [25d-v2](PHASE-25d-v2.md) | Explorer v2 : integration layout, recherche document, curation, preview, superuser | L | [x] | 2026-03-22 | — |
 | [27c](PHASE-27c.md) | Tracabilite : SourceLinks manuels + association source-cible (enrichissement) | M | [ ] | | |
 | [27d](PHASE-27d.md) | Tracabilite : fil de reflexion (timeline provenance) (enrichissement) | M | [ ] | | |
 | [27e](PHASE-27e.md) | Tracabilite : verrous d'edition optimistes | S | [ ] | | |
@@ -294,3 +295,73 @@ uv run python manage.py migrate      # si modeles modifies
 **Migration :** `0024_normalize_entity_attributes` — 465 entites normalisees, 11 hypostases hallucinees supprimees
 
 **Regression :** `front.tests.test_phase28_light` 31/31 OK + `front.tests.test_phase27b` 24/24 OK
+
+---
+
+### Session 2026-03-22 — Approche A + 30 few-shot + flux analyse unifie
+
+**Module :** `front.tests.test_analyse_drawer_unifie` | **Resultat : 16/16 OK**
+
+| Classe | Test | Statut |
+|--------|------|--------|
+| `AnalyseStatusEnCoursTest` | `test_analyse_status_en_cours_contient_bandeau_progression` | OK |
+| `AnalyseStatusEnCoursTest` | `test_analyse_status_en_cours_ne_contient_pas_aucune_analyse` | OK |
+| `AnalyseStatusEnCoursTest` | `test_analyse_status_en_cours_contient_cartes_entites` | OK |
+| `AnalyseStatusEnCoursTest` | `test_analyse_status_en_cours_utilise_drawer_vue_liste` | OK |
+| `AnalyseStatusEnCoursTest` | `test_analyse_status_en_cours_ne_contient_pas_bandeau_vert` | OK |
+| `AnalyseStatusEnCoursTest` | `test_analyse_status_en_cours_affiche_message_attente_si_zero_entite` | OK |
+| `AnalyseStatusCartesOnlyTest` | `test_cartes_only_ne_contient_pas_bandeau` | OK |
+| `AnalyseStatusCartesOnlyTest` | `test_cartes_only_contient_les_cartes` | OK |
+| `AnalyseStatusCartesOnlyTest` | `test_cartes_only_contient_oob_texte_annote` | OK |
+| `AnalyseStatusCartesOnlyTest` | `test_cartes_only_message_attente_si_zero_entite` | OK |
+| `AnalyseStatusTermineeTest` | `test_analyse_terminee_contient_bandeau_vert` | OK |
+| `AnalyseStatusTermineeTest` | `test_analyse_terminee_ne_contient_pas_bandeau_progression` | OK |
+| `AnalyseStatusTermineeTest` | `test_analyse_terminee_utilise_drawer_vue_liste` | OK |
+| `AnalyseStatusTermineeTest` | `test_analyse_terminee_contient_cartes` | OK |
+| `AnalyseConsumerSignalTest` | `test_rafraichir_drawer_cible_drawer_cartes_liste` | OK |
+| `AnalyseConsumerSignalTest` | `test_analyse_terminee_cible_drawer_contenu` | OK |
+
+**Regression :** `front.tests.test_phases` 742/742 OK
+
+**Pieges resolus :**
+
+1. **MutationObserver + HTMX-WS = incompatible.** Les OOB swaps HTMX via WebSocket
+   ne declenchent pas les MutationObserver JS. Solution : injecter un div OOB avec
+   `hx-get + hx-trigger="load"` qui force HTMX a lancer la requete automatiquement.
+
+2. **Deux templates = UX incoherente.** `panneau_analyse_en_cours.html` (cartes simples)
+   et `drawer_vue_liste.html` (cartes riches) donnaient un rendu different pendant et apres
+   l'analyse. Solution : un seul template `drawer_vue_liste.html` avec `analyse_en_cours=True`.
+
+3. **OOB en conflit : cartes vs barre.** Le signal `rafraichir_drawer` ecrasait
+   `#drawer-contenu` (tout le drawer), y compris `#barre-progression-analyse` qui etait
+   mis a jour par `analyse_progression`. Solution : `rafraichir_drawer` cible
+   `#drawer-cartes-liste` (sous-zone) via `?cartes_only=1`.
+
+4. **`{% empty %}` affichait "Aucune analyse" pendant l'analyse.** Solution : conditionner
+   avec `{% if analyse_en_cours %}` dans le `{% empty %}` du for loop.
+
+---
+
+### PHASE-25d-v2 — Explorer v2 : integration layout, recherche document, curation, preview, superuser
+
+**Derniere execution :** 2026-03-22 | **Resultat : 742/742 OK** (regression complete)
+
+**Changements :**
+
+| Fichier | Action |
+|---------|--------|
+| `front/views_explorer.py` | Refonte : `list()` double mode (navigation/recherche), `_navigation_dossiers()`, `_recherche_documents()`, `_extraire_snippet()`, `preview()`, permissions superuser, exclusion propres dossiers, queries curation |
+| `front/templates/front/includes/explorer_contenu.html` | **Nouveau** — partial integre au layout (titre + filtres + spinner + curation + resultats) |
+| `front/templates/front/includes/explorer_card_document.html` | **Nouveau** — card resultat document (snippet, hypostases, mots-cles, bouton Suivre dossier) |
+| `front/templates/front/includes/explorer_preview.html` | **Nouveau** — preview depliable (8 pages max, titre + extrait) |
+| `front/templates/front/includes/explorer_curation.html` | **Nouveau** — debats en vitrine (3 controversees + 3 sans commentaire + compteurs statuts Wong) |
+| `front/templates/front/includes/explorer_page.html` | **Supprime** — page standalone remplacee par partial integre |
+| `front/templates/front/includes/explorer_resultats.html` | Double mode navigation (dossiers) / recherche (documents) |
+| `front/templates/front/includes/explorer_card.html` | Chevron preview depliable + badge visibilite superuser + garde suivre (public + pas propre dossier) |
+| `front/templates/front/includes/onboarding_vide.html` | Onglets "Decouvrir l'app" / "Explorer les dossiers" |
+| `front/templates/front/base.html` | Cascade `explorer_preloaded` + liens HTMX toolbar + sidebar |
+| `front/serializers.py` | `ExplorerFiltresSerializer` : +`visibilite`, +`statut` |
+| `front/tests/test_phases.py` | `Phase25dExplorerRechercheTest` adapte au mode document-centrique |
+
+**Conformite stack-ccc :** audit OK (ViewSet explicite, DRF Serializer, variables verbeuses FR, commentaires bilingues, LOCALISATION, DEPENDENCIES, FLUX, data-testid, aria-label/live/hidden, hx-indicator)

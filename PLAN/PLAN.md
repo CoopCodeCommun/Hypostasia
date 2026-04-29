@@ -105,6 +105,31 @@ mais de la donner a voir pour que les participants et le facilitateur puissent d
 > graphe de liens ? autre representation ?) reste a definir. Les briques techniques sont posees
 > progressivement dans les Etapes 1.4, 1.12, 1.15, 2.4, et la section dediee ci-dessous.
 
+### Page d'engagement — donner envie de participer
+
+La geometrie du debat est un outil pour les participants actifs. Mais comment fait-on venir
+ces participants ? La page d'accueil de l'Explorer (accessible a tout visiteur, meme anonyme)
+est la **vitrine du debat en cours**. Son role n'est pas d'informer — c'est de **provoquer
+l'envie de reagir**.
+
+Le principe : montrer le contenu brut qui fait debat, pas des metriques abstraites.
+
+- **"Ca fait debat"** : les 3 extractions les plus controversees des documents publics,
+  avec la citation exacte en Lora italique (voix humaine) et le resume IA en B612 Mono
+  (voix machine). Pastille de statut coloree (Wong). Bouton "Rejoindre" qui mene
+  directement au passage dans le texte. L'utilisateur lit une phrase provocante, reagit,
+  et se retrouve dans le debat en un clic.
+- **"En attente de votre avis"** : extractions discutables sans commentaire. Appel a
+  l'action : "personne n'a encore reagi — votre avis compte". Le sentiment que sa
+  contribution comble un vide.
+- **Compteurs de debat** : ligne compacte de compteurs cliquables par statut
+  (controverses, en debat, consensuels) — pas des metriques de vanite (vues, likes)
+  mais des signaux deliberatifs.
+
+Cette page est un **entonnoir : emotion → action → exploration**. Meme un visiteur
+anonyme qui tombe dessus doit se dire "tiens, c'est un debat interessant" avant de
+comprendre ce qu'est Hypostasia. (→ PHASE-25d-v2)
+
 ---
 
 ## Avis strategique — Forces et doutes
@@ -117,6 +142,7 @@ mais de la donner a voir pour que les participants et le facilitateur puissent d
 - **Alignement cross-documents par hypostases** : capacite unique a comparer des documents de natures differentes (verbatim, lois, chartes) en les alignant par types semantiques communs (PHENOMENE, CONJECTURE, AXIOME...). C'est le pont entre "ce qui est vecu", "ce qui est prescrit" et "ce qui est organise" — un besoin reel en recherche, en gouvernance et en audit. (→ Etape 1.12, Etape 6.2)
 - **Deep Research contextuel integre aux extractions** : chaque extraction peut etre automatiquement enrichie par des sources externes (articles academiques, rapports, web) via Local Deep Research. Les sources apparaissent directement dans la carte d'extraction, comme un apparat critique integre — le standard attendu en recherche universitaire et en redaction juridique. Pas de panneau separe, pas de rupture de contexte. (→ Etape 7.2)
 - **Geometrie du debat** : les donnees produites par le cycle deliberatif (extractions typees, statuts, commentaires, contributeurs, liens cross-documents) dessinent une forme — la geometrie du debat. Hypostasia rend cette geometrie visible a travers plusieurs facettes : spatiale (ou sont les debats dans le texte), statistique (% de consensus), thermique (heat map de l'intensite), structurelle (alignement par hypostases), sociale (qui participe), temporelle (comment le debat evolue). Aucun outil de deliberation ne propose cette cartographie multi-axes. C'est le dodecaedre a construire — pas un jugement, une observation navigable qui permet aux participants de decider ensemble "sommes-nous prets a synthetiser ?". (→ Etapes 1.4, 1.12, 1.15, 1.16, 2.4 ; concept a approfondir avec Jean et Dominique)
+- **Page d'engagement comme vitrine** : l'Explorer montre les extractions controversees en accroche — le visiteur lit une citation provocante, reagit, et se retrouve dans le debat. L'onboarding ne passe pas par un tutoriel mais par le contenu lui-meme. (→ PHASE-25d-v2)
 - **Stack technique sobre** : Django + HTMX = pas de frontend JS a maintenir, time-to-market rapide, maintenable par une petite equipe.
 
 ### Doutes et risques identifies

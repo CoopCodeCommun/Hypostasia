@@ -15,6 +15,24 @@
         </a>
     </div>
 
+    {# OOB : remplacer le spinner par un pill V2 cliquable dans la zone de lecture #}
+    {# / OOB: replace spinner with clickable V2 pill in the reading zone #}
+    <span id="indicateur-synthese" hx-swap-oob="innerHTML:#indicateur-synthese">
+        <a href="/lire/{{ page_synthese_id }}/"
+           hx-get="/lire/{{ page_synthese_id }}/"
+           hx-target="#zone-lecture"
+           hx-swap="innerHTML"
+           hx-push-url="true"
+           class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium animate-pulse"
+           style="background: #d1fae5; color: #047857;"
+           data-testid="pill-synthese-terminee">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            V{{ version_number }}
+        </a>
+    </span>
+
 {% elif erreur_synthese %}
     {# Erreur : message + bouton retry #}
     {# / Error: message + retry button #}
@@ -26,6 +44,10 @@
             R&eacute;essayer la synth&egrave;se
         </button>
     </div>
+
+    {# OOB : supprimer le spinner en cas d'erreur #}
+    {# / OOB: remove spinner on error #}
+    <span id="indicateur-synthese" hx-swap-oob="innerHTML:#indicateur-synthese"></span>
 
 {% else %}
     {# En cours : spinner + polling toutes les 3 secondes #}
@@ -43,4 +65,17 @@
             Synth&egrave;se en cours...
         </button>
     </div>
+
+    {# OOB : afficher un pill spinner dans la zone de lecture (switcher versions) #}
+    {# / OOB: show a spinner pill in the reading zone (version switcher) #}
+    <span id="indicateur-synthese" hx-swap-oob="innerHTML:#indicateur-synthese">
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+              style="background: #fef3c7; color: #b45309;">
+            <svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Synth&egrave;se...
+        </span>
+    </span>
 {% endif %}

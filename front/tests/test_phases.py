@@ -3607,9 +3607,9 @@ class Phase17FichierKeyboardJSTest(TestCase):
         self.assertIn("extractionSuivante", self.contenu_js)
         self.assertIn("extractionPrecedente", self.contenu_js)
 
-    def test_js_contient_ouvrirAideRaccourcis(self):
-        """keyboard.js contient la modale aide (?)."""
-        self.assertIn("ouvrirAideRaccourcis", self.contenu_js)
+    def test_js_contient_fermerAideRaccourcis(self):
+        """keyboard.js contient la fermeture de la modale aide (Escape)."""
+        self.assertIn("fermerAideRaccourcis", self.contenu_js)
 
     def test_js_contient_listener_unique(self):
         """keyboard.js utilise un seul addEventListener keydown."""
@@ -3888,8 +3888,20 @@ class Phase18KeyboardJSTest(TestCase):
         self.assertIn("alignement.fermer()", self.contenu_js)
 
     def test_aide_modale_contient_raccourci_a(self):
-        """La modale d'aide contient le raccourci A."""
-        self.assertIn("Comparer / Aligner des pages", self.contenu_js)
+        """La modale d'aide serveur contient le raccourci A et Z."""
+        # / The server-side help modal contains shortcuts A and Z
+        # La modale est chargee via HTMX depuis /lire/aide/, pas construite en JS.
+        # On verifie la liste Python dans views.py via un appel HTTP.
+        # / Modal is loaded via HTMX from /lire/aide/, not built in JS.
+        from django.contrib.auth.models import User
+        from django.test import Client
+        utilisateur = User.objects.create_user("test_aide_a", password="test1234")
+        client = Client()
+        client.login(username="test_aide_a", password="test1234")
+        reponse = client.get("/lire/aide/", HTTP_HX_REQUEST="true")
+        contenu = reponse.content.decode("utf-8")
+        self.assertIn("Comparer / Aligner des pages", contenu)
+        self.assertIn("Comparer les versions", contenu)
 
 
 class Phase18CSSStylesTest(TestCase):
@@ -6089,25 +6101,6 @@ class Phase23ConfirmationAnalyseTemplateTest(TestCase):
         self.assertIn('data-testid="estimation-tokens"', self.contenu)
 
 
-class Phase23AnalyseEnCoursTemplateTest(TestCase):
-    """Verifie que le template de polling cible #zone-lecture."""
-
-    def setUp(self):
-        chemin_template = (
-            BASE_DIR / "front" / "templates" / "front" / "includes"
-            / "analyse_en_cours.html"
-        )
-        self.contenu = chemin_template.read_text(encoding="utf-8")
-
-    def test_polling_cible_zone_lecture(self):
-        """Le polling HTMX cible #zone-lecture (pas #zone-resultats-extraction)."""
-        self.assertIn('hx-target="#zone-lecture"', self.contenu)
-        self.assertNotIn('hx-target="#zone-resultats-extraction"', self.contenu)
-
-    def test_polling_every_3s(self):
-        """Le polling se declenche toutes les 3 secondes."""
-        self.assertIn('hx-trigger="every 3s"', self.contenu)
-
 
 class Phase23PrevisualiserAnalyseViewTest(TestCase):
     """Teste l'endpoint previsualiser_analyse via RequestFactory."""
@@ -8111,21 +8104,33 @@ class Phase25dExplorerAnonymeTest(TestCase):
 
 
 class Phase25dExplorerRechercheTest(TestCase):
-    """Recherche par nom.
-    / Search by name."""
+    """Recherche document-centrique (PHASE-25d-v2).
+    Quand un terme est saisi, la recherche renvoie des Pages (documents).
+    / Document-centric search (PHASE-25d-v2).
+    When a term is entered, search returns Pages (documents)."""
 
     def setUp(self):
         from django.contrib.auth.models import User
-        from core.models import Dossier, VisibiliteDossier
+        from core.models import Dossier, Page, VisibiliteDossier
         owner = User.objects.create_user(username="exp_own2", password="test1234")
-        Dossier.objects.create(name="Alpha search", owner=owner, visibilite=VisibiliteDossier.PUBLIC)
-        Dossier.objects.create(name="Beta search", owner=owner, visibilite=VisibiliteDossier.PUBLIC)
+        dossier_alpha = Dossier.objects.create(name="Alpha search", owner=owner, visibilite=VisibiliteDossier.PUBLIC)
+        dossier_beta = Dossier.objects.create(name="Beta search", owner=owner, visibilite=VisibiliteDossier.PUBLIC)
+        Page.objects.create(
+            title="Page Alpha contenu", dossier=dossier_alpha, owner=owner,
+            text_readability="Texte Alpha recherchable.",
+            html_original="<p>t</p>", html_readability="<p>t</p>",
+        )
+        Page.objects.create(
+            title="Page Beta contenu", dossier=dossier_beta, owner=owner,
+            text_readability="Texte Beta autre sujet.",
+            html_original="<p>t</p>", html_readability="<p>t</p>",
+        )
 
     def test_recherche_filtre(self):
-        reponse = self.client.get("/explorer/", {"q": "Alpha"}, HTTP_HX_REQUEST="true")
+        reponse = self.client.get("/explorer/", {"q": "Alpha"}, HTTP_HX_REQUEST="true", HTTP_HX_TARGET="explorer-resultats")
         self.assertEqual(reponse.status_code, 200)
-        self.assertContains(reponse, "Alpha search")
-        self.assertNotContains(reponse, "Beta search")
+        self.assertContains(reponse, "Page Alpha contenu")
+        self.assertNotContains(reponse, "Page Beta contenu")
 
 
 class Phase25dExplorerFiltreAuteurTest(TestCase):

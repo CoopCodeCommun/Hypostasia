@@ -46,6 +46,128 @@ from collections import defaultdict
 from typing import Iterable, Iterator
 
 
+
+def _recuperer_extractions_json_corrompu(
+    texte_sortie_llm, resolver, format_handler, numero_chunk, debug, **kwargs
+):
+    """
+    Tente de recuperer les extractions valides d'un JSON LLM corrompu.
+    Cas typique : boucle de repetition Gemini qui produit un JSON tronque.
+    Strategie : trouver le dernier objet JSON complet et re-parser.
+    / Attempts to recover valid extractions from corrupted LLM JSON.
+    / Typical case: Gemini repetition loop producing truncated JSON.
+    / Strategy: find last complete JSON object and re-parse.
+    """
+    import json as json_stdlib
+
+    logger.warning(
+        "  [chunk %d] tentative de recuperation partielle du JSON corrompu (%d chars)",
+        numero_chunk, len(texte_sortie_llm),
+    )
+
+    # Retirer les fences si presentes / Strip fences if present
+    texte_nettoye = texte_sortie_llm.strip()
+    if texte_nettoye.startswith("```"):
+        lignes = texte_nettoye.split("\n")
+        lignes = lignes[1:]
+        if lignes and lignes[-1].strip() == "```":
+            lignes = lignes[:-1]
+        texte_nettoye = "\n".join(lignes).strip()
+
+    # Strategie : trouver le tableau "extractions" dans le JSON (potentiellement tronque)
+    # et en extraire les objets individuels complets.
+    # / Strategy: find the "extractions" array in the JSON (potentially truncated)
+    # / and extract complete individual objects from it.
+
+    # Etape 1 : localiser le debut du tableau "extractions": [
+    # / Step 1: locate the start of the "extractions": [ array
+    position_tableau = texte_nettoye.find('"extractions"')
+    if position_tableau == -1:
+        # Pas de wrapper — chercher directement un tableau JSON au debut
+        # / No wrapper — look for a direct JSON array at the start
+        position_tableau = texte_nettoye.find('[')
+    else:
+        position_tableau = texte_nettoye.find('[', position_tableau)
+
+    if position_tableau == -1:
+        logger.warning(
+            "  [chunk %d] recuperation partielle echouee : pas de tableau JSON trouve",
+            numero_chunk,
+        )
+        return []
+
+    # Etape 2 : extraire les objets {...} complets dans le tableau
+    # On demarre apres le '[' du tableau d'extractions.
+    # / Step 2: extract complete {...} objects from the array
+    # / Start after the '[' of the extractions array.
+    texte_tableau = texte_nettoye[position_tableau + 1:]
+    objets_extraits = []
+    profondeur = 0
+    debut_objet = -1
+
+    for position, caractere in enumerate(texte_tableau):
+        if caractere == '{':
+            if profondeur == 0:
+                debut_objet = position
+            profondeur += 1
+        elif caractere == '}':
+            profondeur -= 1
+            if profondeur == 0 and debut_objet >= 0:
+                fragment_json = texte_tableau[debut_objet:position + 1]
+                try:
+                    objet_parse = json_stdlib.loads(fragment_json)
+                    objets_extraits.append(objet_parse)
+                except json_stdlib.JSONDecodeError:
+                    # Objet JSON incomplet ou corrompu — on le saute
+                    # / Incomplete or corrupted JSON object — skip it
+                    pass
+                debut_objet = -1
+
+    if not objets_extraits:
+        logger.warning(
+            "  [chunk %d] recuperation partielle echouee : aucun objet JSON valide",
+            numero_chunk,
+        )
+        return []
+
+    # Nettoyer les objets : forcer extraction_text en string si c'est une liste/dict.
+    # Gemini renvoie parfois extraction_text comme liste ou objet,
+    # ce qui fait crasher LangExtract avec ValueError.
+    # / Clean objects: force extraction_text to string if it's a list/dict.
+    # / Gemini sometimes returns extraction_text as list or object,
+    # / which crashes LangExtract with ValueError.
+    for objet in objets_extraits:
+        if "extraction_text" in objet and not isinstance(objet["extraction_text"], (str, int, float)):
+            valeur_brute = objet["extraction_text"]
+            if isinstance(valeur_brute, list):
+                objet["extraction_text"] = " ".join(str(item) for item in valeur_brute)
+            else:
+                objet["extraction_text"] = str(valeur_brute)
+            logger.warning(
+                "  [chunk %d] extraction_text force en string (etait %s)",
+                numero_chunk, type(valeur_brute).__name__,
+            )
+
+    # Re-construire le JSON wrappé et le repasser au resolver
+    # / Rebuild wrapped JSON and re-pass to resolver
+    json_reconstruit = json_stdlib.dumps({"extractions": objets_extraits})
+    try:
+        extractions_recuperees = resolver.resolve(
+            json_reconstruit, debug=debug, **kwargs
+        )
+        logger.info(
+            "  [chunk %d] recuperation partielle reussie : %d/%d extraction(s) sauvees",
+            numero_chunk, len(extractions_recuperees), len(objets_extraits),
+        )
+        return extractions_recuperees
+    except Exception as erreur_recuperation:
+        logger.warning(
+            "  [chunk %d] recuperation partielle echouee au resolve : %s",
+            numero_chunk, erreur_recuperation,
+        )
+        return []
+
+
 def _creer_annotateur_avec_progression(
     modele_llm,
     prompt_template,
@@ -156,15 +278,21 @@ def _creer_annotateur_avec_progression(
                         for text_chunk in batch
                     ]
 
-                    # Envoyer les prompts au LLM. Avec batch_length=1,
-                    # on envoie un seul chunk a la fois (pas de parallelisme).
+                    # Envoyer les prompts au LLM. Avec batch_length > 1,
+                    # les providers Gemini/OpenAI parallelisent via ThreadPoolExecutor.
                     # Le LLM repond avec du YAML/JSON contenant les extractions.
-                    # / Send prompts to the LLM. With batch_length=1,
-                    # / we send one chunk at a time (no parallelism).
+                    # / Send prompts to the LLM. With batch_length > 1,
+                    # / Gemini/OpenAI providers parallelize via ThreadPoolExecutor.
                     # / The LLM responds with YAML/JSON containing extractions.
                     logger.debug(
                         "  [langextract] envoi batch de %d chunk(s) au LLM",
                         len(batch),
+                    )
+                    # Log des kwargs passes a infer (debug max_output_tokens)
+                    # / Log kwargs passed to infer (debug max_output_tokens)
+                    logger.info(
+                        "  [langextract] kwargs infer: %s",
+                        {k: v for k, v in kwargs.items() if k != 'debug'},
                     )
                     debut_appel_llm = time.time()
                     outputs = self._language_model.infer(
@@ -187,19 +315,33 @@ def _creer_annotateur_avec_progression(
                                 "No scored outputs from language model."
                             )
 
-                        # Taille du chunk et position dans le texte original
-                        # / Chunk size and position in the original text
+                        # Taille du chunk, position et temps de reponse LLM
+                        # / Chunk size, position and LLM response time
+                        temps_fin_llm = time.time()
                         taille_chunk = len(text_chunk.chunk_text)
                         position_debut_chunk = (
                             text_chunk.char_interval.start_pos
                             if text_chunk.char_interval else 0
                         )
                         taille_reponse_llm = len(scored_outputs[0].output)
+                        duree_llm_secondes = duree_appel_llm
                         logger.info(
-                            "  [chunk %d] pos=%d len=%d — reponse LLM: %d chars",
+                            "  [chunk %d] pos=%d len=%d — reponse LLM: %d chars en %.1fs",
                             numero_chunk, position_debut_chunk,
                             taille_chunk, taille_reponse_llm,
+                            duree_llm_secondes,
                         )
+                        # Collecter les warnings pour ce chunk (envoyes au callback → WS)
+                        # / Collect warnings for this chunk (sent to callback → WS)
+                        warnings_chunk = []
+                        if duree_llm_secondes > 60:
+                            logger.warning(
+                                "  [chunk %d] reponse LLM anormalement lente: %.0fs",
+                                numero_chunk, duree_llm_secondes,
+                            )
+                            warnings_chunk.append(
+                                f"Réponse LLM très lente ({int(duree_llm_secondes)}s)"
+                            )
 
                         # Etape 1 : Resolver — parse le YAML/JSON brut du LLM
                         # en objets Extraction structurés.
@@ -209,6 +351,14 @@ def _creer_annotateur_avec_progression(
                         # / into structured Extraction objects.
                         # / If JSON is truncated and suppress_parse_errors=True,
                         # / resolver returns empty list instead of crashing.
+
+                        # Log du debut de la reponse LLM pour debug du format
+                        # / Log start of LLM response for format debugging
+                        texte_sortie_brut = scored_outputs[0].output
+                        logger.info(
+                            "  [chunk %d] debut reponse LLM (300 premiers chars): %s",
+                            numero_chunk, texte_sortie_brut[:300],
+                        )
 
                         # Correction : certains LLM renvoient un tableau JSON brut
                         # au lieu de {"extractions": [...]}.
@@ -251,9 +401,45 @@ def _creer_annotateur_avec_progression(
                                 # / Truncated JSON — let the resolver handle it
                                 pass
 
-                        resolved_extractions = resolver.resolve(
-                            texte_sortie_llm, debug=debug, **kwargs
-                        )
+                        try:
+                            resolved_extractions = resolver.resolve(
+                                texte_sortie_llm, debug=debug, **kwargs
+                            )
+                        except (ValueError, TypeError) as erreur_resolve:
+                            # Le LLM a renvoye un format inattendu (liste au lieu de string, etc.)
+                            # On passe a la recuperation partielle au lieu de crasher le job.
+                            # / LLM returned unexpected format (list instead of string, etc.)
+                            # / Fall through to partial recovery instead of crashing the job.
+                            logger.warning(
+                                "  [chunk %d] resolver.resolve() a echoue: %s\n"
+                                "  JSON complet (1000 premiers chars): %s",
+                                numero_chunk, erreur_resolve,
+                                texte_sortie_llm[:1000],
+                            )
+                            resolved_extractions = []
+
+                        # Recuperation partielle si le resolve a echoue (0 extraction)
+                        # mais que la reponse LLM contient du JSON parsable.
+                        # Cas typique : boucle de repetition Gemini qui corrompt la fin du JSON,
+                        # ou extraction_text non-string qui fait crasher le resolver.
+                        # / Partial recovery if resolve failed (0 extractions)
+                        # / but the LLM response contains parseable JSON.
+                        # / Typical case: Gemini repetition loop corrupting end of JSON,
+                        # / or non-string extraction_text crashing the resolver.
+                        if not resolved_extractions and taille_reponse_llm > 200:
+                            resolved_extractions = _recuperer_extractions_json_corrompu(
+                                texte_sortie_llm, resolver, format_handler,
+                                numero_chunk, debug, **kwargs,
+                            )
+                            if resolved_extractions:
+                                warnings_chunk.append(
+                                    f"Réponse LLM corrompue — {len(resolved_extractions)} extraction(s) récupérée(s)"
+                                )
+                            else:
+                                warnings_chunk.append(
+                                    "Réponse LLM corrompue — aucune extraction récupérable"
+                                )
+
                         nombre_extractions_resolues = len(resolved_extractions)
                         logger.info(
                             "  [chunk %d] resolve → %d extraction(s) parsees depuis le YAML/JSON",
@@ -325,6 +511,7 @@ def _creer_annotateur_avec_progression(
                             callback_par_chunk(
                                 extractions_du_chunk=liste_extractions_alignees,
                                 caracteres_traites=caracteres_traites,
+                                warnings_chunk=warnings_chunk,
                             )
 
                     yield from _emit_docs_iter(keep_last_doc=True)
@@ -448,6 +635,43 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
             "transcrire_audio_task: termine job=%s page=%s segments=%d duree=%.1fs",
             job_id, page_associee.pk, len(segments_transcrits), duree_traitement,
         )
+
+        # Debit post-completion (PHASE-26h) — debiter le cout de la transcription audio
+        # Le cout est base sur la duree de traitement (tarif par minute selon le modele)
+        # / Post-completion debit (PHASE-26h) — debit audio transcription cost
+        # / Cost is based on processing time (per-minute rate for the model)
+        from django.conf import settings as django_settings
+        if django_settings.STRIPE_ENABLED and config_transcription:
+            try:
+                from core.models import CreditAccount, SoldeInsuffisantError
+                cout_transcription = config_transcription.estimer_cout_euros(
+                    duree_traitement,
+                ) if hasattr(config_transcription, 'estimer_cout_euros') else None
+
+                if cout_transcription and cout_transcription > 0:
+                    proprietaire_audio = page_associee.owner or (
+                        page_associee.dossier.owner if page_associee.dossier else None
+                    )
+                    if proprietaire_audio and not proprietaire_audio.is_superuser:
+                        compte_credits_audio = CreditAccount.get_ou_creer(proprietaire_audio)
+                        compte_credits_audio.debiter(
+                            montant=cout_transcription,
+                            description=f"Transcription audio #{job_id} — {duree_traitement:.0f}s",
+                        )
+                        logger.info(
+                            "transcrire_audio_task: debite %s EUR du compte de %s pour job=%s",
+                            cout_transcription, proprietaire_audio.username, job_id,
+                        )
+            except SoldeInsuffisantError:
+                logger.warning(
+                    "transcrire_audio_task: solde insuffisant post-completion job=%s",
+                    job_id,
+                )
+            except Exception as erreur_debit_audio:
+                logger.error(
+                    "transcrire_audio_task: erreur debit credits job=%s — %s",
+                    job_id, erreur_debit_audio,
+                )
 
         # Notifier le navigateur que la transcription est terminee
         # / Notify the browser that transcription is complete
@@ -959,21 +1183,45 @@ def synthetiser_page_task(self, job_id):
             "resultat": {"page_synthese_id": page_synthese.pk},
         })
 
-        # Debiter les credits si Stripe actif / Debit credits if Stripe active
-        try:
-            from django.conf import settings as django_settings
-            if django_settings.STRIPE_ENABLED:
-                from core.models import CreditAccount
-                compte_credits = CreditAccount.objects.filter(user=page_source.owner).first()
-                if compte_credits:
-                    # Estimation du cout (tokens input + output) / Cost estimate (input + output tokens)
-                    tokens_input_estimes = len(message_complet) // 4
-                    tokens_output_estimes = len(texte_synthese) // 4
-                    cout_estime = (tokens_input_estimes * 0.000003) + (tokens_output_estimes * 0.000015)
-                    compte_credits.solde_euros -= cout_estime
-                    compte_credits.save(update_fields=["solde_euros"])
-        except Exception as erreur_credits:
-            logger.warning("synthetiser_page_task: erreur debit credits — %s", erreur_credits)
+        # Debit post-completion (PHASE-26h) — debiter le compte du proprietaire
+        # Utilise le modele IA pour estimer le cout reel a partir des tokens
+        # / Post-completion debit (PHASE-26h) — debit owner's account
+        # / Uses the AI model to estimate real cost from tokens
+        from django.conf import settings as django_settings
+        if django_settings.STRIPE_ENABLED:
+            try:
+                from core.models import CreditAccount, SoldeInsuffisantError
+                tokens_input_estimes = len(message_complet) // 4
+                tokens_output_estimes = len(texte_synthese) // 4
+                cout_reel = modele_ia.estimer_cout_euros(
+                    tokens_input_estimes, tokens_output_estimes,
+                ) if hasattr(modele_ia, 'estimer_cout_euros') else None
+
+                if cout_reel and cout_reel > 0:
+                    proprietaire_synthese = page_source.owner or (
+                        page_source.dossier.owner if page_source.dossier else None
+                    )
+                    if proprietaire_synthese and not proprietaire_synthese.is_superuser:
+                        compte_credits = CreditAccount.get_ou_creer(proprietaire_synthese)
+                        compte_credits.debiter(
+                            montant=cout_reel,
+                            extraction_job=job_synthese,
+                            description=f"Synthèse #{job_synthese.pk} — {tokens_input_estimes}+{tokens_output_estimes} tokens",
+                        )
+                        logger.info(
+                            "synthetiser_page_task: debite %s EUR du compte de %s pour job=%s",
+                            cout_reel, proprietaire_synthese.username, job_id,
+                        )
+            except SoldeInsuffisantError:
+                logger.warning(
+                    "synthetiser_page_task: solde insuffisant post-completion job=%s",
+                    job_id,
+                )
+            except Exception as erreur_credits:
+                logger.error(
+                    "synthetiser_page_task: erreur debit credits job=%s — %s",
+                    job_id, erreur_credits,
+                )
 
     except Exception as erreur_synthese:
         # Erreur : marquer le job en erreur / Error: mark job as error
@@ -1130,10 +1378,25 @@ def analyser_page_task(self, job_id):
         modele_prompt.examples.extend(liste_exemples_langextract)
 
         # 2. Creer le modele LLM via la factory
+        # Gemini 2.5 Flash utilise des "thinking tokens" qui comptent dans
+        # max_output_tokens mais ne sont pas dans la reponse visible.
+        # Avec 3000 tokens, le thinking peut consommer 2500 tokens et ne laisser
+        # que 500 tokens pour la reponse JSON → JSON tronque.
+        # On met 8192 pour laisser assez de marge au thinking + reponse.
+        # La protection contre les boucles de repetition est assuree par la
+        # normalisation (troncation a 500 chars + max 3 hypostases).
         # / 2. Create the LLM model via the factory
+        # / Gemini 2.5 Flash uses "thinking tokens" that count toward
+        # / max_output_tokens but are not in the visible response.
+        # / With 3000 tokens, thinking can consume 2500 tokens and leave
+        # / only 500 tokens for the JSON response → truncated JSON.
+        # / We use 8192 to leave enough room for thinking + response.
+        # / Protection against repetition loops is handled by normalization
+        # / (truncation at 500 chars + max 3 hypostases).
+        max_output_tokens_calcule = 8192
         kwargs_modele_llm = {
             "format_type": data_lx.FormatType.JSON,
-            "max_output_tokens": 8192,
+            "max_output_tokens": max_output_tokens_calcule,
         }
         kwargs_modele_llm.update({
             k: v for k, v in parametres_modele.items()
@@ -1184,14 +1447,23 @@ def analyser_page_task(self, job_id):
         import math
         nombre_chunks_estime = max(1, math.ceil(longueur_texte_total / TAILLE_MAX_CHUNK))
 
+        # Nombre de chunks envoyes en parallele au LLM par batch.
+        # Le callback WS se declenche toujours apres chaque chunk individuel
+        # (boucle interne), seul l'appel LLM est parallelise.
+        # / Number of chunks sent in parallel to the LLM per batch.
+        # / The WS callback still fires after each individual chunk
+        # / (inner loop), only the LLM call is parallelized.
+        TAILLE_BATCH = 5
+
         logger.info(
             "analyser_page_task: pipeline langextract pret\n"
             "  job=%s | model=%s | text=%d chars | ~%d chunks (max_char_buffer=%d)\n"
-            "  exemples=%d | suppress_parse_errors=True | max_output_tokens=8192\n"
-            "  batch_length=1 (sequentiel, 1 chunk a la fois pour streaming WS)",
+            "  exemples=%d | suppress_parse_errors=True | max_output_tokens=%d\n"
+            "  batch_length=%d (parallele, callback WS par chunk)",
             job_id, parametres_modele.get("model_id", "?"),
             longueur_texte_total, nombre_chunks_estime, TAILLE_MAX_CHUNK,
-            len(liste_exemples_langextract),
+            len(liste_exemples_langextract), max_output_tokens_calcule,
+            TAILLE_BATCH,
         )
 
         # Supprimer les anciennes entites AVANT de commencer l'extraction (re-extraction)
@@ -1205,25 +1477,25 @@ def analyser_page_task(self, job_id):
         nombre_entites_creees = 0
         numero_chunk_courant = 0
 
-        def callback_extraction_chunk(extractions_du_chunk, caracteres_traites):
+        def callback_extraction_chunk(extractions_du_chunk, caracteres_traites, warnings_chunk=None):
             """
             Appele apres chaque cycle resolve()+align() d'un chunk LangExtract.
-            Cree les entites en DB, envoie les cartes WS, met a jour la progression.
+            Cree les entites en DB, signale le front pour rafraichir, met a jour la progression.
             / Called after each resolve()+align() cycle for a LangExtract chunk.
-            / Creates entities in DB, sends WS cards, updates progress.
+            / Creates entities in DB, signals front to refresh, updates progress.
 
             LOCALISATION : front/tasks.py (closure dans analyser_page_task)
 
             FLUX :
             1. Recoit les extractions alignees depuis AnnotateurAvecProgression
             2. Cree un ExtractedEntity en DB pour chaque extraction
-            3. Envoie extraction_carte WS → le navigateur affiche la carte en temps reel
+            3. Envoie rafraichir_drawer WS → le JS recharge le drawer depuis la DB
             4. Envoie analyse_progression WS → la barre de progression se met a jour
             5. Sauvegarde entities_count → rafraichit updated_at pour le timeout
 
             COMMUNICATION :
             Recoit : appel direct depuis AnnotateurAvecProgression._annotate_documents_single_pass
-            Emet : extraction_carte + analyse_progression via envoyer_progression_websocket
+            Emet : rafraichir_drawer + analyse_progression via envoyer_progression_websocket
             """
             nonlocal nombre_entites_creees, numero_chunk_courant
             numero_chunk_courant += 1
@@ -1264,16 +1536,20 @@ def analyser_page_task(self, job_id):
                     position_debut, position_fin,
                 )
 
-                # Pousser la carte d'extraction en temps reel via WebSocket.
-                # Le navigateur l'affiche immediatement dans #streaming-extractions.
-                # / Push extraction card in real-time via WebSocket.
-                # / The browser displays it immediately in #streaming-extractions.
-                if identifiant_utilisateur:
-                    envoyer_progression_websocket(
-                        f"notifications_user_{identifiant_utilisateur}",
-                        "extraction_carte",
-                        {"entite_pk": entite_creee.pk},
-                    )
+            # Signaler au front qu'il y a de nouvelles entites en DB (une fois par chunk).
+            # Le consumer envoie un hx-get auto-load vers analyse_status?cartes_only=1
+            # qui met a jour uniquement les cartes (#drawer-cartes-liste) sans ecraser
+            # le bandeau de progression (#barre-progression-analyse).
+            # / Notify the front that new entities are in DB (once per chunk).
+            # / Consumer sends auto-load hx-get to analyse_status?cartes_only=1
+            # / which updates only the cards (#drawer-cartes-liste) without overwriting
+            # / the progress banner (#barre-progression-analyse).
+            if identifiant_utilisateur:
+                envoyer_progression_websocket(
+                    f"notifications_user_{identifiant_utilisateur}",
+                    "rafraichir_drawer",
+                    {"page_id": job_extraction.page_id},
+                )
 
             # Mettre a jour la progression dans le panneau E.
             # Le pourcentage est base sur les caracteres traites par rapport au total.
@@ -1284,12 +1560,18 @@ def analyser_page_task(self, job_id):
             ) if longueur_texte_total > 0 else 50
 
             if identifiant_utilisateur:
+                # Construire le message de progression, avec warnings si presents
+                # / Build progress message, with warnings if any
+                message_progression = f"{nombre_entites_creees} entités trouvées"
+                if warnings_chunk:
+                    message_progression += " — " + " | ".join(warnings_chunk)
+
                 envoyer_progression_websocket(
                     f"notifications_user_{identifiant_utilisateur}",
                     "analyse_progression",
                     {
                         "pourcentage": pourcentage,
-                        "message": f"{nombre_entites_creees} entités trouvées",
+                        "message": message_progression,
                         "chunk_courant": numero_chunk_courant,
                         "chunks_total": nombre_chunks_estime,
                     },
@@ -1304,9 +1586,11 @@ def analyser_page_task(self, job_id):
             job_extraction.save(update_fields=["entities_count"])
 
         # 5. Creer l'annotateur avec callback et lancer l'extraction
-        # batch_length=1 pour que le callback se declenche apres chaque chunk.
+        # batch_length=TAILLE_BATCH pour paralleliser les appels LLM.
+        # Le callback se declenche toujours apres chaque chunk individuel.
         # / 5. Create the annotator with callback and run extraction
-        # / batch_length=1 so the callback fires after each chunk.
+        # / batch_length=TAILLE_BATCH to parallelize LLM calls.
+        # / The callback still fires after each individual chunk.
         annotateur = _creer_annotateur_avec_progression(
             modele_llm=modele_llm,
             prompt_template=modele_prompt,
@@ -1314,13 +1598,23 @@ def analyser_page_task(self, job_id):
             callback_par_chunk=callback_extraction_chunk,
         )
 
+        # Passer max_output_tokens en runtime kwarg pour que Gemini le recoive.
+        # Le constructeur GeminiLanguageModel filtre les kwargs par _API_CONFIG_KEYS
+        # et supprime max_output_tokens — il faut le passer ici a annotate_text
+        # pour qu'il arrive dans infer() → config['max_output_tokens'].
+        # / Pass max_output_tokens as runtime kwarg so Gemini receives it.
+        # / GeminiLanguageModel constructor filters kwargs by _API_CONFIG_KEYS
+        # / and drops max_output_tokens — must pass it here to annotate_text
+        # / so it reaches infer() → config['max_output_tokens'].
+        kwargs_inference = {**kwargs_alignement, "max_output_tokens": max_output_tokens_calcule}
+
         resultat_annote = annotateur.annotate_text(
             text=texte_source,
             resolver=resolveur,
             max_char_buffer=TAILLE_MAX_CHUNK,
-            batch_length=1,
+            batch_length=TAILLE_BATCH,
             show_progress=False,
-            **kwargs_alignement,
+            **kwargs_inference,
         )
 
         # Les entites ont deja ete creees dans le callback — on utilise le resultat

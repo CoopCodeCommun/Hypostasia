@@ -1,4 +1,5 @@
 {# Partiel HTMX pour afficher les resultats d'un job #}
+{% load extractor_tags %}
 
 {% if job.status == 'completed' and job.entities.all %}
 <div class="card">
@@ -12,7 +13,8 @@
              onclick="scrollToExtraction({{ entity.start_char }}, {{ entity.end_char }}, '{{ entity.extraction_text|escapejs|truncatechars:100 }}')">
             <div class="card-body py-2 px-3">
                 <div class="d-flex justify-content-between align-items-center mb-1">
-                    <span class="badge bg-info">{{ entity.extraction_class }}</span>
+                    {% entity_json_attrs entity as entity_attrs %}
+                    <span class="badge bg-info">{% if entity_attrs.0 %}{{ entity_attrs.0 }}{% else %}{{ entity.extraction_class }}{% endif %}</span>
                     <div>
                         {% if entity.hypostasis_tag %}
                         <span class="badge bg-success">{{ entity.hypostasis_tag.name }}</span>

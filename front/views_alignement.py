@@ -162,12 +162,15 @@ def _preparer_lignes_tableau(donnees_par_famille, pages_selectionnees):
             for identifiant_page in identifiants_pages:
                 entites_page = hypostases_de_famille[hypostase].get(identifiant_page, [])
                 if entites_page:
-                    # Prend le resume depuis la cle canonique 'resume'
-                    # / Take summary from canonical key 'resume'
-                    premiere_entite = entites_page[0]
-                    attributs = premiere_entite.attributes or {}
-                    resume = attributs.get('resume', '')
-                    resume_tronque = (str(resume)[:60] + '...') if len(str(resume)) > 60 else str(resume)
+                    # Concatene les resumes IA de toutes les entites (point median)
+                    # / Concatenate AI summaries from all entities (bullet separator)
+                    resumes_ia = [
+                        str(entite.attributes.get('resume', ''))
+                        for entite in entites_page
+                        if entite.attributes and entite.attributes.get('resume')
+                    ]
+                    resume_concat = ' \u2022 '.join(resumes_ia)
+                    resume_tronque = (resume_concat[:80] + '...') if len(resume_concat) > 80 else resume_concat
 
                     # Concatene les extraction_text de toutes les entites (texte source)
                     # / Concatenate extraction_text from all entities (source text)
@@ -182,7 +185,7 @@ def _preparer_lignes_tableau(donnees_par_famille, pages_selectionnees):
                         'remplie': True,
                         'count': len(entites_page),
                         'resume': resume_tronque,
-                        'resume_complet': str(resume),
+                        'resume_complet': resume_concat,
                         'texte_origine': texte_origine_concat,
                         'page_id': identifiant_page,
                         'entites': entites_page,

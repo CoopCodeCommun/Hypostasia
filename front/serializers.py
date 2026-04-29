@@ -673,8 +673,8 @@ class InviterEmailSerializer(serializers.Serializer):
 
 class ExplorerFiltresSerializer(serializers.Serializer):
     """
-    Validation des filtres de la page Explorer (recherche, auteur, pagination).
-    / Validation for Explorer page filters (search, author, pagination).
+    Validation des filtres de la page Explorer (recherche, auteur, pagination, visibilite, statut).
+    / Validation for Explorer page filters (search, author, pagination, visibility, status).
 
     LOCALISATION : front/serializers.py
     """
@@ -685,3 +685,15 @@ class ExplorerFiltresSerializer(serializers.Serializer):
         required=False, default="recent",
     )
     page_num = serializers.IntegerField(required=False, default=1)
+    # Filtre visibilite (superuser uniquement) — PHASE-25d-v2
+    # / Visibility filter (superuser only) — PHASE-25d-v2
+    visibilite = serializers.ChoiceField(
+        choices=["prive", "partage", "public"],
+        required=False, allow_blank=True, default="",
+    )
+    # Filtre par statut de debat (clic compteur curation) — PHASE-25d-v2
+    # / Debate status filter (curation counter click) — PHASE-25d-v2
+    statut = serializers.ChoiceField(
+        choices=["nouveau", "consensuel", "discutable", "discute", "controverse", "non_pertinent"],
+        required=False, allow_blank=True, default="",
+    )

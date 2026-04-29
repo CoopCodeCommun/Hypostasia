@@ -1,10 +1,13 @@
 {# Diff side-by-side entre deux versions de page (PHASE-27b) #}
 {# / Side-by-side diff between two page versions (PHASE-27b) #}
-<div class="diff-versions-conteneur max-w-6xl mx-auto" data-testid="diff-versions-pages">
+<div class="diff-versions-conteneur max-w-6xl mx-auto"
+     data-testid="diff-versions-pages"
+     data-page-id="{{ page_origine.pk|default:page_gauche.pk }}">
 
-    {# Lien retour a la lecture / Back to reading link #}
-    <a href="/lire/{{ page_gauche.pk }}/"
-       hx-get="/lire/{{ page_gauche.pk }}/"
+    {# Lien retour a la page d'origine (celle que l'utilisateur lisait avant Z) #}
+    {# / Back to the origin page (the one the user was reading before Z) #}
+    <a href="/lire/{{ page_origine.pk|default:page_gauche.pk }}/"
+       hx-get="/lire/{{ page_origine.pk|default:page_gauche.pk }}/"
        hx-target="#zone-lecture"
        hx-swap="innerHTML"
        hx-push-url="true"

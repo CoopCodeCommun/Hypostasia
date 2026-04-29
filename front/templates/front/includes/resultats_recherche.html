@@ -24,7 +24,9 @@
                         {% endif %}">
                         {{ resultat.score }}%
                     </span>
-                    {% if resultat.extraction_class %}
+                    {% if resultat.hypostases %}
+                        <span class="text-xs text-slate-400">{{ resultat.hypostases }}</span>
+                    {% elif resultat.extraction_class %}
                         <span class="text-xs text-slate-400">{{ resultat.extraction_class }}</span>
                     {% endif %}
                 </div>

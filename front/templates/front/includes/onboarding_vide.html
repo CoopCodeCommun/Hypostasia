@@ -1,8 +1,30 @@
 {# Parcours d'onboarding — affiche quand aucune page n'est chargee #}
-{# Contient : processus en 4 etapes + 6 statuts + raccourcis clavier #}
+{# Contient : onglets Decouvrir/Explorer + processus en 4 etapes + 6 statuts + raccourcis clavier #}
 {# / Onboarding guide — displayed when no page is loaded #}
-{# / Contains: 4-step process + 6 statuses + keyboard shortcuts #}
+{# / Contains: Discover/Explorer tabs + 4-step process + 6 statuses + keyboard shortcuts #}
+{# LOCALISATION : front/templates/front/includes/onboarding_vide.html #}
 
+{# === Barre d'onglets accueil (PHASE-25d-v2) === #}
+{# / === Home tabs bar (PHASE-25d-v2) === #}
+<div class="flex gap-3 justify-center pt-6 pb-4 border-b border-slate-200 mb-2" data-testid="onglets-accueil">
+    <button class="onglet-accueil active"
+            data-testid="onglet-decouvrir"
+            aria-label="D&eacute;couvrir l'application"
+            onclick="document.getElementById('zone-onboarding').classList.remove('hidden'); this.classList.add('active'); this.nextElementSibling.classList.remove('active');">
+        D&eacute;couvrir l'app
+    </button>
+    <button class="onglet-accueil"
+            hx-get="/explorer/"
+            hx-target="#zone-lecture"
+            hx-swap="innerHTML"
+            hx-push-url="/explorer/"
+            data-testid="onglet-explorer"
+            aria-label="Explorer les dossiers publics">
+        Explorer les dossiers
+    </button>
+</div>
+
+<div id="zone-onboarding">
 <div class="onboarding-contenu" data-testid="onboarding-guide">
 
     {# === Header === #}
@@ -134,6 +156,7 @@
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">H</kbd><span>Heat map</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">X</kbd><span>Masquer</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">A</kbd><span>Comparer</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">Z</kbd><span>Versions</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">Esc</kbd><span>Fermer</span></div>
             </div>
         </div>
@@ -297,6 +320,30 @@
 /* aide-kbd reutilise le style de la modale aide */
 /* / aide-kbd reuses style from help modal */
 
+/* Onglets accueil Decouvrir/Explorer (PHASE-25d-v2) */
+/* / Home tabs Discover/Explorer (PHASE-25d-v2) */
+.onglet-accueil {
+    padding: 0.5rem 1rem 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-bottom: -1px;
+}
+.onglet-accueil:hover {
+    color: var(--text-primary);
+    border-bottom-color: var(--border-default);
+}
+.onglet-accueil.active {
+    color: var(--color-primary, #2563eb);
+    border-bottom-color: var(--color-primary, #2563eb);
+    font-weight: 600;
+}
+
 /* === Mobile : empiler === */
 @media (max-width: 768px) {
     .onboarding-contenu { padding: 2rem 1rem 3rem; }
@@ -305,3 +352,4 @@
     .onboarding-section-clavier { display: none; }
 }
 </style>
+</div>{# fin zone-onboarding #}

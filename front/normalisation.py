@@ -68,19 +68,75 @@ HYPOSTASES_CONNUES = {
     'objet', 'methode',
 }
 
+# Synonymes courants que les LLM produisent a la place des 30 hypostases.
+# Mapping semantique : le LLM pense "proposition" mais l'hypostase est "hypothese".
+# / Common synonyms that LLMs produce instead of the 30 hypostases.
+# / Semantic mapping: the LLM thinks "proposition" but the hypostasis is "hypothese".
+SYNONYMES_HYPOSTASES = {
+    'proposition': 'hypothese',
+    'prediction': 'conjecture',
+    'consequence': 'conjecture',
+    'reference': 'donnee',
+    'influence': 'phenomene',
+    'defi': 'probleme',
+    'condition': 'principe',
+    'argument': 'hypothese',
+    'these': 'theorie',
+    'constat': 'phenomene',
+    'critique': 'probleme',
+    'alerte': 'conjecture',
+    'synthese': 'theorie',
+    'objection': 'probleme',
+    'regle': 'loi',
+    'concept': 'definition',
+    'categorie': 'classification',
+    'preuve': 'donnee',
+    'observation': 'phenomene',
+    'conviction': 'croyance',
+    'dilemme': 'aporie',
+    'contradiction': 'paradoxe',
+    'tendance': 'variation',
+    'modele': 'paradigme',
+    'processus': 'methode',
+    'limite': 'dimension',
+    'norme': 'loi',
+    'postulat': 'axiome',
+    'supposition': 'hypothese',
+    'estimation': 'approximation',
+}
+
 
 def normaliser_valeur_hypostase(valeur_brute):
     """
     Normalise une valeur d'hypostase (potentiellement multi-valeurs separees par virgule).
     Supprime les hypostases hallucinees, corrige les typos via fuzzy match.
+    Garde au maximum 3 hypostases uniques (le prompt en demande 1 a 3).
+    Tronque les boucles de repetition LLM (271K chars observes avec Gemini).
     / Normalize a hypostase value (potentially multi-value, comma-separated).
     / Removes hallucinated hypostases, corrects typos via fuzzy match.
+    / Keeps at most 3 unique hypostases (prompt asks for 1-3).
+    / Truncates LLM repetition loops (271K chars observed with Gemini).
     """
     if not valeur_brute:
         return ""
 
-    fragments = str(valeur_brute).split(',')
+    valeur_str = str(valeur_brute)
+
+    # Garde-fou boucle de repetition LLM : tronquer a 500 chars max.
+    # 3 hypostases font ~60 chars. Au-dela de 500 c'est forcement une boucle.
+    # / LLM repetition loop guard: truncate at 500 chars max.
+    # / 3 hypostases are ~60 chars. Beyond 500 it's certainly a loop.
+    LONGUEUR_MAX_HYPOSTASES = 500
+    if len(valeur_str) > LONGUEUR_MAX_HYPOSTASES:
+        logger.warning(
+            "Hypostases tronquees: %d chars → %d (boucle de repetition LLM probable)",
+            len(valeur_str), LONGUEUR_MAX_HYPOSTASES,
+        )
+        valeur_str = valeur_str[:LONGUEUR_MAX_HYPOSTASES]
+
+    fragments = valeur_str.split(',')
     hypostases_normalisees = []
+    hypostases_vues = set()
 
     for fragment in fragments:
         fragment_normalise = _normaliser_texte(fragment)
@@ -90,7 +146,22 @@ def normaliser_valeur_hypostase(valeur_brute):
         # Correspondance exacte dans les hypostases connues
         # / Exact match in known hypostases
         if fragment_normalise in HYPOSTASES_CONNUES:
-            hypostases_normalisees.append(fragment_normalise)
+            if fragment_normalise not in hypostases_vues:
+                hypostases_normalisees.append(fragment_normalise)
+                hypostases_vues.add(fragment_normalise)
+            continue
+
+        # Correspondance via synonymes courants (le LLM pense "proposition" → "hypothese")
+        # / Match via common synonyms (LLM thinks "proposition" → "hypothese")
+        if fragment_normalise in SYNONYMES_HYPOSTASES:
+            hypostase_mappee = SYNONYMES_HYPOSTASES[fragment_normalise]
+            if hypostase_mappee not in hypostases_vues:
+                logger.info(
+                    "Hypostase '%s' mappee vers '%s' via synonyme",
+                    fragment_normalise, hypostase_mappee,
+                )
+                hypostases_normalisees.append(hypostase_mappee)
+                hypostases_vues.add(hypostase_mappee)
             continue
 
         # Tentative de correction par fuzzy match (seuil 0.8)
@@ -103,11 +174,13 @@ def normaliser_valeur_hypostase(valeur_brute):
         )
         if correspondances:
             hypostase_corrigee = correspondances[0]
-            logger.info(
-                "Hypostase '%s' corrigee en '%s' par fuzzy match",
-                fragment_normalise, hypostase_corrigee,
-            )
-            hypostases_normalisees.append(hypostase_corrigee)
+            if hypostase_corrigee not in hypostases_vues:
+                logger.info(
+                    "Hypostase '%s' corrigee en '%s' par fuzzy match",
+                    fragment_normalise, hypostase_corrigee,
+                )
+                hypostases_normalisees.append(hypostase_corrigee)
+                hypostases_vues.add(hypostase_corrigee)
         else:
             # Hypostase inconnue / hallucinee — on la supprime
             # / Unknown / hallucinated hypostase — remove it
@@ -116,7 +189,12 @@ def normaliser_valeur_hypostase(valeur_brute):
                 fragment_normalise,
             )
 
-    return ", ".join(hypostases_normalisees)
+        # Arreter apres 3 hypostases valides (le prompt en demande 1 a 3)
+        # / Stop after 3 valid hypostases (prompt asks for 1-3)
+        if len(hypostases_normalisees) >= 3:
+            break
+
+    return ", ".join(hypostases_normalisees[:3])
 
 
 def normaliser_attributs_entite(attributes_dict):

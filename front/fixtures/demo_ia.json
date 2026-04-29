@@ -1,506 +1,668 @@
 [
-  {
-    "model": "core.aimodel",
-    "pk": 1,
-    "fields": {
-      "name": "GPT5",
-      "model_choice": "gpt-4-turbo",
-      "provider": "openai",
-      "model_name": "gpt-4-turbo",
-      "temperature": 0.7,
-      "is_active": true
-    }
-  },
-  {
-    "model": "core.aimodel",
-    "pk": 2,
-    "fields": {
-      "name": "Gemini",
-      "model_choice": "gemini-2.5-flash",
-      "provider": "google",
-      "model_name": "gemini-2.5-flash",
-      "temperature": 0.0,
-      "is_active": true
-    }
-  },
-  {
-    "model": "core.configuration",
-    "pk": 1,
-    "fields": {
-      "ai_active": true,
-      "ai_model": 2
-    }
-  },
-  {
-    "model": "hypostasis_extractor.analyseursyntaxique",
-    "pk": 1,
-    "fields": {
-      "name": "Hypostasia",
-      "description": "",
-      "is_active": true,
-      "type_analyseur": "analyser",
-      "inclure_extractions": false,
-      "inclure_texte_original": false,
-      "created_at": "2026-02-10 14:55:38.440000",
-      "updated_at": "2026-02-10 14:55:38.440000"
-    }
-  },
-  {
-    "model": "hypostasis_extractor.analyseursyntaxique",
-    "pk": 2,
-    "fields": {
-      "name": "FALC",
-      "description": "",
-      "is_active": true,
-      "type_analyseur": "reformuler",
-      "inclure_extractions": false,
-      "inclure_texte_original": false,
-      "created_at": "2026-02-16 12:47:28.276000",
-      "updated_at": "2026-02-16 12:47:28.276000"
-    }
-  },
-  {
-    "model": "hypostasis_extractor.analyseursyntaxique",
-    "pk": 3,
-    "fields": {
-      "name": "Restitution",
-      "description": "",
-      "is_active": true,
-      "type_analyseur": "restituer",
-      "inclure_extractions": true,
-      "inclure_texte_original": true,
-      "created_at": "2026-02-17 18:24:07.888000",
-      "updated_at": "2026-02-17 18:33:50.751000"
-    }
-  },
-  {
-    "model": "hypostasis_extractor.analyseursyntaxique",
-    "pk": 4,
-    "fields": {
-      "name": "Restitution FALC",
-      "description": "",
-      "is_active": false,
-      "type_analyseur": "restituer",
-      "inclure_extractions": false,
-      "inclure_texte_original": false,
-      "created_at": "2026-02-17 18:30:27.936000",
-      "updated_at": "2026-02-17 18:30:31.727000"
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 1,
-    "fields": {
-      "analyseur": 1,
-      "name": "Context : Persona",
-      "role": "context",
-      "content": "Tu es Hypostasia, un expert mondial en analyse syntaxique et en logique argumentative.\nTa mission est de déconstruire le texte fourni pour en extraire l'ossature argumentative via les hypostases (définitions plus bas). \nTu agis avec une neutralité absolue et une précision chirurgicale.",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 2,
-    "fields": {
-      "analyseur": 1,
-      "name": "Définitions formelles des 30 hypostases",
-      "role": "definition",
-      "content": "# Définitions formelles des 30 hypostases\n\n- classification : non réfuté par induction empirique et non prouvé par abduction empirique\n- aporie : non réfuté par induction empirique et non prouvé par déduction empirique\n- approximation : non réfuté par induction empirique et non prouvé par déduction formelle\n- paradoxe : non réfuté par induction empirique et non prouvé par abduction formelle\n- formalisme : non réfuté par induction empirique et non prouvé par induction formelle\n- événement : non réfuté par déduction empirique et non prouvé par déduction formelle\n- variation : non réfuté par déduction empirique et non prouvé par abduction empirique\n- dimension :non réfuté par déduction empirique et non prouvé par abduction formelle\n- mode : non réfuté par déduction empirique et non prouvé par induction empirique\n- croyance : non réfuté par déduction empirique et non prouvé par induction formelle\n- invariant : non réfuté par induction formelle et non prouvé par déduction formelle\n- valeur : non réfuté par induction formelle et non prouvé par abduction empirique\n- structure : non réfuté par induction formelle et non prouvé par abduction formelle\n- axiome : non réfuté par induction formelle et non prouvé par induction empirique\n- conjecture : non réfuté par induction formelle et non prouvé par déduction empirique\n- paradigme : non réfuté par déduction formelle et non prouvé par abduction empirique.\n- objet :non réfuté par déduction formelle et non prouvé par abduction formelle.\n- principe : non réfuté par déduction formelle et non prouvé par induction empirique.\n- domaine : non réfuté par déduction formelle et non prouvé par déduction formelle.\n- loi : non réfuté par déduction formelle et non prouvé par induction empirique.\n- phénomène :non réfuté par abduction empirique et non prouvé par déduction formelle.\n- variable : non réfuté par abduction empirique et non prouvé par abduction formelle.\n- variance : non réfuté par abduction empirique et non prouvé par induction empirique.\n- indice : non réfuté par abduction empirique et non prouvé par déduction empirique.\n- donnée :non réfuté par abduction empirique et non prouvé par induction formelle.\n- méthode : non réfuté par abduction formelle et non prouvé par déduction formelle.\n- définition : non réfuté par abduction formelle et non prouvé par abduction empirique.\n- hypothèse : non réfuté par abduction formelle et non prouvé par induction empirique.\n- problème : non réfuté par abduction formelle et non prouvé par déduction empirique\n- théorie : non réfuté par abduction formelle et non prouvé par induction formelle.\n\nCe sont les uniques choix que tu peux avoir pour la clé \"hypostase\" dans l'instruction de sortie pour chaque argument trouvé.",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 3,
-    "fields": {
-      "analyseur": 1,
-      "name": "Définitions informelles des hypostases",
-      "role": "definition",
-      "content": "# Définitions informelles des hypostases\n\nLes hypostases ont des définitions venant des dictionnaires : \n\n- paradigme : un paradigme est un modèle ou un exemple.\n- objet : Un objet est ce sur quoi porte le discours, la pensée, la connaissance.\n- principe : les principes sont les causes a priori d’une connaissance\n- domaine : un domaine est un champ discerné par des limites, bornes, confins, frontières, démarcations.\n- loi : les lois expriment des corrélations.\n- phénomène : les phénomènes se manifestent à la connaissance via les sens.\n- variable : une variable est ce qui prend diﬀérentes valeurs et ce dont dépend l’état d’un système.\n- variance : Une variance caractérise une dispersion d’une distribution ou d’un échantillon.\n- indice : Un indice est un indicateur numérique ou littéral qui sert à distinguer ou classer.\n- donnée : Une donnée est ce qui est admis, donné, qui sert à découvrir ou à raisonner.\n- méthode : Une méthode est une procédure qui indique ce que l’on doit faire ou comment le faire.\n- définition : Une définition est la détermination, la caractérisation du contenu d’un concept.\n- hypothèse : Une hypothèse concerne l’explication ou la possibilité d’un événement.\n- problème : Un problème est une diﬃculté à résoudre\n- théorie : Une théorie est une construction intellectuelle explicative, hypothétique et synthétique.\n- approximation : Une approximation est un calcul approché d’une grandeur réelle.\n- classification : Les classifications sont le fait de distribuer en classes, en catégories.\n- aporie : Les apories sont des diﬃcultés d’ordre rationnel apparemment sans issues.\n- paradoxe : Les paradoxes sont des propositions à la fois vraies et fausses.\n- formalisme : Un formalisme est la considération de la forme d’un raisonnement.\n- événement : Les événements sont ce qui arrive.\n- variation : les variations sont des changements d’un état dans un autre.\n- dimension : Les dimensions sont des grandeurs mesurables qui déterminent des positions.\n- mode : Les modes sont les manières d’être d’un système.\n- croyance : Les croyances sont des certitudes ou des convictions qui font croire une chose vraie, vraisemblable ou possible.\n- invariant : Les invariants sont des grandeurs, relations ou propriétés conservées lors d’une transformation\n- valeur : Une valeur est une mesure d’une grandeur variable.\n- structure : Les structures sont l’organisation des parties d’un système.\n- axiome : Les axiomes sont des propositions admises au départ d’une théorie.\n- conjecture : Les conjectures sont des opinions ou propositions non vérifiées.",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 5,
-    "fields": {
-      "analyseur": 1,
-      "name": "Méthode d'hypostasiation",
-      "role": "instruction",
-      "content": "# Méthode d'Hypostasiation\n\nChaque argument est caractérisé par :\n- Classe : Hypostase, catégorie selon la géométrie des débats, unique.\n\nEt ses attributs (NOMS EXACTS des clés JSON à utiliser) :\n- extraction_text : citation source. Texte exact uniquement, ne pas reformuler.\n- resume : formulation synthétique (une phrase)\n- mots_cles : termes du glossaire, séparés par des virgules\n- hypostases : catégorie selon la géométrie des débats (domaine, valeur, principe, problème, méthode, paradigme, règle, structure, donnée, indice, phénomène, théorie, loi, etc. suivre les définitions plus haut.) Plusieurs valeurs séparées par des virgules si nécessaire.\n- statut : consensuel / discute / discutable / controverse / dispute\n\nLes hypostases sont les « 30 manières d'être discutable » définies par la géométrie des débats : avec 2 dispositifs de preuve (formel, empirique) et 3 modes de raisonnement (induction de lois, abduction de causes, déduction de conséquences), on obtient 6 modes → 30 hypostases. Un énoncé cesse\nd'être consensuel quand il devient argument ; un argument cesse de l'être en devenant consensuel.",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 6,
-    "fields": {
-      "analyseur": 1,
-      "name": "Instructions impératives",
-      "role": "instruction",
-      "content": "ANALYSE MAINTENANT LE TEXTE SUIVANT.\n\nInstructions impératives :\n1. Pour un texte court, identifie une ou deux hypostases pertinentes.\n2. Pour un texte long, identifie 5 à 15 hypostases pertinentes.\n3. Pour un texte très long, identifie 15 à 25 hypostases pertinentes.\n4. Pour chaque hypostase, extrais la citation EXACTE (extraction_text). Si tu changes un seul mot, le système de surlignage échouera.\n6. Synthétise l'idée en une phrase simple (resume).\n7. Associe à chaque argument un, deux ou trois HYPOSTASE de nature conceptuelle (hypostases, au pluriel !). Attention a ne pas halluciner de nouvelle hypostase, elles sont toutes listées dans la définition plus haut.\n8. Trouve le thème du sujet en un, deux, trois ou quatre mots maximum (mots_cles).\n10. Essaye de deviner le statut du débat : consensuel / discute / discutable / controverse / dispute (statut). Si ça ne semble pas pertinent, ne mets rien.\n9. Ignore le bruit, menus, pubs, copyright.\n10. IMPORTANT : Tu es AUTORISÉ à extraire et reproduire des citations exactes (verbatim) du texte fourni : Ceci est nécessaire pour l'analyse et constitue une utilisation équitable (fair use) dans ce contexte académique. Ne refuse jamais d'extraire une citation pour des raisons de droits d'auteur dans ce contexte précis.\n11. ULTRA IMPORTANT : Texte exact uniquement, ne pas reformuler.\n\nCLÉS JSON OBLIGATOIRES dans attributes : \"resume\", \"hypostases\", \"mots_cles\", \"statut\" (snake_case, sans accent, minuscules).",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 7,
-    "fields": {
-      "analyseur": 1,
-      "name": "RÈGLES DE FORMAT STRICTES pour chaque extraction :",
-      "role": "instruction",
-      "content": "RÈGLES DE FORMAT STRICTES pour chaque extraction :\n\n  - \"extraction_class\" : toujours une chaîne de caractères (string)\n  - \"extraction_text\" : toujours une chaîne de caractères (string), JAMAIS une liste, un objet ou un nombre\n  - \"attributes\" : toujours un objet JSON plat avec EXACTEMENT ces 4 clés :\n      \"resume\": \"formulation synthétique en une phrase\"\n      \"hypostases\": \"théorie, problème\" (une ou plusieurs, séparées par virgules)\n      \"mots_cles\": \"politique, économie\" (séparés par virgules)\n      \"statut\": \"consensuel\" (ou discute, discutable, controverse, dispute)\n\n  IMPORTANT : les clés sont en snake_case, sans accent, en minuscules.\n  NE PAS utiliser \"Résumé\", \"Hypostases\", \"Mots-clés\" ou \"Statut\" avec majuscules.\n\n  Si une valeur contient plusieurs éléments, les séparer par des virgules dans une seule chaîne.\n  Exemple correct :   \"mots_cles\": \"politique, économie, société\"\n  Exemple incorrect : \"mots_cles\": [\"politique\", \"économie\", \"société\"]",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 8,
-    "fields": {
-      "analyseur": 2,
-      "name": "Nouveau morceau",
-      "role": "instruction",
-      "content": "Voici un texte à reformuler en français et en FALC : Facile à lire et à comprendre.",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 9,
-    "fields": {
-      "analyseur": 3,
-      "name": "Restitution FALC",
-      "role": "instruction",
-      "content": "Prend en compte le texte original et les commentaires sur cette partie de l'extraction.\r\nEssaye de synthétiser la discussion autour de cette extraction du texte original.\r\nPrend en compte les pour et les contre s'ils sont bien exprimés.\r\nN’hallucine pas de nouvelles idées, résume la discussion en FALC.",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 10,
-    "fields": {
-      "analyseur": 4,
-      "name": "Restitution FALC",
-      "role": "instruction",
-      "content": "",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.analyseursyntaxique",
-    "pk": 5,
-    "fields": {
-      "name": "Synthèse délibérative",
-      "description": "Produit une nouvelle version du texte intégrant le débat structuré (hypostases + commentaires + statuts). Pondère les points consensuels (poids fort) et ignore les non pertinents.",
-      "is_active": true,
-      "type_analyseur": "synthetiser",
-      "inclure_extractions": true,
-      "inclure_texte_original": true,
-      "created_at": "2026-03-20 20:00:00.000000",
-      "updated_at": "2026-03-20 20:00:00.000000"
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 11,
-    "fields": {
-      "analyseur": 5,
-      "name": "Contexte et mission",
-      "role": "context",
-      "content": "Tu es un moteur de synthèse délibérative. Ta mission est de produire une nouvelle version d'un texte qui intègre les résultats d'un cycle de débat structuré.\n\nTu reçois :\n1. Le TEXTE ORIGINAL (transcription ou document source)\n2. Les HYPOSTASES EXTRAITES — unités argumentatives typées avec leur statut de débat\n3. Les COMMENTAIRES des contributeurs sur ces hypostases\n4. Les RÉSUMÉS IA de chaque hypostase\n\nLes hypostases sont les « 30 manières d'être discutable » définies par la géométrie des débats : avec 2 dispositifs de preuve (formel, empirique) et 3 modes de raisonnement (induction de lois, abduction de causes, déduction de conséquences), on obtient 6 modes → 30 hypostases. Un énoncé cesse d'être consensuel quand il devient argument ; un argument cesse de l'être en devenant consensuel.",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 12,
-    "fields": {
-      "analyseur": 5,
-      "name": "Définitions informelles des hypostases",
-      "role": "definition",
-      "content": "# Définitions informelles des hypostases\n\nLes hypostases ont des définitions venant des dictionnaires :\n\n- paradigme : un paradigme est un modèle ou un exemple.\n- objet : Un objet est ce sur quoi porte le discours, la pensée, la connaissance.\n- principe : les principes sont les causes a priori d'une connaissance\n- domaine : un domaine est un champ discerné par des limites, bornes, confins, frontières, démarcations.\n- loi : les lois expriment des corrélations.\n- phénomène : les phénomènes se manifestent à la connaissance via les sens.\n- variable : une variable est ce qui prend différentes valeurs et ce dont dépend l'état d'un système.\n- variance : Une variance caractérise une dispersion d'une distribution ou d'un échantillon.\n- indice : Un indice est un indicateur numérique ou littéral qui sert à distinguer ou classer.\n- donnée : Une donnée est ce qui est admis, donné, qui sert à découvrir ou à raisonner.\n- méthode : Une méthode est une procédure qui indique ce que l'on doit faire ou comment le faire.\n- définition : Une définition est la détermination, la caractérisation du contenu d'un concept.\n- hypothèse : Une hypothèse concerne l'explication ou la possibilité d'un événement.\n- problème : Un problème est une difficulté à résoudre\n- théorie : Une théorie est une construction intellectuelle explicative, hypothétique et synthétique.\n- approximation : Une approximation est un calcul approché d'une grandeur réelle.\n- classification : Les classifications sont le fait de distribuer en classes, en catégories.\n- aporie : Les apories sont des difficultés d'ordre rationnel apparemment sans issues.\n- paradoxe : Les paradoxes sont des propositions à la fois vraies et fausses.\n- formalisme : Un formalisme est la considération de la forme d'un raisonnement.\n- événement : Les événements sont ce qui arrive.\n- variation : les variations sont des changements d'un état dans un autre.\n- dimension : Les dimensions sont des grandeurs mesurables qui déterminent des positions.\n- mode : Les modes sont les manières d'être d'un système.\n- croyance : Les croyances sont des certitudes ou des convictions qui font croire une chose vraie, vraisemblable ou possible.\n- invariant : Les invariants sont des grandeurs, relations ou propriétés conservées lors d'une transformation\n- valeur : Une valeur est une mesure d'une grandeur variable.\n- structure : Les structures sont l'organisation des parties d'un système.\n- axiome : Les axiomes sont des propositions admises au départ d'une théorie.\n- conjecture : Les conjectures sont des opinions ou propositions non vérifiées.",
-      "order": 1
-    }
-  },
-  {
-    "model": "hypostasis_extractor.promptpiece",
-    "pk": 13,
-    "fields": {
-      "analyseur": 5,
-      "name": "Règles de pondération et rédaction",
-      "role": "instruction",
-      "content": "RÈGLES DE PONDÉRATION PAR STATUT :\n\n- CONSENSUEL (poids fort) : Intégrer comme acquis. Ces points font accord — les affirmer clairement dans la synthèse.\n- DISCUTABLE (poids moyen) : Intégrer avec nuance. Mentionner que le point mérite discussion ou examen.\n- DISCUTÉ (poids moyen-faible) : Présenter les termes du débat. Reprendre les arguments des commentaires pour et contre.\n- CONTROVERSÉ (poids faible) : Exposer le désaccord sans trancher. Citer les positions en présence. Ne pas prendre parti.\n- NON_PERTINENT (poids zéro) : Ignorer complètement. Ces éléments ont été écartés par les contributeurs.\n- NOUVEAU (poids faible) : Intégrer seulement si pertinent pour la cohérence. Ces éléments n'ont pas encore été évalués par les contributeurs.\n\nRÈGLES DE RÉDACTION :\n\n- Écris à la troisième personne, en voix neutre et synthétique\n- Structure le texte en paragraphes thématiques (pas de listes à puces)\n- Chaque affirmation doit pouvoir être rattachée à une hypostase source\n- Préserve la richesse argumentative : ne simplifie pas à l'excès\n- Longueur cible : 40-60% du texte original (synthèse, pas résumé)\n- Si des commentaires apportent des précisions factuelles, intègre-les dans le fil du texte\n- Les points controversés doivent être présentés comme tels : « Sur ce point, les avis divergent... » / « Cette position est contestée... »\n- Ne fabrique aucune information absente des matériaux fournis\n- N'ajoute pas d'opinion personnelle ni de recommandation",
-      "order": 2
-    }
-  },
-  {
-    "model": "hypostasis_extractor.analyseurexample",
-    "pk": 1,
-    "fields": {
-      "analyseur": 1,
-      "name": "Debat IA — 3 arguments",
-      "example_text": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances secondaires. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. Ce que nous vivons, c'est une silicolonisation du monde. Je crois qu'il y a une troisième voie que vous négligez tous les deux.",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.exampleextraction",
-    "pk": 1,
-    "fields": {
-      "example": 1,
-      "extraction_class": "hypostase",
-      "extraction_text": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances secondaires.",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 1,
-    "fields": {
-      "extraction": 1,
-      "key": "hypostases",
-      "value": "théorie, conjecture, principe",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 2,
-    "fields": {
-      "extraction": 1,
-      "key": "resume",
-      "value": "L'IA est une révolution majeure nécessitant un investissement massif pour éviter le déclassement.",
-      "order": 1
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 3,
-    "fields": {
-      "extraction": 1,
-      "key": "mots_cles",
-      "value": "intelligence artificielle, révolution, investissement",
-      "order": 2
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 4,
-    "fields": {
-      "extraction": 1,
-      "key": "statut",
-      "value": "Discutable",
-      "order": 3
-    }
-  },
-  {
-    "model": "hypostasis_extractor.exampleextraction",
-    "pk": 2,
-    "fields": {
-      "example": 1,
-      "extraction_class": "hypostase",
-      "extraction_text": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. Ce que nous vivons, c'est une silicolonisation du monde.",
-      "order": 1
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 5,
-    "fields": {
-      "extraction": 2,
-      "key": "hypostases",
-      "value": "définition, théorie, problème",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 6,
-    "fields": {
-      "extraction": 2,
-      "key": "resume",
-      "value": "L'IA est un choix politique, non une fatalité, menant à une silicolonisation.",
-      "order": 1
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 7,
-    "fields": {
-      "extraction": 2,
-      "key": "mots_cles",
-      "value": "choix politique, silicolonisation, fatalité",
-      "order": 2
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 8,
-    "fields": {
-      "extraction": 2,
-      "key": "statut",
-      "value": "Controversé",
-      "order": 3
-    }
-  },
-  {
-    "model": "hypostasis_extractor.exampleextraction",
-    "pk": 3,
-    "fields": {
-      "example": 1,
-      "extraction_class": "hypostase",
-      "extraction_text": "Je crois qu'il y a une troisième voie que vous négligez tous les deux.",
-      "order": 2
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 9,
-    "fields": {
-      "extraction": 3,
-      "key": "hypostases",
-      "value": "hypothèse, paradigme",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 10,
-    "fields": {
-      "extraction": 3,
-      "key": "resume",
-      "value": "Il existe une approche alternative non considérée dans le débat actuel.",
-      "order": 1
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 11,
-    "fields": {
-      "extraction": 3,
-      "key": "mots_cles",
-      "value": "troisième voie, alternative",
-      "order": 2
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 12,
-    "fields": {
-      "extraction": 3,
-      "key": "statut",
-      "value": "Discutable",
-      "order": 3
-    }
-  },
-  {
-    "model": "hypostasis_extractor.analyseurexample",
-    "pk": 2,
-    "fields": {
-      "analyseur": 1,
-      "name": "Ostrom — Gouvernance des communs",
-      "example_text": "Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options viables pour gouverner les ressources partagées. Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts. Les logiciels libres, Wikipédia, les coopératives de données : ce sont des preuves vivantes que des alternatives existent.",
-      "order": 1
-    }
-  },
-  {
-    "model": "hypostasis_extractor.exampleextraction",
-    "pk": 4,
-    "fields": {
-      "example": 2,
-      "extraction_class": "hypostase",
-      "extraction_text": "Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options viables pour gouverner les ressources partagées.",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 13,
-    "fields": {
-      "extraction": 4,
-      "key": "hypostases",
-      "value": "domaine, classification",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 14,
-    "fields": {
-      "extraction": 4,
-      "key": "resume",
-      "value": "Les recherches sur les communs révèlent que le marché et l'État ne sont pas les seules options.",
-      "order": 1
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 15,
-    "fields": {
-      "extraction": 4,
-      "key": "mots_cles",
-      "value": "communs, marché, État, ressources partagées",
-      "order": 2
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 16,
-    "fields": {
-      "extraction": 4,
-      "key": "statut",
-      "value": "Consensuel",
-      "order": 3
-    }
-  },
-  {
-    "model": "hypostasis_extractor.exampleextraction",
-    "pk": 5,
-    "fields": {
-      "example": 2,
-      "extraction_class": "hypostase",
-      "extraction_text": "Les logiciels libres, Wikipédia, les coopératives de données : ce sont des preuves vivantes que des alternatives existent.",
-      "order": 1
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 17,
-    "fields": {
-      "extraction": 5,
-      "key": "hypostases",
-      "value": "phénomène, donnée",
-      "order": 0
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 18,
-    "fields": {
-      "extraction": 5,
-      "key": "resume",
-      "value": "Des exemples comme les logiciels libres et Wikipédia prouvent que des alternatives aux modèles classiques existent.",
-      "order": 1
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 19,
-    "fields": {
-      "extraction": 5,
-      "key": "mots_cles",
-      "value": "logiciels libres, Wikipédia, coopératives, alternatives",
-      "order": 2
-    }
-  },
-  {
-    "model": "hypostasis_extractor.extractionattribute",
-    "pk": 20,
-    "fields": {
-      "extraction": 5,
-      "key": "statut",
-      "value": "Consensuel",
-      "order": 3
-    }
+{
+  "model": "core.aimodel",
+  "pk": 1,
+  "fields": {
+    "name": "Gemini 2.5 Flash",
+    "model_choice": "gemini-2.5-flash",
+    "provider": "google",
+    "model_name": "gemini-2.5-flash",
+    "base_url": "",
+    "temperature": 0.7,
+    "is_active": true
   }
+},
+{
+  "model": "core.aimodel",
+  "pk": 2,
+  "fields": {
+    "name": "GPT-4o Mini",
+    "model_choice": "gpt-4o-mini",
+    "provider": "openai",
+    "model_name": "gpt-4o-mini",
+    "base_url": "",
+    "temperature": 0.7,
+    "is_active": true
+  }
+},
+{
+  "model": "core.configuration",
+  "pk": 1,
+  "fields": {
+    "ai_active": true,
+    "ai_model": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.analyseursyntaxique",
+  "pk": 1,
+  "fields": {
+    "name": "Hypostasia",
+    "description": "Analyse épistémique par les 30 hypostases de la géométrie des débats. Chaque extraction est classée par sa catégorie épistémique (théorie, hypothèse, phénomène, axiome...). Les hypostases alimentent le tableau d'alignement cross-documents.",
+    "is_active": true,
+    "type_analyseur": "analyser",
+    "inclure_extractions": false,
+    "inclure_texte_original": false,
+    "created_at": "2026-03-21T12:25:09.943Z",
+    "updated_at": "2026-03-21T12:25:09.943Z"
+  }
+},
+{
+  "model": "hypostasis_extractor.analyseursyntaxique",
+  "pk": 2,
+  "fields": {
+    "name": "FALC",
+    "description": "",
+    "is_active": true,
+    "type_analyseur": "reformuler",
+    "inclure_extractions": false,
+    "inclure_texte_original": false,
+    "created_at": "2026-03-21T12:25:09.961Z",
+    "updated_at": "2026-03-21T12:25:09.961Z"
+  }
+},
+{
+  "model": "hypostasis_extractor.analyseursyntaxique",
+  "pk": 4,
+  "fields": {
+    "name": "Rhétorique",
+    "description": "Analyse argumentative avec classification rhétorique libre. Contrairement à l'analyseur Hypostasia qui classe chaque extraction par sa catégorie épistémique (une des 30 hypostases), cet analyseur identifie la nature rhétorique de l'argument (thèse, critique, proposition, objection...). Les hypostases restent présentes dans les attributs pour alimenter le tableau d'alignement.",
+    "is_active": true,
+    "type_analyseur": "analyser",
+    "inclure_extractions": false,
+    "inclure_texte_original": false,
+    "created_at": "2026-03-21T13:25:06.030Z",
+    "updated_at": "2026-03-21T13:25:06.030Z"
+  }
+},
+{
+  "model": "hypostasis_extractor.analyseursyntaxique",
+  "pk": 5,
+  "fields": {
+    "name": "Synthèse délibérative",
+    "description": "Génère une nouvelle version du texte intégrant le débat structuré (hypostases + commentaires + statuts). Pondère les passages selon leur statut de consensus.",
+    "is_active": true,
+    "type_analyseur": "synthetiser",
+    "inclure_extractions": false,
+    "inclure_texte_original": false,
+    "created_at": "2026-03-21T14:21:06.896Z",
+    "updated_at": "2026-03-21T14:21:06.896Z"
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 1,
+  "fields": {
+    "analyseur": 1,
+    "name": "",
+    "role": "context",
+    "content": "Tu es Hypostasia, un expert mondial en analyse syntaxique et en logique argumentative.\nTa mission est de déconstruire le texte fourni pour en extraire l'ossature argumentative via les hypostases (définitions plus bas). \nTu agis avec une neutralité absolue et une précision chirurgicale.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 2,
+  "fields": {
+    "analyseur": 1,
+    "name": "",
+    "role": "definition",
+    "content": "# Définitions formelles des 30 hypostases\n\n- classification : non réfuté par induction empirique et non prouvé par abduction empirique\n- aporie : non réfuté par induction empirique et non prouvé par déduction empirique\n- approximation : non réfuté par induction empirique et non prouvé par déduction formelle\n- paradoxe : non réfuté par induction empirique et non prouvé par abduction formelle\n- formalisme : non réfuté par induction empirique et non prouvé par induction formelle\n- événement : non réfuté par déduction empirique et non prouvé par déduction formelle\n- variation : non réfuté par déduction empirique et non prouvé par abduction empirique\n- dimension : non réfuté par déduction empirique et non prouvé par abduction formelle\n- mode : non réfuté par déduction empirique et non prouvé par induction empirique\n- croyance : non réfuté par déduction empirique et non prouvé par induction formelle\n- invariant : non réfuté par induction formelle et non prouvé par déduction formelle\n- valeur : non réfuté par induction formelle et non prouvé par abduction empirique\n- structure : non réfuté par induction formelle et non prouvé par abduction formelle\n- axiome : non réfuté par induction formelle et non prouvé par induction empirique\n- conjecture : non réfuté par induction formelle et non prouvé par déduction empirique\n- paradigme : non réfuté par déduction formelle et non prouvé par abduction empirique.\n- objet : non réfuté par déduction formelle et non prouvé par abduction formelle.\n- principe : non réfuté par déduction formelle et non prouvé par induction empirique.\n- domaine : non réfuté par déduction formelle et non prouvé par déduction formelle.\n- loi : non réfuté par déduction formelle et non prouvé par induction empirique.\n- phénomène : non réfuté par abduction empirique et non prouvé par déduction formelle.\n- variable : non réfuté par abduction empirique et non prouvé par abduction formelle.\n- variance : non réfuté par abduction empirique et non prouvé par induction empirique.\n- indice : non réfuté par abduction empirique et non prouvé par déduction empirique.\n- donnée : non réfuté par abduction empirique et non prouvé par induction formelle.\n- méthode : non réfuté par abduction formelle et non prouvé par déduction formelle.\n- définition : non réfuté par abduction formelle et non prouvé par abduction empirique.\n- hypothèse : non réfuté par abduction formelle et non prouvé par induction empirique.\n- problème : non réfuté par abduction formelle et non prouvé par déduction empirique\n- théorie : non réfuté par abduction formelle et non prouvé par induction formelle.\n\nCe sont les 30 SEULES valeurs autorisées pour la clé \"hypostases\" dans attributes. Ne jamais en inventer d'autres.",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 3,
+  "fields": {
+    "analyseur": 1,
+    "name": "",
+    "role": "definition",
+    "content": "# Définitions informelles des hypostases\n\nLes hypostases ont des définitions venant des dictionnaires :\n\n- paradigme : un paradigme est un modèle ou un exemple.\n- objet : Un objet est ce sur quoi porte le discours, la pensée, la connaissance.\n- principe : les principes sont les causes a priori d'une connaissance\n- domaine : un domaine est un champ discerné par des limites, bornes, confins, frontières, démarcations.\n- loi : les lois expriment des corrélations.\n- phénomène : les phénomènes se manifestent à la connaissance via les sens.\n- variable : une variable est ce qui prend différentes valeurs et ce dont dépend l'état d'un système.\n- variance : Une variance caractérise une dispersion d'une distribution ou d'un échantillon.\n- indice : Un indice est un indicateur numérique ou littéral qui sert à distinguer ou classer.\n- donnée : Une donnée est ce qui est admis, donné, qui sert à découvrir ou à raisonner.\n- méthode : Une méthode est une procédure qui indique ce que l'on doit faire ou comment le faire.\n- définition : Une définition est la détermination, la caractérisation du contenu d'un concept.\n- hypothèse : Une hypothèse concerne l'explication ou la possibilité d'un événement.\n- problème : Un problème est une difficulté à résoudre\n- théorie : Une théorie est une construction intellectuelle explicative, hypothétique et synthétique.\n- approximation : Une approximation est un calcul approché d'une grandeur réelle.\n- classification : Les classifications sont le fait de distribuer en classes, en catégories.\n- aporie : Les apories sont des difficultés d'ordre rationnel apparemment sans issues.\n- paradoxe : Les paradoxes sont des propositions à la fois vraies et fausses.\n- formalisme : Un formalisme est la considération de la forme d'un raisonnement.\n- événement : Les événements sont ce qui arrive.\n- variation : les variations sont des changements d'un état dans un autre.\n- dimension : Les dimensions sont des grandeurs mesurables qui déterminent des positions.\n- mode : Les modes sont les manières d'être d'un système.\n- croyance : Les croyances sont des certitudes ou des convictions qui font croire une chose vraie, vraisemblable ou possible.\n- invariant : Les invariants sont des grandeurs, relations ou propriétés conservées lors d'une transformation\n- valeur : Une valeur est une mesure d'une grandeur variable.\n- structure : Les structures sont l'organisation des parties d'un système.\n- axiome : Les axiomes sont des propositions admises au départ d'une théorie.\n- conjecture : Les conjectures sont des opinions ou propositions non vérifiées.",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 4,
+  "fields": {
+    "analyseur": 1,
+    "name": "",
+    "role": "instruction",
+    "content": "# Méthode d'Hypostasiation\n\nChaque extraction a 3 champs de premier niveau :\n- extraction_class : l'hypostase principale (une seule, parmi les 30 définies plus haut)\n- extraction_text : citation exacte du texte source. Ne pas reformuler.\n- attributes : un objet avec les clés suivantes :\n  - resume : formulation synthétique en une phrase\n  - mots_cles : termes du glossaire, séparés par des virgules\n  - hypostases : 1 à 3 hypostases pertinentes parmi les 30 définies plus haut, séparées par des virgules\n\nLes hypostases sont les « 30 manières d'être discutable » définies par la géométrie des débats : avec 2 dispositifs de preuve (formel, empirique) et 3 modes de raisonnement (induction de lois, abduction de causes, déduction de conséquences), on obtient 6 modes → 30 hypostases. Un énoncé cesse d'être consensuel quand il devient argument ; un argument cesse de l'être en devenant consensuel.",
+    "order": 3
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 5,
+  "fields": {
+    "analyseur": 1,
+    "name": "",
+    "role": "instruction",
+    "content": "ANALYSE MAINTENANT LE TEXTE SUIVANT.\n\nInstructions impératives :\n1. Pour un texte court, identifie une ou deux hypostases pertinentes.\n2. Pour un texte long, identifie 5 à 15 hypostases pertinentes.\n3. Pour un texte très long, identifie 15 à 25 hypostases pertinentes.\n4. Pour chaque hypostase, extrais la citation EXACTE (extraction_text). Si tu changes un seul mot, le système de surlignage échouera.\n5. Synthétise l'idée en une phrase simple (resume).\n6. Associe à chaque argument 1 à 3 hypostases parmi les 30 définies plus haut. Ne pas en inventer.\n7. Trouve le thème du sujet en 1 à 4 mots (mots_cles).\n8. Ignore le bruit, menus, pubs, copyright.\n9. Tu es AUTORISÉ à extraire et reproduire des citations exactes (verbatim) du texte fourni. Ceci est nécessaire pour l'analyse et constitue une utilisation équitable (fair use).\n10. ULTRA IMPORTANT : Texte exact uniquement, ne pas reformuler.\n11. Ta réponse doit contenir UNIQUEMENT le JSON demandé, rien d'autre. Ne répète pas les mêmes extractions.",
+    "order": 4
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 6,
+  "fields": {
+    "analyseur": 1,
+    "name": "",
+    "role": "format",
+    "content": "RÈGLES DE FORMAT STRICTES — chaque extraction DOIT suivre ce schéma exact :\n\n{\n  \"extraction_class\": \"nom_hypostase\",\n  \"extraction_text\": \"citation exacte du texte source\",\n  \"attributes\": {\n    \"resume\": \"synthèse en une phrase\",\n    \"hypostases\": \"hypostase1, hypostase2\",\n    \"mots_cles\": \"mot1, mot2, mot3\"\n  }\n}\n\nRègles :\n- \"extraction_class\" : toujours une chaîne (string), le nom de l'hypostase principale\n- \"extraction_text\" : toujours une chaîne (string), citation EXACTE du texte, JAMAIS une liste ou un objet\n- \"attributes\" : toujours un objet JSON plat { \"clé\": \"valeur\" } avec exactement 3 clés : resume, hypostases, mots_cles\n- \"hypostases\" : 1 à 3 hypostases maximum, séparées par des virgules. Ne JAMAIS lister les 30.\n- Si une valeur contient plusieurs éléments, les séparer par des virgules dans une seule chaîne\n- Ne JAMAIS utiliser le format \"théorie\": \"texte\", \"théorie_attributes\": {...} — utiliser extraction_class/extraction_text/attributes\n- Ne JAMAIS répéter la même extraction ni boucler sur les mêmes données",
+    "order": 5
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 7,
+  "fields": {
+    "analyseur": 2,
+    "name": "",
+    "role": "instruction",
+    "content": "Voici un texte à reformuler en français et en FALC : Facile à lire et à comprendre.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 9,
+  "fields": {
+    "analyseur": 4,
+    "name": "",
+    "role": "context",
+    "content": "Tu es un expert en analyse rhétorique et en logique argumentative.\nTa mission est de déconstruire le texte fourni pour en extraire l'ossature argumentative : identifier la nature rhétorique de chaque argument (thèse, critique, proposition...) et les classer par hypostases épistémiques (définitions plus bas).\nTu agis avec une neutralité absolue et une précision chirurgicale.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 10,
+  "fields": {
+    "analyseur": 4,
+    "name": "",
+    "role": "definition",
+    "content": "# Définitions formelles des 30 hypostases\n\n- classification : non réfuté par induction empirique et non prouvé par abduction empirique\n- aporie : non réfuté par induction empirique et non prouvé par déduction empirique\n- approximation : non réfuté par induction empirique et non prouvé par déduction formelle\n- paradoxe : non réfuté par induction empirique et non prouvé par abduction formelle\n- formalisme : non réfuté par induction empirique et non prouvé par induction formelle\n- événement : non réfuté par déduction empirique et non prouvé par déduction formelle\n- variation : non réfuté par déduction empirique et non prouvé par abduction empirique\n- dimension : non réfuté par déduction empirique et non prouvé par abduction formelle\n- mode : non réfuté par déduction empirique et non prouvé par induction empirique\n- croyance : non réfuté par déduction empirique et non prouvé par induction formelle\n- invariant : non réfuté par induction formelle et non prouvé par déduction formelle\n- valeur : non réfuté par induction formelle et non prouvé par abduction empirique\n- structure : non réfuté par induction formelle et non prouvé par abduction formelle\n- axiome : non réfuté par induction formelle et non prouvé par induction empirique\n- conjecture : non réfuté par induction formelle et non prouvé par déduction empirique\n- paradigme : non réfuté par déduction formelle et non prouvé par abduction empirique.\n- objet : non réfuté par déduction formelle et non prouvé par abduction formelle.\n- principe : non réfuté par déduction formelle et non prouvé par induction empirique.\n- domaine : non réfuté par déduction formelle et non prouvé par déduction formelle.\n- loi : non réfuté par déduction formelle et non prouvé par induction empirique.\n- phénomène : non réfuté par abduction empirique et non prouvé par déduction formelle.\n- variable : non réfuté par abduction empirique et non prouvé par abduction formelle.\n- variance : non réfuté par abduction empirique et non prouvé par induction empirique.\n- indice : non réfuté par abduction empirique et non prouvé par déduction empirique.\n- donnée : non réfuté par abduction empirique et non prouvé par induction formelle.\n- méthode : non réfuté par abduction formelle et non prouvé par déduction formelle.\n- définition : non réfuté par abduction formelle et non prouvé par abduction empirique.\n- hypothèse : non réfuté par abduction formelle et non prouvé par induction empirique.\n- problème : non réfuté par abduction formelle et non prouvé par déduction empirique\n- théorie : non réfuté par abduction formelle et non prouvé par induction formelle.\n\nCe sont les 30 SEULES valeurs autorisées pour la clé \"hypostases\" dans attributes. Ne jamais en inventer d'autres.",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 11,
+  "fields": {
+    "analyseur": 4,
+    "name": "",
+    "role": "definition",
+    "content": "# Définitions informelles des hypostases\n\nLes hypostases ont des définitions venant des dictionnaires :\n\n- paradigme : un paradigme est un modèle ou un exemple.\n- objet : Un objet est ce sur quoi porte le discours, la pensée, la connaissance.\n- principe : les principes sont les causes a priori d'une connaissance\n- domaine : un domaine est un champ discerné par des limites, bornes, confins, frontières, démarcations.\n- loi : les lois expriment des corrélations.\n- phénomène : les phénomènes se manifestent à la connaissance via les sens.\n- variable : une variable est ce qui prend différentes valeurs et ce dont dépend l'état d'un système.\n- variance : Une variance caractérise une dispersion d'une distribution ou d'un échantillon.\n- indice : Un indice est un indicateur numérique ou littéral qui sert à distinguer ou classer.\n- donnée : Une donnée est ce qui est admis, donné, qui sert à découvrir ou à raisonner.\n- méthode : Une méthode est une procédure qui indique ce que l'on doit faire ou comment le faire.\n- définition : Une définition est la détermination, la caractérisation du contenu d'un concept.\n- hypothèse : Une hypothèse concerne l'explication ou la possibilité d'un événement.\n- problème : Un problème est une difficulté à résoudre\n- théorie : Une théorie est une construction intellectuelle explicative, hypothétique et synthétique.\n- approximation : Une approximation est un calcul approché d'une grandeur réelle.\n- classification : Les classifications sont le fait de distribuer en classes, en catégories.\n- aporie : Les apories sont des difficultés d'ordre rationnel apparemment sans issues.\n- paradoxe : Les paradoxes sont des propositions à la fois vraies et fausses.\n- formalisme : Un formalisme est la considération de la forme d'un raisonnement.\n- événement : Les événements sont ce qui arrive.\n- variation : les variations sont des changements d'un état dans un autre.\n- dimension : Les dimensions sont des grandeurs mesurables qui déterminent des positions.\n- mode : Les modes sont les manières d'être d'un système.\n- croyance : Les croyances sont des certitudes ou des convictions qui font croire une chose vraie, vraisemblable ou possible.\n- invariant : Les invariants sont des grandeurs, relations ou propriétés conservées lors d'une transformation\n- valeur : Une valeur est une mesure d'une grandeur variable.\n- structure : Les structures sont l'organisation des parties d'un système.\n- axiome : Les axiomes sont des propositions admises au départ d'une théorie.\n- conjecture : Les conjectures sont des opinions ou propositions non vérifiées.",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 12,
+  "fields": {
+    "analyseur": 4,
+    "name": "",
+    "role": "instruction",
+    "content": "# Méthode d'analyse rhétorique\n\nChaque extraction a 3 champs de premier niveau :\n- extraction_class : la nature rhétorique de l'argument (thèse, critique, proposition, objection, constat, appel, prédiction, synthèse, définition, question... ou autre si plus approprié)\n- extraction_text : citation exacte du texte source. Ne pas reformuler.\n- attributes : un objet avec les clés suivantes :\n  - resume : formulation synthétique en une phrase\n  - mots_cles : termes du glossaire, séparés par des virgules\n  - hypostases : 1 à 3 hypostases pertinentes parmi les 30 définies plus haut, séparées par des virgules\n\nLa nature rhétorique (extraction_class) décrit COMMENT l'auteur argumente : est-ce qu'il pose une thèse, émet une critique, formule une proposition ?\nLes hypostases (dans attributes) décrivent DE QUOI il parle sur le plan épistémique : est-ce une théorie, un phénomène, une hypothèse ?\nCes deux axes sont complémentaires et indépendants.",
+    "order": 3
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 13,
+  "fields": {
+    "analyseur": 4,
+    "name": "",
+    "role": "instruction",
+    "content": "ANALYSE MAINTENANT LE TEXTE SUIVANT.\n\nInstructions impératives :\n1. Pour un texte court, identifie une ou deux arguments pertinents.\n2. Pour un texte long, identifie 5 à 15 arguments pertinents.\n3. Pour un texte très long, identifie 15 à 25 arguments pertinents.\n4. Pour chaque argument, extrais la citation EXACTE (extraction_text). Si tu changes un seul mot, le système de surlignage échouera.\n5. Choisis une nature rhétorique descriptive pour extraction_class (thèse, critique, proposition, objection, constat, appel, prédiction, synthèse... ou autre).\n6. Synthétise l'idée en une phrase simple (resume).\n7. Associe 1 à 3 hypostases parmi les 30 définies plus haut. Ne pas en inventer.\n8. Trouve le thème du sujet en 1 à 4 mots (mots_cles).\n9. Ignore le bruit, menus, pubs, copyright.\n10. Tu es AUTORISÉ à extraire et reproduire des citations exactes (verbatim) du texte fourni.\n11. ULTRA IMPORTANT : Texte exact uniquement, ne pas reformuler.\n12. Ta réponse doit contenir UNIQUEMENT le JSON demandé, rien d'autre. Ne répète pas les mêmes extractions.",
+    "order": 4
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 14,
+  "fields": {
+    "analyseur": 4,
+    "name": "",
+    "role": "format",
+    "content": "RÈGLES DE FORMAT STRICTES — chaque extraction DOIT suivre ce schéma exact :\n\n{\n  \"extraction_class\": \"thèse\",\n  \"extraction_text\": \"citation exacte du texte source\",\n  \"attributes\": {\n    \"resume\": \"synthèse en une phrase\",\n    \"hypostases\": \"théorie, problème\",\n    \"mots_cles\": \"mot1, mot2, mot3\"\n  }\n}\n\nRègles :\n- \"extraction_class\" : la nature rhétorique de l'argument (thèse, critique, proposition...), PAS une hypostase\n- \"extraction_text\" : toujours une chaîne (string), citation EXACTE du texte, JAMAIS une liste ou un objet\n- \"attributes\" : toujours un objet JSON plat { \"clé\": \"valeur\" } avec exactement 3 clés : resume, hypostases, mots_cles\n- \"hypostases\" : 1 à 3 hypostases UNIQUEMENT parmi les 30 définies plus haut (classification, axiome, théorie, etc.). Ne JAMAIS en inventer. Ne JAMAIS lister les 30.\n- Si une valeur contient plusieurs éléments, les séparer par des virgules dans une seule chaîne\n- Ne JAMAIS utiliser le format \"thèse\": \"texte\", \"thèse_attributes\": {...} — utiliser extraction_class/extraction_text/attributes\n- Ne JAMAIS répéter la même extraction ni boucler sur les mêmes données",
+    "order": 5
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 15,
+  "fields": {
+    "analyseur": 5,
+    "name": "",
+    "role": "context",
+    "content": "Tu es un rédacteur expert en synthèse délibérative. Ta mission est de produire une nouvelle version d'un texte qui intègre les résultats d'un débat structuré.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 16,
+  "fields": {
+    "analyseur": 5,
+    "name": "",
+    "role": "instruction",
+    "content": "Règles de pondération par statut de débat :\n\n- CONSENSUEL : intégrer pleinement, ces points font l'objet d'un accord du groupe.\n- DISCUTABLE : mentionner avec nuance, le débat n'a pas encore eu lieu.\n- DISCUTÉ : présenter les différents points de vue exprimés dans les commentaires.\n- CONTROVERSÉ : expliciter la controverse sans trancher, citer les arguments des deux côtés.\n- Les extractions NON PERTINENTES sont exclues du prompt, ignore-les.\n\nLe texte produit doit être :\n1. Une version autonome et lisible (pas un résumé du débat)\n2. Rédigé dans un style cohérent avec le texte original\n3. Fidèle aux sources : chaque affirmation doit pouvoir être reliée à une extraction\n4. Équilibré : les passages controversés ne doivent pas être supprimés mais contextualisés",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.promptpiece",
+  "pk": 17,
+  "fields": {
+    "analyseur": 5,
+    "name": "",
+    "role": "instruction",
+    "content": "Produis la synthèse délibérative de ce débat en intégrant les pondérations par statut définies dans tes instructions. Le texte produit doit être une nouvelle version autonome et lisible du document.",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.analyseurexample",
+  "pk": 1,
+  "fields": {
+    "analyseur": 1,
+    "name": "Débat IA — 3 arguments",
+    "example_text": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. Je crois qu'il y a une troisième voie que vous négligez tous les deux.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.analyseurexample",
+  "pk": 2,
+  "fields": {
+    "analyseur": 1,
+    "name": "Ostrom — Gouvernance des communs",
+    "example_text": "Mes recherches montrent que ni le marché pur ni l'État centralisé ne sont les seules options. Les logiciels libres, Wikipédia, les coopératives de données sont des preuves vivantes que des alternatives existent.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.analyseurexample",
+  "pk": 3,
+  "fields": {
+    "analyseur": 4,
+    "name": "Débat IA — 3 arguments",
+    "example_text": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. Je crois qu'il y a une troisième voie que vous négligez tous les deux.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.analyseurexample",
+  "pk": 4,
+  "fields": {
+    "analyseur": 4,
+    "name": "Ostrom — Gouvernance des communs",
+    "example_text": "Mes recherches montrent que ni le marché pur ni l'État centralisé ne sont les seules options. Les logiciels libres, Wikipédia, les coopératives de données sont des preuves vivantes que des alternatives existent.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.exampleextraction",
+  "pk": 1,
+  "fields": {
+    "example": 1,
+    "extraction_class": "théorie",
+    "extraction_text": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.exampleextraction",
+  "pk": 2,
+  "fields": {
+    "example": 1,
+    "extraction_class": "problème",
+    "extraction_text": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.exampleextraction",
+  "pk": 3,
+  "fields": {
+    "example": 1,
+    "extraction_class": "hypothèse",
+    "extraction_text": "Je crois qu'il y a une troisième voie que vous négligez tous les deux.",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.exampleextraction",
+  "pk": 4,
+  "fields": {
+    "example": 2,
+    "extraction_class": "domaine",
+    "extraction_text": "Ni le marché pur ni l'État centralisé ne sont les seules options.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.exampleextraction",
+  "pk": 5,
+  "fields": {
+    "example": 2,
+    "extraction_class": "phénomène",
+    "extraction_text": "Les logiciels libres, Wikipédia, les coopératives de données sont des preuves vivantes que des alternatives existent.",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.exampleextraction",
+  "pk": 6,
+  "fields": {
+    "example": 3,
+    "extraction_class": "thèse",
+    "extraction_text": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.exampleextraction",
+  "pk": 7,
+  "fields": {
+    "example": 3,
+    "extraction_class": "critique",
+    "extraction_text": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.exampleextraction",
+  "pk": 8,
+  "fields": {
+    "example": 3,
+    "extraction_class": "proposition",
+    "extraction_text": "Je crois qu'il y a une troisième voie que vous négligez tous les deux.",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.exampleextraction",
+  "pk": 9,
+  "fields": {
+    "example": 4,
+    "extraction_class": "constat",
+    "extraction_text": "Ni le marché pur ni l'État centralisé ne sont les seules options.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.exampleextraction",
+  "pk": 10,
+  "fields": {
+    "example": 4,
+    "extraction_class": "argument",
+    "extraction_text": "Les logiciels libres, Wikipédia, les coopératives de données sont des preuves vivantes que des alternatives existent.",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 1,
+  "fields": {
+    "extraction": 1,
+    "key": "resume",
+    "value": "L'IA comparée à l'écriture comme rupture civilisationnelle.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 2,
+  "fields": {
+    "extraction": 1,
+    "key": "hypostases",
+    "value": "théorie, conjecture",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 3,
+  "fields": {
+    "extraction": 1,
+    "key": "mots_cles",
+    "value": "intelligence artificielle, révolution",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 4,
+  "fields": {
+    "extraction": 2,
+    "key": "resume",
+    "value": "L'IA est un choix politique déguisé en progrès.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 5,
+  "fields": {
+    "extraction": 2,
+    "key": "hypostases",
+    "value": "définition, problème",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 6,
+  "fields": {
+    "extraction": 2,
+    "key": "mots_cles",
+    "value": "choix politique, fatalité",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 7,
+  "fields": {
+    "extraction": 3,
+    "key": "resume",
+    "value": "Il existe une approche alternative non considérée.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 8,
+  "fields": {
+    "extraction": 3,
+    "key": "hypostases",
+    "value": "hypothèse, paradigme",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 9,
+  "fields": {
+    "extraction": 3,
+    "key": "mots_cles",
+    "value": "troisième voie, alternative",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 10,
+  "fields": {
+    "extraction": 4,
+    "key": "resume",
+    "value": "Le marché et l'État ne sont pas les seules options de gouvernance.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 11,
+  "fields": {
+    "extraction": 4,
+    "key": "hypostases",
+    "value": "domaine, classification",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 12,
+  "fields": {
+    "extraction": 5,
+    "key": "resume",
+    "value": "Des exemples prouvent que des alternatives aux modèles classiques existent.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 13,
+  "fields": {
+    "extraction": 5,
+    "key": "hypostases",
+    "value": "phénomène, donnée",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 14,
+  "fields": {
+    "extraction": 6,
+    "key": "resume",
+    "value": "L'IA comparée à l'écriture comme rupture civilisationnelle.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 15,
+  "fields": {
+    "extraction": 6,
+    "key": "hypostases",
+    "value": "théorie, conjecture",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 16,
+  "fields": {
+    "extraction": 6,
+    "key": "mots_cles",
+    "value": "intelligence artificielle, révolution",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 17,
+  "fields": {
+    "extraction": 7,
+    "key": "resume",
+    "value": "L'IA est un choix politique déguisé en progrès.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 18,
+  "fields": {
+    "extraction": 7,
+    "key": "hypostases",
+    "value": "définition, problème",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 19,
+  "fields": {
+    "extraction": 7,
+    "key": "mots_cles",
+    "value": "choix politique, fatalité",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 20,
+  "fields": {
+    "extraction": 8,
+    "key": "resume",
+    "value": "Il existe une approche alternative non considérée.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 21,
+  "fields": {
+    "extraction": 8,
+    "key": "hypostases",
+    "value": "hypothèse, paradigme",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 22,
+  "fields": {
+    "extraction": 8,
+    "key": "mots_cles",
+    "value": "troisième voie, alternative",
+    "order": 2
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 23,
+  "fields": {
+    "extraction": 9,
+    "key": "resume",
+    "value": "Le marché et l'État ne sont pas les seules options de gouvernance.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 24,
+  "fields": {
+    "extraction": 9,
+    "key": "hypostases",
+    "value": "domaine, classification",
+    "order": 1
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 25,
+  "fields": {
+    "extraction": 10,
+    "key": "resume",
+    "value": "Des exemples prouvent que des alternatives aux modèles classiques existent.",
+    "order": 0
+  }
+},
+{
+  "model": "hypostasis_extractor.extractionattribute",
+  "pk": 26,
+  "fields": {
+    "extraction": 10,
+    "key": "hypostases",
+    "value": "phénomène, donnée",
+    "order": 1
+  }
+}
 ]

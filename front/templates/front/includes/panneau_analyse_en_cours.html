@@ -1,11 +1,11 @@
 {# Partial : spinner d'analyse dans le drawer, pendant qu'une tache Celery tourne. #}
-{# Pas de polling HTTP — la progression arrive par WebSocket (analyse_progression). #}
-{# Les cartes arrivent dans #streaming-extractions via WebSocket (extraction_carte). #}
-{# Quand le job termine, le WS envoie un OOB qui charge le drawer final. #}
+{# La progression arrive par WebSocket (analyse_progression). #}
+{# Les cartes sont chargees depuis la DB via analyse_status (signal WS rafraichir_drawer). #}
+{# Quand le job termine, le WS signale un refresh et analyse_status charge le drawer final. #}
 {# / Partial: analysis spinner in the drawer while a Celery task is running. #}
-{# / No HTTP polling — progress comes via WebSocket (analyse_progression). #}
-{# / Cards arrive in #streaming-extractions via WebSocket (extraction_carte). #}
-{# / When job completes, WS sends an OOB that loads the final drawer. #}
+{# / Progress comes via WebSocket (analyse_progression). #}
+{# / Cards are loaded from DB via analyse_status (WS signal rafraichir_drawer). #}
+{# / When job completes, WS signals a refresh and analyse_status loads the final drawer. #}
 
 <div>
 
@@ -42,13 +42,25 @@
     </div>
 
     {# Zone de stream : les cartes d'extraction arrivent ici via WebSocket, une par une #}
-    {# Jamais ecrasee — seuls les OOB WebSocket y ajoutent du contenu (beforeend) #}
+    {# Si le drawer est rouvert pendant l'analyse, les entites deja creees sont affichees #}
     {# / Stream zone: extraction cards arrive here via WebSocket, one by one #}
-    {# / Never overwritten — only WebSocket OOB appends content here (beforeend) #}
+    {# / If the drawer is reopened during analysis, already created entities are shown #}
+    {% load extractor_tags %}
     <div id="streaming-extractions"
          class="space-y-2"
          aria-live="polite"
          aria-label="Extractions en cours">
+        {% for entite in entites_deja_creees %}
+        {% entity_json_attrs entite as entite_attrs %}
+        <div class="extraction-card bg-white rounded-lg border border-slate-200 p-3 hover:shadow-sm transition-shadow cursor-pointer relative group"
+             data-extraction-id="{{ entite.pk }}"
+             data-testid="extraction-card-stream"
+             title="Position : {{ entite.start_char }}-{{ entite.end_char }}">
+            {% with attr_0=entite_attrs.0 attr_1=entite_attrs.1 text=entite.extraction_text attr_2=entite_attrs.2 attr_3=entite_attrs.3 %}
+                {% include "hypostasis_extractor/includes/_card_body.html" %}
+            {% endwith %}
+        </div>
+        {% endfor %}
     </div>
 
 </div>
