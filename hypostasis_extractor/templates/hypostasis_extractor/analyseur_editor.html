@@ -69,6 +69,17 @@
         <div class="flex flex-col gap-3 mb-4">
             <label class="flex items-center gap-3 cursor-pointer">
                 <div class="relative">
+                    <input type="checkbox" id="toggle-is-active-{{ analyseur.id }}"
+                           {% if analyseur.is_active %}checked{% endif %}
+                           class="toggle-contexte sr-only peer"
+                           data-champ="is_active">
+                    <div class="w-9 h-5 bg-slate-300 rounded-full peer-checked:bg-emerald-500 transition-colors"></div>
+                    <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform"></div>
+                </div>
+                <span class="text-sm text-slate-700">Analyseur actif (visible dans le sélecteur du drawer)</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+                <div class="relative">
                     <input type="checkbox" id="toggle-inclure-extractions-{{ analyseur.id }}"
                            {% if analyseur.inclure_extractions %}checked{% endif %}
                            class="toggle-contexte sr-only peer"
