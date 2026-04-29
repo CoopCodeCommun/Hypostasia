@@ -375,6 +375,18 @@ class AnalyseurSyntaxique(models.Model):
         help_text="Injecter le texte original dans le contexte du prompt / Inject original text into prompt context",
     )
 
+    # Marqueur "par defaut" : un seul analyseur par type peut l'etre.
+    # Cocher ici decoche automatiquement les autres analyseurs du meme type au save.
+    # / "Default" marker: only one analyzer per type can have it.
+    # / Checking here automatically unchecks other analyzers of the same type at save.
+    est_par_defaut = models.BooleanField(
+        default=False,
+        help_text=(
+            "Marquer cet analyseur comme defaut pour son type. "
+            "Cocher ici decoche automatiquement les autres analyseurs du meme type."
+        ),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -383,6 +395,16 @@ class AnalyseurSyntaxique(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # Si on coche est_par_defaut, decocher les autres analyseurs du meme type
+        # / If we check est_par_defaut, uncheck other analyzers of the same type
+        if self.est_par_defaut:
+            AnalyseurSyntaxique.objects.filter(
+                type_analyseur=self.type_analyseur,
+                est_par_defaut=True,
+            ).exclude(pk=self.pk).update(est_par_defaut=False)
+        super().save(*args, **kwargs)
 
 
 class PromptPiece(models.Model):

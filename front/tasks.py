@@ -962,83 +962,101 @@ def restituer_debat_task(self, entity_id, analyseur_id):
         entite.save(update_fields=["restitution_ia_en_cours", "restitution_ia_erreur"])
 
 
-def _construire_prompt_synthese(page, dernier_job_analyse):
+def _construire_prompt_synthese(page, dernier_job_analyse, analyseur_synthese):
     """
     Construit le prompt utilisateur pour la synthese deliberative.
-    Rassemble texte original + hypostases triees par statut + commentaires.
+    Les sections injectees dependent des bool de l'analyseur :
+    - inclure_texte_original → bloc TEXTE ORIGINAL
+    - inclure_extractions → bloc HYPOSTASES ET DEBAT (extractions + commentaires)
+    Au moins l'un des deux doit etre actif (validation faite en amont).
     / Builds the user prompt for deliberative synthesis.
-    Gathers original text + hypostases sorted by status + comments.
+    Sections depend on the analyzer's bool flags.
+    At least one of the two must be active (validation done upstream).
     """
     from django.db.models import Case, Value, When
     from hypostasis_extractor.models import ExtractedEntity
 
-    # Recuperer les entites du dernier job d'analyse, exclure non_pertinent et masquees
-    # / Get entities from latest analysis job, exclude non_pertinent and hidden
-    entites_du_job = ExtractedEntity.objects.filter(
-        job=dernier_job_analyse,
-        masquee=False,
-    ).exclude(
-        statut_debat="non_pertinent",
-    ).prefetch_related("commentaires__user").order_by(
-        Case(
-            When(statut_debat="consensuel", then=Value(0)),
-            When(statut_debat="discutable", then=Value(1)),
-            When(statut_debat="discute", then=Value(2)),
-            When(statut_debat="controverse", then=Value(3)),
-            When(statut_debat="nouveau", then=Value(4)),
-            default=Value(5),
-        ),
+    sections_du_prompt = []
+
+    # Bloc TEXTE ORIGINAL — inclus si l'analyseur le demande
+    # / TEXT block — included if analyzer requests it
+    if analyseur_synthese.inclure_texte_original:
+        texte_original = page.text_readability or ""
+        sections_du_prompt.append(f"=== TEXTE ORIGINAL ===\n{texte_original}")
+
+    # Bloc HYPOSTASES ET DEBAT — extractions + commentaires si l'analyseur le demande
+    # ET si un job d'analyse complet existe. Si pas de job, le bloc est omis silencieusement
+    # (cas du previsualiser_synthese pour estimation avant qu'une analyse n'ait ete lancee).
+    # / HYPOSTASES block — extractions + comments if analyzer requests it AND analysis job exists.
+    # / If no job, block is omitted silently (preview synthesis case).
+    if analyseur_synthese.inclure_extractions and dernier_job_analyse is not None:
+        # Recuperer les entites du dernier job d'analyse, exclure non_pertinent et masquees
+        # / Get entities from latest analysis job, exclude non_pertinent and hidden
+        entites_du_job = ExtractedEntity.objects.filter(
+            job=dernier_job_analyse,
+            masquee=False,
+        ).exclude(
+            statut_debat="non_pertinent",
+        ).prefetch_related("commentaires__user").order_by(
+            Case(
+                When(statut_debat="consensuel", then=Value(0)),
+                When(statut_debat="discutable", then=Value(1)),
+                When(statut_debat="discute", then=Value(2)),
+                When(statut_debat="controverse", then=Value(3)),
+                When(statut_debat="nouveau", then=Value(4)),
+                default=Value(5),
+            ),
+        )
+
+        # Construire les blocs pour chaque entite / Build blocks for each entity
+        blocs_entites = []
+        for entite in entites_du_job:
+            # Resume IA depuis le JSONField attributes / AI summary from JSONField attributes
+            attributs = entite.attributes or {}
+            resume_ia = attributs.get("resume", "")
+
+            # Statut formate en majuscules / Status formatted in uppercase
+            statut_affiche = (entite.statut_debat or "nouveau").upper()
+
+            # Hypostase (classe d'extraction) / Hypostasis (extraction class)
+            classe_hypostase = entite.extraction_class or "hypostase"
+
+            # Texte de la citation / Citation text
+            texte_citation = entite.extraction_text or ""
+
+            # Resume a afficher / Summary to display
+            resume_affiche = resume_ia or texte_citation[:80]
+
+            # Commentaires de chaque participant au debat
+            # / Each participant's debate comments
+            lignes_commentaires = []
+            for commentaire in entite.commentaires.all():
+                nom_auteur = commentaire.user.username if commentaire.user else "Anonyme"
+                lignes_commentaires.append(f'  - {nom_auteur} : "{commentaire.commentaire}"')
+
+            # Assemblage du bloc / Block assembly
+            bloc = f'**[{statut_affiche}] {classe_hypostase} — {resume_affiche}**\n'
+            bloc += f'Citation : "{texte_citation}"\n'
+            if resume_ia:
+                bloc += f'Résumé IA : "{resume_ia}"\n'
+            if lignes_commentaires:
+                bloc += "Commentaires :\n" + "\n".join(lignes_commentaires) + "\n"
+
+            blocs_entites.append(bloc)
+
+        blocs_formates = "\n\n".join(blocs_entites) if blocs_entites else "(aucune hypostase extraite)"
+        sections_du_prompt.append(f"=== HYPOSTASES ET DEBAT ===\n{blocs_formates}")
+
+    # Bloc CONSIGNE — toujours present
+    # / INSTRUCTION block — always present
+    sections_du_prompt.append(
+        "=== CONSIGNE ===\n"
+        "Produis la synthèse délibérative de ce débat en intégrant les pondérations "
+        "par statut définies dans tes instructions. Le texte produit doit être une "
+        "nouvelle version autonome et lisible du document."
     )
 
-    # Construire les blocs pour chaque entite / Build blocks for each entity
-    blocs_entites = []
-    for entite in entites_du_job:
-        # Resume IA depuis le JSONField attributes / AI summary from JSONField attributes
-        attributs = entite.attributes or {}
-        resume_ia = attributs.get("resume", "")
-
-        # Statut formate en majuscules / Status formatted in uppercase
-        statut_affiche = (entite.statut_debat or "nouveau").upper()
-
-        # Hypostase (classe d'extraction) / Hypostasis (extraction class)
-        classe_hypostase = entite.extraction_class or "hypostase"
-
-        # Texte de la citation / Citation text
-        texte_citation = entite.extraction_text or ""
-
-        # Resume a afficher / Summary to display
-        resume_affiche = resume_ia or texte_citation[:80]
-
-        # Commentaires / Comments
-        lignes_commentaires = []
-        for commentaire in entite.commentaires.all():
-            nom_auteur = commentaire.user.username if commentaire.user else "Anonyme"
-            lignes_commentaires.append(f'  - {nom_auteur} : "{commentaire.commentaire}"')
-
-        # Assemblage du bloc / Block assembly
-        bloc = f'**[{statut_affiche}] {classe_hypostase} — {resume_affiche}**\n'
-        bloc += f'Citation : "{texte_citation}"\n'
-        if resume_ia:
-            bloc += f'Résumé IA : "{resume_ia}"\n'
-        if lignes_commentaires:
-            bloc += "Commentaires :\n" + "\n".join(lignes_commentaires) + "\n"
-
-        blocs_entites.append(bloc)
-
-    # Assemblage final du prompt / Final prompt assembly
-    texte_original = page.text_readability or ""
-    blocs_formates = "\n\n".join(blocs_entites) if blocs_entites else "(aucune hypostase extraite)"
-
-    prompt_utilisateur = (
-        f"=== TEXTE ORIGINAL ===\n{texte_original}\n\n"
-        f"=== HYPOSTASES ET DEBAT ===\n{blocs_formates}\n\n"
-        f"=== CONSIGNE ===\n"
-        f"Produis la synthèse délibérative de ce débat en intégrant les pondérations "
-        f"par statut définies dans tes instructions. Le texte produit doit être une "
-        f"nouvelle version autonome et lisible du document."
-    )
-
-    return prompt_utilisateur
+    return "\n\n".join(sections_du_prompt)
 
 
 @shared_task(bind=True)
@@ -1112,8 +1130,11 @@ def synthetiser_page_task(self, job_id):
         if not dernier_job_analyse:
             raise ValueError("Aucun job d'analyse termine pour cette page. Lancez d'abord une analyse.")
 
-        # Construire le prompt utilisateur / Build user prompt
-        prompt_utilisateur = _construire_prompt_synthese(page_source, dernier_job_analyse)
+        # Construire le prompt utilisateur en respectant les bool de l'analyseur
+        # / Build user prompt respecting the analyzer's bool flags
+        prompt_utilisateur = _construire_prompt_synthese(
+            page_source, dernier_job_analyse, analyseur_synthese,
+        )
 
         # Assemblage message complet / Full message assembly
         message_complet = prompt_systeme + "\n\n" + prompt_utilisateur
@@ -1175,13 +1196,34 @@ def synthetiser_page_task(self, job_id):
             job_id, page_synthese.pk, duree, len(texte_synthese),
         )
 
-        # Notifier le navigateur via WebSocket
-        # / Notify browser via WebSocket
+        # Notifier le navigateur via WebSocket (ProgressionTacheConsumer)
+        # / Notify browser via WebSocket (ProgressionTacheConsumer)
         envoyer_progression_websocket(f"tache_{self.request.id}", "terminee", {
             "status": "completed",
             "message": "Synthèse délibérative terminée",
             "resultat": {"page_synthese_id": page_synthese.pk},
         })
+
+        # Notification cross-page via le NotificationConsumer du proprietaire :
+        # un toast avec lien vers la V2 est affiche meme si l'utilisateur a
+        # navigue ailleurs entre temps. Le polling du drawer reste actif tant
+        # que la page source reste ouverte (rafraichissement direct).
+        # / Cross-page notification via the owner's NotificationConsumer:
+        # / a toast with link to V2 shown even if the user navigated away.
+        # / The drawer polling remains active while the source page stays open.
+        proprietaire_synthese = page_source.owner or (
+            page_source.dossier.owner if page_source.dossier else None
+        )
+        if proprietaire_synthese:
+            envoyer_progression_websocket(
+                f"notifications_user_{proprietaire_synthese.pk}",
+                "synthese_terminee",
+                {
+                    "page_synthese_id": page_synthese.pk,
+                    "version_number": prochain_numero,
+                    "titre_page": page_racine.title or "",
+                },
+            )
 
         # Debit post-completion (PHASE-26h) — debiter le compte du proprietaire
         # Utilise le modele IA pour estimer le cout reel a partir des tokens

@@ -416,13 +416,18 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     def list(self, request):
         """
         Liste des analyseurs — vue de configuration LLM.
+        Affiche TOUS les analyseurs (actifs et inactifs). Le flag is_active sert
+        uniquement a filtrer le selecteur du drawer de synthese / extraction,
+        pas la liste de configuration.
         - Requete HTMX → partial dans zone-lecture
         - Acces direct (F5) → page complete base.html
         / Analyzers list — LLM configuration view.
-        - HTMX request → partial in reading zone
-        - Direct access (F5) → full base.html page
+        / Shows ALL analyzers (active and inactive). The is_active flag only
+        / filters the drawer selector, not the configuration list.
         """
-        tous_les_analyseurs = AnalyseurSyntaxique.objects.filter(is_active=True)
+        tous_les_analyseurs = AnalyseurSyntaxique.objects.all().order_by(
+            "-est_par_defaut", "type_analyseur", "name",
+        )
         contexte_configuration = {
             'analyseurs': tous_les_analyseurs,
         }
@@ -496,18 +501,70 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def partial_update(self, request, pk=None):
-        """Mise a jour partielle (auto-save). Staff uniquement. / Staff only."""
+        """Mise a jour partielle (auto-save). Staff uniquement.
+        Si on coche est_par_defaut, renvoie un toast info si un autre etait default.
+        / Partial update (auto-save). Staff only.
+        / If checking est_par_defaut, returns an info toast if another was default.
+
+        BUG DRF connu : avec form-urlencoded, BooleanField(required=False) remplit
+        validated_data avec False meme quand le champ n'est PAS envoye.
+        Solution : on ne met a jour que les champs EXPLICITEMENT presents dans
+        request.data (verification via la cle bruite). Cela evite de desactiver
+        accidentellement is_active, est_par_defaut, etc.
+        / Known DRF bug: with form-urlencoded, BooleanField(required=False) fills
+        / validated_data with False even when the field is NOT sent.
+        / Fix: only update fields explicitly present in request.data (raw key check).
+        """
         reponse_refus = _exiger_staff(request)
         if reponse_refus:
             return reponse_refus
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = AnalyseurSyntaxiqueUpdateSerializer(data=request.data)
-        if serializer.is_valid():
-            for field_name, field_value in serializer.validated_data.items():
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # Champs reellement envoyes par le client (cles brutes du request.data)
+        # / Fields actually sent by the client (raw request.data keys)
+        champs_envoyes = set(request.data.keys())
+
+        # Capturer l'autre default du meme type AVANT le save (pour le toast)
+        # On capture seulement quand le client coche est_par_defaut a True ET que
+        # l'analyseur courant ne l'etait pas deja.
+        # / Capture other default of same type BEFORE save (for the toast)
+        # / Only when client sets est_par_defaut=True AND analyzer wasn't default.
+        autre_default_decoche = None
+        if "est_par_defaut" in champs_envoyes:
+            coche_default = serializer.validated_data.get("est_par_defaut") is True
+            if coche_default and not analyseur.est_par_defaut:
+                autre_default_decoche = AnalyseurSyntaxique.objects.filter(
+                    type_analyseur=analyseur.type_analyseur,
+                    est_par_defaut=True,
+                ).exclude(pk=analyseur.pk).first()
+
+        # Ne mettre a jour QUE les champs explicitement envoyes par le client.
+        # Evite de desactiver is_active accidentellement quand HTMX envoie en form-data.
+        # / Only update fields explicitly sent by the client.
+        # / Avoids accidentally disabling is_active when HTMX sends form-data.
+        for field_name, field_value in serializer.validated_data.items():
+            if field_name in champs_envoyes:
                 setattr(analyseur, field_name, field_value)
-            analyseur.save()
-            return _saved_response()
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        analyseur.save()
+
+        # Reponse standard + HX-Trigger toast si un autre default a ete decoche
+        # / Standard response + HX-Trigger toast if another default was unchecked
+        reponse = _saved_response()
+        if autre_default_decoche:
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": (
+                        f"Analyseur « {autre_default_decoche.name} » n'est plus "
+                        f"marqué par défaut pour le type "
+                        f"« {analyseur.get_type_analyseur_display()} »."
+                    ),
+                    "icon": "info",
+                },
+            })
+        return reponse
 
     def destroy(self, request, pk=None):
         """Suppression d'un analyseur. Staff uniquement. / Staff only."""

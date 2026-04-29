@@ -156,9 +156,17 @@
         contenuCharge = true;
     }
 
-    // Ouvre le drawer avec animation
-    // / Open drawer with animation
-    function ouvrirDrawer() {
+    // Ouvre le drawer avec animation.
+    // PHASE-29 : ne charge le contenu drawer-vue-liste que si l'appelant le demande.
+    // Quand un caller HTMX (analyser, previsualiser_synthese, etc.) a deja swappe
+    // un contenu dans #drawer-contenu, il appelle ouvrirDrawer(false) pour ne pas
+    // ecraser ce contenu specifique.
+    // / Open drawer with animation.
+    // / PHASE-29: only loads drawer-vue-liste content if the caller asks for it.
+    // / When an HTMX caller has already swapped content into #drawer-contenu,
+    // / it calls ouvrirDrawer(false) to avoid overwriting that specific content.
+    function ouvrirDrawer(rechargerLeContenu) {
+        if (rechargerLeContenu === undefined) rechargerLeContenu = true;
         if (drawerEstOuvert) return;
 
         var pageId = getPageId();
@@ -188,9 +196,13 @@
         overlay.classList.remove('translate-x-full');
         overlay.classList.remove('pointer-events-none');
 
-        // Charger le contenu au premier open (ou si la page a change)
-        // / Load content on first open (or if page changed)
-        chargerContenu();
+        // Charger le contenu drawer-vue-liste seulement si demande
+        // (clic toolbar ou raccourci E, pas HX-Trigger d'un autre flow)
+        // / Load drawer-vue-liste content only if requested
+        // / (toolbar click or E shortcut, not HX-Trigger from another flow)
+        if (rechargerLeContenu) {
+            chargerContenu();
+        }
 
         // Focus sur le bouton fermer pour accessibilite
         // / Focus close button for accessibility

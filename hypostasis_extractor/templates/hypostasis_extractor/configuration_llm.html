@@ -62,12 +62,30 @@
                 <span class="text-lg leading-none">+</span> Nouveau
             </button>
         </div>
-        <div id="analyseurs-list" class="space-y-1">
-            {% for analyseur in analyseurs %}
-                {% include "hypostasis_extractor/includes/analyseur_item.html" with analyseur=analyseur %}
-            {% empty %}
-                <p class="text-xs text-slate-400 italic">Aucun analyseur.</p>
-            {% endfor %}
+        {# Tableau : Nom + Type + Actif + Defaut (clic ligne = ouvrir editeur) #}
+        {# / Table: Name + Type + Active + Default (row click opens editor) #}
+        <div id="analyseurs-list">
+            {% if analyseurs %}
+            <table class="w-full text-sm" data-testid="table-analyseurs">
+                <thead>
+                    <tr class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-200">
+                        <th class="text-left py-2 pr-2">Nom</th>
+                        <th class="text-left py-2 pr-2">Type</th>
+                        <th class="text-center py-2 px-2" title="Inclure le texte original dans le contexte">Texte</th>
+                        <th class="text-center py-2 px-2" title="Inclure les extractions et leurs commentaires">Extractions</th>
+                        <th class="text-center py-2 px-2">Actif</th>
+                        <th class="text-center py-2 pl-2">Défaut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for analyseur in analyseurs %}
+                        {% include "hypostasis_extractor/includes/analyseur_item.html" with analyseur=analyseur %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-xs text-slate-400 italic">Aucun analyseur.</p>
+            {% endif %}
         </div>
     </div>
 </div>

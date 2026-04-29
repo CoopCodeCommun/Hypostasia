@@ -1,11 +1,56 @@
-<!-- Un item analyseur dans la sidebar gauche — clic = ouvrir l'editeur -->
-<!-- / One analyzer item in the left sidebar — click = open editor -->
-<div class="analyseur-item flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors hover:bg-slate-200 text-slate-700"
-     hx-get="/api/analyseurs/{{ analyseur.id }}/"
-     hx-target="#zone-lecture"
-     hx-swap="innerHTML"
-     hx-push-url="/api/analyseurs/{{ analyseur.id }}/">
-    <span class="w-2 h-2 rounded-full shrink-0 {% if analyseur.type_analyseur == 'analyser' %}bg-blue-400{% elif analyseur.type_analyseur == 'reformuler' %}bg-amber-400{% else %}bg-green-400{% endif %}"></span>
-    <span class="text-sm truncate">{{ analyseur.name }}</span>
-    <span class="text-[10px] text-slate-400 ml-auto shrink-0">{{ analyseur.get_type_analyseur_display }}</span>
-</div>
+<!-- Une ligne du tableau analyseurs — clic = ouvrir l'editeur -->
+<!-- / One row in the analyzers table — click = open the editor -->
+<tr class="analyseur-item cursor-pointer hover:bg-slate-100 border-b border-slate-100 transition-colors {% if not analyseur.is_active %}opacity-60{% endif %}"
+    hx-get="/api/analyseurs/{{ analyseur.id }}/"
+    hx-target="#zone-lecture"
+    hx-swap="innerHTML"
+    hx-push-url="/api/analyseurs/{{ analyseur.id }}/"
+    data-testid="ligne-analyseur-{{ analyseur.id }}">
+    {# Nom + pastille type / Name + type dot #}
+    <td class="py-2 pr-2">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full shrink-0
+                {% if analyseur.type_analyseur == 'analyser' %}bg-blue-400
+                {% elif analyseur.type_analyseur == 'reformuler' %}bg-amber-400
+                {% elif analyseur.type_analyseur == 'synthetiser' %}bg-violet-500
+                {% else %}bg-green-400{% endif %}"></span>
+            <span class="text-sm text-slate-800 truncate">{{ analyseur.name }}</span>
+        </div>
+    </td>
+    {# Type / Type #}
+    <td class="py-2 pr-2 text-xs text-slate-500">
+        {{ analyseur.get_type_analyseur_display }}
+    </td>
+    {# Inclure texte original / Include original text #}
+    <td class="py-2 px-2 text-center" title="Inclure le texte original dans le contexte">
+        {% if analyseur.inclure_texte_original %}
+            <span class="text-emerald-600 text-base" aria-label="Texte original inclus">✓</span>
+        {% else %}
+            <span class="text-slate-300 text-base" aria-label="Texte original non inclus">·</span>
+        {% endif %}
+    </td>
+    {# Inclure extractions et commentaires / Include extractions and comments #}
+    <td class="py-2 px-2 text-center" title="Inclure les extractions et leurs commentaires">
+        {% if analyseur.inclure_extractions %}
+            <span class="text-emerald-600 text-base" aria-label="Extractions incluses">✓</span>
+        {% else %}
+            <span class="text-slate-300 text-base" aria-label="Extractions non incluses">·</span>
+        {% endif %}
+    </td>
+    {# Actif / Active #}
+    <td class="py-2 px-2 text-center">
+        {% if analyseur.is_active %}
+            <span class="text-emerald-600 text-base" title="Actif" aria-label="Actif">✓</span>
+        {% else %}
+            <span class="text-slate-400 text-base" title="Inactif" aria-label="Inactif">✗</span>
+        {% endif %}
+    </td>
+    {# Defaut / Default #}
+    <td class="py-2 pl-2 text-center">
+        {% if analyseur.est_par_defaut %}
+            <span class="text-blue-500 text-base" data-testid="badge-defaut" title="Par défaut pour son type" aria-label="Par défaut">★</span>
+        {% else %}
+            <span class="text-slate-300 text-base" aria-hidden="true">·</span>
+        {% endif %}
+    </td>
+</tr>

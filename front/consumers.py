@@ -196,6 +196,40 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
         )
         await self.send(text_data=html_signal)
 
+    async def synthese_terminee(self, evenement):
+        """
+        Signal de fin de synthese deliberative — envoye au groupe utilisateur.
+        Affiche un toast succes cross-page avec un lien vers la nouvelle page V2.
+        Volontairement minimaliste : pas de rechargement de zone-lecture (l'utilisateur
+        peut avoir navigue ailleurs). C'est l'utilisateur qui decide de basculer
+        vers la V2 via le clic sur le lien du toast.
+        / End-of-deliberative-synthesis signal — sent to the user's group.
+        / Shows a cross-page success toast with a link to the new V2 page.
+        / Deliberately minimal: no zone-lecture reload (user may have navigated away).
+        / The user decides to switch to V2 by clicking the toast link.
+
+        LOCALISATION : front/consumers.py
+
+        COMMUNICATION :
+        Recoit : message 'synthese_terminee' depuis front/tasks.py (synthetiser_page_task)
+        Emet : OOB sur #ws-toasts avec un toast cliquable vers la V2
+        """
+        page_synthese_id = evenement.get('page_synthese_id')
+        if not page_synthese_id:
+            return
+
+        contexte_toast = {
+            'page_synthese_id': page_synthese_id,
+            'version_number': evenement.get('version_number', 2),
+            'titre_page': evenement.get('titre_page', ''),
+        }
+
+        html_toast = await sync_to_async(render_to_string)(
+            'front/includes/ws_synthese_terminee.html',
+            contexte_toast,
+        )
+        await self.send(text_data=html_toast)
+
 
 class ProgressionTacheConsumer(AsyncJsonWebsocketConsumer):
     """

@@ -66,6 +66,10 @@ def creer_fixtures_synthese():
         name="Synthese deliberative test",
         is_active=True,
         type_analyseur="synthetiser",
+        # PHASE-29 : les deux bool actifs pour que le prompt contienne TEXTE + HYPOSTASES
+        # / PHASE-29: both bools active so prompt contains TEXT + HYPOSTASES
+        inclure_extractions=True,
+        inclure_texte_original=True,
     )
 
     PromptPiece.objects.create(
@@ -165,6 +169,7 @@ class PromptSyntheseTest(TestCase):
         from front.tasks import _construire_prompt_synthese
         prompt = _construire_prompt_synthese(
             self.fixtures["page_source"], self.fixtures["job_analyse"],
+            self.fixtures["analyseur"],
         )
         self.assertIn("L'IA est une revolution", prompt)
         self.assertIn("=== TEXTE ORIGINAL ===", prompt)
@@ -174,6 +179,7 @@ class PromptSyntheseTest(TestCase):
         from front.tasks import _construire_prompt_synthese
         prompt = _construire_prompt_synthese(
             self.fixtures["page_source"], self.fixtures["job_analyse"],
+            self.fixtures["analyseur"],
         )
         self.assertIn("[CONSENSUEL]", prompt)
         self.assertIn("[CONTROVERSE]", prompt)
@@ -183,6 +189,7 @@ class PromptSyntheseTest(TestCase):
         from front.tasks import _construire_prompt_synthese
         prompt = _construire_prompt_synthese(
             self.fixtures["page_source"], self.fixtures["job_analyse"],
+            self.fixtures["analyseur"],
         )
         self.assertNotIn("Bruit de fond non pertinent", prompt)
 
@@ -191,6 +198,7 @@ class PromptSyntheseTest(TestCase):
         from front.tasks import _construire_prompt_synthese
         prompt = _construire_prompt_synthese(
             self.fixtures["page_source"], self.fixtures["job_analyse"],
+            self.fixtures["analyseur"],
         )
         self.assertNotIn("Entite masquee invisible", prompt)
 
@@ -199,6 +207,7 @@ class PromptSyntheseTest(TestCase):
         from front.tasks import _construire_prompt_synthese
         prompt = _construire_prompt_synthese(
             self.fixtures["page_source"], self.fixtures["job_analyse"],
+            self.fixtures["analyseur"],
         )
         position_consensuel = prompt.index("[CONSENSUEL]")
         position_controverse = prompt.index("[CONTROVERSE]")
@@ -209,6 +218,7 @@ class PromptSyntheseTest(TestCase):
         from front.tasks import _construire_prompt_synthese
         prompt = _construire_prompt_synthese(
             self.fixtures["page_source"], self.fixtures["job_analyse"],
+            self.fixtures["analyseur"],
         )
         self.assertIn("testeur_synthese", prompt)
         self.assertIn("Point solide et bien argumente", prompt)
@@ -223,6 +233,7 @@ class PromptSyntheseTest(TestCase):
         from front.tasks import _construire_prompt_synthese
         prompt = _construire_prompt_synthese(
             self.fixtures["page_source"], self.fixtures["job_analyse"],
+            self.fixtures["analyseur"],
         )
         self.assertIn("L'IA transforme le monde durablement.", prompt)
         self.assertIn("Résumé IA", prompt)
@@ -232,6 +243,7 @@ class PromptSyntheseTest(TestCase):
         from front.tasks import _construire_prompt_synthese
         prompt = _construire_prompt_synthese(
             self.fixtures["page_source"], self.fixtures["job_analyse"],
+            self.fixtures["analyseur"],
         )
         self.assertIn("=== CONSIGNE ===", prompt)
         self.assertIn("synthèse délibérative", prompt)
@@ -244,6 +256,7 @@ class PromptSyntheseTest(TestCase):
         from front.tasks import _construire_prompt_synthese
         prompt = _construire_prompt_synthese(
             self.fixtures["page_source"], self.fixtures["job_analyse"],
+            self.fixtures["analyseur"],
         )
         self.assertIn("(aucune hypostase extraite)", prompt)
 
@@ -385,8 +398,9 @@ class SyntheseStatusTest(TestCase):
         self.assertEqual(reponse.status_code, 200)
         self.assertIn("hx-get", contenu)
         self.assertIn("every 3s", contenu)
-        # Le template utilise des HTML entities / Template uses HTML entities
-        self.assertIn("Synth&egrave;se en cours", contenu)
+        # PHASE-29 : le template drawer ne passe plus par les HTML entities
+        # / PHASE-29: drawer template no longer uses HTML entities
+        self.assertIn("Synthèse en cours", contenu)
 
     def test_status_completed_retourne_lien_vers_synthese(self):
         """Un job completed retourne le bouton 'Voir la synthese'."""
@@ -424,8 +438,16 @@ class SyntheseStatusTest(TestCase):
         )
         contenu = reponse.content.decode("utf-8")
         self.assertEqual(reponse.status_code, 200)
+        # PHASE-29 : la reponse est un OOB qui recharge zone-lecture vers la V2
+        # + HX-Trigger fermerDrawer + pill V2 dans le switcher.
+        # / PHASE-29: response is an OOB that reloads zone-lecture to V2
+        # / + HX-Trigger fermerDrawer + V2 pill in the switcher.
         self.assertIn(f"/lire/{page_synthese.pk}/", contenu)
-        self.assertIn("Voir la synth", contenu)
+        self.assertIn("indicateur-synthese", contenu)
+        self.assertIn("V2", contenu)
+        # HX-Trigger doit fermer le drawer / HX-Trigger must close the drawer
+        trigger = reponse.headers.get("HX-Trigger", "")
+        self.assertIn("fermerDrawer", trigger)
         # Pas de polling (plus de hx-trigger every) / No polling (no hx-trigger every)
         self.assertNotIn("every 3s", contenu)
 
@@ -954,8 +976,9 @@ class DashboardBoutonTest(TestCase):
         )
         self.assertEqual(reponse.status_code, 200)
         contenu = reponse.content.decode("utf-8")
-        # Verifier que le bouton n'est pas disabled / Check button is not disabled
-        self.assertIn("ouvrirModaleSynthese", contenu)
+        # PHASE-29 : le bouton ouvre maintenant la confirmation drawer via HTMX
+        # / PHASE-29: button now opens confirmation drawer via HTMX
+        self.assertIn("/previsualiser_synthese/", contenu)
         self.assertNotIn('disabled', contenu.split("btn-lancer-synthese")[1].split(">")[0])
 
     def test_bouton_variante_avertissement(self):

@@ -1,0 +1,210 @@
+{# Partial : confirmation avant lancement d'une synthese deliberative (PHASE-29) #}
+{# S'affiche dans #drawer-contenu (panneau drawer a droite) #}
+{# / Partial: confirmation before launching a deliberative synthesis (PHASE-29) #}
+{# / Displayed in #drawer-contenu (right-side drawer panel) #}
+
+<div id="confirmation-synthese" class="py-4 px-1" data-page-id="{{ page.pk }}" data-testid="confirmation-synthese">
+
+    {# En-tete avec titre / Header with title #}
+    <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+            <svg class="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+            </svg>
+        </div>
+        <div class="min-w-0">
+            <h2 class="text-lg font-bold text-slate-900">Synthèse délibérative</h2>
+            <p class="text-sm text-slate-500 truncate">{{ page.title|default:"Sans titre" }}</p>
+        </div>
+    </div>
+
+    {# Selecteur d'analyseur si plusieurs / Analyzer selector if multiple #}
+    {% if analyseurs_actifs.count > 1 %}
+    <div class="mb-4">
+        <label for="select-analyseur-synthese" class="block text-xs font-medium text-slate-600 mb-1">Analyseur de synthèse</label>
+        <select id="select-analyseur-synthese" name="analyseur_id"
+                data-testid="select-analyseur-synthese"
+                hx-get="/lire/{{ page.pk }}/previsualiser_synthese/"
+                hx-target="#drawer-contenu"
+                hx-swap="innerHTML"
+                hx-include="this"
+                class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-violet-400">
+            {% for a in analyseurs_actifs %}
+                <option value="{{ a.id }}" {% if a.id == analyseur.id %}selected{% endif %}>{{ a.name }}{% if a.est_par_defaut %} ★{% endif %}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
+
+    {# Encart consensus permanent (toujours present, reponse Q2 = c) #}
+    {# / Permanent consensus block #}
+    <div class="bg-slate-50 rounded-lg p-4 mb-4" data-testid="encart-consensus-synthese">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Consensus du débat</h3>
+
+        {% if total_entites_toutes > 0 %}
+        {# Compteurs 3x2 par statut / 3x2 status counters #}
+        <div class="grid grid-cols-3 gap-2 mb-3 text-xs">
+            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_nouveau }}</span> Nouveau</div>
+            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_consensuel }}</span> Consensuel</div>
+            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_discutable }}</span> Discutable</div>
+            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_discute }}</span> Discuté</div>
+            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_controverse }}</span> Controversé</div>
+            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_non_pertinent }}</span> Non pertinent</div>
+        </div>
+
+        {# Barre de progression / Progress bar #}
+        <div class="mb-2">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-xs text-slate-600">Pourcentage de consensus</span>
+                <span class="text-xs font-bold {% if seuil_atteint %}text-emerald-600{% else %}text-amber-600{% endif %}">
+                    {{ pourcentage_consensus }}% / {{ seuil_consensus }}%
+                </span>
+            </div>
+            <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div class="h-full transition-all"
+                     style="width: {{ pourcentage_consensus }}%; background-color: {% if seuil_atteint %}#10b981{% else %}#f59e0b{% endif %};">
+                </div>
+            </div>
+        </div>
+
+        {% if extractions_bloquantes %}
+        <p class="text-[10px] text-amber-600 mt-2">
+            {{ extractions_bloquantes|length }} extraction{{ extractions_bloquantes|length|pluralize }} encore en débat.
+        </p>
+        {% endif %}
+        {% else %}
+        <p class="text-xs text-slate-500 italic">Aucune extraction sur cette page.</p>
+        {% endif %}
+    </div>
+
+    {# Infos resume / Summary info #}
+    <div class="bg-slate-50 rounded-lg p-4 space-y-2 text-sm text-slate-600 mb-4">
+        <div class="flex justify-between items-center">
+            <span>Analyseur</span>
+            <span class="font-semibold text-slate-800">
+                {{ analyseur.name }}{% if analyseur.est_par_defaut %} <span class="text-blue-600" title="Par défaut">★</span>{% endif %}
+            </span>
+        </div>
+        <div class="flex justify-between items-center">
+            <span>Modèle IA</span>
+            <span class="font-semibold text-slate-800">{{ modele_ia.get_display_name }}</span>
+        </div>
+        <div class="flex justify-between items-center">
+            <span>Pièces de prompt</span>
+            <span class="font-semibold text-slate-800">{{ nombre_pieces }}</span>
+        </div>
+        <div class="flex justify-between items-center">
+            <span>Inclure texte original</span>
+            <span class="font-semibold {% if analyseur.inclure_texte_original %}text-emerald-700{% else %}text-slate-400{% endif %}">
+                {% if analyseur.inclure_texte_original %}✓ Oui{% else %}✗ Non{% endif %}
+            </span>
+        </div>
+        <div class="flex justify-between items-center">
+            <span>Inclure extractions et commentaires</span>
+            <span class="font-semibold {% if analyseur.inclure_extractions %}text-emerald-700{% else %}text-slate-400{% endif %}">
+                {% if analyseur.inclure_extractions %}✓ Oui{% else %}✗ Non{% endif %}
+            </span>
+        </div>
+    </div>
+
+    {# Compteurs disponibilite / Availability counters #}
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-xs text-slate-700">
+        <div class="flex justify-between mb-1">
+            <span>Extractions disponibles</span>
+            <span class="font-bold">{{ nombre_extractions_disponibles }}</span>
+        </div>
+        <div class="flex justify-between">
+            <span>Commentaires disponibles</span>
+            <span class="font-bold">{{ nombre_commentaires_disponibles }}</span>
+        </div>
+    </div>
+
+    {# Estimation tokens et cout / Token and cost estimate #}
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2 text-sm mb-4" data-testid="estimation-synthese">
+        <div class="flex justify-between items-center text-amber-800">
+            <span>Tokens input</span>
+            <span class="font-bold text-base">~{{ nombre_tokens_input|floatformat:0 }}</span>
+        </div>
+        <div class="flex justify-between items-center text-amber-700">
+            <span>Tokens output (~50%)</span>
+            <span class="font-medium text-base">~{{ nombre_tokens_output_visible|floatformat:0 }}</span>
+        </div>
+        {% if nombre_tokens_thinking > 0 %}
+        <div class="flex justify-between items-center text-amber-600 text-xs">
+            <span>Tokens thinking (×{{ multiplicateur_thinking }})</span>
+            <span class="font-medium">~{{ nombre_tokens_thinking|floatformat:0 }}</span>
+        </div>
+        {% endif %}
+        <div class="flex justify-between items-center text-amber-900 border-t border-amber-300 pt-2 mt-2">
+            <span class="font-bold">Coût estimé</span>
+            <span class="font-bold text-lg">≤ {{ cout_estime_euros|floatformat:2 }} €</span>
+        </div>
+    </div>
+
+    {# Bouton voir le prompt complet / View full prompt button #}
+    <button type="button"
+            class="btn-voir-prompt-complet w-full text-sm font-medium text-slate-600 hover:text-violet-600 hover:bg-violet-50 border border-slate-200 rounded-lg px-3 py-2.5 transition-colors mb-4"
+            data-testid="btn-voir-prompt-synthese"
+            data-prompt-visible="false">
+        Voir le prompt complet
+    </button>
+    <div id="zone-prompt-complet" class="hidden mb-4">
+        <div class="bg-slate-900 text-slate-100 rounded-lg p-4 max-h-[20rem] overflow-y-auto text-xs font-mono whitespace-pre-wrap leading-relaxed">{{ prompt_complet }}</div>
+    </div>
+
+    {# Gate solde credits / Credit balance gate #}
+    {% if stripe_enabled and not solde_suffisant and not request.user.is_superuser %}
+    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4" data-testid="alerte-solde-insuffisant" aria-live="polite" role="alert">
+        <p class="text-sm font-bold text-red-800 mb-1">Solde insuffisant</p>
+        <p class="text-sm text-red-600 mb-2">
+            Votre solde ({{ solde_utilisateur_euros|floatformat:2 }} €) est insuffisant pour cette synthèse (≤ {{ cout_estime_euros|floatformat:2 }} €).
+        </p>
+        <a href="/credits/" hx-get="/credits/" hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="/credits/"
+           class="inline-block text-sm font-medium text-red-700 underline hover:text-red-900">Recharger mes crédits</a>
+    </div>
+    {% elif stripe_enabled and solde_suffisant %}
+    <div class="flex justify-between items-center text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 mb-4" data-testid="info-solde-suffisant">
+        <span>Votre solde</span>
+        <span class="font-bold">{{ solde_utilisateur_euros|floatformat:2 }} €</span>
+    </div>
+    {% endif %}
+
+    {# Alerte de blocage si bouton_desactive / Blocking alert if button disabled #}
+    {% if bouton_desactive and raison_desactivation %}
+    <div class="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-4" data-testid="alerte-blocage-synthese" role="alert">
+        <p class="text-sm text-amber-800">{{ raison_desactivation }}</p>
+    </div>
+    {% endif %}
+
+    {# Bouton Lancer / Launch button #}
+    <button type="button"
+            data-testid="btn-lancer-synthese"
+            hx-post="/lire/{{ page.pk }}/synthetiser/"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-vals='{"select-analyseur-synthese": "{{ analyseur.id }}"}'
+            hx-target="#drawer-contenu"
+            hx-swap="innerHTML"
+            {% if bouton_desactive %}disabled aria-disabled="true"{% endif %}
+            class="w-full px-5 py-4 text-base font-bold {% if bouton_desactive %}text-slate-400 bg-slate-100 border-slate-200 cursor-not-allowed{% else %}text-violet-700 bg-violet-100 hover:bg-violet-200 border border-violet-200{% endif %} rounded-xl transition-colors flex items-center justify-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+        </svg>
+        Lancer la synthèse
+    </button>
+</div>
+
+{# OOB : titre du drawer / OOB: drawer title #}
+<span id="drawer-titre" hx-swap-oob="innerHTML:#drawer-titre">Synthèse délibérative</span>
+
+<script>
+(function() {
+    var boutonVoirPrompt = document.querySelector('.btn-voir-prompt-complet');
+    var zonePrompt = document.getElementById('zone-prompt-complet');
+    if (boutonVoirPrompt && zonePrompt) {
+        boutonVoirPrompt.addEventListener('click', function() {
+            var estCache = zonePrompt.classList.toggle('hidden');
+            boutonVoirPrompt.textContent = estCache ? 'Voir le prompt complet' : 'Masquer le prompt';
+        });
+    }
+})();
+</script>

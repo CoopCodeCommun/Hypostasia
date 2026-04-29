@@ -1,0 +1,39 @@
+{# Partial OOB : recharge zone-lecture vers la V2 + maj du pill switcher de versions #}
+{# Renvoye en reponse complete par synthese_status quand status=completed #}
+{# Le drawer se ferme via HX-Trigger fermerDrawer (declenche dans la vue) #}
+{# / OOB partial: reloads zone-lecture to V2 + updates version switcher pill #}
+{# / Returned as full response by synthese_status when status=completed #}
+
+{# hx-swap-oob="true" remplace l'element complet (id=zone-lecture) — preserve les #}
+{# attributs hx-get / hx-trigger="load" pour qu'ils soient processes par HTMX. #}
+{# innerHTML aurait perdu les attributs car il ne remplace que le contenu interne. #}
+{# / hx-swap-oob="true" replaces the entire element (preserves hx-* attributes). #}
+<div id="zone-lecture" hx-swap-oob="true"
+     hx-get="/lire/{{ page_synthese_id }}/"
+     hx-trigger="load"
+     hx-target="this"
+     hx-swap="innerHTML"
+     hx-push-url="/lire/{{ page_synthese_id }}/">
+    <div class="flex items-center justify-center py-8">
+        <svg class="animate-spin h-6 w-6 text-violet-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </div>
+</div>
+
+<span id="indicateur-synthese" hx-swap-oob="innerHTML:#indicateur-synthese">
+    <a href="/lire/{{ page_synthese_id }}/"
+       hx-get="/lire/{{ page_synthese_id }}/"
+       hx-target="#zone-lecture"
+       hx-swap="innerHTML"
+       hx-push-url="true"
+       class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+       style="background: #d1fae5; color: #047857;"
+       data-testid="pill-synthese-terminee">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        V{{ version_number }}
+    </a>
+</span>

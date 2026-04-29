@@ -197,90 +197,10 @@
 
 })();
 
-/**
- * Ouvre une modale de confirmation avant de lancer la synthese deliberative.
- * Si le seuil est atteint : message simple. Sinon : avertissement renforce.
- * / Opens a confirmation modal before launching deliberative synthesis.
- * / If threshold is met: simple message. Otherwise: reinforced warning.
- *
- * LOCALISATION : front/static/front/js/dashboard_consensus.js
- */
-function ouvrirModaleSynthese(pageId, seuilAtteint, pourcentage, seuil, analyseursJson) {
-    'use strict';
-
-    // Supprimer une eventuelle modale existante / Remove any existing modal
-    var modaleExistante = document.getElementById('modale-synthese');
-    if (modaleExistante) modaleExistante.remove();
-
-    // Parser les analyseurs disponibles / Parse available analyzers
-    var analyseurs = [];
-    try { analyseurs = JSON.parse(analyseursJson || '[]'); } catch(e) { /* ignore */ }
-
-    // Construire le message selon le seuil / Build message based on threshold
-    var titreModale = seuilAtteint
-        ? 'Lancer la synthèse délibérative'
-        : '⚠ Seuil de consensus non atteint';
-
-    var messageModale = seuilAtteint
-        ? '<p class="text-sm text-slate-600 mb-3">Vous allez générer une nouvelle version du texte intégrant le débat structuré (hypostases + commentaires + statuts).</p>'
-        : '<p class="text-sm text-amber-700 mb-2 font-semibold">Le seuil de consensus n\'est pas atteint (' + pourcentage + '% / ' + seuil + '%).</p>'
-          + '<p class="text-sm text-slate-600 mb-3">La synthèse sera basée sur des données partielles. Vous pouvez lancer quand même ou continuer la curation.</p>';
-
-    // Selecteur d'analyseur si plusieurs disponibles
-    // / Analyzer selector if multiple available
-    var selecteurHtml = '';
-    if (analyseurs.length > 1) {
-        selecteurHtml = '<div class="mb-4">'
-            + '<label class="block text-xs font-medium text-slate-600 mb-1">Analyseur de synthèse</label>'
-            + '<select id="select-analyseur-synthese" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 bg-white">';
-        for (var i = 0; i < analyseurs.length; i++) {
-            selecteurHtml += '<option value="' + analyseurs[i].id + '">' + analyseurs[i].name + '</option>';
-        }
-        selecteurHtml += '</select></div>';
-    }
-
-    // ID du premier analyseur (defaut) / First analyzer ID (default)
-    var analyseurDefautId = analyseurs.length > 0 ? analyseurs[0].id : '';
-
-    // Construire le HTML de la modale / Build modal HTML
-    var htmlModale = ''
-        + '<div id="modale-synthese" class="fixed inset-0 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true" aria-labelledby="titre-modale-synthese" style="z-index: 60;">'
-        + '  <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">'
-        + '    <h3 id="titre-modale-synthese" class="text-lg font-semibold text-slate-800 mb-3">' + titreModale + '</h3>'
-        + '    ' + messageModale
-        + '    ' + selecteurHtml
-        + '    <div class="flex justify-end gap-2 mt-4">'
-        + '      <button onclick="fermerModaleSynthese()" class="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded hover:bg-slate-200">Annuler</button>'
-        + '      <button id="btn-confirmer-synthese" class="px-4 py-2 text-sm text-white rounded"'
-        + '              style="background-color: ' + (seuilAtteint ? '#059669' : '#d97706') + ';"'
-        + '              hx-post="/lire/' + pageId + '/synthetiser/"'
-        + '              hx-include="#select-analyseur-synthese"'
-        + '              hx-target="#zone-btn-synthese"'
-        + '              hx-swap="outerHTML"'
-        + '              hx-on::after-request="fermerModaleSynthese()">'
-        + '        ' + (seuilAtteint ? 'Confirmer la synthèse' : 'Lancer quand même')
-        + '      </button>'
-        + '    </div>'
-        + '  </div>'
-        + '</div>';
-
-    // Inserer dans le DOM et activer HTMX / Insert into DOM and activate HTMX
-    document.body.insertAdjacentHTML('beforeend', htmlModale);
-    var elementModale = document.getElementById('modale-synthese');
-    htmx.process(elementModale);
-
-    // Fermer via clic sur le backdrop / Close on backdrop click
-    elementModale.addEventListener('click', function(evenement) {
-        if (evenement.target === elementModale) {
-            fermerModaleSynthese();
-        }
-    });
-}
-
-/**
- * Ferme la modale de synthese / Close the synthesis modal
- */
-function fermerModaleSynthese() {
-    var modale = document.getElementById('modale-synthese');
-    if (modale) modale.remove();
-}
+// PHASE-29 : la modale JS de synthese a ete remplacee par une confirmation drawer.
+// Voir front/views.py PageViewSet.previsualiser_synthese et le template
+// confirmation_synthese.html. Le bouton du dashboard fait directement
+// hx-get="/lire/{pk}/previsualiser_synthese/".
+// / PHASE-29: the synthesis JS modal has been replaced by a drawer confirmation.
+// / See front/views.py PageViewSet.previsualiser_synthese and the
+// / confirmation_synthese.html template.

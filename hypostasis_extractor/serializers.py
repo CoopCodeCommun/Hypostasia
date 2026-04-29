@@ -245,6 +245,7 @@ class AnalyseurSyntaxiqueUpdateSerializer(serializers.Serializer):
     )
     inclure_extractions = serializers.BooleanField(required=False)
     inclure_texte_original = serializers.BooleanField(required=False)
+    est_par_defaut = serializers.BooleanField(required=False)
 
     def validate_name(self, value):
         return sanitize_text(value)

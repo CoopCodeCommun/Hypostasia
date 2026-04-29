@@ -815,6 +815,86 @@ def _rendre_drawer_analyse_en_cours(request, page, job_en_cours):
     ), entites_partielles
 
 
+def _calculer_consensus(page):
+    """
+    Calcule l'etat du consensus pour une page : compteurs par statut, pourcentage,
+    seuil, et extractions bloquantes. Reutilise par le dashboard et la confirmation
+    de synthese deliberative dans le drawer.
+    / Compute consensus state for a page: counts per status, percentage, threshold,
+    / blocking extractions. Reused by the dashboard and the synthesis confirmation drawer.
+
+    LOCALISATION : front/views.py
+    """
+    from django.db.models import Case, Count, Value, When
+
+    # Toutes les entites non masquees de la page
+    # / All non-hidden entities for the page
+    tous_les_jobs_termines = ExtractionJob.objects.filter(
+        page=page, status="completed",
+    )
+    toutes_les_entites_visibles = ExtractedEntity.objects.filter(
+        job__in=tous_les_jobs_termines,
+        masquee=False,
+    )
+
+    # Compteurs par statut / Counts per status
+    compteurs_par_statut = dict(
+        toutes_les_entites_visibles.values_list("statut_debat").annotate(
+            count=Count("id"),
+        )
+    )
+    compteur_nouveau = compteurs_par_statut.get("nouveau", 0)
+    compteur_consensuel = compteurs_par_statut.get("consensuel", 0)
+    compteur_discutable = compteurs_par_statut.get("discutable", 0)
+    compteur_discute = compteurs_par_statut.get("discute", 0)
+    compteur_controverse = compteurs_par_statut.get("controverse", 0)
+    compteur_non_pertinent = compteurs_par_statut.get("non_pertinent", 0)
+    total_entites_toutes = (
+        compteur_nouveau + compteur_consensuel + compteur_discutable
+        + compteur_discute + compteur_controverse + compteur_non_pertinent
+    )
+
+    # Total pour le consensus : exclure nouveau et non_pertinent (hors cycle deliberatif)
+    # / Total for consensus: exclude nouveau and non_pertinent (out of deliberative cycle)
+    total_entites = (
+        compteur_consensuel + compteur_discutable + compteur_discute + compteur_controverse
+    )
+    if total_entites > 0:
+        pourcentage_consensus = round(compteur_consensuel * 100 / total_entites)
+    else:
+        pourcentage_consensus = 0
+
+    # Extractions bloquantes : controverse en premier, puis discute, triees par nb commentaires
+    # / Blocking: controverse first, then discute, sorted by comment count
+    extractions_bloquantes = toutes_les_entites_visibles.filter(
+        statut_debat__in=["controverse", "discute"],
+    ).annotate(
+        nombre_commentaires=Count("commentaires"),
+        ordre_statut=Case(
+            When(statut_debat="controverse", then=Value(0)),
+            When(statut_debat="discute", then=Value(1)),
+            default=Value(2),
+        ),
+    ).order_by("ordre_statut", "-nombre_commentaires")[:10]
+
+    seuil_atteint = pourcentage_consensus >= SEUIL_CONSENSUS_DEFAUT
+
+    return {
+        "compteur_nouveau": compteur_nouveau,
+        "compteur_consensuel": compteur_consensuel,
+        "compteur_discutable": compteur_discutable,
+        "compteur_discute": compteur_discute,
+        "compteur_controverse": compteur_controverse,
+        "compteur_non_pertinent": compteur_non_pertinent,
+        "total_entites_toutes": total_entites_toutes,
+        "total_entites": total_entites,
+        "pourcentage_consensus": pourcentage_consensus,
+        "seuil_consensus": SEUIL_CONSENSUS_DEFAUT,
+        "seuil_atteint": seuil_atteint,
+        "extractions_bloquantes": extractions_bloquantes,
+    }
+
+
 class ConfigurationIAViewSet(viewsets.ViewSet):
     """
     ViewSet pour la configuration IA (toggle on/off, selection du modele).
@@ -2319,6 +2399,188 @@ class LectureViewSet(viewsets.ViewSet):
             "page": page,
         })
 
+    @action(detail=True, methods=["GET"], url_path="previsualiser_synthese")
+    def previsualiser_synthese(self, request, pk=None):
+        """
+        Construit le contexte de confirmation pour la synthese deliberative
+        et renvoie le partial confirmation_synthese.html dans #drawer-contenu.
+        Si un job de synthese est deja en cours \u2192 renvoie le partial polling.
+        / Builds the confirmation context for deliberative synthesis
+        / and returns confirmation_synthese.html in #drawer-contenu.
+        / If a synthesis job is running \u2192 returns the polling partial.
+        """
+        page = get_object_or_404(Page, pk=pk)
+
+        # Acces direct (F5) \u2192 rediriger vers la lecture / Direct access (F5) \u2192 redirect
+        if not request.headers.get("HX-Request"):
+            return redirect(f"/lire/{pk}/")
+
+        # Verifier si un job de synthese est deja en cours
+        # / Check if a synthesis job is already running
+        job_synthese_en_cours = ExtractionJob.objects.filter(
+            page=page,
+            status__in=["pending", "processing"],
+            raw_result__contains={"est_synthese": True},
+        ).order_by("-created_at").first()
+        if job_synthese_en_cours:
+            return render(request, "front/includes/synthese_en_cours_drawer.html", {
+                "page": page,
+            })
+
+        # Recuperer l'analyseur synthese (default ou ?analyseur_id=)
+        # / Get the synthesis analyzer (default or ?analyseur_id=)
+        analyseur_id_choisi = request.GET.get("analyseur_id")
+        analyseur_synthese = None
+        if analyseur_id_choisi:
+            analyseur_synthese = AnalyseurSyntaxique.objects.filter(
+                pk=analyseur_id_choisi, is_active=True, type_analyseur="synthetiser",
+            ).first()
+        if not analyseur_synthese:
+            analyseur_synthese = AnalyseurSyntaxique.objects.filter(
+                is_active=True, type_analyseur="synthetiser",
+            ).order_by("-est_par_defaut", "name").first()
+        if not analyseur_synthese:
+            reponse_erreur = HttpResponse(status=400)
+            reponse_erreur["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Aucun analyseur de synth\u00e8se actif. Configurez-en un dans /api/analyseurs/.",
+                    "icon": "error",
+                },
+            })
+            return reponse_erreur
+
+        # Tous les analyseurs synthese actifs (pour le selecteur)
+        # / All active synthesis analyzers (for the selector)
+        tous_les_analyseurs_synthese = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="synthetiser",
+        ).order_by("-est_par_defaut", "name")
+
+        # Modele IA actif / Active AI model
+        configuration_ia = Configuration.get_solo()
+        modele_ia_actif = configuration_ia.ai_model
+        if not modele_ia_actif:
+            reponse_erreur = HttpResponse(status=400)
+            reponse_erreur["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Aucun mod\u00e8le IA configur\u00e9. Ajoutez une cl\u00e9 API dans .env.",
+                    "icon": "error",
+                },
+            })
+            return reponse_erreur
+
+        # Dernier job d'analyse complete (pour les extractions disponibles)
+        # / Latest completed analysis job (for available extractions)
+        dernier_job_analyse = ExtractionJob.objects.filter(
+            page=page, status="completed",
+        ).exclude(
+            raw_result__contains={"est_synthese": True},
+        ).order_by("-created_at").first()
+
+        # Compter les extractions et commentaires disponibles
+        # / Count available extractions and comments
+        nombre_extractions_disponibles = 0
+        nombre_commentaires_disponibles = 0
+        if dernier_job_analyse:
+            nombre_extractions_disponibles = ExtractedEntity.objects.filter(
+                job=dernier_job_analyse, masquee=False,
+            ).exclude(statut_debat="non_pertinent").count()
+            nombre_commentaires_disponibles = CommentaireExtraction.objects.filter(
+                entity__job=dernier_job_analyse,
+            ).count()
+
+        # Construire le prompt complet pour l'estimation et l'affichage
+        # / Build the full prompt for estimation and display
+        from front.tasks import _construire_prompt_synthese
+        pieces_ordonnees = PromptPiece.objects.filter(
+            analyseur=analyseur_synthese,
+        ).order_by("order")
+        prompt_systeme = "\n".join(piece.content for piece in pieces_ordonnees)
+        prompt_utilisateur = _construire_prompt_synthese(
+            page, dernier_job_analyse, analyseur_synthese,
+        )
+        prompt_complet = prompt_systeme + "\n\n" + prompt_utilisateur
+
+        # Estimation tokens (pas de chunking pour la synthese, 1 seul appel)
+        # / Token estimation (no chunking for synthesis, single call)
+        import tiktoken
+        import math
+        encodeur_tokens = tiktoken.get_encoding("cl100k_base")
+        nombre_tokens_input = len(encodeur_tokens.encode(prompt_complet))
+        nombre_tokens_output_visible = int(nombre_tokens_input * 0.5)
+        multiplicateur_thinking = modele_ia_actif.multiplicateur_thinking()
+        nombre_tokens_thinking = nombre_tokens_output_visible * (multiplicateur_thinking - 1)
+        nombre_tokens_output_total = nombre_tokens_output_visible + nombre_tokens_thinking
+        cout_brut_euros = modele_ia_actif.estimer_cout_euros(
+            nombre_tokens_input, nombre_tokens_output_total,
+        )
+        cout_estime_euros = max(0.01, math.ceil(cout_brut_euros * 1.5 * 100) / 100)
+
+        # Etat du consensus / Consensus state
+        donnees_consensus = _calculer_consensus(page)
+
+        # Conditions de blocage du bouton "Lancer"
+        # / Blocking conditions for the "Launch" button
+        bouton_desactive = False
+        raison_desactivation = ""
+        if (not analyseur_synthese.inclure_extractions
+                and not analyseur_synthese.inclure_texte_original):
+            bouton_desactive = True
+            raison_desactivation = (
+                "Configurez l'analyseur pour inclure au moins le texte original "
+                "ou les extractions."
+            )
+        elif (analyseur_synthese.inclure_extractions
+                and nombre_extractions_disponibles == 0):
+            bouton_desactive = True
+            raison_desactivation = (
+                "Lancez d'abord une analyse pour cet analyseur, "
+                "ou d\u00e9cochez \u00ab Inclure les extractions \u00bb."
+            )
+
+        # Gate solde credits Stripe
+        # / Stripe credit balance gate
+        contexte_credits = {}
+        if (settings.STRIPE_ENABLED
+                and request.user.is_authenticated
+                and not request.user.is_superuser):
+            from core.models import CreditAccount
+            compte_existant = CreditAccount.objects.filter(user=request.user).first()
+            if compte_existant:
+                solde_utilisateur_euros = compte_existant.solde_euros
+                solde_suffisant = solde_utilisateur_euros >= cout_estime_euros
+                contexte_credits = {
+                    "stripe_enabled": True,
+                    "solde_suffisant": solde_suffisant,
+                    "solde_utilisateur_euros": solde_utilisateur_euros,
+                }
+                if not solde_suffisant:
+                    bouton_desactive = True
+
+        contexte = {
+            "page": page,
+            "analyseur": analyseur_synthese,
+            "analyseurs_actifs": tous_les_analyseurs_synthese,
+            "modele_ia": modele_ia_actif,
+            "nombre_pieces": pieces_ordonnees.count(),
+            "nombre_tokens_input": nombre_tokens_input,
+            "nombre_tokens_output_visible": nombre_tokens_output_visible,
+            "nombre_tokens_thinking": nombre_tokens_thinking,
+            "nombre_tokens_output_total": nombre_tokens_output_total,
+            "multiplicateur_thinking": multiplicateur_thinking,
+            "cout_estime_euros": cout_estime_euros,
+            "prompt_complet": prompt_complet,
+            "nombre_extractions_disponibles": nombre_extractions_disponibles,
+            "nombre_commentaires_disponibles": nombre_commentaires_disponibles,
+            "bouton_desactive": bouton_desactive,
+            "raison_desactivation": raison_desactivation,
+            **donnees_consensus,
+            **contexte_credits,
+        }
+
+        reponse = render(request, "front/includes/confirmation_synthese.html", contexte)
+        reponse["HX-Trigger"] = "ouvrirDrawer"
+        return reponse
+
     @action(detail=True, methods=["POST"])
     def synthetiser(self, request, pk=None):
         """
@@ -2381,12 +2643,16 @@ class LectureViewSet(viewsets.ViewSet):
         ).order_by("-created_at").first()
 
         if job_synthese_en_cours:
-            # Une synthese est deja en cours → renvoyer le template de polling
-            # / A synthesis is already running → return polling template
+            # Une synthese est deja en cours → renvoyer le template de polling drawer
+            # + ouvrir le drawer pour afficher l'etat
+            # / A synthesis is already running → return drawer polling template
+            # + open the drawer to show the state
             logger.info("synthetiser: job deja en cours pk=%s pour page=%s", job_synthese_en_cours.pk, pk)
-            return render(request, "front/includes/synthese_en_cours.html", {
+            reponse = render(request, "front/includes/synthese_en_cours_drawer.html", {
                 "page": page,
             })
+            reponse["HX-Trigger"] = "ouvrirDrawer"
+            return reponse
 
         # Trouver l'analyseur de synthese : depuis le formulaire ou le premier actif
         # / Find synthesis analyzer: from form data or first active one
@@ -2406,6 +2672,28 @@ class LectureViewSet(viewsets.ViewSet):
             reponse_erreur["HX-Trigger"] = json.dumps({
                 "showToast": {
                     "message": "Aucun analyseur de synthèse actif. Chargez la fixture demo_ia.json.",
+                    "icon": "warning",
+                },
+            })
+            return reponse_erreur
+
+        # Garde-fou : au moins l'un des deux contextes doit etre coche pour
+        # produire un prompt utile. Sinon le LLM n'aurait que la consigne.
+        # / Guard: at least one of the two context flags must be enabled,
+        # otherwise the LLM would only receive the instruction.
+        bool_aucun_actif = (
+            not analyseur_synthese.inclure_extractions
+            and not analyseur_synthese.inclure_texte_original
+        )
+        if bool_aucun_actif:
+            reponse_erreur = HttpResponse(status=400)
+            reponse_erreur["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": (
+                        "L'analyseur de synthèse doit inclure au moins le texte "
+                        "original ou les extractions. Activez l'un des deux dans "
+                        "la configuration de l'analyseur."
+                    ),
                     "icon": "warning",
                 },
             })
@@ -2456,12 +2744,16 @@ class LectureViewSet(viewsets.ViewSet):
             job_synthese.pk, pk,
         )
 
-        # Retourner le spinner de polling dans la zone du bouton
-        # / Return polling spinner in the button zone
-        reponse = render(request, "front/includes/synthese_en_cours.html", {
+        # Retourner le partial polling dans le drawer + ouvrir le drawer (PHASE-29)
+        # Le drawer reste ouvert pendant toute la synthese ; il se fermera tout seul
+        # quand synthese_status detecte le status completed (HX-Trigger fermerDrawer).
+        # / Return polling partial in the drawer + open drawer (PHASE-29)
+        # / Drawer stays open during synthesis; closes itself when complete.
+        reponse = render(request, "front/includes/synthese_en_cours_drawer.html", {
             "page": page,
         })
         reponse["HX-Trigger"] = json.dumps({
+            "ouvrirDrawer": True,
             "showToast": {
                 "message": "Synthèse lancée...",
                 "icon": "info",
@@ -2472,52 +2764,71 @@ class LectureViewSet(viewsets.ViewSet):
     @action(detail=True, methods=["GET"], url_path="synthese_status")
     def synthese_status(self, request, pk=None):
         """
-        Endpoint de polling HTMX pour suivre la progression d'une synthese.
-        - pending/processing → re-render le spinner
-        - completed → render bouton "Voir la synthese (V2)" avec lien
-        - error → render message d'erreur + bouton retry
-        / HTMX polling endpoint to track synthesis progress.
-        - pending/processing → re-render spinner
-        - completed → render "View synthesis (V2)" button with link
-        - error → render error message + retry button
+        Endpoint de polling HTMX pour suivre la progression d'une synthese (PHASE-29).
+        Le polling vit dans le drawer (#drawer-contenu).
+        - pending/processing → re-render le partial polling drawer
+        - completed → renvoie l'OOB de zone-lecture vers la V2 + HX-Trigger fermerDrawer
+        - error → renvoie le partial erreur dans le drawer (avec bouton retry)
+        / HTMX polling endpoint to track synthesis progress (PHASE-29).
+        / Polling lives in the drawer (#drawer-contenu).
         """
         page = get_object_or_404(Page, pk=pk)
 
         # Chercher le dernier job de synthese / Find the latest synthesis job
         dernier_job_synthese = ExtractionJob.objects.filter(
             page=page,
-            raw_result__est_synthese=True,
+            raw_result__contains={"est_synthese": True},
         ).order_by("-created_at").first()
 
         if not dernier_job_synthese:
-            return render(request, "front/includes/synthese_en_cours.html", {
+            return render(request, "front/includes/synthese_en_cours_drawer.html", {
                 "page": page,
                 "erreur_synthese": "Aucun job de synthèse trouvé.",
             })
 
         if dernier_job_synthese.status in ("pending", "processing"):
-            # Toujours en cours → renvoyer le spinner
-            # / Still running → return spinner
-            return render(request, "front/includes/synthese_en_cours.html", {
+            # Toujours en cours → renvoyer le partial polling drawer
+            # / Still running → return polling drawer partial
+            return render(request, "front/includes/synthese_en_cours_drawer.html", {
                 "page": page,
             })
 
         if dernier_job_synthese.status == "completed":
-            # Termine → renvoyer le bouton "Voir la synthese"
-            # / Completed → return "View synthesis" button
+            # Termine → renvoyer le partial OOB qui :
+            # - recharge zone-lecture vers la V2 (hx-trigger="load")
+            # - met a jour le pill switcher de versions
+            # + HX-Trigger fermerDrawer pour fermer le drawer automatiquement
+            # / Completed → return OOB partial that:
+            # - reloads zone-lecture to V2 (hx-trigger="load")
+            # - updates version switcher pill
+            # + HX-Trigger fermerDrawer to close drawer automatically
             page_synthese_id = dernier_job_synthese.raw_result.get("page_synthese_id")
             numero_version = dernier_job_synthese.raw_result.get("version_number", 2)
-            return render(request, "front/includes/synthese_en_cours.html", {
-                "page": page,
-                "synthese_terminee": True,
-                "page_synthese_id": page_synthese_id,
-                "version_number": numero_version,
+            html_oob = render_to_string(
+                "front/includes/synthese_terminee_oob.html",
+                {
+                    "page_synthese_id": page_synthese_id,
+                    "version_number": numero_version,
+                },
+                request=request,
+            )
+            reponse = HttpResponse(html_oob)
+            # Pas de showToast ici : le toast est deja envoye via WebSocket par
+            # synthetiser_page_task (signal synthese_terminee → ws_synthese_terminee.html).
+            # Ajouter un showToast SweetAlert ferait doublon avec le toast WS qui est
+            # plus riche (lien cliquable vers la V2).
+            # / No showToast here: the toast is already sent via WebSocket by
+            # / synthetiser_page_task. Adding a SweetAlert toast would duplicate the
+            # / richer WS toast (with clickable link to V2).
+            reponse["HX-Trigger"] = json.dumps({
+                "fermerDrawer": True,
             })
+            return reponse
 
-        # Erreur → afficher le message et un bouton retry
-        # / Error → show message and retry button
+        # Erreur → afficher le message et un bouton retry dans le drawer
+        # / Error → show message and retry button in the drawer
         message_erreur = dernier_job_synthese.error_message or "Erreur inconnue lors de la synthèse."
-        return render(request, "front/includes/synthese_en_cours.html", {
+        return render(request, "front/includes/synthese_en_cours_drawer.html", {
             "page": page,
             "erreur_synthese": message_erreur,
         })
@@ -5292,7 +5603,11 @@ class ExtractionViewSet(viewsets.ViewSet):
     def dashboard(self, request):
         """
         Renvoie le dashboard de consensus pour une page donnee.
+        Delegue le calcul au helper _calculer_consensus pour partage avec
+        previsualiser_synthese (drawer de confirmation).
         / Returns the consensus dashboard for a given page.
+        / Delegates calculation to _calculer_consensus helper for sharing with
+        / previsualiser_synthese (confirmation drawer).
         """
         identifiant_page = request.query_params.get("page_id")
         if not identifiant_page:
@@ -5300,88 +5615,20 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         page = get_object_or_404(Page, pk=identifiant_page)
 
-        # Toutes les entites non masquees de la page
-        # / All non-hidden entities for the page
-        tous_les_jobs_termines = ExtractionJob.objects.filter(
-            page=page, status="completed",
-        )
-        toutes_les_entites_visibles = ExtractedEntity.objects.filter(
-            job__in=tous_les_jobs_termines,
-            masquee=False,
-        )
+        # Calculer l'etat du consensus via le helper / Compute consensus state via helper
+        donnees_consensus = _calculer_consensus(page)
 
-        # Compteurs par statut (6 statuts) / Counts per status (6 statuses)
-        compteurs_par_statut = dict(
-            toutes_les_entites_visibles.values_list("statut_debat").annotate(
-                count=Count("id"),
-            )
-        )
-        compteur_nouveau = compteurs_par_statut.get("nouveau", 0)
-        compteur_consensuel = compteurs_par_statut.get("consensuel", 0)
-        compteur_discutable = compteurs_par_statut.get("discutable", 0)
-        compteur_discute = compteurs_par_statut.get("discute", 0)
-        compteur_controverse = compteurs_par_statut.get("controverse", 0)
-        compteur_non_pertinent = compteurs_par_statut.get("non_pertinent", 0)
-        # Total toutes entites visibles (pour l'etat vide du dashboard)
-        # / Total all visible entities (for dashboard empty state)
-        total_entites_toutes = (
-            compteur_nouveau + compteur_consensuel + compteur_discutable
-            + compteur_discute + compteur_controverse + compteur_non_pertinent
-        )
-
-        # Total pour le consensus : exclure nouveau et non_pertinent (pas dans le cycle deliberatif)
-        # / Total for consensus: exclude nouveau and non_pertinent (not in deliberative cycle)
-        total_entites = compteur_consensuel + compteur_discutable + compteur_discute + compteur_controverse
-
-        # Pourcentage de consensus (garde div-by-zero)
-        # / Consensus percentage (guard div-by-zero)
-        if total_entites > 0:
-            pourcentage_consensus = round(compteur_consensuel * 100 / total_entites)
-        else:
-            pourcentage_consensus = 0
-
-        # Extractions bloquantes : controverse d'abord, puis discute,
-        # triees par nombre de commentaires (les plus discutees en haut)
-        # / Blocking extractions: controverse first, then discute,
-        # sorted by comment count (most discussed on top)
-        extractions_bloquantes = toutes_les_entites_visibles.filter(
-            statut_debat__in=["controverse", "discute"],
-        ).annotate(
-            nombre_commentaires=Count("commentaires"),
-            # Ordre explicite : controverse=0 (en premier), discute=1
-            # / Explicit order: controverse=0 (first), discute=1
-            ordre_statut=Case(
-                When(statut_debat="controverse", then=Value(0)),
-                When(statut_debat="discute", then=Value(1)),
-                default=Value(2),
-            ),
-        ).order_by(
-            "ordre_statut",
-            "-nombre_commentaires",
-        )[:10]
-
-        # Seuil atteint ? / Threshold reached?
-        seuil_atteint = pourcentage_consensus >= SEUIL_CONSENSUS_DEFAUT
+        # Liste des analyseurs de synthese pour le bouton du dashboard
+        # / Synthesis analyzers list for the dashboard button
+        analyseurs_synthese = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="synthetiser",
+        ).order_by("-est_par_defaut", "name")
 
         contexte = {
             "page": page,
-            "compteur_nouveau": compteur_nouveau,
-            "compteur_consensuel": compteur_consensuel,
-            "compteur_discutable": compteur_discutable,
-            "compteur_discute": compteur_discute,
-            "compteur_controverse": compteur_controverse,
-            "compteur_non_pertinent": compteur_non_pertinent,
-            "total_entites_toutes": total_entites_toutes,
-            "total_entites": total_entites,
-            "pourcentage_consensus": pourcentage_consensus,
-            "seuil_consensus": SEUIL_CONSENSUS_DEFAUT,
-            "seuil_atteint": seuil_atteint,
-            "extractions_bloquantes": extractions_bloquantes,
-            "analyseurs_synthese": AnalyseurSyntaxique.objects.filter(
-                is_active=True, type_analyseur="synthetiser",
-            ).order_by("name"),
+            "analyseurs_synthese": analyseurs_synthese,
+            **donnees_consensus,
         }
-
         return render(request, "front/includes/dashboard_consensus.html", contexte)
 
     @action(detail=False, methods=["GET"], url_path="drawer_contenu")

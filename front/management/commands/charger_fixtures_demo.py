@@ -881,6 +881,7 @@ class Command(BaseCommand):
                 "is_active": True,
                 "inclure_extractions": False,
                 "inclure_texte_original": False,
+                "est_par_defaut": True,
             },
         )
         if analyseur_cree:
@@ -1089,6 +1090,7 @@ class Command(BaseCommand):
             defaults={
                 "type_analyseur": "reformuler",
                 "is_active": True,
+                "est_par_defaut": True,
             },
         )
         if falc_cree:
@@ -1107,6 +1109,9 @@ class Command(BaseCommand):
             defaults={
                 "type_analyseur": "synthetiser",
                 "is_active": True,
+                "inclure_extractions": True,
+                "inclure_texte_original": True,
+                "est_par_defaut": True,
                 "description": (
                     "Génère une nouvelle version du texte intégrant le débat structuré "
                     "(hypostases + commentaires + statuts). Pondère les passages selon "

@@ -2,7 +2,10 @@
 {# Variables : niveau (info|succes|avertissement|erreur), titre, message #}
 {# / OOB fragment injected into #ws-toasts by NotificationConsumer via WebSocket. #}
 {# / Variables: niveau (info|succes|avertissement|erreur), titre, message #}
-<div id="ws-toasts" hx-swap-oob="beforeend">
+{# Syntaxe explicite "beforeend:#ws-toasts" : la forme courte avec id porteur #}
+{# (id="ws-toasts" hx-swap-oob="beforeend") ne fonctionne PAS avec htmx-ext-ws-2.0.4. #}
+{# / Explicit syntax: short form (id+hx-swap-oob alone) does NOT work with htmx-ext-ws-2.0.4. #}
+<div hx-swap-oob="beforeend:#ws-toasts">
     <div class="ws-toast ws-toast--{{ niveau }}"
          role="alert"
          data-testid="ws-toast">

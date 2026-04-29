@@ -60,6 +60,7 @@
                 <option value="analyser" {% if analyseur.type_analyseur == "analyser" %}selected{% endif %}>Analyser</option>
                 <option value="reformuler" {% if analyseur.type_analyseur == "reformuler" %}selected{% endif %}>Reformuler</option>
                 <option value="restituer" {% if analyseur.type_analyseur == "restituer" %}selected{% endif %}>Restituer</option>
+                <option value="synthetiser" {% if analyseur.type_analyseur == "synthetiser" %}selected{% endif %}>Synthétiser</option>
             </select>
         </div>
 
@@ -75,7 +76,7 @@
                     <div class="w-9 h-5 bg-slate-300 rounded-full peer-checked:bg-blue-500 transition-colors"></div>
                     <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform"></div>
                 </div>
-                <span class="text-sm text-slate-700">Inclure les extractions dans le contexte</span>
+                <span class="text-sm text-slate-700">Inclure les extractions et leurs commentaires</span>
             </label>
             <label class="flex items-center gap-3 cursor-pointer">
                 <div class="relative">
@@ -87,6 +88,17 @@
                     <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform"></div>
                 </div>
                 <span class="text-sm text-slate-700">Inclure le texte original dans le contexte</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer">
+                <div class="relative">
+                    <input type="checkbox" id="toggle-est-par-defaut-{{ analyseur.id }}"
+                           {% if analyseur.est_par_defaut %}checked{% endif %}
+                           class="toggle-contexte sr-only peer"
+                           data-champ="est_par_defaut">
+                    <div class="w-9 h-5 bg-slate-300 rounded-full peer-checked:bg-blue-500 transition-colors"></div>
+                    <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform"></div>
+                </div>
+                <span class="text-sm text-slate-700">Analyseur par défaut pour son type</span>
             </label>
         </div>
 
@@ -166,6 +178,10 @@
 (function() {
     var editor = document.getElementById('analyseur-editor');
     if (!editor) return;
+
+    // ID de l'analyseur — partage entre tous les callbacks (PATCH, fetch, etc.)
+    // / Analyzer ID — shared across all callbacks (PATCH, fetch, etc.)
+    var analyseurId = editor.dataset.analyseurId;
 
     // === Collapsible toggle (reduire/ouvrir des sections) ===
     // Tous les elements avec class="collapsible-toggle" et data-target="id-cible"
@@ -272,7 +288,6 @@
         if (!btn) return;
 
         var exampleId = btn.dataset.exampleId;
-        var analyseurId = editor.dataset.analyseurId;
 
         // Collecte toutes les extractions du conteneur #extractions-{exampleId}
         var extractionsContainer = document.getElementById('extractions-' + exampleId);
@@ -356,7 +371,11 @@
     }
 
     // === Switches options de contexte — auto-save via PATCH ===
-    // / Context option switches — auto-save via PATCH
+    // Apres le PATCH, on lit le header HX-Trigger pour declencher le toast
+    // d'info (utilise quand est_par_defaut decoche un autre analyseur).
+    // / Context option switches — auto-save via PATCH.
+    // / After PATCH, we read HX-Trigger header to dispatch the info toast
+    // / (used when est_par_defaut unchecks another analyzer).
     editor.querySelectorAll('.toggle-contexte').forEach(function(toggle) {
         toggle.addEventListener('change', function() {
             var nomChamp = this.dataset.champ;
@@ -372,6 +391,19 @@
                 method: 'PATCH',
                 headers: headers,
                 body: JSON.stringify(donnees),
+            }).then(function(reponse) {
+                // Lire le HX-Trigger pour relayer les toasts (showToast, etc.)
+                // / Read HX-Trigger to relay toasts (showToast, etc.)
+                var entete = reponse.headers.get('HX-Trigger');
+                if (!entete) return;
+                try {
+                    var triggers = JSON.parse(entete);
+                    Object.keys(triggers).forEach(function(nomEvent) {
+                        document.body.dispatchEvent(new CustomEvent(nomEvent, {
+                            detail: triggers[nomEvent],
+                        }));
+                    });
+                } catch (e) { /* ignore */ }
             });
         });
     });

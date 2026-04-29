@@ -274,6 +274,7 @@ document.addEventListener('click', async function(evenement) {
         + '  <option value="analyser">Analyser</option>'
         + '  <option value="reformuler">Reformuler</option>'
         + '  <option value="restituer">Restituer</option>'
+        + '  <option value="synthetiser">Synthétiser</option>'
         + '</select>';
 
     var resultatSwal = await Swal.fire({
@@ -323,11 +324,24 @@ document.addEventListener('click', async function(evenement) {
 // / Right panel: open / close
 // ==========================================================================
 
-// Panneau droit : delegue au drawer vue liste
-// / Right panel: delegates to drawer list view
+// Panneau droit : delegue au drawer vue liste.
+// PHASE-29 : on appelle ouvrir(false) car le caller HTMX (synthetiser, analyser,
+// previsualiser_synthese) a deja swappe le contenu dans #drawer-contenu via
+// hx-target. Si on rechargeait le contenu, on ecraserait le partial specifique.
+// / Right panel: delegates to drawer list view.
+// / PHASE-29: we call ouvrir(false) because the HTMX caller has already swapped
+// / content into #drawer-contenu via hx-target. Reloading would overwrite it.
 function ouvrirPanneauDroit() {
     if (window.drawerVueListe) {
-        window.drawerVueListe.ouvrir();
+        window.drawerVueListe.ouvrir(false);
+    }
+}
+
+// Symetrique : fermer le drawer (utilise par PHASE-29 fin de synthese)
+// / Symmetric: close the drawer (used by PHASE-29 end of synthesis)
+function fermerPanneauDroit() {
+    if (window.drawerVueListe) {
+        window.drawerVueListe.fermer();
     }
 }
 
@@ -345,6 +359,14 @@ document.body.addEventListener('ouvrirPanneauDroit', function() {
 // / sent by analyser() via HX-Trigger to open drawer after launch
 document.body.addEventListener('ouvrirDrawer', function() {
     ouvrirPanneauDroit();
+});
+
+// Ecoute l'evenement HTMX custom "fermerDrawer" (PHASE-29)
+// envoye par synthese_status() quand la synthese se termine
+// / Listens for HTMX custom event "fermerDrawer" (PHASE-29)
+// / sent by synthese_status() when synthesis completes
+document.body.addEventListener('fermerDrawer', function() {
+    fermerPanneauDroit();
 });
 
 // --- SweetAlert sur erreur HTMX ---
