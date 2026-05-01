@@ -1,7 +1,62 @@
 # PLAN — Hypostasia : du POC a la production
 
-> Ce document est la reference vivante du projet. Il decrit l'etat actuel de chaque composant,
-> les problemes identifies, et les phases d'amelioration prevues.
+> Ce document est la reference **historique** du projet. Il decrit l'etat actuel de chaque composant,
+> les problemes identifies, et les phases d'amelioration prevues lors de la conception initiale.
+
+---
+
+## ⚠️ Etat 2026-04-26 — Refonte v4 en cours
+
+**Ce document reste valide pour la philosophie produit, les valeurs fondatrices, la geometrie du debat,
+et l'etat des phases livrees (1 a 29-normalize). Mais une refonte technique majeure a ete decidee.**
+
+### Document de reference active : `INSPIRATION_ATOMIC.md`
+
+Toute la planification technique des phases futures (PHASE-30 a 38) est dans
+[INSPIRATION_ATOMIC.md](INSPIRATION_ATOMIC.md). Lire ce document **en priorite** pour
+comprendre ce qui va se passer.
+
+### Decisions tranchees (resume executif — voir INSPIRATION_ATOMIC.md section 1)
+
+1. **1 chunk markdown-aware = 1 extraction** (modele Atomic-style, abandon de la sur-extraction LangExtract)
+2. **Suppression de LangExtract** complete (PHASE-38), remplacee par **Pydantic + instructor + structured outputs natifs**
+3. **Selection manuelle conservee** pour la precision fine (cas philosophie dense, juridique)
+4. **Sourcage `[N]` automatique** des syntheses (pattern Atomic), remplace les SourceLinks manuels de la PHASE-27c
+5. **Chunking markdown-aware** avec parametres adaptes (400 tokens cible, 0 overlap, transcriptions = 1 bloc/chunk)
+6. **OpenRouter** + `instructor` pour le provider LLM unifie
+7. **RAG via pgvector** (PHASES 33-34) : recherche semantique cross-documents, alignement semantique, chat agentique, detection de doublons
+8. **Section_ops** pour update incremental des syntheses (PHASE-36) — preserve les `[N]` byte-exact
+9. **Refactoring profond, pas from scratch** : ~75% du code existant reste utile
+
+### Ce qui change dans ce document
+
+| Section | Etat 2026-04-26 |
+|---|---|
+| Vision produit, valeurs fondatrices, geometrie du debat (intro et resume) | ✅ Reste valide |
+| Section 1 (Etat actuel du POC) | ✅ Historique — POC originel avant les phases livrees |
+| Section 2 (Phase 1 — Socle technique) | ✅ Phases 1.x livrees (PHASE-01 a 23). Voir `PHASES/INDEX.md` |
+| Section 3 (Phase 2 — Users) | ✅ Phases livrees (PHASE-25, 25b, 25c, 25d, 25d-v2) |
+| Section 4 (Phase 3 — Providers IA) | ⚠️ **OBSOLETE** — Etape 3.1/3.2 livrees (PHASE-24). Strategie LangExtract abandonnee : LangExtract sera **supprime** en PHASE-38, remplace par instructor + OpenRouter (PHASE-32) |
+| Section 5 (Phase 4 — Prompts et couts) | ✅ Phases livrees (PHASE-26b, 26g, 26h) |
+| Section 6 (Phase 5 — Collab et tracabilite) | ⚠️ **REPENSEE** — Etapes 5.1 (SourceLink) + 5.6 (wizard 5 etapes) **largement automatisees** par sourcage `[N]` (PHASE-30). Le wizard est conserve comme option future, pas comme priorite. Etapes 27a/27b livrees, 27c/27d/27e replacees par PHASE-30 |
+| Section 7 (Phase 6 — Recherche semantique) | ⚠️ **DETAILLEE EN PHASE-33/34** — voir INSPIRATION_ATOMIC.md section 6. La recherche semantique devient le RAG complet (chunking markdown-aware + pgvector + chat agentique + detection doublons + alignement semantique) |
+| Section 8 (Phase 7 — Deep Research) | ✅ Reporte (post-refonte v4) |
+| Section 9 (Phase 8 — Live audio) | ✅ Reporte (post-refonte v4) |
+| Section 10 (Phase 9 — Mode local) | ✅ Reporte (post-refonte v4) |
+| Section 11 (Regles transverses) | ✅ Reste valide |
+
+### Documents devenus obsoletes
+
+- `PLAN/LANGEXTRACT_OVERRIDES.md` — DEPRECIE, sera supprime apres PHASE-38
+
+### Pour une nouvelle session
+
+Lire dans cet ordre :
+1. `PLAN/README.md` (porte d'entree)
+2. `INSPIRATION_ATOMIC.md` (spec de refonte v4 — la reference active)
+3. `PLAN/PHASES/INDEX.md` (suivi d'avancement, phases attendues 30-38)
+4. **Ce document (PLAN.md) en derniere priorite** : utile pour la philosophie produit
+   et l'historique des decisions, mais l'implementation suit INSPIRATION_ATOMIC.md.
 
 ---
 
@@ -1919,6 +1974,20 @@ Documente dans CLAUDE.md section 6.
 
 ## 4. Phase 3 — Providers IA unifies
 
+> ⚠️ **NOTE 2026-04-26 — REFONTE v4** : cette section decrit la strategie d'origine
+> (couche d'abstraction LLM avec LangExtract conserve pour l'extraction). La refonte
+> v4 a tranche differemment :
+>
+> - **PHASE-32** ajoute **OpenRouter** (200+ modeles via une API unifiee) + **instructor**
+>   (Pydantic + retry automatique pour les structured outputs)
+> - **PHASE-38** **supprime LangExtract completement** : extraction Atomic-style avec
+>   Pydantic + JSON Schema natif, plus de dependance externe
+> - La strategie "garder LangExtract et contribuer en upstream" decrite ci-dessous est
+>   **abandonnee**
+>
+> Voir `INSPIRATION_ATOMIC.md` section 9 (provider LLM unifie) et Annexe A (PHASE-32, PHASE-38).
+> La PHASE-24 livree reste un acquis, OpenRouter etend simplement les backends existants.
+
 > Objectif : une couche d'abstraction unique pour tous les appels LLM (extraction, reformulation, restitution, transcription).
 
 ### Etat actuel des providers
@@ -2063,6 +2132,28 @@ Documente dans CLAUDE.md section 6.
 ---
 
 ## 6. Phase 5 — Edition collaborative et fil de tracabilite
+
+> ⚠️ **NOTE 2026-04-26 — REFONTE v4** : cette section decrit le wizard de synthese
+> en 5 etapes (Etape 5.6) avec sourcage manuel via popup, et le modele SourceLink
+> peuple manuellement. La refonte v4 a tranche differemment :
+>
+> - **PHASE-30** automatise le sourcage des syntheses via le pattern `[N]` d'Atomic :
+>   le LLM cite `[1]`, `[2]`, ... dans la prose, le code parse les `[N]` et cree les
+>   SourceLinks par index. **Plus besoin de wizard 5 etapes** pour la traçabilite —
+>   elle vient gratis dans le pipeline.
+> - **Etape 5.1 (SourceLink)** : modele etendu avec `citation_index` (auto-rempli) et
+>   `commentaire_source` (FK). Plus de peuplement manuel necessaire.
+> - **Etape 5.6 (wizard 5 etapes)** : conserve comme **option future** si besoin de
+>   controle fin — non prioritaire. PHASE-28-light + PHASE-30 + PHASE-36 (section_ops)
+>   couvrent le besoin de base.
+> - **Etapes 27a, 27b** livrees (PageEdit, diff side-by-side). **Etapes 27c, 27d, 27e
+>   reportees** : 27c/27d sont automatisees par PHASE-30, 27e (verrous) reste optionnel.
+> - **Etape 5.7 (export PDF/HTML)** : reste valide, mais reportee post-refonte v4.
+> - **Etape 5.8 (comparaison cote-a-cote avec provenance)** : remplacee par PHASE-27b
+>   (livree, diff side-by-side). Les indicateurs de provenance ✎/🤖/🤖⚠️ peuvent etre
+>   ajoutes en sous-phase si le besoin se confirme.
+>
+> Voir `INSPIRATION_ATOMIC.md` section 5 (sourcage `[N]`) et section 7 (section_ops).
 
 > Objectif : permettre l'edition du texte source avec historique, traçabilite,
 > et navigation complete du fil de reflexion (texte source → extraction → debat → synthese → nouvelle version).
@@ -2584,6 +2675,25 @@ c'est une observation qui aide le facilitateur a decider si la version est prete
 ---
 
 ## 7. Phase 6 — Recherche semantique
+
+> ⚠️ **NOTE 2026-04-26 — REFONTE v4** : cette section decrit la recherche semantique
+> de maniere generique. La refonte v4 a etendu cette ambition en un **RAG complet
+> integre** (chunking markdown-aware + embeddings + recherche + chat agentique +
+> alignement semantique + detection de doublons + cas d'usage sociaux).
+>
+> Decomposition en phases concretes :
+>
+> - **PHASE-31** : chunking markdown-aware (prerequis pour le RAG)
+> - **PHASE-33** : RAG socle (pgvector, pipeline d'embedding, hooks Celery)
+> - **PHASE-34** : RAG features (recherche semantique cross-documents, detection de
+>   doublons, auto-suggestion d'hypostase, alignement semantique en extension de PHASE-18)
+> - **PHASE-35** : chat agentique avec la base (equivalent du chat Atomic)
+> - **PHASE-37+** : sociales × RAG (notifications "ce qui te concerne", cartographie
+>   contributeurs, detection contradiction cross-document, heat map semantique,
+>   geometrie du debat enrichie 7e facette, suggestion d'analyseur)
+>
+> Voir `INSPIRATION_ATOMIC.md` section 6 (RAG complet) + section 8 (sociales × RAG)
+> + Annexe A (squelettes de phases).
 
 > Objectif : retrouver des passages par sens, pas seulement par mots-cles.
 

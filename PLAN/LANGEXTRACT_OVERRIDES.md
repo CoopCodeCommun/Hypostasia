@@ -1,5 +1,19 @@
 # Surcharges LangExtract — Registre de maintenance
 
+> ⚠️ **DOCUMENT DÉPRÉCIÉ** (depuis 2026-04-26)
+>
+> LangExtract sera **supprimé en PHASE-38** (refonte du pipeline d'extraction
+> Atomic-style : 1 chunk markdown-aware = 1 extraction, validation Pydantic via
+> instructor, pas de dépendance externe pour l'extraction).
+>
+> Voir `PLAN/INSPIRATION_ATOMIC.md` section 2 (refactoring) et Annexe A (PHASE-38)
+> pour le plan de suppression.
+>
+> Ce document reste utile **tant que LangExtract est en place**. Une fois la
+> PHASE-38 livrée, ce fichier peut être supprimé du repo.
+
+---
+
 > Ce document recense toutes les surcharges appliquees a la lib `langextract` dans
 > Hypostasia. A consulter **a chaque mise a jour** de la dependance.
 

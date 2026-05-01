@@ -118,17 +118,48 @@ Toutes Phase 1 ──► PHASE-23 (Playwright)
 | [27e](PHASE-27e.md) | Tracabilite : verrous d'edition optimistes | S | [ ] | | |
 | [28](PHASE-28.md) | Wizard synthese 5 etapes + export PDF/HTML + provenance (si besoin) | L | [ ] | | |
 
-### Phases avancees (non detaillees)
+### Refonte v4 — phases attendues (post-2026-04-26)
+
+> Spec complete : `../INSPIRATION_ATOMIC.md`. Squelettes prets a deroulert dans
+> l'Annexe A du meme document. Decision validee : refactoring profond (pas from
+> scratch), adoption du modele Atomic-style (1 chunk = 1 extraction), suppression
+> de LangExtract.
+
+| # | Titre | Taille | Prerequis | Statut |
+|---|---|---|---|---|
+| 31 | Chunking markdown-aware (methode rasoir style Atomic) | M | aucun | [ ] |
+| 32 | OpenRouter + instructor (provider LLM unifie, structured outputs) | S | PHASE-24 | [ ] |
+| 38 | Refonte pipeline extraction Atomic-style (1 chunk = 1 extraction, suppression LangExtract) | L | 31, 32 | [ ] |
+| 30 | Sourcage [N] automatique des syntheses deliberatives | M | 28-light, 32 | [ ] |
+| 33 | RAG socle (pgvector + pipeline d'embedding) | L | 31, 32 | [ ] |
+| 34 | RAG features (recherche semantique, doublons, alignement semantique) | L | 33 | [ ] |
+| 36 | Update incremental section_ops (syntheses) | L | 30 | [ ] |
+| 35 | Chat agentique avec la base | L | 34 | [ ] |
+| 37a | Notifications "ce qui te concerne" | S | 34 | [ ] |
+| 37b | Cartographie contributeurs par sujet | M | 34 | [ ] |
+| 37c | Detection contradiction cross-document | M | 34 | [ ] |
+| 37d | Heat map semantique (extension PHASE-19) | S | 34 | [ ] |
+| 37e | Geometrie du debat enrichie (7e facette semantique) | M | 34 | [ ] |
+| 37f | Suggestion d'analyseur a l'import | S | 34, 26b | [ ] |
+
+**Ordre suggere** : 31 → 32 → 38 → 30 → 33 → 34 → 36 → 35 → 37 (sous-phases independantes).
+
+**Note importante** : la refonte rend obsoletes plusieurs phases anciennes :
+- **PHASE-29-normalize** devient inutile (Pydantic + JSON Schema natif valident a la source)
+- **PHASE-27c (SourceLinks manuels)** est largement automatisee par PHASE-30
+- **PHASE-27d (fil de reflexion)** profite de la chaine `[N]` plus simple
+- **`LANGEXTRACT_OVERRIDES.md`** sera supprime apres PHASE-38
+
+### Phases avancees (non detaillees, post-refonte v4)
 
 | # | Titre | Statut |
 |---|---|---|
-| 29+ | Recherche semantique (embeddings + pgvector) | [ ] |
-| 30+ | Deep Research (LDR) | [ ] |
-| 31+ | Live audio MVP | [ ] |
-| 32+ | Live audio streaming + collab | [ ] |
-| 33+ | Mode local : audit + stack IA | [ ] |
-| 34+ | Mode local : hardware + image | [ ] |
-| 35+ | WebSocket temps reel collaboratif : push cartes inline, commentaires, statuts, analyses a tous les lecteurs | [ ] |
+| 39+ | Live audio MVP | [ ] |
+| 40+ | Live audio streaming + collab | [ ] |
+| 41+ | Mode local : audit + stack IA | [ ] |
+| 42+ | Mode local : hardware + image | [ ] |
+| 43+ | WebSocket temps reel collaboratif (push cartes, commentaires, statuts) | [ ] |
+| 44+ | Deep Research (LDR — exploration documentaire automatisee) | [ ] |
 
 ## Verification apres chaque phase
 
