@@ -51,8 +51,8 @@ class Dossier(models.Model):
     )
     # Visibilite du dossier : prive (defaut), partage, public
     # / Folder visibility: private (default), shared, public
-    # Description courte du dossier (optionnel, visible dans l'Explorer)
-    # / Short folder description (optional, shown in Explorer)
+    # Description courte du dossier (optionnel)
+    # / Short folder description (optional)
     description = models.CharField(
         max_length=200, blank=True, default="",
         help_text="Description courte du dossier (optionnel) / Short folder description (optional)",
@@ -1243,41 +1243,6 @@ class Invitation(models.Model):
     def __str__(self):
         cible = self.dossier.name if self.dossier else f"groupe:{self.groupe.nom}"
         return f"Invitation {self.email} → {cible}"
-
-
-class DossierSuivi(models.Model):
-    """
-    Suivi d'un dossier public par un utilisateur.
-    Permet d'ajouter un dossier public dans la section "Suivis" de l'arbre.
-    / Follow of a public folder by a user.
-    Allows adding a public folder in the "Followed" section of the tree.
-    """
-    utilisateur = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-        related_name="dossiers_suivis",
-        help_text="Utilisateur qui suit le dossier / User following the folder",
-    )
-    dossier = models.ForeignKey(
-        Dossier, on_delete=models.CASCADE,
-        related_name="suivis",
-        help_text="Dossier suivi / Followed folder",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = "Suivi de dossier"
-        verbose_name_plural = "Suivis de dossiers"
-        constraints = [
-            # Unicite : un utilisateur ne peut suivre un dossier qu'une fois
-            # / Uniqueness: a user can follow a folder only once
-            models.UniqueConstraint(
-                fields=["utilisateur", "dossier"],
-                name="unique_suivi_utilisateur_dossier",
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.utilisateur.username} suit {self.dossier.name}"
 
 
 # =============================================================================

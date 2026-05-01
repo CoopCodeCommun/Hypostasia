@@ -18,7 +18,7 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, Configuration, Dossier, DossierPartage, DossierSuivi, GroupeUtilisateurs, Invitation, Page, PageEdit, Question, ReponseQuestion, TranscriptionConfig, VisibiliteDossier
+from core.models import AIModel, Configuration, Dossier, DossierPartage, GroupeUtilisateurs, Invitation, Page, PageEdit, Question, ReponseQuestion, TranscriptionConfig, VisibiliteDossier
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
     ExampleExtraction, ExtractionAttribute,
@@ -346,21 +346,8 @@ def _render_arbre(request):
             Q(owner=request.user) | Q(owner__isnull=True)
         ).distinct()
 
-        # Dossiers suivis (PHASE-25d) — uniquement ceux qui sont encore publics
-        # / Followed folders (PHASE-25d) — only those still public
-        ids_dossiers_suivis = DossierSuivi.objects.filter(
-            utilisateur=request.user,
-        ).values_list("dossier_id", flat=True)
-
-        dossiers_suivis = Dossier.objects.prefetch_related(
-            pages_racines_seulement,
-        ).select_related("owner").filter(
-            pk__in=ids_dossiers_suivis,
-            visibilite=VisibiliteDossier.PUBLIC,
-        ).distinct()
-
-        # Dossiers publics (tous, avec owner affiche) — exclut suivis et partages
-        # / Public folders (all, with owner displayed) — excludes followed and shared
+        # Dossiers publics (tous, avec owner affiche) — exclut les partages
+        # / Public folders (all, with owner displayed) — excludes shared
         dossiers_publics = Dossier.objects.prefetch_related(
             pages_racines_seulement,
         ).select_related("owner").filter(
@@ -371,15 +358,12 @@ def _render_arbre(request):
             pk__in=ids_dossiers_partages_directs,
         ).exclude(
             pk__in=ids_dossiers_partages_groupe,
-        ).exclude(
-            pk__in=ids_dossiers_suivis,
         ).distinct()
     else:
         # Anonyme : uniquement les dossiers publics
         # / Anonymous: only public folders
         mes_dossiers = Dossier.objects.none()
         dossiers_partages = Dossier.objects.none()
-        dossiers_suivis = Dossier.objects.none()
         dossiers_publics = Dossier.objects.prefetch_related(
             pages_racines_seulement,
         ).select_related("owner").filter(
@@ -394,9 +378,6 @@ def _render_arbre(request):
     total_pages_partages = 0
     for dossier_comptage in dossiers_partages:
         total_pages_partages += dossier_comptage.pages.count()
-    total_pages_suivis = 0
-    for dossier_comptage in dossiers_suivis:
-        total_pages_suivis += dossier_comptage.pages.count()
     total_pages_publics = 0
     for dossier_comptage in dossiers_publics:
         total_pages_publics += dossier_comptage.pages.count()
@@ -404,11 +385,9 @@ def _render_arbre(request):
     return render(request, "front/includes/arbre_dossiers.html", {
         "mes_dossiers": mes_dossiers,
         "dossiers_partages": dossiers_partages,
-        "dossiers_suivis": dossiers_suivis,
         "dossiers_publics": dossiers_publics,
         "total_pages_mes_dossiers": total_pages_mes_dossiers,
         "total_pages_partages": total_pages_partages,
-        "total_pages_suivis": total_pages_suivis,
         "total_pages_publics": total_pages_publics,
     })
 

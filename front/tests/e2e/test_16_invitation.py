@@ -1,15 +1,15 @@
 """
-Tests E2E PHASE-25d — Invitation par email, Explorer, Suivis.
-/ E2E tests PHASE-25d — Email invitation, Explorer, Follows.
+Tests E2E PHASE-25d — Invitation par email.
+/ E2E tests PHASE-25d — Email invitation.
 
-Lancer avec : uv run python manage.py test front.tests.e2e.test_16_invitation_explorer -v2
+Lancer avec : uv run python manage.py test front.tests.e2e.test_16_invitation -v2
 """
 
 from front.tests.e2e.base import PlaywrightLiveTestCase
 
 
-class Phase25dExplorerE2ETest(PlaywrightLiveTestCase):
-    """Tests E2E pour l'Explorer et les invitations."""
+class Phase25dInvitationE2ETest(PlaywrightLiveTestCase):
+    """Tests E2E pour les invitations par email."""
 
     # ====================================================================
     # Helpers
@@ -34,79 +34,9 @@ class Phase25dExplorerE2ETest(PlaywrightLiveTestCase):
         self.page.click('[data-testid="btn-submit-login"]')
         self.page.wait_for_url("**/")
 
-    def creer_dossier_public(self, nom="Dossier public test", username="pubowner"):
-        """
-        Cree un dossier public via l'ORM.
-        / Create a public folder via ORM.
-        """
-        from core.models import Dossier, VisibiliteDossier
-        from django.contrib.auth.models import User
-        owner, _ = User.objects.get_or_create(
-            username=username, defaults={"password": "test1234"},
-        )
-        if not owner.has_usable_password():
-            owner.set_password("test1234")
-            owner.save()
-        return Dossier.objects.create(
-            name=nom, owner=owner, visibilite=VisibiliteDossier.PUBLIC,
-        )
-
     # ====================================================================
     # Tests
     # ====================================================================
-
-    def test_01_explorer_charge_anonyme(self):
-        """Explorer charge et affiche les dossiers publics (anonyme).
-        / Explorer loads and shows public folders (anonymous)."""
-        self.creer_dossier_public("Philo publique", "own_e2e_1")
-        self.naviguer_vers("/explorer/")
-        self.page.wait_for_selector('[data-testid="explorer-card"]')
-        self.assertTrueWithRetry(
-            lambda: "Philo publique" in self.page.content(),
-            "Le dossier public doit etre visible",
-        )
-
-    def test_02_recherche_filtre(self):
-        """Recherche filtre les resultats en temps reel.
-        / Search filters results in real time."""
-        self.creer_dossier_public("Alpha dossier", "own_e2e_2")
-        self.creer_dossier_public("Beta dossier", "own_e2e_2")
-        self.naviguer_vers("/explorer/")
-        self.page.wait_for_selector('[data-testid="explorer-card"]')
-        self.page.fill('[data-testid="explorer-input-recherche"]', "Alpha")
-        self.page.wait_for_timeout(500)
-        self.assertTrueWithRetry(
-            lambda: "Alpha dossier" in self.page.content() and "Beta dossier" not in self.page.content(),
-            "Seul Alpha doit etre visible",
-        )
-
-    def test_03_bouton_suivre_absent_anonyme(self):
-        """Bouton Suivre absent pour anonyme.
-        / Follow button absent for anonymous."""
-        self.creer_dossier_public("Anon dossier", "own_e2e_3")
-        self.naviguer_vers("/explorer/")
-        self.page.wait_for_selector('[data-testid="explorer-card"]')
-        boutons_suivre = self.page.locator('[data-testid="btn-suivre"]')
-        self.assertEqual(boutons_suivre.count(), 0)
-
-    def test_04_suivre_apparait_arbre(self):
-        """Suivre → dossier apparait dans section Suivis de l'arbre.
-        / Follow → folder appears in Followed section of tree."""
-        dossier_pub = self.creer_dossier_public("Suivi arbre", "own_e2e_4")
-        self.creer_utilisateur_demo("suiveur_e2e", "test1234")
-        self.se_connecter("suiveur_e2e", "test1234")
-        self.naviguer_vers("/explorer/")
-        self.page.wait_for_selector('[data-testid="btn-suivre"]')
-        self.page.click('[data-testid="btn-suivre"]')
-        self.page.wait_for_timeout(500)
-        # Ouvrir l'arbre
-        self.naviguer_vers("/")
-        self.page.click('[data-testid="btn-hamburger-arbre"]')
-        self.page.wait_for_timeout(500)
-        self.assertTrueWithRetry(
-            lambda: "section-suivis" in self.page.content(),
-            "La section Suivis doit etre visible dans l'arbre",
-        )
 
     def test_05_inviter_email_existant(self):
         """Inviter un email existant → partage direct cree.

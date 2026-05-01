@@ -613,8 +613,8 @@ function _focusExtractionDepuisUrl() {
     }
 }
 
-// Ecouter htmx:pushedIntoHistory (navigation HTMX depuis Explorer)
-// / Listen to htmx:pushedIntoHistory (HTMX navigation from Explorer)
+// Ecouter htmx:pushedIntoHistory (navigation HTMX)
+// / Listen to htmx:pushedIntoHistory (HTMX navigation)
 document.body.addEventListener('htmx:pushedIntoHistory', function() {
     setTimeout(_focusExtractionDepuisUrl, 800);
 });

@@ -3,7 +3,6 @@ from rest_framework.routers import DefaultRouter
 from . import views
 from .views_alignement import AlignementViewSet
 from .views_auth import AuthViewSet
-from .views_explorer import ExplorerViewSet
 from .views_groupes import GroupeViewSet
 from .views_invitation import InvitationViewSet
 from .views_analyseurs import BibliothequeAnalyseursViewSet
@@ -26,7 +25,6 @@ router.register(r"questionnaire", views.QuestionnaireViewSet, basename="question
 router.register(r"alignement", AlignementViewSet, basename="alignement")
 router.register(r"auth", AuthViewSet, basename="auth")
 router.register(r"groupes", GroupeViewSet, basename="groupe")
-router.register(r"explorer", ExplorerViewSet, basename="explorer")
 router.register(r"invitation", InvitationViewSet, basename="invitation")
 router.register(r"analyseurs", BibliothequeAnalyseursViewSet, basename="analyseur-biblio")
 router.register(r"credits", CreditViewSet, basename="credit")

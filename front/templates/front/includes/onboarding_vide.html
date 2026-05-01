@@ -1,26 +1,23 @@
 {# Parcours d'onboarding — affiche quand aucune page n'est chargee #}
-{# Contient : onglets Decouvrir/Explorer + processus en 4 etapes + 6 statuts + raccourcis clavier #}
+{# Contient : onglets Decouvrir/Manifeste + processus en 4 etapes + 6 statuts + raccourcis clavier #}
 {# / Onboarding guide — displayed when no page is loaded #}
-{# / Contains: Discover/Explorer tabs + 4-step process + 6 statuses + keyboard shortcuts #}
+{# / Contains: Discover/Manifesto tabs + 4-step process + 6 statuses + keyboard shortcuts #}
 {# LOCALISATION : front/templates/front/includes/onboarding_vide.html #}
 
-{# === Barre d'onglets accueil (PHASE-25d-v2) === #}
-{# / === Home tabs bar (PHASE-25d-v2) === #}
+{# === Barre d'onglets accueil — Decouvrir / Manifeste (refonte A.1) === #}
+{# / === Home tabs bar — Discover / Manifesto (refactor A.1) === #}
 <div class="flex gap-3 justify-center pt-6 pb-4 border-b border-slate-200 mb-2" data-testid="onglets-accueil">
     <button class="onglet-accueil active"
             data-testid="onglet-decouvrir"
             aria-label="D&eacute;couvrir l'application"
-            onclick="document.getElementById('zone-onboarding').classList.remove('hidden'); this.classList.add('active'); this.nextElementSibling.classList.remove('active');">
+            onclick="document.getElementById('zone-onboarding').classList.remove('hidden'); document.getElementById('zone-manifeste').classList.add('hidden'); this.classList.add('active'); this.nextElementSibling.classList.remove('active');">
         D&eacute;couvrir l'app
     </button>
     <button class="onglet-accueil"
-            hx-get="/explorer/"
-            hx-target="#zone-lecture"
-            hx-swap="innerHTML"
-            hx-push-url="/explorer/"
-            data-testid="onglet-explorer"
-            aria-label="Explorer les dossiers publics">
-        Explorer les dossiers
+            data-testid="onglet-manifeste"
+            aria-label="Lire le manifeste Hypostasia"
+            onclick="document.getElementById('zone-onboarding').classList.add('hidden'); document.getElementById('zone-manifeste').classList.remove('hidden'); this.classList.add('active'); this.previousElementSibling.classList.remove('active');">
+        Manifeste
     </button>
 </div>
 
@@ -152,8 +149,6 @@
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">K</kbd><span>Pr&eacute;c&eacute;dente</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">C</kbd><span>Commenter</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">S</kbd><span>Consensuelle</span></div>
-                <div class="onboarding-raccourci"><kbd class="aide-kbd">L</kbd><span>Lecture focus</span></div>
-                <div class="onboarding-raccourci"><kbd class="aide-kbd">H</kbd><span>Heat map</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">X</kbd><span>Masquer</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">A</kbd><span>Comparer</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">Z</kbd><span>Versions</span></div>
@@ -320,8 +315,8 @@
 /* aide-kbd reutilise le style de la modale aide */
 /* / aide-kbd reuses style from help modal */
 
-/* Onglets accueil Decouvrir/Explorer (PHASE-25d-v2) */
-/* / Home tabs Discover/Explorer (PHASE-25d-v2) */
+/* Onglets accueil Decouvrir/Manifeste (refonte A.1) */
+/* / Home tabs Discover/Manifesto (refactor A.1) */
 .onglet-accueil {
     padding: 0.5rem 1rem 0.625rem;
     font-size: 0.875rem;
@@ -353,3 +348,9 @@
 }
 </style>
 </div>{# fin zone-onboarding #}
+
+{# === Zone Manifeste — affichee quand l'utilisateur clique sur l'onglet Manifeste === #}
+{# / === Manifesto zone — displayed when the user clicks the Manifesto tab === #}
+<div id="zone-manifeste" class="hidden">
+    {% include "front/includes/manifeste.html" %}
+</div>
