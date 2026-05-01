@@ -162,6 +162,11 @@ mais de la donner a voir pour que les participants et le facilitateur puissent d
 
 ### Page d'engagement — donner envie de participer
 
+> ⚠️ **DEPRECATED 2026-05-01 — YAGNI.** L'Explorer (page d'engagement / vitrine publique
+> de debats) est retire : Hypostasia n'est pas un reseau social, on ne fait pas de
+> Decouverte. L'invitation par email (PHASE-25d, partie invitation) et le partage par
+> URL directe (visibilite "public") suffisent. Voir `discussions/YAGNI 2026-05-01.md`.
+
 La geometrie du debat est un outil pour les participants actifs. Mais comment fait-on venir
 ces participants ? La page d'accueil de l'Explorer (accessible a tout visiteur, meme anonyme)
 est la **vitrine du debat en cours**. Son role n'est pas d'informer — c'est de **provoquer
@@ -196,8 +201,8 @@ comprendre ce qu'est Hypostasia. (→ PHASE-25d-v2)
 - **Cycle iteratif source = garde-fou anti AI-slop** : dans un marche ou tout le monde colle du LLM partout sans verification, la tracabilite totale est un argument de vente puissant. "Chaque mot remonte a sa source humaine."
 - **Alignement cross-documents par hypostases** : capacite unique a comparer des documents de natures differentes (verbatim, lois, chartes) en les alignant par types semantiques communs (PHENOMENE, CONJECTURE, AXIOME...). C'est le pont entre "ce qui est vecu", "ce qui est prescrit" et "ce qui est organise" — un besoin reel en recherche, en gouvernance et en audit. (→ Etape 1.12, Etape 6.2)
 - **Deep Research contextuel integre aux extractions** : chaque extraction peut etre automatiquement enrichie par des sources externes (articles academiques, rapports, web) via Local Deep Research. Les sources apparaissent directement dans la carte d'extraction, comme un apparat critique integre — le standard attendu en recherche universitaire et en redaction juridique. Pas de panneau separe, pas de rupture de contexte. (→ Etape 7.2)
-- **Geometrie du debat** : les donnees produites par le cycle deliberatif (extractions typees, statuts, commentaires, contributeurs, liens cross-documents) dessinent une forme — la geometrie du debat. Hypostasia rend cette geometrie visible a travers plusieurs facettes : spatiale (ou sont les debats dans le texte), statistique (% de consensus), thermique (heat map de l'intensite), structurelle (alignement par hypostases), sociale (qui participe), temporelle (comment le debat evolue). Aucun outil de deliberation ne propose cette cartographie multi-axes. C'est le dodecaedre a construire — pas un jugement, une observation navigable qui permet aux participants de decider ensemble "sommes-nous prets a synthetiser ?". (→ Etapes 1.4, 1.12, 1.15, 1.16, 2.4 ; concept a approfondir avec Jean et Dominique)
-- **Page d'engagement comme vitrine** : l'Explorer montre les extractions controversees en accroche — le visiteur lit une citation provocante, reagit, et se retrouve dans le debat. L'onboarding ne passe pas par un tutoriel mais par le contenu lui-meme. (→ PHASE-25d-v2)
+- **Geometrie du debat** : les donnees produites par le cycle deliberatif (extractions typees, statuts, commentaires, contributeurs, liens cross-documents) dessinent une forme — la geometrie du debat. Hypostasia rend cette geometrie visible a travers plusieurs facettes : spatiale (ou sont les debats dans le texte), statistique (% de consensus), ~~thermique (heat map de l'intensite)~~ *DEPRECATED 2026-05-01*, structurelle (alignement par hypostases), sociale (qui participe), temporelle (comment le debat evolue). Aucun outil de deliberation ne propose cette cartographie multi-axes. C'est le dodecaedre a construire — pas un jugement, une observation navigable qui permet aux participants de decider ensemble "sommes-nous prets a synthetiser ?". (→ Etapes 1.4, 1.12, ~~1.15~~, 1.16, 2.4 ; concept a approfondir avec Jean et Dominique)
+- ~~**Page d'engagement comme vitrine** : l'Explorer montre les extractions controversees en accroche — le visiteur lit une citation provocante, reagit, et se retrouve dans le debat. L'onboarding ne passe pas par un tutoriel mais par le contenu lui-meme. (→ PHASE-25d-v2)~~ **DEPRECATED 2026-05-01 (YAGNI, pas reseau social) — voir `discussions/YAGNI 2026-05-01.md`**
 - **Stack technique sobre** : Django + HTMX = pas de frontend JS a maintenir, time-to-market rapide, maintenable par une petite equipe.
 
 ### Doutes et risques identifies
@@ -1336,6 +1341,13 @@ Le cycle deliberatif (Lecture → Extraction → Commentaire → Debat → Synth
 
 ### Etape 1.11 — Mode lecture focus
 
+> ⚠️ **DEPRECATED 2026-05-01 — YAGNI / delegue a Firefox Reader View.** Le rendu actuel
+> de la zone de lecture (`<h1>` + `<article id="readability-content"> prose prose-slate
+> prose-lg`) est **compatible Mozilla Readability.js** : Firefox active automatiquement
+> son Reader View natif sur `/lire/{id}/` (icone dans la barre d'URL, raccourci F9).
+> Le mode focus implemente est donc retire (raccourci `L`, classes `.mode-focus`,
+> bouton toolbar). Voir `discussions/YAGNI 2026-05-01.md`.
+
 **Pourquoi** : meme avec le layout lecteur + marginalia (Etape 1.3 bis), les pastilles de marge et le
 surlignage des extractions creent un bruit visuel pour la lecture longue. Le cas d'usage est frequent :
 relire un texte de 20 pages avant d'extraire, relire une version de synthese (Phase 5), relire une
@@ -1638,6 +1650,11 @@ L'arbre de dossiers s'ouvre en plein ecran (pas en overlay partiel). Tap sur un 
 - [ ] Navigation arbre → plein ecran, tap document → retour a la lecture
 
 ### Etape 1.15 — Heat map du debat sur le texte
+
+> ⚠️ **DEPRECATED 2026-05-01 — YAGNI.** Personne ne s'en sert apres usage reel. Le code, le
+> CSS, le raccourci `H` et les variables `--heatmap-*` seront retires dans une session
+> de cleanup dediee. Voir `discussions/YAGNI 2026-05-01.md` pour le detail. La sous-phase
+> 37d (heat map semantique) qui en dependait devient sans objet.
 
 **Argumentaire** : les pastilles de marge (Etape 1.3 bis, Etape 1.4) indiquent **ou** se trouvent les
 extractions et **quel** est leur statut individuel. Mais elles ne montrent pas l'**intensite** du debat.
@@ -2063,6 +2080,12 @@ Documente dans CLAUDE.md section 6.
 
 ### Etape 4.1 — Bibliotheque d'analyseurs (vue utilisateur)
 
+> ⚠️ **DEPRECATED 2026-05-01 — YAGNI.** La vue dediee "Bibliotheque" duplique le menu
+> de configuration LLM existant. Retiree au profit du menu config (selection, prompt,
+> parametres, filtre par type) avec edition admin-only via permission `is_staff`.
+> Le calcul de couts (Etape 4.2) et l'historique des prompts (Etape 4.3) restent
+> conserves dans le menu config. Voir `discussions/YAGNI 2026-05-01.md`.
+
 **Actions** :
 - [ ] Vue bibliotheque : grille de cartes des analyseurs actifs (nom, description, type, badge exemples)
 - [ ] Bouton "Voir le prompt" → modale lecture seule du prompt assemble (pieces colorees par role)
@@ -2073,6 +2096,10 @@ Documente dans CLAUDE.md section 6.
 **Fichiers concernes** : `front/views.py` (BibliothequeAnalyseursViewSet), templates `front/includes/`
 
 ### Etape 4.1b — Interface d'administration des analyseurs (vue admin)
+
+> ⚠️ **DEPRECATED 2026-05-01 — YAGNI.** Fusionnee dans le menu de configuration LLM.
+> L'edition CRUD via permission `is_staff` reste accessible mais sans page dediee
+> `/analyseurs/admin/`. Voir `discussions/YAGNI 2026-05-01.md`.
 
 **Actions** :
 - [ ] Deplacer l'editeur existant de l'admin Django vers une page front dediee (`/analyseurs/admin/`)

@@ -1,5 +1,13 @@
 # PHASE-17 — Mode focus + raccourcis clavier
 
+> ⚠️ **Mode focus DEPRECATED 2026-05-01 — delegue a Firefox Reader View.** Le rendu de
+> `front/templates/front/includes/lecture_principale.html` (`<h1>` + `<article id="readability-content"> prose prose-slate prose-lg`)
+> est compatible Mozilla Readability.js : Firefox active automatiquement son Reader View
+> natif sur `/lire/{id}/` (icone barre d'URL, raccourci F9). Le mode focus implemente
+> est retire (raccourci `L`, classes `.mode-focus`, bouton toolbar). Les **autres
+> raccourcis clavier de cette phase sont conserves** (T, E, J/K, C, S, X, A, ?, Escape).
+> Voir `../discussions/YAGNI 2026-05-01.md`.
+
 **Complexite** : M | **Mode** : Normal | **Prerequis** : PHASE-09, PHASE-10
 
 ---

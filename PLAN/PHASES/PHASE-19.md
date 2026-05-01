@@ -1,5 +1,10 @@
 # PHASE-19 — Heat map du debat sur le texte
 
+> ⚠️ **DEPRECATED 2026-05-01 — YAGNI.** Personne ne s'en sert. Code, CSS, raccourci `H`,
+> variables `--heatmap-*` et tests seront retires dans une session de cleanup dediee.
+> La sous-phase 37d (heat map semantique) qui en dependait devient sans objet.
+> Voir `../discussions/YAGNI 2026-05-01.md`.
+
 **Complexite** : S | **Mode** : Normal | **Prerequis** : PHASE-09
 
 ---

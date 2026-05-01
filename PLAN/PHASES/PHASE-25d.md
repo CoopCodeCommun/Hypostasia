@@ -1,5 +1,10 @@
 # PHASE-25d — Invitation par email + page Explorer
 
+> ⚠️ **Page Explorer DEPRECATED 2026-05-01 — YAGNI.** Hypostasia n'est pas un reseau
+> social, on ne fait pas de Decouverte. La **partie invitation par email reste
+> conservee** (utile pour le partage de dossiers entre utilisateurs). La partie
+> Explorer (vitrine de debats publics) est retiree. Voir `../discussions/YAGNI 2026-05-01.md`.
+
 **Complexite** : M | **Mode** : Normal | **Prerequis** : PHASE-25c
 
 ---

@@ -1,5 +1,11 @@
 # PHASE-26b — Bibliotheque d'analyseurs + couts + historique prompts
 
+> ⚠️ **Vue dediee DEPRECATED 2026-05-01 — YAGNI.** La galerie/grille publique d'analyseurs
+> est retiree, fusionnee dans le menu de configuration LLM existant. **Conserves** : le
+> modele `Analyseur`, le calcul de couts (utilise par PHASE-26h), l'historique des
+> prompts (audit), et l'edition admin-only via permission `is_staff` dans le menu config.
+> Voir `../discussions/YAGNI 2026-05-01.md`.
+
 **Complexite** : L | **Mode** : Normal | **Prerequis** : PHASE-25, PHASE-26g
 
 > **Decision d'architecture (2026-03-18)** : les utilisateurs ne peuvent PAS editer les prompts.

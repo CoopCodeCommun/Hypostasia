@@ -1463,16 +1463,16 @@ sur le contraire — [voir le débat]".
 ⚠️ Feature délicate (faux positifs si la similarité confond "même sujet" et "même
 position"). À itérer sur le seuil et le wording.
 
-### 8.4 Heat map sémantique du débat
+### 8.4 Heat map sémantique du débat — ⚠️ DEPRECATED 2026-05-01
 
-Extension de PHASE-19 (heat map par nombre de commentaires). Ajouter une 2e couche :
-**divergence sémantique** des commentaires entre eux.
-
-Pour chaque extraction, calculer la dispersion des embeddings de ses commentaires :
-- Faible dispersion = consensus naturel (visuel froid)
-- Forte dispersion = avis qui divergent (visuel chaud)
-
-Toggle UI dans le heat map : "Couleur par volume / par divergence".
+> Cette sous-phase est sans objet : PHASE-19 (heat map de base) a été retirée du
+> périmètre (YAGNI, personne ne s'en sert). Il n'y a plus de couche thermique sur
+> laquelle empiler une dimension sémantique. Voir `discussions/YAGNI 2026-05-01.md`.
+>
+> Si la piste « divergence sémantique des commentaires » devient pertinente plus tard,
+> elle peut renaître comme indicateur dans le **dashboard de consensus** (PHASE-14)
+> plutôt que comme couche colorée sur le texte — par exemple un compteur « N
+> extractions à forte divergence » ou un tri du drawer par dispersion sémantique.
 
 ### 8.5 Géométrie du débat enrichie (concept Jean/Dominique)
 
@@ -1913,7 +1913,7 @@ Sous-phases indépendantes, à dérouler selon priorité utilisateur. Chacune es
 - **37a** — Notifications "ce qui te concerne" (S, post-PHASE-34)
 - **37b** — Cartographie contributeurs (M, post-PHASE-34)
 - **37c** — Détection contradiction cross-document (M, post-PHASE-34, délicate)
-- **37d** — Heat map sémantique (S, extension PHASE-19)
+- ~~**37d** — Heat map sémantique (S, extension PHASE-19)~~ **DEPRECATED 2026-05-01 (PHASE-19 retirée, voir `discussions/YAGNI 2026-05-01.md`)**
 - **37e** — Géométrie du débat enrichie 7e facette (M, concept Jean/Dominique)
 - **37f** — Suggestion d'analyseur à l'import (S, extension PHASE-26b)
 

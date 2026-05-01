@@ -1,5 +1,11 @@
 # PHASE-25d-v2 — Explorer : refonte UX recherche + preview + permissions
 
+> ⚠️ **DEPRECATED 2026-05-01 — YAGNI.** Phase entiere retiree : Hypostasia n'est pas un
+> reseau social. Suppression a venir : `front/views_explorer.py`, les 6 templates
+> `front/includes/explorer_*.html`, les routes `/explorer/`, `ExplorerFiltresSerializer`,
+> les liens HTMX explorer dans toolbar/sidebar, l'onglet "Explorer les dossiers" de
+> `onboarding_vide.html`. Voir `../discussions/YAGNI 2026-05-01.md`.
+
 **Complexite** : L | **Mode** : `/plan` d'abord | **Prerequis** : PHASE-25d (terminee)
 
 ---

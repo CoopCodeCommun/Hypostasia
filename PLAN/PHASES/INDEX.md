@@ -2,6 +2,24 @@
 
 > 28+ prompts sequentiels pour Claude Code, chacun dimensionne pour une session de 30-45 min.
 
+## Decisions YAGNI — 2026-05-01
+
+> Quatre features ont ete retirees du perimetre apres usage reel. Le code sera nettoye dans une session
+> dediee. Detail dans `../discussions/YAGNI 2026-05-01.md`.
+
+| Phase | Feature retiree | Raison |
+|---|---|---|
+| PHASE-19 | Heat map du debat | Personne ne s'en sert. Retrait code + CSS + raccourci `H` + variables `--heatmap-*` |
+| PHASE-17 (partiel) | Mode focus / mode lecture | Firefox Reader View couvre l'usage. On garde les raccourcis clavier autres que `L` |
+| PHASE-26b | Bibliotheque d'analyseurs (vue dediee) | Le menu de configuration LLM suffit pour gerer les analyseurs |
+| PHASE-25d / 25d-v2 | Explorer (Decouvrir / vitrine publique) | YAGNI : Hypostasia n'est pas un reseau social, on ne fait pas de Decouverte |
+
+**Impact downstream** :
+- PHASE-37d (heat map semantique, INSPIRATION_ATOMIC) devient sans objet
+- Le raccourci `L` (toggle focus) sort du tableau des raccourcis clavier
+- L'onglet "Decouvrir l'app" / "Explorer les dossiers" de l'onboarding redevient un onboarding simple
+- L'admin garde la possibilite d'editer les analyseurs via le menu config (DRF + permission `is_staff`)
+
 ## Mode recommande
 
 | Situation | Mode |
@@ -81,9 +99,9 @@ Toutes Phase 1 ──► PHASE-23 (Playwright)
 | [14](PHASE-14.md) | Dashboard consensus + actions statut | L | [x] | 2026-03-13 | — |
 | [15](PHASE-15.md) | Rythme visuel transcription | M | [x] | 2026-03-12 | |
 | [16](PHASE-16.md) | Onboarding + tooltips hypostases | S | [x] | 2026-03-13 | — |
-| [17](PHASE-17.md) | Mode focus + raccourcis clavier | M | [x] | 2026-03-13 | — |
+| [17](PHASE-17.md) | Mode focus + raccourcis clavier | M | [x] (focus DEPRECATED 2026-05-01) | 2026-03-13 | — |
 | [18](PHASE-18.md) | Alignement basique par hypostases | M | [x] | 2026-03-14 | — |
-| [19](PHASE-19.md) | Heat map du debat | S | [x] | 2026-03-14 | — |
+| [19](PHASE-19.md) | Heat map du debat | S | [x] DEPRECATED 2026-05-01 | 2026-03-14 | — |
 | [20](PHASE-20.md) | Notifications de progression | S | [x] | 2026-03-14 | — |
 | [21](PHASE-21.md) | Mobile : bottom sheet + responsive | M | [x] | 2026-03-15 | — |
 | [22](PHASE-22.md) | PostgreSQL + Redis | M | [x] | 2026-03-14 | — |
@@ -97,7 +115,7 @@ Toutes Phase 1 ──► PHASE-23 (Playwright)
 | [25](PHASE-25.md) | Users et partage (auth + owner + partage binaire) | L | [x] | 2026-03-15 | — |
 | [25b](PHASE-25b.md) | Auth extension navigateur (token API) | M | [x] | 2026-03-15 | — |
 | [25c](PHASE-25c.md) | Visibilite 3 niveaux + groupes + arbre restructure | L | [x] | 2026-03-15 | — |
-| [25d](PHASE-25d.md) | Invitation par email + page Explorer | M | [x] | 2026-03-15 | — |
+| [25d](PHASE-25d.md) | Invitation par email + page Explorer | M | [x] (Explorer DEPRECATED 2026-05-01, invitation conservee) | 2026-03-15 | — |
 | [26a](PHASE-26.md) | Filtre contributeur sur les commentaires | M | [x] | 2026-03-16 | — |
 | [26a-bis](PHASE-26a-bis.md) | Filtre multi-contributeurs (pilules toggle) | S | [x] | 2026-03-16 | — |
 | 26a-ux | 5 ameliorations UX filtre contributeurs (scroll, noms, entites, HSL, sauf) | M | [x] | 2026-03-16 | — |
@@ -106,13 +124,13 @@ Toutes Phase 1 ──► PHASE-23 (Playwright)
 | 26e | Alignement raccourci A toggle dossier + scroll extraction + navigation retour | S | [x] | 2026-03-17 | — |
 | 26f | Refonte UX edition extraction (modale + permissions contributeurs + refresh carte inline) | M | [x] | 2026-03-18 | — |
 | [26g](PHASE-26g.md) | Hub d'analyse dans le drawer (zero polling, WS, estimation cout, thinking) | L | [x] | 2026-03-18 | — |
-| [26b](PHASE-26b.md) | Bibliotheque d'analyseurs (admin-only edit) + couts + historique prompts | L | [x] | 2026-03-20 | — |
+| [26b](PHASE-26b.md) | Bibliotheque d'analyseurs (admin-only edit) + couts + historique prompts | L | [x] (vue dediee DEPRECATED 2026-05-01, couts/historique conserves dans menu config) | 2026-03-20 | — |
 | [26h](PHASE-26h.md) | Credits prepays + paiement Stripe (gate avant analyse) | L | [x] | 2026-03-18 | — |
 | [27a](PHASE-27a.md) | Tracabilite : modeles + PageEdit logging + historique | M | [x] | 2026-03-20 | — |
 | [27b](PHASE-27b.md) | Tracabilite : diff side-by-side entre versions | M | [x] | 2026-03-20 | — |
 | [28-light](PHASE-28-light.md) | Synthese deliberative (bouton + prompt + V2 auto) | M | [x] | 2026-03-20 | — |
 | [29-normalize](PHASE-29-normalize.md) | Normalisation deterministe des attributs d'extraction (independant) | S | [x] | 2026-03-21 | — |
-| [25d-v2](PHASE-25d-v2.md) | Explorer v2 : integration layout, recherche document, curation, preview, superuser | L | [x] | 2026-03-22 | — |
+| [25d-v2](PHASE-25d-v2.md) | Explorer v2 : integration layout, recherche document, curation, preview, superuser | L | [x] DEPRECATED 2026-05-01 | 2026-03-22 | — |
 | [27c](PHASE-27c.md) | Tracabilite : SourceLinks manuels + association source-cible (enrichissement) | M | [ ] | | |
 | [27d](PHASE-27d.md) | Tracabilite : fil de reflexion (timeline provenance) (enrichissement) | M | [ ] | | |
 | [27e](PHASE-27e.md) | Tracabilite : verrous d'edition optimistes | S | [ ] | | |
@@ -138,7 +156,7 @@ Toutes Phase 1 ──► PHASE-23 (Playwright)
 | 37a | Notifications "ce qui te concerne" | S | 34 | [ ] |
 | 37b | Cartographie contributeurs par sujet | M | 34 | [ ] |
 | 37c | Detection contradiction cross-document | M | 34 | [ ] |
-| 37d | Heat map semantique (extension PHASE-19) | S | 34 | [ ] |
+| ~~37d~~ | ~~Heat map semantique (extension PHASE-19)~~ | — | — | DEPRECATED 2026-05-01 (PHASE-19 retiree) |
 | 37e | Geometrie du debat enrichie (7e facette semantique) | M | 34 | [ ] |
 | 37f | Suggestion d'analyseur a l'import | S | 34, 26b | [ ] |
 
