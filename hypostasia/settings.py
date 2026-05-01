@@ -92,7 +92,6 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'front.context_processors.solde_credits',
             ],
         },
     },
@@ -205,11 +204,6 @@ CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes max par tache / 30 min max per ta
 # / Stripe — prepaid credits for LLM analyses
 # =============================================================================
 
-STRIPE_ENABLED = os.environ.get("STRIPE_ENABLED", "false").lower() in ("true", "1", "yes")
-STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
-STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-STRIPE_MONTANTS_RECHARGE = [5, 10, 20, 50]
 
 
 # =============================================================================

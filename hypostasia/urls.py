@@ -19,15 +19,10 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 
-from front.views_stripe_webhook import stripe_webhook
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('core.urls')),
     path('api/', include('hypostasis_extractor.urls')),
-    # Webhook Stripe — AVANT front.urls (POST brut, pas DRF)
-    # / Stripe webhook — BEFORE front.urls (raw POST, not DRF)
-    path('webhooks/stripe/', stripe_webhook, name='stripe-webhook'),
     path('', include('front.urls')),
 ]
 

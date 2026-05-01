@@ -167,23 +167,6 @@
         </div>
     </div>
 
-    {# Gate solde credits / Credit balance gate #}
-    {% if stripe_enabled and not solde_suffisant and not request.user.is_superuser %}
-    <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4" data-testid="alerte-solde-insuffisant" aria-live="polite" role="alert">
-        <p class="text-sm font-bold text-red-800 mb-1">Solde insuffisant</p>
-        <p class="text-sm text-red-600 mb-2">
-            Votre solde ({{ solde_utilisateur_euros|floatformat:2 }} €) est insuffisant pour cette synthèse (≤ {{ cout_estime_euros|floatformat:2 }} €).
-        </p>
-        <a href="/credits/" hx-get="/credits/" hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="/credits/"
-           class="inline-block text-sm font-medium text-red-700 underline hover:text-red-900">Recharger mes crédits</a>
-    </div>
-    {% elif stripe_enabled and solde_suffisant %}
-    <div class="flex justify-between items-center text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 mb-4" data-testid="info-solde-suffisant">
-        <span>Votre solde</span>
-        <span class="font-bold">{{ solde_utilisateur_euros|floatformat:2 }} €</span>
-    </div>
-    {% endif %}
-
     {# Alerte de blocage si bouton_desactive / Blocking alert if button disabled #}
     {% if bouton_desactive and raison_desactivation %}
     <div class="bg-amber-50 border border-amber-300 rounded-lg p-3 mb-4" data-testid="alerte-blocage-synthese" role="alert">

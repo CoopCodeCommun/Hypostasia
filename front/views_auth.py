@@ -123,19 +123,6 @@ class AuthViewSet(viewsets.ViewSet):
         )
         logger.info("Inscription reussie pour %s", nouvel_utilisateur.username)
 
-        # Offrir un solde de bienvenue si Stripe est active (PHASE-26h)
-        # / Give welcome credits if Stripe is enabled (PHASE-26h)
-        from django.conf import settings
-        if settings.STRIPE_ENABLED:
-            from core.models import CreditAccount
-            compte_nouveau = CreditAccount.get_ou_creer(nouvel_utilisateur)
-            compte_nouveau.crediter(
-                montant=3,
-                type_transaction="AJUSTEMENT",
-                description="Bienvenue — 3 EUR offerts",
-            )
-            logger.info("Credits bienvenue 3 EUR credites pour %s", nouvel_utilisateur.username)
-
         # Connecter immediatement / Log in immediately
         login(request, nouvel_utilisateur)
 

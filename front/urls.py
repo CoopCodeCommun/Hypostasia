@@ -5,8 +5,6 @@ from .views_alignement import AlignementViewSet
 from .views_auth import AuthViewSet
 from .views_groupes import GroupeViewSet
 from .views_invitation import InvitationViewSet
-from .views_analyseurs import BibliothequeAnalyseursViewSet
-from .views_credits import CreditViewSet
 from .views_ws import WsTestViewSet
 
 app_name = "front"
@@ -26,8 +24,6 @@ router.register(r"alignement", AlignementViewSet, basename="alignement")
 router.register(r"auth", AuthViewSet, basename="auth")
 router.register(r"groupes", GroupeViewSet, basename="groupe")
 router.register(r"invitation", InvitationViewSet, basename="invitation")
-router.register(r"analyseurs", BibliothequeAnalyseursViewSet, basename="analyseur-biblio")
-router.register(r"credits", CreditViewSet, basename="credit")
 router.register(r"ws-test", WsTestViewSet, basename="ws-test")
 
 urlpatterns = [

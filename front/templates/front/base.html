@@ -111,19 +111,6 @@
                 <input type="file" class="hidden" id="input-import-fichier"
                        accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
             </label>
-            <!-- Lien Bibliotheque analyseurs (PHASE-26b) -->
-            <!-- / Analyzer library link (PHASE-26b) -->
-            <a href="/analyseurs/"
-               hx-get="/analyseurs/"
-               hx-target="#zone-lecture"
-               hx-swap="innerHTML"
-               hx-push-url="/analyseurs/"
-               class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors btn-desktop-only"
-               title="Bibliothèque d'analyseurs" data-testid="btn-toolbar-analyseurs" aria-label="Bibliothèque d'analyseurs">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
-                </svg>
-            </a>
             <!-- Lien config LLM (icone engrenage) — conditionnel staff (PHASE-26b) -->
             <!-- / LLM config link (gear icon) — conditional staff (PHASE-26b) -->
             {% if request.user.is_staff %}
@@ -142,24 +129,6 @@
             {% endif %}
             <!-- Menu utilisateur (PHASE-25) -->
             <!-- / User menu (PHASE-25) -->
-            {# Badge solde credits (PHASE-26h) — visible si STRIPE_ENABLED #}
-            {# / Credit balance badge (PHASE-26h) — visible if STRIPE_ENABLED #}
-            {% if stripe_enabled and solde_credits_euros is not None %}
-            <a href="/credits/"
-               hx-get="/credits/"
-               hx-target="#zone-lecture"
-               hx-swap="innerHTML"
-               hx-push-url="/credits/"
-               id="badge-solde-credits"
-               class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-full hover:bg-emerald-100 transition-colors"
-               title="Mes credits"
-               data-testid="badge-solde-credits">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"/>
-                </svg>
-                {{ solde_credits_euros|floatformat:2 }} &euro;
-            </a>
-            {% endif %}
             {% if user.is_authenticated %}
             <div class="relative" id="user-menu-container">
                 <button id="btn-user-menu" data-testid="btn-user-menu"
@@ -175,15 +144,6 @@
                     <hr class="my-1 border-slate-100">
                     <a href="/auth/token/" class="block px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
                        data-testid="btn-token-api">Mon token API</a>
-                    {% if stripe_enabled %}
-                    <a href="/credits/"
-                       hx-get="/credits/"
-                       hx-target="#zone-lecture"
-                       hx-swap="innerHTML"
-                       hx-push-url="/credits/"
-                       class="block px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-                       data-testid="btn-mes-credits">Mes credits</a>
-                    {% endif %}
                     <form method="POST" action="/auth/logout/">{% csrf_token %}
                         <button type="submit" class="w-full text-left px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50" data-testid="btn-logout">Deconnexion</button>
                     </form>
@@ -309,22 +269,10 @@
                 {% include "front/includes/historique_page.html" with page=page_preloaded %}
             {% elif diff_preloaded %}
                 {% include "front/includes/diff_versions_pages.html" %}
-            {% elif credits_page_preloaded %}
-                {% include "front/includes/credits_page.html" %}
-            {% elif credits_succes_preloaded %}
-                {% include "front/includes/credits_succes.html" %}
-            {% elif credits_annule_preloaded %}
-                {% include "front/includes/credits_annule.html" %}
-            {% elif bibliotheque_analyseurs_preloaded %}
-                {% include "front/includes/bibliotheque_analyseurs.html" %}
-            {% elif detail_analyseur_preloaded %}
-                {% include "front/includes/detail_analyseur_readonly.html" %}
             {% elif versions_list_preloaded %}
                 {% include "hypostasis_extractor/includes/versions_list.html" %}
             {% elif versions_diff_preloaded %}
                 {% include "hypostasis_extractor/includes/versions_diff.html" %}
-            {% elif dashboard_couts_preloaded %}
-                {% include "front/includes/dashboard_couts.html" %}
             {% elif configuration_llm_preloaded %}
                 {% include "hypostasis_extractor/configuration_llm.html" %}
             {% elif acces_refuse_message %}
