@@ -376,10 +376,6 @@
             if (window.marginalia && window.marginalia.resetContributeurFiltre) {
                 window.marginalia.resetContributeurFiltre();
             }
-            if (window.marginalia && window.marginalia.heatmapEstActive()) {
-                var pageId = getPageId();
-                rechargerZoneLecture(pageId, '');
-            }
             return;
         }
 
@@ -391,10 +387,6 @@
             doitScrollerApresSwap = true;
             chargerContenu(triActuel, contributeursActuels);
             mettreAJourBadgeToolbar(contributeursActuels);
-            if (window.marginalia && window.marginalia.heatmapEstActive()) {
-                var pageId = getPageId();
-                rechargerZoneLecture(pageId, contributeursActuels);
-            }
             return;
         }
 
@@ -411,13 +403,6 @@
         doitScrollerApresSwap = true;
         chargerContenu(triActuel, contributeursActuels);
         mettreAJourBadgeToolbar(contributeursActuels);
-
-        // Si heatmap active, recharger la zone de lecture (PHASE-26a-bis)
-        // / If heatmap is active, reload reading zone (PHASE-26a-bis)
-        if (window.marginalia && window.marginalia.heatmapEstActive()) {
-            var pageId = getPageId();
-            rechargerZoneLecture(pageId, contributeursActuels);
-        }
     });
 
     // Affiche ou cache le badge indicateur filtre sur le bouton toolbar Extractions

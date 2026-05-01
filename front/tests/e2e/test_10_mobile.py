@@ -365,8 +365,8 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         self.assertEqual(modale.count(), 0, "La modale doit disparaitre apres clic fermer")
 
     # ================================================================
-    # 5. Toggle mode (surlignage → lecture → heatmap)
-    # / 5. Mode toggle (highlight → reading → heatmap)
+    # 5. Toggle mode (surlignage → lecture, refonte A.2)
+    # / 5. Mode toggle (highlight → reading, A.2 refactor)
     # ================================================================
 
     def test_toggle_mode_lecture_masque_surlignage(self):
@@ -383,19 +383,18 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         self.assertTrue(est_mode_lecture, "Le body doit avoir la classe mode-lecture-mobile")
 
     def test_toggle_mode_retour_surlignage(self):
-        """Trois clics sur toggle mode revient au mode surlignage."""
+        """Deux clics sur toggle mode revient au mode surlignage."""
         self.page.set_viewport_size(self.VIEWPORT_MOBILE)
         self.naviguer_vers(f"/lire/{self.page_mobile.pk}/")
-        # 3 clics : surlignage → lecture → heatmap → surlignage
-        # / 3 clicks: highlight → reading → heatmap → highlight
-        self.page.click('[data-testid="btn-toolbar-mode-mobile"]')
+        # 2 clics : surlignage → lecture → surlignage (refonte A.2)
+        # / 2 clicks: highlight → reading → highlight (A.2 refactor)
         self.page.click('[data-testid="btn-toolbar-mode-mobile"]')
         self.page.click('[data-testid="btn-toolbar-mode-mobile"]')
         self.page.wait_for_timeout(300)
         est_mode_lecture = self.page.evaluate(
             "document.body.classList.contains('mode-lecture-mobile')"
         )
-        self.assertFalse(est_mode_lecture, "Apres 3 clics on doit etre revenu au mode surlignage")
+        self.assertFalse(est_mode_lecture, "Apres 2 clics on doit etre revenu au mode surlignage")
 
     # ================================================================
     # 6. Arbre plein ecran mobile

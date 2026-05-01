@@ -27,45 +27,6 @@ logger = logging.getLogger(__name__)
 REGEX_ENTITE_HTML = re.compile(r'&(?:#[xX]?[0-9a-fA-F]+|[a-zA-Z]+);')
 
 
-def _interpoler_couleur_heatmap(score_normalise):
-    """
-    Interpole une couleur de fond entre vert pale et rouge pale.
-    Score 0 = #f0fdf4, Score 0.33 = #fefce8, Score 0.66 = #fff7ed, Score 1.0 = #fef2f2
-    / Interpolate a background color between pale green and pale red.
-    """
-    # Paliers (seuil, (R, G, B)) pour chaque niveau de temperature
-    # / Threshold levels (threshold, (R, G, B)) for each temperature level
-    paliers = [
-        (0.0, (236, 253, 245)),   # vert pale — consensus (consensuel bg)
-        (0.33, (240, 249, 255)),  # bleu pale — discussion moderee (discute bg)
-        (0.66, (255, 251, 235)),  # orange pale — debat actif (discutable bg)
-        (1.0, (255, 247, 237)),   # vermillon pale — controverse forte (controverse bg)
-    ]
-
-    # Borner le score entre 0 et 1 / Clamp score to [0, 1]
-    score_normalise = max(0.0, min(1.0, score_normalise))
-
-    # Trouver les deux paliers encadrants / Find the two surrounding thresholds
-    for i in range(len(paliers) - 1):
-        seuil_bas, couleur_bas = paliers[i]
-        seuil_haut, couleur_haut = paliers[i + 1]
-        if score_normalise <= seuil_haut:
-            # Facteur d'interpolation entre les deux paliers
-            # / Interpolation factor between the two thresholds
-            if seuil_haut == seuil_bas:
-                facteur = 0.0
-            else:
-                facteur = (score_normalise - seuil_bas) / (seuil_haut - seuil_bas)
-            r = int(couleur_bas[0] + facteur * (couleur_haut[0] - couleur_bas[0]))
-            g = int(couleur_bas[1] + facteur * (couleur_haut[1] - couleur_bas[1]))
-            b = int(couleur_bas[2] + facteur * (couleur_haut[2] - couleur_bas[2]))
-            return f"#{r:02x}{g:02x}{b:02x}"
-
-    # Fallback : derniere couleur / Fallback: last color
-    r, g, b = paliers[-1][1]
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-
 def _construire_mapping_text_vers_html(html_brut):
     """
     Parcourt le HTML brut et construit :
@@ -385,7 +346,7 @@ def _est_dans_tag_html(html_brut, position):
     return False
 
 
-def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_commentees=None, scores_temperature_normalises=None):
+def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_commentees=None):
     """
     Annote le HTML en enveloppant le texte exact de chaque extraction
     dans un <span class="hl-extraction"> pour surlignage inline + pastille en marge.
@@ -508,13 +469,7 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
         a_commentaire = entite_pk in ids_commentees
         statut_debat = entite.statut_debat or "discutable"
 
-        # Couleur heat map si les scores sont fournis (PHASE-19)
-        # / Heat map color if scores are provided (PHASE-19)
-        couleur_heatmap = None
-        if scores_temperature_normalises and entite_pk in scores_temperature_normalises:
-            couleur_heatmap = _interpoler_couleur_heatmap(scores_temperature_normalises[entite_pk])
-
-        insertions_spans.append((html_pos_debut, html_pos_fin, entite_pk, a_commentaire, statut_debat, couleur_heatmap))
+        insertions_spans.append((html_pos_debut, html_pos_fin, entite_pk, a_commentaire, statut_debat))
 
     if not insertions_spans:
         return html_brut
@@ -527,18 +482,14 @@ def annoter_html_avec_barres(html_brut, text_readability, entites, ids_entites_c
     # 5. Injecter les spans dans le HTML
     # / Inject spans into HTML
     html_modifie = html_brut
-    for (html_pos_debut, html_pos_fin, entite_pk, a_commentaire, statut_debat, couleur_heatmap) in insertions_spans:
+    for (html_pos_debut, html_pos_fin, entite_pk, a_commentaire, statut_debat) in insertions_spans:
         # Construire la classe CSS du span
         # / Build the span CSS class
         classe_span = "hl-extraction"
         if a_commentaire:
             classe_span += " hl-commentee"
 
-        # Attribut data-heat-color pour la heat map du debat (PHASE-19)
-        # / data-heat-color attribute for debate heat map (PHASE-19)
-        attribut_heatmap = f' data-heat-color="{couleur_heatmap}"' if couleur_heatmap else ''
-
-        span_ouvrant = f'<span class="{classe_span}" data-extraction-id="{entite_pk}" data-statut="{statut_debat}"{attribut_heatmap}>'
+        span_ouvrant = f'<span class="{classe_span}" data-extraction-id="{entite_pk}" data-statut="{statut_debat}">'
         span_fermant = '</span>'
 
         # Inserer le span fermant d'abord (position plus loin), puis le span ouvrant

@@ -1,6 +1,6 @@
 """
-Tests E2E — Layout : drawer, focus mode, raccourcis clavier, heatmap.
-/ E2E tests — Layout: drawer, focus mode, keyboard shortcuts, heatmap.
+Tests E2E — Layout : drawer, focus mode, raccourcis clavier.
+/ E2E tests — Layout: drawer, focus mode, keyboard shortcuts.
 """
 from front.tests.e2e.base import PlaywrightLiveTestCase
 from hypostasis_extractor.models import ExtractionJob, ExtractedEntity

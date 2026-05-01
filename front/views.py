@@ -408,79 +408,6 @@ def _annoter_entites_avec_commentaires(queryset_entites):
     return entites_annotees, ids_commentees
 
 
-def _calculer_scores_temperature(entites_annotees):
-    """
-    Calcule les scores de temperature normalises pour la heat map du debat (PHASE-19).
-    Score brut = (nombre_commentaires × 1) + (non-consensuel × 3).
-    Retourne un dict {entite_pk: score_normalise_entre_0_et_1}.
-    / Compute normalized temperature scores for debate heat map (PHASE-19).
-    Raw score = (comment_count × 1) + (non-consensual × 3).
-    Returns {entity_pk: normalized_score_between_0_and_1}.
-    """
-    scores_bruts_par_entite = {}
-    score_maximum_du_document = 0
-
-    for entite in entites_annotees:
-        nombre_commentaires = entite.nombre_commentaires if hasattr(entite, 'nombre_commentaires') else 0
-        est_non_consensuel = 1 if (entite.statut_debat or "discutable") != "consensuel" else 0
-        score_brut = (nombre_commentaires * 1) + (est_non_consensuel * 3)
-        scores_bruts_par_entite[entite.pk] = score_brut
-        if score_brut > score_maximum_du_document:
-            score_maximum_du_document = score_brut
-
-    # Normalisation sur [0, 1] par rapport au max du document
-    # / Normalize to [0, 1] relative to document max
-    scores_normalises = {}
-    for pk, score_brut in scores_bruts_par_entite.items():
-        if score_maximum_du_document > 0:
-            scores_normalises[pk] = score_brut / score_maximum_du_document
-        else:
-            scores_normalises[pk] = 0.0
-
-    return scores_normalises
-
-
-def _calculer_scores_temperature_par_contributeurs(entites, ensemble_identifiants_contributeurs):
-    """
-    Calcule les scores de temperature normalises pour un ou plusieurs contributeurs (PHASE-26a-bis).
-    Ne compte que les commentaires des contributeurs filtres.
-    Retourne un dict {entite_pk: score_normalise_entre_0_et_1}.
-    / Compute normalized temperature scores for one or more contributors (PHASE-26a-bis).
-    Only counts comments from the filtered contributors.
-    Returns {entity_pk: normalized_score_between_0_and_1}.
-    """
-    # Compter les commentaires des contributeurs par entite
-    # / Count contributors' comments per entity
-    comptages_par_entite = dict(
-        CommentaireExtraction.objects.filter(
-            entity__in=entites,
-            user_id__in=ensemble_identifiants_contributeurs,
-        ).values_list("entity_id").annotate(nombre=Count("pk"))
-    )
-
-    scores_bruts_par_entite = {}
-    score_maximum_du_document = 0
-
-    for entite in entites:
-        nombre_commentaires = comptages_par_entite.get(entite.pk, 0)
-        est_non_consensuel = 1 if (entite.statut_debat or "discutable") != "consensuel" else 0
-        score_brut = (nombre_commentaires * 1) + (est_non_consensuel * 3)
-        scores_bruts_par_entite[entite.pk] = score_brut
-        if score_brut > score_maximum_du_document:
-            score_maximum_du_document = score_brut
-
-    # Normalisation sur [0, 1] par rapport au max du document
-    # / Normalize to [0, 1] relative to document max
-    scores_normalises = {}
-    for pk, score_brut in scores_bruts_par_entite.items():
-        if score_maximum_du_document > 0:
-            scores_normalises[pk] = score_brut / score_maximum_du_document
-        else:
-            scores_normalises[pk] = 0.0
-
-    return scores_normalises
-
-
 def _calculer_mouvements_depuis(page, timestamp_derniere_visite):
     """
     Calcule les mouvements sur une page depuis un timestamp donne.
@@ -1076,28 +1003,9 @@ class LectureViewSet(viewsets.ViewSet):
             )
             # Annoter le HTML avec des ancres pour le scroll-to-extraction
             # / Annotate HTML with anchors for scroll-to-extraction
-
-            # Heat map par contributeurs si filtre actif (PHASE-26a-bis)
-            # / Contributor-specific heat map if filter is active (PHASE-26a-bis)
-            parametre_contributeur_lecture = request.query_params.get("contributeur", "")
-            ensemble_ids_contributeurs_lecture = set()
-            for id_brut in parametre_contributeur_lecture.split(","):
-                id_brut = id_brut.strip()
-                if id_brut:
-                    try:
-                        ensemble_ids_contributeurs_lecture.add(int(id_brut))
-                    except (ValueError, TypeError):
-                        pass
-            if ensemble_ids_contributeurs_lecture:
-                scores_temperature = _calculer_scores_temperature_par_contributeurs(
-                    entites_existantes, ensemble_ids_contributeurs_lecture,
-                )
-            else:
-                scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
-                scores_temperature_normalises=scores_temperature,
             )
 
         # Recupere toutes les versions de cette page (racine + restitutions)
@@ -1383,11 +1291,9 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 toutes_entites
             )
-            scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
-                scores_temperature_normalises=scores_temperature,
             )
 
         toutes_les_versions = page.toutes_les_versions
@@ -1853,7 +1759,6 @@ class LectureViewSet(viewsets.ViewSet):
             ("C", "Commenter l\u2019extraction s\u00e9lectionn\u00e9e"),
             ("S", "Marquer consensuelle"),
             ("X", "Masquer l\u2019extraction"),
-            ("H", "Heat map du d\u00e9bat"),
             ("A", "Comparer / Aligner des pages"),
             ("Z", "Comparer les versions"),
             ("?", "Afficher cette aide"),
@@ -2386,11 +2291,9 @@ class LectureViewSet(viewsets.ViewSet):
             entites_non_masquees, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 toutes_entites_page
             )
-            scores_temperature = _calculer_scores_temperature(entites_non_masquees)
             html_annote_pour_oob = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_non_masquees, ids_entites_commentees,
-                scores_temperature_normalises=scores_temperature,
             )
 
             # Separer entites visibles et masquees pour le drawer
@@ -3246,11 +3149,9 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             )
-            scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
-                scores_temperature_normalises=scores_temperature,
             )
 
         toutes_les_versions = page.toutes_les_versions
@@ -3335,11 +3236,9 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             )
-            scores_temperature = _calculer_scores_temperature(entites_existantes)
             html_annote = annoter_html_avec_barres(
                 page.html_readability, page.text_readability,
                 entites_existantes, ids_entites_commentees,
-                scores_temperature_normalises=scores_temperature,
             )
 
         toutes_les_versions = page.toutes_les_versions
@@ -3880,11 +3779,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         ).count()
 
         # Annoter le HTML / Annotate HTML
-        scores_temperature = _calculer_scores_temperature(entites_visibles)
         html_annote = annoter_html_avec_barres(
             page.html_readability, page.text_readability,
             entites_visibles, ids_entites_commentees,
-            scores_temperature_normalises=scores_temperature,
         )
 
         # Dernier job pour le contexte du panneau / Latest job for panel context
@@ -3956,11 +3853,9 @@ class ExtractionViewSet(viewsets.ViewSet):
         ).count()
 
         # Annoter le HTML / Annotate HTML
-        scores_temperature = _calculer_scores_temperature(entites_visibles)
         html_annote = annoter_html_avec_barres(
             page.html_readability, page.text_readability,
             entites_visibles, ids_entites_commentees,
-            scores_temperature_normalises=scores_temperature,
         )
 
         # Dernier job pour le contexte du panneau / Latest job for panel context

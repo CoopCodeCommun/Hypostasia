@@ -521,15 +521,6 @@
                 evenement.preventDefault();
                 break;
 
-            // H → Toggle heat map du debat (PHASE-19)
-            // / H → Toggle debate heat map (PHASE-19)
-            case 'h':
-                if (window.marginalia) {
-                    window.marginalia.basculerHeatmap();
-                }
-                evenement.preventDefault();
-                break;
-
             // / → Recherche (placeholder)
             // / / → Search (placeholder)
             case '/':
@@ -577,47 +568,30 @@
             }
         });
 
-        // Toggle mode mobile : cycle entre 3 modes d'affichage
+        // Toggle mode mobile : cycle entre 2 modes d'affichage (refonte A.2 — heatmap retiree)
         // Le bouton oeil dans la toolbar change le mode a chaque tap :
-        //   surlignage → lecture pure → heat map → retour au surlignage
+        //   surlignage → lecture pure → retour au surlignage
         // - surlignage : le texte extrait a un fond colore (par statut de debat)
         // - lecture pure : pas de surlignage, texte brut pour lire sans distraction
-        // - heat map : couleurs d'intensite du debat (rouge = beaucoup de commentaires)
-        // / Mobile mode toggle: cycles between 3 display modes
+        // / Mobile mode toggle: cycles between 2 display modes (A.2 refactor — heatmap removed)
         // The eye button in the toolbar changes mode on each tap:
-        //   highlight → reading → heatmap → back to highlight
-        var modeActuel = 'surlignage'; // surlignage | lecture | heatmap
+        //   highlight → reading → back to highlight
+        var modeActuel = 'surlignage'; // surlignage | lecture
         var boutonModeMobile = document.getElementById('btn-toolbar-mode-mobile');
         if (boutonModeMobile) {
             boutonModeMobile.addEventListener('click', function() {
-                // Passer au mode suivant / Switch to next mode
-                // Nettoyer les classes du mode precedent
-                // / Clean classes from previous mode
-                document.body.classList.remove('mode-lecture-mobile', 'mode-heatmap-mobile');
-
+                // Passer au mode suivant — toggle simple
+                // / Switch to next mode — simple toggle
                 if (modeActuel === 'surlignage') {
-                    // Surlignage → Lecture : masquer le surlignage, eteindre la heatmap
-                    // / Highlight → Reading: hide highlighting, turn off heatmap
+                    // Surlignage → Lecture : masquer le surlignage
+                    // / Highlight → Reading: hide highlighting
                     modeActuel = 'lecture';
                     document.body.classList.add('mode-lecture-mobile');
-                    if (window.marginalia && window.marginalia.heatmapEstActive()) {
-                        window.marginalia.basculerHeatmap();
-                    }
-                } else if (modeActuel === 'lecture') {
-                    // Lecture → Heatmap : activer la heatmap, masquer le surlignage individuel
-                    // / Reading → Heatmap: activate heatmap, hide individual highlighting
-                    modeActuel = 'heatmap';
-                    document.body.classList.add('mode-heatmap-mobile');
-                    if (window.marginalia && !window.marginalia.heatmapEstActive()) {
-                        window.marginalia.basculerHeatmap();
-                    }
                 } else {
-                    // Heatmap → Surlignage : eteindre la heatmap, remettre le surlignage
-                    // / Heatmap → Highlight: turn off heatmap, restore highlighting
+                    // Lecture → Surlignage : remettre le surlignage
+                    // / Reading → Highlight: restore highlighting
                     modeActuel = 'surlignage';
-                    if (window.marginalia && window.marginalia.heatmapEstActive()) {
-                        window.marginalia.basculerHeatmap();
-                    }
+                    document.body.classList.remove('mode-lecture-mobile');
                 }
 
                 // Mettre a jour le title du bouton pour indiquer le mode actif
@@ -625,7 +599,6 @@
                 var titresParMode = {
                     'surlignage': 'Mode : Surlignage (tap pour changer)',
                     'lecture': 'Mode : Lecture pure (tap pour changer)',
-                    'heatmap': 'Mode : Heat map (tap pour changer)',
                 };
                 boutonModeMobile.title = titresParMode[modeActuel];
             });

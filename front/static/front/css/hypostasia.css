@@ -1333,46 +1333,6 @@ body.mode-focus .speaker-block .speaker-name { color: inherit !important; }
 .alignement-mode-source .alignement-texte-origine { display: block; }
 
 
-/* === 22. Heat map du debat (PHASE-19) ===
-   Coloration du fond selon l'intensite du debat.
-   Activee via body.mode-heatmap + inline style data-heat-color (JS).
-   / Debate heat map — background color by debate intensity.
-   / Activated via body.mode-heatmap + inline style data-heat-color (JS).
-   ========================================================================== */
-
-:root {
-    --heatmap-froid: #f0fdf4;      /* vert pale — consensus */
-    --heatmap-tiede: #fefce8;      /* jaune pale — discussion moderee */
-    --heatmap-chaud: #fff7ed;      /* orange pale — debat actif */
-    --heatmap-brulant: #fef2f2;    /* rouge pale — controverse forte */
-}
-
-/* Calque underlay : nappe de halos radiaux derriere le texte */
-/* / Underlay layer: radial halo sheet behind the text */
-#heatmap-underlay {
-    transition: opacity 0.4s ease;
-}
-
-/* En mode heatmap, les blocs de contenu deviennent transparents
-   pour laisser voir le calque de halos derriere eux.
-   / In heatmap mode, content blocks become transparent
-   / to let the halo layer show through. */
-body.mode-heatmap .speaker-block {
-    background: transparent !important;
-}
-body.mode-heatmap #readability-content p,
-body.mode-heatmap #readability-content div,
-body.mode-heatmap #readability-content blockquote,
-body.mode-heatmap #readability-content li {
-    background: transparent;
-}
-
-/* Mode focus : masque le calque heat map (lecture pure sans bruit visuel) */
-/* / Focus mode: hide heat map overlay (pure reading without visual noise) */
-body.mode-focus #heatmap-underlay {
-    opacity: 0 !important;
-}
-
 /* Responsive : modale plein ecran sur mobile avec scroll horizontal fluide */
 /* / Responsive: full-screen modal on mobile with smooth horizontal scroll */
 @media (max-width: 640px) {
@@ -1670,9 +1630,9 @@ body.mode-focus .bandeau-notification {
     #arbre-overlay { width: 100vw !important; }
     .btn-toolbar { min-width: 2.75rem; min-height: 2.75rem; }
 
-    /* Sur mobile on masque Focus et Heatmap (remplaces par le toggle mode) */
-    /* / On mobile hide Focus and Heatmap (replaced by mode toggle) */
-    #btn-toolbar-focus, #btn-toolbar-heatmap { display: none; }
+    /* Sur mobile on masque Focus (remplace par le toggle mode) */
+    /* / On mobile hide Focus (replaced by mode toggle) */
+    #btn-toolbar-focus { display: none; }
 
     /* Boutons desktop masques sur mobile, boutons mobile visibles */
     /* / Desktop buttons hidden on mobile, mobile buttons visible */
@@ -1699,12 +1659,6 @@ body.mode-focus .bandeau-notification {
         border-bottom: none !important;
     }
 
-    /* Mode heatmap mobile : masque le surlignage individuel, la heatmap prend le relais */
-    /* / Mobile heatmap mode: hide individual highlighting, heatmap takes over */
-    body.mode-heatmap-mobile .hl-extraction[data-extraction-id] {
-        background-color: transparent !important;
-        border-bottom: none !important;
-    }
 }
 
 /* Mode bottom-sheet-focus : masque le surlignage de toutes les extractions sauf celle active */

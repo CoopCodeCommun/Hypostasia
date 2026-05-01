@@ -74,8 +74,6 @@
         if (classeModeSauvegardee === null) {
             if (document.body.classList.contains('mode-lecture-mobile')) {
                 classeModeSauvegardee = 'mode-lecture-mobile';
-            } else if (document.body.classList.contains('mode-heatmap-mobile')) {
-                classeModeSauvegardee = 'mode-heatmap-mobile';
             } else {
                 classeModeSauvegardee = 'surlignage';
             }
@@ -86,7 +84,7 @@
         // / Add class that hides all highlighting
         // then mark the active extraction with a special class
         document.body.classList.add('bottom-sheet-focus');
-        document.body.classList.remove('mode-lecture-mobile', 'mode-heatmap-mobile');
+        document.body.classList.remove('mode-lecture-mobile');
 
         // Retirer l'ancien focus s'il y en a un
         // / Remove previous focus if any
@@ -120,8 +118,6 @@
         // Restaurer le mode precedent / Restore previous mode
         if (classeModeSauvegardee === 'mode-lecture-mobile') {
             document.body.classList.add('mode-lecture-mobile');
-        } else if (classeModeSauvegardee === 'mode-heatmap-mobile') {
-            document.body.classList.add('mode-heatmap-mobile');
         }
         // Si 'surlignage', rien a faire (c'est le defaut)
         // / If 'surlignage', nothing to do (it's the default)
