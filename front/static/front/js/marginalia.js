@@ -1,8 +1,6 @@
 // ==========================================================================
 // marginalia.js — Pastilles en marge droite + cartes inline (PHASE-09)
-//                 + Mode focus lecture immersive (PHASE-17)
 // / Right margin dots + inline cards (PHASE-09)
-// / + Immersive focus reading mode (PHASE-17)
 //
 // LOCALISATION : front/static/front/js/marginalia.js
 //
@@ -10,7 +8,6 @@
 // Chaque pastille represente une extraction. Sa couleur reflete le statut de debat.
 // Un clic sur une pastille charge une carte inline via HTMX (endpoint carte_inline).
 // La carte s'insere sous le paragraphe concerne avec une animation.
-// Le mode focus (PHASE-17) masque les pastilles et centre le texte.
 //
 // COMMUNICATION :
 // Recoit : htmx:afterSwap sur #zone-lecture -> reconstruit les pastilles
@@ -18,7 +15,6 @@
 //          avec mode_filtre 'inclure'|'exclure' pour inverser le dimming (PHASE-26a UX)
 // Appelle : GET /extractions/carte_inline/?entity_id=N (front/views.py ExtractionViewSet)
 // Exporte : window.marginalia = { construirePastillesMarginales, fermerCarteInline,
-//           basculerModeFocus, desactiverModeFocus, modeFocusEstActif,
 //           getContributeurFiltre, resetContributeurFiltre }
 // Exporte : window.construirePastillesMarginales (alias global, utilise par drawer_vue_liste.js)
 // ==========================================================================
@@ -36,61 +32,6 @@
         controverse:   '#D55E00',
         non_pertinent: '#CC79A7',
     };
-
-    // Cle localStorage pour persister le mode focus entre rechargements
-    // / localStorage key to persist focus mode between reloads
-    var CLE_LOCALSTORAGE_FOCUS = 'hypostasia-mode-focus';
-
-
-    // === Mode focus (PHASE-17) ===
-    // / === Focus mode (PHASE-17) ===
-
-    // Active le mode focus : masque pastilles, desactive surlignage, centre le texte
-    // / Activate focus mode: hide dots, disable highlights, center text
-    function activerModeFocus() {
-        document.body.classList.add('mode-focus');
-        localStorage.setItem(CLE_LOCALSTORAGE_FOCUS, 'actif');
-
-        // Met a jour le bouton toolbar / Update toolbar button
-        var boutonFocus = document.getElementById('btn-toolbar-focus');
-        if (boutonFocus) {
-            boutonFocus.classList.add('btn-toolbar-actif');
-        }
-    }
-
-    // Desactive le mode focus : restaure pastilles, surlignage et layout
-    // / Deactivate focus mode: restore dots, highlights and layout
-    function desactiverModeFocus() {
-        document.body.classList.remove('mode-focus');
-        localStorage.removeItem(CLE_LOCALSTORAGE_FOCUS);
-
-        // Recalculer les pastilles marginales (positions changent au retour)
-        // / Recalculate margin dots (positions change on return)
-        construirePastillesMarginales();
-
-        // Met a jour le bouton toolbar / Update toolbar button
-        var boutonFocus = document.getElementById('btn-toolbar-focus');
-        if (boutonFocus) {
-            boutonFocus.classList.remove('btn-toolbar-actif');
-        }
-    }
-
-    // Bascule le mode focus on/off
-    // / Toggle focus mode on/off
-    function basculerModeFocus() {
-        if (modeFocusEstActif()) {
-            desactiverModeFocus();
-        } else {
-            activerModeFocus();
-        }
-    }
-
-    // Retourne true si le mode focus est actif
-    // / Returns true if focus mode is active
-    function modeFocusEstActif() {
-        return document.body.classList.contains('mode-focus');
-    }
-
 
     // === Construction des pastilles en marge droite ===
     // Scanne les spans hl-extraction, groupe par bloc parent, cree les pastilles
@@ -282,18 +223,6 @@
     document.addEventListener('DOMContentLoaded', function() {
         construirePastillesMarginales();
 
-        // Restaurer le mode focus si actif dans localStorage (PHASE-17)
-        // / Restore focus mode if active in localStorage (PHASE-17)
-        if (localStorage.getItem(CLE_LOCALSTORAGE_FOCUS) === 'actif') {
-            activerModeFocus();
-        }
-
-        // Clic sur le bouton focus dans la toolbar (PHASE-17)
-        // / Click on focus button in toolbar (PHASE-17)
-        var boutonFocus = document.getElementById('btn-toolbar-focus');
-        if (boutonFocus) {
-            boutonFocus.addEventListener('click', basculerModeFocus);
-        }
     });
 
 
@@ -363,14 +292,11 @@
     });
 
 
-    // Expose l'API publique (PHASE-17)
-    // / Expose public API (PHASE-17)
+    // Expose l'API publique
+    // / Expose public API
     window.marginalia = {
         construirePastillesMarginales: construirePastillesMarginales,
         fermerCarteInline: fermerCarteInline,
-        basculerModeFocus: basculerModeFocus,
-        desactiverModeFocus: desactiverModeFocus,
-        modeFocusEstActif: modeFocusEstActif,
         getContributeurFiltre: getContributeurFiltre,
         resetContributeurFiltre: resetContributeurFiltre,
     };

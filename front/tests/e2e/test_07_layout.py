@@ -1,6 +1,6 @@
 """
-Tests E2E — Layout : drawer, focus mode, raccourcis clavier.
-/ E2E tests — Layout: drawer, focus mode, keyboard shortcuts.
+Tests E2E — Layout : drawer, raccourcis clavier.
+/ E2E tests — Layout: drawer, keyboard shortcuts.
 """
 from front.tests.e2e.base import PlaywrightLiveTestCase
 from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
@@ -110,24 +110,6 @@ class E2ELayoutTest(PlaywrightLiveTestCase):
             "el => el.classList.contains('pointer-events-none') || el.classList.contains('translate-x-full')"
         )
         self.assertTrue(est_cache, "Le drawer devrait etre ferme apres Escape")
-
-    def test_raccourci_l_mode_focus(self):
-        """Le raccourci L active le mode focus."""
-        self.naviguer_vers(f"/lire/{self.page_layout.pk}/")
-        # Presser L pour le mode focus
-        # / Press L for focus mode
-        self.page.keyboard.press("l")
-        self.page.wait_for_timeout(300)
-        # Verifier que le body ou un conteneur a la classe focus
-        # / Verify body or container has the focus class
-        est_focus = self.page.evaluate(
-            "document.body.classList.contains('mode-focus') || "
-            "document.querySelector('.lecture-zone-conteneur')?.classList.contains('mode-focus') || "
-            "document.querySelector('#zone-lecture')?.classList.contains('mode-focus')"
-        )
-        # Le mode focus devrait etre active
-        # / Focus mode should be active
-        self.assertTrue(est_focus, "Le mode focus devrait etre active apres L")
 
     def test_raccourci_interrogation_modale_aide(self):
         """Le raccourci ? ouvre la modale d'aide clavier."""

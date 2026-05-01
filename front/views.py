@@ -1753,7 +1753,6 @@ class LectureViewSet(viewsets.ViewSet):
         liste_raccourcis = [
             ("T", "Ouvrir/fermer la biblioth\u00e8que"),
             ("E", "Ouvrir/fermer le panneau extractions"),
-            ("L", "Mode focus lecture"),
             ("J", "Extraction suivante"),
             ("K", "Extraction pr\u00e9c\u00e9dente"),
             ("C", "Commenter l\u2019extraction s\u00e9lectionn\u00e9e"),

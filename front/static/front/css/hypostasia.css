@@ -1068,36 +1068,6 @@ body { font-family: 'B612', sans-serif; }
 }
 
 
-/* === 18. Mode focus (PHASE-17) ===
-   Lecture immersive : pastilles cachees, surlignage off, texte centre.
-   / Immersive reading: dots hidden, highlights off, text centered.
-   ========================================================================== */
-
-body.mode-focus .pastilles-marge { display: none !important; }
-body.mode-focus .hl-extraction { background-color: transparent !important; animation: none !important; }
-body.mode-focus #readability-content { max-width: 42rem; margin: 0 auto; padding: 4rem; }
-body.mode-focus nav { opacity: 0.3; transition: opacity 0.2s; }
-body.mode-focus nav:hover { opacity: 1; }
-
-/* Desaturation des couleurs en mode focus : lecture pure sans bruit visuel */
-/* / Desaturate colors in focus mode: pure reading without visual noise */
-body.mode-focus .carte-inline {
-    border-left-color: var(--border-default) !important;
-    filter: grayscale(1);
-}
-body.mode-focus .pastille-extraction { filter: grayscale(1); }
-body.mode-focus .extraction-selectionnee { outline-color: var(--border-strong); }
-
-/* Blocs de transcription audio : neutraliser les couleurs inline des locuteurs */
-/* / Audio transcription blocks: neutralize inline speaker colors */
-body.mode-focus .speaker-block {
-    background-color: transparent !important;
-    border-left-color: #d1d5db !important;
-}
-body.mode-focus .timeline-audio { filter: grayscale(1); opacity: 0.4; }
-body.mode-focus .filtre-locuteurs { filter: grayscale(1); opacity: 0.5; }
-body.mode-focus .speaker-block .speaker-name { color: inherit !important; }
-
 .btn-toolbar-actif { color: #2563eb; background-color: #eef2ff; }
 
 
@@ -1559,13 +1529,6 @@ body.mode-focus .speaker-block .speaker-name { color: inherit !important; }
     }
 }
 
-/* Mode focus : masque le bandeau notification (lecture pure sans bruit visuel) */
-/* / Focus mode: hide notification banner (pure reading without visual noise) */
-body.mode-focus .bandeau-notification {
-    display: none;
-}
-
-
 /* === 24. Mobile + Bottom sheet (PHASE-21) ===
    Responsive breakpoint 768px, conteneur lecture, bottom sheet extraction mobile.
    / Responsive breakpoint 768px, reading container, mobile extraction bottom sheet.
@@ -1629,10 +1592,6 @@ body.mode-focus .bandeau-notification {
 
     #arbre-overlay { width: 100vw !important; }
     .btn-toolbar { min-width: 2.75rem; min-height: 2.75rem; }
-
-    /* Sur mobile on masque Focus (remplace par le toggle mode) */
-    /* / On mobile hide Focus (replaced by mode toggle) */
-    #btn-toolbar-focus { display: none; }
 
     /* Boutons desktop masques sur mobile, boutons mobile visibles */
     /* / Desktop buttons hidden on mobile, mobile buttons visible */

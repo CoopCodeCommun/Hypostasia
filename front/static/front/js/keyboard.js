@@ -367,36 +367,29 @@
             return true;
         }
 
-        // 2. Mode focus actif → desactiver
-        // / 2. Focus mode active → deactivate
-        if (window.marginalia && window.marginalia.modeFocusEstActif()) {
-            window.marginalia.desactiverModeFocus();
-            return true;
-        }
-
-        // 3. Dashboard ouvert → fermer
-        // / 3. Dashboard open → close
+        // 2. Dashboard ouvert → fermer
+        // / 2. Dashboard open → close
         if (window.dashboardConsensus && window.dashboardConsensus.estOuvert()) {
             window.dashboardConsensus.fermer();
             return true;
         }
 
-        // 4. Drawer ouvert → fermer
-        // / 4. Drawer open → close
+        // 3. Drawer ouvert → fermer
+        // / 3. Drawer open → close
         if (window.drawerVueListe && window.drawerVueListe.estOuvert()) {
             window.drawerVueListe.fermer();
             return true;
         }
 
-        // 5. Arbre ouvert → fermer
-        // / 5. Tree open → close
+        // 4. Arbre ouvert → fermer
+        // / 4. Tree open → close
         if (window.arbreOverlay && window.arbreOverlay.estOuvert()) {
             window.arbreOverlay.fermer();
             return true;
         }
 
-        // 6. Carte inline ouverte → fermer
-        // / 6. Inline card open → close
+        // 5. Carte inline ouverte → fermer
+        // / 5. Inline card open → close
         var carteInlineOuverte = document.querySelector('.carte-inline');
         if (carteInlineOuverte) {
             var extractionIdCarte = carteInlineOuverte.dataset.extractionId;
@@ -408,8 +401,8 @@
             return true;
         }
 
-        // 7. Extraction selectionnee → deselectionner
-        // / 7. Extraction selected → deselect
+        // 6. Extraction selectionnee → deselectionner
+        // / 6. Extraction selected → deselect
         if (indexExtractionSelectionnee >= 0) {
             deselectionnerExtraction();
             return true;
@@ -457,15 +450,6 @@
             case 'e':
                 if (window.drawerVueListe) {
                     window.drawerVueListe.basculer();
-                }
-                evenement.preventDefault();
-                break;
-
-            // L → Toggle mode focus lecture
-            // / L → Toggle focus reading mode
-            case 'l':
-                if (window.marginalia) {
-                    window.marginalia.basculerModeFocus();
                 }
                 evenement.preventDefault();
                 break;
