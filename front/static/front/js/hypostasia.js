@@ -449,6 +449,11 @@ document.body.addEventListener('showToast', function(evenement) {
         title: detail.message || 'OK',
         showConfirmButton: false,
         timer: 2500,
+        // Decalage vertical pour passer SOUS la navbar (h-12 = 3rem = 48px)
+        // sinon le toast cache le bouton 'taches' dans la toolbar.
+        // / Vertical offset to go BELOW the navbar (h-12 = 3rem = 48px)
+        // / otherwise the toast hides the 'tasks' button in the toolbar.
+        customClass: { popup: 'toast-sous-navbar' },
     });
 });
 
@@ -1807,19 +1812,64 @@ document.addEventListener('click', async function(evenement) {
     // Connexion au consumer NotificationConsumer (1 seule connexion par session).
     // / Connect to NotificationConsumer (1 connection per session).
     var protocoleWebSocket = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    var connexionTaches = new WebSocket(protocoleWebSocket + window.location.host + '/ws/notifications/');
+    var urlWebSocket = protocoleWebSocket + window.location.host + '/ws/notifications/';
+    var connexionTaches = new WebSocket(urlWebSocket);
+
+    // Logs de debug : connexion ouverte / fermee / erreur / message recu.
+    // Utiles pour diagnostiquer les problemes de notifications.
+    // / Debug logs: connection open / closed / error / message received.
+    connexionTaches.addEventListener('open', function() {
+        console.log('[A.6] WebSocket taches : connecte sur', urlWebSocket);
+    });
+    connexionTaches.addEventListener('close', function(evenement) {
+        console.log('[A.6] WebSocket taches : ferme (code=' + evenement.code + ')');
+    });
+    connexionTaches.addEventListener('error', function(evenement) {
+        console.error('[A.6] WebSocket taches : erreur', evenement);
+    });
+
+    // Helper : refetch le bouton + le dropdown si ouvert.
+    // Utilise par le WS handler ET par le HX-Trigger 'tachesChanged'
+    // (declenche quand on lance une analyse/synthese pour reflet immediat).
+    // / Helper: refetch button + dropdown if open.
+    // / Used by WS handler AND by HX-Trigger 'tachesChanged'
+    // / (fired on analyse/synthese launch for immediate reflection).
+    function rafraichirBoutonTaches() {
+        htmx.ajax('GET', '/taches/bouton/', {
+            target: '#btn-taches',
+            swap: 'outerHTML'
+        });
+        var dropdownOuvert = document.getElementById('taches-dropdown-wrapper');
+        if (dropdownOuvert && !dropdownOuvert.classList.contains('hidden')) {
+            htmx.ajax('GET', '/taches/dropdown/', {
+                target: '#taches-dropdown-content',
+                swap: 'innerHTML'
+            });
+        }
+    }
 
     // A la reception d'un message 'tache_terminee', refetch le bouton
     // pour mettre a jour son etat (couleur + badge).
     // / On 'tache_terminee', refetch button to update state.
     connexionTaches.addEventListener('message', function(evenement) {
         var donneesMessage = JSON.parse(evenement.data);
+        console.log('[A.6] WebSocket taches : message recu', donneesMessage);
         if (donneesMessage.type === 'tache_terminee') {
-            htmx.ajax('GET', '/taches/bouton/', {
-                target: '#btn-taches',
-                swap: 'outerHTML'
-            });
+            rafraichirBoutonTaches();
         }
+    });
+
+    // Ecoute l'event HTMX 'tachesChanged' (envoye par le serveur via HX-Trigger
+    // dans la reponse a /lire/{pk}/analyser/ et /lire/{pk}/synthetiser/).
+    // Permet au bouton de passer immediatement a l'etat 'en_cours' au lancement
+    // d'une tache (sans attendre le prochain WS push qui ne vient qu'a la fin).
+    // / Listen to HTMX 'tachesChanged' event (sent by server via HX-Trigger
+    // / in response to /lire/{pk}/analyser/ and /lire/{pk}/synthetiser/).
+    // / Lets the button immediately switch to 'en_cours' state on task launch
+    // / (without waiting for next WS push which only fires at end).
+    document.body.addEventListener('tachesChanged', function() {
+        console.log('[A.6] HX-Trigger tachesChanged : refetch bouton');
+        rafraichirBoutonTaches();
     });
 
     // Toggle dropdown au clic sur le bouton.

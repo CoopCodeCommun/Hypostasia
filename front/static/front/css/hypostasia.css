@@ -1954,6 +1954,14 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
    / Dropdown opens on click, closes on outside click (handled in JS).
    ========================================================================== */
 
+/* Toast SweetAlert2 sous la navbar (refonte A.6) */
+/* Decalage vertical pour ne pas cacher le bouton 'taches' dans la toolbar. */
+/* / Toast SweetAlert2 below the navbar (A.6 refactor) */
+/* / Vertical offset to avoid hiding the 'tasks' button in the toolbar. */
+.swal2-container .toast-sous-navbar {
+    margin-top: 3.5rem !important;
+}
+
 .taches-wrapper { position: relative; display: inline-flex; }
 .btn-taches { position: relative; }
 .btn-taches-neutre { color: #94a3b8; }
@@ -1968,17 +1976,59 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
     border-radius: 50%; animation: taches-spin 1s linear infinite;
     margin-left: 0.25rem;
 }
+/* Spinner mini : utilise par les icones d'item 'en cours' dans le dropdown.
+   Definir TOUTES les proprietes (pas d'heritage de .spinner-taches). */
+/* / Mini spinner: used by 'in progress' item icons in dropdown.
+   / Defines ALL properties (no inheritance from .spinner-taches). */
 .spinner-taches-mini {
-    width: 0.875rem; height: 0.875rem; border-width: 1.5px;
+    display: inline-block;
+    width: 0.875rem; height: 0.875rem;
+    border: 1.5px solid currentColor; border-top-color: transparent;
+    border-radius: 50%;
+    animation: taches-spin 1s linear infinite;
+    /* Annule le contenu textuel de l'entite HTML (l'icone est purement visuelle) */
+    /* / Cancel text content (icon is purely visual) */
+    font-size: 0;
+    line-height: 0;
 }
 
 .badge-taches {
-    position: absolute; top: -4px; right: -4px;
-    min-width: 1rem; height: 1rem; padding: 0 0.25rem;
-    background: currentColor; color: white !important;
-    border-radius: 0.5rem; font-size: 0.625rem; font-weight: 700;
-    line-height: 1rem; text-align: center;
+    position: absolute; top: -5px; right: -5px;
+    /* Flexbox pour centrage parfait du chiffre (regle UI 10 : alignement optique).
+       Le centrage par line-height + text-align laisse parfois 1px de decalage
+       que l'oeil percoit. Flex centre exactement. */
+    /* / Flexbox for perfect digit centering (UI rule 10: optical alignment).
+       / Centering via line-height + text-align sometimes leaves a 1px offset
+       / that the eye notices. Flex centers exactly. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.125rem; height: 1.125rem; padding: 0 0.3125rem;
+    /* Background explicite par etat (cf. .btn-taches-{etat} .badge-taches plus bas).
+       NE PAS utiliser currentColor car le calcul dynamique CSS peut donner
+       du blanc selon le timing du render. */
+    /* / Explicit background per state (see .btn-taches-{etat} .badge-taches below).
+       / DO NOT use currentColor as dynamic CSS computation can yield white. */
+    background: #94a3b8;  /* defaut : neutre / default: neutre */
+    color: white !important;
+    border-radius: 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
+    /* Chiffres tabulaires (regle UI 4) : "1" et "9+" ont la meme largeur,
+       le badge ne saute pas quand le compteur change. */
+    /* / Tabular numerics (UI rule 4): "1" and "9+" have same width,
+       / badge doesn't jump when counter changes. */
+    font-variant-numeric: tabular-nums;
+    /* Petit offset vertical optique : le poids visuel des chiffres en
+       sans-serif gras tire vers le bas, on remonte d'un demi-pixel. */
+    /* / Small optical vertical offset: visual weight of bold sans-serif
+       / digits pulls downward, we lift by half a pixel. */
+    transform: translateY(-0.5px);
 }
+.btn-taches-en_cours .badge-taches { background: #2563eb; }
+.btn-taches-succes .badge-taches { background: #16a34a; }
+.btn-taches-erreur .badge-taches { background: #dc2626; }
 
 .taches-dropdown-wrapper {
     position: absolute; top: 100%; right: 0; margin-top: 0.25rem;
@@ -1988,7 +2038,22 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
 }
 .taches-dropdown-wrapper.hidden { display: none; }
 
-.taches-dropdown-header { padding: 0.75rem; border-bottom: 1px solid #e2e8f0; }
+.taches-dropdown-header {
+    padding: 0.75rem; border-bottom: 1px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+}
+/* Actions du header (reload + marquer toutes lues) */
+/* / Header actions (reload + mark all as read) */
+.taches-dropdown-actions {
+    display: inline-flex; align-items: center; gap: 0.125rem;
+}
+.taches-dropdown-action-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.5rem; height: 1.5rem; padding: 0;
+    color: #64748b; background: transparent; border: none; border-radius: 0.25rem;
+    cursor: pointer; transition: background-color 0.15s, color 0.15s;
+}
+.taches-dropdown-action-btn:hover { background: #f1f5f9; color: #2563eb; }
 .taches-dropdown-liste { list-style: none; margin: 0; padding: 0; max-height: 400px; overflow-y: auto; }
 .taches-dropdown-item { display: flex; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid #f1f5f9; }
 .taches-dropdown-item:last-child { border-bottom: none; }

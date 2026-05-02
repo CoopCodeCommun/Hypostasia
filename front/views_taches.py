@@ -47,8 +47,14 @@ def _calculer_etat_bouton(user):
     ).count()
     nombre_non_lues = nombre_extractions_non_lues + nombre_transcriptions_non_lues
 
-    # Etat dominant : priorite erreur > succes > en_cours > neutre
-    # / Dominant state: priority erreur > succes > en_cours > neutre
+    # Etat dominant : priorite erreur > en_cours > succes > neutre
+    # On veut voir 'en_cours' pendant qu'une tache tourne, meme s'il y a
+    # des anciennes notifications non lues (ne pas les masquer mais les
+    # reporter a la fin de la tache courante).
+    # / Dominant state: priority erreur > en_cours > succes > neutre
+    # / We want to see 'en_cours' while a task is running, even if there
+    # / are unread old notifications (don't mask them but defer to end of
+    # / current task).
     a_des_erreurs_non_lues = ExtractionJob.objects.filter(
         page__owner=user, status="failed", notification_lue=False,
     ).exists() or TranscriptionJob.objects.filter(
@@ -57,10 +63,10 @@ def _calculer_etat_bouton(user):
 
     if a_des_erreurs_non_lues:
         etat = "erreur"
-    elif nombre_non_lues > 0:
-        etat = "succes"
     elif nombre_en_cours > 0:
         etat = "en_cours"
+    elif nombre_non_lues > 0:
+        etat = "succes"
     else:
         etat = "neutre"
 
@@ -93,21 +99,21 @@ class TachesViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["GET"])
     def dropdown(self, request):
         """
-        Renvoie la liste des 10 dernieres taches dans un dropdown
+        Renvoie la liste des 30 dernieres taches dans un dropdown
         + OOB swap du bouton pour realignement.
-        / Returns 10 most recent tasks in a dropdown + OOB swap button.
+        / Returns 30 most recent tasks in a dropdown + OOB swap button.
         """
-        # Taches recentes : 10 dernieres extractions + 10 dernieres transcriptions
-        # melangees par created_at desc, max 10 au total
-        # / Recent tasks: 10 latest extractions + 10 latest transcriptions
-        # / merged by created_at desc, max 10 total
+        # Taches recentes : 30 dernieres extractions + 30 dernieres transcriptions
+        # melangees par created_at desc, max 30 au total
+        # / Recent tasks: 30 latest extractions + 30 latest transcriptions
+        # / merged by created_at desc, max 30 total
         extractions_recentes = list(ExtractionJob.objects.filter(
             page__owner=request.user,
-        ).select_related("page").order_by("-created_at")[:10])
+        ).select_related("page").order_by("-created_at")[:30])
 
         transcriptions_recentes = list(TranscriptionJob.objects.filter(
             page__owner=request.user,
-        ).select_related("page").order_by("-created_at")[:10])
+        ).select_related("page").order_by("-created_at")[:30])
 
         # Annoter le type pour le template / Annotate type for template
         for extraction in extractions_recentes:
@@ -115,13 +121,13 @@ class TachesViewSet(viewsets.ViewSet):
         for transcription in transcriptions_recentes:
             transcription.type_tache = "transcription"
 
-        # Fusionner et trier par date desc, garder 10
-        # / Merge and sort by date desc, keep 10
+        # Fusionner et trier par date desc, garder 30
+        # / Merge and sort by date desc, keep 30
         toutes_taches = sorted(
             extractions_recentes + transcriptions_recentes,
             key=lambda t: t.created_at,
             reverse=True,
-        )[:10]
+        )[:30]
 
         contexte_bouton = _calculer_etat_bouton(request.user)
 
@@ -150,3 +156,30 @@ class TachesViewSet(viewsets.ViewSet):
         job.notification_lue = True
         job.save(update_fields=["notification_lue"])
         return HttpResponse(status=204)
+
+    @action(detail=False, methods=["POST"], url_path="marquer-toutes-lues")
+    def marquer_toutes_lues(self, request):
+        """
+        Marque TOUTES les notifications terminees du user comme lues.
+        Refetch ensuite le dropdown frais + OOB swap du bouton (etat neutre).
+        / Mark ALL user's finished notifications as read.
+        Then refetch fresh dropdown + OOB swap of button (neutre state).
+
+        LOCALISATION : front/views_taches.py
+        """
+        nombre_extractions = ExtractionJob.objects.filter(
+            page__owner=request.user,
+            status__in=["completed", "failed"],
+            notification_lue=False,
+        ).update(notification_lue=True)
+
+        nombre_transcriptions = TranscriptionJob.objects.filter(
+            page__owner=request.user,
+            status__in=["completed", "failed"],
+            notification_lue=False,
+        ).update(notification_lue=True)
+
+        # Renvoie le dropdown rafraichi (avec OOB swap du bouton inclus)
+        # / Returns refreshed dropdown (with OOB button swap included)
+        # Reutilise la logique de dropdown() / Reuses dropdown() logic
+        return self.dropdown(request)

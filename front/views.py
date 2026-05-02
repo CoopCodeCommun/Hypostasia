@@ -1921,6 +1921,8 @@ class LectureViewSet(viewsets.ViewSet):
                     "message": "Une analyse est deja en cours pour cette page.",
                     "icon": "info",
                 },
+                "fermerDrawer": {},
+                "tachesChanged": {},
             })
             return reponse
 
@@ -2027,6 +2029,8 @@ class LectureViewSet(viewsets.ViewSet):
                 "message": "Analyse lancee. Vous serez notifie a la fin.",
                 "icon": "info",
             },
+            "fermerDrawer": {},
+            "tachesChanged": {},
         })
         return reponse
 
@@ -2261,6 +2265,8 @@ class LectureViewSet(viewsets.ViewSet):
                     "message": "Une synthese est deja en cours pour cette page.",
                     "icon": "info",
                 },
+                "fermerDrawer": {},
+                "tachesChanged": {},
             })
             return reponse
 
@@ -2369,6 +2375,8 @@ class LectureViewSet(viewsets.ViewSet):
                 "message": "Synthese lancee. Vous serez notifie a la fin.",
                 "icon": "info",
             },
+            "fermerDrawer": {},
+            "tachesChanged": {},
         })
         return reponse
 

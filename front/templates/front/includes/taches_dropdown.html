@@ -5,6 +5,37 @@
 <div id="taches-dropdown-content" class="taches-dropdown-content" data-testid="taches-dropdown">
     <div class="taches-dropdown-header">
         <h3 class="text-sm font-semibold text-slate-700">Mes taches recentes</h3>
+        <div class="taches-dropdown-actions">
+            {# Bouton 'tout marquer lu' : passe notification_lue=True sur toutes les terminees #}
+            {# / 'Mark all as read' button: sets notification_lue=True on all finished #}
+            <button type="button"
+                    class="taches-dropdown-action-btn"
+                    hx-post="/taches/marquer-toutes-lues/"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-target="#taches-dropdown-content"
+                    hx-swap="innerHTML"
+                    title="Tout marquer comme lu"
+                    data-testid="btn-taches-marquer-toutes-lues"
+                    aria-label="Marquer toutes les notifications comme lues">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
+                </svg>
+            </button>
+            {# Bouton reload : refetch la liste fraiche depuis la DB #}
+            {# / Reload button: refetch fresh list from DB #}
+            <button type="button"
+                    class="taches-dropdown-action-btn"
+                    hx-get="/taches/dropdown/"
+                    hx-target="#taches-dropdown-content"
+                    hx-swap="innerHTML"
+                    title="Rafraichir la liste"
+                    data-testid="btn-taches-reload"
+                    aria-label="Rafraichir la liste des taches">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
+                </svg>
+            </button>
+        </div>
     </div>
     {% if taches %}
     <ul class="taches-dropdown-liste">

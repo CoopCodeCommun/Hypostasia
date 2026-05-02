@@ -185,8 +185,7 @@
             hx-post="/lire/{{ page.pk }}/synthetiser/"
             hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
             hx-vals='{"analyseur_id": "{{ analyseur.id }}"}'
-            hx-target="#drawer-contenu"
-            hx-swap="innerHTML"
+            hx-swap="none"
             {% if bouton_desactive %}disabled aria-disabled="true"{% endif %}
             class="w-full px-5 py-4 text-base font-bold {% if bouton_desactive %}text-slate-400 bg-slate-100 border-slate-200 cursor-not-allowed{% else %}text-violet-700 bg-violet-100 hover:bg-violet-200 border border-violet-200{% endif %} rounded-xl transition-colors flex items-center justify-center gap-2">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">

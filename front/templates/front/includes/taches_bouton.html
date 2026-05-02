@@ -11,10 +11,12 @@
     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
     </svg>
+    {# Plafond a 9+ pour rester lisible si le compteur explose #}
+    {# / Cap at 9+ to stay readable if counter explodes #}
     {% if nombre_en_cours > 0 %}
     <span class="spinner-taches" aria-hidden="true"></span>
-    <span class="badge-taches" data-testid="badge-taches-en-cours">{{ nombre_en_cours }}</span>
+    <span class="badge-taches" data-testid="badge-taches-en-cours">{% if nombre_en_cours > 9 %}9+{% else %}{{ nombre_en_cours }}{% endif %}</span>
     {% elif nombre_non_lues > 0 %}
-    <span class="badge-taches badge-taches-{{ etat }}" data-testid="badge-taches-non-lues">{{ nombre_non_lues }}</span>
+    <span class="badge-taches badge-taches-{{ etat }}" data-testid="badge-taches-non-lues">{% if nombre_non_lues > 9 %}9+{% else %}{{ nombre_non_lues }}{% endif %}</span>
     {% endif %}
 </a>
