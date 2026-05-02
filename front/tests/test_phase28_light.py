@@ -175,14 +175,16 @@ class PromptSyntheseTest(TestCase):
         self.assertIn("=== TEXTE ORIGINAL ===", prompt)
 
     def test_prompt_contient_statuts(self):
-        """Le prompt contient les statuts des entites (CONSENSUEL, CONTROVERSE)."""
+        """A.8 : statut binaire — le prompt contient [COMMENTE] ou [NOUVEAU]."""
         from front.tasks import _construire_prompt_synthese
         prompt = _construire_prompt_synthese(
             self.fixtures["page_source"], self.fixtures["job_analyse"],
             self.fixtures["analyseur"],
         )
-        self.assertIn("[CONSENSUEL]", prompt)
-        self.assertIn("[CONTROVERSE]", prompt)
+        self.assertTrue(
+            "[COMMENTE]" in prompt or "[NOUVEAU]" in prompt,
+            "Le prompt doit contenir au moins un statut binaire",
+        )
 
     def test_prompt_exclut_non_pertinent(self):
         """Les entites non_pertinent sont exclues du prompt."""
@@ -202,16 +204,10 @@ class PromptSyntheseTest(TestCase):
         )
         self.assertNotIn("Entite masquee invisible", prompt)
 
-    def test_prompt_tri_par_statut(self):
-        """Les entites consensuelles apparaissent avant les controversees."""
-        from front.tasks import _construire_prompt_synthese
-        prompt = _construire_prompt_synthese(
-            self.fixtures["page_source"], self.fixtures["job_analyse"],
-            self.fixtures["analyseur"],
-        )
-        position_consensuel = prompt.index("[CONSENSUEL]")
-        position_controverse = prompt.index("[CONTROVERSE]")
-        self.assertLess(position_consensuel, position_controverse)
+    # A.8 : test_prompt_tri_par_statut retire — le tri par statut riche
+    # (CONSENSUEL avant CONTROVERSE) n'a plus de sens avec 2 valeurs binaires.
+    # / A.8: test removed — sorting by rich status no longer makes sense
+    # / with binary values.
 
     def test_prompt_contient_commentaires(self):
         """Le prompt contient les commentaires des contributeurs."""
@@ -559,21 +555,12 @@ class DashboardBoutonTest(TestCase):
         self.assertIn("/previsualiser_synthese/", contenu)
         self.assertNotIn('disabled', contenu.split("btn-lancer-synthese")[1].split(">")[0])
 
-    def test_bouton_variante_avertissement(self):
-        """Si le seuil n'est pas atteint, le bouton a la classe avertissement."""
-        # Passer toutes les entites visibles en "controverse" pour faire baisser le consensus
-        # / Set all visible entities to "controverse" to lower consensus
-        ExtractedEntity.objects.filter(
-            job=self.fixtures["job_analyse"],
-            masquee=False,
-        ).update(statut_debat="controverse")
-
-        reponse = self.client.get(
-            f"/extractions/dashboard/?page_id={self.fixtures['page_source'].pk}",
-            HTTP_HX_REQUEST="true",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn("btn-synthese-avertissement", contenu)
+    # A.8 : test_bouton_variante_avertissement retire — la variante
+    # "avertissement" (seuil de consensus non atteint) a ete retiree.
+    # Le bouton synthese est toujours affichable, l'utilisateur lance
+    # quand il veut (decision Q1=B du brainstorming A.8).
+    # / A.8: removed — "warning" variant (consensus threshold not reached)
+    # / removed. Synthesis button always shown, user launches when they want.
 
     def test_zone_btn_synthese_presente(self):
         """Le div #zone-btn-synthese est present dans le dashboard."""
@@ -585,8 +572,10 @@ class DashboardBoutonTest(TestCase):
         self.assertIn('id="zone-btn-synthese"', contenu)
 
     def test_dashboard_entites_nouveau_ne_montre_pas_etat_vide(self):
-        """Des entites en statut 'nouveau' ne declenchent pas 'Aucune extraction'."""
-        # Passer toutes les entites visibles en "nouveau" / Set all visible entities to "nouveau"
+        """Des entites visibles ne declenchent pas l'etat vide (A.8 dashboard simplifie)."""
+        # A.8 : la grille 6 compteurs ("compteur-nouveau", "compteur-consensuel"...)
+        # est remplacee par un compteur binaire commentees/total.
+        # / A.8: 6-counter grid replaced by binary commentees/total counter.
         ExtractedEntity.objects.filter(
             job=self.fixtures["job_analyse"],
         ).update(statut_debat="nouveau", masquee=False)
@@ -596,14 +585,15 @@ class DashboardBoutonTest(TestCase):
             HTTP_HX_REQUEST="true",
         )
         contenu = reponse.content.decode("utf-8")
-        # Ne doit PAS afficher l'etat vide / Must NOT show the empty state
-        self.assertNotIn("Aucune extraction pour cette page", contenu)
-        # Doit afficher la grille de compteurs / Must show the counters grid
-        self.assertIn("compteur-nouveau", contenu)
+        # Pas d'etat vide quand il y a des entites
+        # / No empty state when entities exist
+        self.assertNotIn("Aucune extraction sur cette page", contenu)
+        # Le dashboard affiche bien le compteur (commentees / total)
+        # / Dashboard shows the counter (commented / total)
+        self.assertIn("extraction", contenu)
 
     def test_dashboard_aucune_entite_montre_etat_vide(self):
-        """Sans aucune entite, le dashboard affiche bien 'Aucune extraction'."""
-        # Supprimer toutes les entites / Delete all entities
+        """Sans aucune entite, le dashboard affiche bien le message etat vide."""
         ExtractedEntity.objects.filter(job=self.fixtures["job_analyse"]).delete()
 
         reponse = self.client.get(
@@ -611,4 +601,5 @@ class DashboardBoutonTest(TestCase):
             HTTP_HX_REQUEST="true",
         )
         contenu = reponse.content.decode("utf-8")
-        self.assertIn("Aucune extraction pour cette page", contenu)
+        # A.8 : message simplifie / A.8: simplified message
+        self.assertIn("Aucune extraction sur cette page", contenu)

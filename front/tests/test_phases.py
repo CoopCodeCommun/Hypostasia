@@ -1154,17 +1154,13 @@ class Phase06ChampStatutDebatTest(TestCase):
         champ_statut = ExtractedEntity._meta.get_field("statut_debat")
         self.assertEqual(champ_statut.default, "nouveau")
 
-    def test_statut_debat_choices_complets(self):
-        """Les choices de statut_debat contiennent les 6 valeurs attendues (PHASE-26c)."""
+    def test_statut_debat_choices_binaires(self):
+        """A.8 : statut_debat reduit a 2 valeurs (nouveau / commente).
+        / A.8: status reduced to 2 values (nouveau / commente)."""
         from hypostasis_extractor.models import ExtractedEntity
         champ_statut = ExtractedEntity._meta.get_field("statut_debat")
         valeurs_choices = [choix[0] for choix in champ_statut.choices]
-        valeurs_attendues = ["nouveau", "consensuel", "discutable", "discute", "controverse", "non_pertinent"]
-        for valeur in valeurs_attendues:
-            self.assertIn(
-                valeur, valeurs_choices,
-                f"Valeur '{valeur}' manquante dans statut_debat choices",
-            )
+        self.assertEqual(set(valeurs_choices), {"nouveau", "commente"})
 
     def test_statut_debat_max_length_suffisant(self):
         """max_length de statut_debat couvre la plus longue valeur (controverse = 11 chars)."""
@@ -1231,60 +1227,26 @@ class Phase06CreationEntiteDefautsTest(TestCase):
 
 
 class Phase06VariablesCSSStatutTest(TestCase):
-    """Verifie que les variables CSS des statuts de debat sont definies dans :root.
-    / Verify that debate status CSS variables are defined in :root."""
+    """A.8 : statut binaire (nouveau / commente). Les 5 paires de variables CSS
+    pour les anciens statuts riches (consensuel, discutable, discute, controverse,
+    non_pertinent) ont ete retirees. Seules nouveau et commente subsistent.
+    / A.8: binary status. Only nouveau and commente CSS variable pairs remain."""
 
     def setUp(self):
         chemin_css = STATIC_FRONT / "css" / "hypostasia.css"
         self.contenu_css = chemin_css.read_text(encoding="utf-8")
 
-    def test_variable_consensuel_text(self):
-        """--statut-consensuel-text est definie dans le CSS."""
-        self.assertIn("--statut-consensuel-text:", self.contenu_css)
+    def test_variable_nouveau_definie(self):
+        """--statut-nouveau-{text,bg,accent} sont definies dans le CSS."""
+        self.assertIn("--statut-nouveau-text:", self.contenu_css)
+        self.assertIn("--statut-nouveau-bg:", self.contenu_css)
+        self.assertIn("--statut-nouveau-accent:", self.contenu_css)
 
-    def test_variable_consensuel_bg(self):
-        """--statut-consensuel-bg est definie dans le CSS."""
-        self.assertIn("--statut-consensuel-bg:", self.contenu_css)
-
-    def test_variable_consensuel_accent(self):
-        """--statut-consensuel-accent est definie dans le CSS."""
-        self.assertIn("--statut-consensuel-accent:", self.contenu_css)
-
-    def test_variable_discutable_text(self):
-        """--statut-discutable-text est definie dans le CSS."""
-        self.assertIn("--statut-discutable-text:", self.contenu_css)
-
-    def test_variable_discutable_bg(self):
-        """--statut-discutable-bg est definie dans le CSS."""
-        self.assertIn("--statut-discutable-bg:", self.contenu_css)
-
-    def test_variable_discutable_accent(self):
-        """--statut-discutable-accent est definie dans le CSS."""
-        self.assertIn("--statut-discutable-accent:", self.contenu_css)
-
-    def test_variable_discute_text(self):
-        """--statut-discute-text est definie dans le CSS."""
-        self.assertIn("--statut-discute-text:", self.contenu_css)
-
-    def test_variable_discute_bg(self):
-        """--statut-discute-bg est definie dans le CSS."""
-        self.assertIn("--statut-discute-bg:", self.contenu_css)
-
-    def test_variable_discute_accent(self):
-        """--statut-discute-accent est definie dans le CSS."""
-        self.assertIn("--statut-discute-accent:", self.contenu_css)
-
-    def test_variable_controverse_text(self):
-        """--statut-controverse-text est definie dans le CSS."""
-        self.assertIn("--statut-controverse-text:", self.contenu_css)
-
-    def test_variable_controverse_bg(self):
-        """--statut-controverse-bg est definie dans le CSS."""
-        self.assertIn("--statut-controverse-bg:", self.contenu_css)
-
-    def test_variable_controverse_accent(self):
-        """--statut-controverse-accent est definie dans le CSS."""
-        self.assertIn("--statut-controverse-accent:", self.contenu_css)
+    def test_variable_commente_definie(self):
+        """--statut-commente-{text,bg,accent} sont definies dans le CSS."""
+        self.assertIn("--statut-commente-text:", self.contenu_css)
+        self.assertIn("--statut-commente-bg:", self.contenu_css)
+        self.assertIn("--statut-commente-accent:", self.contenu_css)
 
 
 # =============================================================================
@@ -1463,8 +1425,10 @@ class Phase07CSSNettoyageTest(TestCase):
         self.assertIn(".tree-arrow", self.contenu_css)
 
     def test_variables_statut_debat_conservees(self):
-        """Les variables CSS des statuts de debat sont toujours presentes."""
-        self.assertIn("--statut-consensuel-text", self.contenu_css)
+        """A.8 : seules les variables binaires nouveau/commente sont conservees.
+        / A.8: only binary nouveau/commente CSS variables remain."""
+        self.assertIn("--statut-nouveau-text", self.contenu_css)
+        self.assertIn("--statut-commente-text", self.contenu_css)
 
 
 class Phase07JSNettoyageTest(TestCase):
@@ -1962,16 +1926,6 @@ class Phase10EndpointMasquerTest(TestCase):
         self.entite_sans_commentaire.refresh_from_db()
         self.assertTrue(self.entite_sans_commentaire.masquee)
 
-    def test_masquer_met_statut_non_pertinent(self):
-        """Apres masquer, l'entite a statut_debat='non_pertinent' en base.
-        / After hiding, the entity has statut_debat='non_pertinent' in DB."""
-        self.client.post("/extractions/masquer/", {
-            "entity_id": self.entite_sans_commentaire.pk,
-            "page_id": self.page.pk,
-        })
-        self.entite_sans_commentaire.refresh_from_db()
-        self.assertEqual(self.entite_sans_commentaire.statut_debat, "non_pertinent")
-
     def test_masquer_refuse_si_commentaires(self):
         """Masquer une entite avec commentaires retourne 400."""
         reponse = self.client.post("/extractions/masquer/", {
@@ -2094,16 +2048,6 @@ class Phase10EndpointRestaurerTest(TestCase):
         self.entite_masquee.refresh_from_db()
         self.assertFalse(self.entite_masquee.masquee)
 
-    def test_restaurer_met_statut_nouveau(self):
-        """Apres restaurer, l'entite a statut_debat='nouveau' en base.
-        / After restoring, the entity has statut_debat='nouveau' in DB."""
-        self.client.post("/extractions/restaurer/", {
-            "entity_id": self.entite_masquee.pk,
-            "page_id": self.page.pk,
-        })
-        self.entite_masquee.refresh_from_db()
-        self.assertEqual(self.entite_masquee.statut_debat, "nouveau")
-
     def test_restaurer_sans_params_retourne_400(self):
         """POST /extractions/restaurer/ sans params retourne 400."""
         reponse = self.client.post("/extractions/restaurer/", {})
@@ -2160,34 +2104,37 @@ class Phase10EndpointDrawerContenuTest(TestCase):
             status="completed",
             ai_model=None,
         )
-        # Entite visible / Visible entity
+        # Entite visible (A.8 : statut binaire, set par signal selon commentaires)
+        # / Visible entity (A.8: binary status, set by signal based on comments)
         self.entite_visible = ExtractedEntity.objects.create(
             job=self.job,
             extraction_class="concept",
             extraction_text="Alpha",
             start_char=0,
             end_char=5,
-            statut_debat="consensuel",
+            statut_debat="nouveau",
             masquee=False,
         )
-        # Entite masquee (statut non_pertinent => masquee=True via save())
-        # / Hidden entity (statut non_pertinent => masquee=True via save())
+        # Entite masquee (A.8 : masquee=True direct, le statut n'est plus impacte)
+        # / Hidden entity (A.8: masquee=True direct, status no longer impacted)
         self.entite_masquee = ExtractedEntity.objects.create(
             job=self.job,
             extraction_class="argument",
             extraction_text="Beta",
             start_char=6,
             end_char=10,
-            statut_debat="non_pertinent",
+            statut_debat="nouveau",
+            masquee=True,
         )
-        # Entite avec commentaire / Entity with comment
+        # Entite avec commentaire (statut "commente" mis par signal)
+        # / Entity with comment (status "commente" set by signal)
         self.entite_commentee = ExtractedEntity.objects.create(
             job=self.job,
             extraction_class="axiome",
             extraction_text="Gamma",
             start_char=11,
             end_char=16,
-            statut_debat="discute",
+            statut_debat="nouveau",
             masquee=False,
         )
         CommentaireExtraction.objects.create(
@@ -3993,34 +3940,42 @@ class FixOOBPanneauExtractionsJSTest(TestCase):
 
 
 class DrawerAmelioreTemplateTest(TestCase):
-    """Verifie que le template drawer affiche resume, citation et commentaires.
-    / Verify drawer template displays summary, citation and comments."""
+    """A.8 : drawer_vue_liste.html delegue le contenu carte a _card_body.html
+    via {% include %}. Les classes typo et la boucle commentaires sont
+    desormais dans _card_body.html.
+    / A.8: drawer_vue_liste.html delegates card content to _card_body.html
+    via {% include %}. Typo classes and comments loop now in _card_body.html."""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        chemin_template = BASE_DIR / "front" / "templates" / "front" / "includes" / "drawer_vue_liste.html"
-        cls.contenu_template = chemin_template.read_text() if chemin_template.exists() else ""
+        chemin_drawer = BASE_DIR / "front" / "templates" / "front" / "includes" / "drawer_vue_liste.html"
+        chemin_card_body = (
+            BASE_DIR / "hypostasis_extractor" / "templates"
+            / "hypostasis_extractor" / "includes" / "_card_body.html"
+        )
+        cls.contenu_template = chemin_drawer.read_text() if chemin_drawer.exists() else ""
+        cls.contenu_card_body = chemin_card_body.read_text() if chemin_card_body.exists() else ""
 
     def test_template_contient_localisation(self):
         """Le template contient le commentaire LOCALISATION."""
         self.assertIn("LOCALISATION", self.contenu_template)
 
     def test_template_contient_typo_machine_pour_resume(self):
-        """Le resume IA utilise la classe typo-machine."""
-        self.assertIn("typo-machine", self.contenu_template)
+        """A.8 : le resume IA utilise typo-machine dans _card_body.html."""
+        self.assertIn("typo-machine", self.contenu_card_body)
 
     def test_template_contient_typo_citation_pour_source(self):
-        """La citation source utilise la classe typo-citation."""
-        self.assertIn("typo-citation", self.contenu_template)
+        """A.8 : la citation source utilise typo-citation dans _card_body.html."""
+        self.assertIn("typo-citation", self.contenu_card_body)
 
-    def test_template_contient_typo_lecteur_pour_commentaires(self):
-        """Les noms des commentateurs utilisent la classe typo-lecteur-nom."""
-        self.assertIn("typo-lecteur-nom", self.contenu_template)
+    def test_template_inclut_card_body(self):
+        """A.8 : drawer_vue_liste.html inclut _card_body.html pour le contenu."""
+        self.assertIn("_card_body.html", self.contenu_template)
 
     def test_template_affiche_commentaires(self):
-        """Le template itere sur entity.commentaires.all."""
-        self.assertIn("entity.commentaires.all", self.contenu_template)
+        """A.8 : la boucle entity.commentaires.all est dans _card_body.html."""
+        self.assertIn("entity.commentaires.all", self.contenu_card_body)
 
     def test_template_contient_aria_live(self):
         """Le conteneur a aria-live pour l'accessibilite."""
@@ -4156,12 +4111,16 @@ class DrawerAmelioreEndpointTest(TestCase):
         contenu = reponse.content.decode("utf-8")
         self.assertIn("typo-citation", contenu)
 
-    def test_drawer_contenu_utilise_typo_lecteur(self):
-        """Le drawer utilise la classe typo-lecteur-nom pour les commentaires."""
+    def test_drawer_contenu_affiche_nom_commentateur(self):
+        """A.8 : le drawer affiche le nom du commentateur (layout Facebook-like
+        avec font-semibold) au lieu de la typo-lecteur-nom (Srisakdi italique).
+        / A.8: drawer shows commenter name (Facebook-like layout with font-semibold)."""
         url = f"/extractions/drawer_contenu/?page_id={self.page_test.pk}"
         reponse = self.client.get(url)
         contenu = reponse.content.decode("utf-8")
-        self.assertIn("typo-lecteur-nom", contenu)
+        # Le nom (font-semibold) doit apparaitre en gras dans le bloc commentaires
+        # / Name (font-semibold) must appear bold in comments block
+        self.assertIn("font-semibold", contenu)
 
 
 
@@ -6922,316 +6881,14 @@ class Phase26aBisExclureHxTriggerTest(_Phase26aSetupMixin, TestCase):
 
 # =============================================================================
 # PHASE-26c — Ownership statut + 6 statuts
-# / PHASE-26c — Ownership status + 6 statuses
+# A.8 : action changer_statut retiree, sync masquee retiree, statut binaire,
+# auto-promotion testee dans test_phase_a8_signal.py.
+# Les classes Phase26cOwnershipStatutTest, Phase26cMasquerNonPertinentTest,
+# Phase26cRestaurerNouveauTest, Phase26cAutoPromotionNouveauTest,
+# Phase26cSyncMasqueeTest ont ete retirees.
+# / A.8: changer_statut action removed, masquee sync removed, binary status,
+# auto-promotion tested in test_phase_a8_signal.py.
 # =============================================================================
-
-class Phase26cOwnershipStatutTest(TestCase):
-    """Verifie que seul le proprietaire du dossier peut changer le statut.
-    / Verifies that only the folder owner can change the status."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from core.models import Dossier, Page
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-
-        self.proprietaire = User.objects.create_user(
-            username="owner26c", password="pass",
-        )
-        self.autre_utilisateur = User.objects.create_user(
-            username="autre26c", password="pass",
-        )
-        self.dossier = Dossier.objects.create(
-            name="Dossier ownership", owner=self.proprietaire,
-        )
-        self.page = Page.objects.create(
-            url="https://example.com/ownership",
-            title="Ownership test",
-            dossier=self.dossier,
-            html_original="<html><body>Test</body></html>",
-            html_readability="<p>Test</p>",
-            text_readability="Test.",
-        )
-        self.job = ExtractionJob.objects.create(
-            page=self.page,
-            name="Extractions manuelles",
-            status="completed",
-            ai_model=None,
-        )
-        self.entite = ExtractedEntity.objects.create(
-            job=self.job,
-            extraction_class="concept",
-            extraction_text="Test ownership",
-            start_char=0,
-            end_char=4,
-            statut_debat="nouveau",
-        )
-
-    def test_non_owner_recoit_403_sur_changer_statut(self):
-        """Un non-owner recoit 403 quand il tente de changer le statut."""
-        self.client.login(username="autre26c", password="pass")
-        reponse = self.client.post("/extractions/changer_statut/", {
-            "entity_id": self.entite.pk,
-            "page_id": self.page.pk,
-            "nouveau_statut": "consensuel",
-        })
-        self.assertEqual(reponse.status_code, 403)
-
-    def test_owner_peut_changer_statut(self):
-        """Le proprietaire peut changer le statut avec succes."""
-        self.client.login(username="owner26c", password="pass")
-        reponse = self.client.post("/extractions/changer_statut/", {
-            "entity_id": self.entite.pk,
-            "page_id": self.page.pk,
-            "nouveau_statut": "consensuel",
-        })
-        self.assertEqual(reponse.status_code, 200)
-
-    def test_non_owner_recoit_403_sur_masquer(self):
-        """Un non-owner recoit 403 quand il tente de masquer."""
-        self.client.login(username="autre26c", password="pass")
-        reponse = self.client.post("/extractions/masquer/", {
-            "entity_id": self.entite.pk,
-            "page_id": self.page.pk,
-        })
-        self.assertEqual(reponse.status_code, 403)
-
-    def test_non_owner_recoit_403_sur_restaurer(self):
-        """Un non-owner recoit 403 quand il tente de restaurer."""
-        from hypostasis_extractor.models import ExtractedEntity
-        self.entite.statut_debat = "non_pertinent"
-        self.entite.save()
-        self.client.login(username="autre26c", password="pass")
-        reponse = self.client.post("/extractions/restaurer/", {
-            "entity_id": self.entite.pk,
-            "page_id": self.page.pk,
-        })
-        self.assertEqual(reponse.status_code, 403)
-
-
-class Phase26cMasquerNonPertinentTest(TestCase):
-    """Verifie que masquer passe en statut non_pertinent + masquee=True.
-    / Verifies that masquer sets status to non_pertinent + masquee=True."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from core.models import Dossier, Page
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-
-        self.owner = User.objects.create_user(
-            username="owner_masq", password="pass",
-        )
-        self.dossier = Dossier.objects.create(
-            name="Dossier masquer", owner=self.owner,
-        )
-        self.page = Page.objects.create(
-            url="https://example.com/masquer26c",
-            title="Masquer test",
-            dossier=self.dossier,
-            html_original="<html><body>Test masquer</body></html>",
-            html_readability="<p>Test masquer</p>",
-            text_readability="Test masquer.",
-        )
-        self.job = ExtractionJob.objects.create(
-            page=self.page,
-            name="Extractions manuelles",
-            status="completed",
-            ai_model=None,
-        )
-        self.entite = ExtractedEntity.objects.create(
-            job=self.job,
-            extraction_class="concept",
-            extraction_text="Test masquer",
-            start_char=0,
-            end_char=12,
-            statut_debat="nouveau",
-        )
-        self.client.login(username="owner_masq", password="pass")
-
-    def test_masquer_met_statut_non_pertinent(self):
-        """Apres masquer, statut_debat='non_pertinent' et masquee=True."""
-        from hypostasis_extractor.models import ExtractedEntity
-        self.client.post("/extractions/masquer/", {
-            "entity_id": self.entite.pk,
-            "page_id": self.page.pk,
-        })
-        self.entite.refresh_from_db()
-        self.assertEqual(self.entite.statut_debat, "non_pertinent")
-        self.assertTrue(self.entite.masquee)
-
-
-class Phase26cRestaurerNouveauTest(TestCase):
-    """Verifie que restaurer passe en statut nouveau + masquee=False.
-    / Verifies that restaurer sets status to nouveau + masquee=False."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from core.models import Dossier, Page
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-
-        self.owner = User.objects.create_user(
-            username="owner_rest", password="pass",
-        )
-        self.dossier = Dossier.objects.create(
-            name="Dossier restaurer", owner=self.owner,
-        )
-        self.page = Page.objects.create(
-            url="https://example.com/restaurer26c",
-            title="Restaurer test",
-            dossier=self.dossier,
-            html_original="<html><body>Test restaurer</body></html>",
-            html_readability="<p>Test restaurer</p>",
-            text_readability="Test restaurer.",
-        )
-        self.job = ExtractionJob.objects.create(
-            page=self.page,
-            name="Extractions manuelles",
-            status="completed",
-            ai_model=None,
-        )
-        self.entite = ExtractedEntity.objects.create(
-            job=self.job,
-            extraction_class="concept",
-            extraction_text="Test restaurer",
-            start_char=0,
-            end_char=14,
-            statut_debat="non_pertinent",
-            masquee=True,
-        )
-        self.client.login(username="owner_rest", password="pass")
-
-    def test_restaurer_met_statut_nouveau(self):
-        """Apres restaurer, statut_debat='nouveau' et masquee=False."""
-        from hypostasis_extractor.models import ExtractedEntity
-        self.client.post("/extractions/restaurer/", {
-            "entity_id": self.entite.pk,
-            "page_id": self.page.pk,
-        })
-        self.entite.refresh_from_db()
-        self.assertEqual(self.entite.statut_debat, "nouveau")
-        self.assertFalse(self.entite.masquee)
-
-
-class Phase26cAutoPromotionNouveauTest(TestCase):
-    """Verifie que commenter une entite 'nouveau' la passe en 'discute'.
-    / Verifies that commenting on a 'nouveau' entity promotes it to 'discute'."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from core.models import Dossier, Page
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-
-        self.owner = User.objects.create_user(
-            username="owner_auto", password="pass",
-        )
-        self.dossier = Dossier.objects.create(
-            name="Dossier auto-promote", owner=self.owner,
-        )
-        self.page = Page.objects.create(
-            url="https://example.com/auto26c",
-            title="Auto-promote test",
-            dossier=self.dossier,
-            html_original="<html><body>Test auto</body></html>",
-            html_readability="<p>Test auto</p>",
-            text_readability="Test auto.",
-        )
-        self.job = ExtractionJob.objects.create(
-            page=self.page,
-            name="Extractions manuelles",
-            status="completed",
-            ai_model=None,
-        )
-        self.entite = ExtractedEntity.objects.create(
-            job=self.job,
-            extraction_class="concept",
-            extraction_text="Test auto",
-            start_char=0,
-            end_char=9,
-            statut_debat="nouveau",
-        )
-        self.client.login(username="owner_auto", password="pass")
-
-    def test_commentaire_sur_nouveau_passe_en_discute(self):
-        """Un commentaire sur une entite 'nouveau' la passe en 'discute'."""
-        from hypostasis_extractor.models import ExtractedEntity
-        self.client.post("/extractions/ajouter_commentaire/", {
-            "entity_id": self.entite.pk,
-            "commentaire": "Premier commentaire",
-        })
-        self.entite.refresh_from_db()
-        self.assertEqual(self.entite.statut_debat, "discute")
-
-
-class Phase26cSyncMasqueeTest(TestCase):
-    """Verifie que save() synchronise masquee avec statut_debat.
-    / Verifies that save() syncs masquee with statut_debat."""
-
-    def test_save_non_pertinent_met_masquee_true(self):
-        """Quand statut_debat='non_pertinent', save() met masquee=True."""
-        from django.contrib.auth.models import User
-        from core.models import Page
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-
-        page = Page.objects.create(
-            url="https://example.com/sync26c",
-            title="Sync test",
-            html_original="<html><body>Sync</body></html>",
-            html_readability="<p>Sync</p>",
-            text_readability="Sync.",
-        )
-        job = ExtractionJob.objects.create(
-            page=page,
-            name="Test sync",
-            status="completed",
-            ai_model=None,
-        )
-        entite = ExtractedEntity.objects.create(
-            job=job,
-            extraction_class="concept",
-            extraction_text="Sync test",
-            start_char=0,
-            end_char=4,
-            statut_debat="nouveau",
-        )
-        self.assertFalse(entite.masquee)
-
-        entite.statut_debat = "non_pertinent"
-        entite.save()
-        entite.refresh_from_db()
-        self.assertTrue(entite.masquee)
-
-    def test_save_nouveau_met_masquee_false(self):
-        """Quand statut_debat='nouveau', save() met masquee=False."""
-        from core.models import Page
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-
-        page = Page.objects.create(
-            url="https://example.com/sync26c2",
-            title="Sync test 2",
-            html_original="<html><body>Sync2</body></html>",
-            html_readability="<p>Sync2</p>",
-            text_readability="Sync2.",
-        )
-        job = ExtractionJob.objects.create(
-            page=page,
-            name="Test sync 2",
-            status="completed",
-            ai_model=None,
-        )
-        entite = ExtractedEntity.objects.create(
-            job=job,
-            extraction_class="concept",
-            extraction_text="Sync test 2",
-            start_char=0,
-            end_char=5,
-            statut_debat="non_pertinent",
-        )
-        self.assertTrue(entite.masquee)
-
-        entite.statut_debat = "nouveau"
-        entite.save()
-        entite.refresh_from_db()
-        self.assertFalse(entite.masquee)
-
 
 # =============================================================================
 # PHASE-26i — Refonte WebSocket : bouton 'taches' + NotificationConsumer

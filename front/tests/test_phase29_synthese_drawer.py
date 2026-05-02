@@ -130,11 +130,16 @@ class PartialUpdateEstParDefautToastTests(TestCase):
 
 
 class CalculerConsensusHelperTests(TestCase):
-    """Tests sur le helper _calculer_consensus."""
+    """A.8 : tests adaptes au helper _calculer_consensus simplifie.
+    Le helper retourne {total, commentees, non_commentees, pourcentage}.
+    / A.8: tests adapted to simplified _calculer_consensus helper.
+    Returns {total, commentees, non_commentees, pourcentage}."""
 
     def setUp(self):
         from core.models import Page, Dossier
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
+        from hypostasis_extractor.models import (
+            CommentaireExtraction, ExtractionJob, ExtractedEntity,
+        )
         self.user = User.objects.create_user("user_test", password="test1234")
         self.dossier = Dossier.objects.create(name="Test", owner=self.user)
         self.page = Page.objects.create(
@@ -144,56 +149,47 @@ class CalculerConsensusHelperTests(TestCase):
         self.job = ExtractionJob.objects.create(
             page=self.page, status="completed", name="Test",
         )
-        # 3 consensuel, 1 discute, 1 controverse, 1 non_pertinent
-        # / 3 consensual, 1 discussed, 1 controversial, 1 non-relevant
+        # 2 entites visibles avec commentaire (-> "commente" via signal)
+        # 3 entites visibles sans commentaire (-> "nouveau")
+        # 1 entite masquee (exclue par le helper)
+        # / 2 visible with comment (signal sets "commente")
+        # / 3 visible without comment ("nouveau")
+        # / 1 hidden (excluded by helper)
+        for _i in range(2):
+            entite_commentee = ExtractedEntity.objects.create(
+                job=self.job, extraction_class="theorie",
+                extraction_text="texte", statut_debat="nouveau",
+                start_char=0, end_char=5,
+            )
+            CommentaireExtraction.objects.create(
+                entity=entite_commentee, user=self.user, commentaire="OK",
+            )
         for _i in range(3):
             ExtractedEntity.objects.create(
                 job=self.job, extraction_class="theorie",
-                extraction_text="texte", statut_debat="consensuel",
+                extraction_text="texte", statut_debat="nouveau",
                 start_char=0, end_char=5,
             )
         ExtractedEntity.objects.create(
             job=self.job, extraction_class="theorie",
-            extraction_text="texte", statut_debat="discute",
+            extraction_text="texte", statut_debat="nouveau",
             start_char=0, end_char=5,
-        )
-        ExtractedEntity.objects.create(
-            job=self.job, extraction_class="theorie",
-            extraction_text="texte", statut_debat="controverse",
-            start_char=0, end_char=5,
-        )
-        ExtractedEntity.objects.create(
-            job=self.job, extraction_class="theorie",
-            extraction_text="texte", statut_debat="non_pertinent",
-            start_char=0, end_char=5,
+            masquee=True,
         )
 
     def test_calculer_consensus_compteurs_corrects(self):
-        # Le save() de ExtractedEntity synchronise masquee=True quand non_pertinent.
-        # Le helper filtre sur masquee=False donc les non_pertinent ne sont pas comptes.
-        # / ExtractedEntity.save() syncs masquee=True for non_pertinent.
-        # / Helper filters masquee=False so non_pertinent are not counted.
+        """Le helper retourne total visibles (5), commentees (2), non_commentees (3)."""
         from front.views import _calculer_consensus
         consensus = _calculer_consensus(self.page)
-        self.assertEqual(consensus["compteur_consensuel"], 3)
-        self.assertEqual(consensus["compteur_discute"], 1)
-        self.assertEqual(consensus["compteur_controverse"], 1)
-        self.assertEqual(consensus["compteur_non_pertinent"], 0)
-        # Total visibles : 3 + 1 + 1 = 5 (le non_pertinent est masque)
-        # / Total visible: 3 + 1 + 1 = 5 (non_pertinent is hidden)
-        self.assertEqual(consensus["total_entites_toutes"], 5)
+        self.assertEqual(consensus["total"], 5)
+        self.assertEqual(consensus["commentees"], 2)
+        self.assertEqual(consensus["non_commentees"], 3)
 
-    def test_calculer_consensus_pourcentage_et_seuil(self):
+    def test_calculer_consensus_pourcentage(self):
+        """Le pourcentage est 100 * commentees / total = 40%."""
         from front.views import _calculer_consensus
         consensus = _calculer_consensus(self.page)
-        # 3 consensuel sur 5 dans le cycle deliberatif (3+0+1+1)
-        # / 3 consensual out of 5 in deliberative cycle
-        self.assertEqual(consensus["pourcentage_consensus"], 60)
-        self.assertFalse(consensus["seuil_atteint"])  # 60% < 80%
-        self.assertEqual(consensus["seuil_consensus"], 80)
-        # 2 extractions bloquantes (1 controverse + 1 discute)
-        # / 2 blocking extractions (1 controverse + 1 discute)
-        self.assertEqual(len(list(consensus["extractions_bloquantes"])), 2)
+        self.assertEqual(consensus["pourcentage"], 40)
 
 
 class PrevisualiserSyntheseTests(TestCase):

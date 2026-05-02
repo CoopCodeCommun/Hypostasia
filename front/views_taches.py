@@ -116,10 +116,23 @@ class TachesViewSet(viewsets.ViewSet):
         ).select_related("page").order_by("-created_at")[:30])
 
         # Annoter le type pour le template / Annotate type for template
+        # Une ExtractionJob peut etre soit une analyse, soit une synthese
+        # (raw_result.est_synthese=True). On les distingue ici pour l'affichage.
+        # / An ExtractionJob can be either an analysis or a synthesis
+        # / (raw_result.est_synthese=True). We distinguish here for display.
         for extraction in extractions_recentes:
-            extraction.type_tache = "extraction"
+            raw = extraction.raw_result or {}
+            if raw.get("est_synthese"):
+                extraction.type_tache = "synthese"
+                # Le lien "Voir le resultat" pointe vers la page V2/V3 creee
+                # / "View result" link points to the V2/V3 page created
+                extraction.page_resultat_id = raw.get("page_synthese_id") or extraction.page.pk
+            else:
+                extraction.type_tache = "analyse"
+                extraction.page_resultat_id = extraction.page.pk
         for transcription in transcriptions_recentes:
             transcription.type_tache = "transcription"
+            transcription.page_resultat_id = transcription.page.pk
 
         # Fusionner et trier par date desc, garder 30
         # / Merge and sort by date desc, keep 30
@@ -146,12 +159,14 @@ class TachesViewSet(viewsets.ViewSet):
         LOCALISATION : front/views_taches.py
         """
         type_tache = request.query_params.get("type")
-        if type_tache == "extraction":
+        # "analyse" et "synthese" pointent tous deux sur ExtractionJob (distinction via raw_result.est_synthese)
+        # / "analyse" and "synthese" both point to ExtractionJob (distinguished via raw_result.est_synthese)
+        if type_tache in ("analyse", "synthese", "extraction"):
             job = get_object_or_404(ExtractionJob, pk=pk, page__owner=request.user)
         elif type_tache == "transcription":
             job = get_object_or_404(TranscriptionJob, pk=pk, page__owner=request.user)
         else:
-            return HttpResponse("Parametre type=extraction|transcription requis", status=400)
+            return HttpResponse("Parametre type=analyse|synthese|transcription requis", status=400)
 
         job.notification_lue = True
         job.save(update_fields=["notification_lue"])

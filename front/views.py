@@ -781,19 +781,22 @@ class LectureViewSet(viewsets.ViewSet):
             return refus_acces
 
         # Marquage 'notification lue' si parametres presents (refonte A.6)
-        # Le lien dans le dropdown des taches passe ?marquer_lue=X&type=extraction|transcription
+        # Le lien dropdown passe ?marquer_lue=X&type=analyse|synthese|transcription
+        # ("analyse" et "synthese" pointent tous deux sur ExtractionJob)
         # / Mark notification as read if query params present (A.6 refactor)
+        # / Dropdown link passes ?marquer_lue=X&type=analyse|synthese|transcription
+        # / ("analyse" and "synthese" both point to ExtractionJob)
         marquer_lue = request.query_params.get("marquer_lue")
         type_tache = request.query_params.get("type")
-        if marquer_lue and type_tache in ("extraction", "transcription"):
+        if marquer_lue and type_tache in ("analyse", "synthese", "extraction", "transcription"):
             try:
-                if type_tache == "extraction":
-                    ExtractionJob.objects.filter(
+                if type_tache == "transcription":
+                    from core.models import TranscriptionJob
+                    TranscriptionJob.objects.filter(
                         pk=marquer_lue, page__owner=request.user,
                     ).update(notification_lue=True)
                 else:
-                    from core.models import TranscriptionJob
-                    TranscriptionJob.objects.filter(
+                    ExtractionJob.objects.filter(
                         pk=marquer_lue, page__owner=request.user,
                     ).update(notification_lue=True)
             except (ValueError, TypeError):

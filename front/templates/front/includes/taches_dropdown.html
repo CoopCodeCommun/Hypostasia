@@ -52,20 +52,22 @@
 
             <div class="taches-dropdown-corps">
                 <div class="taches-dropdown-nom">
-                    {% if tache.type_tache == "extraction" %}
+                    {% if tache.type_tache == "synthese" %}
+                        Synth&egrave;se de &laquo; {{ tache.page.title|default:"Sans titre"|truncatechars:40 }} &raquo;
+                    {% elif tache.type_tache == "analyse" %}
                         Analyse de &laquo; {{ tache.page.title|default:"Sans titre"|truncatechars:40 }} &raquo;
-                    {% else %}
+                    {% elif tache.type_tache == "transcription" %}
                         Transcription de &laquo; {{ tache.page.title|default:"Audio"|truncatechars:40 }} &raquo;
                     {% endif %}
                 </div>
                 <div class="taches-dropdown-meta">
                     {% if tache.status == "completed" %}
                         <span class="taches-meta-duree">Terminee</span>
-                        <a href="/lire/{{ tache.page.pk }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
-                           hx-get="/lire/{{ tache.page.pk }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
+                        <a href="/lire/{{ tache.page_resultat_id }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
+                           hx-get="/lire/{{ tache.page_resultat_id }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
                            hx-target="#zone-lecture"
                            hx-swap="innerHTML"
-                           hx-push-url="/lire/{{ tache.page.pk }}/"
+                           hx-push-url="/lire/{{ tache.page_resultat_id }}/"
                            class="taches-meta-lien" data-testid="taches-voir-resultat">
                             Voir le resultat
                         </a>
