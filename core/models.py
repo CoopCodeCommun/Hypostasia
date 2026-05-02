@@ -86,8 +86,8 @@ class Page(models.Model):
         on_delete=models.CASCADE,
         null=True,
         blank=True,
-        related_name="restitutions",
-        help_text="Page originale dont celle-ci est une restitution / Original page this is a restitution of",
+        related_name="versions_enfants",
+        help_text="Page parente — celle-ci est une version (synthese) de la parente / Parent page — this is a version (synthesis) of parent",
     )
     version_number = models.PositiveIntegerField(
         default=1,
@@ -353,15 +353,6 @@ class TextBlock(models.Model):
 
     def __str__(self):
         return f"Bloc sur {self.page} ({self.selector})"
-
-
-class Reformulation(models.Model):
-    origin = models.ForeignKey(
-        TextBlock, on_delete=models.CASCADE, related_name="reformulations"
-    )
-    text = models.TextField()
-    style = models.TextField(blank=True)
-    date = models.DateTimeField(auto_now_add=True)
 
 
 class Argument(models.Model):

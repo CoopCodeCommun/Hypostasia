@@ -301,8 +301,6 @@ document.addEventListener('click', async function(evenement) {
         + '<input id="swal-name" class="swal2-input" placeholder="Nom de l\'analyseur">'
         + '<select id="swal-type" class="swal2-select" style="margin-top:0.5rem">'
         + '  <option value="analyser">Analyser</option>'
-        + '  <option value="reformuler">Reformuler</option>'
-        + '  <option value="restituer">Restituer</option>'
         + '  <option value="synthetiser">Synthétiser</option>'
         + '</select>';
 
@@ -1120,32 +1118,6 @@ document.addEventListener('click', async function(evenement) {
         swap: 'innerHTML',
         values: { index_bloc: blockIndex },
     });
-});
-
-// Delegation d'evenement : clic sur une pastille de restitution (violette)
-// Navigue vers la page source et ouvre le fil de discussion de l'extraction d'origine
-// / Event delegation: click on restitution anchor (violet dot)
-// Navigates to source page and opens the original extraction's discussion thread
-document.addEventListener('click', function(evenement) {
-    var ancreRestitution = evenement.target.closest('.restitution-ancre');
-    if (!ancreRestitution) return;
-
-    var sourceEntityId = ancreRestitution.dataset.sourceEntityId;
-    var sourcePageId = ancreRestitution.dataset.sourcePageId;
-    if (!sourceEntityId || !sourcePageId) return;
-
-    // Navigue vers la page source via HTMX avec mise a jour de l'URL
-    // / Navigate to source page via HTMX with URL update
-    var urlPageSource = '/lire/' + sourcePageId + '/';
-    htmx.ajax('GET', urlPageSource, {target: '#zone-lecture', swap: 'innerHTML'}).then(function() {
-        history.pushState({}, '', urlPageSource);
-    });
-
-    // Ouvre le fil de discussion de l'extraction source (apres un court delai pour laisser la page charger)
-    // / Open source extraction's discussion thread (after short delay to let page load)
-    setTimeout(function() {
-        htmx.ajax('GET', '/extractions/fil_discussion/?entity_id=' + sourceEntityId, {target: '#panneau-extractions', swap: 'innerHTML'});
-    }, 500);
 });
 
 // Delegation d'evenement : clic sur le bouton editer d'une carte

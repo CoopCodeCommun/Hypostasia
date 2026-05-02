@@ -1,7 +1,7 @@
 """
-Couche d'abstraction unique pour les appels LLM directs (reformulation, restitution).
+Couche d'abstraction unique pour les appels LLM directs (synthese).
 Un seul point d'entree : appeler_llm(modele_ia, message_complet) -> str
-/ Unified abstraction layer for direct LLM calls (reformulation, restitution).
+/ Unified abstraction layer for direct LLM calls (synthesis).
 Single entry point: appeler_llm(modele_ia, message_complet) -> str
 
 LOCALISATION : core/llm_providers.py
@@ -46,8 +46,8 @@ def appeler_llm(modele_ia, message_complet: str) -> str:
     / Supported providers: MOCK, GOOGLE, OPENAI, OLLAMA, ANTHROPIC.
 
     COMMUNICATION :
-    Appelants : front/tasks.py (reformuler_entite_task, restituer_debat_task)
-    / Callers: front/tasks.py (reformuler_entite_task, restituer_debat_task)
+    Appelants : front/tasks.py (synthetiser_page_task)
+    / Callers: front/tasks.py (synthetiser_page_task)
     """
     provider = modele_ia.provider
 

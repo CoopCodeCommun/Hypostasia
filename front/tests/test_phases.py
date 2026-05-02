@@ -1154,7 +1154,7 @@ class Phase04ModifierCommentaireTest(TestCase):
         self.assertEqual(reponse.status_code, 400)
 
     def test_modifier_commentaire_retourne_html(self):
-        """La reponse est du HTML (fil de discussion)."""
+        """La reponse est du HTML qui rafraichit la vue commentaires."""
         reponse = self.client.post(
             "/extractions/modifier_commentaire/",
             data={
@@ -1163,7 +1163,7 @@ class Phase04ModifierCommentaireTest(TestCase):
             },
         )
         contenu = reponse.content.decode("utf-8")
-        self.assertIn("fil-discussion", contenu)
+        self.assertIn("vue_commentaires", contenu)
 
 
 class Phase04SupprimerCommentaireTest(TestCase):
@@ -1223,13 +1223,13 @@ class Phase04SupprimerCommentaireTest(TestCase):
         )
 
     def test_supprimer_commentaire_retourne_html(self):
-        """La reponse est du HTML (fil de discussion)."""
+        """La reponse est du HTML qui rafraichit la vue commentaires."""
         reponse = self.client.post(
             "/extractions/supprimer_commentaire/",
             data={"commentaire_id": self.commentaire.pk},
         )
         contenu = reponse.content.decode("utf-8")
-        self.assertIn("fil-discussion", contenu)
+        self.assertIn("vue_commentaires", contenu)
 
     def test_supprimer_commentaire_inexistant_404(self):
         """POST avec un ID inexistant retourne 404."""
@@ -1287,18 +1287,6 @@ class Phase04TemplatesContiennentBoutonsTest(TestCase):
         chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "_dossier_node.html"
         contenu = chemin.read_text(encoding="utf-8")
         self.assertIn("data-ctx-type=\"page\"", contenu)
-
-    def test_fil_discussion_contient_bouton_modifier_commentaire(self):
-        """fil_discussion.html contient le bouton btn-modifier-commentaire."""
-        chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "fil_discussion.html"
-        contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("btn-modifier-commentaire", contenu)
-
-    def test_fil_discussion_contient_bouton_supprimer_commentaire(self):
-        """fil_discussion.html contient le bouton btn-supprimer-commentaire."""
-        chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "fil_discussion.html"
-        contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("btn-supprimer-commentaire", contenu)
 
     def test_vue_commentaires_contient_bouton_modifier_commentaire(self):
         """vue_commentaires.html contient le bouton btn-modifier-commentaire."""
@@ -4687,25 +4675,6 @@ class Phase21TemplateBottomSheetTest(TestCase):
         contenu = chemin_template.read_text(encoding="utf-8")
         self.assertIn("_card_body.html", contenu)
 
-    def test_template_cible_bottom_sheet_contenu(self):
-        """Le bouton Commenter cible #bottom-sheet-contenu."""
-        chemin_template = (
-            BASE_DIR / "front" / "templates" / "front" / "includes"
-            / "bottom_sheet_extraction.html"
-        )
-        contenu = chemin_template.read_text(encoding="utf-8")
-        self.assertIn("#bottom-sheet-contenu", contenu)
-
-    def test_template_mobile_param(self):
-        """Le lien fil_discussion passe mobile=1."""
-        chemin_template = (
-            BASE_DIR / "front" / "templates" / "front" / "includes"
-            / "bottom_sheet_extraction.html"
-        )
-        contenu = chemin_template.read_text(encoding="utf-8")
-        self.assertIn("mobile=1", contenu)
-
-
 class Phase21EndpointCarteMobileTest(TestCase):
     """Verifie l'endpoint carte_mobile.
     / Verify carte_mobile endpoint."""
@@ -5455,7 +5424,7 @@ class Phase24ResolveModelParamsAnthropicTest(TestCase):
     / Verify resolve_model_params raises ValueError for Anthropic."""
 
     def test_anthropic_raise_valueerror_avec_message_clair(self):
-        """Le message d'erreur doit expliquer que seule la reformulation est supportee."""
+        """Le message d'erreur doit expliquer que seule la synthese est supportee."""
         from core.models import AIModel
         from hypostasis_extractor.services import resolve_model_params
 
@@ -5469,7 +5438,7 @@ class Phase24ResolveModelParamsAnthropicTest(TestCase):
 
         message_erreur = str(ctx.exception)
         self.assertIn("Anthropic ne supporte pas l'extraction", message_erreur)
-        self.assertIn("reformulation", message_erreur)
+        self.assertIn("synthese", message_erreur)
 
 
 class Phase24LegacyServicesDeletedTest(TestCase):
@@ -5560,80 +5529,6 @@ class Phase24TarifsNouveauxProvidersTest(TestCase):
         cout_input, cout_output = modele_haiku.cout_par_million_tokens()
         self.assertEqual(cout_input, 0.80)
         self.assertEqual(cout_output, 4.00)
-
-
-class Phase24IntegrationReformulationMockTest(TestCase):
-    """Test d'integration : reformuler_entite_task utilise appeler_llm via le provider Mock.
-    Verifie que le chemin complet tache Celery -> appeler_llm -> stockage fonctionne.
-    / Integration test: reformuler_entite_task uses appeler_llm via Mock provider."""
-
-    def test_reformulation_complete_avec_mock(self):
-        """La tache Celery doit stocker le resultat mock dans entity.texte_reformule."""
-        from core.models import AIModel, Configuration
-        from hypostasis_extractor.models import (
-            AnalyseurSyntaxique, ExtractionJob, ExtractedEntity, PromptPiece,
-        )
-        from core.models import Page
-
-        # Creer le modele Mock et le configurer comme actif
-        # / Create Mock model and set it as active
-        modele_mock = AIModel(name="Mock Reformulation", model_choice="mock")
-        modele_mock.save()
-        config = Configuration.get_solo()
-        config.ai_active = True
-        config.ai_model = modele_mock
-        config.save()
-
-        # Creer une page de test / Create a test page
-        page_test = Page.objects.create(
-            title="Page test reformulation",
-            html_original="<p>Contenu test</p>",
-            html_readability="<p>Contenu test</p>",
-            text_readability="Contenu test reformulation",
-        )
-
-        # Creer un analyseur de type reformuler avec une piece de prompt
-        # / Create a reformuler-type analyzer with a prompt piece
-        analyseur_reformuler = AnalyseurSyntaxique.objects.create(
-            name="Reformuleur Test P24",
-            type_analyseur="reformuler",
-        )
-        PromptPiece.objects.create(
-            analyseur=analyseur_reformuler,
-            content="Reformule ce texte en langage simple.",
-            order=1,
-        )
-
-        # Creer un job et une entite a reformuler
-        # / Create a job and entity to reformulate
-        job_test = ExtractionJob.objects.create(
-            page=page_test,
-            ai_model=modele_mock,
-            name="Job test P24",
-            prompt_description="test",
-        )
-        entite_test = ExtractedEntity.objects.create(
-            job=job_test,
-            extraction_class="test_class",
-            extraction_text="Ce texte philosophique complexe merite une reformulation.",
-            start_char=0,
-            end_char=50,
-            reformulation_en_cours=True,
-        )
-
-        # Appeler la tache directement en mode synchrone (pas de broker Celery)
-        # apply() execute la tache sans Celery, gere le bind=True (self)
-        # / Call task synchronously (no Celery broker), apply() handles bind=True
-        from front.tasks import reformuler_entite_task
-        reformuler_entite_task.apply(args=[entite_test.pk, analyseur_reformuler.pk])
-
-        # Verifier que l'entite a ete mise a jour avec la reformulation mock
-        # / Verify entity was updated with mock reformulation
-        entite_test.refresh_from_db()
-        self.assertFalse(entite_test.reformulation_en_cours)
-        self.assertEqual(entite_test.reformulation_erreur, "")
-        self.assertIn("[MOCK]", entite_test.texte_reformule)
-        self.assertEqual(entite_test.reformule_par, "Reformuleur Test P24")
 
 
 class Phase24LlmProvidersModuleExisteTest(TestCase):

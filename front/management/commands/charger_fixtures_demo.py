@@ -1083,25 +1083,6 @@ class Command(BaseCommand):
         else:
             self.stdout.write(f"  Analyseur existant : {analyseur_hypostasia.name}")
 
-        # --- Analyseur FALC (type: reformuler) ---
-        # / --- FALC Analyzer (type: reformuler) ---
-        analyseur_falc, falc_cree = AnalyseurSyntaxique.objects.get_or_create(
-            name="FALC",
-            defaults={
-                "type_analyseur": "reformuler",
-                "is_active": True,
-                "est_par_defaut": True,
-            },
-        )
-        if falc_cree:
-            PromptPiece.objects.create(
-                analyseur=analyseur_falc, order=0, role="instruction",
-                content="Voici un texte à reformuler en français et en FALC : Facile à lire et à comprendre.",
-            )
-            self.stdout.write(self.style.SUCCESS("  Analyseur créé : FALC (reformuler)"))
-        else:
-            self.stdout.write(f"  Analyseur existant : {analyseur_falc.name}")
-
         # --- Analyseur Synthese deliberative (type: synthetiser) ---
         # / --- Deliberative Synthesis Analyzer (type: synthetiser) ---
         analyseur_synthese, synthese_cree = AnalyseurSyntaxique.objects.get_or_create(

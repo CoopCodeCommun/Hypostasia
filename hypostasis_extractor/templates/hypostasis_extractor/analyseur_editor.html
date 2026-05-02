@@ -58,8 +58,6 @@
             <select id="select-type-analyseur-{{ analyseur.id }}"
                     class="type-analyseur-select text-sm border border-slate-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
                 <option value="analyser" {% if analyseur.type_analyseur == "analyser" %}selected{% endif %}>Analyser</option>
-                <option value="reformuler" {% if analyseur.type_analyseur == "reformuler" %}selected{% endif %}>Reformuler</option>
-                <option value="restituer" {% if analyseur.type_analyseur == "restituer" %}selected{% endif %}>Restituer</option>
                 <option value="synthetiser" {% if analyseur.type_analyseur == "synthetiser" %}selected{% endif %}>Synthétiser</option>
             </select>
         </div>

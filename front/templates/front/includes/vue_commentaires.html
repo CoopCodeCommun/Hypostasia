@@ -1,5 +1,5 @@
-{# Partial: Vue globale des commentaires — lecture seule, clic extraction = ouvre fil de discussion #}
-{# / Partial: Global comments view — read-only, click extraction = opens discussion thread #}
+{# Partial: Vue globale des commentaires — lecture seule (carte non interactive) #}
+{# / Partial: Global comments view — read-only (non-interactive card) #}
 {% load extractor_tags %}
 
 {% if entites_avec_commentaires %}
@@ -8,13 +8,10 @@
     {% entity_json_attrs entite as entite_attrs %}
     <div class="space-y-2">
 
-        {# === 1. Carte extraction complete (cliquable → ouvre fil de discussion) === #}
-        {# / === 1. Full extraction card (clickable → opens discussion thread) === #}
-        <div class="extraction-card bg-white rounded-lg border p-3 hover:shadow-sm transition-shadow cursor-pointer relative group border-amber-400"
+        {# === 1. Carte extraction complete (lecture seule) === #}
+        {# / === 1. Full extraction card (read-only) === #}
+        <div class="extraction-card bg-white rounded-lg border p-3 hover:shadow-sm transition-shadow relative group border-amber-400"
              data-extraction-id="{{ entite.pk }}"
-             hx-get="/extractions/fil_discussion/?entity_id={{ entite.pk }}"
-             hx-target="#panneau-extractions"
-             hx-swap="innerHTML"
              title="Position: {{ entite.start_char }}-{{ entite.end_char }}">
 
             {% with attr_0=entite_attrs.0 attr_1=entite_attrs.1 text=entite.extraction_text attr_2=entite_attrs.2 attr_3=entite_attrs.3 %}
@@ -22,43 +19,8 @@
             {% endwith %}
         </div>
 
-        {# === 2. Reformulation en lecture seule (pleine largeur) === #}
-        {# / === 2. Read-only reformulation (full width) === #}
-        {% if entite.reformulation_en_cours %}
-            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-2">
-                <svg class="w-4 h-4 text-emerald-500 animate-pulse shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
-                </svg>
-                <span class="text-xs text-emerald-700 font-medium">Reformulation en cours...</span>
-            </div>
-
-        {% elif entite.reformulation_erreur %}
-            <div class="bg-red-50 border border-red-200 rounded-lg p-3">
-                <div class="flex items-start gap-2">
-                    <svg class="w-4 h-4 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
-                    </svg>
-                    <div class="flex-1">
-                        <p class="text-xs font-medium text-red-700 mb-0.5">Erreur de reformulation</p>
-                        <p class="text-[10px] text-red-600">{{ entite.reformulation_erreur|truncatewords:30 }}</p>
-                    </div>
-                </div>
-            </div>
-
-        {% elif entite.texte_reformule %}
-            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                <div class="flex items-center gap-1.5 mb-1.5">
-                    <svg class="w-3.5 h-3.5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
-                    </svg>
-                    <span class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">{{ entite.reformule_par }}</span>
-                </div>
-                <p class="text-sm text-emerald-900 whitespace-pre-wrap leading-relaxed">{{ entite.texte_reformule }}</p>
-            </div>
-        {% endif %}
-
-        {# === 3. Commentaires — layout SMS (propre = droite, autres = gauche) === #}
-        {# / === 3. Comments — SMS layout (own = right, others = left) === #}
+        {# === 2. Commentaires — layout SMS (propre = droite, autres = gauche) === #}
+        {# / === 2. Comments — SMS layout (own = right, others = left) === #}
         {% for commentaire in entite.commentaires.all %}
         <div class="commentaire-bulle-global" data-user-id="{{ commentaire.user.pk }}" data-commentaire-id="{{ commentaire.pk }}">
             <div class="mr-12 commentaire-container-autre">

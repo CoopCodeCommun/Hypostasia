@@ -62,13 +62,6 @@ class ExtractionJob(models.Model):
         help_text="Resultat brut de LangExtract (JSON)"
     )
     
-    # Flag de reformulation : distingue les jobs de reformulation des jobs d'analyse
-    # / Reformulation flag: distinguishes reformulation jobs from analysis jobs
-    est_reformulation = models.BooleanField(
-        default=False,
-        help_text="True si ce job est une reformulation (pas une extraction classique)",
-    )
-
     # Statistiques
     entities_count = models.PositiveIntegerField(default=0)
     processing_time_seconds = models.FloatField(blank=True, null=True)
@@ -165,77 +158,6 @@ class ExtractedEntity(models.Model):
         help_text="Tag hypostasia associe (si mapping automatique reussi)"
     )
     
-    # Reformulation : texte reformule par un analyseur de type "reformuler"
-    # / Reformulation: text reformulated by a "reformuler" type analyzer
-    texte_reformule = models.TextField(
-        blank=True,
-        default="",
-        help_text="Texte reformule par un analyseur / Reformulated text by an analyzer",
-    )
-    reformule_par = models.CharField(
-        max_length=200,
-        blank=True,
-        default="",
-        help_text="Nom de l'analyseur qui a reformule / Name of the reformulating analyzer",
-    )
-    reformulation_en_cours = models.BooleanField(
-        default=False,
-        help_text="True si une reformulation est en cours / True if reformulation is in progress",
-    )
-    reformulation_lancee_a = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Timestamp du lancement de la reformulation (pour timeout) / Reformulation start timestamp (for timeout)",
-    )
-    reformulation_erreur = models.TextField(
-        blank=True,
-        default="",
-        help_text="Message d'erreur de la derniere reformulation / Last reformulation error message",
-    )
-
-    # Restitution : lie cette extraction a une version de page creee par restitution du debat
-    # / Restitution: links this extraction to a page version created by debate restitution
-    restitution_page = models.ForeignKey(
-        "core.Page",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="restitutions_source",
-        help_text="Page version creee par restitution de ce debat / Page version created by restituting this debate",
-    )
-    restitution_texte = models.TextField(
-        blank=True,
-        default="",
-        help_text="Texte de la restitution du debat / Debate restitution text",
-    )
-    restitution_date = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Date de la restitution / Restitution date",
-    )
-
-    # Restitution IA : generation automatique du texte de restitution via LLM
-    # / AI Restitution: automatic generation of restitution text via LLM
-    restitution_ia_en_cours = models.BooleanField(
-        default=False,
-        help_text="True si une restitution IA est en cours / True if AI restitution is in progress",
-    )
-    restitution_ia_lancee_a = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Timestamp du lancement de la restitution IA (pour timeout) / AI restitution start timestamp (for timeout)",
-    )
-    restitution_ia_erreur = models.TextField(
-        blank=True,
-        default="",
-        help_text="Message d'erreur de la derniere restitution IA / Last AI restitution error message",
-    )
-    texte_restitution_ia = models.TextField(
-        blank=True,
-        default="",
-        help_text="Texte de restitution genere par l'IA / AI-generated restitution text",
-    )
-
     # Validation utilisateur
     user_validated = models.BooleanField(
         default=False,
@@ -353,8 +275,6 @@ class AnalyseurSyntaxique(models.Model):
     # / Available analyzer types
     class TypeAnalyseur(models.TextChoices):
         ANALYSER = "analyser", "Analyser"
-        REFORMULER = "reformuler", "Reformuler"
-        RESTITUER = "restituer", "Restituer"
         SYNTHETISER = "synthetiser", "Synthétiser"
 
     name = models.CharField(max_length=200, help_text="Nom de l'analyseur")
@@ -367,7 +287,7 @@ class AnalyseurSyntaxique(models.Model):
         max_length=20,
         choices=TypeAnalyseur.choices,
         default=TypeAnalyseur.ANALYSER,
-        help_text="Type d'analyseur : analyser, reformuler ou restituer",
+        help_text="Type d'analyseur : analyser ou synthetiser / Analyzer type: analyser or synthetiser",
     )
 
     # Options d'injection de contexte dans le prompt avant envoi au LLM

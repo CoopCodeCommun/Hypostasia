@@ -109,40 +109,6 @@
             </div>
         </div>
 
-        <!-- VIEW 3: REFORMULATIONS (📑) -->
-        <div x-show="view === 'reformulations'" x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0 transform -translate-y-4"
-            x-transition:enter-end="opacity-100 transform translate-y-0" style="display: none;">
-            <div
-                class="flex items-center gap-2 mb-4 text-xs font-semibold text-amber-400 uppercase tracking-widest">
-                <span class="text-lg">📑</span> Reformulations
-                <div class="ml-auto flex items-center gap-1">
-                    <button @click="view = 'edit_reformulations'" class="p-1 text-slate-500 hover:text-amber-400 transition-colors" title="Modifier les reformulations">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
-                        </svg>
-                    </button>
-                    <button onclick="scrollToBlock('{{ block.selector|escapejs }}', '{{ block.text|escapejs|truncatewords:20 }}')" 
-                        class="p-1 text-slate-500 hover:text-brand-400 transition-colors" title="Lier au texte">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            <div class="space-y-3">
-                {% for ref in block.reformulations.all %}
-                <div class="bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
-                    <p class="text-sm text-slate-200">{{ ref.text }}</p>
-                    <div class="mt-2 text-[10px] text-slate-500 text-right">{{ ref.style|default:"Global" }}</div>
-                </div>
-                {% empty %}
-                <p class="text-sm text-slate-500 italic">Aucune reformulation disponible.</p>
-                {% endfor %}
-            </div>
-        </div>
-
         <!-- VIEW 4: COMMENTS (💬) -->
         <div x-show="view === 'comments'" x-transition:enter="transition ease-out duration-300"
             x-transition:enter-start="opacity-0 transform scale-95"
@@ -350,41 +316,6 @@
             </form>
         </div>
 
-        <!-- VIEW 7: EDIT REFORMULATIONS (📑✍️) -->
-        <div x-show="view === 'edit_reformulations'" x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0 transform scale-95"
-            x-transition:enter-end="opacity-100 transform scale-100" style="display: none;">
-            <div class="flex items-center justify-between mb-4">
-                <div class="flex items-center gap-2 text-xs font-semibold text-amber-400 uppercase tracking-widest">
-                    <span class="text-lg">✍️</span> Édition Reformulations
-                </div>
-                <button @click="view = 'reformulations'" class="text-slate-500 hover:text-white">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
-
-            {% for ref in block.reformulations.all %}
-            <form hx-patch="/api/reformulations/{{ ref.id }}/update_content/" hx-target="#block-card-{{ block.id }}" hx-swap="outerHTML" class="space-y-4 mb-4 pb-4 border-b border-slate-700/50 last:border-0">
-                {% csrf_token %}
-                <div>
-                    <label class="block text-[10px] text-slate-500 uppercase font-bold mb-1">Style : {{ ref.style|default:"Global" }}</label>
-                    <textarea name="text" rows="3"
-                        class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-brand-500 resize-none leading-relaxed">{{ ref.text }}</textarea>
-                </div>
-                <div class="flex justify-end">
-                    <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-colors">
-                        Mettre à jour
-                    </button>
-                </div>
-            </form>
-            {% empty %}
-            <p class="text-sm text-slate-500 italic">Aucune reformulation à modifier.</p>
-            {% endfor %}
-        </div>
-
     </div>
 
     <!-- Toolbar (Emoticon Buttons) -->
@@ -399,12 +330,6 @@
             :class="view === 'details' ? 'bg-slate-700 text-emerald-400' : 'text-slate-400'"
             title="Le Pourquoi du Pourquoi">
             🔍
-        </button>
-        <button @click="view = 'reformulations'; sidebarExpanded = false"
-            class="p-2 rounded-lg transition-colors hover:bg-slate-700"
-            :class="view === 'reformulations' ? 'bg-slate-700 text-amber-400' : 'text-slate-400'"
-            title="Ré-écriture">
-            📑
         </button>
         <button @click="view = 'comments'" class="p-2 rounded-lg transition-colors hover:bg-slate-700"
             :class="view === 'comments' ? 'bg-slate-700 text-blue-400' : 'text-slate-400'" title="Commentaire">

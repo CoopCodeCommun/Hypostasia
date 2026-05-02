@@ -100,7 +100,7 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
         raise ValueError(
             "Anthropic ne supporte pas l'extraction. "
             "Utilisez Gemini, OpenAI ou Ollama pour l'extraction. "
-            "Anthropic est disponible pour la reformulation et la restitution."
+            "Anthropic est disponible pour la synthese."
         )
 
     elif ai_model.provider == Provider.MOCK:

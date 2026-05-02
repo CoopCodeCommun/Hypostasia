@@ -36,8 +36,8 @@ from .serializers import (
     ModifierCommentaireSerializer, ModifierTitrePageSerializer,
     PageClasserSerializer, PromouvoirEntrainementSerializer,
     QuestionSerializer, RenommerLocuteurSerializer, ReponseQuestionSerializer,
-    RunAnalyseSerializer, RunReformulationSerializer,
-    RunRestitutionSerializer, SelectModelSerializer,
+    RunAnalyseSerializer,
+    SelectModelSerializer,
     SupprimerBlocSerializer, SupprimerCommentaireSerializer, SynthetiserSerializer,
     est_fichier_audio, est_fichier_json,
 )
@@ -1370,7 +1370,7 @@ class LectureViewSet(viewsets.ViewSet):
             # / Fallback: parent (if V2+) or first child restitution (if V1)
             page_droite = page_gauche.parent_page
             if page_droite is None:
-                page_droite = page_gauche.restitutions.order_by("version_number").first()
+                page_droite = page_gauche.versions_enfants.order_by("version_number").first()
 
         # Si pas de version a comparer (page unique sans parent ni enfant)
         # / If no version to compare (single page without parent or child)
@@ -3775,50 +3775,6 @@ class ExtractionViewSet(viewsets.ViewSet):
             "est_proprietaire": est_proprietaire,
         })
 
-    @action(detail=False, methods=["GET"], url_path="fil_discussion")
-    def fil_discussion(self, request):
-        """
-        Affiche le fil de discussion (commentaires) pour une extraction.
-        Displays the discussion thread (comments) for an extraction.
-        """
-        entity_id = request.query_params.get("entity_id")
-        if not entity_id:
-            return HttpResponse("entity_id requis.", status=400)
-
-        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
-        tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
-
-        # Contexte reformulation + restitution : IA active + analyseurs disponibles
-        # / Reformulation + restitution context: AI active + available analyzers
-        ia_active = _get_ia_active()
-        analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="reformuler",
-        ).exists()
-        analyseurs_restituer_existent = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="restituer",
-        ).exists()
-
-        html_fil = render_to_string(
-            "front/includes/fil_discussion.html",
-            {
-                "entity": entite,
-                "commentaires": tous_les_commentaires,
-                "ia_active": ia_active,
-                "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
-                "analyseurs_restituer_existent": analyseurs_restituer_existent,
-            },
-            request=request,
-        )
-
-        reponse = HttpResponse(html_fil)
-        # Declenche l'elargissement du panneau via event HTMX
-        # / Trigger panel widening via HTMX event
-        reponse["HX-Trigger"] = json.dumps({
-            "ouvrirPanneauDroit": True,
-            "activerModeDebat": True,
-        })
-        return reponse
-
     @action(detail=False, methods=["POST"], url_path="ajouter_commentaire")
     def ajouter_commentaire(self, request):
         """
@@ -3852,15 +3808,6 @@ class ExtractionViewSet(viewsets.ViewSet):
             entite.statut_debat = "discute"
             entite.save(update_fields=["statut_debat"])
 
-        # Contexte reformulation + restitution / Reformulation + restitution context
-        ia_active = _get_ia_active()
-        analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="reformuler",
-        ).exists()
-        analyseurs_restituer_existent = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="restituer",
-        ).exists()
-
         # Detecter si la requete vient de la carte inline (hx-swap="outerHTML" sur .carte-inline)
         # Dans ce cas, re-rendre la carte inline au lieu du fil de discussion complet
         # / Detect if request comes from inline card (hx-swap="outerHTML" on .carte-inline)
@@ -3885,21 +3832,17 @@ class ExtractionViewSet(viewsets.ViewSet):
             })
             return reponse
 
-        # Re-rendre le fil complet (ancien flux panneau droit) / Re-render full thread (old right panel flow)
-        tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
-        html_fil = render_to_string(
-            "front/includes/fil_discussion.html",
-            {
-                "entity": entite,
-                "commentaires": tous_les_commentaires,
-                "ia_active": ia_active,
-                "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
-                "analyseurs_restituer_existent": analyseurs_restituer_existent,
-            },
-            request=request,
+        # Fallback panneau droit : rafraichir la vue globale des commentaires de la page
+        # via hx-trigger="load" \u2014 meme pattern que modifier_commentaire/supprimer_commentaire.
+        # / Right panel fallback: refresh the page's global comments view
+        # / via hx-trigger="load" \u2014 same pattern as modifier_commentaire/supprimer_commentaire.
+        page_du_commentaire = entite.job.page
+        fragment_rafraichissement = (
+            f'<div hx-get="/extractions/vue_commentaires/?page_id={page_du_commentaire.pk}" '
+            f'hx-target="#panneau-extractions" hx-swap="innerHTML" '
+            f'hx-trigger="load"></div>'
         )
-
-        reponse = HttpResponse(html_fil)
+        reponse = HttpResponse(fragment_rafraichissement)
         reponse["HX-Trigger"] = json.dumps({
             "ouvrirPanneauDroit": True,
             "activerModeDebat": True,
@@ -3907,33 +3850,6 @@ class ExtractionViewSet(viewsets.ViewSet):
             "dashboardReload": True,
         })
         return reponse
-
-    def _re_rendre_fil_discussion(self, request, entite):
-        """
-        Helper : re-rend le fil de discussion complet pour une entite.
-        / Helper: re-renders the full discussion thread for an entity.
-        """
-        ia_active = _get_ia_active()
-        analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="reformuler",
-        ).exists()
-        analyseurs_restituer_existent = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="restituer",
-        ).exists()
-
-        tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
-        html_fil = render_to_string(
-            "front/includes/fil_discussion.html",
-            {
-                "entity": entite,
-                "commentaires": tous_les_commentaires,
-                "ia_active": ia_active,
-                "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
-                "analyseurs_restituer_existent": analyseurs_restituer_existent,
-            },
-            request=request,
-        )
-        return html_fil
 
     @action(detail=False, methods=["POST"], url_path="modifier_commentaire")
     def modifier_commentaire(self, request):
@@ -3961,10 +3877,19 @@ class ExtractionViewSet(viewsets.ViewSet):
         commentaire_a_modifier.commentaire = donnees["commentaire"]
         commentaire_a_modifier.save(update_fields=["commentaire"])
 
-        entite = commentaire_a_modifier.entity
-        html_fil = self._re_rendre_fil_discussion(request, entite)
-
-        reponse = HttpResponse(html_fil)
+        # Apres modification, rafraichir la vue globale des commentaires de la page.
+        # On retourne un fragment qui auto-declenche un GET vers vue_commentaires
+        # via hx-trigger="load" \u2014 pattern HTMX standard du projet.
+        # / After modification, refresh the page's global comments view.
+        # / Return a fragment that auto-triggers a GET to vue_commentaires
+        # / via hx-trigger="load" \u2014 project's standard HTMX pattern.
+        page_du_commentaire = commentaire_a_modifier.entity.job.page
+        fragment_rafraichissement = (
+            f'<div hx-get="/extractions/vue_commentaires/?page_id={page_du_commentaire.pk}" '
+            f'hx-target="#panneau-extractions" hx-swap="innerHTML" '
+            f'hx-trigger="load"></div>'
+        )
+        reponse = HttpResponse(fragment_rafraichissement)
         reponse["HX-Trigger"] = json.dumps({
             "ouvrirPanneauDroit": True,
             "activerModeDebat": True,
@@ -4005,12 +3930,20 @@ class ExtractionViewSet(viewsets.ViewSet):
         if not est_auteur and not est_proprietaire_dossier:
             return HttpResponse("Non autorise.", status=403)
 
-        entite = commentaire_a_supprimer.entity
+        # Capturer la page avant suppression / Capture the page before deletion
+        page_du_commentaire = commentaire_a_supprimer.entity.job.page
         commentaire_a_supprimer.delete()
 
-        html_fil = self._re_rendre_fil_discussion(request, entite)
-
-        reponse = HttpResponse(html_fil)
+        # Apres suppression, rafraichir la vue globale des commentaires de la page
+        # via le meme pattern hx-trigger="load" que modifier_commentaire.
+        # / After deletion, refresh the page's global comments view
+        # / via the same hx-trigger="load" pattern as modifier_commentaire.
+        fragment_rafraichissement = (
+            f'<div hx-get="/extractions/vue_commentaires/?page_id={page_du_commentaire.pk}" '
+            f'hx-target="#panneau-extractions" hx-swap="innerHTML" '
+            f'hx-trigger="load"></div>'
+        )
+        reponse = HttpResponse(fragment_rafraichissement)
         reponse["HX-Trigger"] = json.dumps({
             "ouvrirPanneauDroit": True,
             "activerModeDebat": True,
@@ -4247,59 +4180,15 @@ class ExtractionViewSet(viewsets.ViewSet):
     def vue_commentaires(self, request):
         """
         Vue globale des commentaires en layout SMS-like pour une page.
-        Chaque extraction affiche son texte original, sa reformulation (si existante),
-        puis ses commentaires. Le bouton Reformuler apparait par extraction.
-        Detecte les reformulations bloquees (timeout 5 min) et les reset.
+        Chaque extraction affiche son texte original puis ses commentaires.
         / Global SMS-like comments view for a page.
-        Each extraction shows its original text, its reformulation (if any),
-        then its comments. The Reformulate button appears per extraction.
-        Detects stuck reformulations (5 min timeout) and resets them.
+        Each extraction shows its original text, then its comments.
         """
         page_id = request.query_params.get("page_id")
         if not page_id:
             return HttpResponse("page_id requis.", status=400)
 
         page = get_object_or_404(Page, pk=page_id)
-
-        # Timeout : detecte les reformulations bloquees depuis plus de 5 minutes
-        # et les remet en etat stable avec un message d'erreur
-        # / Timeout: detect reformulations stuck for more than 5 minutes
-        # and reset them to stable state with an error message
-        delai_max_reformulation = timedelta(minutes=5)
-        entites_bloquees = ExtractedEntity.objects.filter(
-            job__page=page,
-            reformulation_en_cours=True,
-            reformulation_lancee_a__isnull=False,
-            reformulation_lancee_a__lt=timezone.now() - delai_max_reformulation,
-        )
-        nombre_entites_resetees = entites_bloquees.count()
-        if nombre_entites_resetees > 0:
-            entites_bloquees.update(
-                reformulation_en_cours=False,
-                reformulation_erreur="Timeout : la reformulation n'a pas repondu apres 5 minutes. Verifiez que le worker Celery tourne.",
-            )
-            logger.warning(
-                "vue_commentaires: %d reformulation(s) bloquee(s) resetee(s) pour page=%s",
-                nombre_entites_resetees, page_id,
-            )
-
-        # Timeout fallback : si reformulation_lancee_a est null mais en_cours=True
-        # depuis trop longtemps (pas de timestamp = legacy), reset aussi
-        # / Timeout fallback: if reformulation_lancee_a is null but en_cours=True
-        entites_bloquees_sans_timestamp = ExtractedEntity.objects.filter(
-            job__page=page,
-            reformulation_en_cours=True,
-            reformulation_lancee_a__isnull=True,
-        )
-        if entites_bloquees_sans_timestamp.exists():
-            entites_bloquees_sans_timestamp.update(
-                reformulation_en_cours=False,
-                reformulation_erreur="Reformulation interrompue (pas de timestamp). Relancez la reformulation.",
-            )
-            logger.warning(
-                "vue_commentaires: reformulation(s) sans timestamp resetee(s) pour page=%s",
-                page_id,
-            )
 
         # Recupere les entites ayant au moins un commentaire, triees par position
         # / Retrieve entities with at least one comment, sorted by position
@@ -4309,23 +4198,12 @@ class ExtractionViewSet(viewsets.ViewSet):
             commentaires__isnull=False,
         ).distinct().prefetch_related("commentaires").order_by("start_char")
 
-        # Verifie si des analyseurs de type reformuler/restituer existent et si l'IA est active
-        # / Check if reformuler/restituer-type analyzers exist and if AI is active
-        analyseurs_reformuler_existent = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="reformuler",
-        ).exists()
-        analyseurs_restituer_existent = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="restituer",
-        ).exists()
-
         html_vue_commentaires = render_to_string(
             "front/includes/vue_commentaires.html",
             {
                 "page": page,
                 "entites_avec_commentaires": entites_avec_commentaires,
                 "ia_active": _get_ia_active(),
-                "analyseurs_reformuler_existent": analyseurs_reformuler_existent,
-                "analyseurs_restituer_existent": analyseurs_restituer_existent,
             },
             request=request,
         )
@@ -4336,515 +4214,6 @@ class ExtractionViewSet(viewsets.ViewSet):
             "ouvrirPanneauDroit": True,
             "activerModeDebat": True,
         })
-        return reponse
-
-    @action(detail=False, methods=["GET"], url_path="choisir_reformulateur")
-    def choisir_reformulateur(self, request):
-        """
-        Liste les analyseurs actifs de type 'reformuler' pour une extraction.
-        / Lists active analyzers of type 'reformuler' for an extraction.
-        """
-        entity_id = request.query_params.get("entity_id")
-        if not entity_id:
-            return HttpResponse("entity_id requis.", status=400)
-
-        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
-
-        # Recupere les analyseurs actifs de type reformuler
-        # / Retrieve active analyzers of type reformuler
-        analyseurs_reformuler = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="reformuler",
-        )
-
-        return render(request, "front/includes/choisir_reformulateur.html", {
-            "entity": entite,
-            "page": entite.job.page,
-            "analyseurs_reformuler": analyseurs_reformuler,
-        })
-
-    @action(detail=False, methods=["POST"], url_path="previsualiser_reformulation")
-    def previsualiser_reformulation(self, request):
-        """
-        Construit le prompt complet de reformulation pour une extraction
-        et retourne un partial de confirmation avec estimation tokens et cout.
-        / Builds the full reformulation prompt for an extraction
-        and returns a confirmation partial with token and cost estimates.
-        """
-        refus = _exiger_authentification(request)
-        if refus:
-            return refus
-        entity_id = request.data.get("entity_id")
-        analyseur_id = request.data.get("analyseur_id")
-        if not entity_id or not analyseur_id:
-            return HttpResponse("entity_id et analyseur_id requis.", status=400)
-
-        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
-
-        # Recupere le modele IA actif depuis la configuration singleton
-        # / Get active AI model from singleton configuration
-        configuration_ia = Configuration.get_solo()
-        modele_ia_actif = configuration_ia.ai_model
-        if not modele_ia_actif:
-            return HttpResponse("Aucun modèle IA sélectionné.", status=400)
-
-        # Construit le prompt depuis les pieces de l'analyseur
-        # / Build prompt from analyzer pieces
-        pieces_ordonnees = PromptPiece.objects.filter(
-            analyseur=analyseur,
-        ).order_by("order")
-        texte_prompt_pieces = "\n".join(piece.content for piece in pieces_ordonnees)
-
-        # Texte de l'extraction a reformuler / Extraction text to reformulate
-        texte_a_reformuler = entite.extraction_text
-
-        # Assemblage du prompt complet
-        # / Full prompt assembly
-        prompt_complet = f"{texte_prompt_pieces}\n\n=== TEXTE A REFORMULER ===\n{texte_a_reformuler}"
-
-        # Comptage des tokens via tiktoken
-        # / Token counting via tiktoken
-        import tiktoken
-        encodeur_tokens = tiktoken.get_encoding("cl100k_base")
-        nombre_tokens_input = len(encodeur_tokens.encode(prompt_complet))
-        nombre_tokens_output_estime = int(nombre_tokens_input * 0.50)
-
-        # Estimation du cout / Cost estimate
-        cout_estime_euros = modele_ia_actif.estimer_cout_euros(
-            nombre_tokens_input, nombre_tokens_output_estime
-        )
-
-        return render(request, "front/includes/confirmation_reformulation.html", {
-            "entity": entite,
-            "page": entite.job.page,
-            "analyseur": analyseur,
-            "modele_ia": modele_ia_actif,
-            "nombre_tokens_input": nombre_tokens_input,
-            "nombre_tokens_output_estime": nombre_tokens_output_estime,
-            "cout_estime_euros": cout_estime_euros,
-            "prompt_complet": prompt_complet,
-            "nombre_pieces": pieces_ordonnees.count(),
-        })
-
-    @action(detail=False, methods=["POST"])
-    def reformuler(self, request):
-        """
-        Lance une reformulation asynchrone sur une extraction via Celery.
-        Stocke le resultat dans entity.texte_reformule.
-        / Launches an async reformulation on an extraction via Celery.
-        Stores the result in entity.texte_reformule.
-        """
-        refus = _exiger_authentification(request)
-        if refus:
-            return refus
-        # Guard : verifie que l'IA est activee / Check AI is enabled
-        if not _get_ia_active():
-            return HttpResponse("IA desactivee.", status=403)
-
-        serializer = RunReformulationSerializer(data=request.data)
-        if not serializer.is_valid():
-            return HttpResponse(f"Erreur: {serializer.errors}", status=400)
-
-        entite = get_object_or_404(ExtractedEntity, pk=serializer.validated_data["entity_id"])
-        analyseur = get_object_or_404(
-            AnalyseurSyntaxique, pk=serializer.validated_data["analyseur_id"]
-        )
-        page = entite.job.page
-
-        # Guard anti-doublon : verifie si une reformulation est deja en cours
-        # avec un timeout de securite pour eviter le blocage permanent
-        # / Anti-duplicate guard: check if a reformulation is already in progress
-        # with a safety timeout to avoid permanent blocking
-        if entite.reformulation_en_cours:
-            # Verifie si la reformulation est bloquee (timeout 5 min)
-            # / Check if reformulation is stuck (5 min timeout)
-            delai_max = timedelta(minutes=5)
-            if entite.reformulation_lancee_a and (timezone.now() - entite.reformulation_lancee_a) > delai_max:
-                # Timeout atteint → reset et permettre un re-lancement
-                # / Timeout reached → reset and allow re-launch
-                logger.warning(
-                    "reformuler: timeout detecte pour entity=%s — reset",
-                    entite.pk,
-                )
-                entite.reformulation_en_cours = False
-                entite.reformulation_erreur = "Timeout : reformulation precedente bloquee, relancez."
-                entite.save(update_fields=["reformulation_en_cours", "reformulation_erreur"])
-            else:
-                return render(request, "front/includes/reformulation_en_cours.html", {
-                    "page": page,
-                    "entity": entite,
-                })
-
-        # Marquer comme en cours avec timestamp / Mark as in progress with timestamp
-        entite.reformulation_en_cours = True
-        entite.reformulation_lancee_a = timezone.now()
-        entite.reformulation_erreur = ""
-        entite.save(update_fields=["reformulation_en_cours", "reformulation_lancee_a", "reformulation_erreur"])
-
-        # Lancer la tache Celery / Launch Celery task
-        from front.tasks import reformuler_entite_task
-        reformuler_entite_task.delay(entite.pk, analyseur.pk)
-
-        logger.info(
-            "reformuler: entity pk=%s analyseur=%s — tache Celery lancee",
-            entite.pk, analyseur.name,
-        )
-
-        return render(request, "front/includes/reformulation_en_cours.html", {
-            "page": page,
-            "entity": entite,
-        })
-
-    @action(detail=False, methods=["GET"], url_path="choisir_restituteur")
-    def choisir_restituteur(self, request):
-        """
-        Liste les analyseurs actifs de type 'restituer' pour une extraction.
-        / Lists active analyzers of type 'restituer' for an extraction.
-        """
-        entity_id = request.query_params.get("entity_id")
-        if not entity_id:
-            return HttpResponse("entity_id requis.", status=400)
-
-        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
-
-        # Recupere les analyseurs actifs de type restituer
-        # / Retrieve active analyzers of type restituer
-        analyseurs_restituer = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="restituer",
-        )
-
-        return render(request, "front/includes/choisir_restituteur.html", {
-            "entity": entite,
-            "page": entite.job.page,
-            "analyseurs_restituer": analyseurs_restituer,
-        })
-
-    @action(detail=False, methods=["POST"], url_path="previsualiser_restitution")
-    def previsualiser_restitution(self, request):
-        """
-        Construit le prompt complet de restitution IA pour une extraction
-        et retourne un partial de confirmation avec estimation tokens et cout.
-        / Builds the full AI restitution prompt for an extraction
-        and returns a confirmation partial with token and cost estimates.
-        """
-        refus = _exiger_authentification(request)
-        if refus:
-            return refus
-        entity_id = request.data.get("entity_id")
-        analyseur_id = request.data.get("analyseur_id")
-        if not entity_id or not analyseur_id:
-            return HttpResponse("entity_id et analyseur_id requis.", status=400)
-
-        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
-
-        # Recupere le modele IA actif depuis la configuration singleton
-        # / Get active AI model from singleton configuration
-        configuration_ia = Configuration.get_solo()
-        modele_ia_actif = configuration_ia.ai_model
-        if not modele_ia_actif:
-            return HttpResponse("Aucun modele IA selectionne.", status=400)
-
-        # Construit le prompt depuis les pieces de l'analyseur
-        # / Build prompt from analyzer pieces
-        pieces_ordonnees = PromptPiece.objects.filter(
-            analyseur=analyseur,
-        ).order_by("order")
-        texte_prompt_pieces = "\n".join(piece.content for piece in pieces_ordonnees)
-
-        # Texte de l'extraction source / Source extraction text
-        texte_extraction = entite.extraction_text
-
-        # Commentaires du debat / Debate comments
-        tous_les_commentaires = CommentaireExtraction.objects.filter(entity=entite)
-        lignes_commentaires = []
-        for commentaire in tous_les_commentaires:
-            lignes_commentaires.append(f"{commentaire.prenom}: {commentaire.commentaire}")
-        texte_commentaires = "\n".join(lignes_commentaires)
-
-        # Reformulation existante si disponible / Existing reformulation if available
-        texte_reformulation = entite.texte_reformule or ""
-
-        # Assemblage du prompt complet
-        # / Full prompt assembly
-        prompt_complet = texte_prompt_pieces
-        prompt_complet += f"\n\n=== EXTRACTION SOURCE ===\n{texte_extraction}"
-        if texte_commentaires:
-            prompt_complet += f"\n\n=== COMMENTAIRES DU DEBAT ===\n{texte_commentaires}"
-        if texte_reformulation:
-            prompt_complet += f"\n\n=== REFORMULATION ===\n{texte_reformulation}"
-
-        # Comptage des tokens via tiktoken
-        # / Token counting via tiktoken
-        import tiktoken
-        encodeur_tokens = tiktoken.get_encoding("cl100k_base")
-        nombre_tokens_input = len(encodeur_tokens.encode(prompt_complet))
-        nombre_tokens_output_estime = int(nombre_tokens_input * 0.50)
-
-        # Estimation du cout / Cost estimate
-        cout_estime_euros = modele_ia_actif.estimer_cout_euros(
-            nombre_tokens_input, nombre_tokens_output_estime
-        )
-
-        return render(request, "front/includes/confirmation_restitution.html", {
-            "entity": entite,
-            "page": entite.job.page,
-            "analyseur": analyseur,
-            "modele_ia": modele_ia_actif,
-            "nombre_tokens_input": nombre_tokens_input,
-            "nombre_tokens_output_estime": nombre_tokens_output_estime,
-            "cout_estime_euros": cout_estime_euros,
-            "prompt_complet": prompt_complet,
-            "nombre_pieces": pieces_ordonnees.count(),
-        })
-
-    @action(detail=False, methods=["POST"], url_path="generer_restitution")
-    def generer_restitution(self, request):
-        """
-        Lance une restitution IA asynchrone sur une extraction via Celery.
-        / Launches an async AI restitution on an extraction via Celery.
-        """
-        refus = _exiger_authentification(request)
-        if refus:
-            return refus
-        # Guard : verifie que l'IA est activee / Check AI is enabled
-        if not _get_ia_active():
-            return HttpResponse("IA desactivee.", status=403)
-
-        serializer = RunRestitutionSerializer(data=request.data)
-        if not serializer.is_valid():
-            return HttpResponse(f"Erreur: {serializer.errors}", status=400)
-
-        entite = get_object_or_404(ExtractedEntity, pk=serializer.validated_data["entity_id"])
-        analyseur = get_object_or_404(
-            AnalyseurSyntaxique, pk=serializer.validated_data["analyseur_id"]
-        )
-
-        # Guard anti-doublon : verifie si une restitution IA est deja en cours
-        # avec un timeout de securite pour eviter le blocage permanent
-        # / Anti-duplicate guard: check if an AI restitution is already in progress
-        # with a safety timeout to avoid permanent blocking
-        if entite.restitution_ia_en_cours:
-            delai_max = timedelta(minutes=5)
-            if entite.restitution_ia_lancee_a and (timezone.now() - entite.restitution_ia_lancee_a) > delai_max:
-                # Timeout atteint → reset et permettre un re-lancement
-                # / Timeout reached → reset and allow re-launch
-                logger.warning(
-                    "generer_restitution: timeout detecte pour entity=%s — reset",
-                    entite.pk,
-                )
-                entite.restitution_ia_en_cours = False
-                entite.restitution_ia_erreur = "Timeout : restitution precedente bloquee, relancez."
-                entite.save(update_fields=["restitution_ia_en_cours", "restitution_ia_erreur"])
-            else:
-                return render(request, "front/includes/restitution_ia_en_cours.html", {
-                    "entity": entite,
-                })
-
-        # Marquer comme en cours avec timestamp / Mark as in progress with timestamp
-        entite.restitution_ia_en_cours = True
-        entite.restitution_ia_lancee_a = timezone.now()
-        entite.restitution_ia_erreur = ""
-        entite.save(update_fields=["restitution_ia_en_cours", "restitution_ia_lancee_a", "restitution_ia_erreur"])
-
-        # Lancer la tache Celery / Launch Celery task
-        from front.tasks import restituer_debat_task
-        restituer_debat_task.delay(entite.pk, analyseur.pk)
-
-        logger.info(
-            "generer_restitution: entity pk=%s analyseur=%s — tache Celery lancee",
-            entite.pk, analyseur.name,
-        )
-
-        return render(request, "front/includes/restitution_ia_en_cours.html", {
-            "entity": entite,
-        })
-
-    @action(detail=False, methods=["GET"], url_path="restitution_ia_status")
-    def restitution_ia_status(self, request):
-        """
-        Polling : verifie l'etat de la restitution IA pour une extraction.
-        Si terminee → renvoie le texte + JS pour pre-remplir le textarea du modal.
-        Si en cours → re-renvoie le partial de polling.
-        Si erreur → message d'erreur + bouton reessayer.
-        / Polling: checks the AI restitution status for an extraction.
-        If done → returns text + JS to pre-fill the modal textarea.
-        If in progress → re-sends the polling partial.
-        If error → error message + retry button.
-        """
-        entity_id = request.query_params.get("entity_id")
-        if not entity_id:
-            return HttpResponse("entity_id requis.", status=400)
-
-        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
-
-        # En cours → re-renvoie le polling / In progress → re-send polling
-        if entite.restitution_ia_en_cours:
-            return render(request, "front/includes/restitution_ia_en_cours.html", {
-                "entity": entite,
-            })
-
-        # Erreur → message d'erreur / Error → error message
-        if entite.restitution_ia_erreur:
-            ia_active = _get_ia_active()
-            analyseurs_restituer_existent = AnalyseurSyntaxique.objects.filter(
-                is_active=True, type_analyseur="restituer",
-            ).exists()
-            html_erreur = (
-                '<div class="bg-red-50 border border-red-200 rounded-lg p-3">'
-                '<div class="flex items-start gap-2">'
-                '<svg class="w-4 h-4 text-red-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">'
-                '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>'
-                '</svg>'
-                '<div class="flex-1">'
-                '<p class="text-xs font-medium text-red-700 mb-0.5">Erreur de restitution IA</p>'
-                f'<p class="text-[10px] text-red-600">{escape(entite.restitution_ia_erreur[:200])}</p>'
-                '</div>'
-                '</div>'
-                '</div>'
-            )
-            if ia_active and analyseurs_restituer_existent:
-                html_erreur += (
-                    '<div class="mt-1">'
-                    f'<button class="text-[10px] text-red-500 hover:text-red-700 font-medium flex items-center gap-1"'
-                    f' hx-get="/extractions/choisir_restituteur/?entity_id={entite.pk}"'
-                    f' hx-target="#zone-restitution-ia-{entite.pk}"'
-                    f' hx-swap="innerHTML">'
-                    '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">'
-                    '<path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182"/>'
-                    '</svg>'
-                    'Reessayer'
-                    '</button>'
-                    '</div>'
-                )
-            return HttpResponse(html_erreur)
-
-        # Termine avec texte → renvoie le resultat + JS pour pre-remplir le textarea
-        # / Done with text → return result + JS to pre-fill the textarea
-        if entite.texte_restitution_ia:
-            texte_echappe_js = entite.texte_restitution_ia.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
-            html_succes = (
-                '<div class="bg-violet-50 border border-violet-200 rounded-lg p-3">'
-                '<div class="flex items-center gap-1.5 mb-1.5">'
-                '<svg class="w-3.5 h-3.5 text-violet-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">'
-                '<path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>'
-                '</svg>'
-                '<span class="text-[10px] font-semibold text-violet-600 uppercase tracking-wide">Restitution IA generee</span>'
-                '</div>'
-                '<p class="text-xs text-violet-700">Le texte a ete pre-rempli dans le champ ci-dessous. Modifiez-le si necessaire.</p>'
-                '</div>'
-                '<script>'
-                f"var textarea = document.getElementById('textarea-texte-restitution');"
-                f"if (textarea) {{ textarea.value = '{texte_echappe_js}'; }}"
-                '</script>'
-            )
-            return HttpResponse(html_succes)
-
-        # Aucun texte et pas en cours → zone vide / No text and not in progress → empty zone
-        return HttpResponse("")
-
-    @action(detail=False, methods=["POST"], url_path="creer_restitution")
-    def creer_restitution(self, request):
-        """
-        Cree une nouvelle version de la page avec le texte de restitution insere.
-        Le texte est balise avec une ancre violette renvoyant vers l'extraction source.
-        / Creates a new page version with the restitution text inserted.
-        The text is tagged with a violet anchor linking back to the source extraction.
-        """
-        refus = _exiger_authentification(request)
-        if refus:
-            return refus
-        from .serializers import RestitutionDebatSerializer
-
-        serializer = RestitutionDebatSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        donnees = serializer.validated_data
-
-        entite_source = get_object_or_404(ExtractedEntity, pk=donnees["entity_id"])
-        page_source = entite_source.job.page
-        page_racine = page_source.page_racine
-
-        texte_restitution_brut = donnees["texte_restitution"]
-        label_version = donnees.get("version_label", "")
-
-        # Echappement du texte utilisateur pour prevenir les injections XSS
-        # / Escape user text to prevent XSS injection
-        texte_restitution_echappe = escape(texte_restitution_brut)
-
-        # Balise de restitution : pastille violette inline (meme pattern que extraction-ancre)
-        # suivie du texte dans un <p>, le tout dans un <div> pour le regroupement
-        # / Restitution tag: inline violet dot (same pattern as extraction-ancre)
-        # followed by text in a <p>, all wrapped in a <div> for grouping
-        balise_restitution = (
-            f'<div id="restitution-bloc-{entite_source.pk}">'
-            f'<p>'
-            f'<span class="restitution-ancre" '
-            f'data-source-entity-id="{entite_source.pk}" '
-            f'data-source-page-id="{page_source.pk}">'
-            f'</span>'
-            f'{texte_restitution_echappe}'
-            f'</p>'
-            f'</div>'
-        )
-
-        # Cherche une version existante (restitution) de la page racine
-        # Si elle existe, on y ajoute le bloc. Sinon, on en cree une vierge.
-        # / Look for an existing restitution version of the root page.
-        # If it exists, append the block. Otherwise, create a blank one.
-        version_restitution_existante = Page.objects.filter(
-            parent_page=page_racine,
-        ).order_by("-version_number").first()
-
-        if version_restitution_existante:
-            # Ajoute le bloc de restitution a la version existante
-            # / Append the restitution block to the existing version
-            version_restitution_existante.html_readability += "\n" + balise_restitution
-            version_restitution_existante.html_original = version_restitution_existante.html_readability
-            version_restitution_existante.text_readability = strip_tags(version_restitution_existante.html_readability)
-            version_restitution_existante.content_hash = hashlib.sha256(
-                version_restitution_existante.text_readability.encode("utf-8")
-            ).hexdigest()
-            if label_version:
-                version_restitution_existante.version_label = label_version
-            version_restitution_existante.save(update_fields=[
-                "html_readability", "html_original", "text_readability",
-                "content_hash", "version_label",
-            ])
-            page_cible = version_restitution_existante
-        else:
-            # Cree une version vierge contenant uniquement le bloc de restitution
-            # / Create a blank version containing only the restitution block
-            prochain_numero = 2
-            texte_brut = strip_tags(balise_restitution)
-            hash_contenu = hashlib.sha256(texte_brut.encode("utf-8")).hexdigest()
-            titre_restitution = page_racine.title or "Sans titre"
-
-            page_cible = Page.objects.create(
-                parent_page=page_racine,
-                version_number=prochain_numero,
-                version_label=label_version or "Restitutions",
-                dossier=page_racine.dossier,
-                source_type=page_racine.source_type,
-                url=None,
-                title=titre_restitution,
-                html_original=balise_restitution,
-                html_readability=balise_restitution,
-                text_readability=texte_brut,
-                content_hash=hash_contenu,
-                owner=request.user,
-            )
-
-        # Clot le debat : marque l'entite comme restituee avec lien vers la page cible
-        # / Close the debate: mark entity as restituted with link to target page
-        entite_source.restitution_page = page_cible
-        entite_source.restitution_texte = texte_restitution_brut
-        entite_source.restitution_date = timezone.now()
-        entite_source.save(update_fields=["restitution_page", "restitution_texte", "restitution_date"])
-
-        # Redirige vers la lecture de la version de restitution via HX-Redirect
-        # / Redirect to the restitution version reading via HX-Redirect
-        reponse = HttpResponse(status=204)
-        reponse["HX-Redirect"] = f"/lire/{page_cible.pk}/"
         return reponse
 
     @action(detail=False, methods=["POST"])

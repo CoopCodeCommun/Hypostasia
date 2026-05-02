@@ -231,40 +231,6 @@ class PromouvoirEntrainementSerializer(serializers.Serializer):
     )
 
 
-class RunReformulationSerializer(serializers.Serializer):
-    """
-    Validation pour lancer une reformulation sur une extraction specifique.
-    Validation for launching a reformulation on a specific extraction.
-    """
-    entity_id = serializers.IntegerField(
-        error_messages={
-            "required": "L'ID de l'entite est obligatoire / Entity ID is required",
-        },
-    )
-    analyseur_id = serializers.IntegerField(
-        error_messages={
-            "required": "L'ID de l'analyseur est obligatoire / Analyzer ID is required",
-        },
-    )
-
-
-class RunRestitutionSerializer(serializers.Serializer):
-    """
-    Validation pour lancer une restitution IA sur une extraction specifique.
-    Validation for launching an AI restitution on a specific extraction.
-    """
-    entity_id = serializers.IntegerField(
-        error_messages={
-            "required": "L'ID de l'entite est obligatoire / Entity ID is required",
-        },
-    )
-    analyseur_id = serializers.IntegerField(
-        error_messages={
-            "required": "L'ID de l'analyseur est obligatoire / Analyzer ID is required",
-        },
-    )
-
-
 class ReponseQuestionSerializer(serializers.Serializer):
     """
     Validation pour la creation d'une reponse a une question.
@@ -460,50 +426,6 @@ class SupprimerCommentaireSerializer(serializers.Serializer):
             "required": "L'ID du commentaire est obligatoire / Comment ID is required",
         },
     )
-
-
-class RestitutionDebatSerializer(serializers.Serializer):
-    """
-    Validation pour la creation d'une restitution depuis un debat d'extraction.
-    Le texte est sanitize via bleach : aucune balise HTML n'est autorisee.
-    / Validation for creating a restitution from an extraction debate.
-    Text is sanitized via bleach: no HTML tags allowed.
-    """
-    entity_id = serializers.IntegerField(
-        error_messages={
-            "required": "L'ID de l'entite est obligatoire / Entity ID is required",
-        },
-    )
-    version_label = serializers.CharField(
-        max_length=200, required=False, default="", allow_blank=True,
-    )
-    texte_restitution = serializers.CharField(
-        error_messages={
-            "required": "Le texte de restitution est obligatoire / Restitution text is required",
-            "blank": "Le texte ne peut pas etre vide / Text cannot be blank",
-        },
-    )
-
-    def validate_texte_restitution(self, valeur):
-        """
-        Sanitize le texte de restitution — supprime toute balise HTML.
-        / Sanitize restitution text — strip all HTML tags.
-        """
-        import bleach
-        texte_nettoye = bleach.clean(valeur, tags=[], strip=True).strip()
-        if not texte_nettoye:
-            raise serializers.ValidationError(
-                "Le texte ne peut pas etre vide apres nettoyage / Text cannot be empty after sanitization"
-            )
-        return texte_nettoye
-
-    def validate_version_label(self, valeur):
-        """
-        Sanitize le label de version — supprime toute balise HTML.
-        / Sanitize version label — strip all HTML tags.
-        """
-        import bleach
-        return bleach.clean(valeur, tags=[], strip=True).strip()
 
 
 class SynthetiserSerializer(serializers.Serializer):
