@@ -176,21 +176,22 @@ class ExtractedEntity(models.Model):
         help_text="Utilisateur ayant cree cette extraction manuellement / User who manually created this extraction",
     )
 
-    # Statut du debat sur cette extraction
-    # / Debate status for this extraction
-    STATUT_DEBAT_CHOICES = [
-        ("nouveau", "Nouveau"),
-        ("consensuel", "Consensuel"),
-        ("discutable", "Discutable"),
-        ("discute", "Discuté"),
-        ("controverse", "Controversé"),
-        ("non_pertinent", "Non pertinent"),
-    ]
+    # Statut du debat sur cette extraction (binaire : nouveau / commente)
+    # / Debate status for this extraction (binary: nouveau / commente)
+    class StatutDebat(models.TextChoices):
+        NOUVEAU = "nouveau", "Nouveau"
+        COMMENTE = "commente", "Commenté"
 
     statut_debat = models.CharField(
         max_length=20,
-        choices=STATUT_DEBAT_CHOICES,
-        default="nouveau",
+        choices=StatutDebat.choices,
+        default=StatutDebat.NOUVEAU,
+        help_text=(
+            "Statut auto-derive de l'existence de commentaires. "
+            "Mis a jour par signal Django, jamais set manuellement. "
+            "/ Status auto-derived from comment existence. "
+            "Updated by Django signal, never set manually."
+        ),
     )
 
     # Extraction masquee par curation
@@ -205,12 +206,6 @@ class ExtractedEntity(models.Model):
 
     class Meta:
         ordering = ['start_char']
-
-    def save(self, *args, **kwargs):
-        # Synchronise masquee avec statut_debat : non_pertinent ↔ masquee=True
-        # / Sync masquee with statut_debat: non_pertinent ↔ masquee=True
-        self.masquee = (self.statut_debat == "non_pertinent")
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"[{self.extraction_class}] {self.extraction_text[:50]}..."

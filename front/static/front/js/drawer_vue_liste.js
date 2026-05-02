@@ -263,14 +263,18 @@
     // NOTE : Les raccourcis clavier (E, Escape) sont geres par keyboard.js (PHASE-17)
     // / NOTE: Keyboard shortcuts (E, Escape) are handled by keyboard.js (PHASE-17)
 
-    // Clic delegue sur une carte compacte → scroll texte + carte inline
-    // / Delegated click on compact card → scroll text + inline card
+    // Clic delegue sur une carte compacte du drawer → scroll texte + surlignage span
+    // Refonte A.8 drawer-only : on ne charge plus de carte inline sous le paragraphe.
+    // / Delegated click on a drawer compact card → scroll text + highlight span
+    // / A.8 drawer-only refactor: no longer loads an inline card below the paragraph.
     document.getElementById('drawer-contenu').addEventListener('click', function(evenement) {
-        // Ignorer les clics sur les boutons masquer/restaurer/toggle
-        // / Ignore clicks on hide/restore/toggle buttons
+        // Ignorer les clics sur les boutons masquer/restaurer/toggle/commenter et le formulaire
+        // / Ignore clicks on hide/restore/toggle/comment buttons and form
         if (evenement.target.closest('.btn-masquer-drawer') ||
             evenement.target.closest('.btn-restaurer-drawer') ||
-            evenement.target.closest('#btn-toggle-masquees')) {
+            evenement.target.closest('#btn-toggle-masquees') ||
+            evenement.target.closest('.btn-commenter-extraction') ||
+            evenement.target.closest('.zone-commentaire-deroulable')) {
             return;
         }
 
@@ -287,49 +291,17 @@
         });
         carte.classList.add('drawer-carte-active');
 
-        // Chercher le span correspondant dans le texte
-        // / Find the corresponding span in the text
+        // Chercher le span correspondant dans le texte et scroller dessus
+        // / Find the corresponding span in the text and scroll to it
         var spanDansTexte = document.querySelector(
             '#readability-content .hl-extraction[data-extraction-id="' + extractionId + '"]'
         );
-
         if (spanDansTexte) {
-            // Scroll vers le span
-            // / Scroll to the span
             spanDansTexte.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            // Activer le surlignage
-            // / Activate highlighting
             document.querySelectorAll('.hl-extraction.ancre-active').forEach(function(el) {
                 el.classList.remove('ancre-active');
             });
             spanDansTexte.classList.add('ancre-active');
-
-            // Charger la carte inline
-            // / Load inline card
-            var blocParent = spanDansTexte.closest('p, div, blockquote, li, h1, h2, h3, h4, h5, h6');
-            if (blocParent && blocParent.id !== 'readability-content') {
-                // Verifier si une carte inline existe deja pour cette extraction
-                // / Check if an inline card already exists for this extraction
-                var carteExistante = document.querySelector('.carte-inline[data-extraction-id="' + extractionId + '"]');
-                if (!carteExistante) {
-                    var divTemporaire = document.createElement('div');
-                    divTemporaire.style.display = 'none';
-                    document.body.appendChild(divTemporaire);
-
-                    htmx.ajax('GET', '/extractions/carte_inline/?entity_id=' + extractionId, {
-                        target: divTemporaire,
-                        swap: 'innerHTML',
-                    }).then(function() {
-                        var contenuCarte = divTemporaire.firstElementChild;
-                        if (contenuCarte) {
-                            blocParent.insertAdjacentElement('afterend', contenuCarte);
-                            htmx.process(contenuCarte);
-                        }
-                        divTemporaire.remove();
-                    });
-                }
-            }
         }
     });
 
@@ -447,9 +419,9 @@
     });
 
     // Recharger le contenu du drawer via HX-Trigger drawerContenuChange
-    // (emis par changer_statut, masquer, restaurer cote serveur)
+    // (emis par masquer, restaurer cote serveur)
     // / Reload drawer content via HX-Trigger drawerContenuChange
-    // / (emitted by changer_statut, masquer, restaurer server-side)
+    // / (emitted by masquer, restaurer server-side)
     document.body.addEventListener('drawerContenuChange', function() {
         if (drawerEstOuvert) {
             var selectTri = document.getElementById('drawer-select-tri');
@@ -478,67 +450,13 @@
         }
     });
 
-    // Scroll bidirectionnel : quand une pastille est cliquee dans le texte,
-    // surligner la carte correspondante dans le drawer
-    // / Bidirectional scroll: when a dot is clicked in text,
-    // highlight the corresponding card in the drawer
-    document.addEventListener('click', function(evenement) {
-        var pastille = evenement.target.closest('.pastille-extraction');
-        if (!pastille || !drawerEstOuvert) return;
-
-        var extractionId = pastille.dataset.extractionId;
-        if (!extractionId) return;
-
-        // Retirer le surlignage precedent dans le drawer
-        // / Remove previous highlight in drawer
-        document.querySelectorAll('.drawer-carte-compacte.drawer-carte-active').forEach(function(el) {
-            el.classList.remove('drawer-carte-active');
-        });
-
-        // Surligner et scroller vers la carte dans le drawer
-        // / Highlight and scroll to the card in the drawer
-        var carteDansDrawer = contenu.querySelector(
-            '.drawer-carte-compacte[data-extraction-id="' + extractionId + '"]'
-        );
-        if (carteDansDrawer) {
-            carteDansDrawer.classList.add('drawer-carte-active');
-            carteDansDrawer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    });
-
-    // Bidirectionnel carte inline → drawer : quand une carte inline est depliee,
-    // surligner la carte correspondante dans le drawer
-    // / Bidirectional inline card → drawer: when an inline card is expanded,
-    // / highlight the corresponding card in the drawer
-    document.addEventListener('click', function(evenement) {
-        var boutonVoirExtraction = evenement.target.closest('.pastille-extraction, [data-extraction-id]');
-        if (!boutonVoirExtraction || !drawerEstOuvert) return;
-
-        // Chercher l'extraction-id sur l'element clique ou son parent
-        // / Find extraction-id on clicked element or its parent
-        var extractionId = boutonVoirExtraction.dataset.extractionId;
-        if (!extractionId) return;
-
-        // Ne pas traiter les cartes du drawer (deja gere plus haut)
-        // / Don't process drawer cards (already handled above)
-        if (boutonVoirExtraction.closest('#drawer-contenu')) return;
-
-        // Retirer le surlignage precedent dans le drawer
-        // / Remove previous highlight in drawer
-        document.querySelectorAll('.drawer-carte-compacte.drawer-carte-active').forEach(function(el) {
-            el.classList.remove('drawer-carte-active');
-        });
-
-        // Surligner et scroller vers la carte dans le drawer
-        // / Highlight and scroll to the card in the drawer
-        var carteDansDrawer = contenu.querySelector(
-            '.drawer-carte-compacte[data-extraction-id="' + extractionId + '"]'
-        );
-        if (carteDansDrawer) {
-            carteDansDrawer.classList.add('drawer-carte-active');
-            carteDansDrawer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    });
+    // NOTE A.8 drawer-only :
+    // Le scroll bidirectionnel pastille → drawer est maintenant gere par
+    // marginalia.js via window.marginalia.ouvrirDrawerEtScrollerVersCarte().
+    // Quand l'utilisateur clique une pastille (ou un span surligne), marginalia.js
+    // ouvre le drawer (s'il est ferme) puis scrolle vers la carte concernee.
+    // / A.8 drawer-only: bidirectional scroll dot → drawer is now handled by
+    // / marginalia.js via window.marginalia.ouvrirDrawerEtScrollerVersCarte().
 
     // Expose l'API publique
     // / Expose public API

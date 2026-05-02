@@ -18,7 +18,6 @@
 //   J       → Extraction suivante
 //   K       → Extraction precedente
 //   C       → Commenter extraction selectionnee
-//   S       → Marquer consensuelle
 //   X       → Masquer extraction selectionnee
 //   H       → Toggle heat map du debat
 //   A       → Toggle mode selection alignement / ouvrir modale
@@ -98,8 +97,10 @@
         });
     }
 
-    // Selectionne une extraction par index : surligne, scroll, charge carte inline
-    // / Select extraction by index: highlight, scroll, load inline card
+    // Selectionne une extraction par index : surligne, scroll, ouvre le drawer
+    // Refonte A.8 drawer-only : plus de carte inline sous le paragraphe.
+    // / Select extraction by index: highlight, scroll, open drawer
+    // / A.8 drawer-only: no more inline card below the paragraph.
     function selectionnerExtraction(index) {
         if (index < 0 || index >= listeExtractionsVisibles.length) return;
 
@@ -122,28 +123,10 @@
         });
         span.classList.add('ancre-active');
 
-        // Charger la carte inline (meme pattern que marginalia.js)
-        // / Load inline card (same pattern as marginalia.js)
-        var blocParent = span.closest('p, div, blockquote, li, h1, h2, h3, h4, h5, h6');
-        if (blocParent && blocParent.id !== 'readability-content') {
-            var carteExistante = document.querySelector('.carte-inline[data-extraction-id="' + extraction.extractionId + '"]');
-            if (!carteExistante) {
-                var divTemporaire = document.createElement('div');
-                divTemporaire.style.display = 'none';
-                document.body.appendChild(divTemporaire);
-
-                htmx.ajax('GET', '/extractions/carte_inline/?entity_id=' + extraction.extractionId, {
-                    target: divTemporaire,
-                    swap: 'innerHTML',
-                }).then(function() {
-                    var contenuCarte = divTemporaire.firstElementChild;
-                    if (contenuCarte) {
-                        blocParent.insertAdjacentElement('afterend', contenuCarte);
-                        htmx.process(contenuCarte);
-                    }
-                    divTemporaire.remove();
-                });
-            }
+        // Ouvrir le drawer + scroller vers la carte concernee (drawer-only A.8)
+        // / Open drawer + scroll to card (A.8 drawer-only)
+        if (window.marginalia && window.marginalia.ouvrirDrawerEtScrollerVersCarte) {
+            window.marginalia.ouvrirDrawerEtScrollerVersCarte(extraction.extractionId);
         }
     }
 
@@ -202,62 +185,30 @@
     // === Actions sur extraction selectionnee ===
     // / === Actions on selected extraction ===
 
-    // Clique le bouton commenter de la carte inline ouverte (C)
-    // / Click the comment button of the open inline card (C)
+    // Clique le bouton commenter de la carte concernee dans le drawer (C)
+    // Refonte A.8 drawer-only : la carte se trouve maintenant dans le drawer,
+    // plus sous le paragraphe.
+    // / Click the comment button on the matching card in the drawer (C)
+    // / A.8 drawer-only: card is in the drawer, not under the paragraph.
     function commenterExtractionSelectionnee() {
         if (indexExtractionSelectionnee < 0) return;
         var extraction = listeExtractionsVisibles[indexExtractionSelectionnee];
         if (!extraction) return;
 
-        var carte = document.querySelector('.carte-inline[data-extraction-id="' + extraction.extractionId + '"]');
+        // S'assurer que le drawer est ouvert et la carte chargee
+        // / Ensure drawer is open and card loaded
+        if (window.marginalia && window.marginalia.ouvrirDrawerEtScrollerVersCarte) {
+            window.marginalia.ouvrirDrawerEtScrollerVersCarte(extraction.extractionId);
+        }
+        var carte = document.querySelector(
+            '#drawer-contenu .drawer-carte-compacte[data-extraction-id="' + extraction.extractionId + '"]'
+        );
         if (!carte) return;
 
         var boutonCommenter = carte.querySelector('.btn-commenter-extraction');
         if (boutonCommenter) {
             boutonCommenter.click();
         }
-    }
-
-    // Marque l'extraction selectionnee comme consensuelle (S)
-    // Verifie d'abord que l'utilisateur est proprietaire du dossier (PHASE-26c)
-    // / Mark selected extraction as consensual (S)
-    // / First check that user is the folder owner (PHASE-26c)
-    function marquerConsensuelleExtraction() {
-        if (indexExtractionSelectionnee < 0) return;
-        var extraction = listeExtractionsVisibles[indexExtractionSelectionnee];
-        if (!extraction) return;
-
-        // Verifier ownership via data-est-proprietaire sur #zone-lecture
-        // Toast feedback si non-owner / Toast feedback if non-owner
-        var zoneLecture = document.getElementById('zone-lecture');
-        if (zoneLecture && zoneLecture.dataset.estProprietaire !== 'true') {
-            Swal.fire({
-                toast: true, position: 'top-end', icon: 'info',
-                title: 'R\u00e9serv\u00e9 au propri\u00e9taire',
-                showConfirmButton: false, timer: 2000,
-            });
-            return;
-        }
-
-        var pageId = getPageId();
-        if (!pageId) return;
-
-        fetch('/extractions/changer_statut/', {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': extraireTokenCsrf(),
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: 'entity_id=' + extraction.extractionId + '&page_id=' + pageId + '&nouveau_statut=consensuel',
-        }).then(function(reponse) {
-            if (reponse.ok) {
-                Swal.fire({
-                    toast: true, position: 'top-end', icon: 'success',
-                    title: 'Marqu\u00e9e consensuelle',
-                    showConfirmButton: false, timer: 2000, timerProgressBar: true,
-                });
-            }
-        });
     }
 
     // Masque l'extraction selectionnee (X)
@@ -388,21 +339,10 @@
             return true;
         }
 
-        // 5. Carte inline ouverte → fermer
-        // / 5. Inline card open → close
-        var carteInlineOuverte = document.querySelector('.carte-inline');
-        if (carteInlineOuverte) {
-            var extractionIdCarte = carteInlineOuverte.dataset.extractionId;
-            if (window.marginalia) {
-                window.marginalia.fermerCarteInline(carteInlineOuverte, extractionIdCarte);
-            } else if (typeof fermerCarteInline === 'function') {
-                fermerCarteInline(carteInlineOuverte, extractionIdCarte);
-            }
-            return true;
-        }
-
-        // 6. Extraction selectionnee → deselectionner
-        // / 6. Extraction selected → deselect
+        // 5. Extraction selectionnee → deselectionner
+        // (la branche 'carte inline ouverte' a ete retiree avec la refonte
+        //  drawer-only A.8 : il n'y a plus de carte inline sous le paragraphe)
+        // / 5. Extraction selected → deselect (no more inline card to close)
         if (indexExtractionSelectionnee >= 0) {
             deselectionnerExtraction();
             return true;
@@ -472,13 +412,6 @@
             // / C → Comment selected extraction
             case 'c':
                 commenterExtractionSelectionnee();
-                evenement.preventDefault();
-                break;
-
-            // S → Marquer consensuelle
-            // / S → Mark as consensual
-            case 's':
-                marquerConsensuelleExtraction();
                 evenement.preventDefault();
                 break;
 

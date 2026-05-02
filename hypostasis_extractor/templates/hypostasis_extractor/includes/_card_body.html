@@ -1,44 +1,149 @@
+{# Corps unique de carte d'extraction (drawer-only A.8) #}
+{# Receives : entity, attr_0, attr_1, attr_2, attr_3, est_proprietaire, contributeurs_actifs, mode_filtre #}
+{# / Single body of extraction card (A.8 drawer-only) #}
+{# LOCALISATION : hypostasis_extractor/templates/hypostasis_extractor/includes/_card_body.html #}
 {% load extractor_tags %}
-{# Corps interne de la carte d'extraction — recoit attr_0, attr_1, text, attr_2, attr_3 #}
-{# / Inner body of extraction card — receives attr_0, attr_1, text, attr_2, attr_3 #}
 
-{# === 1. Header : hypostases en B612 gras uppercase, colorees par famille === #}
-{# / === 1. Header: hypostases in B612 bold uppercase, colored by family === #}
-{% if attr_0 %}
-<div class="flex flex-wrap gap-1 mb-2">
-    {% for tag in attr_0|split_comma %}
-    <span class="typo-hypostase inline-block px-1.5 py-0.5 rounded-full"
-          style="background: var(--hypostase-{{ tag|hypostase_famille }}-bg); color: var(--hypostase-{{ tag|hypostase_famille }}-text);"
-          title="{{ tag }} — {{ tag|hypostase_definition }}"
-          data-testid="badge-hypostase">{{ tag }}</span>
-    {% endfor %}
+{# Wrapper .extraction-content : cible HTMX du form commenter #}
+{# Le form fait hx-target="closest .extraction-content" hx-swap="outerHTML" #}
+{# pour que ajouter_commentaire renvoie _card_body.html et remplace ce wrapper. #}
+{# / .extraction-content wrapper : HTMX target of comment form #}
+<div class="extraction-content" data-extraction-id="{{ entity.pk }}">
+
+{# === 1. Header : indicateur statut + hypostases + compteur commentaires === #}
+{# / === 1. Header: status indicator + hypostases + comments counter === #}
+<div class="flex items-center gap-2 mb-2">
+    {# Indicateur statut binaire — rond gris pour "nouveau", triangle orange pour "commente" #}
+    {# La forme est definie en CSS via .indicateur-statut[data-statut="..."] (clip-path) #}
+    {# / Binary status indicator — grey circle for "nouveau", orange triangle for "commente" #}
+    {# Shape defined in CSS via .indicateur-statut[data-statut="..."] (clip-path) #}
+    <span class="indicateur-statut w-3.5 h-3.5 flex-shrink-0"
+          data-statut="{{ entity.statut_debat }}"
+          title="{{ entity.get_statut_debat_display }}"></span>
+
+    {# Badges hypostases colores par famille #}
+    {# / Hypostase badges colored by family #}
+    {% if attr_0 %}
+        <div class="flex flex-wrap gap-0.5 min-w-0 overflow-hidden">
+            {% for tag in attr_0|split_comma %}
+            <span class="typo-hypostase inline-block px-1.5 py-0.5 rounded-full"
+                  style="background: var(--hypostase-{{ tag|hypostase_famille }}-bg); color: var(--hypostase-{{ tag|hypostase_famille }}-text);"
+                  title="{{ tag }} — {{ tag|hypostase_definition }}"
+                  data-testid="badge-hypostase">{{ tag }}</span>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <span class="flex-1"></span>
+
+    {# Compteur commentaires #}
+    {# / Comments counter #}
+    {% if entity.nombre_commentaires %}
+    <span class="inline-flex items-center gap-1 text-[10px] text-amber-600 flex-shrink-0"
+          title="{{ entity.nombre_commentaires }} commentaire{{ entity.nombre_commentaires|pluralize:"s" }}">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/>
+        </svg>
+        {{ entity.nombre_commentaires }}
+    </span>
+    {% endif %}
+
+    {# Bouton masquer (owner only, hover) — utile pour la curation #}
+    {# / Hide button (owner only, hover) — useful for curation #}
+    {% if est_proprietaire %}
+    <button class="btn-masquer-drawer opacity-0 group-hover:opacity-100 p-0.5 rounded text-slate-300 hover:text-red-500 transition-all flex-shrink-0"
+            data-entity-id="{{ entity.pk }}"
+            data-page-id="{{ entity.job.page_id }}"
+            {% if entity.nombre_commentaires %}disabled title="Extraction avec commentaires"{% else %}title="Masquer cette extraction"
+            hx-post="/extractions/masquer/"
+            hx-vals='{"entity_id": "{{ entity.pk }}", "page_id": "{{ entity.job.page_id }}"}'
+            hx-swap="none"
+            {% endif %}
+            data-testid="drawer-btn-masquer">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>
+        </svg>
+    </button>
+    {% endif %}
 </div>
-{% endif %}
 
-{# === 2. Corps : resume IA en police B612 Mono === #}
-{# La classe typo-machine est definie dans hypostasia.css (PHASE-11) #}
-{# Elle utilise une police mono pour signaler que c'est l'IA qui a ecrit ce texte #}
-{# / === 2. Body: AI summary in B612 Mono font === #}
-{# typo-machine class defined in hypostasia.css (PHASE-11) #}
-{# Uses mono font to signal this text was written by the AI #}
+{# === 2. Body : résumé IA (attr_1) + citation source === #}
+{# / === 2. Body: AI summary (attr_1) + source citation === #}
 {% if attr_1 %}
-<p class="typo-machine mb-1.5 leading-snug">{{ attr_1 }}</p>
+<p class="typo-machine text-xs leading-relaxed text-slate-600 mb-1">{{ attr_1 }}</p>
 {% endif %}
 
-{# Citation source retiree — le resume IA suffit, le texte source est visible #}
-{# dans le surlignage du texte (scroll auto sur mobile, pastille marge sur desktop) #}
-{# / Source citation removed — AI summary is enough, source text is visible #}
-{# / in text highlighting (auto-scroll on mobile, margin dot on desktop) #}
+<p class="typo-citation text-xs leading-relaxed text-slate-500 italic">
+    [{{ entity.extraction_text|truncatechars:120 }}]
+</p>
 
-{# === 4. Footer : statut de debat — supprime (PHASE-26c : double badge) === #}
-{# / === 4. Footer: debate status — removed (PHASE-26c: double badge) === #}
-
-{# === 5. Hashtags avec data-hashtag pour rendu cliquable futur === #}
-{# / === 5. Hashtags with data-hashtag for future clickable rendering === #}
+{# === 3. Mots-clés (attr_3) === #}
+{# / === 3. Keywords (attr_3) === #}
 {% if attr_3 %}
 <div class="flex flex-wrap gap-1 mt-1">
-    {% for hashtag in attr_3|split_comma %}
-    <span class="text-[10px] text-slate-400" data-hashtag="{{ hashtag }}">#{{ hashtag }}</span>
+    {% for mc in attr_3|split_comma %}
+    <span class="text-[9px] text-slate-500 bg-slate-50 px-1 rounded">#{{ mc }}</span>
     {% endfor %}
 </div>
 {% endif %}
+
+{# === 4. Commentaires affichés inline === #}
+{# Le filtre "contributeurs_actifs" / "mode_filtre" applique le dimming sur les #}
+{# commentaires des contributeurs filtres (les variables peuvent etre absentes). #}
+{# / === 4. Comments displayed inline === #}
+{% for commentaire in entity.commentaires.all %}
+{# Layout Facebook-like : pseudo en haut (gras), commentaire en dessous #}
+{# / Facebook-like layout: username on top (bold), comment below #}
+<div class="px-2 py-1.5 mt-2 bg-slate-50 border-l-2 border-slate-200 rounded
+    {% if contributeurs_actifs %}
+        {% if mode_filtre == "exclure" %}
+            {% if commentaire.user.pk in contributeurs_actifs %}commentaire-hors-filtre{% endif %}
+        {% else %}
+            {% if commentaire.user.pk not in contributeurs_actifs %}commentaire-hors-filtre{% endif %}
+        {% endif %}
+    {% endif %}">
+    <div class="flex flex-col gap-0.5">
+        <span class="font-semibold text-xs text-slate-800">{{ commentaire.user.first_name|default:commentaire.user.username|title }}</span>
+        <p class="text-sm text-slate-700 leading-relaxed">{{ commentaire.commentaire }}</p>
+    </div>
+</div>
+{% endfor %}
+
+{# === 5. Zone formulaire commentaire — masquée par défaut === #}
+{# Cible HTMX : closest .extraction-content (le wrapper englobant ce partial). #}
+{# Apres soumission, ajouter_commentaire renvoie _extraction_content.html qui #}
+{# re-rend ce meme partial avec les nouveaux commentaires. #}
+{# / === 5. Comment form zone — hidden by default === #}
+<div class="zone-commentaire-deroulable hidden mt-2"
+     data-extraction-id="{{ entity.pk }}">
+    <form hx-post="/extractions/ajouter_commentaire/"
+          hx-vals='{"entity_id": "{{ entity.pk }}", "page_id": "{{ entity.job.page_id }}"}'
+          hx-target="closest .extraction-content"
+          hx-swap="outerHTML"
+          class="flex flex-col gap-1">
+        <textarea name="commentaire" rows="2"
+                  class="w-full text-xs border border-slate-200 rounded p-1.5 resize-none focus:outline-none focus:border-amber-400"
+                  placeholder="Votre commentaire..."
+                  required></textarea>
+        <button type="submit"
+                class="self-end text-xs px-2 py-1 bg-amber-50 text-amber-700 rounded hover:bg-amber-100 transition-colors">
+            Envoyer
+        </button>
+    </form>
+</div>
+
+{# === 6. Footer : bouton commenter === #}
+{# / === 6. Footer: comment button === #}
+<button class="btn-commenter-extraction text-xs text-slate-400 hover:text-amber-600 transition-colors mt-2 flex items-center gap-1"
+        data-entity-id="{{ entity.pk }}"
+        data-testid="btn-commenter-extraction"
+        onclick="this.previousElementSibling.classList.toggle('hidden'); var ta = this.previousElementSibling.querySelector('textarea'); if (ta) ta.focus();"
+        title="Commenter">
+    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/>
+    </svg>
+    Commenter
+</button>
+
+</div>{# fin .extraction-content / end .extraction-content #}

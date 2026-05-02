@@ -1,36 +1,34 @@
 // ==========================================================================
-// marginalia.js — Pastilles en marge droite + cartes inline (PHASE-09)
-// / Right margin dots + inline cards (PHASE-09)
+// marginalia.js — Pastilles en marge droite + ouverture drawer (A.8 drawer-only)
+// / Right margin dots + drawer opening (A.8 drawer-only)
 //
 // LOCALISATION : front/static/front/js/marginalia.js
 //
 // Ce fichier gere les pastilles colorees en marge droite du texte.
-// Chaque pastille represente une extraction. Sa couleur reflete le statut de debat.
-// Un clic sur une pastille charge une carte inline via HTMX (endpoint carte_inline).
-// La carte s'insere sous le paragraphe concerne avec une animation.
+// Chaque pastille represente une extraction. Sa couleur reflete le statut binaire
+// (nouveau / commente). Un clic sur une pastille (ou sur un span surligne)
+// ouvre le drawer Analyses et scrolle vers la carte concernee a l'interieur
+// du drawer (refonte drawer-only — plus de carte inline sous le paragraphe).
+// / On click: open drawer + scroll to corresponding card (no inline card).
 //
 // COMMUNICATION :
 // Recoit : htmx:afterSwap sur #zone-lecture -> reconstruit les pastilles
 // Recoit : HX-Trigger contributeurFiltreChange -> filtre pastilles (PHASE-26a-bis)
 //          avec mode_filtre 'inclure'|'exclure' pour inverser le dimming (PHASE-26a UX)
-// Appelle : GET /extractions/carte_inline/?entity_id=N (front/views.py ExtractionViewSet)
-// Exporte : window.marginalia = { construirePastillesMarginales, fermerCarteInline,
+// Appelle : window.drawerVueListe.ouvrir() pour ouvrir le drawer
+// Exporte : window.marginalia = { construirePastillesMarginales,
 //           getContributeurFiltre, resetContributeurFiltre }
 // Exporte : window.construirePastillesMarginales (alias global, utilise par drawer_vue_liste.js)
 // ==========================================================================
 (function() {
     'use strict';
 
-    // Mapping des couleurs par statut de debat.
+    // Mapping des couleurs par statut de debat (binaire A.8 : nouveau / commente).
     // Les valeurs correspondent aux variables CSS --statut-*-accent de hypostasia.css
-    // / Color mapping by debate status (matches CSS variables)
+    // / Color mapping by debate status (A.8 binary: new / commented), matches CSS variables
     var COULEURS_STATUT = {
-        nouveau:       '#999999',
-        consensuel:    '#009E73',
-        discutable:    '#E69F00',
-        discute:       '#56B4E9',
-        controverse:   '#D55E00',
-        non_pertinent: '#CC79A7',
+        nouveau:  '#999999',
+        commente: '#E69F00',
     };
 
     // === Construction des pastilles en marge droite ===
@@ -77,8 +75,8 @@
 
             spans.forEach(function(span) {
                 var extractionId = span.dataset.extractionId;
-                var statut = span.dataset.statut || 'discutable';
-                var couleur = COULEURS_STATUT[statut] || COULEURS_STATUT.discutable;
+                var statut = span.dataset.statut || 'nouveau';
+                var couleur = COULEURS_STATUT[statut] || COULEURS_STATUT.nouveau;
 
                 var pastille = document.createElement('button');
                 pastille.className = 'pastille-extraction';
@@ -96,11 +94,83 @@
     }
 
 
-    // --- Clic sur une pastille : toggle carte inline ---
-    // / Click on a dot: toggle inline card
+    // Ouvre le drawer + scrolle vers la carte de l'extraction donnee
+    // Refonte A.8 drawer-only : plus de carte inline sous le paragraphe.
+    // / Open drawer + scroll to the card for the given extraction.
+    // / A.8 drawer-only refactor: no more inline card below the paragraph.
+    function ouvrirDrawerEtScrollerVersCarte(extractionId) {
+        // Activer le span correspondant dans le texte (surlignage)
+        // / Activate corresponding span in text (highlight)
+        document.querySelectorAll('.hl-extraction.ancre-active').forEach(function(el) {
+            el.classList.remove('ancre-active');
+        });
+        document.querySelectorAll('.pastille-extraction.pastille-active').forEach(function(el) {
+            el.classList.remove('pastille-active');
+        });
+        var spanCorrespondant = document.querySelector(
+            '#readability-content .hl-extraction[data-extraction-id="' + extractionId + '"]'
+        );
+        if (spanCorrespondant) {
+            spanCorrespondant.classList.add('ancre-active');
+        }
+        var pastilleCorrespondante = document.querySelector(
+            '.pastille-extraction[data-extraction-id="' + extractionId + '"]'
+        );
+        if (pastilleCorrespondante) {
+            pastilleCorrespondante.classList.add('pastille-active');
+        }
+
+        // Ouvrir le drawer s'il est ferme (le drawer rechargera son contenu via chargerContenu)
+        // / Open drawer if closed (drawer will reload content via chargerContenu)
+        if (window.drawerVueListe && !window.drawerVueListe.estOuvert()) {
+            window.drawerVueListe.ouvrir();
+        }
+
+        // Scroller vers la carte dans le drawer (laisser le temps au contenu de se charger
+        // si le drawer vient juste de s'ouvrir).
+        // / Scroll to the card inside the drawer (give time to load if just opened).
+        function scrollerVersCarte() {
+            document.querySelectorAll('.drawer-carte-compacte.drawer-carte-active').forEach(function(el) {
+                el.classList.remove('drawer-carte-active');
+            });
+            var carteDansDrawer = document.querySelector(
+                '#drawer-contenu .drawer-carte-compacte[data-extraction-id="' + extractionId + '"]'
+            );
+            if (carteDansDrawer) {
+                carteDansDrawer.classList.add('drawer-carte-active');
+                carteDansDrawer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+        // Si la carte est deja la (drawer deja ouvert), scroller tout de suite.
+        // Sinon, attendre le swap HTMX du contenu (afterSwap sur #drawer-contenu).
+        // / If card already there (drawer already open), scroll immediately.
+        // / Otherwise, wait for HTMX swap on #drawer-contenu.
+        var carteDejaPresente = document.querySelector(
+            '#drawer-contenu .drawer-carte-compacte[data-extraction-id="' + extractionId + '"]'
+        );
+        if (carteDejaPresente) {
+            scrollerVersCarte();
+        } else {
+            var contenuDrawer = document.getElementById('drawer-contenu');
+            if (contenuDrawer) {
+                var handlerUneFois = function() {
+                    scrollerVersCarte();
+                    contenuDrawer.removeEventListener('htmx:afterSwap', handlerUneFois);
+                };
+                contenuDrawer.addEventListener('htmx:afterSwap', handlerUneFois);
+            }
+        }
+    }
+
+
+    // --- Clic sur une pastille : ouvre le drawer + scroll vers la carte ---
+    // / Click on a dot: open drawer + scroll to card
     document.addEventListener('click', function(evenement) {
         var pastille = evenement.target.closest('.pastille-extraction');
         if (!pastille) return;
+        // Ne pas traiter les pilules contributeur (elles ont aussi pastille-extraction ?)
+        // / Don't treat contributor pills (just in case)
+        if (pastille.classList.contains('pilule-contributeur')) return;
 
         var extractionId = pastille.dataset.extractionId;
         if (!extractionId) return;
@@ -112,98 +182,8 @@
             return;
         }
 
-        // Trouver le bloc parent du span correspondant
-        // / Find the parent block of the corresponding span
-        var spanCorrespondant = document.querySelector(
-            '#readability-content .hl-extraction[data-extraction-id="' + extractionId + '"]'
-        );
-        if (!spanCorrespondant) return;
-
-        var blocParent = spanCorrespondant.closest('p, div, blockquote, li, h1, h2, h3, h4, h5, h6');
-        if (!blocParent || blocParent.id === 'readability-content') return;
-
-        // Toggle : si carte deja ouverte pour cet extraction-id → la fermer
-        // / Toggle: if card already open for this extraction-id → close it
-        var carteExistante = document.querySelector('.carte-inline[data-extraction-id="' + extractionId + '"]');
-        if (carteExistante) {
-            fermerCarteInline(carteExistante, extractionId);
-            return;
-        }
-
-        // Nettoyer le surlignage precedent / Clean previous highlighting
-        document.querySelectorAll('.hl-extraction.ancre-active').forEach(function(el) {
-            el.classList.remove('ancre-active');
-        });
-        document.querySelectorAll('.pastille-extraction.pastille-active').forEach(function(el) {
-            el.classList.remove('pastille-active');
-        });
-
-        // Activer le span et la pastille / Activate span and dot
-        spanCorrespondant.classList.add('ancre-active');
-        pastille.classList.add('pastille-active');
-
-        // Charger la carte via HTMX / Load card via HTMX
-        var divTemporaire = document.createElement('div');
-        divTemporaire.style.display = 'none';
-        document.body.appendChild(divTemporaire);
-
-        htmx.ajax('GET', '/extractions/carte_inline/?entity_id=' + extractionId, {
-            target: divTemporaire,
-            swap: 'innerHTML',
-        }).then(function() {
-            var contenuCarte = divTemporaire.firstElementChild;
-            if (contenuCarte) {
-                // Inserer la carte apres le bloc parent / Insert card after parent block
-                blocParent.insertAdjacentElement('afterend', contenuCarte);
-                // Traiter les attributs HTMX dans la carte inseree
-                // / Process HTMX attributes in the inserted card
-                htmx.process(contenuCarte);
-            }
-            divTemporaire.remove();
-        });
+        ouvrirDrawerEtScrollerVersCarte(extractionId);
     });
-
-
-    // --- Fermeture carte inline (bouton ▴ via event delegation) ---
-    // / Close inline card (▴ button via event delegation)
-    document.addEventListener('click', function(evenement) {
-        var boutonReplier = evenement.target.closest('.btn-replier-carte');
-        if (!boutonReplier) return;
-
-        var extractionId = boutonReplier.dataset.extractionId;
-        var carte = boutonReplier.closest('.carte-inline');
-        if (carte) {
-            fermerCarteInline(carte, extractionId);
-        }
-    });
-
-
-    // Fonction utilitaire pour fermer une carte avec animation
-    // / Utility function to close a card with animation
-    function fermerCarteInline(carte, extractionId) {
-        // Desactiver la pastille et le span / Deactivate dot and span
-        if (extractionId) {
-            var pastilleActive = document.querySelector(
-                '.pastille-extraction.pastille-active[data-extraction-id="' + extractionId + '"]'
-            );
-            if (pastilleActive) {
-                pastilleActive.classList.remove('pastille-active');
-            }
-            var spanActif = document.querySelector(
-                '.hl-extraction.ancre-active[data-extraction-id="' + extractionId + '"]'
-            );
-            if (spanActif) {
-                spanActif.classList.remove('ancre-active');
-            }
-        }
-
-        // Animation de sortie puis suppression / Exit animation then removal
-        carte.classList.remove('carte-inline-entree');
-        carte.classList.add('carte-inline-sortie');
-        carte.addEventListener('animationend', function() {
-            carte.remove();
-        }, { once: true });
-    }
 
 
     // --- Recalcul automatique apres swap HTMX ---
@@ -296,25 +276,32 @@
     // / Expose public API
     window.marginalia = {
         construirePastillesMarginales: construirePastillesMarginales,
-        fermerCarteInline: fermerCarteInline,
         getContributeurFiltre: getContributeurFiltre,
         resetContributeurFiltre: resetContributeurFiltre,
+        ouvrirDrawerEtScrollerVersCarte: ouvrirDrawerEtScrollerVersCarte,
     };
 
     // --- Tap sur .hl-extraction sur mobile → ouvrir bottom sheet (PHASE-21) ---
+    // Sur desktop : clic sur .hl-extraction → ouvrir le drawer (drawer-only A.8)
     // / Tap on .hl-extraction on mobile → open bottom sheet (PHASE-21)
+    // / On desktop: click on .hl-extraction → open drawer (A.8 drawer-only)
     document.addEventListener('click', function(evenement) {
         var spanExtraction = evenement.target.closest('.hl-extraction[data-extraction-id]');
         if (!spanExtraction) return;
-        if (window.innerWidth > 768) return;
-        if (!window.bottomSheet) return;
-        window.bottomSheet.ouvrir(spanExtraction.dataset.extractionId);
+        var extractionId = spanExtraction.dataset.extractionId;
+        if (!extractionId) return;
+        if (window.innerWidth <= 768) {
+            if (window.bottomSheet) window.bottomSheet.ouvrir(extractionId);
+            return;
+        }
+        // Desktop : ouvrir le drawer + scroller vers la carte
+        // / Desktop: open drawer + scroll to card
+        ouvrirDrawerEtScrollerVersCarte(extractionId);
     });
 
 
     // Alias global pour compatibilite (utilise par drawer_vue_liste.js l86)
     // / Global alias for compatibility (used by drawer_vue_liste.js l86)
     window.construirePastillesMarginales = construirePastillesMarginales;
-    window.fermerCarteInline = fermerCarteInline;
 
 })();

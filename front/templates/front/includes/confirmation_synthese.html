@@ -62,42 +62,26 @@
         <div class="bg-slate-900 text-slate-100 rounded-lg p-4 max-h-[20rem] overflow-y-auto text-xs font-mono whitespace-pre-wrap leading-relaxed">{{ prompt_complet }}</div>
     </div>
 
-    {# Encart consensus permanent (toujours present, reponse Q2 = c) #}
-    {# / Permanent consensus block #}
+    {# Encart consensus binaire (A.8 — info, pas de gate) #}
+    {# / Binary consensus block (A.8 — info only, no gate) #}
     <div class="bg-slate-50 rounded-lg p-4 mb-4" data-testid="encart-consensus-synthese">
-        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Consensus du débat</h3>
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">État du débat</h3>
 
-        {% if total_entites_toutes > 0 %}
-        {# Compteurs 3x2 par statut / 3x2 status counters #}
-        <div class="grid grid-cols-3 gap-2 mb-3 text-xs">
-            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_nouveau }}</span> Nouveau</div>
-            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_consensuel }}</span> Consensuel</div>
-            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_discutable }}</span> Discutable</div>
-            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_discute }}</span> Discuté</div>
-            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_controverse }}</span> Controversé</div>
-            <div class="dashboard-compteur"><span class="font-semibold">{{ compteur_non_pertinent }}</span> Non pertinent</div>
-        </div>
-
-        {# Barre de progression / Progress bar #}
-        <div class="mb-2">
-            <div class="flex items-center justify-between mb-1">
-                <span class="text-xs text-slate-600">Pourcentage de consensus</span>
-                <span class="text-xs font-bold {% if seuil_atteint %}text-emerald-600{% else %}text-amber-600{% endif %}">
-                    {{ pourcentage_consensus }}% / {{ seuil_consensus }}%
-                </span>
-            </div>
-            <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
-                <div class="h-full transition-all"
-                     style="width: {{ pourcentage_consensus }}%; background-color: {% if seuil_atteint %}#10b981{% else %}#f59e0b{% endif %};">
-                </div>
-            </div>
-        </div>
-
-        {% if extractions_bloquantes %}
-        <p class="text-[10px] text-amber-600 mt-2">
-            {{ extractions_bloquantes|length }} extraction{{ extractions_bloquantes|length|pluralize }} encore en débat.
+        {% if consensus.total > 0 %}
+        <p class="text-xs text-slate-600 mb-2">
+            <strong class="text-slate-800">{{ consensus.commentees }}</strong> sur
+            <strong class="text-slate-800">{{ consensus.total }}</strong>
+            extraction{{ consensus.total|pluralize:"s" }} commentée{{ consensus.commentees|pluralize:"s" }}
+            <span class="text-slate-400">({{ consensus.pourcentage }} %)</span>
         </p>
-        {% endif %}
+
+        {# Barre de progression binaire / Binary progress bar #}
+        <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+            <div class="h-2 transition-all duration-500"
+                 style="width: {{ consensus.pourcentage }}%;
+                        background-color: var(--statut-commente-accent);"
+                 aria-label="{{ consensus.pourcentage }}% du débat est engagé"></div>
+        </div>
         {% else %}
         <p class="text-xs text-slate-500 italic">Aucune extraction sur cette page.</p>
         {% endif %}

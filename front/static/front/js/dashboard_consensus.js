@@ -139,29 +139,12 @@
                 el.classList.remove('ancre-active');
             });
             spanDansTexte.classList.add('ancre-active');
+        }
 
-            // Charger la carte inline / Load inline card
-            var blocParent = spanDansTexte.closest('p, div, blockquote, li, h1, h2, h3, h4, h5, h6');
-            if (blocParent && blocParent.id !== 'readability-content') {
-                var carteExistante = document.querySelector('.carte-inline[data-extraction-id="' + extractionId + '"]');
-                if (!carteExistante) {
-                    var divTemporaire = document.createElement('div');
-                    divTemporaire.style.display = 'none';
-                    document.body.appendChild(divTemporaire);
-
-                    htmx.ajax('GET', '/extractions/carte_inline/?entity_id=' + extractionId, {
-                        target: divTemporaire,
-                        swap: 'innerHTML',
-                    }).then(function() {
-                        var contenuCarte = divTemporaire.firstElementChild;
-                        if (contenuCarte) {
-                            blocParent.insertAdjacentElement('afterend', contenuCarte);
-                            htmx.process(contenuCarte);
-                        }
-                        divTemporaire.remove();
-                    });
-                }
-            }
+        // Refonte A.8 drawer-only : ouvrir le drawer et scroller vers la carte
+        // / A.8 drawer-only: open drawer and scroll to card
+        if (window.marginalia && window.marginalia.ouvrirDrawerEtScrollerVersCarte) {
+            window.marginalia.ouvrirDrawerEtScrollerVersCarte(extractionId);
         }
 
         // Fermer le dashboard apres navigation

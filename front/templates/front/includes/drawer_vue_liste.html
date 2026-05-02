@@ -71,7 +71,6 @@
                 data-page-id="{{ page.pk }}" data-testid="drawer-select-tri">
             <option value="position" {% if tri_actuel == "position" %}selected{% endif %}>Position</option>
             <option value="activite" {% if tri_actuel == "activite" %}selected{% endif %}>Activit&eacute; r&eacute;cente</option>
-            <option value="statut" {% if tri_actuel == "statut" %}selected{% endif %}>Statut de d&eacute;bat</option>
         </select>
     </div>
 
@@ -128,110 +127,21 @@
     <div id="drawer-cartes-liste">
     {% for entity in entites_visibles %}
     {% entity_json_attrs entity as entity_attrs %}
+    {# Carte drawer — corps unique via partial _card_body.html (mode="drawer") #}
+    {# / Drawer card — single body via partial _card_body.html (mode="drawer") #}
+    {# Garde la classe historique drawer-carte-compacte pour matcher les handlers JS #}
+    {# (drawer_vue_liste.js : clic carte -> scroll vers le passage dans le texte) #}
+    {# / Keeps historic drawer-carte-compacte class to match JS handlers #}
     <div class="drawer-carte-compacte mb-2 rounded-lg border border-slate-100 overflow-hidden cursor-pointer hover:border-slate-200 transition-colors group"
          data-extraction-id="{{ entity.pk }}"
          data-page-id="{{ page.pk }}"
          data-testid="drawer-carte"
          style="border-left: 3px solid var(--statut-{{ entity.statut_debat }}-accent);">
-
-        {# En-tete de la carte : hypostase + statut + compteur commentaires #}
-        {# / Card header: hypostase + status + comments counter #}
-        <div class="flex items-center gap-2 px-3 py-2">
-            {# Indicateur statut avec forme daltonien-safe / Status indicator with colorblind-safe shape #}
-            <span class="indicateur-statut w-3.5 h-3.5 flex-shrink-0"
-                  data-statut="{{ entity.statut_debat }}"
-                  style="background-color: var(--statut-{{ entity.statut_debat }}-accent);"
-                  title="{{ entity.get_statut_debat_display }}"></span>
-
-            {# Badges hypostases colores par famille — meme style que _card_body.html #}
-            {# / Colored hypostase badges by family — same style as _card_body.html #}
-            {% if entity_attrs.0 %}
-            <div class="flex flex-wrap gap-0.5 min-w-0 overflow-hidden">
-                {% for tag in entity_attrs.0|split_comma %}
-                <span class="typo-hypostase inline-block px-1 py-0 rounded-full text-[9px] leading-tight"
-                      style="background: var(--hypostase-{{ tag|hypostase_famille }}-bg); color: var(--hypostase-{{ tag|hypostase_famille }}-text);"
-                      title="{{ tag }}">{{ tag }}</span>
-                {% endfor %}
-            </div>
-            {% endif %}
-
-            <span class="flex-1"></span>
-
-            {# Badge commentaires / Comments badge #}
-            {% if entity.nombre_commentaires %}
-            <span class="inline-flex items-center gap-1 text-[10px] text-amber-600 flex-shrink-0"
-                  title="{{ entity.nombre_commentaires }} commentaire{{ entity.nombre_commentaires|pluralize:"s" }}">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                          d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/>
-                </svg>
-                {{ entity.nombre_commentaires }}
-            </span>
-            {% endif %}
-
-            {# Bouton masquer (visible au hover) — reserve au proprietaire (PHASE-26c) #}
-            {# / Hide button (visible on hover) — owner only (PHASE-26c) #}
-            {% if est_proprietaire %}
-            <button class="btn-masquer-drawer opacity-0 group-hover:opacity-100 p-0.5 rounded text-slate-300 hover:text-red-500 transition-all flex-shrink-0"
-                    data-entity-id="{{ entity.pk }}"
-                    data-page-id="{{ page.pk }}"
-                    {% if entity.nombre_commentaires %}disabled title="Extraction avec commentaires"{% else %}title="Masquer cette extraction"
-                    hx-post="/extractions/masquer/"
-                    hx-vals='{"entity_id": "{{ entity.pk }}", "page_id": "{{ page.pk }}"}'
-                    hx-swap="none"
-                    {% endif %}
-                    data-testid="drawer-btn-masquer">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/>
-                </svg>
-            </button>
-            {% endif %}
+        <div class="px-3 py-2">
+            {% with attr_0=entity_attrs.0 attr_1=entity_attrs.1 attr_2=entity_attrs.2 attr_3=entity_attrs.3 %}
+                {% include "hypostasis_extractor/includes/_card_body.html" with mode="drawer" %}
+            {% endwith %}
         </div>
-
-        {# Resume IA (attr_1) — texte complet, lisible #}
-        {# / AI summary (attr_1) — full text, readable #}
-        {% if entity_attrs.1 %}
-        <div class="px-3 pb-1">
-            <p class="typo-machine text-xs leading-relaxed text-slate-600">{{ entity_attrs.1 }}</p>
-        </div>
-        {% endif %}
-
-        {# Citation source — texte d'origine tronque #}
-        {# / Source citation — truncated original text #}
-        <div class="px-3 pb-2">
-            <p class="typo-citation text-xs leading-relaxed text-slate-500 italic">
-                [{{ entity.extraction_text|truncatechars:120 }}]
-            </p>
-        </div>
-
-        {# Commentaires — affiches directement sous la carte #}
-        {# En mode inclure : dimmer les commentaires hors filtre (pas dans les contributeurs actifs) #}
-        {# En mode exclure : dimmer les commentaires DES contributeurs actifs (logique inversee) #}
-        {# / Comments — displayed directly under the card #}
-        {# / In include mode: dim comments outside filter. In exclude mode: dim contributor comments #}
-        {% for commentaire in entity.commentaires.all %}
-        <div class="px-3 py-1.5 bg-slate-50 border-t border-slate-100
-            {% if not forloop.last %}border-b-0{% endif %}
-            {% if contributeurs_actifs %}
-                {% if mode_filtre == "exclure" %}
-                    {% if commentaire.user.pk in contributeurs_actifs %}commentaire-hors-filtre{% endif %}
-                {% else %}
-                    {% if commentaire.user.pk not in contributeurs_actifs %}commentaire-hors-filtre{% endif %}
-                {% endif %}
-            {% endif %}">
-            <div class="flex items-start gap-2">
-                <span class="typo-lecteur-nom text-sm font-semibold text-slate-700 flex-shrink-0
-                    {% if contributeurs_actifs %}
-                        {% if mode_filtre == "exclure" %}
-                            {% if commentaire.user.pk not in contributeurs_actifs %}contributeur-actif-highlight{% endif %}
-                        {% else %}
-                            {% if commentaire.user.pk in contributeurs_actifs %}contributeur-actif-highlight{% endif %}
-                        {% endif %}
-                    {% endif %}">{{ commentaire.user.first_name|default:commentaire.user.username|title }}</span>
-                <p class="text-sm text-slate-700 leading-relaxed">{{ commentaire.commentaire }}</p>
-            </div>
-        </div>
-        {% endfor %}
     </div>
     {% empty %}
     {% if analyse_en_cours %}

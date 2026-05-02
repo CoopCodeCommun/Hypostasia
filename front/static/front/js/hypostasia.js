@@ -31,16 +31,13 @@ if (ongletsPanneau) {
         bouton.className = 'onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium bg-white text-blue-600 border border-b-0 border-slate-200';
 
         // Charger le contenu selon l'onglet / Load content based on tab
+        // Refonte A.8 : seul l'onglet "extractions" subsiste (vue_commentaires retiree)
+        // / A.8 refactor: only "extractions" tab remains (vue_commentaires removed)
         if (ongletChoisi === 'extractions') {
             htmx.ajax('POST', '/extractions/panneau/', {
                 target: '#panneau-extractions',
                 swap: 'innerHTML',
                 values: { page_id: pageId }
-            });
-        } else if (ongletChoisi === 'commentaires') {
-            htmx.ajax('GET', '/extractions/vue_commentaires/?page_id=' + pageId, {
-                target: '#panneau-extractions',
-                swap: 'innerHTML'
             });
         }
     });
@@ -560,58 +557,37 @@ function _focusExtractionDepuisUrl() {
     spanDansTexte.classList.add('ancre-active');
     spanDansTexte.scrollIntoView({ behavior: 'instant', block: 'center' });
 
-    // Ouvrir la carte inline via la pastille en marge, puis ouvrir les commentaires
-    // et focus sur l'input. La pastille declenche un chargement HTMX — on attend
-    // que la carte inline apparaisse dans le DOM avant de cliquer sur "Commenter".
-    // / Open inline card via the margin dot, then open comments and focus input.
-    // / The dot triggers an HTMX load — we wait for the inline card to appear
-    // / in the DOM before clicking "Comment".
-    var pastille = document.querySelector(
-        '.pastille-extraction[data-extraction-id="' + extractionCible + '"]'
-    );
-    if (pastille) {
-        setTimeout(function() {
-            // Ne cliquer que si la carte inline n'est pas deja ouverte (evite le toggle fermer)
-            // / Only click if inline card is not already open (avoids toggle close)
-            var carteDejaOuverte = document.querySelector(
-                '.carte-inline[data-extraction-id="' + extractionCible + '"]'
-            );
-            if (!carteDejaOuverte) {
-                pastille.click();
-            }
-            // Attendre que la carte inline soit chargee (HTMX async)
-            // puis cliquer sur le bouton commenter et focus l'input
-            // / Wait for inline card to load (HTMX async)
-            // / then click comment button and focus input
-            var tentatives = 0;
-            var intervalVerification = setInterval(function() {
-                tentatives++;
-                var carteInline = document.querySelector(
-                    '.carte-inline[data-extraction-id="' + extractionCible + '"]'
-                );
-                if (carteInline) {
-                    clearInterval(intervalVerification);
-                    // Cliquer sur le bouton commenter dans la carte
-                    // / Click the comment button in the card
-                    var boutonCommenter = carteInline.querySelector('.btn-commenter-extraction');
-                    if (boutonCommenter) {
-                        boutonCommenter.click();
-                        // Attendre que le fil de discussion s'ouvre puis focus l'input
-                        // / Wait for discussion thread to open then focus input
-                        setTimeout(function() {
-                            var inputCommentaire = carteInline.querySelector('textarea, input[type="text"]');
-                            if (inputCommentaire) {
-                                inputCommentaire.focus();
-                            }
-                        }, 500);
-                    }
-                }
-                // Abandonner apres 3 secondes (15 tentatives x 200ms)
-                // / Give up after 3 seconds (15 attempts x 200ms)
-                if (tentatives > 15) clearInterval(intervalVerification);
-            }, 200);
-        }, 400);
+    // Refonte A.8 drawer-only : ouvrir le drawer + scroller vers la carte,
+    // puis cliquer sur "Commenter" et focus le textarea quand la carte est
+    // chargee dans le drawer (chargement HTMX async).
+    // / A.8 drawer-only: open drawer + scroll to card, then click "Comment"
+    // / and focus textarea once card is loaded in the drawer (async HTMX load).
+    if (window.marginalia && window.marginalia.ouvrirDrawerEtScrollerVersCarte) {
+        window.marginalia.ouvrirDrawerEtScrollerVersCarte(extractionCible);
     }
+    var tentatives = 0;
+    var intervalVerification = setInterval(function() {
+        tentatives++;
+        var carteDansDrawer = document.querySelector(
+            '#drawer-contenu .drawer-carte-compacte[data-extraction-id="' + extractionCible + '"]'
+        );
+        if (carteDansDrawer) {
+            clearInterval(intervalVerification);
+            var boutonCommenter = carteDansDrawer.querySelector('.btn-commenter-extraction');
+            if (boutonCommenter) {
+                boutonCommenter.click();
+                setTimeout(function() {
+                    var inputCommentaire = carteDansDrawer.querySelector('textarea, input[type="text"]');
+                    if (inputCommentaire) {
+                        inputCommentaire.focus();
+                    }
+                }, 500);
+            }
+        }
+        // Abandonner apres 3 secondes (15 tentatives x 200ms)
+        // / Give up after 3 seconds (15 attempts x 200ms)
+        if (tentatives > 15) clearInterval(intervalVerification);
+    }, 200);
 }
 
 // Ecouter htmx:pushedIntoHistory (navigation HTMX)
@@ -774,16 +750,15 @@ function scrollToExtraction(elementCarte) {
  * in the right panel and opens it if closed.
  */
 function scrollToCarteDepuisBloc(extractionId) {
-    // D'abord chercher une carte inline deja ouverte (PHASE-09)
-    // / First look for an already open inline card (PHASE-09)
-    var carteInline = document.querySelector('.carte-inline[data-extraction-id="' + extractionId + '"]');
-    if (carteInline) {
-        carteInline.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Refonte A.8 drawer-only : ouvrir le drawer et scroller vers la carte
+    // / A.8 drawer-only: open drawer and scroll to the card
+    if (window.marginalia && window.marginalia.ouvrirDrawerEtScrollerVersCarte) {
+        window.marginalia.ouvrirDrawerEtScrollerVersCarte(extractionId);
         return;
     }
 
-    // Sinon declencher le clic pastille pour ouvrir la carte inline (PHASE-09)
-    // / Otherwise trigger dot click to open inline card (PHASE-09)
+    // Fallback : declencher le clic pastille (qui ouvrira aussi le drawer)
+    // / Fallback: trigger dot click (which will also open the drawer)
     var pastille = document.querySelector('.pastille-extraction[data-extraction-id="' + extractionId + '"]');
     if (pastille) {
         pastille.click();
@@ -1120,163 +1095,6 @@ document.addEventListener('click', async function(evenement) {
     });
 });
 
-// Delegation d'evenement : clic sur le bouton editer d'une carte
-// Ouvre la modale d'edition via HTMX (PHASE-26f)
-// / Event delegation: click on card edit button, opens edit modal via HTMX (PHASE-26f)
-document.addEventListener('click', function(evenement) {
-    var boutonEditer = evenement.target.closest('.btn-editer-extraction');
-    if (!boutonEditer) return;
-    evenement.stopPropagation();
-
-    var entityId = boutonEditer.dataset.entityId;
-    var pageId = boutonEditer.dataset.pageId;
-    console.log('[Edition extraction modale] entity_id=' + entityId + ' page_id=' + pageId);
-
-    // Fermer le bottom sheet mobile s'il est ouvert (PHASE-26f)
-    // / Close mobile bottom sheet if open (PHASE-26f)
-    if (window.bottomSheet && window.bottomSheet.estOuvert()) {
-        window.bottomSheet.fermer();
-    }
-
-    // Ouvrir la modale d'edition (append au body via HX-Retarget)
-    // / Open edit modal (appended to body via HX-Retarget)
-    htmx.ajax('POST', '/extractions/editer/', {
-        target: 'body',
-        swap: 'beforeend',
-        values: {entity_id: entityId, page_id: pageId},
-    });
-});
-
-// --- Modale edition extraction : fermeture et focus trap (PHASE-26f) ---
-// / Edit extraction modal: close and focus trap (PHASE-26f)
-
-// Fonction utilitaire : fermer et supprimer la modale d'edition
-// / Utility: close and remove the edit modal
-function fermerModaleExtraction() {
-    var modale = document.getElementById('modale-edition-extraction');
-    if (modale) modale.remove();
-}
-
-// Intercepter le bouton Annuler dans la modale — ferme la modale au lieu du hx-post inline
-// Le formulaire inclus a un hx-post="/extractions/panneau/" qui est valide en inline
-// mais dans la modale on veut juste fermer sans recharger le panneau.
-// Capture phase (3e arg true) pour intercepter avant HTMX.
-// / Intercept Cancel button inside modal — close modal instead of inline hx-post
-// / The included form has an hx-post that works inline but in modal we just close.
-document.addEventListener('click', function(evenement) {
-    var modale = document.getElementById('modale-edition-extraction');
-    if (!modale) return;
-    var boutonAnnuler = evenement.target.closest('[hx-post="/extractions/panneau/"]');
-    if (boutonAnnuler && modale.contains(boutonAnnuler)) {
-        evenement.preventDefault();
-        evenement.stopImmediatePropagation();
-        fermerModaleExtraction();
-    }
-}, true);
-
-// Fermer via Escape / Close via Escape
-document.addEventListener('keydown', function(evenement) {
-    if (evenement.key === 'Escape') {
-        fermerModaleExtraction();
-    }
-});
-
-// Fermer via clic sur le backdrop / Close via backdrop click
-document.addEventListener('click', function(evenement) {
-    if (evenement.target.id === 'modale-edition-extraction') {
-        fermerModaleExtraction();
-    }
-});
-
-// Fermer via bouton × / Close via × button
-document.addEventListener('click', function(evenement) {
-    var boutonFermer = evenement.target.closest('.btn-fermer-modale-extraction');
-    if (boutonFermer) {
-        fermerModaleExtraction();
-    }
-});
-
-// Fermer via HX-Trigger 'fermerModaleExtraction' (apres soumission du formulaire)
-// Rafraichit la carte inline ouverte via un GET separe sur carte_inline.
-// / Close via HX-Trigger 'fermerModaleExtraction' (after form submission)
-// / Refreshes the open inline card via a separate GET on carte_inline.
-document.body.addEventListener('fermerModaleExtraction', function(evenement) {
-    fermerModaleExtraction();
-
-    // Recuperer l'entity_id depuis le detail du trigger
-    // / Get entity_id from trigger detail
-    var detail = evenement.detail || {};
-    var entityId = detail.entityId;
-    if (!entityId) return;
-
-    // Rafraichir la carte inline si elle est ouverte dans le DOM
-    // / Refresh the inline card if it's open in the DOM
-    var carteExistante = document.getElementById('carte-inline-' + entityId);
-    if (carteExistante) {
-        htmx.ajax('GET', '/extractions/carte_inline/?entity_id=' + entityId, {
-            target: carteExistante,
-            swap: 'outerHTML',
-        });
-    }
-});
-
-// Focus trap dans la modale : piege Tab/Shift+Tab
-// / Focus trap in the modal: trap Tab/Shift+Tab
-document.addEventListener('keydown', function(evenement) {
-    if (evenement.key !== 'Tab') return;
-    var modale = document.getElementById('modale-edition-extraction');
-    if (!modale) return;
-
-    var elementsFocusables = modale.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (elementsFocusables.length === 0) return;
-
-    var premierElement = elementsFocusables[0];
-    var dernierElement = elementsFocusables[elementsFocusables.length - 1];
-
-    if (evenement.shiftKey) {
-        if (document.activeElement === premierElement) {
-            evenement.preventDefault();
-            dernierElement.focus();
-        }
-    } else {
-        if (document.activeElement === dernierElement) {
-            evenement.preventDefault();
-            premierElement.focus();
-        }
-    }
-});
-
-// Autofocus + neutralisation du bouton Annuler a l'ouverture de la modale
-// Le formulaire inclus a un bouton Annuler avec hx-post="/extractions/panneau/"
-// qui est valide en contexte inline mais doit juste fermer la modale ici.
-// / Autofocus + Cancel button neutralization when modal opens
-// / The included form has a Cancel button with hx-post that works inline
-// / but should just close the modal here.
-document.body.addEventListener('htmx:afterSwap', function(evenement) {
-    var modale = document.getElementById('modale-edition-extraction');
-    if (!modale) return;
-
-    // Autofocus le premier champ / Autofocus the first field
-    var premierChamp = modale.querySelector('input:not([type="hidden"]), select, textarea');
-    if (premierChamp) {
-        setTimeout(function() { premierChamp.focus(); }, 50);
-    }
-
-    // Neutraliser le bouton Annuler : retirer hx-post et ajouter onclick fermer
-    // / Neutralize Cancel button: remove hx-post and add onclick close
-    var boutonAnnuler = modale.querySelector('[hx-post="/extractions/panneau/"]');
-    if (boutonAnnuler) {
-        boutonAnnuler.removeAttribute('hx-post');
-        boutonAnnuler.removeAttribute('hx-target');
-        boutonAnnuler.removeAttribute('hx-swap');
-        boutonAnnuler.removeAttribute('hx-vals');
-        boutonAnnuler.addEventListener('click', function() {
-            fermerModaleExtraction();
-        });
-    }
-});
 
 // Delegation d'evenement : clic sur une carte d'extraction dans le panneau droit
 // Remplace le onclick inline pour survivre aux swaps HTMX
@@ -1286,7 +1104,7 @@ document.addEventListener('click', function(evenement) {
     if (!carte) return;
     // Ne pas scroller si on clique sur un bouton d'action
     // / Don't scroll if clicking an action button
-    if (evenement.target.closest('.btn-editer-extraction, .btn-commenter-extraction, .btn-supprimer-extraction')) return;
+    if (evenement.target.closest('.btn-commenter-extraction, .btn-supprimer-extraction')) return;
     scrollToExtraction(carte);
 });
 
@@ -1457,13 +1275,6 @@ document.addEventListener('click', async function(evenement) {
     if (!resultat.isConfirmed) return;
 
     var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
-    // Retirer la carte inline du DOM immediatement (PHASE-26f)
-    // / Remove inline card from DOM immediately (PHASE-26f)
-    var carteInline = document.getElementById('carte-inline-' + entityId);
-    if (carteInline) {
-        carteInline.remove();
-    }
 
     // Fermer le bottom sheet mobile s'il est ouvert (PHASE-26f)
     // / Close mobile bottom sheet if open (PHASE-26f)
@@ -1679,64 +1490,6 @@ document.addEventListener('click', async function(evenement) {
     }
 });
 
-// --- Modifier un commentaire via SweetAlert ---
-// / Edit a comment via SweetAlert
-document.addEventListener('click', async function(evenement) {
-    var bouton = evenement.target.closest('.btn-modifier-commentaire');
-    if (!bouton) return;
-    evenement.preventDefault();
-    evenement.stopPropagation();
-
-    var commentaireId = bouton.dataset.commentaireId;
-    var texteActuel = bouton.dataset.commentaireTexte;
-
-    var resultat = await Swal.fire({
-        title: 'Modifier le commentaire',
-        input: 'textarea',
-        inputValue: texteActuel,
-        showCancelButton: true,
-        cancelButtonText: 'Annuler',
-        confirmButtonText: 'Enregistrer',
-        inputValidator: function(valeur) {
-            if (!valeur || !valeur.trim()) return 'Le commentaire ne peut pas être vide';
-        },
-    });
-    if (!resultat.isConfirmed) return;
-
-    htmx.ajax('POST', '/extractions/modifier_commentaire/', {
-        target: '#panneau-extractions',
-        swap: 'innerHTML',
-        values: {commentaire_id: commentaireId, commentaire: resultat.value.trim()},
-    });
-});
-
-// --- Supprimer un commentaire via SweetAlert ---
-// / Delete a comment via SweetAlert
-document.addEventListener('click', async function(evenement) {
-    var bouton = evenement.target.closest('.btn-supprimer-commentaire');
-    if (!bouton) return;
-    evenement.preventDefault();
-    evenement.stopPropagation();
-
-    var commentaireId = bouton.dataset.commentaireId;
-
-    var resultat = await Swal.fire({
-        title: 'Supprimer ce commentaire ?',
-        text: 'Cette action est irréversible.',
-        icon: 'warning',
-        showCancelButton: true,
-        cancelButtonText: 'Annuler',
-        confirmButtonText: 'Supprimer',
-        confirmButtonColor: '#ef4444',
-    });
-    if (!resultat.isConfirmed) return;
-
-    htmx.ajax('POST', '/extractions/supprimer_commentaire/', {
-        target: '#panneau-extractions',
-        swap: 'innerHTML',
-        values: {commentaire_id: commentaireId},
-    });
-});
 
 
 // ==========================================================================

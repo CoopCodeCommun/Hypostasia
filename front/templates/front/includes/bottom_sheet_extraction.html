@@ -31,46 +31,6 @@
         {% include "hypostasis_extractor/includes/_card_body.html" %}
     {% endwith %}
 
-    {# Pied : boutons d'action / Footer: action buttons #}
-    <div class="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
-        {# Boutons de changement de statut (PHASE-14) / Status change buttons (PHASE-14) #}
-        {% if entity.statut_debat != "consensuel" %}
-        <button class="text-xs text-green-600 hover:text-green-800 transition-colors"
-                data-testid="bottom-sheet-btn-consensuel"
-                hx-post="/extractions/changer_statut/"
-                hx-vals='{"entity_id": "{{ entity.pk }}", "page_id": "{{ entity.job.page_id }}", "nouveau_statut": "consensuel"}'
-                hx-swap="none"
-                title="Marquer comme consensuel">
-            <svg class="w-3.5 h-3.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/>
-            </svg>
-            Consensuel
-        </button>
-        {% endif %}
-        {% if entity.statut_debat != "controverse" %}
-        <button class="text-xs text-red-500 hover:text-red-700 transition-colors"
-                data-testid="bottom-sheet-btn-controverse"
-                hx-post="/extractions/changer_statut/"
-                hx-vals='{"entity_id": "{{ entity.pk }}", "page_id": "{{ entity.job.page_id }}", "nouveau_statut": "controverse"}'
-                hx-swap="none"
-                title="Marquer comme controversé">
-            <svg class="w-3.5 h-3.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
-            </svg>
-            Controvers&eacute;
-        </button>
-        {% endif %}
-        <span class="w-px h-3 bg-slate-200"></span>
-        <button class="btn-editer-extraction text-xs text-slate-400 hover:text-blue-600 transition-colors"
-                data-entity-id="{{ entity.pk }}"
-                data-page-id="{{ entity.job.page_id }}"
-                data-testid="bottom-sheet-btn-modifier"
-                title="Modifier">
-            <svg class="w-3.5 h-3.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/>
-            </svg>
-            Modifier
-        </button>
-    </div>
+    {# A.8 Phase 4-bis : bouton "Modifier" retire (YAGNI extraction edit). #}
+    {# / A.8 Phase 4-bis: "Edit" button removed (YAGNI extraction edit). #}
 </div>

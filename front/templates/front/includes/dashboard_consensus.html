@@ -1,111 +1,44 @@
-{# Partial: Dashboard de consensus pour une page (PHASE-14) #}
-{# / Partial: Consensus dashboard for a page (PHASE-14) #}
-<div id="dashboard-consensus-contenu"
-     data-testid="dashboard-consensus"
-     aria-live="polite"
-     class="p-4">
+{# Dashboard consensus simplifie A.8 — barre binaire 'commentees / total' #}
+{# / A.8 simplified consensus dashboard — binary 'commented / total' bar #}
+{# LOCALISATION : front/templates/front/includes/dashboard_consensus.html #}
 
-    {% if total_entites_toutes == 0 %}
-        {# Etat vide : aucune extraction visible / Empty state: no visible extractions #}
-        <div class="empty-state py-6">
-            <p class="empty-state-text">Aucune extraction pour cette page.</p>
-            <p class="empty-state-subtext">Lancez une analyse pour obtenir des extractions.</p>
-        </div>
+<div class="dashboard-consensus rounded-lg bg-white border border-slate-200 p-4 mb-3"
+     data-testid="dashboard-consensus">
+    <h3 class="text-sm font-semibold text-slate-700 mb-2">État du débat</h3>
+
+    <p class="text-xs text-slate-600 mb-2">
+        <strong class="text-slate-800">{{ consensus.commentees }}</strong> sur
+        <strong class="text-slate-800">{{ consensus.total }}</strong>
+        extraction{{ consensus.total|pluralize:"s" }} commentée{{ consensus.commentees|pluralize:"s" }}
+        <span class="text-slate-400">({{ consensus.pourcentage }} %)</span>
+    </p>
+
+    {# Barre de progression binaire / Binary progress bar #}
+    <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+        <div class="h-2 transition-all duration-500"
+             style="width: {{ consensus.pourcentage }}%;
+                    background-color: var(--statut-commente-accent);"
+             aria-label="{{ consensus.pourcentage }}% du débat est engagé"></div>
+    </div>
+
+    {% if consensus.total == 0 %}
+    <p class="text-xs text-slate-400 mt-2 italic">
+        Aucune extraction sur cette page. Lance une analyse pour commencer.
+    </p>
     {% else %}
-        {# Grille 3x2 compteurs (6 statuts) / 3x2 counter grid (6 statuses) #}
-        <div class="grid grid-cols-3 gap-2 mb-4">
-            <div class="dashboard-compteur" data-testid="compteur-nouveau">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="nouveau" style="background: var(--statut-nouveau-accent);" aria-label="Nouveau" aria-hidden="true"></span>
-                <span class="font-semibold">{{ compteur_nouveau }}</span>
-                <span class="text-slate-500">Nouveau{{ compteur_nouveau|pluralize:"x" }}</span>
-            </div>
-            <div class="dashboard-compteur" data-testid="compteur-consensuel">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="consensuel" style="background: var(--statut-consensuel-accent);" aria-hidden="true"></span>
-                <span class="font-semibold">{{ compteur_consensuel }}</span>
-                <span class="text-slate-500">Consensuel{{ compteur_consensuel|pluralize }}</span>
-            </div>
-            <div class="dashboard-compteur" data-testid="compteur-discutable">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="discutable" style="background: var(--statut-discutable-accent);" aria-hidden="true"></span>
-                <span class="font-semibold">{{ compteur_discutable }}</span>
-                <span class="text-slate-500">Discutable{{ compteur_discutable|pluralize }}</span>
-            </div>
-            <div class="dashboard-compteur" data-testid="compteur-discute">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="discute" style="background: var(--statut-discute-accent);" aria-hidden="true"></span>
-                <span class="font-semibold">{{ compteur_discute }}</span>
-                <span class="text-slate-500">Discut&eacute;{{ compteur_discute|pluralize }}</span>
-            </div>
-            <div class="dashboard-compteur" data-testid="compteur-controverse">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="controverse" style="background: var(--statut-controverse-accent);" aria-hidden="true"></span>
-                <span class="font-semibold">{{ compteur_controverse }}</span>
-                <span class="text-slate-500">Controvers&eacute;{{ compteur_controverse|pluralize }}</span>
-            </div>
-            <div class="dashboard-compteur" data-testid="compteur-non-pertinent">
-                <span class="indicateur-statut w-4 h-4 inline-block" data-statut="non_pertinent" style="background: var(--statut-non_pertinent-accent);" aria-hidden="true"></span>
-                <span class="font-semibold">{{ compteur_non_pertinent }}</span>
-                <span class="text-slate-500">Non pertinent{{ compteur_non_pertinent|pluralize }}</span>
-            </div>
-        </div>
 
-        {# Barre de progression consensus / Consensus progress bar #}
-        <div class="mb-3">
-            <div class="flex items-center justify-between mb-1">
-                <span class="text-xs font-medium text-slate-600">Consensus</span>
-                <span class="text-xs font-semibold" data-testid="pourcentage-consensus"
-                      style="color: {% if seuil_atteint %}var(--statut-consensuel-text){% else %}var(--statut-discute-text){% endif %};">
-                    {{ pourcentage_consensus }}%
-                </span>
-            </div>
-            <div class="progress-bar-consensus">
-                <div class="progress-bar-consensus-fill"
-                     style="width: {{ pourcentage_consensus }}%;
-                            background-color: {% if seuil_atteint %}var(--statut-consensuel-accent){% else %}var(--statut-discute-accent){% endif %};">
-                </div>
-            </div>
-            <p class="text-[10px] text-slate-400 mt-1">Seuil : {{ seuil_consensus }}%</p>
-        </div>
-
-        {# Extractions bloquantes / Blocking extractions #}
-        {% if extractions_bloquantes %}
-        <div class="mb-3">
-            <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Bloquants</h4>
-            <div class="space-y-1">
-                {% for entite_bloquante in extractions_bloquantes %}
-                <button class="dashboard-bloquant w-full text-left"
-                        data-extraction-id="{{ entite_bloquante.pk }}"
-                        data-page-id="{{ page.pk }}"
-                        data-testid="dashboard-bloquant">
-                    <span class="dashboard-bloquant-badge flex-shrink-0"
-                          style="color: var(--statut-{{ entite_bloquante.statut_debat }}-text);
-                                 background: var(--statut-{{ entite_bloquante.statut_debat }}-bg);">
-                        {% if entite_bloquante.statut_debat == "controverse" %}!{% else %}?{% endif %}
-                    </span>
-                    <span class="text-xs text-slate-700 truncate flex-1">{{ entite_bloquante.extraction_text|truncatechars:50 }}</span>
-                    {% if entite_bloquante.nombre_commentaires %}
-                    <span class="text-[10px] text-slate-400 flex-shrink-0">{{ entite_bloquante.nombre_commentaires }}&nbsp;com.</span>
-                    {% endif %}
-                </button>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
-        {# Bouton synthese — ouvre la confirmation dans le drawer (PHASE-29) #}
-        {# Le drawer affiche estimation, prompt, consensus, etc. avant le lancement #}
-        {# / Synthesis button — opens confirmation in the drawer (PHASE-29) #}
-        <div class="mt-4" id="zone-btn-synthese">
-            <button class="btn-synthese {% if not seuil_atteint %}btn-synthese-avertissement{% endif %}"
-                    data-testid="btn-lancer-synthese"
-                    hx-get="/lire/{{ page.pk }}/previsualiser_synthese/"
-                    hx-target="#drawer-contenu"
-                    hx-swap="innerHTML">
-                Lancer la synth&egrave;se
-            </button>
-            {% if not seuil_atteint %}
-            <p class="text-[10px] text-amber-600 mt-1 text-center">
-                Seuil non atteint ({{ pourcentage_consensus }}% / {{ seuil_consensus }}%).
-                Continuez la curation ou lancez quand m&ecirc;me depuis le drawer.
-            </p>
-            {% endif %}
-        </div>
+    {# Bouton synthese — ouvre la confirmation dans le drawer (PHASE-29) #}
+    {# Le drawer affiche estimation, prompt, consensus, etc. avant le lancement #}
+    {# / Synthesis button — opens confirmation in the drawer (PHASE-29) #}
+    {# Drawer shows estimate, prompt, consensus before launch #}
+    <div class="mt-4" id="zone-btn-synthese">
+        <button class="btn-synthese"
+                data-testid="btn-lancer-synthese"
+                hx-get="/lire/{{ page.pk }}/previsualiser_synthese/"
+                hx-target="#drawer-contenu"
+                hx-swap="innerHTML">
+            Lancer la synth&egrave;se
+        </button>
+    </div>
     {% endif %}
 </div>

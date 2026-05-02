@@ -387,47 +387,6 @@ class DossierRenommerSerializer(serializers.Serializer):
         return nom_nettoye
 
 
-class ModifierCommentaireSerializer(serializers.Serializer):
-    """
-    Validation pour la modification d'un commentaire sur une extraction.
-    Validation for editing a comment on an extraction.
-    """
-    commentaire_id = serializers.IntegerField(
-        error_messages={
-            "required": "L'ID du commentaire est obligatoire / Comment ID is required",
-        },
-    )
-    commentaire = serializers.CharField(
-        error_messages={
-            "required": "Le commentaire est obligatoire / Comment is required",
-            "blank": "Le commentaire ne peut pas etre vide / Comment cannot be blank",
-        },
-    )
-
-    def validate_commentaire(self, valeur):
-        # Sanitize le commentaire — supprime toute balise HTML
-        # / Sanitize comment — strip all HTML tags
-        import bleach
-        texte_nettoye = bleach.clean(valeur, tags=[], strip=True).strip()
-        if not texte_nettoye:
-            raise serializers.ValidationError(
-                "Le commentaire ne peut pas etre vide apres nettoyage / Comment cannot be empty after sanitization"
-            )
-        return texte_nettoye
-
-
-class SupprimerCommentaireSerializer(serializers.Serializer):
-    """
-    Validation pour la suppression d'un commentaire sur une extraction.
-    Validation for deleting a comment on an extraction.
-    """
-    commentaire_id = serializers.IntegerField(
-        error_messages={
-            "required": "L'ID du commentaire est obligatoire / Comment ID is required",
-        },
-    )
-
-
 class SynthetiserSerializer(serializers.Serializer):
     """
     Serializer vide pour l'action synthetiser (detail=True, le pk vient de l'URL).
@@ -436,29 +395,6 @@ class SynthetiserSerializer(serializers.Serializer):
     Project convention: every POST action has a serializer.
     """
     pass
-
-
-class ChangerStatutSerializer(serializers.Serializer):
-    """
-    Validation pour le changement de statut de debat d'une extraction.
-    / Validation for changing the debate status of an extraction.
-    """
-    entity_id = serializers.IntegerField(
-        error_messages={
-            "required": "L'ID de l'entite est obligatoire / Entity ID is required",
-        },
-    )
-    page_id = serializers.IntegerField(
-        error_messages={
-            "required": "L'ID de la page est obligatoire / Page ID is required",
-        },
-    )
-    nouveau_statut = serializers.ChoiceField(
-        choices=["nouveau", "consensuel", "discutable", "discute", "controverse", "non_pertinent"],
-        error_messages={
-            "required": "Le nouveau statut est obligatoire / New status is required",
-        },
-    )
 
 
 # =============================================================================

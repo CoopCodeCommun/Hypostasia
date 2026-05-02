@@ -1081,163 +1081,6 @@ class Phase04SuppressionExtractionManuelleTest(TestCase):
         self.assertEqual(reponse.status_code, 403)
 
 
-class Phase04ModifierCommentaireTest(TestCase):
-    """Verifie la modification d'un commentaire.
-    / Verify comment editing."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from core.models import Page
-        from hypostasis_extractor.models import (
-            ExtractionJob, ExtractedEntity, CommentaireExtraction,
-        )
-
-        self.user_test = User.objects.create_user(username="test_user_modif_comm", password="test1234")
-        self.client.force_login(self.user_test)
-        self.page = Page.objects.create(
-            title="Page commentaires",
-            html_original="<html>test</html>",
-            html_readability="<article>test</article>",
-            text_readability="test commentaires",
-        )
-        self.job = ExtractionJob.objects.create(
-            page=self.page,
-            name="Extractions manuelles",
-            status="completed",
-        )
-        self.entite = ExtractedEntity.objects.create(
-            job=self.job,
-            extraction_class="concept",
-            extraction_text="test",
-            start_char=0,
-            end_char=4,
-        )
-        self.commentaire = CommentaireExtraction.objects.create(
-            entity=self.entite,
-            user=self.user_test,
-            commentaire="Commentaire original",
-        )
-
-    def test_modifier_commentaire_retourne_200(self):
-        """POST /extractions/modifier_commentaire/ retourne 200."""
-        reponse = self.client.post(
-            "/extractions/modifier_commentaire/",
-            data={
-                "commentaire_id": self.commentaire.pk,
-                "commentaire": "Commentaire modifie",
-            },
-        )
-        self.assertEqual(reponse.status_code, 200)
-
-    def test_modifier_commentaire_change_texte(self):
-        """Le texte du commentaire est mis a jour en base."""
-        from hypostasis_extractor.models import CommentaireExtraction
-        self.client.post(
-            "/extractions/modifier_commentaire/",
-            data={
-                "commentaire_id": self.commentaire.pk,
-                "commentaire": "Nouveau texte",
-            },
-        )
-        self.commentaire.refresh_from_db()
-        self.assertEqual(self.commentaire.commentaire, "Nouveau texte")
-
-    def test_modifier_commentaire_vide_400(self):
-        """Un commentaire vide retourne 400."""
-        reponse = self.client.post(
-            "/extractions/modifier_commentaire/",
-            data={
-                "commentaire_id": self.commentaire.pk,
-                "commentaire": "",
-            },
-        )
-        self.assertEqual(reponse.status_code, 400)
-
-    def test_modifier_commentaire_retourne_html(self):
-        """La reponse est du HTML qui rafraichit la vue commentaires."""
-        reponse = self.client.post(
-            "/extractions/modifier_commentaire/",
-            data={
-                "commentaire_id": self.commentaire.pk,
-                "commentaire": "Texte HTML test",
-            },
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn("vue_commentaires", contenu)
-
-
-class Phase04SupprimerCommentaireTest(TestCase):
-    """Verifie la suppression d'un commentaire.
-    / Verify comment deletion."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from core.models import Page
-        from hypostasis_extractor.models import (
-            ExtractionJob, ExtractedEntity, CommentaireExtraction,
-        )
-
-        self.user_test = User.objects.create_user(username="test_user_suppr_comm", password="test1234")
-        self.client.force_login(self.user_test)
-        self.page = Page.objects.create(
-            title="Page suppr commentaire",
-            html_original="<html>test</html>",
-            html_readability="<article>test</article>",
-            text_readability="test suppr commentaire",
-        )
-        self.job = ExtractionJob.objects.create(
-            page=self.page,
-            name="Extractions manuelles",
-            status="completed",
-        )
-        self.entite = ExtractedEntity.objects.create(
-            job=self.job,
-            extraction_class="concept",
-            extraction_text="test",
-            start_char=0,
-            end_char=4,
-        )
-        self.commentaire = CommentaireExtraction.objects.create(
-            entity=self.entite,
-            user=self.user_test,
-            commentaire="A supprimer",
-        )
-
-    def test_supprimer_commentaire_retourne_200(self):
-        """POST /extractions/supprimer_commentaire/ retourne 200."""
-        reponse = self.client.post(
-            "/extractions/supprimer_commentaire/",
-            data={"commentaire_id": self.commentaire.pk},
-        )
-        self.assertEqual(reponse.status_code, 200)
-
-    def test_supprimer_commentaire_supprime_en_base(self):
-        """Le commentaire est supprime de la base."""
-        from hypostasis_extractor.models import CommentaireExtraction
-        self.client.post(
-            "/extractions/supprimer_commentaire/",
-            data={"commentaire_id": self.commentaire.pk},
-        )
-        self.assertFalse(
-            CommentaireExtraction.objects.filter(pk=self.commentaire.pk).exists()
-        )
-
-    def test_supprimer_commentaire_retourne_html(self):
-        """La reponse est du HTML qui rafraichit la vue commentaires."""
-        reponse = self.client.post(
-            "/extractions/supprimer_commentaire/",
-            data={"commentaire_id": self.commentaire.pk},
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn("vue_commentaires", contenu)
-
-    def test_supprimer_commentaire_inexistant_404(self):
-        """POST avec un ID inexistant retourne 404."""
-        reponse = self.client.post(
-            "/extractions/supprimer_commentaire/",
-            data={"commentaire_id": 99999},
-        )
-        self.assertEqual(reponse.status_code, 404)
 
 
 class Phase04URLsExistentTest(TestCase):
@@ -1249,18 +1092,6 @@ class Phase04URLsExistentTest(TestCase):
         from django.urls import reverse
         url = reverse("front:dossier-renommer", kwargs={"pk": 1})
         self.assertEqual(url, "/dossiers/1/renommer/")
-
-    def test_url_modifier_commentaire(self):
-        """L'URL /extractions/modifier_commentaire/ est resoluble."""
-        from django.urls import reverse
-        url = reverse("front:extraction-modifier-commentaire")
-        self.assertEqual(url, "/extractions/modifier_commentaire/")
-
-    def test_url_supprimer_commentaire(self):
-        """L'URL /extractions/supprimer_commentaire/ est resoluble."""
-        from django.urls import reverse
-        url = reverse("front:extraction-supprimer-commentaire")
-        self.assertEqual(url, "/extractions/supprimer_commentaire/")
 
 
 class Phase04TemplatesContiennentBoutonsTest(TestCase):
@@ -1288,18 +1119,6 @@ class Phase04TemplatesContiennentBoutonsTest(TestCase):
         contenu = chemin.read_text(encoding="utf-8")
         self.assertIn("data-ctx-type=\"page\"", contenu)
 
-    def test_vue_commentaires_contient_bouton_modifier_commentaire(self):
-        """vue_commentaires.html contient le bouton btn-modifier-commentaire."""
-        chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "vue_commentaires.html"
-        contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("btn-modifier-commentaire", contenu)
-
-    def test_vue_commentaires_contient_bouton_supprimer_commentaire(self):
-        """vue_commentaires.html contient le bouton btn-supprimer-commentaire."""
-        chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "vue_commentaires.html"
-        contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("btn-supprimer-commentaire", contenu)
-
     def test_js_contient_handler_renommer_dossier(self):
         """hypostasia.js contient le handler pour renommer un dossier."""
         chemin = STATIC_FRONT / "js" / "hypostasia.js"
@@ -1311,18 +1130,6 @@ class Phase04TemplatesContiennentBoutonsTest(TestCase):
         chemin = STATIC_FRONT / "js" / "hypostasia.js"
         contenu = chemin.read_text(encoding="utf-8")
         self.assertIn("btn-supprimer-dossier", contenu)
-
-    def test_js_contient_handler_modifier_commentaire(self):
-        """hypostasia.js contient le handler pour modifier un commentaire."""
-        chemin = STATIC_FRONT / "js" / "hypostasia.js"
-        contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("modifier_commentaire", contenu)
-
-    def test_js_contient_handler_supprimer_commentaire(self):
-        """hypostasia.js contient le handler pour supprimer un commentaire."""
-        chemin = STATIC_FRONT / "js" / "hypostasia.js"
-        contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("supprimer_commentaire", contenu)
 
 
 # =============================================================================
@@ -1816,22 +1623,6 @@ class Phase09FichiersStatiquesTest(TestCase):
         """hypostasia.css contient la classe .pastille-extraction."""
         self.assertIn(".pastille-extraction", self.contenu_css)
 
-    def test_css_contient_carte_inline(self):
-        """hypostasia.css contient la classe .carte-inline."""
-        self.assertIn(".carte-inline", self.contenu_css)
-
-    def test_css_contient_animation_entree(self):
-        """hypostasia.css contient l'animation carte-inline-slide-down."""
-        self.assertIn("carte-inline-slide-down", self.contenu_css)
-
-    def test_css_contient_animation_sortie(self):
-        """hypostasia.css contient l'animation carte-inline-slide-up."""
-        self.assertIn("carte-inline-slide-up", self.contenu_css)
-
-    def test_css_contient_btn_replier_carte(self):
-        """hypostasia.css contient la classe .btn-replier-carte."""
-        self.assertIn(".btn-replier-carte", self.contenu_css)
-
     def test_css_ne_contient_plus_icones_before(self):
         """hypostasia.css ne contient plus de .hl-extraction::before (icones marge gauche supprimees)."""
         self.assertNotIn(".hl-extraction::before", self.contenu_css)
@@ -1865,17 +1656,11 @@ class Phase09MarginaliaJSContenuTest(TestCase):
         """marginalia.js exporte construirePastillesMarginales()."""
         self.assertIn("function construirePastillesMarginales()", self.contenu_js)
 
-    def test_fonction_fermer_carte_inline(self):
-        """marginalia.js exporte fermerCarteInline()."""
-        self.assertIn("function fermerCarteInline(", self.contenu_js)
-
     def test_mapping_couleurs_statut(self):
-        """marginalia.js contient le mapping COULEURS_STATUT avec les 4 statuts."""
+        """marginalia.js contient le mapping COULEURS_STATUT binaire (A.8)."""
         self.assertIn("COULEURS_STATUT", self.contenu_js)
-        self.assertIn("consensuel", self.contenu_js)
-        self.assertIn("discutable", self.contenu_js)
-        self.assertIn("discute", self.contenu_js)
-        self.assertIn("controverse", self.contenu_js)
+        self.assertIn("nouveau", self.contenu_js)
+        self.assertIn("commente", self.contenu_js)
 
     def test_recalcul_apres_htmx_swap(self):
         """marginalia.js ecoute htmx:afterSwap pour reconstruire les pastilles."""
@@ -1899,10 +1684,6 @@ class Phase09HypostasiaJSAdaptationsTest(TestCase):
         # L'ancien handler contenait "clicRelatifX" pour detecter les clics marge gauche
         # / The old handler used "clicRelatifX" to detect left margin clicks
         self.assertNotIn("clicRelatifX", self.contenu_js)
-
-    def test_scroll_carte_cherche_carte_inline_dabord(self):
-        """scrollToCarteDepuisBloc cherche d'abord une carte inline ouverte."""
-        self.assertIn(".carte-inline[data-extraction-id=", self.contenu_js)
 
     def test_scroll_carte_cherche_pastille(self):
         """scrollToCarteDepuisBloc declenche un clic pastille si pas de carte inline."""
@@ -2009,157 +1790,7 @@ class Phase09AnnotationDataStatutTest(TestCase):
         self.assertIn('data-statut="controverse"', html_annote)
 
 
-class Phase09EndpointCarteInlineTest(TestCase):
-    """Verifie l'endpoint GET /extractions/carte_inline/ (PHASE-09).
-    / Verify GET /extractions/carte_inline/ endpoint (PHASE-09)."""
 
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from core.models import Dossier, Page
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-
-        # Utilisateur owner + dossier pour les permissions (PHASE-26f)
-        # / Owner user + folder for permissions (PHASE-26f)
-        self.user_owner = User.objects.create_user(username="test_carte_owner", password="test1234")
-        self.client.force_login(self.user_owner)
-        self.dossier = Dossier.objects.create(name="Dossier carte inline", owner=self.user_owner)
-        self.page = Page.objects.create(
-            title="Page carte inline",
-            html_original="<html><body>Texte pour carte inline</body></html>",
-            html_readability="<p>Texte pour carte inline</p>",
-            text_readability="Texte pour carte inline.",
-            dossier=self.dossier,
-        )
-        self.job = ExtractionJob.objects.create(
-            page=self.page,
-            name="Extractions manuelles",
-            status="completed",
-            ai_model=None,
-        )
-        self.entite = ExtractedEntity.objects.create(
-            job=self.job,
-            extraction_class="concept",
-            extraction_text="carte inline",
-            start_char=10,
-            end_char=22,
-            statut_debat="nouveau",
-        )
-
-    def test_carte_inline_retourne_200(self):
-        """GET /extractions/carte_inline/?entity_id=N retourne 200."""
-        reponse = self.client.get(
-            f"/extractions/carte_inline/?entity_id={self.entite.pk}",
-        )
-        self.assertEqual(reponse.status_code, 200)
-
-    def test_carte_inline_contient_data_testid(self):
-        """La carte inline contient data-testid='carte-inline'."""
-        reponse = self.client.get(
-            f"/extractions/carte_inline/?entity_id={self.entite.pk}",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('data-testid="carte-inline"', contenu)
-
-    def test_carte_inline_contient_data_statut(self):
-        """La carte inline contient data-statut avec la valeur de l'entite."""
-        reponse = self.client.get(
-            f"/extractions/carte_inline/?entity_id={self.entite.pk}",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('data-statut="nouveau"', contenu)
-
-    def test_carte_inline_contient_bouton_replier(self):
-        """La carte inline contient un bouton replier avec data-testid."""
-        reponse = self.client.get(
-            f"/extractions/carte_inline/?entity_id={self.entite.pk}",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('data-testid="btn-replier-carte"', contenu)
-
-    def test_carte_inline_contient_extraction_text(self):
-        """La carte inline affiche le texte de l'extraction."""
-        reponse = self.client.get(
-            f"/extractions/carte_inline/?entity_id={self.entite.pk}",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn("carte inline", contenu)
-
-    def test_carte_inline_contient_badge_statut(self):
-        """La carte inline affiche le badge du statut de debat (PHASE-26c : nouveau par defaut)."""
-        reponse = self.client.get(
-            f"/extractions/carte_inline/?entity_id={self.entite.pk}",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn("Nouveau", contenu)
-
-    def test_carte_inline_sans_entity_id_retourne_400(self):
-        """GET /extractions/carte_inline/ sans entity_id retourne 400."""
-        reponse = self.client.get("/extractions/carte_inline/")
-        self.assertEqual(reponse.status_code, 400)
-
-    def test_carte_inline_entity_inexistante_retourne_404(self):
-        """GET /extractions/carte_inline/?entity_id=99999 retourne 404."""
-        reponse = self.client.get("/extractions/carte_inline/?entity_id=99999")
-        self.assertEqual(reponse.status_code, 404)
-
-    def test_carte_inline_avec_commentaires_affiche_compteur(self):
-        """La carte inline affiche le nombre de commentaires si > 0."""
-        from django.contrib.auth.models import User
-        from hypostasis_extractor.models import CommentaireExtraction
-
-        user_test = User.objects.create_user(username="test_carte_inline", password="test1234")
-        CommentaireExtraction.objects.create(
-            entity=self.entite,
-            user=user_test,
-            commentaire="Un commentaire de test",
-        )
-
-        reponse = self.client.get(
-            f"/extractions/carte_inline/?entity_id={self.entite.pk}",
-        )
-        contenu = reponse.content.decode("utf-8")
-        # Le compteur affiche "1" pour un commentaire
-        # / Counter displays "1" for one comment
-        self.assertIn("1", contenu)
-
-    def test_carte_inline_contient_boutons_action(self):
-        """La carte inline contient les boutons commenter et modifier avec data-testid."""
-        reponse = self.client.get(
-            f"/extractions/carte_inline/?entity_id={self.entite.pk}",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('data-testid="carte-inline-btn-commenter"', contenu)
-        self.assertIn('data-testid="carte-inline-btn-modifier"', contenu)
-
-    def test_carte_inline_contient_aria_label(self):
-        """La carte inline contient un aria-label descriptif."""
-        reponse = self.client.get(
-            f"/extractions/carte_inline/?entity_id={self.entite.pk}",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('aria-label="Carte extraction', contenu)
-
-    def test_carte_inline_statut_consensuel(self):
-        """La carte inline d'une entite consensuelle affiche le bon statut."""
-        self.entite.statut_debat = "consensuel"
-        self.entite.save()
-
-        reponse = self.client.get(
-            f"/extractions/carte_inline/?entity_id={self.entite.pk}",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('data-statut="consensuel"', contenu)
-        self.assertIn("Consensuel", contenu)
-
-
-class Phase09TemplateCarteInlineTest(TestCase):
-    """Verifie le template carte_inline.html (PHASE-09).
-    / Verify carte_inline.html template (PHASE-09)."""
-
-    def test_template_existe(self):
-        """Le template carte_inline.html peut etre charge par Django."""
-        template = get_template("front/includes/carte_inline.html")
-        self.assertIsNotNone(template)
 
 
 # =============================================================================
@@ -2730,14 +2361,6 @@ class Phase10DrawerContenuTriTest(TestCase):
         contenu = reponse.content.decode("utf-8")
         self.assertIn('value="activite" selected', contenu)
 
-    def test_tri_statut(self):
-        """Le parametre tri=statut selectionne l'option correspondante."""
-        reponse = self.client.get(
-            f"/extractions/drawer_contenu/?page_id={self.page.pk}&tri=statut",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('value="statut" selected', contenu)
-
     def test_page_inexistante_retourne_404(self):
         """GET /extractions/drawer_contenu/?page_id=99999 retourne 404."""
         reponse = self.client.get("/extractions/drawer_contenu/?page_id=99999")
@@ -2889,9 +2512,11 @@ class Phase10DrawerJSContenuTest(TestCase):
         """Le JS ecoute l'event drawerContenuChange pour recharger."""
         self.assertIn("drawerContenuChange", self.contenu_js)
 
-    def test_js_gere_scroll_bidirectionnel(self):
-        """Le JS gere le scroll bidirectionnel (pastille cliquee → drawer)."""
-        self.assertIn("pastille-extraction", self.contenu_js)
+    def test_js_gere_surlignage_carte_active(self):
+        """Le JS gere le surlignage des cartes actives dans le drawer.
+        / The JS handles active card highlighting in the drawer.
+        Refonte A.8 Phase 4-bis : la logique pastille→drawer a ete deplacee
+        dans marginalia.js (ouvrirDrawerEtScrollerVersCarte)."""
         self.assertIn("drawer-carte-active", self.contenu_js)
 
     def test_js_api_publique_pour_keyboard(self):
@@ -6288,78 +5913,6 @@ class Phase25cChangerVisibiliteOwnerTest(TestCase):
         )
         self.assertEqual(reponse.status_code, 403)
 
-
-class Phase25cModerationCommentaireTest(TestCase):
-    """Owner dossier supprime commentaire.
-    / Folder owner deletes comment."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from core.models import Dossier, Page
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity, CommentaireExtraction
-        self.owner = User.objects.create_user(username="owner_mod", password="test1234")
-        self.commenteur = User.objects.create_user(username="commenteur_mod", password="test1234")
-        self.dossier = Dossier.objects.create(name="Dossier mod", owner=self.owner)
-        self.page = Page.objects.create(
-            title="Page mod", html_original="<html>test</html>",
-            html_readability="<p>test</p>", text_readability="test",
-            dossier=self.dossier, owner=self.owner,
-        )
-        self.job = ExtractionJob.objects.create(
-            page=self.page, name="Job mod", status="completed", ai_model=None,
-        )
-        self.entite = ExtractedEntity.objects.create(
-            job=self.job, extraction_class="argument",
-            extraction_text="Test", start_char=0, end_char=4,
-        )
-        self.commentaire = CommentaireExtraction.objects.create(
-            entity=self.entite, user=self.commenteur, commentaire="Un commentaire",
-        )
-
-    def test_owner_dossier_supprime_commentaire(self):
-        self.client.login(username="owner_mod", password="test1234")
-        reponse = self.client.post(
-            "/extractions/supprimer_commentaire/",
-            {"commentaire_id": self.commentaire.pk},
-        )
-        self.assertIn(reponse.status_code, [200, 302])
-
-
-class Phase25cModerationNonAutoriseTest(TestCase):
-    """Non-owner non-auteur → 403.
-    / Non-owner non-author → 403."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from core.models import Dossier, Page
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity, CommentaireExtraction
-        self.owner = User.objects.create_user(username="owner_mod2", password="test1234")
-        self.commenteur = User.objects.create_user(username="commenteur_mod2", password="test1234")
-        self.intrus = User.objects.create_user(username="intrus_mod2", password="test1234")
-        self.dossier = Dossier.objects.create(name="Dossier mod2", owner=self.owner)
-        self.page = Page.objects.create(
-            title="Page mod2", html_original="<html>test</html>",
-            html_readability="<p>test</p>", text_readability="test",
-            dossier=self.dossier, owner=self.owner,
-        )
-        self.job = ExtractionJob.objects.create(
-            page=self.page, name="Job mod2", status="completed", ai_model=None,
-        )
-        self.entite = ExtractedEntity.objects.create(
-            job=self.job, extraction_class="argument",
-            extraction_text="Test", start_char=0, end_char=4,
-        )
-        self.commentaire = CommentaireExtraction.objects.create(
-            entity=self.entite, user=self.commenteur, commentaire="Un commentaire",
-        )
-
-    def test_intrus_refuse(self):
-        self.client.login(username="intrus_mod2", password="test1234")
-        reponse = self.client.post(
-            "/extractions/supprimer_commentaire/",
-            {"commentaire_id": self.commentaire.pk},
-        )
-        self.assertEqual(reponse.status_code, 403)
 
 
 class Phase25cPartageGroupeTest(TestCase):

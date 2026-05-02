@@ -26,19 +26,19 @@ from hypostasis_extractor.models import (
 )
 from django.contrib.auth.models import User as AuthUser
 from .serializers import (
-    ChangerStatutSerializer, ChangerVisibiliteSerializer,
+    ChangerVisibiliteSerializer,
     CommentaireExtractionSerializer, DossierCreateSerializer,
     DossierPartageSerializer, DossierRenommerSerializer,
     EditerBlocSerializer,
     ExtractionManuelleSerializer, ExtractionSerializer,
     GroupeAjouterMembreSerializer, GroupeCreateSerializer,
     ImportFichierSerializer, InviterEmailSerializer,
-    ModifierCommentaireSerializer, ModifierTitrePageSerializer,
+    ModifierTitrePageSerializer,
     PageClasserSerializer, PromouvoirEntrainementSerializer,
     QuestionSerializer, RenommerLocuteurSerializer, ReponseQuestionSerializer,
     RunAnalyseSerializer,
     SelectModelSerializer,
-    SupprimerBlocSerializer, SupprimerCommentaireSerializer, SynthetiserSerializer,
+    SupprimerBlocSerializer, SynthetiserSerializer,
     est_fichier_audio, est_fichier_json,
 )
 from .utils import annoter_html_avec_barres
@@ -197,42 +197,34 @@ def _est_proprietaire_dossier(utilisateur, page):
     return page.dossier.owner == utilisateur
 
 
-def _peut_editer_extraction(utilisateur, entite):
+def _peut_supprimer_extraction(utilisateur, entite):
     """
-    Verifie si un utilisateur peut editer une extraction.
-    Conditions : authentifie, statut nouveau/discutable, aucun commentaire,
+    Verifie si un utilisateur peut supprimer une extraction.
+    Conditions : authentifie, statut nouveau (pas commente), aucun commentaire,
     et (owner du dossier OU contributeur qui a cree l'extraction).
-    / Checks if a user can edit an extraction.
-    / Conditions: authenticated, status nouveau/discutable, no comments,
+    Logique consolidee suite au retrait de _peut_editer_extraction (A.8 Phase 4-bis).
+    / Checks if a user can delete an extraction.
+    / Conditions: authenticated, status nouveau (not commente), no comments,
     / and (folder owner OR contributor who created the extraction).
+    / Logic consolidated after _peut_editer_extraction removal (A.8 Phase 4-bis).
 
     LOCALISATION : front/views.py
     """
     if not utilisateur or not utilisateur.is_authenticated:
         return False
-    if entite.statut_debat not in ("nouveau", "discutable"):
+    if entite.statut_debat != "nouveau":
         return False
     if CommentaireExtraction.objects.filter(entity=entite).exists():
         return False
-    # Owner du dossier → peut editer toute extraction
-    # / Folder owner → can edit any extraction
+    # Owner du dossier → peut supprimer toute extraction
+    # / Folder owner → can delete any extraction
     if _est_proprietaire_dossier(utilisateur, entite.job.page):
         return True
-    # Contributeur → peut editer uniquement ses propres extractions manuelles
-    # / Contributor → can only edit their own manual extractions
+    # Contributeur → peut supprimer uniquement ses propres extractions manuelles
+    # / Contributor → can only delete their own manual extractions
     if entite.cree_par == utilisateur and _utilisateur_peut_ecrire_dossier(utilisateur, entite.job.page.dossier):
         return True
     return False
-
-
-def _peut_supprimer_extraction(utilisateur, entite):
-    """
-    Verifie si un utilisateur peut supprimer une extraction (meme logique que editer).
-    / Checks if a user can delete an extraction (same logic as edit).
-
-    LOCALISATION : front/views.py
-    """
-    return _peut_editer_extraction(utilisateur, entite)
 
 
 def _reponse_acces_refuse(request):
@@ -617,81 +609,30 @@ def _entites_deja_creees_pour_job(job):
 
 def _calculer_consensus(page):
     """
-    Calcule l'etat du consensus pour une page : compteurs par statut, pourcentage,
-    seuil, et extractions bloquantes. Reutilise par le dashboard et la confirmation
-    de synthese deliberative dans le drawer.
-    / Compute consensus state for a page: counts per status, percentage, threshold,
-    / blocking extractions. Reused by the dashboard and the synthesis confirmation drawer.
+    Calcule des stats binaires de debat pour une page :
+    - total : nombre d'extractions visibles (non masquees)
+    - commentees : nombre d'extractions avec au moins 1 commentaire
+    - non_commentees : difference
+    - pourcentage : ratio commentees/total en %
+
+    / Computes binary debate stats for a page:
+    - total : number of visible (non-hidden) extractions
+    - commentees : number of extractions with at least 1 comment
+    - non_commentees : difference
+    - pourcentage : commentees/total ratio in %
 
     LOCALISATION : front/views.py
     """
-    from django.db.models import Case, Count, Value, When
-
-    # Toutes les entites non masquees de la page
-    # / All non-hidden entities for the page
-    tous_les_jobs_termines = ExtractionJob.objects.filter(
-        page=page, status="completed",
+    entites_visibles = ExtractedEntity.objects.filter(
+        job__page=page, masquee=False,
     )
-    toutes_les_entites_visibles = ExtractedEntity.objects.filter(
-        job__in=tous_les_jobs_termines,
-        masquee=False,
-    )
-
-    # Compteurs par statut / Counts per status
-    compteurs_par_statut = dict(
-        toutes_les_entites_visibles.values_list("statut_debat").annotate(
-            count=Count("id"),
-        )
-    )
-    compteur_nouveau = compteurs_par_statut.get("nouveau", 0)
-    compteur_consensuel = compteurs_par_statut.get("consensuel", 0)
-    compteur_discutable = compteurs_par_statut.get("discutable", 0)
-    compteur_discute = compteurs_par_statut.get("discute", 0)
-    compteur_controverse = compteurs_par_statut.get("controverse", 0)
-    compteur_non_pertinent = compteurs_par_statut.get("non_pertinent", 0)
-    total_entites_toutes = (
-        compteur_nouveau + compteur_consensuel + compteur_discutable
-        + compteur_discute + compteur_controverse + compteur_non_pertinent
-    )
-
-    # Total pour le consensus : exclure nouveau et non_pertinent (hors cycle deliberatif)
-    # / Total for consensus: exclude nouveau and non_pertinent (out of deliberative cycle)
-    total_entites = (
-        compteur_consensuel + compteur_discutable + compteur_discute + compteur_controverse
-    )
-    if total_entites > 0:
-        pourcentage_consensus = round(compteur_consensuel * 100 / total_entites)
-    else:
-        pourcentage_consensus = 0
-
-    # Extractions bloquantes : controverse en premier, puis discute, triees par nb commentaires
-    # / Blocking: controverse first, then discute, sorted by comment count
-    extractions_bloquantes = toutes_les_entites_visibles.filter(
-        statut_debat__in=["controverse", "discute"],
-    ).annotate(
-        nombre_commentaires=Count("commentaires"),
-        ordre_statut=Case(
-            When(statut_debat="controverse", then=Value(0)),
-            When(statut_debat="discute", then=Value(1)),
-            default=Value(2),
-        ),
-    ).order_by("ordre_statut", "-nombre_commentaires")[:10]
-
-    seuil_atteint = pourcentage_consensus >= SEUIL_CONSENSUS_DEFAUT
-
+    total = entites_visibles.count()
+    commentees = entites_visibles.filter(statut_debat="commente").count()
     return {
-        "compteur_nouveau": compteur_nouveau,
-        "compteur_consensuel": compteur_consensuel,
-        "compteur_discutable": compteur_discutable,
-        "compteur_discute": compteur_discute,
-        "compteur_controverse": compteur_controverse,
-        "compteur_non_pertinent": compteur_non_pertinent,
-        "total_entites_toutes": total_entites_toutes,
-        "total_entites": total_entites,
-        "pourcentage_consensus": pourcentage_consensus,
-        "seuil_consensus": SEUIL_CONSENSUS_DEFAUT,
-        "seuil_atteint": seuil_atteint,
-        "extractions_bloquantes": extractions_bloquantes,
+        "total": total,
+        "commentees": commentees,
+        "non_commentees": total - commentees,
+        "pourcentage": int(100 * commentees / total) if total else 0,
     }
 
 
@@ -2200,7 +2141,7 @@ class LectureViewSet(viewsets.ViewSet):
             "nombre_commentaires_disponibles": nombre_commentaires_disponibles,
             "bouton_desactive": bouton_desactive,
             "raison_desactivation": raison_desactivation,
-            **donnees_consensus,
+            "consensus": donnees_consensus,
         }
 
         reponse = render(request, "front/includes/confirmation_synthese.html", contexte)
@@ -3344,11 +3285,6 @@ class ExtractionViewSet(viewsets.ViewSet):
             ).order_by("start_char")
         )
 
-        # Annoter chaque entite avec le droit d'edition (PHASE-26f)
-        # / Annotate each entity with edit permission (PHASE-26f)
-        for entite in entites_visibles:
-            entite.peut_editer = _peut_editer_extraction(request.user, entite)
-
         # Compteur d'entites masquees pour le drawer
         # / Hidden entities count for the drawer
         nombre_masquees = ExtractedEntity.objects.filter(
@@ -3417,11 +3353,6 @@ class ExtractionViewSet(viewsets.ViewSet):
                 masquee=False,
             ).order_by("start_char")
         )
-
-        # Annoter chaque entite avec le droit d'edition (PHASE-26f)
-        # / Annotate each entity with edit permission (PHASE-26f)
-        for entite in entites_visibles:
-            entite.peut_editer = _peut_editer_extraction(request.user, entite)
 
         # Compteur d'entites masquees pour le drawer
         # / Hidden entities count for the drawer
@@ -3593,155 +3524,6 @@ class ExtractionViewSet(viewsets.ViewSet):
         })
         return reponse
 
-    @action(detail=False, methods=["POST"])
-    def editer(self, request):
-        """
-        Affiche la modale d'edition pour une extraction existante.
-        Verifie les permissions via _peut_editer_extraction().
-        / Displays the edit modal for an existing extraction.
-        / Checks permissions via _peut_editer_extraction().
-        """
-        refus = _exiger_authentification(request)
-        if refus:
-            return refus
-        entity_id = request.data.get("entity_id")
-        page_id = request.data.get("page_id")
-        logger.info("editer: entity_id=%s page_id=%s", entity_id, page_id)
-
-        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
-
-        # Verifier permissions / Check permissions
-        if not _peut_editer_extraction(request.user, entite):
-            return _reponse_acces_refuse(request)
-
-        attributs = entite.attributes or {}
-
-        # Construire la liste des paires (cle, valeur) pour le template
-        # On garde l'ordre d'insertion du dict (Python 3.7+)
-        # En mode edition, on affiche les cles reelles de l'entite
-        # / Build list of (key, value) pairs for the template
-        # / In edit mode, display the entity's actual keys
-        liste_attributs = list(attributs.items())
-
-        # Pad a 2 elements minimum (resume + hypostase) si pas assez d'attributs
-        # / Pad to 2 elements minimum (summary + hypostase) if not enough attributes
-        noms_par_defaut = ["r\u00e9sum\u00e9", "hypostase"]
-        while len(liste_attributs) < 2:
-            index_suivant = len(liste_attributs)
-            nom_defaut = noms_par_defaut[index_suivant] if index_suivant < len(noms_par_defaut) else f"attr_{index_suivant}"
-            liste_attributs.append((nom_defaut, ""))
-
-        # Rendre la modale d'edition (PHASE-26f)
-        # / Render the edit modal (PHASE-26f)
-        html_modale = render_to_string(
-            "front/includes/modale_edition_extraction.html",
-            {
-                "entity": entite,
-                "page_id": page_id,
-                "liste_attributs": liste_attributs,
-            },
-            request=request,
-        )
-        reponse = HttpResponse(html_modale)
-        # Append la modale au body via HX-Retarget + HX-Reswap
-        # / Append modal to body via HX-Retarget + HX-Reswap
-        reponse["HX-Retarget"] = "body"
-        reponse["HX-Reswap"] = "beforeend"
-        return reponse
-
-    @action(detail=False, methods=["POST"])
-    def modifier(self, request):
-        """
-        Modifie une ExtractedEntity existante et re-rend le panneau complet.
-        Lit les paires (attr_key_N, attr_val_N) depuis le POST pour supporter
-        des cles dynamiques (ex: "Hypostases", "Resume" au lieu de "tags", "titre").
-        / Modifies an existing ExtractedEntity and re-renders the full panel.
-        / Reads (attr_key_N, attr_val_N) pairs from POST to support dynamic keys.
-        """
-        refus = _exiger_authentification(request)
-        if refus:
-            return refus
-        logger.info(
-            "modifier: content_type=%s data=%s",
-            request.content_type, {k: str(v)[:80] for k, v in request.data.items()},
-        )
-
-        entity_id = request.data.get("entity_id")
-        page_id = request.data.get("page_id")
-        if not entity_id or not page_id:
-            return HttpResponse("entity_id et page_id requis.", status=400)
-
-        entite = get_object_or_404(ExtractedEntity, pk=entity_id)
-        page = get_object_or_404(Page, pk=page_id)
-
-        # Verifier permissions / Check permissions
-        if not _peut_editer_extraction(request.user, entite):
-            return _reponse_acces_refuse(request)
-
-        # Lire les paires cle/valeur dynamiques depuis le formulaire
-        # Le template envoie attr_key_0, attr_val_0, attr_key_1, attr_val_1, etc.
-        # / Read dynamic key/value pairs from form data
-        nouveaux_attributs = {}
-        for index_attribut in range(10):
-            cle = request.data.get(f"attr_key_{index_attribut}", "").strip()
-            valeur = request.data.get(f"attr_val_{index_attribut}", "").strip()
-            if cle and valeur:
-                nouveaux_attributs[cle] = valeur
-
-        entite.attributes = nouveaux_attributs
-        entite.save()
-
-        logger.info("modifier: entite pk=%s modifiee attrs=%s", entite.pk, list(nouveaux_attributs.keys()))
-
-        # Reponse simple : HTML vide (le formulaire cible #panneau-extractions)
-        # Le JS ferme la modale et rafraichit la carte inline via htmx.ajax separe.
-        # Pas de re-rendu du readability-content : les attributs ne changent pas le texte annote.
-        # / Simple response: empty HTML (form targets #panneau-extractions)
-        # / JS closes modal and refreshes inline card via separate htmx.ajax.
-        # / No readability-content re-render: attributes don't change annotated text.
-        reponse = HttpResponse("")
-        reponse["HX-Trigger"] = json.dumps({
-            "showToast": {"message": "Extraction modifi\u00e9e"},
-            "fermerModaleExtraction": {"entityId": entite.pk},
-        })
-        return reponse
-
-    @action(detail=False, methods=["GET"], url_path="carte_inline")
-    def carte_inline(self, request):
-        """
-        Renvoie le partial HTML d'une carte d'extraction depliable inline.
-        / Returns the inline extraction card HTML partial.
-
-        LOCALISATION : front/views.py — ExtractionViewSet
-
-        Appelee par marginalia.js quand l'utilisateur clique sur une pastille.
-        Charge l'entite et ses commentaires, puis rend le template carte_inline.html.
-        / Called by marginalia.js when user clicks a margin dot.
-        """
-        identifiant_entite = request.query_params.get("entity_id")
-        if not identifiant_entite:
-            return HttpResponse("entity_id requis.", status=400)
-
-        entite = get_object_or_404(ExtractedEntity, pk=identifiant_entite)
-
-        # Compter les commentaires pour cette entite
-        # / Count comments for this entity
-        nombre_commentaires = CommentaireExtraction.objects.filter(entity=entite).count()
-
-        # Determiner si l'utilisateur est proprietaire du dossier
-        # / Determine if user is the folder owner
-        est_proprietaire = _est_proprietaire_dossier(request.user, entite.job.page)
-
-        # Annoter avec le droit d'edition (PHASE-26f)
-        # / Annotate with edit permission (PHASE-26f)
-        entite.peut_editer = _peut_editer_extraction(request.user, entite)
-
-        return render(request, "front/includes/carte_inline.html", {
-            "entity": entite,
-            "nombre_commentaires": nombre_commentaires,
-            "est_proprietaire": est_proprietaire,
-        })
-
     @action(detail=False, methods=["GET"], url_path="carte_mobile")
     def carte_mobile(self, request):
         """
@@ -3778,8 +3560,12 @@ class ExtractionViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["POST"], url_path="ajouter_commentaire")
     def ajouter_commentaire(self, request):
         """
-        Cree un commentaire sur une extraction et re-rend le fil de discussion.
-        Creates a comment on an extraction and re-renders the discussion thread.
+        Cree un commentaire sur une extraction et renvoie _extraction_content.html.
+        Le formulaire client cible "closest .extraction-content" avec swap "outerHTML",
+        donc le wrapper rendu remplace la zone : commentaires nouveaux apparaissent
+        immediatement, sans toast ni rechargement.
+        / Creates a comment and returns _extraction_content.html.
+        Client form targets "closest .extraction-content" with "outerHTML" swap.
         """
         refus = _exiger_authentification(request)
         if refus:
@@ -3795,161 +3581,25 @@ class ExtractionViewSet(viewsets.ViewSet):
         donnees = serializer.validated_data
         entite = get_object_or_404(ExtractedEntity, pk=donnees["entity_id"])
 
-        # Creer le commentaire / Create the comment
+        # Creer le commentaire (le signal Django met statut_debat a "commente")
+        # / Create the comment (Django signal sets statut_debat to "commente")
         CommentaireExtraction.objects.create(
             entity=entite,
             user=request.user,
             commentaire=donnees["commentaire"],
         )
 
-        # Auto-promotion : nouveau/discutable → discute quand un 1er commentaire est ajoute
-        # / Auto-promote: nouveau/discutable → discute when first comment is added
-        if entite.statut_debat in ("nouveau", "discutable"):
-            entite.statut_debat = "discute"
-            entite.save(update_fields=["statut_debat"])
+        # Refresh entite depuis la DB pour avoir le statut_debat synchronise par le signal
+        # / Refresh entity from DB to get statut_debat synchronized by signal
+        entite.refresh_from_db()
 
-        # Detecter si la requete vient de la carte inline (hx-swap="outerHTML" sur .carte-inline)
-        # Dans ce cas, re-rendre la carte inline au lieu du fil de discussion complet
-        # / Detect if request comes from inline card (hx-swap="outerHTML" on .carte-inline)
-        # / In that case, re-render the inline card instead of the full discussion thread
-        cible_htmx = request.META.get("HTTP_HX_TARGET", "")
-        est_depuis_carte_inline = "panneau" not in cible_htmx and cible_htmx != "panneau-extractions"
+        est_proprietaire = _est_proprietaire_dossier(request.user, entite.job.page)
 
-        if est_depuis_carte_inline:
-            # Re-rendre la carte inline avec les commentaires a jour
-            # / Re-render the inline card with updated comments
-            nombre_commentaires = CommentaireExtraction.objects.filter(entity=entite).count()
-            est_proprietaire = _est_proprietaire_dossier(request.user, entite.job.page)
-            reponse = render(request, "front/includes/carte_inline.html", {
-                "entity": entite,
-                "nombre_commentaires": nombre_commentaires,
-                "est_proprietaire": est_proprietaire,
-            })
-            reponse["HX-Trigger"] = json.dumps({
-                "showToast": {"message": "Commentaire ajout\u00e9"},
-                "dashboardReload": True,
-                "drawerContenuChange": True,
-            })
-            return reponse
-
-        # Fallback panneau droit : rafraichir la vue globale des commentaires de la page
-        # via hx-trigger="load" \u2014 meme pattern que modifier_commentaire/supprimer_commentaire.
-        # / Right panel fallback: refresh the page's global comments view
-        # / via hx-trigger="load" \u2014 same pattern as modifier_commentaire/supprimer_commentaire.
-        page_du_commentaire = entite.job.page
-        fragment_rafraichissement = (
-            f'<div hx-get="/extractions/vue_commentaires/?page_id={page_du_commentaire.pk}" '
-            f'hx-target="#panneau-extractions" hx-swap="innerHTML" '
-            f'hx-trigger="load"></div>'
-        )
-        reponse = HttpResponse(fragment_rafraichissement)
-        reponse["HX-Trigger"] = json.dumps({
-            "ouvrirPanneauDroit": True,
-            "activerModeDebat": True,
-            "showToast": {"message": "Commentaire ajout\u00e9"},
-            "dashboardReload": True,
+        return render(request, "hypostasis_extractor/includes/_extraction_content.html", {
+            "entity": entite,
+            "est_proprietaire": est_proprietaire,
         })
-        return reponse
 
-    @action(detail=False, methods=["POST"], url_path="modifier_commentaire")
-    def modifier_commentaire(self, request):
-        """
-        Modifie le texte d'un commentaire existant et re-rend le fil de discussion.
-        / Edits an existing comment's text and re-renders the discussion thread.
-        """
-        refus = _exiger_authentification(request)
-        if refus:
-            return refus
-        serializer = ModifierCommentaireSerializer(data=request.data)
-        if not serializer.is_valid():
-            logger.warning("modifier_commentaire: validation echouee — %s", serializer.errors)
-            return HttpResponse(
-                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
-                status=400,
-            )
-
-        donnees = serializer.validated_data
-        commentaire_a_modifier = get_object_or_404(
-            CommentaireExtraction, pk=donnees["commentaire_id"],
-        )
-
-        # Mettre a jour le texte du commentaire / Update the comment text
-        commentaire_a_modifier.commentaire = donnees["commentaire"]
-        commentaire_a_modifier.save(update_fields=["commentaire"])
-
-        # Apres modification, rafraichir la vue globale des commentaires de la page.
-        # On retourne un fragment qui auto-declenche un GET vers vue_commentaires
-        # via hx-trigger="load" \u2014 pattern HTMX standard du projet.
-        # / After modification, refresh the page's global comments view.
-        # / Return a fragment that auto-triggers a GET to vue_commentaires
-        # / via hx-trigger="load" \u2014 project's standard HTMX pattern.
-        page_du_commentaire = commentaire_a_modifier.entity.job.page
-        fragment_rafraichissement = (
-            f'<div hx-get="/extractions/vue_commentaires/?page_id={page_du_commentaire.pk}" '
-            f'hx-target="#panneau-extractions" hx-swap="innerHTML" '
-            f'hx-trigger="load"></div>'
-        )
-        reponse = HttpResponse(fragment_rafraichissement)
-        reponse["HX-Trigger"] = json.dumps({
-            "ouvrirPanneauDroit": True,
-            "activerModeDebat": True,
-            "showToast": {"message": "Commentaire modifi\u00e9"},
-        })
-        return reponse
-
-    @action(detail=False, methods=["POST"], url_path="supprimer_commentaire")
-    def supprimer_commentaire(self, request):
-        """
-        Supprime un commentaire et re-rend le fil de discussion.
-        / Deletes a comment and re-renders the discussion thread.
-        """
-        refus = _exiger_authentification(request)
-        if refus:
-            return refus
-        serializer = SupprimerCommentaireSerializer(data=request.data)
-        if not serializer.is_valid():
-            logger.warning("supprimer_commentaire: validation echouee — %s", serializer.errors)
-            return HttpResponse(
-                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
-                status=400,
-            )
-
-        donnees = serializer.validated_data
-        commentaire_a_supprimer = get_object_or_404(
-            CommentaireExtraction, pk=donnees["commentaire_id"],
-        )
-
-        # Moderation : auteur du commentaire ou owner du dossier peut supprimer
-        # / Moderation: comment author or folder owner can delete
-        page_du_commentaire = commentaire_a_supprimer.entity.job.page
-        dossier_de_la_page = page_du_commentaire.dossier
-        est_auteur = commentaire_a_supprimer.user == request.user
-        est_proprietaire_dossier = (
-            dossier_de_la_page and dossier_de_la_page.owner == request.user
-        )
-        if not est_auteur and not est_proprietaire_dossier:
-            return HttpResponse("Non autorise.", status=403)
-
-        # Capturer la page avant suppression / Capture the page before deletion
-        page_du_commentaire = commentaire_a_supprimer.entity.job.page
-        commentaire_a_supprimer.delete()
-
-        # Apres suppression, rafraichir la vue globale des commentaires de la page
-        # via le meme pattern hx-trigger="load" que modifier_commentaire.
-        # / After deletion, refresh the page's global comments view
-        # / via the same hx-trigger="load" pattern as modifier_commentaire.
-        fragment_rafraichissement = (
-            f'<div hx-get="/extractions/vue_commentaires/?page_id={page_du_commentaire.pk}" '
-            f'hx-target="#panneau-extractions" hx-swap="innerHTML" '
-            f'hx-trigger="load"></div>'
-        )
-        reponse = HttpResponse(fragment_rafraichissement)
-        reponse["HX-Trigger"] = json.dumps({
-            "ouvrirPanneauDroit": True,
-            "activerModeDebat": True,
-            "showToast": {"message": "Commentaire supprim\u00e9"},
-        })
-        return reponse
 
     @action(detail=False, methods=["POST"], url_path="supprimer_entite")
     def supprimer_entite(self, request):
@@ -4176,46 +3826,6 @@ class ExtractionViewSet(viewsets.ViewSet):
         })
         return reponse
 
-    @action(detail=False, methods=["GET"], url_path="vue_commentaires")
-    def vue_commentaires(self, request):
-        """
-        Vue globale des commentaires en layout SMS-like pour une page.
-        Chaque extraction affiche son texte original puis ses commentaires.
-        / Global SMS-like comments view for a page.
-        Each extraction shows its original text, then its comments.
-        """
-        page_id = request.query_params.get("page_id")
-        if not page_id:
-            return HttpResponse("page_id requis.", status=400)
-
-        page = get_object_or_404(Page, pk=page_id)
-
-        # Recupere les entites ayant au moins un commentaire, triees par position
-        # / Retrieve entities with at least one comment, sorted by position
-        entites_avec_commentaires = ExtractedEntity.objects.filter(
-            job__page=page,
-            job__status="completed",
-            commentaires__isnull=False,
-        ).distinct().prefetch_related("commentaires").order_by("start_char")
-
-        html_vue_commentaires = render_to_string(
-            "front/includes/vue_commentaires.html",
-            {
-                "page": page,
-                "entites_avec_commentaires": entites_avec_commentaires,
-                "ia_active": _get_ia_active(),
-            },
-            request=request,
-        )
-
-        reponse = HttpResponse(html_vue_commentaires)
-        # Declenche le mode debat pour elargir le panneau / Trigger debate mode to widen panel
-        reponse["HX-Trigger"] = json.dumps({
-            "ouvrirPanneauDroit": True,
-            "activerModeDebat": True,
-        })
-        return reponse
-
     @action(detail=False, methods=["POST"])
     def ia(self, request):
         """
@@ -4409,10 +4019,10 @@ class ExtractionViewSet(viewsets.ViewSet):
                 status=400,
             )
 
-        # Passer en "non_pertinent" (le save() synchronise masquee=True)
-        # / Set to "non_pertinent" (save() syncs masquee=True)
-        entite_a_masquer.statut_debat = "non_pertinent"
-        entite_a_masquer.save(update_fields=["statut_debat", "masquee"])
+        # Marquer comme masquee (le statut_debat est gere par signal)
+        # / Mark as hidden (statut_debat handled by signal)
+        entite_a_masquer.masquee = True
+        entite_a_masquer.save(update_fields=["masquee"])
 
         # Reponse minimale : le panneau sera recharge via drawerContenuChange
         # et le texte sera recharge via lectureReload dans le JS
@@ -4449,10 +4059,10 @@ class ExtractionViewSet(viewsets.ViewSet):
         if not _est_proprietaire_dossier(request.user, page_de_lentite):
             return HttpResponse("Non autorise.", status=403)
 
-        # Passer en "nouveau" (le save() synchronise masquee=False)
-        # / Set to "nouveau" (save() syncs masquee=False)
-        entite_a_restaurer.statut_debat = "nouveau"
-        entite_a_restaurer.save(update_fields=["statut_debat", "masquee"])
+        # Demarquer comme masquee (le statut_debat est gere par signal)
+        # / Unmark as hidden (statut_debat handled by signal)
+        entite_a_restaurer.masquee = False
+        entite_a_restaurer.save(update_fields=["masquee"])
 
         # Reponse minimale : le panneau et le texte seront recharges via events
         # / Minimal response: panel and text will be reloaded via events
@@ -4461,48 +4071,6 @@ class ExtractionViewSet(viewsets.ViewSet):
             "showToast": {"message": "Extraction restaur\u00e9e"},
             "drawerContenuChange": True,
             "lectureReload": {"page_id": identifiant_page},
-            "dashboardReload": True,
-        })
-        return reponse
-
-    @action(detail=False, methods=["POST"], url_path="changer_statut")
-    def changer_statut(self, request):
-        """
-        Change le statut de debat d'une extraction.
-        / Change the debate status of an extraction.
-        """
-        refus = _exiger_authentification(request)
-        if refus:
-            return refus
-        serializer = ChangerStatutSerializer(data=request.data)
-        if not serializer.is_valid():
-            logger.warning("changer_statut: validation echouee — %s", serializer.errors)
-            return HttpResponse(
-                f'<p class="text-sm text-red-500">Erreur: {serializer.errors}</p>',
-                status=400,
-            )
-
-        donnees = serializer.validated_data
-        entite_a_modifier = get_object_or_404(ExtractedEntity, pk=donnees["entity_id"])
-        nouveau_statut = donnees["nouveau_statut"]
-        identifiant_page = donnees["page_id"]
-
-        # Verification ownership : seul le proprietaire du dossier peut changer le statut
-        # / Ownership check: only the folder owner can change the status
-        page_de_lentite = entite_a_modifier.job.page
-        if not _est_proprietaire_dossier(request.user, page_de_lentite):
-            return HttpResponse("Non autorise.", status=403)
-
-        # Mettre a jour le statut de debat / Update debate status
-        entite_a_modifier.statut_debat = nouveau_statut
-        entite_a_modifier.save(update_fields=["statut_debat", "masquee"])
-
-        # Reponse minimale avec triggers HTMX / Minimal response with HTMX triggers
-        reponse = HttpResponse("<span></span>")
-        reponse["HX-Trigger"] = json.dumps({
-            "showToast": {"message": "Statut chang\u00e9 : " + nouveau_statut},
-            "drawerContenuChange": True,
-            "lectureReload": {"page_id": str(identifiant_page)},
             "dashboardReload": True,
         })
         return reponse
@@ -4535,7 +4103,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         contexte = {
             "page": page,
             "analyseurs_synthese": analyseurs_synthese,
-            **donnees_consensus,
+            "consensus": donnees_consensus,
         }
         return render(request, "front/includes/dashboard_consensus.html", contexte)
 
@@ -4673,10 +4241,12 @@ class ExtractionViewSet(viewsets.ViewSet):
                     noms_contributeurs_actifs.append(nom_affiche.title())
 
         # Appliquer le tri / Apply sort order
+        # Le tri "statut" a ete retire en A.8 Phase 4-bis : le statut binaire
+        # nouveau/commente n'a plus de sens comme critere de tri (FALC).
+        # / The "statut" sort was removed in A.8 Phase 4-bis: the binary
+        # / new/commented status no longer makes sense as a sort criterion.
         if parametre_tri == "activite":
             toutes_les_entites = toutes_les_entites.order_by("-created_at")
-        elif parametre_tri == "statut":
-            toutes_les_entites = toutes_les_entites.order_by("statut_debat", "start_char")
         else:
             toutes_les_entites = toutes_les_entites.order_by("start_char")
 

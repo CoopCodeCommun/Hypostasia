@@ -1,0 +1,10 @@
+{# Wrapper qui calcule les attrs JSON et inclut _card_body.html. #}
+{# Utilise par les actions Celery / vues qui re-rendent le contenu d'une carte #}
+{# (ex: ajouter_commentaire qui renvoie le contenu rafraichi via HTMX outerHTML). #}
+{# / Wrapper that computes JSON attrs and includes _card_body.html. #}
+{# Used by views that re-render card content (e.g. ajouter_commentaire HTMX swap). #}
+{% load extractor_tags %}
+{% entity_json_attrs entity as entity_attrs %}
+{% with attr_0=entity_attrs.0 attr_1=entity_attrs.1 attr_2=entity_attrs.2 attr_3=entity_attrs.3 %}
+    {% include "hypostasis_extractor/includes/_card_body.html" %}
+{% endwith %}
