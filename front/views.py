@@ -408,74 +408,6 @@ def _annoter_entites_avec_commentaires(queryset_entites):
     return entites_annotees, ids_commentees
 
 
-def _calculer_mouvements_depuis(page, timestamp_derniere_visite):
-    """
-    Calcule les mouvements sur une page depuis un timestamp donne.
-    Retourne un dict avec les changements detectes, ou None si aucun mouvement.
-    / Compute page movements since a given timestamp.
-    Returns a dict with detected changes, or None if no movement.
-    """
-    # Nombre de nouveaux commentaires depuis la derniere visite
-    # / Number of new comments since last visit
-    nombre_nouveaux_commentaires = CommentaireExtraction.objects.filter(
-        entity__job__page=page,
-        created_at__gt=timestamp_derniere_visite,
-    ).count()
-
-    # Entites dont le statut a change depuis la derniere visite
-    # / Entities whose status changed since last visit
-    entites_modifiees_par_statut = (
-        ExtractedEntity.objects.filter(
-            job__page=page,
-            masquee=False,
-            updated_at__gt=timestamp_derniere_visite,
-        )
-        .values("statut_debat")
-        .annotate(nombre=Count("id"))
-    )
-    changements_statut = {
-        ligne["statut_debat"]: ligne["nombre"]
-        for ligne in entites_modifiees_par_statut
-    }
-
-    # Entites orphelines (0 commentaires au total)
-    # / Orphan entities (0 comments total)
-    nombre_total_entites = ExtractedEntity.objects.filter(
-        job__page=page, masquee=False,
-    ).count()
-    nombre_entites_avec_commentaires = ExtractedEntity.objects.filter(
-        job__page=page, masquee=False,
-        commentaires__isnull=False,
-    ).distinct().count()
-    nombre_orphelines = nombre_total_entites - nombre_entites_avec_commentaires
-
-    # Pourcentage de consensus et seuil atteint
-    # / Consensus percentage and threshold reached
-    if nombre_total_entites > 0:
-        nombre_consensuelles = ExtractedEntity.objects.filter(
-            job__page=page, masquee=False, statut_debat="consensuel",
-        ).count()
-        pourcentage_consensus = round(
-            (nombre_consensuelles / nombre_total_entites) * 100
-        )
-    else:
-        pourcentage_consensus = 0
-    seuil_atteint = pourcentage_consensus >= SEUIL_CONSENSUS_DEFAUT
-
-    # Si aucun mouvement detecte, retourne None
-    # / If no movement detected, return None
-    if nombre_nouveaux_commentaires == 0 and not changements_statut:
-        return None
-
-    return {
-        "nombre_nouveaux_commentaires": nombre_nouveaux_commentaires,
-        "changements_statut": changements_statut,
-        "nombre_orphelines": nombre_orphelines,
-        "pourcentage_consensus": pourcentage_consensus,
-        "seuil_atteint": seuil_atteint,
-    }
-
-
 def _get_ia_active():
     """
     Helper — retourne True si l'IA est activee dans la configuration singleton.
@@ -681,44 +613,6 @@ def _entites_deja_creees_pour_job(job):
     return ExtractedEntity.objects.filter(
         job=job,
     ).select_related("job").order_by("start_char")
-
-
-def _rendre_drawer_analyse_en_cours(request, page, job_en_cours):
-    """
-    Construit le contexte et rend drawer_vue_liste.html en mode analyse en cours.
-    Utilise le meme template que le resultat final pour garantir
-    des cartes identiques (pastille, statut, citation, resume).
-    / Build context and render drawer_vue_liste.html in analysis-in-progress mode.
-    / Uses the same template as the final result to guarantee
-    / identical cards (status dot, citation, summary).
-
-    LOCALISATION : front/views.py
-    """
-    entites_partielles = list(_entites_deja_creees_pour_job(job_en_cours))
-    est_proprietaire = _est_proprietaire_dossier(request.user, page)
-
-    return render_to_string(
-        "front/includes/drawer_vue_liste.html",
-        {
-            "page": page,
-            "analyse_en_cours": True,
-            "job_en_cours": job_en_cours,
-            "entites_visibles": entites_partielles,
-            "entites_masquees": [],
-            "nombre_masquees": 0,
-            "nombre_total": len(entites_partielles),
-            "nombre_total_sans_filtre": len(entites_partielles),
-            "tri_actuel": "position",
-            "liste_contributeurs": [],
-            "contributeurs_actifs": set(),
-            "noms_contributeurs_actifs": [],
-            "ids_entites_des_contributeurs": set(),
-            "mode_filtre": "inclure",
-            "est_proprietaire": est_proprietaire,
-            "dernier_job": None,
-        },
-        request=request,
-    ), entites_partielles
 
 
 def _calculer_consensus(page):
@@ -945,6 +839,27 @@ class LectureViewSet(viewsets.ViewSet):
         if refus_acces:
             return refus_acces
 
+        # Marquage 'notification lue' si parametres presents (refonte A.6)
+        # Le lien dans le dropdown des taches passe ?marquer_lue=X&type=extraction|transcription
+        # / Mark notification as read if query params present (A.6 refactor)
+        marquer_lue = request.query_params.get("marquer_lue")
+        type_tache = request.query_params.get("type")
+        if marquer_lue and type_tache in ("extraction", "transcription"):
+            try:
+                if type_tache == "extraction":
+                    ExtractionJob.objects.filter(
+                        pk=marquer_lue, page__owner=request.user,
+                    ).update(notification_lue=True)
+                else:
+                    from core.models import TranscriptionJob
+                    TranscriptionJob.objects.filter(
+                        pk=marquer_lue, page__owner=request.user,
+                    ).update(notification_lue=True)
+            except (ValueError, TypeError):
+                # marquer_lue n'est pas un entier valide, ignorer silencieusement
+                # / marquer_lue is not a valid integer, ignore silently
+                pass
+
         analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
 
         # Verifier si un job est en cours pour cette page
@@ -1147,26 +1062,28 @@ class LectureViewSet(viewsets.ViewSet):
         }
 
         if est_requete_htmx:
-            # 1. Partial principal : contenu de lecture (avec annotations partielles)
-            # / 1. Main partial: reading content (with partial annotations)
+            # Refonte A.6 : plus de drawer "analyse en cours" en OOB. On rend
+            # uniquement le partial de lecture avec les annotations partielles
+            # deja appliquees, et un toast HX-Trigger informe l'utilisateur.
+            # Le bouton "taches" dans la toolbar le notifiera quand l'analyse
+            # sera terminee.
+            # / A.6 refactor: no more "in-progress" drawer via OOB. We only render
+            # / the reading partial with partial annotations already applied,
+            # / and an HX-Trigger toast informs the user. The "tasks" button
+            # / in the toolbar will notify them when analysis completes.
             html_lecture = render_to_string(
                 "front/includes/lecture_principale.html",
                 contexte_lecture,
                 request=request,
             )
-
-            # 2. OOB : drawer en cours avec entites deja trouvees (meme template que le final)
-            # / 2. OOB: in-progress drawer with already found entities (same template as final)
-            html_panneau_en_cours, _ = _rendre_drawer_analyse_en_cours(
-                request, page, job_en_cours,
-            )
-            html_panneau_oob = (
-                '<div id="panneau-extractions" hx-swap-oob="innerHTML:#panneau-extractions">'
-                + html_panneau_en_cours
-                + '</div>'
-            )
-
-            return HttpResponse(html_lecture + html_panneau_oob)
+            reponse = HttpResponse(html_lecture)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Analyse en cours pour cette page.",
+                    "icon": "info",
+                },
+            })
+            return reponse
 
         # Acces direct (F5) → page complete
         # / Direct access (F5) → full page
@@ -1185,51 +1102,6 @@ class LectureViewSet(viewsets.ViewSet):
             "est_proprietaire": est_proprietaire,
             "job_en_cours": job_en_cours,
             "entites_deja_creees": entites_deja_creees,
-        })
-
-    @action(detail=True, methods=["GET"], url_path="notifications")
-    def notifications(self, request, pk=None):
-        """
-        Retourne le bandeau de notifications de progression (PHASE-20).
-        Le JS envoie ?derniere_visite=ISO pour filtrer les mouvements.
-        Retourne un partial HTML ou un div vide si rien n'a change.
-        / Returns the progression notification banner (PHASE-20).
-        JS sends ?derniere_visite=ISO to filter movements.
-        Returns an HTML partial or empty div if nothing changed.
-        """
-        page = get_object_or_404(Page, pk=pk)
-
-        # Recupere le timestamp de derniere visite depuis le query param
-        # / Retrieve last visit timestamp from query param
-        param_derniere_visite = request.GET.get("derniere_visite", "")
-        if not param_derniere_visite:
-            return HttpResponse(
-                '<div id="bandeau-notifications" data-testid="bandeau-notifications"></div>'
-            )
-
-        # Parse le timestamp ISO — si invalide, retourne un div vide
-        # / Parse the ISO timestamp — if invalid, return empty div
-        try:
-            timestamp_derniere_visite = datetime.fromisoformat(
-                param_derniere_visite.replace("Z", "+00:00")
-            )
-        except (ValueError, TypeError):
-            return HttpResponse(
-                '<div id="bandeau-notifications" data-testid="bandeau-notifications"></div>'
-            )
-
-        # Calcule les mouvements depuis la derniere visite
-        # / Compute movements since last visit
-        mouvements = _calculer_mouvements_depuis(page, timestamp_derniere_visite)
-
-        if mouvements is None:
-            return HttpResponse(
-                '<div id="bandeau-notifications" data-testid="bandeau-notifications"></div>'
-            )
-
-        return render(request, "front/includes/bandeau_notification.html", {
-            "page": page,
-            "mouvements": mouvements,
         })
 
     @action(detail=True, methods=["POST"], url_path="modifier_titre")
@@ -1799,12 +1671,20 @@ class LectureViewSet(viewsets.ViewSet):
         if job_en_cours:
             job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
             if not job_est_bloque:
-                # Deja en cours et actif → renvoyer le drawer en mode analyse en cours
-                # / Already running and active → return drawer in analysis-in-progress mode
-                html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
-                    request, page, job_en_cours,
-                )
-                return HttpResponse(html_drawer_en_cours)
+                # Refonte A.6 : plus de drawer "analyse en cours". On renvoie un
+                # toast informant l'utilisateur que l'analyse tourne deja, et
+                # le bouton "taches" de la toolbar le notifiera a la fin.
+                # / A.6 refactor: no more "in-progress" drawer. We send a toast
+                # / telling the user analysis is already running; the toolbar
+                # / "tasks" button will notify them when it completes.
+                reponse = HttpResponse(status=200)
+                reponse["HX-Trigger"] = json.dumps({
+                    "showToast": {
+                        "message": "Analyse deja en cours pour cette page.",
+                        "icon": "info",
+                    },
+                })
+                return reponse
             # Job bloque → continuer vers la confirmation pour relancer
             # / Stalled job → continue to confirmation to relaunch
 
@@ -2030,14 +1910,18 @@ class LectureViewSet(viewsets.ViewSet):
         ).order_by("-created_at").first()
 
         if job_en_cours:
-            # Un job est deja en cours → renvoyer le drawer en mode analyse en cours
-            # / A job is already running → return drawer in analysis-in-progress mode
+            # Un job est deja en cours → toast d'info, pas de drawer (refonte A.6)
+            # L'utilisateur sera notifie via le bouton "taches" dans la toolbar.
+            # / A job is already running → info toast, no drawer (A.6 refactor)
+            # / The user will be notified via the "tasks" button in the toolbar.
             logger.info("analyser: job deja en cours pk=%s pour page=%s", job_en_cours.pk, pk)
-            html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
-                request, page, job_en_cours,
-            )
-            reponse = HttpResponse(html_drawer_en_cours)
-            reponse["HX-Trigger"] = "ouvrirDrawer"
+            reponse = HttpResponse(status=200)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Une analyse est deja en cours pour cette page.",
+                    "icon": "info",
+                },
+            })
             return reponse
 
         # Si analyseur_id n'est pas fourni, utiliser le premier analyseur actif de type "analyser"
@@ -2131,206 +2015,20 @@ class LectureViewSet(viewsets.ViewSet):
             job_extraction.pk, pk, analyseur.name,
         )
 
-        # Retourner le drawer en mode analyse en cours — le texte reste visible dans #zone-lecture.
-        # Le signal WS rafraichir_drawer declenche analyse_status qui recharge le drawer.
-        # / Return drawer in analysis-in-progress mode — text stays visible in #zone-lecture.
-        # / WS signal rafraichir_drawer triggers analyse_status which reloads the drawer.
-        html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
-            request, page, job_extraction,
-        )
-        reponse = HttpResponse(html_drawer_en_cours)
-        reponse["HX-Trigger"] = "ouvrirDrawer"
-        return reponse
-
-    @action(detail=True, methods=["GET"])
-    def analyse_status(self, request, pk=None):
-        """
-        Endpoint de polling HTMX pour suivre la progression d'une analyse IA.
-        - pending/processing → renvoie le partial de polling (hx-trigger="every 3s")
-        - completed → renvoie extraction_results + OOB readability (arrete le polling)
-        - error → renvoie un message d'erreur (arrete le polling)
-        / HTMX polling endpoint to track AI analysis progress.
-        """
-        page = get_object_or_404(Page, pk=pk)
-
-        # Verifier s'il y a un job en cours / Check for in-progress job
-        job_en_cours = ExtractionJob.objects.filter(
-            page=page,
-            status__in=["pending", "processing"],
-        ).order_by("-created_at").first()
-
-        if job_en_cours:
-            # Verifier si le job est bloque (pas de progression depuis 5 min).
-            # Si bloque → le marquer en erreur et continuer vers le cas "completed/error".
-            # Si actif → renvoyer le spinner.
-            # / Check if the job is stalled (no progress for 5 min).
-            # / If stalled → mark as error and continue to "completed/error" case.
-            # / If active → return spinner.
-            job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours)
-            if not job_est_bloque:
-                entites_partielles = list(_entites_deja_creees_pour_job(job_en_cours))
-                cartes_seulement = request.query_params.get("cartes_only") == "1"
-
-                # OOB : texte annote avec pastilles dans la zone de lecture
-                # / OOB: annotated text with highlights in the reading zone
-                html_oob_texte = ''
-                if entites_partielles:
-                    html_annote_partiel = annoter_html_avec_barres(
-                        page.html_readability or '', page.text_readability or '',
-                        entites_partielles,
-                    )
-                    if html_annote_partiel:
-                        html_oob_texte = (
-                            '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
-                            + html_annote_partiel
-                            + '</article>'
-                        )
-
-                if cartes_seulement:
-                    # Mode cartes_only : retourner seulement les cartes (pour rafraichir_drawer WS)
-                    # sans ecraser le bandeau de progression ni le header du drawer.
-                    # / Cards-only mode: return only cards (for rafraichir_drawer WS)
-                    # / without overwriting progress banner or drawer header.
-                    est_proprietaire_cartes = _est_proprietaire_dossier(request.user, page)
-                    html_cartes = render_to_string(
-                        "front/includes/drawer_cartes_partielles.html",
-                        {
-                            "entites_partielles": entites_partielles,
-                            "page": page,
-                            "est_proprietaire": est_proprietaire_cartes,
-                        },
-                        request=request,
-                    )
-                    return HttpResponse(html_cartes + html_oob_texte)
-
-                # Mode complet : retourner le drawer entier (fermer/rouvrir E)
-                # / Full mode: return the entire drawer (close/reopen E)
-                html_panneau, _ = _rendre_drawer_analyse_en_cours(
-                    request, page, job_en_cours,
-                )
-                return HttpResponse(html_panneau + html_oob_texte)
-            # Job bloque → on continue vers le cas completed/error ci-dessous
-            # / Stalled job → fall through to completed/error case below
-
-        # Recuperer le dernier job termine OU en erreur (le plus recent des deux)
-        # / Get the latest completed OR error job (whichever is more recent)
-        dernier_job_termine = ExtractionJob.objects.filter(
-            page=page,
-            status="completed",
-        ).select_related("analyseur_version").order_by("-created_at").first()
-
-        dernier_job_erreur = ExtractionJob.objects.filter(
-            page=page,
-            status="error",
-        ).order_by("-created_at").first()
-
-        # Comparer les timestamps : si un job error est plus recent que le completed,
-        # afficher l'erreur (cas : re-analyse echouee apres une analyse reussie)
-        # / Compare timestamps: if an error job is more recent than completed,
-        # show the error (case: failed re-analysis after a successful one)
-        if dernier_job_erreur and dernier_job_termine:
-            if dernier_job_erreur.created_at > dernier_job_termine.created_at:
-                # L'erreur est plus recente → afficher l'erreur
-                # / Error is more recent → show error
-                return render(request, "front/includes/extraction_results.html", {
-                    "error_message": dernier_job_erreur.error_message or "Erreur inconnue",
-                    "error_job": dernier_job_erreur,
-                    "page": page,
-                })
-
-        if dernier_job_termine:
-            # Termine → retourner le drawer_vue_liste (etat 4) + OOB texte annote
-            # / Completed → return drawer_vue_liste (state 4) + OOB annotated text
-
-            # Entites de TOUS les jobs termines (coherent avec le drawer E)
-            # / Entities from ALL completed jobs (consistent with the E drawer)
-            tous_les_jobs_page = ExtractionJob.objects.filter(page=page, status="completed")
-            toutes_entites_page = ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
-            entites_non_masquees, ids_entites_commentees = _annoter_entites_avec_commentaires(
-                toutes_entites_page
-            )
-            html_annote_pour_oob = annoter_html_avec_barres(
-                page.html_readability, page.text_readability,
-                entites_non_masquees, ids_entites_commentees,
-            )
-
-            # Separer entites visibles et masquees pour le drawer
-            # / Separate visible and hidden entities for the drawer
-            toutes_entites_du_job = dernier_job_termine.entities.annotate(
-                nombre_commentaires=Count("commentaires"),
-            ).prefetch_related(
-                Prefetch(
-                    "commentaires",
-                    queryset=CommentaireExtraction.objects.select_related("user"),
-                ),
-            ).order_by("start_char")
-
-            entites_visibles_drawer = []
-            entites_masquees_drawer = []
-            for entite in toutes_entites_du_job:
-                if entite.masquee:
-                    entites_masquees_drawer.append(entite)
-                else:
-                    entites_visibles_drawer.append(entite)
-
-            est_proprietaire = _est_proprietaire_dossier(request.user, page)
-
-            html_drawer = render_to_string(
-                "front/includes/drawer_vue_liste.html",
-                {
-                    "page": page,
-                    "entites_visibles": entites_visibles_drawer,
-                    "entites_masquees": entites_masquees_drawer,
-                    "nombre_masquees": len(entites_masquees_drawer),
-                    "nombre_total": len(entites_visibles_drawer) + len(entites_masquees_drawer),
-                    "nombre_total_sans_filtre": len(entites_visibles_drawer) + len(entites_masquees_drawer),
-                    "tri_actuel": "position",
-                    "liste_contributeurs": [],
-                    "contributeurs_actifs": set(),
-                    "noms_contributeurs_actifs": [],
-                    "ids_entites_des_contributeurs": set(),
-                    "mode_filtre": "inclure",
-                    "est_proprietaire": est_proprietaire,
-                    "dernier_job": dernier_job_termine,
-                },
-                request=request,
-            )
-
-            # OOB swap du texte annote dans la zone de lecture
-            # / OOB swap of annotated text into the reading zone
-            html_oob_texte = (
-                '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
-                + (html_annote_pour_oob or page.html_readability)
-                + '</article>'
-            )
-
-            # L'appel vient du hx-trigger="load" injecte par le WS analyse_terminee.
-            # Le hx-target="#drawer-contenu" du fragment fait que html_drawer remplace le drawer.
-            # Le texte annote arrive en OOB sur #readability-content.
-            # / Call comes from hx-trigger="load" injected by WS analyse_terminee.
-            # / hx-target="#drawer-contenu" in the fragment makes html_drawer replace the drawer.
-            # / Annotated text arrives as OOB on #readability-content.
-            reponse = HttpResponse(html_drawer + html_oob_texte)
-            reponse["HX-Trigger"] = json.dumps({
-                "showToast": {"message": "Analyse termin\u00e9e"},
-            })
-            return reponse
-
-        if dernier_job_erreur:
-            # Erreur sans aucun job completed → afficher l'erreur
-            # / Error with no completed job → show error
-            return render(request, "front/includes/extraction_results.html", {
-                "error_message": dernier_job_erreur.error_message or "Erreur inconnue",
-                "error_job": dernier_job_erreur,
-                "page": page,
-            })
-
-        # Fallback : aucun job trouve
-        # / Fallback: no job found
-        return render(request, "front/includes/extraction_results.html", {
-            "error_message": "Aucun job d'analyse trouv\u00e9.",
-            "page": page,
+        # Refonte A.6 : retour d'un simple toast HX-Trigger au lieu du drawer
+        # "en cours". L'utilisateur garde la page intacte, le bouton "taches"
+        # dans la toolbar le notifiera quand l'analyse est terminee.
+        # / A.6 refactor: return a simple HX-Trigger toast instead of the
+        # / "in-progress" drawer. The page stays intact, the "tasks" button
+        # / in the toolbar will notify the user when analysis is complete.
+        reponse = HttpResponse(status=200)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {
+                "message": "Analyse lancee. Vous serez notifie a la fin.",
+                "icon": "info",
+            },
         })
+        return reponse
 
     @action(detail=True, methods=["GET"], url_path="previsualiser_synthese")
     def previsualiser_synthese(self, request, pk=None):
@@ -2356,9 +2054,20 @@ class LectureViewSet(viewsets.ViewSet):
             raw_result__contains={"est_synthese": True},
         ).order_by("-created_at").first()
         if job_synthese_en_cours:
-            return render(request, "front/includes/synthese_en_cours_drawer.html", {
-                "page": page,
+            # Refonte A.6 : plus de drawer "synthese en cours". On envoie un toast
+            # informant que la synthese tourne deja, et le bouton "taches" de la
+            # toolbar la signalera quand elle sera terminee.
+            # / A.6 refactor: no more "in-progress" drawer. We send a toast telling
+            # / the user synthesis is already running; the toolbar "tasks" button
+            # / will notify them when it completes.
+            reponse = HttpResponse(status=200)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Synthese deja en cours pour cette page.",
+                    "icon": "info",
+                },
             })
+            return reponse
 
         # Recuperer l'analyseur synthese (default ou ?analyseur_id=)
         # / Get the synthesis analyzer (default or ?analyseur_id=)
@@ -2541,15 +2250,18 @@ class LectureViewSet(viewsets.ViewSet):
         ).order_by("-created_at").first()
 
         if job_synthese_en_cours:
-            # Une synthese est deja en cours → renvoyer le template de polling drawer
-            # + ouvrir le drawer pour afficher l'etat
-            # / A synthesis is already running → return drawer polling template
-            # + open the drawer to show the state
+            # Une synthese est deja en cours → toast d'info, pas de drawer (refonte A.6)
+            # L'utilisateur sera notifie via le bouton "taches" dans la toolbar.
+            # / A synthesis is already running → info toast, no drawer (A.6 refactor)
+            # / The user will be notified via the "tasks" button in the toolbar.
             logger.info("synthetiser: job deja en cours pk=%s pour page=%s", job_synthese_en_cours.pk, pk)
-            reponse = render(request, "front/includes/synthese_en_cours_drawer.html", {
-                "page": page,
+            reponse = HttpResponse(status=200)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Une synthese est deja en cours pour cette page.",
+                    "icon": "info",
+                },
             })
-            reponse["HX-Trigger"] = "ouvrirDrawer"
             return reponse
 
         # Trouver l'analyseur de synthese : depuis le formulaire ou le default.
@@ -2645,85 +2357,20 @@ class LectureViewSet(viewsets.ViewSet):
             job_synthese.pk, pk,
         )
 
-        # Retourner le partial polling dans le drawer + ouvrir le drawer (PHASE-29)
-        # Le drawer reste ouvert pendant toute la synthese ; il se fermera tout seul
-        # quand synthese_status detecte le status completed (HX-Trigger fermerDrawer).
-        # / Return polling partial in the drawer + open drawer (PHASE-29)
-        # / Drawer stays open during synthesis; closes itself when complete.
-        reponse = render(request, "front/includes/synthese_en_cours_drawer.html", {
-            "page": page,
-        })
+        # Refonte A.6 : retour d'un simple toast HX-Trigger au lieu du drawer
+        # "en cours". L'utilisateur garde la page intacte, le bouton "taches"
+        # dans la toolbar le notifiera quand la synthese est terminee.
+        # / A.6 refactor: return a simple HX-Trigger toast instead of the
+        # / "in-progress" drawer. The page stays intact, the "tasks" button
+        # / in the toolbar will notify the user when synthesis is complete.
+        reponse = HttpResponse(status=200)
         reponse["HX-Trigger"] = json.dumps({
-            "ouvrirDrawer": True,
             "showToast": {
-                "message": "Synthèse lancée...",
+                "message": "Synthese lancee. Vous serez notifie a la fin.",
                 "icon": "info",
             },
         })
         return reponse
-
-    @action(detail=True, methods=["GET"], url_path="synthese_status")
-    def synthese_status(self, request, pk=None):
-        """
-        Endpoint de polling HTMX pour suivre la progression d'une synthese (PHASE-29).
-        Le polling vit dans le drawer (#drawer-contenu).
-        - pending/processing → re-render le partial polling drawer
-        - completed → renvoie l'OOB de zone-lecture vers la V2 + HX-Trigger fermerDrawer
-        - error → renvoie le partial erreur dans le drawer (avec bouton retry)
-        / HTMX polling endpoint to track synthesis progress (PHASE-29).
-        / Polling lives in the drawer (#drawer-contenu).
-        """
-        page = get_object_or_404(Page, pk=pk)
-
-        # Chercher le dernier job de synthese / Find the latest synthesis job
-        dernier_job_synthese = ExtractionJob.objects.filter(
-            page=page,
-            raw_result__contains={"est_synthese": True},
-        ).order_by("-created_at").first()
-
-        if not dernier_job_synthese:
-            return render(request, "front/includes/synthese_en_cours_drawer.html", {
-                "page": page,
-                "erreur_synthese": "Aucun job de synthèse trouvé.",
-            })
-
-        if dernier_job_synthese.status in ("pending", "processing"):
-            # Toujours en cours → renvoyer le partial polling drawer
-            # / Still running → return polling drawer partial
-            return render(request, "front/includes/synthese_en_cours_drawer.html", {
-                "page": page,
-            })
-
-        if dernier_job_synthese.status == "completed":
-            # Termine → renvoyer le partial OOB qui :
-            # PHASE-29 simplifie : on remplace l'OOB complexe (qui rechargeait
-            # zone-lecture + mettait a jour le pill switcher) par un HX-Location
-            # qui force HTMX a faire un GET sur /lire/V{N}/ et a swap dans
-            # zone-lecture. Le pill switcher est dans lecture_principale.html
-            # donc rendu naturellement par cette navigation. Plus simple, plus
-            # robuste : URL pushed, etat coherent, pas d'OOB fragile.
-            # Pas de showToast : deja envoye via WebSocket avec lien cliquable.
-            # / Simplified: replaced complex OOB with HX-Location → HTMX does a
-            # / GET on /lire/V{N}/ and swaps zone-lecture. Cleaner state, URL pushed.
-            page_synthese_id = dernier_job_synthese.raw_result.get("page_synthese_id")
-            reponse = HttpResponse(status=200)
-            reponse["HX-Location"] = json.dumps({
-                "path": f"/lire/{page_synthese_id}/",
-                "target": "#zone-lecture",
-                "swap": "innerHTML",
-            })
-            reponse["HX-Trigger"] = json.dumps({
-                "fermerDrawer": True,
-            })
-            return reponse
-
-        # Erreur → afficher le message et un bouton retry dans le drawer
-        # / Error → show message and retry button in the drawer
-        message_erreur = dernier_job_synthese.error_message or "Erreur inconnue lors de la synthèse."
-        return render(request, "front/includes/synthese_en_cours_drawer.html", {
-            "page": page,
-            "erreur_synthese": message_erreur,
-        })
 
     @action(detail=True, methods=["GET"], url_path="formulaire_renommer_locuteur")
     def formulaire_renommer_locuteur(self, request, pk=None):
@@ -5531,26 +5178,24 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         page = get_object_or_404(Page, pk=identifiant_page)
 
-        # Si un job est en cours ET actif → afficher l'etat 3 (analyse en cours).
-        # Si le job est bloque (pas de progression depuis 5 min) → le marquer en erreur
-        # et continuer vers l'affichage normal (etat 4 ou empty state).
-        # / If a job is running AND active → show state 3 (analysis in progress).
-        # / If the job is stalled (no progress for 5 min) → mark it as error
-        # / and continue to normal display (state 4 or empty state).
+        # Refonte A.6 : plus de drawer "analyse en cours" specifique. Si un job
+        # tourne, on nettoie quand meme les jobs bloques (pour que les vues
+        # ulterieures voient l'etat "error" plutot qu'un faux "processing"),
+        # mais on tombe dans le rendu normal : l'utilisateur voit les entites
+        # deja extraites comme cartes, et le bouton "taches" de la toolbar le
+        # notifiera quand l'analyse sera terminee.
+        # / A.6 refactor: no more dedicated "analysis-in-progress" drawer. If a
+        # / job is running we still flush stalled jobs (so later views see "error"
+        # / rather than a fake "processing" state), but we fall through to the
+        # / normal render: the user sees entities already extracted as cards,
+        # / and the toolbar "tasks" button will notify them when done.
         job_en_cours_pour_drawer = ExtractionJob.objects.filter(
             page=page,
             status__in=["pending", "processing"],
         ).order_by("-created_at").first()
 
         if job_en_cours_pour_drawer:
-            job_est_bloque = _verifier_et_nettoyer_job_bloque(job_en_cours_pour_drawer)
-            if not job_est_bloque:
-                html_drawer_en_cours, _ = _rendre_drawer_analyse_en_cours(
-                    request, page, job_en_cours_pour_drawer,
-                )
-                return HttpResponse(html_drawer_en_cours)
-            # Job bloque → on continue vers l'affichage normal des resultats
-            # / Stalled job → continue to normal results display
+            _verifier_et_nettoyer_job_bloque(job_en_cours_pour_drawer)
 
         parametre_tri = request.query_params.get("tri", "position")
 
@@ -5989,17 +5634,14 @@ class ImportViewSet(viewsets.ViewSet):
             page_audio.pk, job_transcription.pk, resultat_tache.id,
         )
 
-        # Retourner le template de polling + OOB arbre
-        # / Return polling template + OOB tree
-        html_polling = render_to_string(
-            "front/includes/transcription_en_cours.html",
-            {"page": page_audio},
-            request=request,
-        )
-
-        # OOB swap : arbre de dossiers mis a jour
-        # / OOB swap: updated folder tree
-        # OOB swap : arbre via _render_arbre / OOB swap: tree via _render_arbre
+        # Refonte A.6 : plus de template "transcription en cours" avec polling.
+        # On renvoie uniquement le swap OOB de l'arbre + un toast indiquant que
+        # la transcription a demarre. Le bouton "taches" de la toolbar notifiera
+        # l'utilisateur quand la transcription sera terminee.
+        # / A.6 refactor: no more "transcription-in-progress" polling template.
+        # / We only return the OOB tree swap + a toast indicating transcription
+        # / has started. The toolbar "tasks" button will notify the user when
+        # / transcription completes.
         reponse_arbre = _render_arbre(request)
         html_arbre_oob = (
             '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
@@ -6007,8 +5649,7 @@ class ImportViewSet(viewsets.ViewSet):
             + '</div>'
         )
 
-        html_complet = html_polling + html_arbre_oob
-        reponse = HttpResponse(html_complet)
+        reponse = HttpResponse(html_arbre_oob)
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": "Transcription lanc\u00e9e..."},
         })
@@ -6139,84 +5780,6 @@ class ImportViewSet(viewsets.ViewSet):
             "showToast": {"message": "Fichier import\u00e9"},
         })
         return reponse
-
-    @action(detail=False, methods=["GET"])
-    def status(self, request):
-        """
-        Endpoint de polling HTMX pour suivre la progression d'une transcription audio.
-        - pending/processing → renvoie le partial de polling (hx-trigger="every 3s")
-        - completed → renvoie lecture_principale + OOB panneau (arrete le polling)
-        - error → renvoie un message d'erreur (arrete le polling)
-        / HTMX polling endpoint to track audio transcription progress.
-        - pending/processing → returns polling partial (hx-trigger="every 3s")
-        - completed → returns lecture_principale + OOB panel (stops polling)
-        - error → returns error message (stops polling)
-        """
-        page_id = request.query_params.get("page_id")
-        if not page_id:
-            return HttpResponse("page_id requis.", status=400)
-
-        page = get_object_or_404(Page, pk=page_id)
-
-        if page.status in ("pending", "processing"):
-            # Toujours en cours → renvoyer le partial de polling
-            # / Still processing → return polling partial
-            return render(request, "front/includes/transcription_en_cours.html", {
-                "page": page,
-            })
-
-        elif page.status == "completed":
-            # Termine → renvoyer le contenu de lecture normal
-            # / Completed → return normal reading content
-            analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
-            ia_active = _get_ia_active()
-            contexte_partage = {
-                "page": page,
-                "html_annote": None,
-                "analyseurs_actifs": analyseurs_actifs,
-                "job": None,
-                "entities": None,
-                "ia_active": ia_active,
-            }
-
-            html_lecture = render_to_string(
-                "front/includes/lecture_principale.html",
-                contexte_partage,
-                request=request,
-            )
-
-            # OOB swap : panneau d'analyse
-            # / OOB swap: analysis panel
-            html_panneau_oob = render_to_string(
-                "front/includes/panneau_analyse.html",
-                contexte_partage,
-                request=request,
-            )
-            html_panneau_oob = (
-                '<div id="panneau-extractions" hx-swap-oob="innerHTML:#panneau-extractions">'
-                + html_panneau_oob
-                + '</div>'
-            )
-
-            html_complet = html_lecture + html_panneau_oob
-            reponse = HttpResponse(html_complet)
-            reponse["HX-Trigger"] = json.dumps({
-                "showToast": {"message": "Transcription termin\u00e9e"},
-            })
-            return reponse
-
-        else:
-            # Erreur → afficher le message d'erreur (arrete le polling)
-            # / Error → display error message (stops polling)
-            message_erreur = page.error_message or "Erreur inconnue lors de la transcription."
-            return HttpResponse(
-                f'<div class="max-w-3xl mx-auto p-6">'
-                f'<div class="bg-red-50 border border-red-200 rounded-lg p-4">'
-                f'<h3 class="text-red-700 font-semibold mb-2">Erreur de transcription</h3>'
-                f'<p class="text-red-600 text-sm">{message_erreur}</p>'
-                f'</div></div>',
-            )
-
 
     @action(detail=False, methods=["POST"], url_path="previsualiser_audio")
     def previsualiser_audio(self, request):
@@ -6411,15 +5974,14 @@ class ImportViewSet(viewsets.ViewSet):
             page_audio.pk, job_transcription.pk, resultat_tache.id,
         )
 
-        # Retourner le template de polling + OOB arbre
-        # / Return polling template + OOB tree
-        html_polling = render_to_string(
-            "front/includes/transcription_en_cours.html",
-            {"page": page_audio},
-            request=request,
-        )
-
-        # OOB swap : arbre via _render_arbre / OOB swap: tree via _render_arbre
+        # Refonte A.6 : plus de template "transcription en cours" avec polling.
+        # On renvoie uniquement le swap OOB de l'arbre + un toast indiquant que
+        # la transcription a demarre. Le bouton "taches" de la toolbar notifiera
+        # l'utilisateur quand la transcription sera terminee.
+        # / A.6 refactor: no more "transcription-in-progress" polling template.
+        # / We only return the OOB tree swap + a toast indicating transcription
+        # / has started. The toolbar "tasks" button will notify the user when
+        # / transcription completes.
         reponse_arbre = _render_arbre(request)
         html_arbre_oob = (
             '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
@@ -6427,8 +5989,7 @@ class ImportViewSet(viewsets.ViewSet):
             + '</div>'
         )
 
-        html_complet = html_polling + html_arbre_oob
-        reponse = HttpResponse(html_complet)
+        reponse = HttpResponse(html_arbre_oob)
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": "Transcription lancée..."},
         })

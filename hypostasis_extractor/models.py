@@ -99,6 +99,12 @@ class ExtractionJob(models.Model):
         help_text="Version de l'analyseur au moment de l'extraction / Analyzer version at extraction time",
     )
 
+    notification_lue = models.BooleanField(
+        default=False,
+        help_text="Notification de fin lue par le proprietaire / "
+                  "End-of-task notification read by the owner",
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

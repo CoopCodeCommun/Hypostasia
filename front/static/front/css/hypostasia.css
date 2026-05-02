@@ -1943,3 +1943,72 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
     pointer-events: none;
     opacity: 0.7;
 }
+
+
+/* ==========================================================================
+   A.6 — Bouton 'mes taches' (refonte WebSocket)
+   4 etats : neutre / en_cours (bleu + spinner) / succes (vert) / erreur (rouge)
+   Dropdown ouvert au clic, ferme au clic exterieur (gere en JS).
+   / A.6 — 'My tasks' button (WebSocket refactor)
+   / 4 states: neutre / en_cours (blue + spinner) / succes (green) / erreur (red)
+   / Dropdown opens on click, closes on outside click (handled in JS).
+   ========================================================================== */
+
+.taches-wrapper { position: relative; display: inline-flex; }
+.btn-taches { position: relative; }
+.btn-taches-neutre { color: #94a3b8; }
+.btn-taches-en_cours { color: #2563eb; }
+.btn-taches-succes { color: #16a34a; }
+.btn-taches-erreur { color: #dc2626; }
+
+@keyframes taches-spin { to { transform: rotate(360deg); } }
+.spinner-taches {
+    display: inline-block; width: 0.625rem; height: 0.625rem;
+    border: 2px solid currentColor; border-top-color: transparent;
+    border-radius: 50%; animation: taches-spin 1s linear infinite;
+    margin-left: 0.25rem;
+}
+.spinner-taches-mini {
+    width: 0.875rem; height: 0.875rem; border-width: 1.5px;
+}
+
+.badge-taches {
+    position: absolute; top: -4px; right: -4px;
+    min-width: 1rem; height: 1rem; padding: 0 0.25rem;
+    background: currentColor; color: white !important;
+    border-radius: 0.5rem; font-size: 0.625rem; font-weight: 700;
+    line-height: 1rem; text-align: center;
+}
+
+.taches-dropdown-wrapper {
+    position: absolute; top: 100%; right: 0; margin-top: 0.25rem;
+    min-width: 18rem; max-width: 24rem;
+    background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); z-index: 50;
+}
+.taches-dropdown-wrapper.hidden { display: none; }
+
+.taches-dropdown-header { padding: 0.75rem; border-bottom: 1px solid #e2e8f0; }
+.taches-dropdown-liste { list-style: none; margin: 0; padding: 0; max-height: 400px; overflow-y: auto; }
+.taches-dropdown-item { display: flex; gap: 0.75rem; padding: 0.75rem; border-bottom: 1px solid #f1f5f9; }
+.taches-dropdown-item:last-child { border-bottom: none; }
+
+.taches-icone {
+    width: 1.5rem; height: 1.5rem; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; font-weight: 700; border-radius: 50%;
+}
+.taches-icone-succes { background: #dcfce7; color: #16a34a; }
+.taches-icone-erreur { background: #fee2e2; color: #dc2626; }
+.taches-icone-en-cours { background: #dbeafe; color: #2563eb; }
+
+.taches-dropdown-corps { flex: 1; min-width: 0; }
+.taches-dropdown-nom { font-size: 0.8125rem; color: #1e293b; font-weight: 500; }
+.taches-dropdown-meta {
+    font-size: 0.75rem; color: #64748b; margin-top: 0.25rem;
+    display: flex; gap: 0.75rem; align-items: center;
+}
+.taches-meta-lien { color: #2563eb; text-decoration: underline; }
+.taches-meta-lien:hover { color: #1d4ed8; }
+.taches-meta-en-cours { color: #2563eb; font-style: italic; }
+.taches-meta-erreur { color: #dc2626; }
+.taches-dropdown-vide { padding: 1.5rem; text-align: center; color: #94a3b8; font-size: 0.8125rem; }

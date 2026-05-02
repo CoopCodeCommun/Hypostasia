@@ -390,10 +390,8 @@ document.body.addEventListener('ouvrirDrawer', function() {
     ouvrirPanneauDroit();
 });
 
-// Ecoute l'evenement HTMX custom "fermerDrawer" (PHASE-29)
-// envoye par synthese_status() quand la synthese se termine
-// / Listens for HTMX custom event "fermerDrawer" (PHASE-29)
-// / sent by synthese_status() when synthesis completes
+// Ecoute l'evenement HTMX custom "fermerDrawer"
+// / Listens for HTMX custom event "fermerDrawer"
 document.body.addEventListener('fermerDrawer', function() {
     fermerPanneauDroit();
 });
@@ -1764,47 +1762,6 @@ document.addEventListener('click', async function(evenement) {
 });
 
 
-// ---------------------------------------------------------------------------
-// Signal WS : rafraichissement du drawer d'analyse depuis la DB.
-// Le consumer WS envoie un OOB swap sur #signal-rafraichir-drawer
-// avec le page_id. Le MutationObserver detecte le changement et
-// declenche un rechargement HTMX du drawer via analyse_status.
-// Debounce a 800ms pour eviter les rafales (un signal par chunk).
-// / WS signal: analysis drawer refresh from DB.
-// / WS consumer sends OOB swap on #signal-rafraichir-drawer
-// / with page_id. MutationObserver detects the change and
-// / triggers HTMX drawer reload via analyse_status.
-// / Debounced at 800ms to avoid bursts (one signal per chunk).
-//
-// LOCALISATION : front/static/front/js/hypostasia.js
-//
-// COMMUNICATION :
-// Recoit : OOB swap sur #signal-rafraichir-drawer (depuis consumers.py)
-// Emet : htmx.ajax GET vers /lire/{pageId}/analyse_status/
-// ---------------------------------------------------------------------------
-(function() {
-    const signalRafraichir = document.getElementById('signal-rafraichir-drawer');
-    if (!signalRafraichir) return;
-
-    let timerDebounce = null;
-
-    new MutationObserver(function() {
-        const pageId = signalRafraichir.dataset.pageId;
-        if (!pageId) return;
-
-        // Debounce 800ms — les chunks arrivent en rafale avec batch_length=5
-        // / Debounce 800ms — chunks arrive in bursts with batch_length=5
-        clearTimeout(timerDebounce);
-        timerDebounce = setTimeout(function() {
-            htmx.ajax('GET', '/lire/' + pageId + '/analyse_status/', {
-                target: '#drawer-contenu',
-                swap: 'innerHTML'
-            });
-        }, 800);
-    }).observe(signalRafraichir, { childList: true, attributes: true });
-})();
-
-
 // ==========================================================================
 // Focus extraction au chargement initial (F5 avec ?extraction={id}) — PHASE-25d-v2
 // / Focus extraction on initial page load (F5 with ?extraction={id}) — PHASE-25d-v2
@@ -1817,5 +1774,90 @@ document.addEventListener('click', async function(evenement) {
     // / Wait for the DOM to be fully rendered
     window.addEventListener('load', function() {
         setTimeout(_focusExtractionDepuisUrl, 800);
+    });
+})();
+
+
+// ===========================================================================
+// === A.6 — WebSocket notifications + dropdown taches ===
+// / A.6 — WebSocket notifications + tasks dropdown
+// ===========================================================================
+//
+// Une seule connexion WebSocket par session vers le NotificationConsumer.
+// Le consumer ne pousse plus que des messages 'tache_terminee' (refonte A.6) :
+// a chaque message recu, on refetch le bouton pour mettre a jour son etat
+// (couleur + badge). Le dropdown s'ouvre au clic sur le bouton et fetch
+// la liste des 10 dernieres taches.
+//
+// / One WebSocket connection per session to NotificationConsumer.
+// / Consumer only pushes 'tache_terminee' messages (A.6 refactor):
+// / on each message, refetch button to update state (color + badge).
+// / Dropdown opens on button click and fetches last 10 tasks.
+// ---------------------------------------------------------------------------
+
+(function() {
+    // Ne lance la connexion que si l'utilisateur est authentifie.
+    // Le bouton est rendu conditionnellement dans base.html ;
+    // son absence signifie 'pas de session' donc pas de WS a ouvrir.
+    // / Only open connection if user is authenticated.
+    // / Button is conditionally rendered in base.html;
+    // / its absence means 'no session' so no WS to open.
+    if (!document.getElementById('btn-taches')) return;
+
+    // Connexion au consumer NotificationConsumer (1 seule connexion par session).
+    // / Connect to NotificationConsumer (1 connection per session).
+    var protocoleWebSocket = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+    var connexionTaches = new WebSocket(protocoleWebSocket + window.location.host + '/ws/notifications/');
+
+    // A la reception d'un message 'tache_terminee', refetch le bouton
+    // pour mettre a jour son etat (couleur + badge).
+    // / On 'tache_terminee', refetch button to update state.
+    connexionTaches.addEventListener('message', function(evenement) {
+        var donneesMessage = JSON.parse(evenement.data);
+        if (donneesMessage.type === 'tache_terminee') {
+            htmx.ajax('GET', '/taches/bouton/', {
+                target: '#btn-taches',
+                swap: 'outerHTML'
+            });
+        }
+    });
+
+    // Toggle dropdown au clic sur le bouton.
+    // Click ailleurs = fermer le dropdown.
+    // / Toggle dropdown on button click.
+    // / Click elsewhere = close dropdown.
+    document.body.addEventListener('click', function(evenement) {
+        var boutonTaches = evenement.target.closest('#btn-taches');
+        var dropdownTaches = document.getElementById('taches-dropdown-wrapper');
+        if (!dropdownTaches) return;
+
+        if (boutonTaches) {
+            evenement.preventDefault();
+            dropdownTaches.classList.toggle('hidden');
+            // Si on vient d'ouvrir : fetch la liste fraiche
+            // / If just opened: fetch fresh list
+            if (!dropdownTaches.classList.contains('hidden')) {
+                htmx.ajax('GET', '/taches/dropdown/', {
+                    target: '#taches-dropdown-content',
+                    swap: 'innerHTML'
+                });
+            }
+        } else if (!evenement.target.closest('#taches-dropdown-wrapper')) {
+            // Click ailleurs : fermer le dropdown
+            // / Click elsewhere: close dropdown
+            dropdownTaches.classList.add('hidden');
+        }
+    });
+
+    // Au chargement : fetch initial du bouton pour avoir l'etat reel
+    // (les compteurs/couleur dependent de la DB).
+    // / On load: initial fetch of button to get real state from DB.
+    document.addEventListener('DOMContentLoaded', function() {
+        if (document.getElementById('btn-taches')) {
+            htmx.ajax('GET', '/taches/bouton/', {
+                target: '#btn-taches',
+                swap: 'outerHTML'
+            });
+        }
     });
 })();

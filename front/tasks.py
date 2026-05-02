@@ -13,25 +13,37 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
-def envoyer_progression_websocket(nom_groupe, type_message, donnees):
+def notifier_tache_terminee(user_pk, tache_id, tache_type, status):
     """
-    Envoie un message au channel layer depuis une tache Celery (contexte sync).
-    / Send a message to the channel layer from a Celery task (sync context).
+    Push au client une notification de fin de tache via le NotificationConsumer.
+    Appele uniquement a la fin d'une tache Celery (analyse / synthese / transcription).
+    Format unifie : {tache_id, tache_type, status} pousse au group user_<pk>.
+    / Push a task-end notification via NotificationConsumer.
+    Called only at the end of a Celery task.
+
+    Args:
+        user_pk : pk du proprietaire de la tache
+        tache_id : pk du job (ExtractionJob ou TranscriptionJob)
+        tache_type : "analyse" | "synthese" | "transcription"
+        status : "completed" | "failed"
     """
     from channels.layers import get_channel_layer
     from asgiref.sync import async_to_sync
 
     couche_channels = get_channel_layer()
     if couche_channels is None:
-        logger.debug("envoyer_progression_websocket: channel layer non configure, skip")
+        logger.debug("notifier_tache_terminee: channel layer non configure, skip")
         return
 
     async_to_sync(couche_channels.group_send)(
-        nom_groupe,
-        {'type': type_message, **donnees},
+        f"user_{user_pk}",
+        {
+            "type": "tache_terminee",  # nom de la methode handler du consumer
+            "tache_id": tache_id,
+            "tache_type": tache_type,
+            "status": status,
+        },
     )
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -573,15 +585,6 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
     job_transcription.celery_task_id = self.request.id or ""
     job_transcription.save(update_fields=["status", "celery_task_id"])
 
-    # Notifier le navigateur que la transcription a demarre
-    # / Notify the browser that transcription has started
-    nom_groupe_transcription = f"tache_{self.request.id}"
-    envoyer_progression_websocket(nom_groupe_transcription, "progression", {
-        "pourcentage": 5,
-        "message": "Transcription audio démarrée",
-        "status": "en_cours",
-    })
-
     logger.info(
         "transcrire_audio_task: demarrage job=%s page=%s fichier=%s provider=%s",
         job_id, page_associee.pk, chemin_fichier_audio,
@@ -636,13 +639,14 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
             job_id, page_associee.pk, len(segments_transcrits), duree_traitement,
         )
 
-        # Notifier le navigateur que la transcription est terminee
-        # / Notify the browser that transcription is complete
-        envoyer_progression_websocket(nom_groupe_transcription, "terminee", {
-            "status": "completed",
-            "message": f"Transcription terminée — {len(segments_transcrits)} segments",
-            "resultat": {"page_id": page_associee.pk, "segments": len(segments_transcrits)},
-        })
+        # Notifier le navigateur que la tache est terminee (succes)
+        # / Notify the browser that the task is complete (success)
+        notifier_tache_terminee(
+            user_pk=page_associee.owner.pk if page_associee.owner else None,
+            tache_id=job_transcription.pk,
+            tache_type="transcription",
+            status="completed",
+        )
 
     except Exception as erreur_transcription:
         # En cas d'erreur, marquer le job et la page en erreur
@@ -659,20 +663,21 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
         page_associee.error_message = message_erreur[:1000]
         page_associee.save(update_fields=["status", "error_message"])
 
-        # Notifier le navigateur de l'erreur
-        # / Notify the browser of the error
-        envoyer_progression_websocket(nom_groupe_transcription, "terminee", {
-            "status": "error",
-            "message": f"Erreur de transcription : {message_erreur[:200]}",
-            "resultat": {},
-        })
-
         job_transcription.status = TranscriptionJobStatus.ERROR
         job_transcription.error_message = message_erreur
         job_transcription.processing_time_seconds = round(duree_traitement, 2)
         job_transcription.save(update_fields=[
             "status", "error_message", "processing_time_seconds",
         ])
+
+        # Notifier le navigateur que la tache est terminee (erreur)
+        # / Notify the browser that the task is complete (error)
+        notifier_tache_terminee(
+            user_pk=page_associee.owner.pk if page_associee.owner else None,
+            tache_id=job_transcription.pk,
+            tache_type="transcription",
+            status="failed",
+        )
 
     finally:
         # Supprimer le fichier audio temporaire (qu'il y ait eu erreur ou non)
@@ -778,14 +783,6 @@ def reformuler_entite_task(self, entity_id, analyseur_id):
             "reformuler_entite_task: termine entity=%s en %.1fs — %d chars",
             entity_id, duree, len(texte_reformule),
         )
-
-        # Notifier le navigateur que la reformulation est terminee
-        # / Notify the browser that reformulation is complete
-        envoyer_progression_websocket(f"tache_{self.request.id}", "terminee", {
-            "status": "completed",
-            "message": "Reformulation terminée",
-            "resultat": {"entity_id": entity_id},
-        })
 
     except Exception as erreur_reformulation:
         # Erreur : remettre l'entite en etat stable + stocker le message d'erreur
@@ -903,14 +900,6 @@ def restituer_debat_task(self, entity_id, analyseur_id):
             "restituer_debat_task: termine entity=%s en %.1fs — %d chars",
             entity_id, duree, len(texte_restitution),
         )
-
-        # Notifier le navigateur que la restitution est terminee
-        # / Notify the browser that restitution is complete
-        envoyer_progression_websocket(f"tache_{self.request.id}", "terminee", {
-            "status": "completed",
-            "message": "Restitution du débat terminée",
-            "resultat": {"entity_id": entity_id},
-        })
 
     except Exception as erreur_restitution:
         # Erreur : remettre l'entite en etat stable + stocker le message d'erreur
@@ -1185,34 +1174,17 @@ def synthetiser_page_task(self, job_id):
             job_id, page_synthese.pk, duree, len(texte_synthese),
         )
 
-        # Notifier le navigateur via WebSocket (ProgressionTacheConsumer)
-        # / Notify browser via WebSocket (ProgressionTacheConsumer)
-        envoyer_progression_websocket(f"tache_{self.request.id}", "terminee", {
-            "status": "completed",
-            "message": "Synthèse délibérative terminée",
-            "resultat": {"page_synthese_id": page_synthese.pk},
-        })
-
-        # Notification cross-page via le NotificationConsumer du proprietaire :
-        # un toast avec lien vers la V2 est affiche meme si l'utilisateur a
-        # navigue ailleurs entre temps. Le polling du drawer reste actif tant
-        # que la page source reste ouverte (rafraichissement direct).
-        # / Cross-page notification via the owner's NotificationConsumer:
-        # / a toast with link to V2 shown even if the user navigated away.
-        # / The drawer polling remains active while the source page stays open.
+        # Notifier le navigateur que la tache est terminee (succes)
+        # / Notify the browser that the task is complete (success)
         proprietaire_synthese = page_source.owner or (
             page_source.dossier.owner if page_source.dossier else None
         )
-        if proprietaire_synthese:
-            envoyer_progression_websocket(
-                f"notifications_user_{proprietaire_synthese.pk}",
-                "synthese_terminee",
-                {
-                    "page_synthese_id": page_synthese.pk,
-                    "version_number": prochain_numero,
-                    "titre_page": page_racine.title or "",
-                },
-            )
+        notifier_tache_terminee(
+            user_pk=proprietaire_synthese.pk if proprietaire_synthese else None,
+            tache_id=job_synthese.pk,
+            tache_type="synthese",
+            status="completed",
+        )
 
     except Exception as erreur_synthese:
         # Erreur : marquer le job en erreur / Error: mark job as error
@@ -1224,6 +1196,25 @@ def synthetiser_page_task(self, job_id):
         job_synthese.status = "error"
         job_synthese.error_message = message_erreur
         job_synthese.save(update_fields=["status", "error_message"])
+
+        # Notifier le navigateur que la tache est terminee (erreur).
+        # On recupere le proprietaire via job_synthese.page (peut etre None
+        # si l'erreur est arrivee tres tot avant que page_source soit defini).
+        # / Notify the browser that the task is complete (error).
+        # / We get the owner via job_synthese.page (may be None if error
+        # / happened very early before page_source was defined).
+        page_pour_notif = job_synthese.page
+        proprietaire_pour_notif = None
+        if page_pour_notif is not None:
+            proprietaire_pour_notif = page_pour_notif.owner or (
+                page_pour_notif.dossier.owner if page_pour_notif.dossier else None
+            )
+        notifier_tache_terminee(
+            user_pk=proprietaire_pour_notif.pk if proprietaire_pour_notif else None,
+            tache_id=job_synthese.pk,
+            tache_type="synthese",
+            status="failed",
+        )
 
 
 class ModeleAvecCompteurTokens:
@@ -1299,15 +1290,6 @@ def analyser_page_task(self, job_id):
     job_extraction.status = ExtractionJobStatus.PROCESSING
     job_extraction.error_message = None
     job_extraction.save(update_fields=["status", "error_message"])
-
-    # Notifier le navigateur que l'analyse a demarre
-    # / Notify the browser that analysis has started
-    nom_groupe_analyse = f"tache_{self.request.id}"
-    envoyer_progression_websocket(nom_groupe_analyse, "progression", {
-        "pourcentage": 5,
-        "message": "Analyse IA démarrée",
-        "status": "en_cours",
-    })
 
     logger.info(
         "analyser_page_task: demarrage job=%s page=%s model=%s",
@@ -1471,22 +1453,19 @@ def analyser_page_task(self, job_id):
         def callback_extraction_chunk(extractions_du_chunk, caracteres_traites, warnings_chunk=None):
             """
             Appele apres chaque cycle resolve()+align() d'un chunk LangExtract.
-            Cree les entites en DB, signale le front pour rafraichir, met a jour la progression.
+            Cree les entites en DB et met a jour le compteur sur le job.
             / Called after each resolve()+align() cycle for a LangExtract chunk.
-            / Creates entities in DB, signals front to refresh, updates progress.
+            / Creates entities in DB and updates the job counter.
 
             LOCALISATION : front/tasks.py (closure dans analyser_page_task)
 
             FLUX :
             1. Recoit les extractions alignees depuis AnnotateurAvecProgression
             2. Cree un ExtractedEntity en DB pour chaque extraction
-            3. Envoie rafraichir_drawer WS → le JS recharge le drawer depuis la DB
-            4. Envoie analyse_progression WS → la barre de progression se met a jour
-            5. Sauvegarde entities_count → rafraichit updated_at pour le timeout
+            3. Sauvegarde entities_count pour le suivi en DB
 
             COMMUNICATION :
             Recoit : appel direct depuis AnnotateurAvecProgression._annotate_documents_single_pass
-            Emet : rafraichir_drawer + analyse_progression via envoyer_progression_websocket
             """
             nonlocal nombre_entites_creees, numero_chunk_courant
             numero_chunk_courant += 1
@@ -1527,52 +1506,8 @@ def analyser_page_task(self, job_id):
                     position_debut, position_fin,
                 )
 
-            # Signaler au front qu'il y a de nouvelles entites en DB (une fois par chunk).
-            # Le consumer envoie un hx-get auto-load vers analyse_status?cartes_only=1
-            # qui met a jour uniquement les cartes (#drawer-cartes-liste) sans ecraser
-            # le bandeau de progression (#barre-progression-analyse).
-            # / Notify the front that new entities are in DB (once per chunk).
-            # / Consumer sends auto-load hx-get to analyse_status?cartes_only=1
-            # / which updates only the cards (#drawer-cartes-liste) without overwriting
-            # / the progress banner (#barre-progression-analyse).
-            if identifiant_utilisateur:
-                envoyer_progression_websocket(
-                    f"notifications_user_{identifiant_utilisateur}",
-                    "rafraichir_drawer",
-                    {"page_id": job_extraction.page_id},
-                )
-
-            # Mettre a jour la progression dans le panneau E.
-            # Le pourcentage est base sur les caracteres traites par rapport au total.
-            # / Update progress in the E panel.
-            # / Percentage is based on chars processed vs total.
-            pourcentage = 5 + int(
-                90 * caracteres_traites / longueur_texte_total
-            ) if longueur_texte_total > 0 else 50
-
-            if identifiant_utilisateur:
-                # Construire le message de progression, avec warnings si presents
-                # / Build progress message, with warnings if any
-                message_progression = f"{nombre_entites_creees} entités trouvées"
-                if warnings_chunk:
-                    message_progression += " — " + " | ".join(warnings_chunk)
-
-                envoyer_progression_websocket(
-                    f"notifications_user_{identifiant_utilisateur}",
-                    "analyse_progression",
-                    {
-                        "pourcentage": pourcentage,
-                        "message": message_progression,
-                        "chunk_courant": numero_chunk_courant,
-                        "chunks_total": nombre_chunks_estime,
-                    },
-                )
-
-            # Rafraichir updated_at pour le detecteur de timeout dans analyse_status.
-            # Le polling verifie updated_at toutes les 3s. Si pas de save() depuis 10min,
-            # il considere le job comme bloque.
-            # / Refresh updated_at for the timeout detector in analyse_status.
-            # / Polling checks updated_at every 3s. If no save() for 10min, job is stalled.
+            # Sauvegarder le compteur d'entites pour le suivi en DB.
+            # / Save entity counter for DB tracking.
             job_extraction.entities_count = nombre_entites_creees
             job_extraction.save(update_fields=["entities_count"])
 
@@ -1671,28 +1606,14 @@ def analyser_page_task(self, job_id):
             job_id, nombre_entites_creees, duree_traitement,
         )
 
-        # Notifier le navigateur que l'analyse est terminee
-        # / Notify the browser that analysis is complete
-        envoyer_progression_websocket(nom_groupe_analyse, "terminee", {
-            "status": "completed",
-            "message": f"Analyse terminée — {nombre_entites_creees} entités extraites",
-            "resultat": {"job_id": job_id, "entites": nombre_entites_creees},
-        })
-
-        # Envoyer aussi via le NotificationConsumer pour que le drawer se mette a jour.
-        # Le consumer renvoie un OOB qui declenche le chargement du drawer final.
-        # / Also send via NotificationConsumer so the drawer updates.
-        # / The consumer returns an OOB that triggers loading the final drawer.
-        if identifiant_utilisateur:
-            envoyer_progression_websocket(
-                f"notifications_user_{identifiant_utilisateur}",
-                "analyse_terminee",
-                {
-                    "page_id": page_associee.pk,
-                    "job_id": job_id,
-                    "nombre_entites": nombre_entites_creees,
-                },
-            )
+        # Notifier le navigateur que la tache est terminee (succes)
+        # / Notify the browser that the task is complete (success)
+        notifier_tache_terminee(
+            user_pk=page_associee.owner.pk if page_associee.owner else None,
+            tache_id=job_extraction.pk,
+            tache_type="analyse",
+            status="completed",
+        )
 
     except Exception as erreur_extraction:
         duree_traitement = time.time() - debut_traitement
@@ -1710,23 +1631,11 @@ def analyser_page_task(self, job_id):
             "status", "error_message", "processing_time_seconds",
         ])
 
-        # Notifier le navigateur de l'erreur d'analyse
-        # / Notify the browser of the analysis error
-        envoyer_progression_websocket(nom_groupe_analyse, "terminee", {
-            "status": "error",
-            "message": f"Erreur d'analyse : {message_erreur[:200]}",
-            "resultat": {},
-        })
-
-        # Envoyer aussi via le NotificationConsumer pour mettre a jour le drawer
-        # / Also send via NotificationConsumer to update the drawer
-        if identifiant_utilisateur:
-            envoyer_progression_websocket(
-                f"notifications_user_{identifiant_utilisateur}",
-                "analyse_terminee",
-                {
-                    "page_id": page_associee.pk,
-                    "job_id": job_id,
-                    "erreur": True,
-                },
-            )
+        # Notifier le navigateur que la tache est terminee (erreur)
+        # / Notify the browser that the task is complete (error)
+        notifier_tache_terminee(
+            user_pk=page_associee.owner.pk if page_associee.owner else None,
+            tache_id=job_extraction.pk,
+            tache_type="analyse",
+            status="failed",
+        )

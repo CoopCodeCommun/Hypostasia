@@ -6,9 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hypostasia — Bibliothèque</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
-    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=30">
+    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=31">
     <script src="{% static 'front/vendor/htmx-2.0.4.min.js' %}"></script>
-    <script src="{% static 'front/vendor/htmx-ext-ws-2.0.4.js' %}"></script>
     <script src="{% static 'front/vendor/sweetalert2-11.min.js' %}"></script>
 </head>
 <body class="h-full bg-white text-slate-800"
@@ -126,6 +125,20 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
             </a>
+            {% endif %}
+            {# Bouton 'mes taches' (refonte A.6) #}
+            {# Etat neutre par defaut au load — le JS fetch /taches/bouton/ #}
+            {# au DOMContentLoaded pour avoir l'etat reel depuis la DB. #}
+            {# / 'My tasks' button (A.6 refactor) #}
+            {# / Default neutral state at load — JS fetches /taches/bouton/ #}
+            {# / on DOMContentLoaded to get the real state from DB. #}
+            {% if request.user.is_authenticated %}
+            <div class="taches-wrapper">
+                {% include "front/includes/taches_bouton.html" with nombre_en_cours=0 nombre_non_lues=0 etat="neutre" %}
+                <div id="taches-dropdown-wrapper" class="taches-dropdown-wrapper hidden">
+                    <div id="taches-dropdown-content"></div>
+                </div>
+            </div>
             {% endif %}
             <!-- Menu utilisateur (PHASE-25) -->
             <!-- / User menu (PHASE-25) -->
@@ -298,12 +311,9 @@
                         data-onglet="commentaires">Tous les commentaires</button>
             </nav>
             <div id="panneau-extractions">
-                {% if job_en_cours %}
-                    {# Job en cours : afficher le panneau de progression + entites deja trouvees #}
-                    {# / Running job: show progress panel + already found entities #}
-                    {% include "front/includes/panneau_analyse_en_cours.html" with page=page_preloaded job=job_en_cours entites_deja_creees=entites_deja_creees %}
-                {% elif page_preloaded and analyseurs_actifs %}
+                {% if page_preloaded and analyseurs_actifs %}
                     {# Cas F5 sur une page : on pre-charge le selecteur et le bouton #}
+                    {# / F5 case on a page: pre-load the selector and button #}
                     {% include "front/includes/panneau_analyse.html" with page=page_preloaded analyseurs_actifs=analyseurs_actifs %}
                 {% else %}
                     <p class="text-xs text-slate-400">Selectionnez une page puis lancez une analyse.</p>
@@ -315,7 +325,7 @@
     {% include "front/includes/selection_menu.html" %}
 
 
-    <script src="{% static 'front/js/hypostasia.js' %}?v=33"></script>
+    <script src="{% static 'front/js/hypostasia.js' %}?v=34"></script>
     <script src="{% static 'front/js/marginalia.js' %}?v=21"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
     <script src="{% static 'front/js/arbre_overlay.js' %}?v=23"></script>
@@ -323,7 +333,6 @@
     <script src="{% static 'front/js/dashboard_consensus.js' %}?v=18"></script>
     <script src="{% static 'front/js/transcription_rythme.js' %}?v=15"></script>
     <script src="{% static 'front/js/alignement.js' %}?v=19"></script>
-    <script src="{% static 'front/js/notifications_progression.js' %}?v=20"></script>
     <script src="{% static 'front/js/keyboard.js' %}?v=25"></script>
     <script src="{% static 'front/js/arbre_context_menu.js' %}?v=26"></script>
 
@@ -331,31 +340,6 @@
     <!-- / Close user menu dropdown on outside click (PHASE-25) -->
     <script src="{% static 'front/js/user_menu.js' %}?v=25"></script>
 
-    <!-- Hub WebSocket notifications temps reel (htmx-ext-ws) -->
-    <!-- Les toasts arrivent via OOB swap depuis le consumer NotificationConsumer -->
-    <!-- / Real-time notification WebSocket hub (htmx-ext-ws) -->
-    <!-- / Toasts arrive via OOB swap from the NotificationConsumer -->
-    {% if user.is_authenticated %}
-    <div id="ws-hub"
-         hx-ext="ws"
-         ws-connect="/ws/notifications/"
-         aria-hidden="true"
-         style="display:none">
-    </div>
-    <!-- Recepteur signal WS : le consumer envoie un OOB swap ici pour notifier -->
-    <!-- le JS de rafraichir le drawer depuis la DB (analyse en cours). -->
-    <!-- / WS signal receptor: consumer sends OOB swap here to notify -->
-    <!-- / JS to refresh the drawer from DB (analysis in progress). -->
-    <div id="signal-rafraichir-drawer" style="display:none" data-page-id="" aria-hidden="true"></div>
-    <div id="ws-toasts"
-         class="ws-toasts-container"
-         aria-live="polite"
-         role="status"
-         aria-label="Notifications temps réel">
-    </div>
-
-    <script src="{% static 'front/js/ws_toast_autohide.js' %}?v=1"></script>
-    {% endif %}
 
 </body>
 </html>

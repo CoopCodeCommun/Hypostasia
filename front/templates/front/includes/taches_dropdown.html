@@ -1,0 +1,81 @@
+{# Dropdown des 10 dernieres taches (refonte A.6) #}
+{# / Dropdown of 10 most recent tasks (A.6 refactor) #}
+{# LOCALISATION : front/templates/front/includes/taches_dropdown.html #}
+
+<div id="taches-dropdown-content" class="taches-dropdown-content" data-testid="taches-dropdown">
+    <div class="taches-dropdown-header">
+        <h3 class="text-sm font-semibold text-slate-700">Mes taches recentes</h3>
+    </div>
+    {% if taches %}
+    <ul class="taches-dropdown-liste">
+        {% for tache in taches %}
+        <li class="taches-dropdown-item taches-dropdown-item-{{ tache.status }}" data-testid="taches-item-{{ tache.pk }}">
+            {# Icone selon statut / Status icon #}
+            {% if tache.status == "completed" %}
+                <span class="taches-icone taches-icone-succes" aria-hidden="true">&check;</span>
+            {% elif tache.status == "failed" %}
+                <span class="taches-icone taches-icone-erreur" aria-hidden="true">&times;</span>
+            {% else %}
+                <span class="taches-icone taches-icone-en-cours spinner-taches-mini" aria-hidden="true"></span>
+            {% endif %}
+
+            <div class="taches-dropdown-corps">
+                <div class="taches-dropdown-nom">
+                    {% if tache.type_tache == "extraction" %}
+                        Analyse de &laquo; {{ tache.page.title|default:"Sans titre"|truncatechars:40 }} &raquo;
+                    {% else %}
+                        Transcription de &laquo; {{ tache.page.title|default:"Audio"|truncatechars:40 }} &raquo;
+                    {% endif %}
+                </div>
+                <div class="taches-dropdown-meta">
+                    {% if tache.status == "completed" %}
+                        <span class="taches-meta-duree">Terminee</span>
+                        <a href="/lire/{{ tache.page.pk }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
+                           hx-get="/lire/{{ tache.page.pk }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
+                           hx-target="#zone-lecture"
+                           hx-swap="innerHTML"
+                           hx-push-url="/lire/{{ tache.page.pk }}/"
+                           class="taches-meta-lien" data-testid="taches-voir-resultat">
+                            Voir le resultat
+                        </a>
+                    {% elif tache.status == "failed" %}
+                        <span class="taches-meta-erreur">Erreur</span>
+                        <a href="/lire/{{ tache.page.pk }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
+                           hx-get="/lire/{{ tache.page.pk }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
+                           hx-target="#zone-lecture"
+                           hx-swap="innerHTML"
+                           hx-push-url="/lire/{{ tache.page.pk }}/"
+                           class="taches-meta-lien" data-testid="taches-voir-details">
+                            Voir details
+                        </a>
+                    {% else %}
+                        <span class="taches-meta-en-cours">En cours&hellip;</span>
+                    {% endif %}
+                </div>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="taches-dropdown-vide">Aucune tache recente.</p>
+    {% endif %}
+</div>
+
+{# OOB swap : realignement du bouton avec l'etat actuel #}
+{# / OOB swap: realign button with current state #}
+<a id="btn-taches"
+   hx-swap-oob="outerHTML"
+   class="btn-toolbar btn-taches btn-taches-{{ etat }}"
+   title="Mes taches"
+   data-testid="btn-taches"
+   aria-label="Mes taches en cours et terminees">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+    </svg>
+    {% if nombre_en_cours > 0 %}
+    <span class="spinner-taches" aria-hidden="true"></span>
+    <span class="badge-taches">{{ nombre_en_cours }}</span>
+    {% elif nombre_non_lues > 0 %}
+    <span class="badge-taches badge-taches-{{ etat }}">{{ nombre_non_lues }}</span>
+    {% endif %}
+</a>

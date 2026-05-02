@@ -1,0 +1,20 @@
+{# Bouton 'taches en cours' dans la toolbar (refonte A.6) #}
+{# 4 etats CSS : neutre / en_cours / succes / erreur #}
+{# / 'Tasks in progress' button in toolbar (A.6 refactor) #}
+{# LOCALISATION : front/templates/front/includes/taches_bouton.html #}
+
+<a id="btn-taches"
+   class="btn-toolbar btn-taches btn-taches-{{ etat }}"
+   title="Mes taches"
+   data-testid="btn-taches"
+   aria-label="Mes taches en cours et terminees">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+    </svg>
+    {% if nombre_en_cours > 0 %}
+    <span class="spinner-taches" aria-hidden="true"></span>
+    <span class="badge-taches" data-testid="badge-taches-en-cours">{{ nombre_en_cours }}</span>
+    {% elif nombre_non_lues > 0 %}
+    <span class="badge-taches badge-taches-{{ etat }}" data-testid="badge-taches-non-lues">{{ nombre_non_lues }}</span>
+    {% endif %}
+</a>

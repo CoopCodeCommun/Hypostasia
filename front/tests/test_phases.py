@@ -4607,384 +4607,6 @@ class Phase20ModelUpdatedAtTest(TestCase):
         self.assertGreater(entite.updated_at, premier_updated_at)
 
 
-class Phase20HelperCalculerMouvementsTest(TestCase):
-    """Verifie le helper _calculer_mouvements_depuis().
-    / Verify the _calculer_mouvements_depuis() helper."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from django.utils import timezone
-        from core.models import Page
-        from hypostasis_extractor.models import (
-            ExtractionJob, ExtractedEntity, CommentaireExtraction,
-        )
-
-        self.user_test = User.objects.create_user(username="test_user_mouvements", password="test1234")
-
-        self.page_test = Page.objects.create(
-            title="Page mouvements test",
-            html_original="<html><body>Test mouvements</body></html>",
-            html_readability="<p>Test mouvements</p>",
-            text_readability="Test mouvements",
-        )
-        self.job_test = ExtractionJob.objects.create(
-            page=self.page_test, name="Job test", status="completed",
-        )
-        # Timestamp de reference : "derniere visite" = hier
-        # / Reference timestamp: "last visit" = yesterday
-        self.timestamp_hier = timezone.now() - timezone.timedelta(days=1)
-
-        # Entite cree avant la derniere visite (pas un mouvement)
-        # / Entity created before last visit (not a movement)
-        self.entite_ancienne = ExtractedEntity.objects.create(
-            job=self.job_test,
-            extraction_class="argument",
-            extraction_text="Ancienne",
-            start_char=0, end_char=8,
-            statut_debat="nouveau",
-        )
-
-    def test_aucun_mouvement_retourne_none(self):
-        """Pas de commentaire ni changement de statut → retourne None."""
-        from front.views import _calculer_mouvements_depuis
-        from django.utils import timezone
-
-        # Timestamp dans le futur → aucun mouvement possible
-        # / Timestamp in the future → no movement possible
-        timestamp_futur = timezone.now() + timezone.timedelta(hours=1)
-        resultat = _calculer_mouvements_depuis(self.page_test, timestamp_futur)
-        self.assertIsNone(resultat)
-
-    def test_nouveau_commentaire_detecte(self):
-        """Un commentaire cree apres la derniere visite est detecte."""
-        from front.views import _calculer_mouvements_depuis
-        from hypostasis_extractor.models import CommentaireExtraction
-
-        CommentaireExtraction.objects.create(
-            entity=self.entite_ancienne, user=self.user_test, commentaire="Nouveau",
-        )
-        resultat = _calculer_mouvements_depuis(self.page_test, self.timestamp_hier)
-        self.assertIsNotNone(resultat)
-        self.assertEqual(resultat["nombre_nouveaux_commentaires"], 1)
-
-    def test_changement_statut_detecte(self):
-        """Un changement de statut apres la derniere visite est detecte."""
-        from front.views import _calculer_mouvements_depuis
-
-        # Modifier le statut → updated_at se met a jour automatiquement
-        # / Change status → updated_at updates automatically
-        self.entite_ancienne.statut_debat = "consensuel"
-        self.entite_ancienne.save()
-
-        resultat = _calculer_mouvements_depuis(self.page_test, self.timestamp_hier)
-        self.assertIsNotNone(resultat)
-        self.assertIn("consensuel", resultat["changements_statut"])
-
-    def test_orphelines_comptees(self):
-        """Les entites sans commentaire sont comptees comme orphelines."""
-        from front.views import _calculer_mouvements_depuis
-        from hypostasis_extractor.models import CommentaireExtraction
-
-        # Ajouter un commentaire pour declencher un mouvement
-        # / Add a comment to trigger a movement
-        CommentaireExtraction.objects.create(
-            entity=self.entite_ancienne, user=self.user_test, commentaire="Test",
-        )
-        resultat = _calculer_mouvements_depuis(self.page_test, self.timestamp_hier)
-        self.assertIsNotNone(resultat)
-        # L'entite_ancienne a un commentaire, mais elle est la seule → 0 orphelines
-        # / entite_ancienne has a comment, but it's the only one → 0 orphans
-        self.assertEqual(resultat["nombre_orphelines"], 0)
-
-    def test_seuil_consensus_atteint(self):
-        """Le seuil est atteint quand >= 80% des entites sont consensuelles."""
-        from front.views import _calculer_mouvements_depuis
-        from hypostasis_extractor.models import CommentaireExtraction
-
-        # Passer l'unique entite en consensuel
-        # / Set the only entity to consensual
-        self.entite_ancienne.statut_debat = "consensuel"
-        self.entite_ancienne.save()
-
-        resultat = _calculer_mouvements_depuis(self.page_test, self.timestamp_hier)
-        self.assertIsNotNone(resultat)
-        self.assertTrue(resultat["seuil_atteint"])
-        self.assertEqual(resultat["pourcentage_consensus"], 100)
-
-    def test_seuil_consensus_non_atteint(self):
-        """Le seuil n'est pas atteint quand < 80% consensuelles."""
-        from front.views import _calculer_mouvements_depuis
-        from hypostasis_extractor.models import ExtractedEntity, CommentaireExtraction
-
-        # Creer 4 entites supplementaires discutables
-        # / Create 4 additional debatable entities
-        for i in range(4):
-            ExtractedEntity.objects.create(
-                job=self.job_test,
-                extraction_class="argument",
-                extraction_text=f"Entite {i}",
-                start_char=10 + i * 10, end_char=18 + i * 10,
-                statut_debat="nouveau",
-            )
-        # 1 entite ancienne (nouveau) + 4 nouvelles (nouveau) = 5 total, 0 consensuel
-        # On ajoute un commentaire pour declencher un mouvement
-        # / 1 old entity (nouveau) + 4 new (nouveau) = 5 total, 0 consensual
-        # / Add a comment to trigger a movement
-        CommentaireExtraction.objects.create(
-            entity=self.entite_ancienne, user=self.user_test, commentaire="Test",
-        )
-        resultat = _calculer_mouvements_depuis(self.page_test, self.timestamp_hier)
-        self.assertIsNotNone(resultat)
-        self.assertFalse(resultat["seuil_atteint"])
-        self.assertEqual(resultat["pourcentage_consensus"], 0)
-
-
-class Phase20EndpointNotificationsTest(TestCase):
-    """Verifie l'endpoint GET /lire/{id}/notifications/.
-    / Verify the GET /lire/{id}/notifications/ endpoint."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        from urllib.parse import quote
-        from django.utils import timezone
-        from core.models import Page
-        from hypostasis_extractor.models import (
-            ExtractionJob, ExtractedEntity, CommentaireExtraction,
-        )
-
-        self.user_test = User.objects.create_user(username="test_user_notif", password="test1234")
-
-        self.page_test = Page.objects.create(
-            title="Page notif test",
-            html_original="<html><body>Test notif</body></html>",
-            html_readability="<p>Test notif</p>",
-            text_readability="Test notif",
-        )
-        self.job_test = ExtractionJob.objects.create(
-            page=self.page_test, name="Job test", status="completed",
-        )
-        self.entite_test = ExtractedEntity.objects.create(
-            job=self.job_test,
-            extraction_class="argument",
-            extraction_text="Test notif",
-            start_char=0, end_char=4,
-            statut_debat="discute",
-        )
-        # Commentaire recent pour generer un mouvement
-        # / Recent comment to generate a movement
-        CommentaireExtraction.objects.create(
-            entity=self.entite_test, user=self.user_test, commentaire="Discussion",
-        )
-        # Timestamp d'hier en ISO, encode pour URL (le + de +00:00 devient %2B)
-        # / Yesterday's timestamp in ISO, URL-encoded (+ in +00:00 becomes %2B)
-        hier = timezone.now() - timezone.timedelta(days=1)
-        self.timestamp_hier_iso = quote(hier.isoformat(), safe="")
-
-    def test_notifications_retourne_200(self):
-        """GET /lire/{id}/notifications/?derniere_visite=ISO retourne 200."""
-        url = f"/lire/{self.page_test.pk}/notifications/?derniere_visite={self.timestamp_hier_iso}"
-        reponse = self.client.get(url)
-        self.assertEqual(reponse.status_code, 200)
-
-    def test_notifications_sans_param_retourne_div_vide(self):
-        """GET /lire/{id}/notifications/ sans param retourne un div vide."""
-        url = f"/lire/{self.page_test.pk}/notifications/"
-        reponse = self.client.get(url)
-        self.assertEqual(reponse.status_code, 200)
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('id="bandeau-notifications"', contenu)
-        self.assertNotIn("bandeau-notification-titre", contenu)
-
-    def test_notifications_timestamp_invalide_retourne_div_vide(self):
-        """GET /lire/{id}/notifications/?derniere_visite=INVALIDE retourne un div vide."""
-        url = f"/lire/{self.page_test.pk}/notifications/?derniere_visite=pas-un-timestamp"
-        reponse = self.client.get(url)
-        self.assertEqual(reponse.status_code, 200)
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('id="bandeau-notifications"', contenu)
-        self.assertNotIn("bandeau-notification-titre", contenu)
-
-    def test_notifications_avec_mouvement_retourne_bandeau(self):
-        """GET avec timestamp passe retourne le bandeau avec contenu."""
-        url = f"/lire/{self.page_test.pk}/notifications/?derniere_visite={self.timestamp_hier_iso}"
-        reponse = self.client.get(url)
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn("bandeau-notification", contenu)
-        self.assertIn("Depuis votre derniere visite", contenu)
-        self.assertIn("commentaire", contenu)
-
-    def test_notifications_sans_mouvement_retourne_div_vide(self):
-        """GET avec timestamp futur (aucun mouvement) retourne un div vide."""
-        from urllib.parse import quote
-        from django.utils import timezone
-        timestamp_futur = quote((timezone.now() + timezone.timedelta(hours=1)).isoformat(), safe="")
-        url = f"/lire/{self.page_test.pk}/notifications/?derniere_visite={timestamp_futur}"
-        reponse = self.client.get(url)
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('id="bandeau-notifications"', contenu)
-        self.assertNotIn("Depuis votre derniere visite", contenu)
-
-    def test_notifications_page_inexistante_retourne_404(self):
-        """GET /lire/99999/notifications/ retourne 404."""
-        url = "/lire/99999/notifications/?derniere_visite=2026-01-01T00:00:00Z"
-        reponse = self.client.get(url)
-        self.assertEqual(reponse.status_code, 404)
-
-    def test_notifications_seuil_consensus_affiche(self):
-        """Le sous-bandeau seuil est affiche quand >= 80% consensuel."""
-        # Passer l'entite en consensuel
-        # / Set entity to consensual
-        self.entite_test.statut_debat = "consensuel"
-        self.entite_test.save()
-
-        url = f"/lire/{self.page_test.pk}/notifications/?derniere_visite={self.timestamp_hier_iso}"
-        reponse = self.client.get(url)
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn("bandeau-seuil", contenu)
-        self.assertIn("Consensus atteint", contenu)
-
-    def test_notifications_seuil_consensus_absent_si_pas_atteint(self):
-        """Le sous-bandeau seuil est absent quand < 80% consensuel."""
-        url = f"/lire/{self.page_test.pk}/notifications/?derniere_visite={self.timestamp_hier_iso}"
-        reponse = self.client.get(url)
-        contenu = reponse.content.decode("utf-8")
-        self.assertNotIn("bandeau-seuil", contenu)
-
-
-class Phase20TemplatesBandeauTest(TestCase):
-    """Verifie les templates PHASE-20 (bandeau_notification + lecture_principale).
-    / Verify PHASE-20 templates (bandeau_notification + lecture_principale)."""
-
-    def test_template_bandeau_existe(self):
-        """Le template bandeau_notification.html existe et est chargeable."""
-        template = get_template("front/includes/bandeau_notification.html")
-        self.assertIsNotNone(template)
-
-    def test_lecture_principale_contient_div_bandeau(self):
-        """lecture_principale.html contient le div #bandeau-notifications."""
-        chemin_template = (
-            BASE_DIR / "front" / "templates" / "front" / "includes" / "lecture_principale.html"
-        )
-        contenu = chemin_template.read_text(encoding="utf-8")
-        self.assertIn('id="bandeau-notifications"', contenu)
-        self.assertIn('data-testid="bandeau-notifications"', contenu)
-
-
-class Phase20BaseHTMLTest(TestCase):
-    """Verifie que base.html inclut le JS notifications_progression.
-    / Verify that base.html includes notifications_progression JS."""
-
-    def setUp(self):
-        self.contenu_base_html = TEMPLATE_BASE.read_text(encoding="utf-8")
-
-    def test_script_notifications_progression_inclus(self):
-        """base.html reference notifications_progression.js."""
-        self.assertIn("notifications_progression.js", self.contenu_base_html)
-
-    def test_script_notifications_avant_keyboard(self):
-        """notifications_progression.js est charge avant keyboard.js."""
-        position_notifications = self.contenu_base_html.index("notifications_progression.js")
-        position_keyboard = self.contenu_base_html.index("keyboard.js")
-        self.assertLess(position_notifications, position_keyboard)
-
-
-class Phase20JSContenuTest(TestCase):
-    """Verifie le contenu de notifications_progression.js.
-    / Verify notifications_progression.js content."""
-
-    def setUp(self):
-        chemin_js = STATIC_FRONT / "js" / "notifications_progression.js"
-        self.contenu_js = chemin_js.read_text(encoding="utf-8")
-
-    def test_fichier_js_existe(self):
-        """notifications_progression.js existe."""
-        chemin_js = STATIC_FRONT / "js" / "notifications_progression.js"
-        self.assertTrue(chemin_js.exists())
-
-    def test_iife_use_strict(self):
-        """Le JS utilise une IIFE avec 'use strict'."""
-        self.assertIn("(function()", self.contenu_js)
-        self.assertIn("'use strict'", self.contenu_js)
-
-    def test_expose_api_publique(self):
-        """Le JS expose window.notificationsProgression."""
-        self.assertIn("window.notificationsProgression", self.contenu_js)
-
-    def test_expose_marquer_vu(self):
-        """L'API publique contient marquerVu."""
-        self.assertIn("marquerVu", self.contenu_js)
-
-    def test_utilise_localstorage(self):
-        """Le JS utilise localStorage pour stocker le timestamp."""
-        self.assertIn("localStorage", self.contenu_js)
-        self.assertIn("hypostasia-derniere-visite-", self.contenu_js)
-
-    def test_selecteur_cible_zone_lecture(self):
-        """Le JS utilise data-testid lecture-zone-principale (pas [data-page-id] generique)."""
-        self.assertIn('lecture-zone-principale', self.contenu_js)
-
-    def test_utilise_htmx_ajax(self):
-        """Le JS utilise htmx.ajax pour charger le bandeau."""
-        self.assertIn("htmx.ajax", self.contenu_js)
-
-    def test_ecoute_htmx_after_swap(self):
-        """Le JS ecoute htmx:afterSwap pour recharger apres navigation."""
-        self.assertIn("htmx:afterSwap", self.contenu_js)
-
-
-class Phase20KeyboardJSTest(TestCase):
-    """Verifie que keyboard.js gere Escape pour le bandeau notification.
-    / Verify that keyboard.js handles Escape for notification banner."""
-
-    def setUp(self):
-        chemin_js = STATIC_FRONT / "js" / "keyboard.js"
-        self.contenu_js = chemin_js.read_text(encoding="utf-8")
-
-    def test_escape_gere_bandeau_notification(self):
-        """keyboard.js contient la logique Escape pour le bandeau."""
-        self.assertIn("bandeau-notifications", self.contenu_js)
-        self.assertIn("bandeau-notification", self.contenu_js)
-
-    def test_escape_appelle_marquer_vu(self):
-        """keyboard.js appelle notificationsProgression.marquerVu() sur Escape."""
-        self.assertIn("notificationsProgression.marquerVu", self.contenu_js)
-
-
-class Phase20CSSStylesTest(TestCase):
-    """Verifie les styles CSS PHASE-20 dans hypostasia.css.
-    / Verify PHASE-20 CSS styles in hypostasia.css."""
-
-    def setUp(self):
-        chemin_css = STATIC_FRONT / "css" / "hypostasia.css"
-        self.contenu_css = chemin_css.read_text(encoding="utf-8")
-
-    def test_section_23_presente(self):
-        """La section 23 (PHASE-20) est presente dans le CSS."""
-        self.assertIn("23. Bandeau de notification (PHASE-20)", self.contenu_css)
-
-    def test_classe_bandeau_notification(self):
-        """La classe .bandeau-notification est definie."""
-        self.assertIn(".bandeau-notification {", self.contenu_css)
-        self.assertIn(".bandeau-notification-contenu", self.contenu_css)
-        self.assertIn(".bandeau-notification-titre", self.contenu_css)
-        self.assertIn(".bandeau-notification-liste", self.contenu_css)
-        self.assertIn(".bandeau-notification-fermer", self.contenu_css)
-
-    def test_sous_bandeau_seuil(self):
-        """La classe .bandeau-notification-seuil est definie."""
-        self.assertIn(".bandeau-notification-seuil", self.contenu_css)
-
-    def test_animation_bandeau_entree(self):
-        """L'animation bandeau-entree est definie."""
-        self.assertIn("@keyframes bandeau-entree", self.contenu_css)
-
-    def test_couleurs_indigo(self):
-        """Les couleurs indigo sont utilisees pour le bandeau."""
-        self.assertIn("#eef2ff", self.contenu_css)   # indigo-50
-        self.assertIn("#6366f1", self.contenu_css)   # indigo-500
-        self.assertIn("#4338ca", self.contenu_css)   # indigo-700
-
-
 # =============================================================================
 # PHASE-21 — Mobile : bottom sheet + responsive
 # / PHASE-21 — Mobile: bottom sheet + responsive
@@ -8161,5 +7783,177 @@ class Phase26cSyncMasqueeTest(TestCase):
         entite.save()
         entite.refresh_from_db()
         self.assertFalse(entite.masquee)
+
+
+# =============================================================================
+# PHASE-26i — Refonte WebSocket : bouton 'taches' + NotificationConsumer
+# / PHASE-26i — WebSocket refactor: 'tasks' button + NotificationConsumer
+# =============================================================================
+
+
+class Phase26iTachesViewSetTest(TestCase):
+    """Tests du ViewSet TachesViewSet (bouton, dropdown, marquer_lue).
+    / Tests for TachesViewSet (button, dropdown, mark_read)."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        from core.models import Dossier, Page
+        self.user = User.objects.create_user(username="taches_owner", password="test1234")
+        self.dossier = Dossier.objects.create(name="D taches", owner=self.user)
+        self.page = Page.objects.create(
+            title="Page taches", dossier=self.dossier, owner=self.user,
+            text_readability="Texte test.", html_original="<p>t</p>",
+            html_readability="<p>t</p>",
+        )
+        self.client.login(username="taches_owner", password="test1234")
+
+    def test_bouton_neutre_si_aucune_tache(self):
+        """Bouton renvoie etat neutre si aucune tache.
+        / Button returns neutral state if no task."""
+        reponse = self.client.get("/taches/bouton/")
+        self.assertEqual(reponse.status_code, 200)
+        self.assertContains(reponse, "btn-taches-neutre")
+
+    def test_bouton_en_cours_si_extraction_pending(self):
+        """Bouton renvoie etat en_cours si une extraction est pending.
+        / Button returns en_cours state if an extraction is pending."""
+        from hypostasis_extractor.models import ExtractionJob
+        from core.models import AIModel
+        modele = AIModel.objects.create(name="Mock", model_choice="mock_default", is_active=True)
+        ExtractionJob.objects.create(
+            page=self.page, ai_model=modele, name="Test",
+            prompt_description="t", status="pending",
+        )
+        reponse = self.client.get("/taches/bouton/")
+        self.assertContains(reponse, "btn-taches-en_cours")
+
+    def test_bouton_succes_si_notification_non_lue(self):
+        """Bouton renvoie etat succes si une tache completed est non lue.
+        / Button returns succes state if a completed task is unread."""
+        from hypostasis_extractor.models import ExtractionJob
+        from core.models import AIModel
+        modele = AIModel.objects.create(name="Mock2", model_choice="mock_default", is_active=True)
+        ExtractionJob.objects.create(
+            page=self.page, ai_model=modele, name="T2",
+            prompt_description="t", status="completed", notification_lue=False,
+        )
+        reponse = self.client.get("/taches/bouton/")
+        self.assertContains(reponse, "btn-taches-succes")
+
+    def test_bouton_erreur_si_failed_non_lu(self):
+        """Bouton renvoie etat erreur (prioritaire) si une tache failed non lue.
+        / Button returns erreur state (priority) if a failed task is unread."""
+        from hypostasis_extractor.models import ExtractionJob
+        from core.models import AIModel
+        modele = AIModel.objects.create(name="Mock3", model_choice="mock_default", is_active=True)
+        ExtractionJob.objects.create(
+            page=self.page, ai_model=modele, name="T3",
+            prompt_description="t", status="failed", notification_lue=False,
+        )
+        ExtractionJob.objects.create(
+            page=self.page, ai_model=modele, name="T4",
+            prompt_description="t", status="completed", notification_lue=False,
+        )
+        reponse = self.client.get("/taches/bouton/")
+        self.assertContains(reponse, "btn-taches-erreur")
+
+    def test_dropdown_filtre_par_owner(self):
+        """Dropdown ne renvoie que les taches du user connecte.
+        / Dropdown only returns tasks of the connected user."""
+        from django.contrib.auth.models import User
+        from core.models import Dossier, Page, AIModel
+        from hypostasis_extractor.models import ExtractionJob
+        autre = User.objects.create_user(username="autre", password="test1234")
+        autre_dossier = Dossier.objects.create(name="Autre", owner=autre)
+        autre_page = Page.objects.create(
+            title="Page autre", dossier=autre_dossier, owner=autre,
+            text_readability="t", html_original="<p>t</p>", html_readability="<p>t</p>",
+        )
+        modele = AIModel.objects.create(name="Mock4", model_choice="mock_default", is_active=True)
+        ExtractionJob.objects.create(
+            page=autre_page, ai_model=modele, name="Tache autre",
+            prompt_description="t", status="completed", notification_lue=False,
+        )
+        reponse = self.client.get("/taches/dropdown/")
+        self.assertNotContains(reponse, "Tache autre")
+        self.assertNotContains(reponse, "Page autre")
+
+    def test_marquer_lue_passe_le_flag_a_true(self):
+        """marquer_lue passe notification_lue a True.
+        / marquer_lue sets notification_lue to True."""
+        from hypostasis_extractor.models import ExtractionJob
+        from core.models import AIModel
+        modele = AIModel.objects.create(name="Mock5", model_choice="mock_default", is_active=True)
+        job = ExtractionJob.objects.create(
+            page=self.page, ai_model=modele, name="T5",
+            prompt_description="t", status="completed", notification_lue=False,
+        )
+        reponse = self.client.post(f"/taches/{job.pk}/marquer-lue/?type=extraction")
+        self.assertEqual(reponse.status_code, 204)
+        job.refresh_from_db()
+        self.assertTrue(job.notification_lue)
+
+    def test_marquer_lue_seulement_owner(self):
+        """marquer_lue refuse 404 si pas owner.
+        / marquer_lue returns 404 if not owner."""
+        from django.contrib.auth.models import User
+        from core.models import Dossier, Page, AIModel
+        from hypostasis_extractor.models import ExtractionJob
+        autre = User.objects.create_user(username="autre2", password="test1234")
+        autre_dossier = Dossier.objects.create(name="Autre2", owner=autre)
+        autre_page = Page.objects.create(
+            title="Page autre2", dossier=autre_dossier, owner=autre,
+            text_readability="t", html_original="<p>t</p>", html_readability="<p>t</p>",
+        )
+        modele = AIModel.objects.create(name="Mock6", model_choice="mock_default", is_active=True)
+        job_autre = ExtractionJob.objects.create(
+            page=autre_page, ai_model=modele, name="T6",
+            prompt_description="t", status="completed", notification_lue=False,
+        )
+        reponse = self.client.post(f"/taches/{job_autre.pk}/marquer-lue/?type=extraction")
+        self.assertEqual(reponse.status_code, 404)
+
+
+class Phase26iHelperNotifierTacheTermineeTest(TestCase):
+    """Tests du helper notifier_tache_terminee.
+    / Tests for notifier_tache_terminee helper."""
+
+    def test_helper_envoie_au_group_user_pk(self):
+        """Le helper appelle channel_layer.group_send avec le bon group.
+        / Helper calls channel_layer.group_send with the right group."""
+        from unittest.mock import patch, MagicMock
+        from front.tasks import notifier_tache_terminee
+        # Patch des deux imports faits dans le corps de la fonction
+        # / Patch both imports done inside the function body
+        with patch("channels.layers.get_channel_layer") as mock_channel_layer, \
+             patch("asgiref.sync.async_to_sync") as mock_async:
+            mock_layer = MagicMock()
+            mock_channel_layer.return_value = mock_layer
+            mock_send = MagicMock()
+            mock_async.return_value = mock_send
+
+            notifier_tache_terminee(
+                user_pk=42, tache_id=123, tache_type="analyse", status="completed",
+            )
+
+            mock_async.assert_called_once()
+            args_send = mock_send.call_args
+            self.assertEqual(args_send[0][0], "user_42")
+            message = args_send[0][1]
+            self.assertEqual(message["type"], "tache_terminee")
+            self.assertEqual(message["tache_id"], 123)
+            self.assertEqual(message["tache_type"], "analyse")
+            self.assertEqual(message["status"], "completed")
+
+    def test_helper_skip_si_channel_layer_absent(self):
+        """Le helper ne plante pas si channel_layer est None.
+        / Helper does not crash if channel_layer is None."""
+        from unittest.mock import patch
+        from front.tasks import notifier_tache_terminee
+        with patch("channels.layers.get_channel_layer", return_value=None):
+            # Ne doit pas lever / Should not raise
+            notifier_tache_terminee(
+                user_pk=42, tache_id=123, tache_type="analyse", status="completed",
+            )
 
 

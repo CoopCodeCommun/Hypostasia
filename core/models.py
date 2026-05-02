@@ -1032,6 +1032,11 @@ class TranscriptionJob(models.Model):
         blank=True,
         help_text="Duree de traitement en secondes",
     )
+    notification_lue = models.BooleanField(
+        default=False,
+        help_text="Notification de fin lue par le proprietaire / "
+                  "End-of-task notification read by the owner",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

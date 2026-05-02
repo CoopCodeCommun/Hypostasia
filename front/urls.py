@@ -5,7 +5,7 @@ from .views_alignement import AlignementViewSet
 from .views_auth import AuthViewSet
 from .views_groupes import GroupeViewSet
 from .views_invitation import InvitationViewSet
-from .views_ws import WsTestViewSet
+from .views_taches import TachesViewSet
 
 app_name = "front"
 
@@ -24,7 +24,7 @@ router.register(r"alignement", AlignementViewSet, basename="alignement")
 router.register(r"auth", AuthViewSet, basename="auth")
 router.register(r"groupes", GroupeViewSet, basename="groupe")
 router.register(r"invitation", InvitationViewSet, basename="invitation")
-router.register(r"ws-test", WsTestViewSet, basename="ws-test")
+router.register(r"taches", TachesViewSet, basename="tache")
 
 urlpatterns = [
     # La page racine reste un path explicite (pas de pk, pas de CRUD)

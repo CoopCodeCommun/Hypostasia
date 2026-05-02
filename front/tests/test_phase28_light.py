@@ -347,138 +347,6 @@ class SynthetiserActionTest(TestCase):
         self.assertEqual(reponse.status_code, 400)
         self.assertIn("showToast", reponse["HX-Trigger"])
 
-    @patch("front.tasks.synthetiser_page_task.delay")
-    def test_synthetiser_retourne_toast_et_spinner(self, mock_delay):
-        """L'action retourne le spinner de polling + un toast 'Synthese lancee'."""
-        reponse = self.client.post(
-            f"/lire/{self.fixtures['page_source'].pk}/synthetiser/",
-            HTTP_HX_REQUEST="true",
-        )
-        contenu = reponse.content.decode("utf-8")
-        # Verifie le spinner de polling / Check the polling spinner
-        self.assertIn("hx-get", contenu)
-        self.assertIn("synthese_status", contenu)
-        self.assertIn("every 3s", contenu)
-        # Verifie le toast (JSON encode les accents en \u00e8)
-        # / Check the toast (JSON encodes accents as \u00e8)
-        self.assertIn("Synth", reponse["HX-Trigger"])
-        self.assertIn("lanc", reponse["HX-Trigger"])
-
-
-# =============================================================================
-# Tests endpoint synthese_status()
-# / synthese_status() endpoint tests
-# =============================================================================
-
-
-class SyntheseStatusTest(TestCase):
-    """Tests pour l'endpoint de polling synthese_status().
-    / Tests for the synthese_status() polling endpoint."""
-
-    def setUp(self):
-        self.fixtures = creer_fixtures_synthese()
-        self.client.login(username="testeur_synthese", password="test1234")
-
-    def test_status_pending_retourne_spinner(self):
-        """Un job pending retourne le partial avec le spinner de polling."""
-        ExtractionJob.objects.create(
-            page=self.fixtures["page_source"],
-            ai_model=self.fixtures["modele_ia"],
-            name="Synthese",
-            prompt_description="test",
-            status="pending",
-            raw_result={"est_synthese": True},
-        )
-
-        reponse = self.client.get(
-            f"/lire/{self.fixtures['page_source'].pk}/synthese_status/",
-            HTTP_HX_REQUEST="true",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertEqual(reponse.status_code, 200)
-        self.assertIn("hx-get", contenu)
-        self.assertIn("every 3s", contenu)
-        # PHASE-29 : le template drawer ne passe plus par les HTML entities
-        # / PHASE-29: drawer template no longer uses HTML entities
-        self.assertIn("Synthèse en cours", contenu)
-
-    def test_status_completed_retourne_lien_vers_synthese(self):
-        """Un job completed retourne le bouton 'Voir la synthese'."""
-        # Creer la page synthese / Create the synthesis page
-        page_synthese = Page.objects.create(
-            parent_page=self.fixtures["page_source"],
-            title="Synthese V2",
-            text_readability="Texte synthetise.",
-            html_readability="<p>Texte synthetise.</p>",
-            html_original="<p>Texte synthetise.</p>",
-            content_hash="def456",
-            version_number=2,
-            version_label="Synthèse délibérative",
-            dossier=self.fixtures["dossier"],
-            source_type="web",
-            owner=self.fixtures["utilisateur"],
-        )
-
-        ExtractionJob.objects.create(
-            page=self.fixtures["page_source"],
-            ai_model=self.fixtures["modele_ia"],
-            name="Synthese",
-            prompt_description="test",
-            status="completed",
-            raw_result={
-                "est_synthese": True,
-                "page_synthese_id": page_synthese.pk,
-                "version_number": 2,
-            },
-        )
-
-        reponse = self.client.get(
-            f"/lire/{self.fixtures['page_source'].pk}/synthese_status/",
-            HTTP_HX_REQUEST="true",
-        )
-        self.assertEqual(reponse.status_code, 200)
-        # PHASE-29 simplifie : la reponse renvoie un HX-Location vers /lire/V2/
-        # (HTMX fait un GET natif et swap zone-lecture) + HX-Trigger fermerDrawer.
-        # Plus d'OOB complexe ni de polling actif.
-        # / Simplified: response returns HX-Location to /lire/V2/ + fermerDrawer.
-        location = reponse.headers.get("HX-Location", "")
-        self.assertIn(f"/lire/{page_synthese.pk}/", location)
-        self.assertIn("zone-lecture", location)
-        # HX-Trigger doit fermer le drawer / HX-Trigger must close the drawer
-        trigger = reponse.headers.get("HX-Trigger", "")
-        self.assertIn("fermerDrawer", trigger)
-
-    def test_status_error_retourne_message_et_retry(self):
-        """Un job error retourne le message d'erreur et un bouton retry."""
-        ExtractionJob.objects.create(
-            page=self.fixtures["page_source"],
-            ai_model=self.fixtures["modele_ia"],
-            name="Synthese",
-            prompt_description="test",
-            status="error",
-            error_message="Timeout LLM apres 30s",
-            raw_result={"est_synthese": True},
-        )
-
-        reponse = self.client.get(
-            f"/lire/{self.fixtures['page_source'].pk}/synthese_status/",
-            HTTP_HX_REQUEST="true",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertEqual(reponse.status_code, 200)
-        self.assertIn("Timeout LLM", contenu)
-        self.assertIn("btn-retry-synthese", contenu)
-
-    def test_status_sans_job_retourne_erreur(self):
-        """Sans aucun job de synthese, retourne un message d'erreur."""
-        reponse = self.client.get(
-            f"/lire/{self.fixtures['page_source'].pk}/synthese_status/",
-            HTTP_HX_REQUEST="true",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertEqual(reponse.status_code, 200)
-        self.assertIn("Aucun job", contenu)
-
 
 # =============================================================================
 # Tests tache Celery synthetiser_page_task()
@@ -494,8 +362,7 @@ class SynthetiserTaskTest(TestCase):
         self.fixtures = creer_fixtures_synthese()
 
     @patch("core.llm_providers.appeler_llm", return_value="Paragraphe 1.\n\nParagraphe 2.")
-    @patch("front.tasks.envoyer_progression_websocket")
-    def test_task_cree_page_enfant(self, mock_ws, mock_llm):
+    def test_task_cree_page_enfant(self, mock_llm):
         """La tache cree une Page enfant avec le texte synthetise."""
         job_synthese = ExtractionJob.objects.create(
             page=self.fixtures["page_source"],
@@ -523,8 +390,7 @@ class SynthetiserTaskTest(TestCase):
         self.assertIn("Paragraphe 2.", page_synthese.text_readability)
 
     @patch("core.llm_providers.appeler_llm", return_value="Synthese test.")
-    @patch("front.tasks.envoyer_progression_websocket")
-    def test_task_parent_page_est_racine(self, mock_ws, mock_llm):
+    def test_task_parent_page_est_racine(self, mock_llm):
         """La page enfant a pour parent_page la page racine."""
         job_synthese = ExtractionJob.objects.create(
             page=self.fixtures["page_source"],
@@ -546,8 +412,7 @@ class SynthetiserTaskTest(TestCase):
         self.assertEqual(page_synthese.parent_page, self.fixtures["page_source"].page_racine)
 
     @patch("core.llm_providers.appeler_llm", return_value="V2 synthese.")
-    @patch("front.tasks.envoyer_progression_websocket")
-    def test_task_version_number_incrementee(self, mock_ws, mock_llm):
+    def test_task_version_number_incrementee(self, mock_llm):
         """Le version_number est incremente correctement."""
         job_synthese = ExtractionJob.objects.create(
             page=self.fixtures["page_source"],
@@ -569,8 +434,7 @@ class SynthetiserTaskTest(TestCase):
         self.assertEqual(page_synthese.version_number, 2)
 
     @patch("core.llm_providers.appeler_llm", side_effect=Exception("LLM error"))
-    @patch("front.tasks.envoyer_progression_websocket")
-    def test_task_erreur_marque_job_error(self, mock_ws, mock_llm):
+    def test_task_erreur_marque_job_error(self, mock_llm):
         """En cas d'erreur LLM, le job passe en status error."""
         job_synthese = ExtractionJob.objects.create(
             page=self.fixtures["page_source"],
@@ -592,8 +456,7 @@ class SynthetiserTaskTest(TestCase):
         self.assertIn("LLM error", job_synthese.error_message)
 
     @patch("core.llm_providers.appeler_llm", return_value="Premier.\n\nDeuxieme <script>alert('xss')</script>.")
-    @patch("front.tasks.envoyer_progression_websocket")
-    def test_task_html_echappe_xss(self, mock_ws, mock_llm):
+    def test_task_html_echappe_xss(self, mock_llm):
         """Le HTML genere echappe les balises dangereuses (XSS)."""
         job_synthese = ExtractionJob.objects.create(
             page=self.fixtures["page_source"],
@@ -619,8 +482,7 @@ class SynthetiserTaskTest(TestCase):
         self.assertIn("&lt;script&gt;", page_synthese.html_readability)
 
     @patch("core.llm_providers.appeler_llm", return_value="Synthese.")
-    @patch("front.tasks.envoyer_progression_websocket")
-    def test_task_version_label_correcte(self, mock_ws, mock_llm):
+    def test_task_version_label_correcte(self, mock_llm):
         """La page creee a le version_label = nom de l'analyseur (PHASE-29).
         Permet de distinguer V2-Mathemagique de V3-Charte si analyseurs differents.
         / Page version_label = analyzer name (PHASE-29) — distinguishes different analyzers."""
@@ -645,8 +507,7 @@ class SynthetiserTaskTest(TestCase):
         self.assertEqual(page_synthese.version_label, self.fixtures["analyseur"].name)
 
     @patch("core.llm_providers.appeler_llm", return_value="Synthese sans analyse.")
-    @patch("front.tasks.envoyer_progression_websocket")
-    def test_task_sans_job_analyse_erreur(self, mock_ws, mock_llm):
+    def test_task_sans_job_analyse_erreur(self, mock_llm):
         """Sans job d'analyse complete, la tache passe en erreur."""
         # Supprimer le job d'analyse / Delete the analysis job
         ExtractionJob.objects.filter(page=self.fixtures["page_source"]).delete()
