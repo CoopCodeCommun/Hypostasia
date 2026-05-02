@@ -69,8 +69,8 @@
         <div class="onboarding-etape" data-testid="onboarding-step-4">
             <div class="onboarding-etape-num" style="background: #d1fae5; color: #047857;">4</div>
             <div class="onboarding-etape-corps">
-                <h3 class="onboarding-etape-titre">Construisez le consensus</h3>
-                <p class="onboarding-etape-desc">Quand <strong>80%</strong> des extractions sont consensuelles, la synth&egrave;se peut &ecirc;tre lanc&eacute;e.</p>
+                <h3 class="onboarding-etape-titre">Lancez la synth&egrave;se</h3>
+                <p class="onboarding-etape-desc">Une fois le d&eacute;bat engag&eacute;, lancez la synth&egrave;se quand vous le souhaitez.</p>
             </div>
         </div>
 
@@ -80,58 +80,28 @@
     {# / === Two columns: statuses + shortcuts === #}
     <div class="onboarding-deux-colonnes">
 
-        {# Colonne gauche : 6 statuts #}
+        {# Colonne gauche : statuts (A.8 binaire : nouveau / commente, auto) #}
+        {# / Left column: statuses (A.8 binary: nouveau / commente, automatic) #}
         <div class="onboarding-section">
-            <h3 class="onboarding-section-titre">Les 6 statuts</h3>
-            <p class="onboarding-section-desc">Chaque forme est unique &mdash; reconnaissable m&ecirc;me sans couleur.</p>
+            <h3 class="onboarding-section-titre">Statuts</h3>
+            <p class="onboarding-section-desc">
+                Le statut est <strong>automatique</strong> : il passe &agrave;
+                comment&eacute; d&egrave;s qu'une personne &eacute;crit dessus.
+            </p>
 
             <div class="onboarding-statuts">
                 <div class="onboarding-statut" style="border-left-color: var(--statut-nouveau-accent);">
-                    <span class="indicateur-statut onboarding-forme" data-statut="nouveau"
-                          style="background-color: var(--statut-nouveau-accent);"></span>
+                    <span class="indicateur-statut onboarding-forme" data-statut="nouveau"></span>
                     <div>
                         <strong style="color: var(--statut-nouveau-text);">Nouveau</strong>
-                        <span class="onboarding-statut-desc">Pas encore lu</span>
+                        <span class="onboarding-statut-desc">Pas encore comment&eacute; (rond gris)</span>
                     </div>
                 </div>
-                <div class="onboarding-statut" style="border-left-color: var(--statut-discutable-accent);">
-                    <span class="indicateur-statut onboarding-forme" data-statut="discutable"
-                          style="background-color: var(--statut-discutable-accent);"></span>
+                <div class="onboarding-statut" style="border-left-color: var(--statut-commente-accent);">
+                    <span class="indicateur-statut onboarding-forme" data-statut="commente"></span>
                     <div>
-                        <strong style="color: var(--statut-discutable-text);">Discutable</strong>
-                        <span class="onboarding-statut-desc">&Agrave; d&eacute;battre</span>
-                    </div>
-                </div>
-                <div class="onboarding-statut" style="border-left-color: var(--statut-discute-accent);">
-                    <span class="indicateur-statut onboarding-forme" data-statut="discute"
-                          style="background-color: var(--statut-discute-accent);"></span>
-                    <div>
-                        <strong style="color: var(--statut-discute-text);">Discut&eacute;</strong>
-                        <span class="onboarding-statut-desc">D&eacute;bat en cours</span>
-                    </div>
-                </div>
-                <div class="onboarding-statut" style="border-left-color: var(--statut-consensuel-accent);">
-                    <span class="indicateur-statut onboarding-forme" data-statut="consensuel"
-                          style="background-color: var(--statut-consensuel-accent);"></span>
-                    <div>
-                        <strong style="color: var(--statut-consensuel-text);">Consensuel</strong>
-                        <span class="onboarding-statut-desc">Accord atteint</span>
-                    </div>
-                </div>
-                <div class="onboarding-statut" style="border-left-color: var(--statut-controverse-accent);">
-                    <span class="indicateur-statut onboarding-forme" data-statut="controverse"
-                          style="background-color: var(--statut-controverse-accent);"></span>
-                    <div>
-                        <strong style="color: var(--statut-controverse-text);">Controvers&eacute;</strong>
-                        <span class="onboarding-statut-desc">D&eacute;saccord fort</span>
-                    </div>
-                </div>
-                <div class="onboarding-statut" style="border-left-color: var(--statut-non_pertinent-accent);">
-                    <span class="indicateur-statut onboarding-forme" data-statut="non_pertinent"
-                          style="background-color: var(--statut-non_pertinent-accent);"></span>
-                    <div>
-                        <strong style="color: var(--statut-non_pertinent-text);">Non pertinent</strong>
-                        <span class="onboarding-statut-desc">&Eacute;cart&eacute; du d&eacute;bat</span>
+                        <strong style="color: var(--statut-commente-text);">Comment&eacute;</strong>
+                        <span class="onboarding-statut-desc">Au moins un commentaire (triangle orange)</span>
                     </div>
                 </div>
             </div>

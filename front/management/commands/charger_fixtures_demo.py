@@ -1209,7 +1209,13 @@ class Command(BaseCommand):
                 start_char = 0
 
             end_char = start_char + len(extraction_text)
-            statut = extraction_data.get("statut", "discutable")
+            # A.8 : statut binaire (nouveau / commente). Les anciennes valeurs
+            # riches dans la fixture sont mappees a "nouveau" — le signal Django
+            # passera l'entite a "commente" automatiquement quand un commentaire
+            # de la fixture sera cree apres.
+            # / A.8: binary status. Old rich fixture values map to "nouveau";
+            # / Django signal flips to "commente" when fixture comments are added.
+            non_pertinent = extraction_data.get("statut") == "non_pertinent"
 
             ExtractedEntity.objects.create(
                 job=job,
@@ -1218,7 +1224,8 @@ class Command(BaseCommand):
                 start_char=start_char,
                 end_char=end_char,
                 attributes=extraction_data.get("attributes", {}),
-                statut_debat=statut,
+                statut_debat="nouveau",
+                masquee=non_pertinent,
             )
             nombre_entites_creees += 1
 

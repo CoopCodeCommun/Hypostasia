@@ -67,70 +67,37 @@
             </div>
         </div>
 
-        {# === Panneau 2 : Les 6 statuts === #}
-        {# / === Panel 2: The 6 statuses === #}
+        {# === Panneau 2 : Statuts (A.8 binaire : nouveau / commente) === #}
+        {# / === Panel 2: Statuses (A.8 binary: nouveau / commente) === #}
         <div class="aide-panneau" data-panneau="statuts">
-            <p class="aide-intro">Chaque extraction a un statut. La <strong>forme</strong> est unique &mdash; reconnaissable m&ecirc;me sans couleur.</p>
+            <p class="aide-intro">
+                Chaque extraction a un statut, mis &agrave; jour
+                <strong>automatiquement</strong> selon les commentaires.
+            </p>
 
             <div class="aide-statuts-grille">
 
                 <div class="aide-statut-carte" style="border-color: var(--statut-nouveau-accent);">
-                    <span class="indicateur-statut aide-statut-forme" data-statut="nouveau"
-                          style="background-color: var(--statut-nouveau-accent);"></span>
+                    <span class="indicateur-statut aide-statut-forme" data-statut="nouveau"></span>
                     <div class="aide-statut-info">
                         <strong style="color: var(--statut-nouveau-text);">Nouveau</strong>
-                        <span>Pas encore lu</span>
+                        <span>Pas encore comment&eacute; (rond gris)</span>
                     </div>
                 </div>
 
-                <div class="aide-statut-carte" style="border-color: var(--statut-discutable-accent);">
-                    <span class="indicateur-statut aide-statut-forme" data-statut="discutable"
-                          style="background-color: var(--statut-discutable-accent);"></span>
+                <div class="aide-statut-carte" style="border-color: var(--statut-commente-accent);">
+                    <span class="indicateur-statut aide-statut-forme" data-statut="commente"></span>
                     <div class="aide-statut-info">
-                        <strong style="color: var(--statut-discutable-text);">Discutable</strong>
-                        <span>&Agrave; d&eacute;battre</span>
-                    </div>
-                </div>
-
-                <div class="aide-statut-carte" style="border-color: var(--statut-discute-accent);">
-                    <span class="indicateur-statut aide-statut-forme" data-statut="discute"
-                          style="background-color: var(--statut-discute-accent);"></span>
-                    <div class="aide-statut-info">
-                        <strong style="color: var(--statut-discute-text);">Discut&eacute;</strong>
-                        <span>D&eacute;bat en cours</span>
-                    </div>
-                </div>
-
-                <div class="aide-statut-carte" style="border-color: var(--statut-consensuel-accent);">
-                    <span class="indicateur-statut aide-statut-forme" data-statut="consensuel"
-                          style="background-color: var(--statut-consensuel-accent);"></span>
-                    <div class="aide-statut-info">
-                        <strong style="color: var(--statut-consensuel-text);">Consensuel</strong>
-                        <span>Accord atteint</span>
-                    </div>
-                </div>
-
-                <div class="aide-statut-carte" style="border-color: var(--statut-controverse-accent);">
-                    <span class="indicateur-statut aide-statut-forme" data-statut="controverse"
-                          style="background-color: var(--statut-controverse-accent);"></span>
-                    <div class="aide-statut-info">
-                        <strong style="color: var(--statut-controverse-text);">Controvers&eacute;</strong>
-                        <span>D&eacute;saccord fort</span>
-                    </div>
-                </div>
-
-                <div class="aide-statut-carte" style="border-color: var(--statut-non_pertinent-accent);">
-                    <span class="indicateur-statut aide-statut-forme" data-statut="non_pertinent"
-                          style="background-color: var(--statut-non_pertinent-accent);"></span>
-                    <div class="aide-statut-info">
-                        <strong style="color: var(--statut-non_pertinent-text);">Non pertinent</strong>
-                        <span>&Eacute;cart&eacute; du d&eacute;bat</span>
+                        <strong style="color: var(--statut-commente-text);">Comment&eacute;</strong>
+                        <span>Au moins un commentaire (triangle orange)</span>
                     </div>
                 </div>
 
             </div>
 
-            <p class="aide-note">Le statut passe automatiquement de <em>discutable</em> &agrave; <em>discut&eacute;</em> au premier commentaire.</p>
+            <p class="aide-note">
+                Plus tard, l'alignement automatique enrichira ces statuts.
+            </p>
         </div>
 
         {# === Panneau 3 : Raccourcis clavier === #}
