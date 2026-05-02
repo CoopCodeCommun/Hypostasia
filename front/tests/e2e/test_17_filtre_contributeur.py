@@ -125,8 +125,9 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
         conteneur_pilules = self.page.locator('[data-testid="pilules-contributeurs"]')
         self.assertTrue(conteneur_pilules.is_visible())
 
-        # Verifier les noms dans les pilules / Check names in pills
-        contenu_html = conteneur_pilules.inner_html()
+        # Verifier les noms dans les pilules (le template applique |title -> E2e_Alice)
+        # / Check names in pills (template applies |title -> E2e_Alice)
+        contenu_html = conteneur_pilules.inner_html().lower()
         self.assertIn("e2e_alice", contenu_html)
         self.assertIn("e2e_bob", contenu_html)
 

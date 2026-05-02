@@ -95,13 +95,16 @@ class E2EMobileTest(PlaywrightLiveTestCase):
             status="completed",
             entities_count=2,
         )
+        # A.8 : statut binaire (nouveau / commente). Le signal Django passera
+        # automatiquement entite_commentee a "commente" lors du create du commentaire.
+        # / A.8: binary status. Signal will flip entite_commentee to "commente".
         self.entite_discutable = ExtractedEntity.objects.create(
             job=job,
             extraction_class="axiome",
             extraction_text="Premier paragraphe pour test mobile",
             start_char=0,
             end_char=35,
-            statut_debat="discutable",
+            statut_debat="nouveau",
         )
         self.entite_commentee = ExtractedEntity.objects.create(
             job=job,
@@ -109,7 +112,7 @@ class E2EMobileTest(PlaywrightLiveTestCase):
             extraction_text="Deuxieme paragraphe avec du contenu",
             start_char=60,
             end_char=95,
-            statut_debat="discute",
+            statut_debat="nouveau",
         )
         CommentaireExtraction.objects.create(
             entity=self.entite_commentee,
@@ -203,11 +206,11 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         self.naviguer_vers(f"/lire/{self.page_mobile.pk}/")
         self.page.wait_for_function("() => typeof window.bottomSheet !== 'undefined'", timeout=5000)
         self.page.evaluate(f"window.bottomSheet.ouvrir({self.entite_discutable.pk})")
-        # La carte doit etre chargee (le statut et les boutons d'action sont presents)
-        # / The card must be loaded (status and action buttons are present)
+        # La carte doit etre chargee (la citation source [...] est presente)
+        # / The card must be loaded (source citation is present)
         self.page.wait_for_selector('[data-testid="bottom-sheet-carte"]', timeout=5000)
         contenu = self.page.text_content('[data-testid="bottom-sheet-contenu"]')
-        self.assertIn("Consensuel", contenu)
+        self.assertIn("Premier paragraphe pour test mobile", contenu)
 
     def test_bottom_sheet_ferme_via_backdrop(self):
         """Le bottom sheet se ferme au clic backdrop."""
@@ -220,26 +223,21 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         self.page.wait_for_timeout(500)
         self.assertFalse(self.page.evaluate("window.bottomSheet.estOuvert()"))
 
-    def test_bottom_sheet_bouton_commenter(self):
-        """Le bouton Commenter charge le fil de discussion."""
+    def test_bottom_sheet_affiche_commentaires(self):
+        """A.8 : la carte mobile affiche les commentaires existants inline."""
         self.page.set_viewport_size(self.VIEWPORT_MOBILE)
         self.naviguer_vers(f"/lire/{self.page_mobile.pk}/")
         self.page.wait_for_function("() => typeof window.bottomSheet !== 'undefined'", timeout=5000)
         self.page.evaluate(f"window.bottomSheet.ouvrir({self.entite_commentee.pk})")
-        self.page.wait_for_selector('[data-testid="bottom-sheet-btn-commenter"]', timeout=5000)
-        self.page.click('[data-testid="bottom-sheet-btn-commenter"]')
-        self.attendre_htmx()
+        self.page.wait_for_selector('[data-testid="bottom-sheet-carte"]', timeout=5000)
         contenu = self.page.text_content('[data-testid="bottom-sheet-contenu"]')
-        self.assertIn("e2e_test_user", contenu)
+        # Le commentaire existant doit apparaitre inline dans la carte
+        # / Existing comment must appear inline in card
+        self.assertIn("Commentaire existant pour test mobile", contenu)
 
-    def test_bottom_sheet_boutons_statut(self):
-        """Les boutons de statut sont presents dans la carte."""
-        self.page.set_viewport_size(self.VIEWPORT_MOBILE)
-        self.naviguer_vers(f"/lire/{self.page_mobile.pk}/")
-        self.page.wait_for_function("() => typeof window.bottomSheet !== 'undefined'", timeout=5000)
-        self.page.evaluate(f"window.bottomSheet.ouvrir({self.entite_discutable.pk})")
-        self.page.wait_for_selector('[data-testid="bottom-sheet-btn-consensuel"]', timeout=5000)
-        self.assertTrue(self.page.locator('[data-testid="bottom-sheet-btn-consensuel"]').is_visible())
+    # A.8 : test_bottom_sheet_boutons_statut retire — les boutons statut riche
+    # (consensuel, controverse, etc.) ont ete retires (statut binaire automatique).
+    # / A.8: removed — rich status buttons removed (binary status, automatic).
 
     def test_bottom_sheet_bouton_fermer_visible(self):
         """Le bouton X de fermeture est visible dans le bottom sheet."""
@@ -290,7 +288,7 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         entite_loin = ExtractedEntity.objects.create(
             job=job, extraction_class="axiome",
             extraction_text="Paragraphe 15 avec du texte",
-            start_char=500, end_char=527, statut_debat="discutable",
+            start_char=500, end_char=527, statut_debat="nouveau",
         )
 
         self.page.set_viewport_size(self.VIEWPORT_MOBILE)

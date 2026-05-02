@@ -35,7 +35,7 @@
 
     /* --- 1e. Statuts de debat (binaire A.8 : nouveau / commente) — Palette Wong (2011) daltonien-safe --- */
     /* / Debate statuses (A.8 binary: new / commented) — Wong (2011) colorblind-safe palette */
-    --statut-nouveau-text: #6b7280;
+    --statut-nouveau-text: #4b5563;
     --statut-nouveau-bg: #f3f4f6;
     --statut-nouveau-accent: #999999;
 

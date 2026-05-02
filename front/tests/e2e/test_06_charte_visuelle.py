@@ -60,17 +60,15 @@ class E2ECharteVisuelleTest(PlaywrightLiveTestCase):
     def test_variables_css_root_presentes(self):
         """Les variables CSS :root sont definies (statuts debat, hypostases)."""
         self.naviguer_vers(f"/lire/{self.page_test.pk}/")
-        # Verifier les variables CSS de statuts de debat (nommees --statut-*)
-        # / Check debate status CSS variables (named --statut-*)
+        # A.8 : statuts binaires (nouveau / commente). Variables CSS reduites a 2 paires.
+        # / A.8: binary statuses. Only 2 CSS variable pairs remain.
         variables_a_verifier = [
-            "--statut-consensuel-text",
-            "--statut-discutable-text",
-            "--statut-discute-text",
-            "--statut-controverse-text",
-            "--statut-consensuel-bg",
-            "--statut-discutable-bg",
-            "--statut-discute-bg",
-            "--statut-controverse-bg",
+            "--statut-nouveau-text",
+            "--statut-nouveau-bg",
+            "--statut-nouveau-accent",
+            "--statut-commente-text",
+            "--statut-commente-bg",
+            "--statut-commente-accent",
         ]
         for nom_variable in variables_a_verifier:
             valeur = self.page.evaluate(
@@ -108,10 +106,8 @@ class E2ECharteVisuelleTest(PlaywrightLiveTestCase):
             var root = getComputedStyle(document.documentElement);
             // Contraste texte statut sur fond statut
             var pairs = [
-                ['--statut-consensuel-text', '--statut-consensuel-bg'],
-                ['--statut-discutable-text', '--statut-discutable-bg'],
-                ['--statut-discute-text', '--statut-discute-bg'],
-                ['--statut-controverse-text', '--statut-controverse-bg'],
+                ['--statut-nouveau-text', '--statut-nouveau-bg'],
+                ['--statut-commente-text', '--statut-commente-bg'],
             ];
             var results = {};
             for (var pair of pairs) {

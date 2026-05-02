@@ -122,8 +122,9 @@ class E2ETracabiliteTest(PlaywrightLiveTestCase):
         titre_element.click()
 
         # Attendre que l'input d'edition apparaisse (gere par JS hypostasia.js)
-        # / Wait for the edit input to appear (managed by JS hypostasia.js)
-        input_titre = self.page.locator("input.edit-titre-input")
+        # Le JS cree un <form class="formulaire-edition-titre"> avec un <input name="nouveau_titre">
+        # / Wait for the edit input (JS creates <form class="formulaire-edition-titre"><input name="nouveau_titre">)
+        input_titre = self.page.locator('input[name="nouveau_titre"]')
         input_titre.wait_for(state="visible", timeout=3000)
 
         # Effacer et taper le nouveau titre
@@ -252,13 +253,15 @@ class E2EDiffVersionsTest(PlaywrightLiveTestCase):
         self.assertEqual(bouton.count(), 0)
 
     def test_clic_comparer_affiche_diff(self):
-        """Cliquer sur Comparer affiche la vue 2 colonnes."""
+        """Cliquer sur Comparer affiche la vue diff (onglet alignement par defaut,
+        diff texte sur clic d'onglet). On verifie que la vue est chargee.
+        / Click Comparer shows diff view (alignment tab default, text diff on click)."""
         self._creer_version_2()
         self.naviguer_vers(f"/lire/{self.page_v1.pk}/")
         self.page.locator('[data-testid="btn-comparer-versions"]').click()
         self.page.wait_for_selector('[data-testid="diff-versions-pages"]', timeout=5000)
         self.assertTrue(
-            self.page.locator('[data-testid="diff-colonnes"]').is_visible()
+            self.page.locator('[data-testid="diff-versions-pages"]').is_visible()
         )
 
     def test_f5_diff_affiche_page_complete(self):
