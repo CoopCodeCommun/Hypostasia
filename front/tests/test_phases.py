@@ -6945,15 +6945,15 @@ class Phase26iTachesViewSetTest(TestCase):
         reponse = self.client.get("/taches/bouton/")
         self.assertContains(reponse, "btn-taches-succes")
 
-    def test_bouton_erreur_si_failed_non_lu(self):
-        """Bouton renvoie etat erreur (prioritaire) si une tache failed non lue.
-        / Button returns erreur state (priority) if a failed task is unread."""
+    def test_bouton_erreur_si_error_non_lu(self):
+        """Bouton renvoie etat erreur (prioritaire) si une tache en erreur non lue.
+        / Button returns erreur state (priority) if an errored task is unread."""
         from hypostasis_extractor.models import ExtractionJob
         from core.models import AIModel
         modele = AIModel.objects.create(name="Mock3", model_choice="mock_default", is_active=True)
         ExtractionJob.objects.create(
             page=self.page, ai_model=modele, name="T3",
-            prompt_description="t", status="failed", notification_lue=False,
+            prompt_description="t", status="error", notification_lue=False,
         )
         ExtractionJob.objects.create(
             page=self.page, ai_model=modele, name="T4",

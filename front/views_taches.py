@@ -37,12 +37,12 @@ def _calculer_etat_bouton(user):
     # Comptage taches terminees non lues / Count finished unread tasks
     nombre_extractions_non_lues = ExtractionJob.objects.filter(
         page__owner=user,
-        status__in=["completed", "failed"],
+        status__in=["completed", "error"],
         notification_lue=False,
     ).count()
     nombre_transcriptions_non_lues = TranscriptionJob.objects.filter(
         page__owner=user,
-        status__in=["completed", "failed"],
+        status__in=["completed", "error"],
         notification_lue=False,
     ).count()
     nombre_non_lues = nombre_extractions_non_lues + nombre_transcriptions_non_lues
@@ -56,9 +56,9 @@ def _calculer_etat_bouton(user):
     # / are unread old notifications (don't mask them but defer to end of
     # / current task).
     a_des_erreurs_non_lues = ExtractionJob.objects.filter(
-        page__owner=user, status="failed", notification_lue=False,
+        page__owner=user, status="error", notification_lue=False,
     ).exists() or TranscriptionJob.objects.filter(
-        page__owner=user, status="failed", notification_lue=False,
+        page__owner=user, status="error", notification_lue=False,
     ).exists()
 
     if a_des_erreurs_non_lues:
@@ -184,13 +184,13 @@ class TachesViewSet(viewsets.ViewSet):
         """
         nombre_extractions = ExtractionJob.objects.filter(
             page__owner=request.user,
-            status__in=["completed", "failed"],
+            status__in=["completed", "error"],
             notification_lue=False,
         ).update(notification_lue=True)
 
         nombre_transcriptions = TranscriptionJob.objects.filter(
             page__owner=request.user,
-            status__in=["completed", "failed"],
+            status__in=["completed", "error"],
             notification_lue=False,
         ).update(notification_lue=True)
 

@@ -25,7 +25,7 @@ def notifier_tache_terminee(user_pk, tache_id, tache_type, status):
         user_pk : pk du proprietaire de la tache
         tache_id : pk du job (ExtractionJob ou TranscriptionJob)
         tache_type : "analyse" | "synthese" | "transcription"
-        status : "completed" | "failed"
+        status : "completed" | "error"
     """
     from channels.layers import get_channel_layer
     from asgiref.sync import async_to_sync
@@ -676,7 +676,7 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
             user_pk=page_associee.owner.pk if page_associee.owner else None,
             tache_id=job_transcription.pk,
             tache_type="transcription",
-            status="failed",
+            status="error",
         )
 
     finally:
@@ -992,7 +992,7 @@ def synthetiser_page_task(self, job_id):
             user_pk=proprietaire_pour_notif.pk if proprietaire_pour_notif else None,
             tache_id=job_synthese.pk,
             tache_type="synthese",
-            status="failed",
+            status="error",
         )
 
 
@@ -1416,5 +1416,5 @@ def analyser_page_task(self, job_id):
             user_pk=page_associee.owner.pk if page_associee.owner else None,
             tache_id=job_extraction.pk,
             tache_type="analyse",
-            status="failed",
+            status="error",
         )

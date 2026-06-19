@@ -44,7 +44,7 @@
             {# Icone selon statut / Status icon #}
             {% if tache.status == "completed" %}
                 <span class="taches-icone taches-icone-succes" aria-hidden="true">&check;</span>
-            {% elif tache.status == "failed" %}
+            {% elif tache.status == "error" %}
                 <span class="taches-icone taches-icone-erreur" aria-hidden="true">&times;</span>
             {% else %}
                 <span class="taches-icone taches-icone-en-cours spinner-taches-mini" aria-hidden="true"></span>
@@ -71,7 +71,7 @@
                            class="taches-meta-lien" data-testid="taches-voir-resultat">
                             Voir le resultat
                         </a>
-                    {% elif tache.status == "failed" %}
+                    {% elif tache.status == "error" %}
                         <span class="taches-meta-erreur">Erreur</span>
                         <a href="/lire/{{ tache.page.pk }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
                            hx-get="/lire/{{ tache.page.pk }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
