@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hypostasia — quatre sources, quatre rendus</title>
+<style>
+/* =========================================================================
+   MAQUETTE 3 — ce que donne chaque source de document
+   LOCALISATION : tmp/maquettes/sources-de-documents.html
+
+   Quatre pages : un PDF, un Markdown, une capture web, un enregistrement.
+   Meme moteur de rendu, mais les elements produits par l'ingestion
+   different — et c'est ca qu'on regarde ici.
+
+   DEUX MODES
+   « Lecture » est le mode normal : une colonne de texte, rien qui distraie.
+   « Inspection » ajoute ce dont on a besoin pour comprendre ce que
+   l'ingestion a produit — label de chaque element, numero, page. C'est du
+   diagnostic, ca n'a pas sa place devant un lecteur.
+   / Reading is the default; inspection adds the debug gutter.
+
+   L'interrupteur « Docling » montre l'etat REEL de la base dev aujourd'hui :
+   13 174 elements, tous label="text", zero provenance.
+   ========================================================================= */
+
+:root {
+  --papier:#fdfcfa; --papier-creux:#f5f3ef; --papier-panneau:#faf8f4;
+  --encre:#1c1b19; --encre-douce:#6b6862; --filet:#e4e0d8;
+  --statut-nouveau:#999999; --statut-commente:#E69F00;
+  --revelation:#f0ede6;
+
+  --hypostase-epistemique-text:#4338ca; --hypostase-empirique-text:#047857;
+  --hypostase-speculatif-text:#b45309;  --hypostase-structurel-text:#475569;
+  --hypostase-normatif-text:#6d28d9;    --hypostase-problematique-text:#b91c1c;
+  --hypostase-mode-text:#0e7490;        --hypostase-objet-text:#64748b;
+
+  --gouttiere:44px;          /* lecture : juste de quoi poser le compteur */
+  --largeur-lecture:40rem;   /* la mesure : ~68 signes par ligne          */
+  --panneau:23rem;
+  --barre-audio:0px;
+}
+/* Inspection : la glissiere s'ouvre pour le label, le numero, la page. */
+body[data-mode="inspection"] { --gouttiere:118px; --largeur-lecture:52rem; }
+/* L'audio garde toujours son locuteur et son minutage : c'est du contenu. */
+body[data-source="audio"] { --gouttiere:92px; --barre-audio:64px; }
+body[data-source="audio"][data-mode="inspection"] { --gouttiere:132px; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+    --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a; --revelation:#26242c;
+  }
+}
+/* Sombre force : les memes jetons, mais qui l'emportent sur le systeme.
+   / Forced dark: same tokens, winning over the system preference. */
+:root[data-theme="dark"] {
+  --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+  --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a; --revelation:#26242c;
+}
+
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--papier); color:var(--encre);
+  font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+  line-height:1.7; font-size:17px; text-rendering:optimizeLegibility;
+}
+.mono { font-family:ui-monospace,"SF Mono",Menlo,monospace; }
+
+/* ---- Bandeau de selection ---- */
+.bandeau {
+  position:sticky; top:0; z-index:60; background:var(--encre); color:var(--papier);
+  padding:.5rem 1rem; display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;
+  font-family:ui-monospace,Menlo,monospace; font-size:.7rem;
+}
+.bandeau button {
+  font:inherit; cursor:pointer; background:transparent; color:var(--papier);
+  border:1px solid rgba(255,255,255,.35); border-radius:3px; padding:.2rem .6rem;
+}
+.bandeau button[aria-pressed="true"] { background:var(--papier); color:var(--encre); }
+.bandeau .separateur { width:1px; height:1.15rem; background:rgba(255,255,255,.25); }
+.bandeau label { display:flex; align-items:center; gap:.3rem; cursor:pointer; opacity:.85; }
+
+/* ---- Encadre explicatif ---- */
+.note-source {
+  padding:.9rem 1.2rem; background:var(--papier-creux);
+  border-bottom:1px solid var(--filet); font-size:.8rem; line-height:1.6;
+}
+.note-source h2 {
+  margin:0 0 .3rem; font-size:.66rem; font-family:ui-monospace,Menlo,monospace;
+  text-transform:uppercase; letter-spacing:.09em; color:var(--encre-douce);
+}
+.note-source p { margin:0; max-width:74ch; }
+.note-source code {
+  font-family:ui-monospace,Menlo,monospace; font-size:.74rem;
+  background:var(--papier); padding:.05rem .28rem; border-radius:2px;
+}
+.avertissement-plat {
+  display:none; margin-top:.55rem; padding:.5rem .7rem; max-width:74ch;
+  border-left:3px solid var(--statut-commente); background:var(--papier);
+}
+body[data-docling="non"]:not([data-source="audio"]) .avertissement-plat { display:block; }
+
+/* ================= DISPOSITION ================= */
+.application { display:grid; grid-template-columns:1fr var(--panneau); }
+.colonne-lecture { padding:2.5rem 2rem calc(var(--barre-audio) + 4rem); min-width:0; }
+.colonne-interieure {
+  max-width:calc(var(--largeur-lecture) + var(--gouttiere) + 1.5rem); margin:0 auto;
+}
+.entete-doc {
+  margin-bottom:2.4rem; padding-left:calc(var(--gouttiere) + 1.5rem);
+  padding-bottom:1.2rem; border-bottom:1px solid var(--filet);
+}
+.entete-doc h1 { font-size:1.75rem; line-height:1.25; margin:0 0 .4rem; letter-spacing:-.015em; }
+.entete-doc .meta {
+  font-size:.7rem; color:var(--encre-douce);
+  font-family:ui-monospace,Menlo,monospace; letter-spacing:.02em;
+}
+
+/* ---- Fil de section, colle en haut ---- */
+.fil-section {
+  position:sticky; top:2.3rem; z-index:40;
+  padding:.35rem 1.2rem .35rem calc(var(--gouttiere) + 3.5rem);
+  background:color-mix(in srgb, var(--papier) 92%, transparent);
+  backdrop-filter:blur(6px); border-bottom:1px solid var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem;
+  color:var(--encre-douce); letter-spacing:.04em;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  transition:opacity .15s ease;
+}
+.fil-section:empty { opacity:0; border-color:transparent; }
+.fil-section::before { content:"⌐ "; opacity:.5; }
+body[data-docling="non"] .fil-section { display:none; }
+
+/* ---- Le bloc ---- */
+.bloc {
+  display:grid; grid-template-columns:var(--gouttiere) 1fr; gap:0 1.5rem;
+  position:relative; scroll-margin-top:5rem; margin-bottom:1.15rem;
+}
+/* Les titres respirent au-dessus, comme dans un livre. */
+.bloc[data-label="title"]          { margin-bottom:1.6rem; }
+.bloc[data-label="section_header"] { margin-top:2.6rem; margin-bottom:1rem; }
+.bloc[data-label="list_item"]      { margin-bottom:.15rem; }
+.bloc[data-label="picture"]        { margin:2rem 0; }
+.bloc[data-label="table"]          { margin:1.8rem 0; }
+
+.gouttiere {
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem; line-height:1.45;
+  color:var(--encre-douce); text-align:right; padding-top:.5rem;
+  display:flex; flex-direction:column; align-items:flex-end; gap:.2rem; user-select:none;
+}
+/* CE QUI N'EXISTE QU'EN INSPECTION : label et numero d'element.
+   Un lecteur n'a rien a faire de « SECTION_HEADER #6 ».
+   / Debug only: a reader has no use for "SECTION_HEADER #6". */
+.etiquette-label, .numero-element { display:none; }
+body[data-mode="inspection"] .etiquette-label,
+body[data-mode="inspection"] .numero-element { display:inline-block; }
+.etiquette-label {
+  font-size:.54rem; text-transform:uppercase; letter-spacing:.07em;
+  padding:.05rem .3rem; border:1px solid var(--filet); border-radius:2px;
+}
+.numero-element { opacity:.5; }
+.numero-page { font-variant-numeric:tabular-nums; opacity:.75; }
+body[data-docling="non"] .numero-page { display:none; }
+
+.bouton-voir-pdf {
+  border:none; background:none; padding:0; cursor:pointer; font-size:.56rem;
+  color:var(--encre-douce); text-decoration:underline; text-underline-offset:2px;
+  opacity:0; transition:opacity .12s ease;
+}
+.bloc:hover .bouton-voir-pdf { opacity:1; }
+.bouton-voir-pdf:hover { color:var(--encre); }
+body[data-docling="non"] .bouton-voir-pdf { display:none; }
+
+/* Locuteur et minutage : du contenu, present dans les deux modes. */
+.etiquette-locuteur { color:var(--encre); font-weight:600; }
+.etiquette-locuteur::before {
+  content:""; display:inline-block; width:.48rem; height:.48rem; border-radius:50%;
+  margin-right:.3rem; background:var(--couleur-locuteur, var(--encre-douce));
+}
+.ligne-minutage { display:flex; align-items:center; gap:.3rem; }
+.bouton-ecouter {
+  border:none; background:none; padding:0; cursor:pointer; font-size:.68rem;
+  line-height:1; color:var(--encre-douce); opacity:0;
+  transition:opacity .12s ease, color .12s ease;
+}
+.bloc:hover .bouton-ecouter, .bloc.bloc-en-lecture .bouton-ecouter { opacity:1; }
+.bouton-ecouter:hover { color:var(--encre); }
+.bloc.bloc-en-lecture .bouton-ecouter { color:var(--statut-commente); }
+
+/* Le filet d'etat : en lecture il ne signale que le debat. */
+.filet-etat {
+  position:absolute; left:calc(var(--gouttiere) + .55rem); top:.5rem; bottom:.1rem;
+  width:2px; border-radius:1px; background:transparent;
+}
+.bloc[data-etat="debattu"] .filet-etat { background:var(--statut-commente); }
+body[data-mode="inspection"] .filet-etat { background:var(--filet); }
+body[data-mode="inspection"] .bloc[data-etat="debattu"] .filet-etat { background:var(--statut-commente); }
+
+.compteur-idees {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:1.05rem; height:1.05rem; padding:0 .26rem; border:1px solid var(--filet);
+  border-radius:999px; font-size:.56rem; font-family:ui-monospace,Menlo,monospace;
+  background:none; color:var(--encre-douce); cursor:pointer;
+  transition:border-color .12s, color .12s;
+}
+.compteur-idees:hover { border-color:var(--statut-commente); color:var(--statut-commente); }
+.compteur-idees:focus-visible, .bouton-ecouter:focus-visible,
+.bouton-voir-pdf:focus-visible { outline:2px solid var(--encre); outline-offset:2px; }
+
+/* ---- Le corps : une forme par label ---- */
+.corps > * { margin:0; }
+.corps h2 { font-size:1.45rem; line-height:1.3; letter-spacing:-.012em; }
+.corps h3 { font-size:1.12rem; line-height:1.35; letter-spacing:-.008em; }
+.corps ul { margin:0; padding-left:1.15rem; }
+.corps li { margin:0; }
+.corps blockquote {
+  margin:1.2rem 0; padding:.1rem 0 .1rem 1.1rem;
+  border-left:3px solid var(--filet); font-style:italic; color:var(--encre-douce);
+}
+/* Un tableau se rend en tableau. Le service actuel le pose en <pre> :
+   fidele au texte, mais illisible. / Tables deserve a real <table>. */
+.corps table {
+  border-collapse:collapse; width:100%; font-size:.86rem;
+  font-family:ui-monospace,Menlo,monospace; line-height:1.5;
+}
+.corps table th, .corps table td {
+  padding:.3rem .6rem; text-align:right; border-bottom:1px solid var(--filet);
+}
+.corps table th:first-child, .corps table td:first-child { text-align:left; }
+.corps table thead th { color:var(--encre-douce); font-weight:600; font-size:.76rem; }
+.corps table tr.total td { font-weight:700; border-top:2px solid var(--filet); border-bottom:none; }
+.corps pre.code {
+  font-family:ui-monospace,Menlo,monospace; font-size:.78rem; line-height:1.55;
+  background:var(--papier-creux); padding:.8rem .95rem; border-radius:4px;
+  overflow-x:auto; white-space:pre; margin:1.2rem 0;
+}
+.corps .formule {
+  font-family:ui-monospace,Menlo,monospace; font-size:.85rem; text-align:center;
+  padding:1rem 0; margin:.6rem 0;
+  border-top:1px solid var(--filet); border-bottom:1px solid var(--filet);
+}
+.corps figure { margin:0; }
+.corps .cadre-image {
+  height:150px; background:repeating-linear-gradient(45deg,
+    var(--papier-creux) 0 8px, transparent 8px 16px);
+  border:1px solid var(--filet); border-radius:4px;
+  display:grid; place-items:center; color:var(--encre-douce);
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem;
+}
+.corps figcaption {
+  font-size:.78rem; line-height:1.5; color:var(--encre-douce);
+  margin-top:.5rem; text-align:center; font-style:italic;
+}
+
+/* ---- Surlignage : nu au repos, revele au survol, allume au clic ---- */
+mark.portion {
+  background:none; color:inherit; cursor:pointer; border-radius:2px; padding:.04em 0;
+  transition:background-color .14s ease, box-shadow .14s ease;
+}
+.bloc:hover mark.portion { background-color:var(--revelation); }
+mark.portion[data-statut="nouveau"]  { --couleur-statut:var(--statut-nouveau); }
+mark.portion[data-statut="commente"] { --couleur-statut:var(--statut-commente); }
+mark.portion:hover { background-color:color-mix(in srgb, var(--couleur-statut) 14%, transparent); }
+mark.portion.est-active {
+  background-color:color-mix(in srgb, var(--couleur-statut) 20%, transparent);
+  box-shadow:inset 0 -2px 0 0 var(--couleur-statut);
+}
+mark.portion:focus-visible { outline:2px solid var(--encre); outline-offset:2px; }
+.bloc.bloc-en-lecture { background:color-mix(in srgb, var(--statut-commente) 7%, transparent); }
+
+/* ================= PANNEAU ================= */
+.panneau {
+  border-left:1px solid var(--filet); background:var(--papier-panneau);
+  padding:1.1rem .9rem calc(var(--barre-audio) + 3rem);
+  position:sticky; top:2.3rem; align-self:start;
+  max-height:calc(100vh - 2.3rem); overflow-y:auto;
+}
+.panneau h2 {
+  margin:0 0 .7rem; font-size:.64rem; font-family:ui-monospace,Menlo,monospace;
+  text-transform:uppercase; letter-spacing:.09em; color:var(--encre-douce);
+}
+.carte {
+  border:1px solid var(--filet); border-radius:6px; background:var(--papier);
+  padding:.6rem .7rem; margin-bottom:.5rem; cursor:pointer;
+  transition:box-shadow .12s, border-color .12s;
+}
+.carte:hover { box-shadow:0 1px 6px rgba(0,0,0,.07); }
+.carte.est-active {
+  border-color:var(--statut-commente);
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--statut-commente) 20%, transparent);
+}
+.carte-entete { display:flex; align-items:center; gap:.4rem; margin-bottom:.4rem; }
+.indicateur-statut { width:.78rem; height:.78rem; flex:none; }
+.indicateur-statut[data-statut="nouveau"] { border:2px solid var(--statut-nouveau); border-radius:50%; }
+.indicateur-statut[data-statut="commente"] {
+  background:var(--statut-commente); clip-path:polygon(50% 0%, 0% 100%, 100% 100%);
+}
+.badges { display:flex; flex-wrap:wrap; gap:.2rem; min-width:0; }
+.badge-hypostase {
+  font-family:ui-monospace,Menlo,monospace; font-size:.56rem;
+  text-transform:uppercase; letter-spacing:.06em; padding:.07rem .32rem;
+  border-radius:2px; white-space:nowrap; background:none;
+  border:1px solid currentColor; opacity:.85;
+}
+.compteur-commentaires {
+  margin-left:auto; flex:none; font-family:ui-monospace,Menlo,monospace;
+  font-size:.6rem; color:var(--statut-commente);
+}
+.typo-machine {
+  font-family:ui-monospace,Menlo,monospace; font-size:.75rem; line-height:1.5;
+  color:var(--encre-douce); margin:0;
+}
+.typo-citation {
+  font-style:italic; font-size:.85rem; line-height:1.5; color:var(--encre);
+  margin:0; display:none;
+}
+.carte.est-active .typo-citation { display:block; margin-top:.3rem; }
+.origine-element {
+  display:none; margin-top:.4rem; padding-top:.35rem; border-top:1px dashed var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.57rem; color:var(--encre-douce);
+}
+/* L'origine technique n'apparait qu'en inspection. */
+body[data-mode="inspection"] .carte.est-active .origine-element { display:block; }
+
+/* ================= LECTEUR AUDIO ================= */
+.lecteur {
+  position:fixed; left:0; right:0; bottom:0; z-index:50; height:var(--barre-audio);
+  display:none; align-items:center; gap:1rem; padding:0 1.1rem;
+  background:var(--papier); border-top:1px solid var(--filet);
+  box-shadow:0 -2px 12px rgba(0,0,0,.05);
+}
+body[data-source="audio"] .lecteur { display:flex; }
+.bouton-lecture {
+  flex:none; width:36px; height:36px; border-radius:50%; border:none;
+  background:var(--encre); color:var(--papier); cursor:pointer;
+  display:grid; place-items:center; font-size:.75rem;
+}
+.piste { flex:1; min-width:0; }
+.piste-entete {
+  display:flex; justify-content:space-between; align-items:baseline;
+  font-family:ui-monospace,Menlo,monospace; font-size:.66rem;
+  color:var(--encre-douce); margin-bottom:.3rem;
+}
+.rail { height:6px; border-radius:3px; background:var(--papier-creux); position:relative; cursor:pointer; }
+.tete { position:absolute; top:-3px; width:2px; height:12px; background:var(--encre); }
+
+/* ================= COMPARATIF ================= */
+/* Le tableau comparatif defile DANS son cadre : la page, elle, ne bouge pas.
+   / Wide table scrolls inside its own box; the page never scrolls sideways. */
+.comparatif { padding:2.5rem 2rem 4rem; border-top:1px solid var(--filet); overflow-x:auto; }
+.comparatif table { min-width:44rem; }
+html, body { overflow-x:hidden; }
+.comparatif table { border-collapse:collapse; font-size:.78rem; width:100%; max-width:64rem; }
+.comparatif th, .comparatif td {
+  border:1px solid var(--filet); padding:.45rem .6rem; text-align:left; vertical-align:top;
+}
+.comparatif th { background:var(--papier-creux); font-weight:600; font-size:.72rem; }
+.comparatif td.mono, .comparatif th.mono { font-family:ui-monospace,Menlo,monospace; font-size:.72rem; }
+.comparatif h2 { font-size:1.15rem; margin:0 0 .8rem; }
+
+@media (max-width: 900px) {
+  .application { grid-template-columns:1fr; }
+  .panneau { position:static; max-height:none; border-left:none; border-top:1px solid var(--filet); }
+  body { font-size:16px; }
+  :root { --gouttiere:38px; }
+  body[data-mode="inspection"] { --gouttiere:82px; }
+}
+</style>
+</head>
+<body data-docling="oui" data-mode="lecture" data-source="pdf">
+
+<div class="bandeau">
+  <strong>MAQUETTE 3</strong>
+  <button id="src-pdf"   aria-pressed="true">PDF</button>
+  <button id="src-md"    aria-pressed="false">Markdown</button>
+  <button id="src-web"   aria-pressed="false">Page web</button>
+  <button id="src-audio" aria-pressed="false">Audio</button>
+  <span class="separateur"></span>
+  <button id="mode-lecture"    aria-pressed="true">lecture</button>
+  <button id="mode-inspection" aria-pressed="false">inspection</button>
+  <span class="separateur"></span>
+  <label><input type="checkbox" id="bascule-docling" checked> Docling</label>
+  <button id="bascule-theme" aria-label="Changer de thème">○ clair</button>
+</div>
+
+<div class="note-source" id="note-source"></div>
+
+<div class="application">
+  <div class="colonne-lecture">
+    <div class="fil-section" id="fil-section"></div>
+    <div class="colonne-interieure">
+      <div class="entete-doc">
+        <h1 id="titre-doc"></h1>
+        <div class="meta" id="meta-doc"></div>
+      </div>
+      <div id="document"></div>
+    </div>
+  </div>
+  <aside class="panneau">
+    <h2>Idées extraites</h2>
+    <div id="liste-cartes"></div>
+  </aside>
+</div>
+
+<div class="lecteur">
+  <button class="bouton-lecture" id="bouton-lecture" aria-label="Lecture">▶</button>
+  <div class="piste">
+    <div class="piste-entete">
+      <span id="piste-titre">—</span><span id="minutage">00:00 / 00:00</span>
+    </div>
+    <div class="rail" id="rail"><div class="tete" id="tete" style="left:0"></div></div>
+  </div>
+</div>
+
+<div class="comparatif">
+  <h2>Ce que chaque source produit</h2>
+  <table>
+    <thead>
+      <tr><th></th><th>PDF</th><th>Markdown</th><th>Page web</th><th>Audio</th></tr>
+    </thead>
+    <tbody>
+      <tr><th>Chemin d'ingestion</th>
+        <td class="mono">Docling</td><td class="mono">Docling</td>
+        <td class="mono">Docling sur html_readability</td>
+        <td class="mono">transcription diarisée — pas Docling</td></tr>
+      <tr><th>Un élément, c'est</th>
+        <td>un bloc de mise en page</td><td>un bloc de mise en page</td>
+        <td>un bloc de mise en page</td><td>un tour de parole</td></tr>
+      <tr><th>Labels</th>
+        <td>title, section_header, text, list_item, table, picture, caption, formula</td>
+        <td>title, section_header, text, list_item, code, blockquote</td>
+        <td>title, section_header, text, list_item, picture — irréguliers, selon le HTML du site</td>
+        <td class="mono">utterance</td></tr>
+      <tr><th class="mono">chemin_de_section</th>
+        <td>oui</td><td>oui</td><td>oui, si le site utilise des &lt;h*&gt;</td>
+        <td>non — un enregistrement n'a pas de sommaire</td></tr>
+      <tr><th class="mono">provenance</th>
+        <td>page + boîtes <span class="mono">{l,t,r,b}</span>, plusieurs si l'élément est à cheval</td>
+        <td class="mono">{}</td><td class="mono">{}</td>
+        <td>locuteur + <span class="mono">{debut, fin}</span> en secondes</td></tr>
+      <tr><th>Ce que ça change à l'écran</th>
+        <td>page dans la glissière, lien « voir dans le PDF »</td>
+        <td>formes de code et de citation</td>
+        <td>ancre d'URL vers le passage</td>
+        <td>nom du locuteur, minutage, lecteur qui suit le texte</td></tr>
+      <tr><th>Aujourd'hui en base dev</th>
+        <td colspan="4" class="mono">485 pages « file », 6 « web », 47 « audio » —
+          13 174 éléments, <strong>tous label="text"</strong>, 0 provenance,
+          0 chemin de section. Aucune page n'est passée par Docling.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+/* =========================================================================
+   LES QUATRE DOCUMENTS
+   ========================================================================= */
+var LOCUTEURS = { Marie:'#2E7D64', Jonas:'#B3472A', Amina:'#8A6A1F',
+                  Pierre:'#3B4E8C', Sonia:'#6B3A72' };
+
+var DOCUMENTS = {
+
+/* ---------------------------------------------------------------- PDF -- */
+pdf: {
+  titre:"Rapport annuel 2024 — Coopérative des Trois Vallées",
+  meta:"PDF · 18 pages · 214 éléments · ingéré le 3 mars 2026",
+  note:{ titre:"Ce qu'un PDF apporte de plus",
+    corps:"Docling rend la <strong>position physique</strong> de chaque élément : " +
+      "sa page et ses boîtes. Un paragraphe à cheval sur deux pages en porte deux " +
+      "— d'où <code>p. 4–5</code> sur le bloc du bail, visible en mode inspection. " +
+      "C'est ce qui permet le lien « voir dans le PDF », que les autres sources ne " +
+      "peuvent pas offrir. Les <code>page_header</code>, <code>page_footer</code> et " +
+      "<code>footnote</code> sont écartés à l'ingestion : un pied de page répété " +
+      "dix-huit fois n'a pas à recevoir de commentaires. Ici, " +
+      "<strong>36 éléments écartés</strong> sur 250."},
+  elements:[
+    {label:"title", page:1, texte:"Rapport annuel 2024"},
+    {label:"section_header", page:3, section:["Rapport annuel 2024"], texte:"3. Situation financière"},
+    {label:"text", page:3, section:["Rapport annuel 2024","3. Situation financière"],
+     texte:"L'exercice se clôt sur un excédent de 12 400 euros, contre un déficit de 3 100 euros l'année précédente. Ce redressement tient pour l'essentiel à la renégociation du bail commercial, obtenue en avril.",
+     idees:[{id:'p1', cite:"un excédent de 12 400 euros, contre un déficit de 3 100 euros l'année précédente",
+       statut:'nouveau', hypostases:[['phenomene','empirique']],
+       resume:"Le résultat passe d'un déficit à un excédent d'une année sur l'autre.",
+       origine:"élément #3 · p. 3"}]},
+    {label:"table", page:4, section:["Rapport annuel 2024","3. Situation financière"],
+     entetes:["Poste","2023","2024"],
+     lignes:[["Cotisations","42 100 €","44 800 €"],["Subventions","18 000 €","18 000 €"],
+             ["Loyer","−31 200 €","−22 400 €"],["Salaires","−29 900 €","−31 100 €"]],
+     total:["Résultat","−3 100 €","12 400 €"]},
+    {label:"text", page:4, section:["Rapport annuel 2024","3. Situation financière"],
+     texte:"Le poste des salaires progresse de 4 %, ce qui correspond à l'embauche au secrétariat décidée en assemblée. Aucun autre poste n'a été augmenté.",
+     idees:[{id:'p2', cite:"Le poste des salaires progresse de 4 %",
+       statut:'commente', hypostases:[['phenomene','empirique']],
+       resume:"La masse salariale croît de quatre pour cent.",
+       commentaires:[{qui:"Sonia", quoi:"Sur douze mois pleins, ce sera plutôt 6 %."}],
+       origine:"élément #5 · p. 4"}]},
+    {label:"text", page:4, pageFin:5, etat:"debattu",
+     section:["Rapport annuel 2024","3. Situation financière"],
+     texte:"La renégociation du bail, si elle allège durablement les charges, repose sur un accord verbal avec le propriétaire actuel. Rien ne garantit sa reconduction en cas de vente du local, hypothèse qui n'est pas à écarter compte tenu de l'âge du bailleur.",
+     idees:[{id:'p3', cite:"repose sur un accord verbal avec le propriétaire actuel",
+       statut:'commente', hypostases:[['probleme','problematique'],['conjecture','speculatif']],
+       resume:"L'allègement des charges n'est garanti par aucun écrit.",
+       commentaires:[{qui:"Jonas", quoi:"C'est le vrai risque du budget. À mettre en tête du rapport."},
+                     {qui:"Amina", quoi:"Un avenant écrit coûte 300 € de notaire. On le fait ?"}],
+       origine:"élément #6 · p. 4–5 · deux boîtes"}]},
+    {label:"formula", page:5, section:["Rapport annuel 2024","3. Situation financière"],
+     texte:"seuil = charges_fixes / (1 − charges_variables / recettes)"},
+    {label:"section_header", page:6, section:["Rapport annuel 2024"], texte:"4. Fréquentation"},
+    {label:"picture", page:6, section:["Rapport annuel 2024","4. Fréquentation"],
+     texte:"", legende:"Figure 2 — Fréquentation mensuelle, 2022–2024. Source : registre d'entrée."},
+    {label:"text", page:6, section:["Rapport annuel 2024","4. Fréquentation"],
+     texte:"La fréquentation progresse sur les trois indicateurs suivis. La hausse des passages hebdomadaires est la plus nette au dernier trimestre, après l'ouverture des créneaux du samedi matin."},
+    {label:"list_item", page:6, section:["Rapport annuel 2024","4. Fréquentation"],
+     texte:"Adhérents actifs : 312, en hausse de 8 %"},
+    {label:"list_item", page:6, section:["Rapport annuel 2024","4. Fréquentation"],
+     texte:"Passages hebdomadaires : 940 en moyenne"},
+    {label:"list_item", page:6, section:["Rapport annuel 2024","4. Fréquentation"],
+     texte:"Ateliers ouverts : 14, contre 11 en 2023"}
+  ]},
+
+/* ----------------------------------------------------------- MARKDOWN -- */
+md: {
+  titre:"ADR 007 — Ancrage par élément",
+  meta:"Markdown · 4 200 signes · 31 éléments · ingéré le 12 mars 2026",
+  note:{ titre:"Ce qui change avec un Markdown",
+    corps:"Même moteur, même richesse de structure. Mais " +
+      "<code>_provenance_de_l_element()</code> rend <code>{}</code> : un Markdown " +
+      "n'a pas de page physique, et il n'y a rien à pointer dans un document " +
+      "d'origine. En revanche les blocs de code prennent leur forme propre — " +
+      "un <code>code</code> ne se lit pas comme un paragraphe, et surligner dedans " +
+      "doit rester possible sans casser l'indentation."},
+  elements:[
+    {label:"title", texte:"ADR 007 — Ancrage par élément"},
+    {label:"text", section:["ADR 007 — Ancrage par élément"],
+     texte:"Statut : accepté. Date : 12 mars 2026. Remplace l'ADR 003."},
+    {label:"section_header", section:["ADR 007 — Ancrage par élément"], texte:"Contexte"},
+    {label:"text", section:["ADR 007 — Ancrage par élément","Contexte"],
+     texte:"L'ancrage par décalage de caractères dans le texte entier casse dès qu'un paragraphe est corrigé en amont : toutes les positions suivantes glissent, et les extractions se retrouvent sur le mauvais passage.",
+     idees:[{id:'m1', cite:"toutes les positions suivantes glissent",
+       statut:'commente', hypostases:[['probleme','problematique']],
+       resume:"Une correction en amont invalide toutes les ancres qui suivent.",
+       commentaires:[{qui:"Jonas", quoi:"C'est exactement ce qu'on a constaté sur la page du 4 février."}],
+       origine:"élément #4 · pas de page physique"}]},
+    {label:"blockquote", section:["ADR 007 — Ancrage par élément","Contexte"],
+     texte:"Un décalage n'est pas une adresse : c'est une distance depuis un point qui bouge."},
+    {label:"section_header", section:["ADR 007 — Ancrage par élément"], texte:"Décision"},
+    {label:"text", etat:"debattu", section:["ADR 007 — Ancrage par élément","Décision"],
+     texte:"On ancre désormais dans l'élément, pas dans la page. Une extraction porte une ou plusieurs portions, chacune bornée à l'intérieur d'un élément identifié de façon stable.",
+     idees:[{id:'m2', cite:"On ancre désormais dans l'élément, pas dans la page",
+       statut:'commente', hypostases:[['principe','normatif'],['methode','structurel']],
+       resume:"L'unité d'ancrage devient l'élément de document.",
+       commentaires:[{qui:"Amina", quoi:"Et pour un passage qui traverse deux paragraphes ?"},
+                     {qui:"Jonas", quoi:"Deux portions, une extraction. C'est le point suivant."}],
+       origine:"élément #7 · pas de page physique"},
+      {id:'m3', cite:"chacune bornée à l'intérieur d'un élément identifié de façon stable",
+       statut:'nouveau', hypostases:[['methode','structurel']],
+       resume:"Chaque portion est bornée par un identifiant qui survit aux scissions.",
+       origine:"élément #7 · pas de page physique"}]},
+    {label:"code", section:["ADR 007 — Ancrage par élément","Décision"],
+     texte:"class AncrageExtraction(models.Model):\n    extraction = models.ForeignKey(ExtractedEntity, related_name=\"ancrages\")\n    element    = models.ForeignKey(ElementDocument, on_delete=PROTECT)\n    ordre_dans_extraction = models.PositiveSmallIntegerField()\n    debut_dans_element    = models.PositiveIntegerField()\n    fin_dans_element      = models.PositiveIntegerField()"},
+    {label:"section_header", section:["ADR 007 — Ancrage par élément"], texte:"Conséquences"},
+    {label:"list_item", section:["ADR 007 — Ancrage par élément","Conséquences"],
+     texte:"Corriger un paragraphe ne touche plus que ses propres ancres."},
+    {label:"list_item", section:["ADR 007 — Ancrage par élément","Conséquences"],
+     texte:"Une extraction peut traverser plusieurs éléments — d'où la relation M2M."},
+    {label:"list_item", section:["ADR 007 — Ancrage par élément","Conséquences"],
+     texte:"Une portion qu'on ne retrouve plus est détachée, jamais supprimée.",
+     idees:[{id:'m4', cite:"détachée, jamais supprimée",
+       statut:'nouveau', hypostases:[['principe','normatif']],
+       resume:"La perte de position ne détruit pas l'extraction.",
+       origine:"élément #12 · pas de page physique"}]}
+  ]},
+
+/* ---------------------------------------------------------------- WEB -- */
+web: {
+  titre:"Ce que les communs nous apprennent de la gouvernance",
+  meta:"Capture web · lemondeducommun.fr · 24 éléments · capturée le 8 mars 2026",
+  note:{ titre:"Ce qu'une capture web apporte, et ce qui lui manque",
+    corps:"L'extension envoie <code>html_readability</code>, déjà débarrassé de la " +
+      "navigation et des encarts par Readability.js dans le navigateur. Docling " +
+      "structure ce HTML nettoyé : la hiérarchie suit celle du site, donc elle est " +
+      "<strong>bonne quand le site est bien écrit, pauvre sinon</strong> — c'est la " +
+      "seule source dont la qualité ne dépend pas de nous. Pas de page physique, " +
+      "mais quelque chose que les autres n'ont pas : une <strong>URL</strong>. " +
+      "Chaque élément peut porter une ancre de fragment, et un passage se partage " +
+      "par un lien qui ouvre l'article au bon endroit."},
+  elements:[
+    {label:"title", texte:"Ce que les communs nous apprennent de la gouvernance"},
+    {label:"text", section:["Ce que les communs nous apprennent de la gouvernance"],
+     texte:"Publié le 8 mars 2026 par Claire Vasseur · 11 min de lecture"},
+    {label:"text", section:["Ce que les communs nous apprennent de la gouvernance"],
+     texte:"Depuis les travaux d'Elinor Ostrom, on sait qu'une ressource partagée peut être gérée durablement sans être ni privatisée ni nationalisée. Ce que l'on sait moins, c'est à quelles conditions.",
+     idees:[{id:'w1', cite:"une ressource partagée peut être gérée durablement sans être ni privatisée ni nationalisée",
+       statut:'nouveau', hypostases:[['axiome','epistemique'],['principe','normatif']],
+       resume:"Une troisième voie de gestion existe entre marché et État.",
+       origine:"élément #3 · ancre #ostrom"}]},
+    {label:"section_header", section:["Ce que les communs nous apprennent de la gouvernance"],
+     texte:"Les huit principes"},
+    {label:"text", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"Ostrom en dégage huit, tirés de l'observation de centaines de cas concrets : irrigation, pêcheries, forêts communales. Le troisième nous intéresse particulièrement ici.",
+     idees:[{id:'w2', cite:"tirés de l'observation de centaines de cas concrets",
+       statut:'nouveau', hypostases:[['methode','structurel']],
+       resume:"Les principes sont inductifs, issus de cas observés.",
+       origine:"élément #5 · ancre #principes"}]},
+    {label:"blockquote", etat:"debattu",
+     section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"La plupart des personnes concernées par les règles peuvent participer à les modifier.",
+     idees:[{id:'w3', cite:"peuvent participer à les modifier",
+       statut:'commente', hypostases:[['principe','normatif']],
+       resume:"La légitimité d'une règle tient à qui peut la changer.",
+       commentaires:[{qui:"Pierre", quoi:"C'est le principe 3, mot pour mot. Utile à citer en AG."},
+                     {qui:"Marie", quoi:"« Peuvent participer », pas « participent ». La nuance compte."}],
+       origine:"élément #6 · ancre #principe-3"}]},
+    {label:"text", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"La formule est prudente. Elle ne dit pas que tout le monde décide de tout, mais que personne n'est structurellement empêché de peser sur les règles qui le concernent.",
+     idees:[{id:'w4', cite:"personne n'est structurellement empêché de peser sur les règles qui le concernent",
+       statut:'commente', hypostases:[['principe','normatif'],['mode','mode']],
+       resume:"Le critère porte sur l'absence d'empêchement, pas sur la participation effective.",
+       commentaires:[{qui:"Amina", quoi:"C'est la différence entre une porte ouverte et une invitation."}],
+       origine:"élément #7 · ancre #principe-3"}]},
+    {label:"picture", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"", legende:"Système d'irrigation communal, huerta de Valence. Photo : CC-BY Ferran Cornellà."},
+    {label:"list_item", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"Des limites clairement définies"},
+    {label:"list_item", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"Des règles adaptées aux conditions locales"},
+    {label:"list_item", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"Des dispositifs de choix collectif ouverts aux concernés"}
+  ]},
+
+/* -------------------------------------------------------------- AUDIO -- */
+audio: {
+  titre:"Conseil du 12 mars — enregistrement",
+  meta:"Audio · 3 min 12 · transcription diarisée · 5 locuteurs · 13 tours",
+  note:{ titre:"L'audio ne passe pas par Docling, et c'est normal",
+    corps:"Un enregistrement n'a ni page ni mise en page : son unité naturelle est " +
+      "le <strong>tour de parole</strong>. L'élément porte donc un locuteur et un " +
+      "intervalle en secondes, là où un PDF porte une page et des boîtes. C'est un " +
+      "troisième chemin d'ingestion, légitime — et le seul cas où la glissière reste " +
+      "utile en lecture : <strong>qui parle et à quel moment, c'est du contenu</strong>, " +
+      "pas du diagnostic. Le ▶ de la glissière écoute à partir du tour ; le texte " +
+      "suit la lecture."},
+  elements:[
+    {label:"utterance", qui:"Marie",  debut:0,   duree:14,
+     texte:"Je pense qu'on va beaucoup trop vite sur ce dossier, et je voudrais qu'on prenne le temps de l'expliquer aux équipes avant de trancher.",
+     idees:[{id:'a1', cite:"je voudrais qu'on prenne le temps de l'expliquer aux équipes",
+       statut:'nouveau', hypostases:[['methode','structurel'],['principe','normatif']],
+       resume:"L'explication aux équipes est posée en préalable à la décision.",
+       origine:"tour #1 · Marie · 00:00–00:14"}]},
+    {label:"utterance", qui:"Jonas",  debut:14,  duree:13,
+     texte:"On a déjà repoussé deux fois cette décision, à un moment il faut trancher, sinon on ne fera jamais rien.",
+     idees:[{id:'a2', cite:"On a déjà repoussé deux fois cette décision, à un moment il faut trancher",
+       statut:'commente', hypostases:[['probleme','problematique']],
+       resume:"L'ajournement répété est présenté comme un coût en soi.",
+       commentaires:[{qui:"Amina", quoi:"Deux reports, c'est factuel. Mais ça n'oblige pas à décider mal."}],
+       origine:"tour #2 · Jonas · 00:14–00:27"}]},
+    {label:"utterance", qui:"Marie",  debut:27,  duree:16,
+     texte:"Trancher oui, mais pas sans avoir consulté les personnes qui vont vivre avec cette décision au quotidien.",
+     idees:[{id:'a3', cite:"pas sans avoir consulté les personnes qui vont vivre avec cette décision",
+       statut:'commente', hypostases:[['principe','normatif'],['methode','structurel']],
+       resume:"La consultation des personnes concernées est érigée en condition de légitimité.",
+       commentaires:[{qui:"Pierre", quoi:"C'est le principe 3 d'Ostrom, mot pour mot."}],
+       origine:"tour #3 · Marie · 00:27–00:43"}]},
+    {label:"utterance", qui:"Amina",  debut:43,  duree:19, etat:"debattu",
+     texte:"Je rejoins ce que dit Marie. On est en train de décider pour des gens qui ne sont pas dans la pièce, et qui n'ont même pas été prévenus qu'on en parlait aujourd'hui.",
+     idees:[{id:'a4', cite:"On est en train de décider pour des gens qui ne sont pas dans la pièce",
+       statut:'commente', hypostases:[['probleme','problematique'],['phenomene','empirique']],
+       resume:"L'absence des personnes concernées est décrite comme un vice de procédure.",
+       commentaires:[{qui:"Jonas", quoi:"D'accord sur le constat, pas sur la conclusion."},
+                     {qui:"Sonia", quoi:"On pourrait les inviter en visio, ça lève l'objection."},
+                     {qui:"Marie", quoi:"La visio ne remplace pas le fait de les prévenir à l'avance."}],
+       origine:"tour #4 · Amina · 00:43–01:02"}]},
+    {label:"utterance", qui:"Jonas",  debut:62,  duree:11,
+     texte:"D'accord, je l'entends. Mais alors on se donne une date ferme, sinon on repousse encore de six mois."},
+    {label:"utterance", qui:"Pierre", debut:73,  duree:6,
+     texte:"Est-ce qu'on a une idée du budget que ça représente ?"},
+    {label:"utterance", qui:"Sonia",  debut:79,  duree:17,
+     texte:"Sur le budget, on est à quatre pour cent d'augmentation, essentiellement le coût de l'énergie et l'embauche au secrétariat.",
+     idees:[{id:'a5', cite:"quatre pour cent d'augmentation, essentiellement le coût de l'énergie et l'embauche au secrétariat",
+       statut:'nouveau', hypostases:[['phenomene','empirique']],
+       resume:"La hausse budgétaire est rapportée à deux causes identifiées.",
+       origine:"tour #7 · Sonia · 01:19–01:36"}]},
+    {label:"utterance", qui:"Pierre", debut:96,  duree:12,
+     texte:"Quatre pour cent, c'est en dessous de l'inflation. On ne peut pas dire qu'on dérape."},
+    {label:"utterance", qui:"Marie",  debut:108, duree:19,
+     texte:"Le sujet n'est pas le montant, c'est la manière dont on décide. Dix mille euros engagés sans que personne ne l'ait vu passer, c'est ça qui pose problème.",
+     idees:[{id:'a6', cite:"Le sujet n'est pas le montant, c'est la manière dont on décide",
+       statut:'nouveau', hypostases:[['axiome','epistemique'],['principe','normatif']],
+       resume:"Le débat est déplacé du montant vers la procédure de décision.",
+       origine:"tour #9 · Marie · 01:48–02:07"},
+      {id:'a7', cite:"Dix mille euros engagés sans que personne ne l'ait vu passer",
+       statut:'commente', hypostases:[['phenomene','empirique']],
+       resume:"Un engagement de dix mille euros a été pris hors du regard collectif.",
+       commentaires:[{qui:"Pierre", quoi:"Le montant est exact, je l'ai vérifié au compte 606."}],
+       origine:"tour #9 · Marie · 01:48–02:07"}]},
+    {label:"utterance", qui:"Jonas",  debut:127, duree:14,
+     texte:"Alors on fixe un seuil. Au-delà de dix mille euros, ça passe en assemblée générale, point.",
+     idees:[{id:'a8', cite:"Au-delà de dix mille euros, ça passe en assemblée générale",
+       statut:'nouveau', hypostases:[['methode','structurel']],
+       resume:"Un seuil chiffré est proposé comme règle de passage en assemblée.",
+       origine:"tour #10 · Jonas · 02:07–02:21"}]},
+    {label:"utterance", qui:"Sonia",  debut:141, duree:20,
+     texte:"Attention, si on fixe un seuil en euros sans le réévaluer, dans cinq ans l'inflation l'aura vidé de son sens.",
+     idees:[{id:'a9', cite:"si on fixe un seuil en euros sans le réévaluer, dans cinq ans l'inflation l'aura vidé de son sens",
+       statut:'commente', hypostases:[['conjecture','speculatif'],['probleme','problematique']],
+       resume:"Un seuil nominal non indexé perd son sens avec le temps.",
+       commentaires:[{qui:"Jonas", quoi:"On l'indexe sur le budget total, alors. Cinq pour cent."}],
+       origine:"tour #11 · Sonia · 02:21–02:41"}]},
+    {label:"utterance", qui:"Marie",  debut:161, duree:18,
+     texte:"Je propose qu'on repousse d'une semaine, qu'on invite les personnes concernées, et qu'on décide la semaine prochaine avec elles.",
+     idees:[{id:'a10', cite:"qu'on repousse d'une semaine, qu'on invite les personnes concernées",
+       statut:'nouveau', hypostases:[['methode','structurel'],['mode','mode']],
+       resume:"Une décision différée d'une semaine, en présence des concernés, est proposée.",
+       origine:"tour #12 · Marie · 02:41–02:59"}]},
+    {label:"utterance", qui:"Jonas",  debut:179, duree:13,
+     texte:"Une semaine, pas plus. Et on met l'ordre du jour par écrit cette fois."}
+  ]}
+};
+
+/* =========================================================================
+   RENDU
+   ========================================================================= */
+var conteneur   = document.getElementById('document');
+var listeCartes = document.getElementById('liste-cartes');
+var corps       = document.body;
+var sourceCourante = 'pdf';
+var DUREE_TOTALE = 0;
+
+function echapper(t) {
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                  .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function formater(s) {
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+
+/* Les bornes viennent du TEXTE cite, jamais d'un comptage a la main.
+   / Bounds come from the quoted text, never hand-counted. */
+function texteAvecPortions(element) {
+  var idees = (element.idees || []).slice();
+  if (!idees.length) return echapper(element.texte || '');
+  idees.forEach(function (idee) {
+    idee.debut = element.texte.indexOf(idee.cite);
+    idee.fin   = idee.debut + idee.cite.length;
+    if (idee.debut === -1) console.error('citation introuvable :', idee.cite);
+  });
+  idees.sort(function (a,b) { return a.debut - b.debut; });
+  var html = '', curseur = 0;
+  idees.forEach(function (idee) {
+    html += echapper(element.texte.slice(curseur, idee.debut));
+    html += '<mark class="portion" data-idee="' + idee.id + '" data-statut="' +
+            idee.statut + '" tabindex="0">' +
+            echapper(element.texte.slice(idee.debut, idee.fin)) + '</mark>';
+    curseur = idee.fin;
+  });
+  return html + echapper(element.texte.slice(curseur));
+}
+
+/* Le tableau une fois aplati : ce que donne le decoupage par paragraphes
+   quand aucune structure n'a ete reconnue. / What flattening a table costs. */
+function tableauAplati(element) {
+  return [element.entetes.join(' ')]
+    .concat(element.lignes.map(function (l) { return l.join(' '); }))
+    .concat(element.total ? [element.total.join(' ')] : [])
+    .join(' ');
+}
+
+function corpsDeLElement(element, doclingActif) {
+  var label = doclingActif ? element.label : 'text';
+
+  if (label === 'table') {
+    return '<table><thead><tr>' +
+      element.entetes.map(function (e) { return '<th>' + echapper(e) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      element.lignes.map(function (l) {
+        return '<tr>' + l.map(function (c) { return '<td>' + echapper(c) + '</td>'; }).join('') + '</tr>';
+      }).join('') +
+      (element.total ? '<tr class="total">' +
+        element.total.map(function (c) { return '<td>' + echapper(c) + '</td>'; }).join('') + '</tr>' : '') +
+      '</tbody></table>';
+  }
+  if (label === 'picture') {
+    return '<figure><div class="cadre-image">image</div><figcaption>' +
+           echapper(element.legende || '') + '</figcaption></figure>';
+  }
+
+  var contenu = texteAvecPortions(element);
+  if (label === 'title')          return '<h2>' + contenu + '</h2>';
+  if (label === 'section_header') return '<h3>' + contenu + '</h3>';
+  if (label === 'list_item')      return '<ul><li>' + contenu + '</li></ul>';
+  if (label === 'blockquote')     return '<blockquote>' + contenu + '</blockquote>';
+  if (label === 'code')           return '<pre class="code">' + contenu + '</pre>';
+  if (label === 'formula')        return '<div class="formule">' + contenu + '</div>';
+  return '<p>' + contenu + '</p>';
+}
+
+function rendre() {
+  var doc = DOCUMENTS[sourceCourante];
+  var doclingActif = corps.dataset.docling === 'oui';
+  var estAudio = sourceCourante === 'audio';
+
+  document.getElementById('titre-doc').textContent = doc.titre;
+  document.getElementById('meta-doc').textContent = (doclingActif || estAudio)
+    ? doc.meta
+    : doc.meta.replace(/· \d+ éléments/, '· ' + doc.elements.length + ' éléments, tous « text »');
+
+  document.getElementById('note-source').innerHTML =
+    '<h2>' + doc.note.titre + '</h2><p>' + doc.note.corps + '</p>' +
+    '<div class="avertissement-plat"><strong>Docling décoché.</strong> ' +
+    "C'est l'état réel de la base dev aujourd'hui : les éléments viennent de la " +
+    'commande de bascule, qui découpe le texte sur les sauts de paragraphe et écrit ' +
+    '<code>label="text"</code> partout. Plus de hiérarchie, plus de tableau, plus de ' +
+    'numéro de page — et le tableau de comptes se lit comme une phrase.</div>';
+
+  conteneur.innerHTML = '';
+  var finDuDernierTour = 0;
+
+  doc.elements.forEach(function (element, index) {
+    var nombreDIdees = (element.idees || []).length;
+    var pageTexte = element.page
+      ? 'p. ' + element.page + (element.pageFin ? '–' + element.pageFin : '') : '';
+
+    /* Sans Docling, un tableau n'est plus qu'une suite de mots. */
+    var elementRendu = element;
+    if (!doclingActif && element.label === 'table') {
+      elementRendu = { label:'text', texte: tableauAplati(element) };
+    }
+
+    var bloc = document.createElement('div');
+    bloc.className = 'bloc';
+    bloc.dataset.label = doclingActif ? element.label : 'text';
+    bloc.dataset.etat = element.etat || 'analyse';
+    bloc.dataset.section = (element.section || []).join(' › ');
+    if (estAudio) {
+      bloc.dataset.debut = element.debut;
+      bloc.dataset.fin = element.debut + element.duree;
+      finDuDernierTour = element.debut + element.duree;
+    }
+
+    var glissiere;
+    if (estAudio) {
+      glissiere =
+        '<span class="etiquette-locuteur" style="--couleur-locuteur:' +
+          (LOCUTEURS[element.qui] || '') + '">' + element.qui + '</span>' +
+        '<span class="ligne-minutage">' +
+          '<button class="bouton-ecouter" title="Écouter à partir d\'ici" ' +
+            'aria-label="Écouter à partir d\'ici">▶</button>' +
+          '<span>' + formater(element.debut) + '</span>' +
+        '</span>';
+      /* En inspection, l'audio montre lui aussi son label : « utterance »
+         dit que l'unite n'est pas un bloc de mise en page mais un tour.
+         / Inspection shows the audio label too. */
+      glissiere = '<span class="etiquette-label">utterance</span>' + glissiere;
+    } else {
+      glissiere =
+        '<span class="etiquette-label">' + (doclingActif ? element.label : 'text') + '</span>' +
+        (pageTexte ? '<span class="numero-page">' + pageTexte + '</span>' : '');
+    }
+    glissiere +=
+      '<span class="numero-element">#' + (index + 1) + '</span>' +
+      (nombreDIdees ? '<button class="compteur-idees" title="' + nombreDIdees +
+        (nombreDIdees > 1 ? ' idées extraites de ce passage' : ' idée extraite de ce passage') +
+        '">' + nombreDIdees + '</button>' : '') +
+      (element.page ? '<button class="bouton-voir-pdf">voir dans le PDF</button>' : '');
+
+    bloc.innerHTML =
+      '<div class="gouttiere">' + glissiere + '</div>' +
+      '<div class="filet-etat"></div>' +
+      '<div class="corps">' + corpsDeLElement(elementRendu, doclingActif) + '</div>';
+    conteneur.appendChild(bloc);
+  });
+
+  DUREE_TOTALE = finDuDernierTour;
+
+  /* --- les cartes --- */
+  listeCartes.innerHTML = '';
+  doc.elements.forEach(function (element) {
+    (element.idees || []).forEach(function (idee) {
+      var commentaires = idee.commentaires || [];
+      var carte = document.createElement('article');
+      carte.className = 'carte';
+      carte.dataset.idee = idee.id;
+      carte.tabIndex = 0;
+      carte.innerHTML =
+        '<div class="carte-entete">' +
+          '<span class="indicateur-statut" data-statut="' + idee.statut + '"></span>' +
+          '<div class="badges">' + idee.hypostases.map(function (h) {
+            return '<span class="badge-hypostase" style="color:var(--hypostase-' +
+                   h[1] + '-text)">' + h[0] + '</span>'; }).join('') + '</div>' +
+          (commentaires.length ? '<span class="compteur-commentaires">' +
+            commentaires.length + ' 💬</span>' : '') +
+        '</div>' +
+        '<p class="typo-machine">' + echapper(idee.resume) + '</p>' +
+        '<p class="typo-citation">[' + echapper(idee.cite) + ']</p>' +
+        '<div class="origine-element">' + echapper(idee.origine) + '</div>';
+      listeCartes.appendChild(carte);
+    });
+  });
+
+  rafraichirLAudio();
+  rafraichirLeFil();
+}
+
+/* ================= NAVIGATION CROISEE ================= */
+function toutEteindre() {
+  document.querySelectorAll('mark.portion.est-active, .carte.est-active')
+    .forEach(function (n) { n.classList.remove('est-active'); });
+}
+function allumerIdee(identifiant, origine) {
+  toutEteindre();
+  var marque = document.querySelector('mark.portion[data-idee="' + identifiant + '"]');
+  var carte  = document.querySelector('.carte[data-idee="' + identifiant + '"]');
+  if (marque) marque.classList.add('est-active');
+  if (carte)  carte.classList.add('est-active');
+  if (origine === 'texte'   && carte)  carte.scrollIntoView({behavior:'smooth', block:'nearest'});
+  if (origine === 'panneau' && marque) marque.closest('.bloc').scrollIntoView({behavior:'smooth', block:'center'});
+}
+conteneur.addEventListener('click', function (e) {
+  var compteur = e.target.closest('.compteur-idees');
+  if (compteur) {
+    toutEteindre();
+    var marques = compteur.closest('.bloc').querySelectorAll('mark.portion');
+    marques.forEach(function (m) {
+      m.classList.add('est-active');
+      var c = document.querySelector('.carte[data-idee="' + m.dataset.idee + '"]');
+      if (c) c.classList.add('est-active');
+    });
+    if (marques.length) {
+      var premiere = document.querySelector('.carte[data-idee="' + marques[0].dataset.idee + '"]');
+      if (premiere) premiere.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    return;
+  }
+  if (e.target.closest('.bouton-ecouter')) { ecouterDepuis(e.target.closest('.bloc')); return; }
+  if (e.target.closest('.bouton-voir-pdf')) {
+    var page = e.target.closest('.bloc').querySelector('.numero-page');
+    alert('Ouvrirait le PDF ' + (page ? page.textContent : '') +
+          ', boîte surlignée.\n(Maquette : aucun PDF n\'est chargé.)');
+    return;
+  }
+  var marque = e.target.closest('mark.portion');
+  if (marque) allumerIdee(marque.dataset.idee, 'texte');
+});
+listeCartes.addEventListener('click', function (e) {
+  var carte = e.target.closest('.carte');
+  if (carte) allumerIdee(carte.dataset.idee, 'panneau');
+});
+
+/* ================= FIL DE SECTION ================= */
+var filSection = document.getElementById('fil-section');
+function rafraichirLeFil() {
+  if (corps.dataset.docling !== 'oui' || sourceCourante === 'audio') {
+    filSection.textContent = ''; return;
+  }
+  var seuil = filSection.getBoundingClientRect().bottom;
+  var courante = '', blocs = conteneur.querySelectorAll('.bloc');
+  for (var i = 0; i < blocs.length; i++) {
+    if (blocs[i].getBoundingClientRect().top > seuil) break;
+    courante = blocs[i].dataset.section || courante;
+  }
+  /* Un fil qui ne porte que le titre du document n'apprend rien. */
+  filSection.textContent = courante.indexOf(' › ') === -1 ? '' : courante;
+}
+window.addEventListener('scroll', rafraichirLeFil, { passive:true });
+
+/* ================= LECTEUR AUDIO ================= */
+var instantAudio = 0, enLecture = false, minuterie = null;
+var tete = document.getElementById('tete');
+
+function rafraichirLAudio() {
+  if (sourceCourante !== 'audio' || !DUREE_TOTALE) {
+    document.getElementById('minutage').textContent = '00:00 / 00:00';
+    document.getElementById('piste-titre').textContent = '—';
+    return;
+  }
+  tete.style.left = (instantAudio / DUREE_TOTALE * 100) + '%';
+  document.getElementById('minutage').textContent =
+    formater(instantAudio) + ' / ' + formater(DUREE_TOTALE);
+  var blocs = Array.prototype.slice.call(conteneur.querySelectorAll('.bloc'));
+  var courant = null;
+  blocs.forEach(function (b) {
+    if (instantAudio >= +b.dataset.debut && instantAudio < +b.dataset.fin) courant = b;
+  });
+  blocs.forEach(function (b) { b.classList.toggle('bloc-en-lecture', b === courant); });
+  document.getElementById('piste-titre').textContent = courant
+    ? courant.querySelector('.etiquette-locuteur').textContent +
+      ' · tour ' + (blocs.indexOf(courant) + 1) + ' sur ' + blocs.length
+    : '—';
+}
+document.getElementById('bouton-lecture').addEventListener('click', function () {
+  enLecture = !enLecture;
+  this.textContent = enLecture ? '❚❚' : '▶';
+  if (enLecture) {
+    minuterie = setInterval(function () {
+      instantAudio += 1;
+      if (instantAudio >= DUREE_TOTALE) instantAudio = 0;
+      rafraichirLAudio();
+    }, 1000);
+  } else { clearInterval(minuterie); }
+});
+document.getElementById('rail').addEventListener('click', function (e) {
+  if (!DUREE_TOTALE) return;
+  var boite = this.getBoundingClientRect();
+  instantAudio = Math.round((e.clientX - boite.left) / boite.width * DUREE_TOTALE);
+  rafraichirLAudio();
+});
+/* Le ▶ de la glissiere : place la tete et lance si c'etait a l'arret. */
+function ecouterDepuis(bloc) {
+  instantAudio = +bloc.dataset.debut;
+  rafraichirLAudio();
+  if (!enLecture) document.getElementById('bouton-lecture').click();
+}
+
+/* ================= BASCULES ================= */
+[['src-pdf','pdf'], ['src-md','md'], ['src-web','web'], ['src-audio','audio']]
+.forEach(function (paire) {
+  document.getElementById(paire[0]).addEventListener('click', function () {
+    if (enLecture) document.getElementById('bouton-lecture').click();
+    sourceCourante = paire[1];
+    corps.dataset.source = paire[1];
+    instantAudio = 0;
+    ['src-pdf','src-md','src-web','src-audio'].forEach(function (id) {
+      document.getElementById(id).setAttribute('aria-pressed', id === paire[0] ? 'true' : 'false');
+    });
+    rendre();
+    window.scrollTo({ top:0, behavior:'smooth' });
+  });
+});
+[['mode-lecture','lecture'], ['mode-inspection','inspection']].forEach(function (paire) {
+  document.getElementById(paire[0]).addEventListener('click', function () {
+    corps.dataset.mode = paire[1];
+    ['mode-lecture','mode-inspection'].forEach(function (id) {
+      document.getElementById(id).setAttribute('aria-pressed', id === paire[0] ? 'true' : 'false');
+    });
+    rafraichirLeFil();
+  });
+});
+document.getElementById('bascule-docling').addEventListener('change', function () {
+  corps.dataset.docling = this.checked ? 'oui' : 'non';
+  rendre();
+});
+
+/* =========================================================================
+   CLAIR / SOMBRE
+   Trois etats : « systeme » (aucun attribut, prefers-color-scheme decide),
+   « clair » et « sombre » forces. L'attribut se pose sur <html> pour que
+   les deux blocs de jetons sachent qui l'emporte.
+   / Three states: system, forced light, forced dark.
+   ========================================================================= */
+(function () {
+  var racine = document.documentElement;
+  var bouton = document.getElementById('bascule-theme');
+  /* Le clair est le DEPART, pas le systeme : la maquette doit s'ouvrir
+     sur le meme rendu pour tout le monde. / Light first, for everyone. */
+  var ETATS = [{valeur:'light', libelle:'○ clair'},
+               {valeur:'dark',  libelle:'● sombre'},
+               {valeur:'', libelle:'◑ système'}];
+  var indice = 0;
+  function appliquer() {
+    var etat = ETATS[indice];
+    if (etat.valeur) racine.dataset.theme = etat.valeur; else delete racine.dataset.theme;
+    bouton.textContent = etat.libelle;
+    bouton.title = 'Thème : ' + etat.libelle.slice(2) + ' — cliquer pour changer';
+  }
+  bouton.addEventListener('click', function () {
+    indice = (indice + 1) % ETATS.length; appliquer();
+  });
+  appliquer();
+})();
+
+rendre();
+</script>
+</body>
+</html>

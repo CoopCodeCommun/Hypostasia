@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hypostasia — sélection des preuves</title>
+<style>
+/* =========================================================================
+   HYPOSTASIA — PANNEAU DE SELECTION DES PREUVES
+   LOCALISATION : tmp/maquettes/selection-preuves.html
+
+   CE QUE CET ECRAN SERT A DECIDER
+   Avant d'ecrire une synthese, on choisit les preuves. Cet ecran montre
+   CE QUI ENTRE, DANS QUEL GROUPE, ET POURQUOI — pour qu'un humain puisse
+   le contester avant que le modele n'ecrive une ligne.
+
+   POURQUOI IL EXISTE
+   L'etat de l'art prescrit de selectionner les preuves AVANT d'ecrire.
+   La pratique courante selectionne par proximite au centroide semantique.
+   Pour une base de connaissances personnelle, c'est bon : on veut l'idee
+   dominante. Pour une synthese DELIBERATIVE, c'est l'inverse de ce qu'on
+   veut : une position minoritaire est, par construction geometrique, loin
+   de la moyenne. Elle ne remonte jamais.
+
+   CE QUE CET ECRAN ETABLIT, ET CE QU'IL N'ETABLIT PAS
+
+   Il etablit qu'un groupe DOIT S'ENUMERER : le resumer par son membre le
+   plus central efface les autres, et parfois les deux faces d'un
+   desaccord. C'est chiffre par la bascule « resumer par le representant ».
+
+   Il n'etablit PAS que le centroide soit sur pour FORMER les groupes —
+   et c'est un point d'honnetete : l'algorithme par defaut ici, un
+   agglomeratif a liaison simple, n'utilise AUCUN centroide pour former.
+   Il compare des paires de membres. Le seul algorithme qui forme par
+   centroides, k-means, est celui que cet ecran condamne.
+
+   La formule juste est donc plus severe que « autorise pour former,
+   interdit pour representer » :
+   « Le centroide n'est ni necessaire pour former, ni admissible pour
+     representer. Il ne sert qu'a DECRIRE un groupe deja forme. »
+
+   Et la liaison simple a son propre defaut, exerçable ici : l'effet de
+   chaine. Un seul point intermediaire fusionne deux sujets sans rapport
+   (cas d'epreuve n°5). L'ecran le detecte et l'affiche.
+
+   ET LA QUESTION QU'IL DOIT TRANCHER
+   Est-ce que le centroide est seulement bon a former des groupes ?
+   Les embeddings mesurent le SUJET, pas la POSITION. Deux avis opposes
+   sur le meme sujet sont donc PROCHES. Cet ecran le montre au lieu de le
+   masquer : le groupe « Le seuil de passage en assemblee » contient
+   l'avis de Jonas et son refus par Sonia. Un resume par centroide en
+   ferait une position unique. C'est le cas #2 ci-dessous.
+
+   AUCUN pgvector, AUCUNE dependance. Les positions 2D sont mockees ; les
+   distances, groupes, centroides, representants, similarites, doublons et
+   diametres sont CALCULES a partir d'elles — deplacer un point les met
+   tous a jour.
+   DEUX EXCEPTIONS, assumees : les positions elles-memes, et la liste des
+   OPPOSITIONS. Ces dernieres tiennent lieu de sortie d'une seconde passe
+   LLM : aucune geometrie ne peut les produire, c'est tout le propos.
+   / Two things are given, not computed: the positions, and the oppositions
+   — the latter stand in for a second LLM pass.
+   ========================================================================= */
+
+:root {
+  --papier:#fdfcfa; --papier-creux:#f5f3ef; --papier-panneau:#faf8f4;
+  --encre:#1c1b19; --encre-douce:#6b6862; --filet:#e4e0d8;
+  --barre:#1c1b19; --barre-texte:#fdfcfa;
+  --statut-nouveau:#999999; --statut-commente:#E69F00;
+  --cible:#7C5CBF; --danger:#b91c1c; --succes:#047857; --info:#4338ca;
+  --revelation:#f0ede6;
+
+  /* Polarite d'une position dans le debat — ce que l'embedding NE voit PAS. */
+  --pour:#047857; --contre:#b91c1c; --constat:#64748b; --proposition:#4338ca;
+
+  --hypostase-epistemique-text:#4338ca; --hypostase-empirique-text:#047857;
+  --hypostase-speculatif-text:#b45309;  --hypostase-structurel-text:#475569;
+  --hypostase-normatif-text:#6d28d9;    --hypostase-problematique-text:#b91c1c;
+  --hypostase-mode-text:#0e7490;        --hypostase-objet-text:#64748b;
+
+  --preuve:25rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+    --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a;
+    --revelation:#26242c; --barre:#0d0c10;
+  }
+}
+:root[data-theme="dark"] {
+  --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+  --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a;
+  --revelation:#26242c; --barre:#0d0c10;
+}
+
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--papier); color:var(--encre);
+  font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+  line-height:1.65; font-size:16px;
+}
+.mono { font-family:ui-monospace,"SF Mono",Menlo,monospace; }
+button { font-family:inherit; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+
+/* ---- Pupitre ---- */
+.pupitre {
+  position:sticky; top:0; z-index:90; background:var(--cible); color:#fff;
+  padding:.4rem .8rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+  font-family:ui-monospace,Menlo,monospace; font-size:.65rem;
+}
+.pupitre button, .pupitre select {
+  font:inherit; cursor:pointer; background:transparent; color:#fff;
+  border:1px solid rgba(255,255,255,.4); border-radius:3px; padding:.15rem .5rem;
+}
+.pupitre select option { color:#111; }
+.pupitre button[aria-pressed="true"] { background:#fff; color:var(--cible); }
+.pupitre .sep { width:1px; height:1rem; background:rgba(255,255,255,.3); }
+.pupitre .titre { font-weight:700; letter-spacing:.04em; }
+.pupitre a { color:#fff; }
+
+/* ---- Barre d'outils ---- */
+.barre-outils {
+  position:sticky; top:2.05rem; z-index:70; height:42px;
+  background:var(--barre); color:var(--barre-texte);
+  display:flex; align-items:center; gap:.5rem; padding:0 .7rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.7rem;
+}
+.barre-outils .marque { font-weight:700; }
+.barre-outils .droite { margin-left:auto; display:flex; gap:.35rem; align-items:center; }
+.barre-outils button {
+  background:transparent; border:1px solid rgba(255,255,255,.28); color:inherit;
+  border-radius:4px; padding:.22rem .55rem; cursor:pointer; font-size:.68rem;
+}
+.barre-outils button:hover { background:rgba(255,255,255,.12); }
+.barre-outils button.principal { background:var(--papier); color:var(--encre); border-color:var(--papier); }
+
+/* ---- Fil d'Ariane et onglets, identiques a corpus.html ----
+   Les deux ecrans doivent etre indiscernables : en HTMX ce sera le meme
+   chrome, seul le panneau changera. / Same chrome, different panel. */
+.fil-ariane {
+  position:sticky; top:calc(2.05rem + 42px); z-index:66; min-height:32px;
+  display:flex; align-items:center; gap:.35rem; padding:0 .9rem;
+  background:var(--papier-creux); border-bottom:1px solid var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.65rem; color:var(--encre-douce);
+  overflow:visible;
+}
+.fil-ariane a { color:inherit; text-decoration:none; padding:.1rem .2rem; border-radius:3px; }
+.fil-ariane a:hover { color:var(--encre); background:var(--papier); }
+.fil-ariane .courant { color:var(--encre); font-weight:600; }
+.fil-ariane .sep { opacity:.4; }
+.onglets {
+  display:flex; gap:.2rem; border-bottom:1px solid var(--filet);
+  padding:0 1.4rem; background:var(--papier);
+}
+.onglets a {
+  border-bottom:2px solid transparent; padding:.45rem .7rem; text-decoration:none;
+  font-family:ui-monospace,Menlo,monospace; font-size:.68rem;
+  color:var(--encre-douce); margin-bottom:-1px;
+}
+.onglets a[aria-selected="true"] {
+  color:var(--encre); border-bottom-color:var(--statut-commente); font-weight:700;
+}
+.onglets a:hover { color:var(--encre); }
+
+/* ---- Disposition ---- */
+.plateau { display:grid; grid-template-columns:1fr var(--preuve); }
+@media (max-width: 1100px) { .plateau { grid-template-columns:1fr; } }
+.colonne { padding:1.4rem 1.4rem 5rem; min-width:0; }
+
+.entete-zone { margin-bottom:1.1rem; padding-bottom:.8rem; border-bottom:1px solid var(--filet); }
+.entete-zone h1 { font-size:1.5rem; margin:0 0 .25rem; letter-spacing:-.015em; }
+.entete-zone .meta {
+  font-size:.68rem; color:var(--encre-douce); font-family:ui-monospace,Menlo,monospace;
+  display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;
+}
+
+/* ---- Réglages de la méthode ---- */
+.reglages {
+  display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1rem; align-items:flex-start;
+}
+.reglage {
+  border:1px solid var(--filet); border-radius:5px; padding:.35rem .5rem;
+  background:var(--papier); min-width:11rem;
+}
+.reglage > .nom {
+  display:block; font-family:ui-monospace,Menlo,monospace; font-size:.55rem;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--encre-douce); margin-bottom:.25rem;
+}
+.reglage .choix { display:flex; flex-wrap:wrap; gap:.2rem; }
+.reglage button {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; cursor:pointer;
+  border:1px solid var(--filet); color:var(--encre-douce); background:none;
+  border-radius:3px; padding:.1rem .4rem;
+}
+.reglage button[aria-pressed="true"] { background:var(--encre); color:var(--papier); border-color:var(--encre); }
+.reglage input[type=range] { width:100%; }
+.reglage .valeur { font-family:ui-monospace,Menlo,monospace; font-size:.6rem; color:var(--encre); }
+
+/* ---- Verdict de la méthode ---- */
+.verdict {
+  border:1px solid var(--filet); border-left-width:4px; border-radius:0 6px 6px 0;
+  padding:.6rem .75rem; margin-bottom:1rem; font-size:.85rem; line-height:1.55;
+}
+.verdict[data-gravite="bon"]     { border-left-color:var(--succes); background:color-mix(in srgb,var(--succes) 6%,transparent); }
+.verdict[data-gravite="alerte"]  { border-left-color:var(--statut-commente); background:color-mix(in srgb,var(--statut-commente) 8%,transparent); }
+.verdict[data-gravite="grave"]   { border-left-color:var(--danger); background:color-mix(in srgb,var(--danger) 7%,transparent); }
+/* Seul le PREMIER strong est le titre du verdict ; ceux du corps gardent
+   leur graisse normale. / Only the first strong is the heading. */
+.verdict > strong:first-child { display:block; margin-bottom:.2rem; font-size:.68rem;
+  font-family:ui-monospace,Menlo,monospace; text-transform:uppercase; letter-spacing:.07em; }
+
+/* ---- La carte sémantique ---- */
+.carte-semantique {
+  border:1px solid var(--filet); border-radius:6px; background:var(--papier-panneau);
+  margin-bottom:1rem; overflow:hidden;
+}
+.carte-semantique .entete-carte {
+  padding:.4rem .6rem; border-bottom:1px solid var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce);
+  display:flex; align-items:center; gap:.5rem;
+}
+.carte-semantique svg { display:block; width:100%; height:auto; }
+.point-extraction { cursor:pointer; transition:r .12s ease; }
+.point-extraction:hover { stroke:var(--encre); stroke-width:2; }
+.point-extraction.est-active { stroke:var(--encre); stroke-width:2.5; }
+.enveloppe-groupe { fill-opacity:.09; stroke-opacity:.42; stroke-width:1.5; stroke-dasharray:4 3; }
+.marque-centroide { fill:none; stroke-width:1.4; }
+.lien-contradiction { stroke:var(--danger); stroke-width:1.6; stroke-dasharray:3 2; opacity:.75; }
+.etiquette-carte {
+  font-family:ui-monospace,Menlo,monospace; font-size:7px; fill:var(--encre-douce);
+}
+.legende-carte {
+  padding:.4rem .6rem; border-top:1px solid var(--filet); display:flex; gap:.8rem;
+  flex-wrap:wrap; font-family:ui-monospace,Menlo,monospace; font-size:.57rem;
+  color:var(--encre-douce);
+}
+.legende-carte span { display:inline-flex; align-items:center; gap:.25rem; }
+.legende-carte i { width:.6rem; height:.6rem; border-radius:50%; display:inline-block; }
+
+/* ---- Les groupes ---- */
+.groupe {
+  border:1px solid var(--filet); border-left-width:4px; border-radius:0 6px 6px 0;
+  margin-bottom:.7rem; background:var(--papier); overflow:hidden;
+}
+.groupe > .entete-groupe {
+  display:flex; align-items:center; gap:.5rem; padding:.45rem .6rem;
+  background:var(--papier-creux); cursor:pointer; flex-wrap:wrap;
+}
+.groupe .nom-groupe { font-weight:700; font-size:.92rem; }
+.groupe .compte-groupe {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; color:var(--encre-douce);
+}
+.groupe .drapeaux { margin-left:auto; display:flex; gap:.25rem; flex-wrap:wrap; }
+.drapeau {
+  font-family:ui-monospace,Menlo,monospace; font-size:.55rem; text-transform:uppercase;
+  letter-spacing:.06em; border:1px solid currentColor; border-radius:2px; padding:.03rem .3rem;
+}
+.drapeau[data-genre="contradiction"] { color:var(--danger); }
+.drapeau[data-genre="isole"]         { color:var(--cible); }
+.drapeau[data-genre="doublon"]       { color:var(--statut-commente); }
+.drapeau[data-genre="debattu"]       { color:var(--statut-commente); }
+.drapeau[data-genre="ambigu"]        { color:var(--info); }
+.groupe .corps-groupe { padding:.2rem .5rem .5rem; }
+.groupe.est-replie .corps-groupe { display:none; }
+
+/* Chaque membre est ENUMERE. Jamais un representant, jamais un echantillon. */
+.membre {
+  display:grid; grid-template-columns:auto 1fr auto; gap:.5rem; align-items:start;
+  padding:.4rem .3rem; border-bottom:1px solid var(--filet); cursor:pointer;
+}
+.membre:last-child { border-bottom:none; }
+.membre:hover { background:var(--revelation); }
+.membre.est-active { background:color-mix(in srgb,var(--statut-commente) 14%,transparent); }
+.membre .polarite {
+  width:.55rem; height:.55rem; border-radius:2px; margin-top:.35rem;
+}
+.membre .texte-membre { font-size:.85rem; line-height:1.45; }
+.membre .meta-membre {
+  font-family:ui-monospace,Menlo,monospace; font-size:.57rem; color:var(--encre-douce);
+  margin-top:.15rem; display:flex; gap:.4rem; flex-wrap:wrap; align-items:center;
+}
+.membre .similarite {
+  font-family:ui-monospace,Menlo,monospace; font-size:.58rem; color:var(--encre-douce);
+  white-space:nowrap; padding-top:.2rem;
+}
+.membre .raison {
+  font-family:ui-monospace,Menlo,monospace; font-size:.55rem;
+  border:1px solid currentColor; border-radius:2px; padding:.02rem .28rem;
+}
+.membre .raison[data-raison="debattue"]   { color:var(--statut-commente); }
+.membre .raison[data-raison="famille"]    { color:var(--info); }
+.membre .raison[data-raison="isolee"]     { color:var(--cible); }
+.membre .raison[data-raison="epinglee"]   { color:var(--succes); }
+
+.badge-hypostase {
+  font-family:ui-monospace,Menlo,monospace; font-size:.54rem; text-transform:uppercase;
+  letter-spacing:.06em; padding:.03rem .3rem; border-radius:2px; white-space:nowrap;
+  background:none; border:1px solid currentColor; opacity:.85;
+}
+
+/* ---- Contradictions transverses ---- */
+.contradiction {
+  border:1px solid color-mix(in srgb,var(--danger) 35%,transparent);
+  border-radius:6px; margin-bottom:.6rem; overflow:hidden;
+  background:color-mix(in srgb,var(--danger) 4%,transparent);
+}
+.contradiction .entete-contradiction {
+  padding:.4rem .6rem; font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--danger);
+  display:flex; align-items:center; gap:.5rem;
+}
+.contradiction .face {
+  padding:.4rem .6rem; border-top:1px solid color-mix(in srgb,var(--danger) 22%,transparent);
+  font-size:.85rem; cursor:pointer;
+}
+.contradiction .face:hover { background:var(--revelation); }
+.contradiction .qui-face {
+  font-family:ui-monospace,Menlo,monospace; font-size:.57rem; color:var(--encre-douce);
+}
+
+/* ---- Sections repliables ---- */
+details.section {
+  border:1px solid var(--filet); border-radius:6px; margin-bottom:.7rem; overflow:hidden;
+}
+details.section > summary {
+  cursor:pointer; padding:.45rem .6rem; background:var(--papier-creux); list-style:none;
+  font-family:ui-monospace,Menlo,monospace; font-size:.64rem; color:var(--encre);
+  display:flex; align-items:center; gap:.4rem;
+}
+details.section > summary::-webkit-details-marker { display:none; }
+details.section > summary::before { content:"▸"; opacity:.5; }
+details.section[open] > summary::before { content:"▾"; }
+details.section .contenu { padding:.5rem .6rem; }
+details.section .explication {
+  font-size:.82rem; color:var(--encre-douce); margin:0 0 .6rem; line-height:1.55;
+}
+
+/* ---- Couverture ---- */
+.barre-couverture {
+  display:flex; height:1.1rem; border-radius:3px; overflow:hidden;
+  border:1px solid var(--filet); margin:.4rem 0;
+}
+.barre-couverture > div { height:100%; }
+.barre-couverture .couvert    { background:color-mix(in srgb,var(--succes) 55%,transparent); }
+.barre-couverture .non-couvert{ background:repeating-linear-gradient(45deg,
+  var(--papier-creux) 0 5px, var(--filet) 5px 10px); }
+.ligne-couverture {
+  display:grid; grid-template-columns:1fr auto auto; gap:.6rem; align-items:center;
+  padding:.3rem .2rem; border-bottom:1px solid var(--filet); font-size:.82rem;
+}
+.ligne-couverture:last-child { border-bottom:none; }
+.ligne-couverture .chiffres {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; color:var(--encre-douce);
+  white-space:nowrap;
+}
+.mini-barre { width:6rem; height:.5rem; border-radius:2px; background:var(--papier-creux); overflow:hidden; }
+.mini-barre > div { height:100%; background:color-mix(in srgb,var(--succes) 60%,transparent); }
+
+/* ---- Panneau de preuve ---- */
+.panneau-preuve {
+  background:var(--papier-panneau); border-left:1px solid var(--filet);
+  position:sticky; top:calc(2.05rem + 42px + 32px + 2rem); align-self:start;
+  max-height:calc(100vh - 2.05rem - 42px); display:flex; flex-direction:column;
+}
+@media (max-width: 1100px) {
+  .panneau-preuve { position:static; max-height:none; border-left:none; border-top:1px solid var(--filet); }
+}
+.panneau-preuve .entete {
+  padding:.5rem .65rem; border-bottom:1px solid var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce);
+}
+.panneau-preuve .corps { flex:1; overflow-y:auto; padding:.65rem; }
+.carte-preuve {
+  border:1px solid var(--filet); border-radius:5px; padding:.5rem .6rem;
+  margin-bottom:.5rem; background:var(--papier);
+}
+.carte-preuve .citation-exacte { font-style:italic; font-size:.86rem; line-height:1.5; margin:.25rem 0 0; }
+.carte-preuve .resume-machine {
+  font-family:ui-monospace,Menlo,monospace; font-size:.72rem; color:var(--encre-douce); margin:0;
+}
+.carte-preuve .debat {
+  margin-top:.4rem; padding-top:.35rem; border-top:1px dashed var(--filet); font-size:.79rem;
+}
+.carte-preuve .debat .qui { font-weight:700; font-size:.68rem; }
+.tableau-voisins { width:100%; border-collapse:collapse; font-size:.75rem; margin-top:.4rem; }
+.tableau-voisins td { padding:.18rem .3rem; border-bottom:1px solid var(--filet); }
+.tableau-voisins td:last-child {
+  text-align:right; font-family:ui-monospace,Menlo,monospace; font-size:.62rem; color:var(--encre-douce);
+}
+.tableau-voisins tr { cursor:pointer; }
+.tableau-voisins tr:hover td { background:var(--revelation); }
+
+.bouton-plat {
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem; cursor:pointer;
+  background:var(--papier); color:var(--encre); border:1px solid var(--filet);
+  border-radius:4px; padding:.2rem .5rem; display:inline-flex; align-items:center; gap:.25rem;
+}
+.bouton-plat:hover { border-color:var(--encre-douce); }
+.bouton-plat.principal { background:var(--encre); color:var(--papier); border-color:var(--encre); }
+.rangee-boutons { display:flex; gap:.35rem; flex-wrap:wrap; margin-top:.5rem; }
+
+.pile-toasts {
+  position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); z-index:95;
+  display:flex; flex-direction:column; gap:.4rem; align-items:center; pointer-events:none;
+}
+.toast {
+  background:var(--encre); color:var(--papier); border-radius:5px; padding:.4rem .75rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.64rem; max-width:90vw;
+  box-shadow:0 4px 16px rgba(0,0,0,.2);
+}
+.toast[data-genre="erreur"] { background:var(--danger); }
+.toast[data-genre="succes"] { background:var(--succes); }
+html, body { overflow-x:hidden; }
+</style>
+</head>
+<body data-algorithme="agglomeratif" data-tri="debat" data-contradictions="oui">
+
+<div class="pupitre">
+  <span class="titre">SÉLECTION DES PREUVES</span>
+  <a href="corpus.html">← le carnet</a>
+  <span class="sep"></span>
+  <button id="bascule-theme">○ clair</button>
+  <span style="opacity:.75">Aucun pgvector — positions mockées, tout le reste calculé</span>
+</div>
+
+<div class="barre-outils">
+  <span class="marque">Hypostasia</span>
+  <span style="opacity:.8">Conseil d'administration · préparation d'une synthèse</span>
+  <div class="droite">
+    <button id="btn-exporter">⤓ Exporter la sélection</button>
+    <button class="principal" id="btn-ecrire">Écrire la synthèse →</button>
+  </div>
+</div>
+
+<nav class="fil-ariane">
+  <span class="marque-cible" title="Le fil d'Ariane remplace l'arbre : sous le N-N, une note n'a pas de parent unique.">cible</span>
+  <a href="corpus.html">Coopérative des Trois Vallées</a>
+  <span class="sep">›</span>
+  <a href="corpus.html">👥 Conseil d'administration</a>
+  <span class="sep">›</span>
+  <span class="courant">Sélection des preuves</span>
+</nav>
+
+<div class="onglets" role="tablist">
+  <a role="tab" aria-selected="false" href="corpus.html">Notes</a>
+  <a role="tab" aria-selected="false" href="corpus.html">Wikis</a>
+  <a role="tab" aria-selected="false" href="corpus.html">Synthèses dirigées</a>
+  <a role="tab" aria-selected="true" href="#">Sélection des preuves</a>
+  <a role="tab" aria-selected="false" href="corpus.html">Alignement</a>
+</div>
+
+<div class="plateau">
+  <main class="colonne">
+    <header class="entete-zone">
+      <h1>Quelles preuves entrent, et pourquoi</h1>
+      <div class="meta">
+        <span id="meta-perimetre"></span>
+        <span id="meta-groupes"></span>
+      </div>
+    </header>
+
+    <div class="reglages">
+      <div class="reglage">
+        <span class="nom">Algorithme de regroupement</span>
+        <div class="choix" id="choix-algorithme">
+          <button data-algorithme="agglomeratif" aria-pressed="true"
+            title="Agglomératif à seuil : accepte les groupes de taille 1. Les isolés restent visibles.">agglomératif à seuil</button>
+          <button data-algorithme="kmeans" aria-pressed="false"
+            title="k-means : chaque point est forcé dans un cluster. Les isolés sont absorbés.">k-means (k fixe)</button>
+        </div>
+      </div>
+      <div class="reglage">
+        <span class="nom">Seuil de regroupement <span class="valeur" id="valeur-seuil"></span></span>
+        <input type="range" id="seuil" min="10" max="66" value="24">
+      </div>
+      <div class="reglage" id="reglage-k" hidden>
+        <span class="nom">Nombre de groupes k = <span class="valeur" id="valeur-k">4</span></span>
+        <input type="range" id="valeur-k-curseur" min="2" max="8" value="4">
+      </div>
+      <div class="reglage">
+        <span class="nom">Représentation du groupe</span>
+        <div class="choix" id="choix-representation">
+          <button data-representation="enumerer" aria-pressed="true"
+            title="Le groupe s'énumère : toutes ses extractions partent au modèle.">énumérer</button>
+          <button data-representation="representant" aria-pressed="false"
+            title="Le groupe est résumé par son membre le plus proche du centroïde. C'est la pratique standard — et c'est là que le centroïde redevient dangereux.">résumer par le représentant</button>
+        </div>
+      </div>
+      <div class="reglage">
+        <span class="nom">Ordre de présentation</span>
+        <div class="choix" id="choix-tri">
+          <button data-tri="debat" aria-pressed="true"
+            title="Densité de contestation d'abord — le signal propre à Hypostasia.">par le débat</button>
+          <button data-tri="taille" aria-pressed="false">par taille</button>
+          <button data-tri="centre" aria-pressed="false"
+            title="Proximité au centroïde : c'est le tri par consensus.">par centralité</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="verdict" id="verdict"></div>
+
+    <div class="carte-semantique">
+      <div class="entete-carte">
+        <span>Carte sémantique</span>
+        <span style="text-transform:none; letter-spacing:0; opacity:.75">
+          projection 2D — la distance mesure la proximité de SUJET, pas d'opinion</span>
+      </div>
+      <svg id="carte" viewBox="0 0 600 320" role="img" aria-label="Carte sémantique des extractions"></svg>
+      <div class="legende-carte">
+        <span><i style="background:var(--pour)"></i>appuie</span>
+        <span><i style="background:var(--contre)"></i>s'oppose</span>
+        <span><i style="background:var(--constat)"></i>constate</span>
+        <span><i style="background:var(--proposition)"></i>propose</span>
+        <span>⊕ centroïde du groupe</span>
+        <span style="color:var(--danger)">┄ contradiction détectée</span>
+        <span style="opacity:.8" title="Ce n'est pas un cosinus : les positions sont mockées.
+Sur de vrais embeddings, cette échelle serait remplacée par la similarité cosinus.">
+          échelle : similarité = 1 − distance ⁄ 260</span>
+      </div>
+    </div>
+
+    <div id="liste-groupes"></div>
+
+    <details class="section" id="section-contradictions" open>
+      <summary><span id="titre-contradictions"></span></summary>
+      <div class="contenu">
+        <p class="explication">Les embeddings mesurent le <strong>sujet</strong>, pas la
+          <strong>position</strong> : deux avis opposés sur la même question sont proches, donc
+          atterrissent dans le même groupe. Si l'on résumait ce groupe par son centre, il n'en
+          resterait qu'un avis — et le désaccord disparaîtrait de la synthèse. C'est pour ça
+          qu'une seconde passe cherche les oppositions, à l'intérieur des groupes comme entre eux.</p>
+        <div id="liste-contradictions"></div>
+      </div>
+    </details>
+
+    <details class="section" id="section-isolees">
+      <summary><span id="titre-isolees"></span></summary>
+      <div class="contenu">
+        <p class="explication">Une position exprimée une seule fois est, par construction
+          géométrique, loin de toute moyenne. Un tri par centralité ne la ferait jamais
+          remonter. Elle est ici au même rang que les autres, pas dans un fourre-tout de
+          « bruit ».</p>
+        <div id="liste-isolees"></div>
+      </div>
+    </details>
+
+    <details class="section" id="section-doublons">
+      <summary><span id="titre-doublons"></span></summary>
+      <div class="contenu">
+        <p class="explication">Deux extractions quasi identiques venues de notes différentes.
+          On ne les fusionne <strong>pas</strong> : ce sont deux occurrences datées, et le fait
+          qu'une idée revienne à trois semaines d'intervalle est une information sur le débat,
+          pas une redondance à nettoyer.</p>
+        <div id="liste-doublons"></div>
+      </div>
+    </details>
+
+    <details class="section" id="section-couverture">
+      <summary><span id="titre-couverture"></span></summary>
+      <div class="contenu">
+        <p class="explication">Ce que l'analyse n'a jamais touché. Sans cette vue,
+          « non sourcé » confond deux choses très différentes : le modèle a inventé, ou bien
+          il a raison mais le passage n'a jamais produit d'extraction. Calcul sans modèle —
+          une simple jointure entre les éléments et leurs ancrages.</p>
+        <div class="barre-couverture" id="barre-couverture-globale"></div>
+        <div id="liste-couverture"></div>
+      </div>
+    </details>
+  </main>
+
+  <aside class="panneau-preuve">
+    <div class="entete" id="titre-preuve">Sélectionnez une extraction</div>
+    <div class="corps" id="corps-preuve">
+      <p style="font-size:.85rem; color:var(--encre-douce); line-height:1.6">
+        Cliquez un point de la carte, une ligne de groupe ou une face de contradiction.
+        Le panneau montre la citation exacte, son débat, et <strong>pourquoi</strong> elle est
+        dans ce groupe — la liste de ses voisins avec leur similarité.</p>
+    </div>
+  </aside>
+</div>
+
+<div class="pile-toasts" id="pile-toasts"></div>
+
+<script>
+/* =========================================================================
+   1. LES DONNEES
+   Les positions 2D sont MOCKEES (elles tiennent lieu de projection d'un
+   espace d'embedding). Tout le reste est calcule : distances, groupes,
+   centroides, representants, similarites. Les nombres affiches sont donc
+   coherents entre eux.
+   / Only the 2D positions are mocked; everything else is computed.
+
+   « polarite » est ce qu'une SECONDE PASSE detecterait — un embedding ne
+   la voit pas. C'est exactement le point que cet ecran doit demontrer.
+   ========================================================================= */
+var POLARITES = {
+  pour:        {libelle:'appuie',   couleur:'var(--pour)'},
+  contre:      {libelle:"s'oppose", couleur:'var(--contre)'},
+  constat:     {libelle:'constate', couleur:'var(--constat)'},
+  proposition: {libelle:'propose',  couleur:'var(--proposition)'}
+};
+var HYPOSTASE_VERS_FAMILLE = {
+  axiome:'epistemique', phenomene:'empirique', conjecture:'speculatif',
+  structure:'structurel', loi:'normatif', principe:'normatif', valeur:'normatif',
+  probleme:'problematique', mode:'mode', methode:'objet', objet:'objet'
+};
+function familleDuTag(tag) { return HYPOSTASE_VERS_FAMILLE[tag] || 'objet'; }
+
+var EXTRACTIONS = [
+  /* --- Grappe « le seuil de passage en assemblée » ---------------------
+     CAS D'EPREUVE N°2 : deux positions OPPOSEES sur le meme sujet, donc
+     geometriquement PROCHES. Un resume par centroide en ferait une seule
+     position. C'est le cas qui condamne le centroide-representant. */
+  {id:608, note:'Conseil du 12 mars', qui:'Jonas', quand:'02:07',
+   citation:"Au-delà de dix mille euros, ça passe en assemblée générale",
+   resume:"Un seuil chiffré est proposé comme règle de passage en assemblée.",
+   tags:['methode'], statut:'nouveau', commentaires:[],
+   polarite:'proposition', x:420, y:142},
+  {id:609, note:'Conseil du 12 mars', qui:'Sonia', quand:'02:21',
+   citation:"si on fixe un seuil en euros sans le réévaluer, dans cinq ans l'inflation l'aura vidé de son sens",
+   resume:"Un seuil nominal non indexé perd son sens avec le temps.",
+   tags:['conjecture','probleme'], statut:'commente',
+   commentaires:[{qui:'Jonas', quoi:"On l'indexe sur le budget total, alors. Cinq pour cent."}],
+   polarite:'contre', x:436, y:152},
+  {id:702, note:'Conseil du 9 février', qui:'Amina', quand:'01:02',
+   citation:"trois mille euros, c'est déjà beaucoup pour une décision de bureau",
+   resume:"Un premier seuil implicite, plus bas, avait été évoqué en février.",
+   tags:['conjecture'], statut:'nouveau', commentaires:[],
+   polarite:'proposition', x:428, y:164},
+
+  /* --- Grappe « la légitimité d'une décision » -------------------------
+     CAS D'EPREUVE N°3 : 603 et 503 sont un quasi-doublon, dits a trois
+     semaines d'intervalle dans deux notes differentes. On ne fusionne pas. */
+  {id:603, note:'Conseil du 12 mars', qui:'Marie', quand:'00:27',
+   citation:"pas sans avoir consulté les personnes qui vont vivre avec cette décision",
+   resume:"La consultation des personnes concernées est érigée en condition de légitimité.",
+   tags:['principe','methode'], statut:'commente',
+   commentaires:[{qui:'Pierre', quoi:"C'est le principe 3 d'Ostrom, mot pour mot."}],
+   polarite:'pour', x:130, y:92},
+  {id:503, note:'Ce que les communs nous apprennent', qui:null, quand:null,
+   citation:"La plupart des personnes concernées par les règles peuvent participer à les modifier",
+   resume:"La légitimité d'une règle tient à qui peut la changer.",
+   tags:['principe'], statut:'commente',
+   commentaires:[{qui:'Pierre', quoi:"C'est le principe 3, mot pour mot. Utile à citer en AG."},
+                 {qui:'Marie', quoi:"« Peuvent participer », pas « participent ». La nuance compte."}],
+   polarite:'pour', x:136, y:96},
+  {id:504, note:'Ce que les communs nous apprennent', qui:null, quand:null,
+   citation:"personne n'est structurellement empêché de peser sur les règles qui le concernent",
+   resume:"Le critère porte sur l'absence d'empêchement, pas sur la participation effective.",
+   tags:['principe','mode'], statut:'commente',
+   commentaires:[{qui:'Amina', quoi:"C'est la différence entre une porte ouverte et une invitation."}],
+   polarite:'pour', x:152, y:112},
+  {id:604, note:'Conseil du 12 mars', qui:'Amina', quand:'00:43',
+   citation:"On est en train de décider pour des gens qui ne sont pas dans la pièce",
+   resume:"L'absence des personnes concernées est décrite comme un vice de procédure.",
+   tags:['probleme','phenomene'], statut:'commente',
+   commentaires:[{qui:'Jonas', quoi:"D'accord sur le constat, pas sur la conclusion."},
+                 {qui:'Sonia', quoi:"On pourrait les inviter en visio, ça lève l'objection."},
+                 {qui:'Marie', quoi:"La visio ne remplace pas le fait de les prévenir à l'avance."}],
+   polarite:'contre', x:132, y:110},
+
+  /* --- Grappe « le rythme de la décision » ----------------------------- */
+  {id:602, note:'Conseil du 12 mars', qui:'Jonas', quand:'00:14',
+   citation:"On a déjà repoussé deux fois cette décision, à un moment il faut trancher",
+   resume:"L'ajournement répété est présenté comme un coût en soi.",
+   tags:['probleme'], statut:'commente',
+   commentaires:[{qui:'Amina', quoi:"Deux reports, c'est factuel. Mais ça n'oblige pas à décider mal."},
+                 {qui:'Marie', quoi:"Je note qu'on n'a jamais dit pourquoi on avait reporté."}],
+   polarite:'contre', x:240, y:222},
+  {id:601, note:'Conseil du 12 mars', qui:'Marie', quand:'00:00',
+   citation:"je voudrais qu'on prenne le temps de l'expliquer aux équipes",
+   resume:"L'explication aux équipes est posée en préalable à la décision.",
+   tags:['methode','principe'], statut:'nouveau', commentaires:[],
+   polarite:'pour', x:256, y:238},
+  {id:610, note:'Conseil du 12 mars', qui:'Marie', quand:'02:41',
+   citation:"qu'on repousse d'une semaine, qu'on invite les personnes concernées",
+   resume:"Une décision différée d'une semaine, en présence des concernés, est proposée.",
+   tags:['methode','mode'], statut:'nouveau', commentaires:[],
+   polarite:'proposition', x:244, y:240},
+
+  /* --- Grappe « les comptes » ------------------------------------------ */
+  {id:301, note:'Rapport annuel 2024', qui:null, quand:null, page:3,
+   citation:"un excédent de 12 400 euros, contre un déficit de 3 100 euros l'année précédente",
+   resume:"Le résultat passe d'un déficit à un excédent d'une année sur l'autre.",
+   tags:['phenomene'], statut:'nouveau', commentaires:[],
+   polarite:'constat', x:510, y:232},
+  {id:302, note:'Rapport annuel 2024', qui:null, quand:null, page:4,
+   citation:"Le poste des salaires progresse de 4 %",
+   resume:"La masse salariale croît de quatre pour cent.",
+   tags:['phenomene'], statut:'commente',
+   commentaires:[{qui:'Sonia', quoi:"Sur douze mois pleins, ce sera plutôt 6 %."}],
+   polarite:'constat', x:528, y:240},
+  {id:607, note:'Conseil du 12 mars', qui:'Marie', quand:'01:48',
+   citation:"Dix mille euros engagés sans que personne ne l'ait vu passer",
+   resume:"Un engagement de dix mille euros a été pris hors du regard collectif.",
+   tags:['phenomene'], statut:'commente',
+   commentaires:[{qui:'Pierre', quoi:"Le montant est exact, je l'ai vérifié au compte 606."}],
+   polarite:'constat', x:516, y:250},
+
+  /* --- CAS D'EPREUVE N°1 : un avis ISOLE, loin de tout ------------------
+     Personne d'autre ne parle du bail. Un tri par centralite ne le ferait
+     jamais remonter — et c'est peut-etre le vrai risque du budget. */
+  {id:303, note:'Rapport annuel 2024', qui:null, quand:null, page:'4–5',
+   citation:"repose sur un accord verbal avec le propriétaire actuel",
+   resume:"L'allègement des charges n'est garanti par aucun écrit.",
+   tags:['probleme','conjecture'], statut:'commente',
+   commentaires:[{qui:'Jonas', quoi:"C'est le vrai risque du budget. À mettre en tête du rapport."},
+                 {qui:'Amina', quoi:"Un avenant écrit coûte 300 € de notaire. On le fait ?"}],
+   polarite:'contre', x:70, y:272},
+
+  /* --- CAS D'EPREUVE N°4 : une extraction A LA FRONTIERE -----------------
+     Elle parle du montant ET de la procedure, et se tient a 27 de la
+     grappe du seuil — juste au-dela du seuil par defaut. Bougez le
+     curseur de 24 a 28 : elle passe de « seule » a « absorbee ».
+
+     NOTE D'HONNETETE : en liaison simple, un point a mi-chemin de DEUX
+     grappes ne bascule pas de l'une a l'autre — il les FUSIONNE (c'est le
+     cas n°5). Le vrai basculement d'appartenance est un comportement de
+     l'affectation forcee : en k-means, cette extraction change de cluster
+     selon k, sans qu'aucun de ces decoupages soit plus juste que l'autre.
+     / Single-linkage merges; only forced assignment reassigns. */
+  {id:606, note:'Conseil du 12 mars', qui:'Marie', quand:'01:48',
+   citation:"Le sujet n'est pas le montant, c'est la manière dont on décide",
+   resume:"Le débat est déplacé du montant vers la procédure de décision.",
+   tags:['axiome','principe'], statut:'nouveau', commentaires:[],
+   polarite:'pour', x:398, y:158},
+
+  /* --- CAS D'EPREUVE N°5 : LE POINT-PONT --------------------------------
+     Cette extraction parle du seuil ET des statuts. Elle est a 44 de l'un
+     et 58 de l'autre. En liaison simple, elle rejoint le seuil vers 44,
+     puis fusionne les DEUX grappes vers 59 : deux sujets sans rapport
+     n'en font plus qu'un a cause d'un seul point intermediaire.
+     C'est l'effet de chaine, et c'est le defaut propre de l'algorithme
+     qu'on a choisi. / The chain effect: one bridge merges two topics. */
+  {id:803, note:'Statuts de la coopérative', qui:null, quand:null, page:5,
+   citation:"Tout seuil financier fixé par le conseil doit figurer au règlement intérieur",
+   resume:"Un seuil décidé par le conseil n'a de portée qu'inscrit au règlement.",
+   tags:['loi','methode'], statut:'nouveau', commentaires:[],
+   polarite:'constat', x:450, y:110},
+
+  /* --- Le cadre statutaire --------------------------------------------- */
+  {id:801, note:'Statuts de la coopérative', qui:null, quand:null, page:2,
+   citation:"L'assemblée générale est seule compétente pour les engagements pluriannuels",
+   resume:"Les statuts réservent les engagements pluriannuels à l'assemblée générale.",
+   tags:['loi','structure'], statut:'nouveau', commentaires:[],
+   polarite:'constat', x:470, y:52},
+  {id:802, note:'Statuts de la coopérative', qui:null, quand:null, page:3,
+   citation:"Le conseil rend compte de ses décisions à la plus prochaine assemblée",
+   resume:"Une obligation de compte rendu a posteriori pèse sur le conseil.",
+   tags:['loi','methode'], statut:'commente',
+   commentaires:[{qui:'Sonia', quoi:"Donc décider vite n'est pas illégal. C'est juste discutable."}],
+   polarite:'constat', x:486, y:64},
+  {id:701, note:'Conseil du 9 février', qui:'Pierre', quand:'00:11',
+   citation:"On avait dit qu'on validerait le budget avant de signer quoi que ce soit",
+   resume:"Une règle de séquence budget-avant-signature avait déjà été posée.",
+   tags:['principe','methode'], statut:'commente',
+   commentaires:[{qui:'Marie', quoi:"Et personne ne l'a appliquée depuis. C'est le sujet."}],
+   polarite:'pour', x:474, y:72}
+];
+
+/* Les oppositions que la SECONDE PASSE detecte. Un embedding ne peut pas
+   les produire : il verrait ces paires comme « proches », c'est-a-dire
+   « d'accord ». / What the second pass finds and embeddings cannot. */
+var OPPOSITIONS = [
+  {a:608, b:609, motif:"Le seuil chiffré est proposé, puis contesté sur sa durabilité."},
+  {a:602, b:601, motif:"Trancher maintenant contre prendre le temps d'expliquer."},
+  {a:604, b:802, motif:"Vice de procédure allégué contre conformité statutaire constatée."},
+  /* CAS D'EPREUVE N°6 : les deux faces n'ont AUCUN mot en commun, donc
+     l'embedding les place tres loin (d > 300). Une seconde passe qui
+     travaillerait groupe par groupe ne les verrait jamais. Elle doit
+     donc etre TRANSVERSE. / Far apart: a per-group pass would miss it. */
+  {a:601, b:801, motif:"Prendre le temps d'expliquer, contre une compétence exclusive de l'assemblée."}
+];
+
+/* La couverture : ce que l'analyse n'a jamais touché. Chiffres par note. */
+var COUVERTURE = [
+  {note:'Conseil du 12 mars',   elements:13, couverts:8,
+   exemples:["« Une semaine, pas plus. Et on met l'ordre du jour par écrit cette fois. »",
+             "« Est-ce qu'on a une idée du budget que ça représente ? »"]},
+  {note:'Rapport annuel 2024',  elements:41, couverts:4,
+   exemples:["tout le chapitre 4 « Fréquentation » (9 éléments)",
+             "le tableau des comptes (1 élément)"]},
+  {note:'Conseil du 9 février', elements:11, couverts:2, exemples:[]},
+  {note:'Statuts de la coopérative', elements:28, couverts:2,
+   exemples:["les articles 1 à 6 (statut juridique, objet social)"]},
+  {note:'Ce que les communs nous apprennent', elements:11, couverts:2, exemples:[]}
+];
+
+/* =========================================================================
+   2. LE MOTEUR — tout est calcule, rien n'est ecrit a la main
+   ========================================================================= */
+/* En deca de cette distance et venant de notes differentes, deux
+   extractions sont tenues pour un quasi-doublon. Constante affichee a
+   l'ecran, pas cachee dans le code. / Shown, not hidden. */
+var SEUIL_DE_QUASI_DOUBLON = 10;
+
+function distance(a, b) {
+  return Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+}
+/* Une similarite lisible, derivee de la distance. Elle ne pretend pas etre
+   un cosinus : c'est une echelle monotone, et c'est tout ce qu'on affiche. */
+function similarite(a, b) {
+  return Math.max(0, 1 - distance(a, b) / 260);
+}
+function centroide(membres) {
+  var x = 0, y = 0;
+  membres.forEach(function (m) { x += m.x; y += m.y; });
+  return {x: x / membres.length, y: y / membres.length};
+}
+/* Le MEDOIDE : le membre reel le plus proche du centroide. On le calcule
+   pour pouvoir MONTRER ce que « resumer par le representant » coute — pas pour
+   s'en servir par defaut. / Computed to show its cost, not to rely on it. */
+function representant(membres) {
+  var centre = centroide(membres), meilleur = null, minimum = Infinity;
+  membres.forEach(function (m) {
+    var d = distance(m, centre);
+    if (d < minimum) { minimum = d; meilleur = m; }
+  });
+  return meilleur;
+}
+
+/* --- Agglomeratif a seuil : un point isole reste un groupe de 1. -------
+   C'est la propriete qui compte ici. Aucun k a choisir, aucune graine,
+   donc resultat reproductible. / Singletons survive; deterministic. */
+function regrouperParSeuil(extractions, seuil) {
+  var groupes = extractions.map(function (e) { return [e]; });
+  var fusionne = true;
+  while (fusionne) {
+    fusionne = false;
+    boucle:
+    for (var i = 0; i < groupes.length; i++) {
+      for (var j = i + 1; j < groupes.length; j++) {
+        /* Liaison simple : deux groupes fusionnent si UN membre de l'un
+           est sous le seuil d'UN membre de l'autre. */
+        var proche = groupes[i].some(function (a) {
+          return groupes[j].some(function (b) { return distance(a, b) <= seuil; });
+        });
+        if (proche) {
+          groupes[i] = groupes[i].concat(groupes[j]);
+          groupes.splice(j, 1);
+          fusionne = true;
+          break boucle;
+        }
+      }
+    }
+  }
+  return groupes;
+}
+
+/* --- k-means : chaque point est FORCE dans un cluster. -----------------
+   Presente uniquement pour montrer ce qu'il fait aux isoles. Graine fixe
+   pour que la demonstration soit reproductible — en vrai, une graine
+   differente donnerait un autre decoupage, donc un resultat inauditable.
+   / Shown to demonstrate its cost. Fixed seed, else non-reproducible. */
+function regrouperParKMeans(extractions, k) {
+  var centres = [];
+  var pas = Math.max(1, Math.floor(extractions.length / k));
+  for (var i = 0; i < k; i++) {
+    var e = extractions[(i * pas) % extractions.length];
+    centres.push({x: e.x, y: e.y});
+  }
+  var affectation = [];
+  for (var tour = 0; tour < 24; tour++) {
+    affectation = extractions.map(function (e) {
+      var meilleur = 0, minimum = Infinity;
+      centres.forEach(function (c, index) {
+        var d = distance(e, c);
+        if (d < minimum) { minimum = d; meilleur = index; }
+      });
+      return meilleur;
+    });
+    centres = centres.map(function (c, index) {
+      var membres = extractions.filter(function (_, n) { return affectation[n] === index; });
+      return membres.length ? centroide(membres) : c;
+    });
+  }
+  var groupes = [];
+  for (var g = 0; g < k; g++) {
+    var membres = extractions.filter(function (_, n) { return affectation[n] === g; });
+    if (membres.length) groupes.push(membres);
+  }
+  return groupes;
+}
+
+/* Nommer un groupe : par son hypostase dominante, PAS par le texte de son
+   membre central. Nommer par le representant, c'est deja resumer par lui.
+   / Named by dominant hypostasis, never by its central member's text. */
+var NOMS_DE_GRAPPE = {
+  methode:"Comment décider", principe:"Ce qui rend une décision légitime",
+  probleme:"Ce qui bloque", phenomene:"Les faits chiffrés",
+  conjecture:"Ce qui pourrait arriver", loi:"Le cadre statutaire",
+  axiome:"Le cadrage du débat", mode:"Les variantes", structure:"Le cadre statutaire",
+  objet:"Divers"
+};
+function nommerLeGroupe(membres) {
+  var comptes = {};
+  membres.forEach(function (m) {
+    m.tags.forEach(function (t) { comptes[t] = (comptes[t] || 0) + 1; });
+  });
+  var meilleur = null, maximum = 0;
+  Object.keys(comptes).forEach(function (t) {
+    if (comptes[t] > maximum) { maximum = comptes[t]; meilleur = t; }
+  });
+  return NOMS_DE_FAMILLE_OU_TAG(meilleur, membres);
+}
+function NOMS_DE_FAMILLE_OU_TAG(tag, membres) {
+  var nom = NOMS_DE_GRAPPE[tag] || "Groupe";
+  /* Un groupe de 1 garde le nom de son sujet : « Position isolée » deux
+     fois de suite ne dirait pas de quoi il s'agit.
+     / A singleton keeps its subject; the flag says it is alone. */
+  return membres.length === 1 ? nom + " — seule" : nom;
+}
+
+/* Le signal propre a Hypostasia : la densite de contestation. Une
+   extraction commentee par trois personnes qui ne sont pas d'accord est
+   le CONTRAIRE d'un consensus — un tri par centralite la rejetterait.
+   / Debate density: the signal no generic RAG has. */
+function densiteDeDebat(membres) {
+  return membres.reduce(function (total, m) { return total + m.commentaires.length; }, 0);
+}
+function raisonDEntree(extraction, groupe) {
+  if (groupe.length === 1) return 'isolee';
+  if (extraction.commentaires.length >= 2) return 'debattue';
+  if (extraction.statut === 'commente') return 'debattue';
+  return 'famille';
+}
+var LIBELLE_RAISON = {
+  debattue:'débattue', famille:'couvre une famille', isolee:'position isolée'
+};
+
+/* =========================================================================
+   3. ETAT ET RENDU
+   ========================================================================= */
+var corps = document.body;
+var extractionActive = null;
+var etat = {algorithme:'agglomeratif', seuil:24, k:4, representation:'enumerer', tri:'debat'};
+var groupesCourants = [];
+
+function echapper(t) {
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                  .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(message, genre) {
+  var t = document.createElement('div');
+  t.className = 'toast'; if (genre) t.dataset.genre = genre;
+  t.textContent = message;
+  document.getElementById('pile-toasts').appendChild(t);
+  setTimeout(function () { t.remove(); }, 3400);
+}
+function lExtraction(id) {
+  return EXTRACTIONS.find(function (e) { return e.id === id; });
+}
+function htmlDesBadges(tags) {
+  return tags.map(function (t) {
+    return '<span class="badge-hypostase" style="color:var(--hypostase-' +
+      familleDuTag(t) + '-text)">' + echapper(t) + '</span>';
+  }).join('');
+}
+
+function calculer() {
+  groupesCourants = (etat.algorithme === 'kmeans'
+    ? regrouperParKMeans(EXTRACTIONS, etat.k)
+    : regrouperParSeuil(EXTRACTIONS, etat.seuil)
+  ).map(function (membres, index) {
+    var centre = centroide(membres);
+    return {
+      index: index,
+      membres: membres,
+      centre: centre,
+      diametre: diametre(membres),
+      /* Part des paires du groupe qui sont AU-DELA du seuil : ces deux-la
+         ne se sont jamais approches, ils sont ensemble par un chemin.
+         C'est la mesure directe de l'effet de chaine, et elle ne depend
+         d'aucun facteur arbitraire. */
+      partHorsSeuil: partDesPairesHorsSeuil(membres, etat.seuil),
+      enChaine: membres.length > 2 && partDesPairesHorsSeuil(membres, etat.seuil) >= 0.34,
+      representant: representant(membres),
+      nom: nommerLeGroupe(membres),
+      debat: densiteDeDebat(membres),
+      polarites: Array.from(new Set(membres.map(function (m) { return m.polarite; })))
+    };
+  });
+
+  /* Les oppositions INTERNES a un groupe : celles qu'un résumé effacerait. */
+  groupesCourants.forEach(function (g) {
+    g.oppositionsInternes = OPPOSITIONS.filter(function (o) {
+      var a = g.membres.some(function (m) { return m.id === o.a; });
+      var b = g.membres.some(function (m) { return m.id === o.b; });
+      return a && b;
+    });
+  });
+
+  var ordre = {
+    debat:  function (a, b) { return b.debat - a.debat || b.membres.length - a.membres.length; },
+    taille: function (a, b) { return b.membres.length - a.membres.length; },
+    centre: function (a, b) {
+      /* Tri par centralite : les groupes les plus proches du centre global.
+         C'est le tri par consensus — presente pour qu'on VOIE ou tombent
+         les positions isolees. */
+      var global = centroide(EXTRACTIONS);
+      return distance(a.centre, global) - distance(b.centre, global);
+    }
+  }[etat.tri];
+  groupesCourants.sort(ordre);
+}
+
+/* ---- Le verdict : ce que la combinaison de reglages coute vraiment ---- */
+function rendreLeVerdict() {
+  var isoles = groupesCourants.filter(function (g) { return g.membres.length === 1; });
+  var avecOpposition = groupesCourants.filter(function (g) { return g.oppositionsInternes.length; });
+  var perduesParResume = 0;
+  if (etat.representation === 'representant') {
+    groupesCourants.forEach(function (g) { perduesParResume += g.membres.length - 1; });
+  }
+  var zone = document.getElementById('verdict');
+
+  if (etat.representation === 'representant') {
+    /* DEUX degres de degat, et le second est le pire :
+       - le representant est une des deux faces -> la moitie du desaccord ;
+       - le representant est un tiers           -> le desaccord ENTIER.
+       La version precedente ne comptait que le premier, donc taisait le pire.
+       / The worse case: the representative is neither side. */
+    var moitiesEffacees = 0, desaccordsEffacesEnEntier = 0;
+    avecOpposition.forEach(function (g) {
+      g.oppositionsInternes.forEach(function (o) {
+        var garde = g.representant.id;
+        if (garde === o.a || garde === o.b) moitiesEffacees += 1;
+        else desaccordsEffacesEnEntier += 1;
+      });
+    });
+    zone.dataset.gravite = 'grave';
+    zone.innerHTML = '<strong>Résumer par le représentant efface ' + perduesParResume +
+      ' extractions sur ' + EXTRACTIONS.length + '</strong>' +
+      'Le modèle ne recevrait que ' + groupesCourants.length + ' extractions — une par groupe, ' +
+      'la plus centrale. ' +
+      (moitiesEffacees
+        ? 'Dans ' + moitiesEffacees + ' cas, c\'est <strong>la moitié d\'un désaccord</strong> ' +
+          'qui disparaît : l\'opposition devient une position unique. '
+        : '') +
+      (desaccordsEffacesEnEntier
+        ? 'Et dans ' + desaccordsEffacesEnEntier + ' cas <strong>le désaccord disparaît en ' +
+          'entier</strong> : le représentant n\'est ni l\'une ni l\'autre des deux faces, ' +
+          'donc les deux sont effacées et il ne reste aucune trace qu\'il y a eu débat. ' +
+          'C\'est le pire cas, et c\'est celui qu\'on ne voit pas venir. '
+        : '') +
+      'C\'est la pratique standard, et c\'est exactement là que le centroïde redevient nuisible : ' +
+      'autorisé pour <em>former</em> un groupe, jamais pour le <em>représenter</em>.';
+    return;
+  }
+  if (etat.algorithme === 'kmeans') {
+    /* On CALCULE ce qui arrive au bail au lieu de l'affirmer : a k=4 il est
+       absorbe, a partir de k=5 il redevient singleton. Un texte fige aurait
+       menti a l'ecran, juste au-dessus d'une section qui le contredit.
+       / Computed, not asserted: the outcome depends on k. */
+    var groupeDuBail = groupesCourants.find(function (g) {
+      return g.membres.some(function (m) { return m.id === 303; });
+    });
+    var bailAbsorbe = groupeDuBail && groupeDuBail.membres.length > 1;
+    zone.dataset.gravite = bailAbsorbe ? 'grave' : 'alerte';
+    zone.innerHTML = '<strong>k-means force chaque extraction dans un groupe</strong>' +
+      (bailAbsorbe
+        ? 'Avec k = ' + etat.k + ', l\'avis sur le bail — exprimé une seule fois, et que Jonas ' +
+          'juge « le vrai risque du budget » — est <strong>absorbé</strong> dans un groupe de ' +
+          groupeDuBail.membres.length + '. Il n\'apparaît plus nulle part comme position isolée. '
+        : 'Avec k = ' + etat.k + ', l\'avis sur le bail ressort en groupe seul — mais c\'est un ' +
+          'accident du réglage, pas une propriété : à k = 4 il est absorbé. ') +
+      'C\'est le vrai reproche : <strong>le découpage dépend de k</strong> et de l\'ordre ' +
+      'd\'initialisation. Deux réglages voisins ne donnent pas le même résultat, donc rien ' +
+      'n\'est reproductible — donc rien n\'est auditable.';
+    return;
+  }
+  var enChaine = groupesCourants.filter(function (g) { return g.enChaine; });
+  if (enChaine.length) {
+    zone.dataset.gravite = 'grave';
+    zone.innerHTML = '<strong>Effet de chaîne : ' + enChaine.length + ' groupe' +
+      (enChaine.length > 1 ? 's ont' : ' a') + ' fusionné des sujets sans rapport</strong>' +
+      'Au seuil ' + etat.seuil + ', « ' + echapper(enChaine[0].nom) + ' » a un diamètre de ' +
+      enChaine[0].diametre.toFixed(0) + ' et <strong>' +
+      Math.round(enChaine[0].partHorsSeuil * 100) + ' % de ses paires sont au-delà du seuil</strong> : ' +
+      'ces membres-là ne se sont <em>jamais</em> approchés. Ils sont ensemble parce qu\'un point ' +
+      'intermédiaire les relie de proche en proche. C\'est le défaut propre de la liaison simple, ' +
+      'et il est ici déclenché par une seule extraction — celle qui parle du seuil <em>et</em> ' +
+      'des statuts. <strong>Le danger revient bien par la fenêtre :</strong> ce n\'est plus le ' +
+      'centroïde, c\'est le chemin.';
+    return;
+  }
+  zone.dataset.gravite = isoles.length ? 'bon' : 'alerte';
+  zone.innerHTML = '<strong>' + groupesCourants.length + ' groupes · ' + isoles.length +
+    ' position' + (isoles.length > 1 ? 's isolées' : ' isolée') + ' préservée' +
+    (isoles.length > 1 ? 's' : '') + '</strong>' +
+    'Toutes les extractions partent au modèle, groupées mais énumérées. ' +
+    (avecOpposition.length
+      ? avecOpposition.length + ' groupe' + (avecOpposition.length > 1 ? 's contiennent' : ' contient') +
+        ' une opposition interne : les embeddings les ont rapprochées parce qu\'elles parlent ' +
+        'du même sujet, alors qu\'elles disent le contraire l\'une de l\'autre. C\'est la seconde ' +
+        'passe qui les a repérées, pas la géométrie.'
+      : 'Aucune opposition interne détectée à ce seuil.');
+}
+
+/* ---- La carte ---- */
+function rendreLaCarte() {
+  var svg = document.getElementById('carte');
+  var couleursDeGroupe = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+  var morceaux = [];
+
+  groupesCourants.forEach(function (g, index) {
+    var couleur = couleursDeGroupe[index % couleursDeGroupe.length];
+    /* Enveloppe : un cercle qui contient tous les membres. */
+    var rayon = 18;
+    g.membres.forEach(function (m) { rayon = Math.max(rayon, distance(m, g.centre) + 16); });
+    morceaux.push('<circle class="enveloppe-groupe" cx="' + g.centre.x.toFixed(1) +
+      '" cy="' + g.centre.y.toFixed(1) + '" r="' + rayon.toFixed(1) +
+      '" fill="' + couleur + '" stroke="' + couleur + '"></circle>');
+    morceaux.push('<text class="etiquette-carte" x="' + g.centre.x.toFixed(1) +
+      '" y="' + (g.centre.y - rayon - 4).toFixed(1) + '" text-anchor="middle">' +
+      echapper(g.nom) + ' (' + g.membres.length + ')</text>');
+    /* Le centroïde : marqué, mais jamais utilisé comme représentant. */
+    morceaux.push('<g class="marque-centroide" stroke="' + couleur + '">' +
+      '<circle cx="' + g.centre.x.toFixed(1) + '" cy="' + g.centre.y.toFixed(1) + '" r="4"></circle>' +
+      '<line x1="' + (g.centre.x - 6).toFixed(1) + '" y1="' + g.centre.y.toFixed(1) +
+        '" x2="' + (g.centre.x + 6).toFixed(1) + '" y2="' + g.centre.y.toFixed(1) + '"></line>' +
+      '<line x1="' + g.centre.x.toFixed(1) + '" y1="' + (g.centre.y - 6).toFixed(1) +
+        '" x2="' + g.centre.x.toFixed(1) + '" y2="' + (g.centre.y + 6).toFixed(1) + '"></line>' +
+      '</g>');
+  });
+
+  if (corps.dataset.contradictions === 'oui') {
+    OPPOSITIONS.forEach(function (o) {
+      var a = lExtraction(o.a), b = lExtraction(o.b);
+      if (!a || !b) return;
+      morceaux.push('<line class="lien-contradiction" x1="' + a.x + '" y1="' + a.y +
+        '" x2="' + b.x + '" y2="' + b.y + '"></line>');
+    });
+  }
+
+  EXTRACTIONS.forEach(function (e) {
+    var rayon = 5 + Math.min(4, e.commentaires.length * 1.6);
+    morceaux.push('<circle class="point-extraction" data-extraction="' + e.id +
+      '" cx="' + e.x + '" cy="' + e.y + '" r="' + rayon.toFixed(1) +
+      '" fill="' + POLARITES[e.polarite].couleur + '" fill-opacity=".85">' +
+      '<title>' + echapper(e.resume) + '\n' + POLARITES[e.polarite].libelle +
+      ' · ' + e.commentaires.length + ' commentaire(s)</title></circle>');
+  });
+
+  svg.innerHTML = morceaux.join('');
+}
+
+/* ---- Les groupes, ENUMERES ---- */
+function rendreLesGroupes() {
+  /* On retient les groupes replies AVANT de reconstruire, sinon chaque
+     mouvement du curseur les rouvre tous. / Keep collapsed state. */
+  var replies = {};
+  document.querySelectorAll('.groupe.est-replie').forEach(function (n) {
+    replies[n.dataset.groupe] = true;
+  });
+  var couleursDeGroupe = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316'];
+  document.getElementById('liste-groupes').innerHTML = groupesCourants.map(function (g, index) {
+    var couleur = couleursDeGroupe[index % couleursDeGroupe.length];
+    var drapeaux = '';
+    if (g.oppositionsInternes.length) {
+      drapeaux += '<span class="drapeau" data-genre="contradiction">' +
+        g.oppositionsInternes.length + ' opposition' + (g.oppositionsInternes.length > 1 ? 's' : '') +
+        ' interne' + (g.oppositionsInternes.length > 1 ? 's' : '') + '</span>';
+    }
+    if (g.membres.length === 1) drapeaux += '<span class="drapeau" data-genre="isole">isolée</span>';
+    if (g.membres.length >= 3) {
+      drapeaux += '<span class="drapeau"' + (g.enChaine ? ' data-genre="contradiction"' : '') +
+        ' title="Diamètre du groupe : ' + g.diametre.toFixed(0) + ' pour un seuil de ' +
+        etat.seuil + '. ' + Math.round(g.partHorsSeuil * 100) + ' % de ses paires sont ' +
+        'au-delà du seuil — ces membres-là ne se sont jamais approchés.">' +
+        (g.enChaine ? 'effet de chaîne · ' : '') + '⌀' + g.diametre.toFixed(0) +
+        ' · ' + Math.round(g.partHorsSeuil * 100) + ' % hors seuil</span>';
+    }
+    if (g.debat >= 3) drapeaux += '<span class="drapeau" data-genre="debattu">' + g.debat + ' commentaires</span>';
+    if (g.polarites.length >= 3) drapeaux += '<span class="drapeau" data-genre="ambigu">' +
+      g.polarites.length + ' polarités</span>';
+
+    var membres = g.membres.slice().sort(function (a, b) {
+      return b.commentaires.length - a.commentaires.length;
+    });
+
+    /* En mode « représentant », on montre ce qui SERAIT retenu et ce qui SERAIT
+       perdu — plutôt que de masquer le coût du choix. */
+    var corpsGroupe = membres.map(function (m) {
+      var perdu = etat.representation === 'representant' && m.id !== g.representant.id;
+      var raison = raisonDEntree(m, g.membres);
+      return '<div class="membre" data-extraction="' + m.id + '"' +
+        (perdu ? ' style="opacity:.4"' : '') + '>' +
+        '<span class="polarite" style="background:' + POLARITES[m.polarite].couleur +
+          '" title="' + POLARITES[m.polarite].libelle + '"></span>' +
+        '<span><span class="texte-membre">' + echapper(m.resume) + '</span>' +
+          '<span class="meta-membre">' +
+            htmlDesBadges(m.tags) +
+            '<span>' + echapper(m.note) + (m.qui ? ' · ' + m.qui : '') + '</span>' +
+            (m.commentaires.length ? '<span style="color:var(--statut-commente)">💬 ' +
+              m.commentaires.length + '</span>' : '') +
+            '<span class="raison" data-raison="' + raison + '">' + LIBELLE_RAISON[raison] + '</span>' +
+            (perdu ? '<span class="raison" data-raison="isolee" ' +
+              'style="color:var(--danger)">effacée par le résumé</span>' : '') +
+          '</span></span>' +
+        '<span class="similarite" title="similarité au centroïde du groupe">' +
+          (g.membres.length > 1 ? similarite(m, g.centre).toFixed(2) : '—') + '</span>' +
+        '</div>';
+    }).join('');
+
+    return '<div class="groupe' + (replies[index] ? ' est-replie' : '') +
+      '" data-groupe="' + index + '" style="border-left-color:' + couleur + '">' +
+      '<div class="entete-groupe">' +
+        '<span class="nom-groupe">' + echapper(g.nom) + '</span>' +
+        '<span class="compte-groupe">' + g.membres.length + ' extraction' +
+          (g.membres.length > 1 ? 's' : '') + '</span>' +
+        '<span class="drapeaux">' + drapeaux + '</span>' +
+      '</div>' +
+      '<div class="corps-groupe">' + corpsGroupe + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/* ---- Contradictions, isolées, doublons, couverture ---- */
+function rendreLesSections() {
+  /* Contradictions */
+  document.getElementById('titre-contradictions').textContent =
+    OPPOSITIONS.length + ' oppositions repérées par la seconde passe';
+  document.getElementById('liste-contradictions').innerHTML = OPPOSITIONS.map(function (o) {
+    var a = lExtraction(o.a), b = lExtraction(o.b);
+    var memeGroupe = groupesCourants.some(function (g) {
+      return g.membres.some(function (m) { return m.id === o.a; }) &&
+             g.membres.some(function (m) { return m.id === o.b; });
+    });
+    /* Une opposition dont les deux faces sont TRES eloignees n'aurait
+       aucune chance d'etre vue par une passe qui travaillerait groupe par
+       groupe : elles ne se croisent jamais. C'est ce qui impose que la
+       seconde passe soit TRANSVERSE.
+       / Far-apart oppositions force the second pass to be cross-group. */
+    var lointaine = !memeGroupe && distance(a, b) > 150;
+    return '<div class="contradiction">' +
+      '<div class="entete-contradiction">' +
+        '<span>' + echapper(o.motif) + '</span>' +
+        '<span style="margin-left:auto; text-transform:none; letter-spacing:0">' +
+          (memeGroupe ? 'dans le même groupe' : 'entre deux groupes') +
+          ' · distance ' + distance(a, b).toFixed(0) + '</span>' +
+      '</div>' +
+      (lointaine
+        ? '<div style="padding:.35rem .6rem; font-size:.78rem; line-height:1.5; ' +
+          'border-top:1px solid color-mix(in srgb,var(--danger) 22%,transparent)">' +
+          '<strong>Aucun mot en commun.</strong> Ces deux faces sont à ' +
+          distance(a, b).toFixed(0) + ' l\'une de l\'autre : la géométrie ne les rapprochera ' +
+          'jamais. Une seconde passe qui travaillerait <em>groupe par groupe</em> ne les ' +
+          'verrait pas — elle doit être transverse.</div>'
+        : '') +
+      '<div class="face" data-extraction="' + a.id + '">' +
+        '<span class="qui-face">' + echapper(a.note) + (a.qui ? ' · ' + a.qui : '') +
+        ' — ' + POLARITES[a.polarite].libelle + '</span><br>' +
+        echapper(a.resume) + '</div>' +
+      '<div class="face" data-extraction="' + b.id + '">' +
+        '<span class="qui-face">' + echapper(b.note) + (b.qui ? ' · ' + b.qui : '') +
+        ' — ' + POLARITES[b.polarite].libelle + '</span><br>' +
+        echapper(b.resume) + '</div>' +
+    '</div>';
+  }).join('');
+
+  /* Isolées */
+  var isoles = groupesCourants.filter(function (g) { return g.membres.length === 1; });
+  document.getElementById('titre-isolees').textContent =
+    isoles.length + ' position' + (isoles.length > 1 ? 's isolées' : ' isolée');
+  document.getElementById('liste-isolees').innerHTML = isoles.length
+    ? isoles.map(function (g) {
+        var m = g.membres[0];
+        var voisin = plusProcheVoisin(m);
+        return '<div class="membre" data-extraction="' + m.id + '">' +
+          '<span class="polarite" style="background:' + POLARITES[m.polarite].couleur + '"></span>' +
+          '<span><span class="texte-membre">' + echapper(m.resume) + '</span>' +
+            '<span class="meta-membre">' + htmlDesBadges(m.tags) +
+            '<span>' + echapper(m.note) + '</span>' +
+            (m.commentaires.length ? '<span style="color:var(--statut-commente)">💬 ' +
+              m.commentaires.length + '</span>' : '') +
+            '<span>voisin le plus proche à ' + distance(m, voisin).toFixed(0) + '</span>' +
+            '</span></span>' +
+          '<span class="similarite">' + similarite(m, voisin).toFixed(2) + '</span></div>';
+      }).join('')
+    : '<p class="explication" style="margin:0">Aucune position isolée avec ces réglages — ' +
+      'ce qui, avec k-means, veut dire qu\'elles ont été absorbées, pas qu\'elles n\'existent pas.</p>';
+
+  /* Doublons : paires tres proches venues de NOTES differentes. */
+  var doublons = [];
+  for (var i = 0; i < EXTRACTIONS.length; i++) {
+    for (var j = i + 1; j < EXTRACTIONS.length; j++) {
+      var a = EXTRACTIONS[i], b = EXTRACTIONS[j];
+      if (a.note !== b.note && distance(a, b) < SEUIL_DE_QUASI_DOUBLON) doublons.push({a:a, b:b});
+    }
+  }
+  document.getElementById('titre-doublons').textContent =
+    doublons.length + ' quasi-doublon' + (doublons.length > 1 ? 's' : '') + ' entre notes (distance < ' + SEUIL_DE_QUASI_DOUBLON + ')';
+  document.getElementById('liste-doublons').innerHTML = doublons.length
+    ? doublons.map(function (d) {
+        return '<div class="contradiction" style="border-color:' +
+          'color-mix(in srgb,var(--statut-commente) 35%,transparent); ' +
+          'background:color-mix(in srgb,var(--statut-commente) 4%,transparent)">' +
+          '<div class="entete-contradiction" style="color:var(--statut-commente)">' +
+            '<span>similarité ' + similarite(d.a, d.b).toFixed(2) + ' — conservés séparément</span></div>' +
+          '<div class="face" data-extraction="' + d.a.id + '">' +
+            '<span class="qui-face">' + echapper(d.a.note) + '</span><br>' +
+            echapper(d.a.resume) + '</div>' +
+          '<div class="face" data-extraction="' + d.b.id + '">' +
+            '<span class="qui-face">' + echapper(d.b.note) + '</span><br>' +
+            echapper(d.b.resume) + '</div></div>';
+      }).join('')
+    : '<p class="explication" style="margin:0">Aucun.</p>';
+
+  /* Couverture */
+  var totalElements = COUVERTURE.reduce(function (t, c) { return t + c.elements; }, 0);
+  var totalCouverts = COUVERTURE.reduce(function (t, c) { return t + c.couverts; }, 0);
+  var part = Math.round(totalCouverts / totalElements * 100);
+  document.getElementById('titre-couverture').textContent =
+    'Couverture : ' + totalCouverts + ' éléments sur ' + totalElements +
+    ' portent une extraction (' + part + ' %)';
+  document.getElementById('barre-couverture-globale').innerHTML =
+    '<div class="couvert" style="width:' + part + '%"></div>' +
+    '<div class="non-couvert" style="width:' + (100 - part) + '%"></div>';
+  document.getElementById('liste-couverture').innerHTML = COUVERTURE.map(function (c) {
+    var partNote = Math.round(c.couverts / c.elements * 100);
+    return '<div class="ligne-couverture">' +
+      '<span>' + echapper(c.note) +
+        (c.exemples.length
+          ? '<span style="display:block; font-size:.72rem; color:var(--encre-douce)">' +
+            'jamais extrait : ' + c.exemples.map(echapper).join(' · ') + '</span>'
+          : '') +
+      '</span>' +
+      '<span class="mini-barre"><div style="width:' + partNote + '%"></div></span>' +
+      '<span class="chiffres">' + c.couverts + '/' + c.elements + '</span></div>';
+  }).join('');
+}
+
+/* L'arete par laquelle un membre est entre dans son groupe : le voisin le
+   plus proche DANS le groupe, sous le seuil. C'est la vraie explication de
+   l'appartenance en liaison simple. / The edge that let it in. */
+function areteDEntree(extraction, groupe) {
+  var meilleur = null, minimum = Infinity;
+  groupe.membres.forEach(function (m) {
+    if (m.id === extraction.id) return;
+    var d = distance(m, extraction);
+    if (d < minimum) { minimum = d; meilleur = m; }
+  });
+  return meilleur ? {voisin: meilleur, distance: minimum} : null;
+}
+
+/* DIAMETRE d'un groupe : la plus grande distance entre deux de ses membres.
+   En liaison simple, un groupe peut avoir un diametre bien superieur au
+   seuil — c'est l'effet de chaine : A touche B, B touche C, et A se
+   retrouve avec C sans jamais l'avoir approche.
+   / Chain effect: single-linkage groups can be far wider than the threshold. */
+function partDesPairesHorsSeuil(membres, seuil) {
+  if (membres.length < 3) return 0;
+  var total = 0, horsSeuil = 0;
+  for (var i = 0; i < membres.length; i++) {
+    for (var j = i + 1; j < membres.length; j++) {
+      total += 1;
+      if (distance(membres[i], membres[j]) > seuil) horsSeuil += 1;
+    }
+  }
+  return horsSeuil / total;
+}
+
+function diametre(membres) {
+  var maximum = 0;
+  membres.forEach(function (a) {
+    membres.forEach(function (b) { maximum = Math.max(maximum, distance(a, b)); });
+  });
+  return maximum;
+}
+
+function plusProcheVoisin(extraction) {
+  var meilleur = null, minimum = Infinity;
+  EXTRACTIONS.forEach(function (e) {
+    if (e.id === extraction.id) return;
+    var d = distance(e, extraction);
+    if (d < minimum) { minimum = d; meilleur = e; }
+  });
+  return meilleur;
+}
+
+/* ---- Le panneau : POURQUOI cette extraction est dans ce groupe ---- */
+function ouvrirLaPreuve(id) {
+  var extraction = lExtraction(id);
+  if (!extraction) return;
+  extractionActive = id;
+  document.querySelectorAll('.est-active').forEach(function (n) { n.classList.remove('est-active'); });
+  document.querySelectorAll('[data-extraction="' + id + '"]').forEach(function (n) {
+    n.classList.add('est-active');
+  });
+
+  var groupe = groupesCourants.find(function (g) {
+    return g.membres.some(function (m) { return m.id === id; });
+  });
+  var voisins = EXTRACTIONS
+    .filter(function (e) { return e.id !== id; })
+    .map(function (e) { return {e:e, s:similarite(e, extraction), d:distance(e, extraction)}; })
+    .sort(function (a, b) { return b.s - a.s; })
+    .slice(0, 5);
+  var opposition = OPPOSITIONS.find(function (o) { return o.a === id || o.b === id; });
+
+  document.getElementById('titre-preuve').textContent = 'Extraction ' + id;
+  document.getElementById('corps-preuve').innerHTML =
+    '<article class="carte-preuve">' +
+      '<div style="display:flex; gap:.35rem; align-items:center; flex-wrap:wrap; margin-bottom:.3rem">' +
+        htmlDesBadges(extraction.tags) +
+        '<span class="drapeau" style="color:' + POLARITES[extraction.polarite].couleur + '">' +
+          POLARITES[extraction.polarite].libelle + '</span>' +
+      '</div>' +
+      '<p class="resume-machine">' + echapper(extraction.resume) + '</p>' +
+      '<p class="citation-exacte">« ' + echapper(extraction.citation) + ' »</p>' +
+      '<p class="resume-machine" style="margin-top:.3rem">' + echapper(extraction.note) +
+        (extraction.qui ? ' · ' + extraction.qui + ' · ' + extraction.quand : '') +
+        (extraction.page ? ' · p. ' + extraction.page : '') + '</p>' +
+      (extraction.commentaires.length
+        ? '<div class="debat">' + extraction.commentaires.map(function (c) {
+            return '<div><span class="qui">' + echapper(c.qui) + '</span> — ' +
+              echapper(c.quoi) + '</div>'; }).join('') + '</div>'
+        : '') +
+    '</article>' +
+
+    /* La reponse a « pourquoi ces deux-la ensemble ? » */
+    '<div style="font-family:ui-monospace,Menlo,monospace; font-size:.6rem; ' +
+      'text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce); ' +
+      'margin:.6rem 0 .2rem">Pourquoi dans ce groupe</div>' +
+    '<p style="font-size:.82rem; margin:0 0 .3rem; line-height:1.5">' +
+      (groupe.membres.length === 1
+        ? 'Elle n\'est avec personne : son plus proche voisin est à ' +
+          distance(extraction, plusProcheVoisin(extraction)).toFixed(0) +
+          (etat.algorithme === 'agglomeratif'
+            ? ', au-delà du seuil de ' + etat.seuil + '.'
+            : ' — k-means lui a tout de même donné son propre cluster.')
+        : 'Groupe « ' + echapper(groupe.nom) + ' », ' + groupe.membres.length +
+          ' extractions. ' +
+          (etat.algorithme === 'agglomeratif'
+            ? (function () {
+                /* L'appartenance vient d'une ARETE, pas du centre. */
+                var arete = areteDEntree(extraction, groupe);
+                return arete
+                  ? 'Elle est entrée par une seule arête : <strong>d(' + extraction.id + ', ' +
+                    arete.voisin.id + ') = ' + arete.distance.toFixed(0) + '</strong> ≤ seuil ' +
+                    etat.seuil + '. Ce n\'est pas sa proximité au centre qui l\'a fait entrer.'
+                  : 'Aucun voisin sous le seuil.';
+              })()
+            : 'k-means l\'a affectée au centroïde le plus proche : ' +
+              distance(extraction, groupe.centre).toFixed(0) + '.') +
+          ' Similarité au centroïde (descriptive) : ' +
+          similarite(extraction, groupe.centre).toFixed(2) + '.' +
+          (etat.representation === 'representant'
+            ? (groupe.representant.id === id
+               ? ' <strong>C\'est elle que le résumé retiendrait</strong> — les ' +
+                 (groupe.membres.length - 1) + ' autres seraient effacées.'
+               : ' <strong style="color:var(--danger)">Le résumé l\'effacerait</strong> au ' +
+                 'profit de l\'extraction ' + groupe.representant.id + '.')
+            : '')) +
+    '</p>' +
+    '<table class="tableau-voisins"><tbody>' + voisins.map(function (v) {
+      var groupeDuVoisin = groupesCourants.find(function (g) {
+        return g.membres.some(function (m) { return m.id === v.e.id; });
+      });
+      var ailleurs = groupeDuVoisin !== groupe;
+      return '<tr data-extraction="' + v.e.id + '"><td>' +
+        echapper(v.e.resume.slice(0, 46)) + (v.e.resume.length > 46 ? '…' : '') +
+        (ailleurs ? '<br><span style="font-family:ui-monospace,Menlo,monospace; font-size:.56rem;' +
+          ' color:var(--cible)">dans « ' + echapper(groupeDuVoisin.nom) + ' »</span>' : '') +
+        '</td><td>' + v.s.toFixed(2) + '<br><span style="opacity:.7">d ' +
+        v.d.toFixed(0) + '</span></td></tr>';
+    }).join('') + '</tbody></table>' +
+
+    (opposition
+      ? '<div class="verdict" data-gravite="grave" style="margin-top:.6rem; font-size:.8rem">' +
+        '<strong>Opposition détectée</strong>' + echapper(opposition.motif) +
+        ' L\'autre face est l\'extraction ' + (opposition.a === id ? opposition.b : opposition.a) +
+        ', à une distance de ' +
+        distance(extraction, lExtraction(opposition.a === id ? opposition.b : opposition.a)).toFixed(0) +
+        ' — assez proche pour être dans le même groupe.</div>'
+      : '') +
+
+    '<div class="rangee-boutons">' +
+      '<button class="bouton-plat" data-action="deplacer">Déplacer de groupe</button>' +
+      '<button class="bouton-plat" data-action="exclure">Exclure du périmètre</button>' +
+      '<a class="bouton-plat" style="text-decoration:none" href="maquette.html?extraction=' + id +
+        '">↗ Voir dans la note</a>' +
+    '</div>';
+}
+
+/* =========================================================================
+   4. INTERACTIONS
+   ========================================================================= */
+document.addEventListener('click', function (e) {
+  var porteur = e.target.closest('[data-extraction]');
+  if (porteur && !e.target.closest('.rangee-boutons')) {
+    ouvrirLaPreuve(Number(porteur.dataset.extraction));
+    return;
+  }
+  var entete = e.target.closest('.entete-groupe');
+  if (entete) { entete.closest('.groupe').classList.toggle('est-replie'); return; }
+  var action = e.target.closest('[data-action]');
+  if (action) {
+    toast(action.dataset.action === 'deplacer'
+      ? 'Déplacement manuel : journalisé avec sa justification, et le run est rejoué à l\'identique.'
+      : 'Exclue du périmètre. Elle apparaîtra dans « ce qui n\'a pas été repris ».');
+    return;
+  }
+});
+
+document.getElementById('choix-algorithme').addEventListener('click', function (e) {
+  var bouton = e.target.closest('button');
+  if (!bouton) return;
+  etat.algorithme = bouton.dataset.algorithme;
+  corps.dataset.algorithme = etat.algorithme;
+  this.querySelectorAll('button').forEach(function (b) {
+    b.setAttribute('aria-pressed', b === bouton ? 'true' : 'false');
+  });
+  document.getElementById('reglage-k').hidden = (etat.algorithme !== 'kmeans');
+  rendreTout();
+});
+document.getElementById('choix-representation').addEventListener('click', function (e) {
+  var bouton = e.target.closest('button');
+  if (!bouton) return;
+  etat.representation = bouton.dataset.representation;
+  this.querySelectorAll('button').forEach(function (b) {
+    b.setAttribute('aria-pressed', b === bouton ? 'true' : 'false');
+  });
+  rendreTout();
+});
+document.getElementById('choix-tri').addEventListener('click', function (e) {
+  var bouton = e.target.closest('button');
+  if (!bouton) return;
+  etat.tri = bouton.dataset.tri;
+  corps.dataset.tri = etat.tri;
+  this.querySelectorAll('button').forEach(function (b) {
+    b.setAttribute('aria-pressed', b === bouton ? 'true' : 'false');
+  });
+  rendreTout();
+});
+document.getElementById('seuil').addEventListener('input', function () {
+  etat.seuil = Number(this.value);
+  rendreTout();
+});
+document.getElementById('valeur-k-curseur').addEventListener('input', function () {
+  etat.k = Number(this.value);
+  document.getElementById('valeur-k').textContent = etat.k;
+  rendreTout();
+});
+document.getElementById('btn-ecrire').addEventListener('click', function () {
+  var partantes = etat.representation === 'representant'
+    ? groupesCourants.length : EXTRACTIONS.length;
+  toast(partantes + ' extractions partiraient au modèle, en ' + groupesCourants.length +
+    ' groupes' + (etat.representation === 'representant'
+      ? ' — les ' + (EXTRACTIONS.length - partantes) + ' autres seraient perdues.'
+      : ', toutes énumérées.'),
+    etat.representation === 'representant' ? 'erreur' : 'succes');
+});
+document.getElementById('btn-exporter').addEventListener('click', function () {
+  toast('Exporterait le run : algorithme, seuil, ordre d\'initialisation, groupes et similarités — de quoi le rejouer à l\'identique.');
+});
+
+(function () {
+  var racine = document.documentElement;
+  var bouton = document.getElementById('bascule-theme');
+  /* Le clair est le DEPART, pas le systeme : la maquette doit s'ouvrir
+     sur le meme rendu pour tout le monde. / Light first, for everyone. */
+  var ETATS = [{valeur:'light', libelle:'○ clair'},
+               {valeur:'dark',  libelle:'● sombre'},
+               {valeur:'', libelle:'◑ système'}];
+  var indice = 0;
+  function appliquer() {
+    var etatTheme = ETATS[indice];
+    if (etatTheme.valeur) racine.dataset.theme = etatTheme.valeur; else delete racine.dataset.theme;
+    bouton.textContent = etatTheme.libelle;
+  }
+  bouton.addEventListener('click', function () { indice = (indice + 1) % 3; appliquer(); });
+  appliquer();
+})();
+
+/* =========================================================================
+   5. RENDU
+   ========================================================================= */
+function rendreTout() {
+  calculer();
+  document.getElementById('valeur-seuil').textContent = '(' + etat.seuil + ')';
+  document.getElementById('meta-perimetre').textContent =
+    EXTRACTIONS.length + ' extractions · 5 notes · ' +
+    EXTRACTIONS.reduce(function (t, e) { return t + e.commentaires.length; }, 0) + ' commentaires';
+  document.getElementById('meta-groupes').textContent =
+    groupesCourants.length + ' groupes · ' +
+    (etat.algorithme === 'kmeans' ? 'k-means k=' + etat.k : 'agglomératif seuil ' + etat.seuil);
+  rendreLeVerdict();
+  rendreLaCarte();
+  rendreLesGroupes();
+  rendreLesSections();
+  if (extractionActive) ouvrirLaPreuve(extractionActive);
+}
+
+rendreTout();
+</script>
+</body>
+</html>

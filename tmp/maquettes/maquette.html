@@ -1,0 +1,2677 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hypostasia — maquette de référence</title>
+<style>
+/* =========================================================================
+   HYPOSTASIA — MAQUETTE DE REFERENCE
+   LOCALISATION : tmp/maquettes/maquette.html
+
+   Accompagne la spec du changement de moteur (ancrage par element).
+   Unifie les trois maquettes precedentes et reproduit le front reel.
+
+   CE QUI VIENT DU CODE REEL — verifie fichier par fichier
+     · data-extraction-id, data-portion, data-superposition, .hl-extraction
+       front/services/rendu_elements.py:242-260
+     · marques IMBRIQUEES sur les chevauchements (idem)
+     · plafonds : 4 idees superposees, 400 marques -> texte nu
+       rendu_elements.py:60, 77, 215-227
+     · statuts BINAIRES nouveau/commente
+       hypostasis_extractor/models.py:181-184
+     · familles d'hypostases : methode -> famille « objet »
+       hypostasis_extractor/templatetags/extractor_tags.py:16-62
+     · couleurs de familles : hypostasia.css:48-70
+     · palette locuteurs : front/services/transcription_audio.py:23-34
+     · carte d'extraction : _card_body.html (citation tronquee a 120 signes,
+       bouton masquer desactive s'il y a des commentaires, formulaire inline)
+     · confirmation d'analyse : confirmation_analyse.html + views.py:1647-1877
+     · drawer : drawer_vue_liste.html + base.html:229-257
+     · raccourcis : front/static/front/js/keyboard.js
+
+   CE QUI EST UNE CIBLE, PAS L'EXISTANT — signale par le bandeau « cible »
+     1. Le fil d'Ariane : il n'existe aucun fil dans le produit. Le seul
+        repere est le titre tronque de la barre d'outils.
+     2. Le lecteur audio : aucun <audio>, aucune tete de lecture temporelle.
+        L'existant est une timeline click-to-scroll.
+     3. La progression en direct : le WebSocket ne pousse que « termine ».
+        Le bandeau de progression du drawer est du code mort.
+     4. Le panneau permanent : le produit est mono-colonne + drawer.
+     5. Le mode sombre : le produit n'en a pas.
+     6. Les tableaux en <table> : le service les rend en <pre>. De meme,
+        blockquote, formula, picture et utterance ne sont PAS dans
+        BALISE_PAR_LABEL (rendu_elements.py:82-89) : le service les rend
+        tous en <p>. Les formes propres qu'on leur donne ici sont a ajouter.
+     7. Les elements masques et les ancres detachees : modele present,
+        aucune interface ni endpoint.
+
+   Tout est simule. Aucune requete, aucune dependance externe.
+   ========================================================================= */
+
+/* ======================= 1. JETONS ======================= */
+:root {
+  --papier:#fdfcfa; --papier-creux:#f5f3ef; --papier-panneau:#faf8f4;
+  --encre:#1c1b19; --encre-douce:#6b6862; --filet:#e4e0d8;
+  --barre:#1c1b19; --barre-texte:#fdfcfa;
+
+  /* Statuts : binaires. Orange partout, texte compris (choix unifie). */
+  --statut-nouveau:#999999; --statut-commente:#E69F00;
+  --revelation:#f0ede6;
+  --cible:#7C5CBF;          /* ce qui n'existe pas encore */
+  --danger:#b91c1c; --succes:#047857;
+
+  /* Familles d'hypostases — hypostasia.css:48-70 */
+  --hypostase-epistemique-bg:#e0e7ff;   --hypostase-epistemique-text:#4338ca;
+  --hypostase-empirique-bg:#d1fae5;     --hypostase-empirique-text:#047857;
+  --hypostase-speculatif-bg:#fef3c7;    --hypostase-speculatif-text:#b45309;
+  --hypostase-structurel-bg:#e2e8f0;    --hypostase-structurel-text:#475569;
+  --hypostase-normatif-bg:#ede9fe;      --hypostase-normatif-text:#6d28d9;
+  --hypostase-problematique-bg:#fee2e2; --hypostase-problematique-text:#b91c1c;
+  --hypostase-mode-bg:#cffafe;          --hypostase-mode-text:#0e7490;
+  --hypostase-objet-bg:#f1f5f9;         --hypostase-objet-text:#64748b;
+
+  --gouttiere:46px; --largeur-lecture:40rem; --panneau:23rem;
+  --barre-outils:44px; --barre-fil:30px; --barre-audio:0px;
+}
+body[data-mode="inspection"] { --gouttiere:124px; --largeur-lecture:52rem; }
+body[data-source="audio"] { --gouttiere:96px; }
+body[data-source="audio"][data-mode="inspection"] { --gouttiere:150px; }
+body[data-lecteur="oui"][data-source="audio"] { --barre-audio:62px; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+    --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a;
+    --revelation:#26242c; --barre:#0d0c10;
+  }
+}
+/* Sombre force : les memes jetons, mais qui l'emportent sur le systeme.
+   / Forced dark: same tokens, winning over the system preference. */
+:root[data-theme="dark"] {
+  --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+  --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a;
+  --revelation:#26242c; --barre:#0d0c10;
+}
+
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body {
+  margin:0; background:var(--papier); color:var(--encre);
+  font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+  line-height:1.7; font-size:17px; text-rendering:optimizeLegibility;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior:auto; }
+  * { transition:none !important; animation:none !important; }
+}
+.mono { font-family:ui-monospace,"SF Mono","Cascadia Mono",Menlo,monospace; }
+button { font-family:inherit; }
+
+/* ======================= 2. BANDEAU DE DEMONSTRATION ======================= */
+/* N'existe pas dans l'application : c'est le pupitre de la maquette. */
+.pupitre {
+  position:sticky; top:0; z-index:90; background:var(--cible); color:#fff;
+  padding:.4rem .8rem; display:flex; align-items:center; gap:.55rem; flex-wrap:wrap;
+  font-family:ui-monospace,Menlo,monospace; font-size:.66rem;
+}
+.pupitre button, .pupitre select {
+  font:inherit; cursor:pointer; background:transparent; color:#fff;
+  border:1px solid rgba(255,255,255,.4); border-radius:3px; padding:.15rem .5rem;
+}
+.pupitre select option { color:#111; }
+.pupitre button[aria-pressed="true"] { background:#fff; color:var(--cible); }
+.pupitre .sep { width:1px; height:1rem; background:rgba(255,255,255,.3); }
+.pupitre label { display:flex; align-items:center; gap:.25rem; cursor:pointer; }
+.pupitre .titre { font-weight:700; letter-spacing:.04em; }
+
+/* ======================= 3. BARRE D'OUTILS (base.html:19-169) ======================= */
+.barre-outils {
+  position:sticky; top:0; z-index:70; height:var(--barre-outils);
+  background:var(--barre); color:var(--barre-texte);
+  display:flex; align-items:center; gap:.5rem; padding:0 .7rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.72rem;
+}
+.pupitre ~ .barre-outils { top:2.05rem; }
+.barre-outils button {
+  background:transparent; border:1px solid transparent; color:inherit;
+  border-radius:4px; padding:.25rem .5rem; cursor:pointer; font-size:.72rem;
+  display:inline-flex; align-items:center; gap:.3rem; white-space:nowrap;
+}
+.barre-outils button:hover { background:rgba(255,255,255,.12); }
+.barre-outils .marque { font-weight:700; letter-spacing:.02em; }
+.barre-outils .titre-doc {
+  flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  opacity:.85; padding-left:.4rem;
+}
+.barre-outils .droite { display:flex; align-items:center; gap:.25rem; }
+.pastille-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:1rem; height:1rem; padding:0 .25rem; border-radius:999px;
+  background:var(--statut-commente); color:#1c1b19; font-size:.58rem; font-weight:700;
+}
+.avatar-utilisateur {
+  width:1.5rem; height:1.5rem; border-radius:50%; background:#3b82f6; color:#fff;
+  display:grid; place-items:center; font-size:.68rem; font-weight:700; cursor:pointer;
+}
+.tourniquet {
+  width:.8rem; height:.8rem; border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff; border-radius:50%; animation:tourner .8s linear infinite;
+}
+@keyframes tourner { to { transform:rotate(360deg); } }
+
+/* ======================= 4. FIL D'ARIANE (cible) ======================= */
+.fil-ariane {
+  position:sticky; z-index:66; height:var(--barre-fil);
+  top:calc(var(--barre-outils) + 2.05rem);
+  display:flex; align-items:center; gap:.4rem; padding:0 .9rem;
+  background:var(--papier-creux); border-bottom:1px solid var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.65rem; color:var(--encre-douce);
+  overflow:hidden; white-space:nowrap;
+}
+.fil-ariane a { color:inherit; text-decoration:none; }
+.fil-ariane a:hover { color:var(--encre); text-decoration:underline; }
+.fil-ariane .courant { color:var(--encre); font-weight:600; overflow:hidden; text-overflow:ellipsis; }
+.fil-ariane .separateur-fil { opacity:.4; }
+.fil-ariane .section-courante { margin-left:auto; opacity:.7; flex:none; }
+/* Le conteneur ne doit JAMAIS etre overflow-hidden : le menu de bascule,
+   piece cle du fil, serait invisible. Defaut releve en relecture adverse.
+   / Never overflow-hidden here, or the switch menu disappears. */
+.fil-ariane { overflow:visible; }
+.lien-fil {
+  background:none; border:none; font:inherit; color:inherit; cursor:pointer;
+  padding:.1rem .25rem; border-radius:3px; display:inline-flex; align-items:center; gap:.25rem;
+}
+.lien-fil:hover { color:var(--encre); background:var(--papier); }
+.bascule-carnet { position:relative; }
+.menu-bascule {
+  position:absolute; top:calc(100% + .25rem); left:0; z-index:95; min-width:16rem;
+  background:var(--papier); border:1px solid var(--filet); border-radius:6px;
+  box-shadow:0 6px 24px rgba(0,0,0,.16); padding:.3rem; display:none;
+}
+.menu-bascule.est-visible { display:block; }
+.menu-bascule button {
+  display:flex; width:100%; align-items:center; gap:.4rem; text-align:left;
+  background:none; border:none; padding:.32rem .45rem; border-radius:4px; cursor:pointer;
+  font-family:ui-monospace,Menlo,monospace; font-size:.65rem; color:var(--encre);
+}
+.menu-bascule button:hover { background:var(--papier-creux); }
+.menu-bascule button[aria-current="true"] { font-weight:700; }
+.menu-bascule .etiquettes-menu { margin-left:auto; display:flex; gap:.2rem; }
+
+/* ---- Bloc « Dans N carnets » (spec § 8.1) ----
+   La piece qui rend le modele comprehensible sans l'expliquer : on VOIT
+   que les etiquettes different d'une ligne a l'autre, donc on comprend
+   qu'elles appartiennent a la RELATION, pas a la note.
+   / One line per notebook, each with ITS OWN categories. */
+.bloc-carnets {
+  margin:1rem 0 0; border:1px solid var(--filet); border-radius:6px; overflow:hidden;
+}
+.bloc-carnets > .entete-carnets {
+  padding:.4rem .6rem; background:var(--papier-creux); border-bottom:1px solid var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce);
+  display:flex; align-items:center; gap:.4rem;
+}
+.bloc-carnets ul { list-style:none; margin:0; padding:0; }
+.bloc-carnets li {
+  display:flex; align-items:center; gap:.45rem; padding:.4rem .6rem;
+  border-bottom:1px solid var(--filet); font-size:.82rem; flex-wrap:wrap;
+}
+.bloc-carnets li:last-child { border-bottom:none; }
+.bloc-carnets .nom-carnet { font-weight:600; cursor:pointer; }
+.bloc-carnets .nom-carnet:hover { text-decoration:underline; }
+.bloc-carnets .etiquettes-relation { display:flex; gap:.2rem; flex-wrap:wrap; }
+.etiquette-categorie {
+  font-family:ui-monospace,Menlo,monospace; font-size:.56rem;
+  border:1px solid var(--teinte,var(--filet)); color:var(--teinte,var(--encre-douce));
+  border-radius:2px; padding:.04rem .3rem; white-space:nowrap;
+}
+.bloc-carnets .actions-relation { margin-left:auto; display:flex; gap:.25rem; }
+.bloc-carnets .aucune-categorie { color:var(--encre-douce); font-size:.72rem; font-style:italic; }
+.pied-carnets { padding:.4rem .6rem; }
+.marque-cible {
+  flex:none; font-size:.55rem; text-transform:uppercase; letter-spacing:.07em;
+  color:var(--cible); border:1px solid var(--cible); border-radius:2px;
+  padding:.02rem .28rem; cursor:help;
+}
+
+/* ======================= 5. DISPOSITION ======================= */
+.plateau { display:grid; grid-template-columns:1fr; }
+/* Panneau permanent au-dela de 1400px, drawer en dessous (decision produit). */
+@media (min-width: 1400px) {
+  body[data-panneau="permanent"] .plateau { grid-template-columns:1fr var(--panneau); }
+}
+.colonne-lecture {
+  padding:2rem 1.5rem calc(var(--barre-audio) + 5rem); min-width:0;
+}
+.colonne-interieure {
+  max-width:calc(var(--largeur-lecture) + var(--gouttiere) + 3.5rem); margin:0 auto;
+}
+
+/* ======================= 6. EN-TETE DE PAGE (lecture_principale.html) ======================= */
+.entete-page {
+  margin-bottom:2rem; padding-bottom:1rem; border-bottom:1px solid var(--filet);
+  padding-left:calc(var(--gouttiere) + 1.5rem);
+}
+.titre-page {
+  font-size:1.7rem; line-height:1.25; margin:0 0 .3rem; letter-spacing:-.015em;
+  cursor:text; border-radius:3px; padding:.05rem .3rem; margin-left:-.3rem;
+}
+.titre-page:hover { background:var(--papier-creux); }
+.entete-page .source-doc {
+  font-size:.7rem; color:var(--encre-douce); font-family:ui-monospace,Menlo,monospace;
+  margin-bottom:.6rem; word-break:break-all;
+}
+.rangee-actions { display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; }
+.bouton-plat {
+  font-family:ui-monospace,Menlo,monospace; font-size:.64rem; cursor:pointer;
+  background:var(--papier); color:var(--encre); border:1px solid var(--filet);
+  border-radius:4px; padding:.22rem .55rem; display:inline-flex; align-items:center; gap:.25rem;
+}
+.bouton-plat:hover { border-color:var(--encre-douce); }
+.bouton-plat.danger { color:var(--danger); border-color:color-mix(in srgb,var(--danger) 35%,transparent); }
+.bouton-plat.principal { background:var(--encre); color:var(--papier); border-color:var(--encre); }
+.separateur-vertical { width:1px; height:1rem; background:var(--filet); margin:0 .2rem; }
+
+/* ======================= 7. LE BLOC ======================= */
+.bloc {
+  display:grid; grid-template-columns:var(--gouttiere) 1fr; gap:0 1.5rem;
+  position:relative; scroll-margin-top:7rem; margin-bottom:1.15rem;
+}
+.bloc[data-label="title"]          { margin-bottom:1.6rem; }
+.bloc[data-label="section_header"] { margin-top:2.6rem; margin-bottom:1rem; }
+.bloc[data-label="list_item"]      { margin-bottom:.15rem; }
+.bloc[data-label="picture"]        { margin:2rem 0; }
+.bloc[data-label="table"]          { margin:1.8rem 0; }
+
+.gouttiere {
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem; line-height:1.45;
+  color:var(--encre-douce); text-align:right; padding-top:.5rem;
+  display:flex; flex-direction:column; align-items:flex-end; gap:.2rem; user-select:none;
+}
+/* Diagnostic : label et numero d'element. Un lecteur n'a rien a en faire.
+   / Debug only: a reader has no use for "SECTION_HEADER #6". */
+.etiquette-label, .numero-element, .empreinte { display:none; }
+body[data-mode="inspection"] .etiquette-label,
+body[data-mode="inspection"] .numero-element,
+body[data-mode="inspection"] .empreinte { display:inline-block; }
+.etiquette-label {
+  font-size:.53rem; text-transform:uppercase; letter-spacing:.07em;
+  padding:.04rem .28rem; border:1px solid var(--filet); border-radius:2px;
+}
+.numero-element, .empreinte { opacity:.5; }
+.numero-page { font-variant-numeric:tabular-nums; opacity:.75; }
+body[data-docling="non"] .numero-page { display:none; }
+ /* En lecture la glissiere est etroite : un pictogramme suffit. Le libelle
+    complet n'apparait qu'en inspection. / Icon when narrow, label when wide. */
+.bouton-voir-source {
+  border:none; background:none; padding:0; cursor:pointer; font-size:.6rem;
+  color:var(--encre-douce); opacity:0; transition:opacity .12s ease;
+  white-space:nowrap;
+}
+.bouton-voir-source .libelle-source { display:none; }
+body[data-mode="inspection"] .bouton-voir-source {
+  font-size:.55rem; text-decoration:underline; text-underline-offset:2px;
+}
+body[data-mode="inspection"] .bouton-voir-source .libelle-source { display:inline; }
+body[data-mode="inspection"] .bouton-voir-source .icone-source { display:none; }
+.bloc:hover .bouton-voir-source { opacity:1; }
+body[data-docling="non"] .bouton-voir-source { display:none; }
+
+.etiquette-locuteur { color:var(--encre); font-weight:600; cursor:pointer; }
+.etiquette-locuteur:hover { text-decoration:underline; }
+.etiquette-locuteur::before {
+  content:""; display:inline-block; width:.46rem; height:.46rem; border-radius:50%;
+  margin-right:.28rem; background:var(--couleur-locuteur, var(--encre-douce));
+}
+.ligne-minutage { display:flex; align-items:center; gap:.28rem; }
+.bouton-ecouter {
+  border:none; background:none; padding:0; cursor:pointer; font-size:.66rem; line-height:1;
+  color:var(--cible); opacity:0; transition:opacity .12s ease;
+}
+body[data-lecteur="non"] .bouton-ecouter { display:none; }
+.bloc:hover .bouton-ecouter, .bloc.bloc-en-lecture .bouton-ecouter { opacity:1; }
+
+.filet-etat {
+  position:absolute; left:calc(var(--gouttiere) + .55rem); top:.5rem; bottom:.1rem;
+  width:2px; border-radius:1px; background:transparent;
+}
+.bloc[data-etat="debattu"] .filet-etat { background:var(--statut-commente); }
+body[data-mode="inspection"] .filet-etat { background:var(--filet); }
+body[data-mode="inspection"] .bloc[data-etat="debattu"] .filet-etat { background:var(--statut-commente); }
+/* Element masque : modele present, aucune interface. */
+.bloc[data-masque="oui"] .corps { opacity:.42; text-decoration:line-through; }
+.bloc[data-masque="oui"] .filet-etat {
+  background:repeating-linear-gradient(to bottom, var(--encre-douce) 0 3px, transparent 3px 7px);
+}
+
+.compteur-idees {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:1.05rem; height:1.05rem; padding:0 .26rem; border:1px solid var(--filet);
+  border-radius:999px; font-size:.56rem; font-family:ui-monospace,Menlo,monospace;
+  background:none; color:var(--encre-douce); cursor:pointer;
+  transition:border-color .12s, color .12s;
+}
+.compteur-idees:hover { border-color:var(--statut-commente); color:var(--statut-commente); }
+.compteur-idees:focus-visible, .bouton-ecouter:focus-visible,
+.bouton-voir-source:focus-visible { outline:2px solid var(--encre); outline-offset:2px; }
+
+/* ======================= 8. FORMES PAR LABEL ======================= */
+.corps > * { margin:0; }
+.corps h2 { font-size:1.42rem; line-height:1.3; letter-spacing:-.012em; }
+.corps h3 { font-size:1.1rem;  line-height:1.35; letter-spacing:-.008em; }
+.corps ul { margin:0; padding-left:1.15rem; }
+.corps li { margin:0; }
+.corps blockquote {
+  margin:1.1rem 0; padding:.1rem 0 .1rem 1.05rem;
+  border-left:3px solid var(--filet); font-style:italic; color:var(--encre-douce);
+}
+.corps table {
+  border-collapse:collapse; width:100%; font-size:.85rem;
+  font-family:ui-monospace,Menlo,monospace; line-height:1.5;
+}
+.corps table th, .corps table td {
+  padding:.28rem .6rem; text-align:right; border-bottom:1px solid var(--filet);
+}
+.corps table th:first-child, .corps table td:first-child { text-align:left; }
+.corps table thead th { color:var(--encre-douce); font-weight:600; font-size:.75rem; }
+.corps table tr.total td { font-weight:700; border-top:2px solid var(--filet); border-bottom:none; }
+.corps pre.code, .corps pre.brut {
+  font-family:ui-monospace,Menlo,monospace; font-size:.77rem; line-height:1.55;
+  background:var(--papier-creux); padding:.75rem .9rem; border-radius:4px;
+  overflow-x:auto; white-space:pre; margin:1.1rem 0;
+}
+.corps .formule {
+  font-family:ui-monospace,Menlo,monospace; font-size:.84rem; text-align:center;
+  padding:.9rem 0; margin:.5rem 0;
+  border-top:1px solid var(--filet); border-bottom:1px solid var(--filet);
+}
+.corps figure { margin:0; }
+.corps .cadre-image {
+  height:145px; background:repeating-linear-gradient(45deg,
+    var(--papier-creux) 0 8px, transparent 8px 16px);
+  border:1px solid var(--filet); border-radius:4px; display:grid; place-items:center;
+  color:var(--encre-douce); font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+}
+.corps figcaption {
+  font-size:.77rem; line-height:1.5; color:var(--encre-douce);
+  margin-top:.45rem; text-align:center; font-style:italic;
+}
+/* Plafond de marques atteint : le service rend le texte NU (rendu_elements.py:215). */
+.avertissement-plafond {
+  margin-top:.4rem; font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  color:var(--danger); border-left:2px solid var(--danger); padding-left:.5rem;
+}
+
+/* ======================= 9. SURLIGNAGE ======================= */
+/* Au repos le texte est nu. Il se revele au survol du bloc, et s'allume
+   au choix explicite. Les marques sont IMBRIQUEES sur les chevauchements,
+   comme les produit rendu_elements.py:242-260.
+   / Bare at rest, revealed on block hover, lit on explicit selection. */
+mark.portion.hl-extraction {
+  background:none; color:inherit; cursor:pointer; border-radius:2px; padding:.04em 0;
+  transition:background-color .14s ease, box-shadow .14s ease;
+}
+.bloc:hover mark.hl-extraction { background-color:var(--revelation); }
+mark.hl-extraction[data-statut="nouveau"]  { --couleur-statut:var(--statut-nouveau); }
+mark.hl-extraction[data-statut="commente"] { --couleur-statut:var(--statut-commente); }
+mark.hl-extraction:hover { background-color:color-mix(in srgb, var(--couleur-statut) 14%, transparent); }
+mark.hl-extraction.est-active {
+  background-color:color-mix(in srgb, var(--couleur-statut) 22%, transparent);
+  box-shadow:inset 0 -2px 0 0 var(--couleur-statut);
+}
+/* Marque imbriquee : le liseré du dessous reste visible sous celui du dessus. */
+mark.hl-extraction[data-superposition="2"] { padding-bottom:.14em; }
+mark.hl-extraction[data-superposition="3"] { padding-bottom:.24em; }
+mark.hl-extraction:focus-visible { outline:2px solid var(--encre); outline-offset:2px; }
+/* En inspection, les zones superposees se signalent d'elles-memes. */
+body[data-mode="inspection"] mark.hl-extraction[data-superposition="2"],
+body[data-mode="inspection"] mark.hl-extraction[data-superposition="3"] {
+  outline:1px dotted color-mix(in srgb, var(--encre-douce) 60%, transparent);
+}
+.bloc.bloc-en-lecture { background:color-mix(in srgb, var(--statut-commente) 7%, transparent); }
+
+/* ======================= 10. (plus de pastilles de marge) =======================
+   Le produit dessine une pastille par extraction en marge droite
+   (marginalia.js). On les retire : la glissiere porte deja l'information,
+   avec son compteur cliquable et son filet d'etat. Deux signaux pour la
+   meme chose encombraient la page sans rien ajouter.
+   / Margin dots dropped: the gutter already carries that information. */
+
+/* ======================= 11. EDITEUR EN PLACE ======================= */
+.editeur { display:none; }
+.bloc.est-en-edition .corps > :not(.editeur) { display:none; }
+.bloc.est-en-edition .editeur { display:block; }
+.editeur textarea {
+  width:100%; font:inherit; line-height:1.7; color:var(--encre); background:var(--papier);
+  border:1px solid var(--statut-commente); border-radius:4px; padding:.5rem .6rem;
+  resize:vertical; min-height:4.5rem;
+}
+.editeur-barre {
+  display:flex; align-items:center; gap:.45rem; margin-top:.45rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.64rem;
+}
+.editeur-aide { margin-left:auto; color:var(--encre-douce); }
+
+/* ======================= 12. MENU DE SELECTION (selection_menu.html) ======================= */
+.menu-selection {
+  position:fixed; z-index:80; display:none; gap:.15rem; padding:.2rem;
+  background:var(--papier); border:1px solid var(--filet); border-radius:6px;
+  box-shadow:0 4px 16px rgba(0,0,0,.14);
+}
+.menu-selection.est-visible { display:flex; }
+.menu-selection button {
+  border:none; background:none; cursor:pointer; padding:.25rem .45rem; border-radius:4px;
+  font-size:.85rem; line-height:1; color:var(--encre);
+}
+.menu-selection button:hover { background:var(--papier-creux); }
+.menu-selection button.ia { color:var(--statut-commente); }
+
+/* ======================= 13. PANNEAU / DRAWER ======================= */
+.panneau {
+  background:var(--papier-panneau); border-left:1px solid var(--filet);
+  display:flex; flex-direction:column;
+}
+/* Mode drawer : superpose, glisse depuis la droite. */
+body[data-panneau="drawer"] .panneau,
+body:not([data-panneau="permanent"]) .panneau {
+  position:fixed; top:0; right:0; bottom:0; width:min(36rem, 100vw); z-index:85;
+  transform:translateX(100%); transition:transform .22s ease;
+  box-shadow:-4px 0 24px rgba(0,0,0,.16);
+}
+body[data-panneau="drawer"] .panneau.est-ouvert { transform:translateX(0); }
+@media (min-width: 1400px) {
+  body[data-panneau="permanent"] .panneau {
+    position:sticky; top:calc(var(--barre-outils) + var(--barre-fil) + 2.05rem);
+    align-self:start; width:auto; transform:none; box-shadow:none; z-index:1;
+    max-height:calc(100vh - var(--barre-outils) - var(--barre-fil) - 2.05rem);
+  }
+  body[data-panneau="permanent"] .voile { display:none !important; }
+}
+@media (max-width: 1399px) {
+  body[data-panneau="permanent"] .panneau {
+    position:fixed; top:0; right:0; bottom:0; width:min(36rem, 100vw); z-index:85;
+    transform:translateX(100%); transition:transform .22s ease;
+  }
+  body[data-panneau="permanent"] .panneau.est-ouvert { transform:translateX(0); }
+}
+.voile {
+  position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:84; display:none;
+}
+/* Un panneau ferme est translate hors de l'ecran : sans cette regle il
+   allonge la page vers la droite. / A closed drawer must not widen the page. */
+html, body { overflow-x:hidden; }
+.voile.est-visible { display:block; }
+
+.panneau-entete {
+  padding:.7rem .8rem .55rem; border-bottom:1px solid var(--filet); flex:none;
+}
+.panneau-titre {
+  display:flex; align-items:center; gap:.5rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.66rem;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--encre-douce);
+}
+.panneau-titre .fermer { margin-left:auto; text-transform:none; letter-spacing:0; }
+.panneau-corps { flex:1; overflow-y:auto; padding:.7rem .8rem 3rem; }
+
+.bandeau-resume {
+  display:flex; align-items:center; gap:.5rem; margin-bottom:.6rem; padding:.4rem .55rem;
+  white-space:nowrap; overflow:hidden;
+  background:color-mix(in srgb, var(--succes) 9%, transparent);
+  border:1px solid color-mix(in srgb, var(--succes) 25%, transparent);
+  border-radius:5px; font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  color:var(--succes);
+}
+.bandeau-resume > span:first-child { overflow:hidden; text-overflow:ellipsis; }
+.bandeau-resume .bouton-plat { flex:none; font-size:.6rem; padding:.18rem .4rem; }
+.bandeau-resume .bouton-plat { margin-left:auto; }
+
+.rangee-filtres {
+  display:flex; align-items:center; gap:.3rem; flex-wrap:wrap; margin-bottom:.6rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem; color:var(--encre-douce);
+}
+.rangee-filtres select {
+  font:inherit; background:var(--papier); color:var(--encre);
+  border:1px solid var(--filet); border-radius:4px; padding:.15rem .3rem;
+}
+.pilule-contributeur {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; cursor:pointer;
+  border:1px solid var(--teinte,var(--filet)); color:var(--teinte,var(--encre-douce));
+  background:none; border-radius:999px; padding:.1rem .45rem;
+}
+.pilule-contributeur[aria-pressed="true"] { background:var(--teinte); color:#fff; }
+body[data-filtre-mode="exclure"] .pilule-contributeur[aria-pressed="true"] {
+  background:none; text-decoration:line-through; opacity:.6;
+}
+
+/* ======================= 14. LA CARTE (_card_body.html) ======================= */
+.carte {
+  border:1px solid var(--filet); border-left:3px solid var(--statut-nouveau);
+  border-radius:5px; background:var(--papier); padding:.55rem .65rem; margin-bottom:.5rem;
+  cursor:pointer; transition:box-shadow .12s, border-color .12s;
+}
+.carte[data-statut="commente"] { border-left-color:var(--statut-commente); }
+.carte:hover { box-shadow:0 1px 6px rgba(0,0,0,.07); }
+.carte:hover .bouton-masquer { opacity:1; }
+.carte.est-active {
+  border-color:var(--statut-commente);
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--statut-commente) 20%, transparent);
+}
+.carte.est-masquee { opacity:.5; border-style:dashed; }
+.carte-entete { display:flex; align-items:center; gap:.4rem; margin-bottom:.4rem; }
+.indicateur-statut { width:.78rem; height:.78rem; flex:none; }
+.indicateur-statut[data-statut="nouveau"] { border:2px solid var(--statut-nouveau); border-radius:50%; }
+.indicateur-statut[data-statut="commente"] {
+  background:var(--statut-commente); clip-path:polygon(50% 0%, 0% 100%, 100% 100%);
+}
+.badges { display:flex; flex-wrap:wrap; gap:.2rem; min-width:0; }
+ /* Contour, pas pastille pleine : la famille se lit a la couleur du trait.
+    Trois badges cote a cote ne doivent pas peser plus que la phrase qu'ils
+    qualifient. ECART ASSUME — le produit les remplit (hypostasia.css:97-103).
+    / Outlined, not filled: the family reads in the stroke color. */
+.badge-hypostase {
+  font-family:ui-monospace,Menlo,monospace; font-size:.56rem;
+  text-transform:uppercase; letter-spacing:.06em; padding:.08rem .34rem;
+  border-radius:2px; white-space:nowrap; cursor:help;
+  background:none; border:1px solid currentColor; opacity:.85;
+}
+.compteur-commentaires {
+  margin-left:auto; flex:none; font-family:ui-monospace,Menlo,monospace;
+  font-size:.6rem; color:var(--statut-commente); display:inline-flex; align-items:center; gap:.15rem;
+}
+.bouton-masquer {
+  flex:none; border:none; background:none; cursor:pointer; padding:0 .1rem;
+  color:var(--encre-douce); font-size:.7rem; opacity:0; transition:opacity .12s;
+}
+.bouton-masquer:disabled { cursor:not-allowed; opacity:.25 !important; }
+.typo-machine {
+  font-family:ui-monospace,Menlo,monospace; font-size:.75rem; line-height:1.5;
+  color:var(--encre-douce); margin:0;
+}
+ /* Repliee au repos : la phrase d'origine est deja dans le texte a gauche.
+    ECART ASSUME — le produit l'affiche toujours (_card_body.html:77-79).
+    / Folded by default; the product always shows it. */
+.typo-citation {
+  font-style:italic; font-size:.84rem; line-height:1.5; color:var(--encre);
+  margin:.3rem 0 0; display:none;
+}
+.carte.est-active .typo-citation { display:block; }
+.mots-cles { display:flex; flex-wrap:wrap; gap:.22rem; margin-top:.35rem; }
+.mot-cle {
+  font-family:ui-monospace,Menlo,monospace; font-size:.57rem; color:var(--encre-douce);
+  background:var(--papier-creux); padding:.05rem .3rem; border-radius:2px;
+}
+.commentaire {
+  margin-top:.45rem; padding:.35rem .5rem; background:var(--papier-creux);
+  border-left:2px solid var(--filet); border-radius:3px;
+}
+.commentaire.hors-filtre { opacity:.4; }
+.commentaire .qui { font-weight:700; font-size:.7rem; display:block; margin-bottom:.08rem; }
+.commentaire .qui.contributeur-actif { color:var(--statut-commente); }
+.commentaire .quoi { font-size:.8rem; margin:0; line-height:1.45; }
+.zone-commentaire { display:none; margin-top:.45rem; }
+.carte.commente-ouvert .zone-commentaire { display:block; }
+.zone-commentaire textarea {
+  width:100%; font:inherit; font-size:.8rem; border:1px solid var(--filet);
+  border-radius:4px; padding:.35rem .45rem; resize:vertical; min-height:3rem;
+  background:var(--papier); color:var(--encre);
+}
+.bouton-commenter {
+  margin-top:.45rem; font-family:ui-monospace,Menlo,monospace; font-size:.63rem;
+  background:none; border:none; padding:0; cursor:pointer; color:var(--encre-douce);
+}
+.bouton-commenter:hover { color:var(--statut-commente); }
+.origine-element {
+  display:none; margin-top:.4rem; padding-top:.32rem; border-top:1px dashed var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.56rem; color:var(--encre-douce);
+}
+body[data-mode="inspection"] .carte.est-active .origine-element { display:block; }
+.section-repliable {
+  margin-top:.9rem; border-top:1px solid var(--filet); padding-top:.6rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem; color:var(--encre-douce);
+}
+.section-repliable > button {
+  background:none; border:none; padding:0; cursor:pointer; color:inherit; font:inherit;
+}
+
+/* ======================= 15. ECRANS DU PANNEAU (analyse, synthese) ======================= */
+.ecran-panneau { display:none; }
+.panneau[data-ecran="analyse"] .ecran-analyse,
+.panneau[data-ecran="liste"] .ecran-liste,
+.panneau[data-ecran="progression"] .ecran-progression { display:block; }
+.encart {
+  border:1px solid var(--filet); border-radius:5px; padding:.55rem .65rem;
+  margin-bottom:.6rem; font-family:ui-monospace,Menlo,monospace; font-size:.64rem;
+  line-height:1.55;
+}
+.encart.gris { background:var(--papier-creux); }
+.encart.ambre {
+  background:color-mix(in srgb, var(--statut-commente) 8%, transparent);
+  border-color:color-mix(in srgb, var(--statut-commente) 32%, transparent);
+}
+.encart .ligne { display:flex; justify-content:space-between; gap:1rem; }
+.encart .ligne span:first-child { color:var(--encre-douce); }
+.encart .cout { font-size:.82rem; font-weight:700; color:var(--statut-commente); }
+.champ-etiquette {
+  display:block; font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce); margin-bottom:.2rem;
+}
+.champ-select {
+  width:100%; font-family:ui-monospace,Menlo,monospace; font-size:.68rem;
+  background:var(--papier); color:var(--encre); border:1px solid var(--filet);
+  border-radius:4px; padding:.3rem .4rem; margin-bottom:.6rem;
+}
+.case-a-cocher {
+  display:flex; gap:.4rem; align-items:flex-start; margin-bottom:.7rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.63rem; line-height:1.5;
+}
+.rangee-boutons { display:flex; gap:.4rem; }
+.rangee-boutons .bouton-plat { flex:1; justify-content:center; padding:.4rem; }
+
+/* Le prompt : pieces colorees par role (modale_prompt_readonly.html, orpheline) */
+.zone-prompt { display:none; margin-bottom:.6rem; }
+.zone-prompt.est-visible { display:block; }
+.piece-prompt {
+  border-left:3px solid var(--role-couleur); background:var(--papier-creux);
+  border-radius:0 4px 4px 0; padding:.35rem .5rem; margin-bottom:.3rem;
+}
+.piece-prompt .role {
+  font-family:ui-monospace,Menlo,monospace; font-size:.54rem; text-transform:uppercase;
+  letter-spacing:.08em; color:var(--role-couleur); display:block; margin-bottom:.15rem;
+}
+.piece-prompt .contenu {
+  font-family:ui-monospace,Menlo,monospace; font-size:.63rem; line-height:1.5;
+  white-space:pre-wrap; margin:0;
+}
+.piece-prompt[data-role="definition"]  { --role-couleur:#6d28d9; }
+.piece-prompt[data-role="instruction"] { --role-couleur:#4338ca; }
+.piece-prompt[data-role="format"]      { --role-couleur:#047857; }
+.piece-prompt[data-role="contexte"]    { --role-couleur:#b45309; }
+.piece-prompt[data-role="exemple"]     { --role-couleur:#64748b; }
+
+/* Progression en direct (cible) */
+.barre-progression {
+  height:5px; border-radius:3px; background:var(--papier-creux); overflow:hidden; margin:.4rem 0 .6rem;
+}
+.barre-progression > div {
+  height:100%; background:var(--statut-commente); width:0; transition:width .3s ease;
+}
+.carte.vient-d-arriver { animation:apparaitre .45s ease; }
+@keyframes apparaitre {
+  from { opacity:0; transform:translateY(-6px); background:color-mix(in srgb,var(--statut-commente) 14%,transparent); }
+  to   { opacity:1; transform:none; }
+}
+
+/* ======================= 16. ARBRE (overlay gauche) ======================= */
+.arbre {
+  position:fixed; top:0; left:0; bottom:0; width:20rem; max-width:88vw; z-index:86;
+  background:var(--papier); border-right:1px solid var(--filet);
+  transform:translateX(-100%); transition:transform .22s ease;
+  display:flex; flex-direction:column;
+}
+.arbre.est-ouvert { transform:translateX(0); }
+.arbre-entete {
+  padding:.6rem .8rem; border-bottom:1px solid var(--filet);
+  display:flex; align-items:center; gap:.5rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.66rem;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--encre-douce);
+}
+.arbre-corps { flex:1; overflow-y:auto; padding:.5rem .4rem; }
+.arbre-section { margin-bottom:.7rem; }
+.arbre-section > .titre-section {
+  display:flex; align-items:center; gap:.35rem; width:100%; background:none; border:none;
+  cursor:pointer; padding:.25rem .4rem; color:var(--encre-douce);
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  text-transform:uppercase; letter-spacing:.07em;
+}
+.noeud-dossier > .ligne-dossier {
+  display:flex; align-items:center; gap:.35rem; padding:.28rem .4rem; border-radius:4px;
+  cursor:pointer; font-size:.82rem;
+}
+.noeud-dossier > .ligne-dossier:hover { background:var(--papier-creux); }
+.noeud-dossier .compte {
+  margin-left:auto; font-family:ui-monospace,Menlo,monospace; font-size:.58rem;
+  color:var(--encre-douce);
+}
+.liste-pages { list-style:none; margin:0; padding:0 0 0 1.4rem; }
+.liste-pages li {
+  padding:.22rem .4rem; border-radius:4px; cursor:pointer; font-size:.78rem;
+  display:flex; align-items:center; gap:.3rem;
+}
+.liste-pages li:hover { background:var(--papier-creux); }
+.liste-pages li.est-active { background:color-mix(in srgb,var(--statut-commente) 14%,transparent); font-weight:600; }
+.arbre-pied {
+  padding:.5rem .7rem; border-top:1px solid var(--filet); display:flex; gap:.4rem;
+}
+
+/* ======================= 17. SURFACES FLOTTANTES ======================= */
+.surface {
+  position:fixed; z-index:88; background:var(--papier); border:1px solid var(--filet);
+  border-radius:8px; box-shadow:0 8px 32px rgba(0,0,0,.18); display:none;
+  max-height:80vh; overflow-y:auto;
+}
+.surface.est-visible { display:block; }
+.surface-ancree { top:calc(var(--barre-outils) + 2.5rem); right:.7rem; width:20rem; padding:.7rem .8rem; }
+.surface-modale {
+  top:50%; left:50%; transform:translate(-50%,-50%); width:min(34rem, 92vw); padding:1rem 1.1rem;
+}
+.surface h3 {
+  margin:0 0 .5rem; font-family:ui-monospace,Menlo,monospace; font-size:.66rem;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--encre-douce);
+}
+.ligne-tache {
+  display:flex; align-items:center; gap:.45rem; padding:.35rem .1rem;
+  border-bottom:1px solid var(--filet); font-size:.78rem;
+}
+.ligne-tache:last-child { border-bottom:none; }
+.ligne-tache .quand {
+  margin-left:auto; font-family:ui-monospace,Menlo,monospace; font-size:.58rem;
+  color:var(--encre-douce);
+}
+.grille-raccourcis {
+  display:grid; grid-template-columns:auto 1fr; gap:.25rem .7rem;
+  font-size:.76rem; align-items:baseline;
+}
+.grille-raccourcis kbd {
+  font-family:ui-monospace,Menlo,monospace; font-size:.66rem;
+  border:1px solid var(--filet); border-bottom-width:2px; border-radius:3px;
+  padding:.05rem .32rem; background:var(--papier-creux);
+}
+
+/* ======================= 18. FEUILLE MOBILE ======================= */
+.feuille {
+  position:fixed; left:0; right:0; bottom:0; z-index:87; max-height:82vh;
+  background:var(--papier); border-top:1px solid var(--filet);
+  border-radius:12px 12px 0 0; box-shadow:0 -6px 28px rgba(0,0,0,.18);
+  transform:translateY(100%); transition:transform .22s ease;
+  display:flex; flex-direction:column;
+}
+.feuille.est-ouverte { transform:translateY(0); }
+.feuille .poignee {
+  flex:none; padding:.5rem; display:grid; place-items:center; cursor:grab;
+}
+.feuille .poignee::before {
+  content:""; width:2.4rem; height:4px; border-radius:2px; background:var(--filet);
+}
+.feuille .contenu-feuille { overflow-y:auto; padding:0 .8rem 1.5rem; }
+.feuille .nav-feuille {
+  display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+  padding:.3rem 0 .5rem; font-family:ui-monospace,Menlo,monospace; font-size:.62rem;
+  color:var(--encre-douce);
+}
+
+/* ======================= 19. LECTEUR AUDIO (cible) ======================= */
+.lecteur {
+  position:fixed; left:0; right:0; bottom:0; z-index:82; height:var(--barre-audio);
+  display:none; align-items:center; gap:.9rem; padding:0 1rem;
+  background:var(--papier); border-top:2px solid var(--cible);
+}
+body[data-source="audio"][data-lecteur="oui"] .lecteur { display:flex; }
+.bouton-lecture {
+  flex:none; width:34px; height:34px; border-radius:50%; border:none;
+  background:var(--encre); color:var(--papier); cursor:pointer;
+  display:grid; place-items:center; font-size:.72rem;
+}
+.piste { flex:1; min-width:0; }
+.piste-entete {
+  display:flex; justify-content:space-between; align-items:baseline; gap:.5rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem; color:var(--encre-douce);
+  margin-bottom:.25rem;
+}
+.rail { height:8px; border-radius:4px; background:var(--papier-creux); position:relative; cursor:pointer; display:flex; overflow:hidden; }
+.segment-locuteur { height:100%; opacity:.45; }
+.segment-locuteur.a-des-idees { opacity:.85; }
+.tete-de-lecture { position:absolute; top:-3px; width:2px; height:14px; background:var(--encre); }
+
+/* ======================= 20. TOASTS ======================= */
+.pile-toasts {
+  position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); z-index:95;
+  display:flex; flex-direction:column; gap:.4rem; align-items:center; pointer-events:none;
+}
+.toast {
+  background:var(--encre); color:var(--papier); border-radius:5px; padding:.45rem .8rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.66rem; max-width:90vw;
+  box-shadow:0 4px 16px rgba(0,0,0,.2); animation:monter .25s ease;
+}
+.toast[data-genre="erreur"] { background:var(--danger); }
+.toast[data-genre="succes"] { background:var(--succes); }
+@keyframes monter { from { opacity:0; transform:translateY(10px); } }
+
+/* ======================= 21. NOTE DE SOURCE ======================= */
+.note-source {
+  padding:.7rem 1rem; background:var(--papier-creux); border-bottom:1px solid var(--filet);
+  font-size:.78rem; line-height:1.6;
+}
+.note-source h2 {
+  margin:0 0 .25rem; font-size:.62rem; font-family:ui-monospace,Menlo,monospace;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--encre-douce);
+}
+.note-source p { margin:0; max-width:78ch; }
+.note-source code {
+  font-family:ui-monospace,Menlo,monospace; font-size:.72rem;
+  background:var(--papier); padding:.04rem .26rem; border-radius:2px;
+}
+
+@media (max-width: 900px) {
+  body { font-size:16px; }
+  :root { --gouttiere:36px; }
+  /* Le fil doit pouvoir se serrer : le nom du carnet se tronque plutot
+     que de pousser la page. / The notebook name truncates, never pushes. */
+  #fil-carnet-nom { max-width:8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fil-ariane .section-courante { display:none; }
+  .bloc-carnets li { font-size:.78rem; }
+  .bloc-carnets .actions-relation { margin-left:0; }
+  body[data-mode="inspection"] { --gouttiere:86px; }
+  .barre-outils .titre-doc { display:none; }
+  .barre-outils button span.libelle { display:none; }
+}
+</style>
+</head>
+<body data-mode="lecture" data-source="pdf" data-docling="oui"
+      data-panneau="permanent" data-lecteur="oui" data-progression="direct"
+      data-filtre-mode="inclure">
+
+<!-- ============ PUPITRE DE MAQUETTE (n'existe pas dans l'application) ============ -->
+<div class="pupitre">
+  <span class="titre">MAQUETTE</span>
+  <select id="choix-source" aria-label="Source du document">
+    <option value="pdf">PDF</option>
+    <option value="md">Markdown</option>
+    <option value="web">Page web</option>
+    <option value="audio">Audio</option>
+  </select>
+  <button id="mode-lecture" aria-pressed="true">lecture</button>
+  <button id="mode-inspection" aria-pressed="false">inspection</button>
+  <span class="sep"></span>
+  <label><input type="checkbox" id="int-docling" checked> Docling</label>
+  <label><input type="checkbox" id="int-panneau" checked> panneau permanent</label>
+  <label><input type="checkbox" id="int-lecteur" checked> lecteur audio</label>
+  <label><input type="checkbox" id="int-progression" checked> progression directe</label>
+  <span class="sep"></span>
+  <button id="bascule-theme" aria-label="Changer de thème">○ clair</button>
+  <button id="ouvrir-aide" title="Raccourcis clavier">?</button>
+</div>
+
+<!-- ============ BARRE D'OUTILS (base.html:19-169) ============ -->
+<div class="barre-outils">
+  <button id="btn-arbre" title="Bibliothèque (T)">☰</button>
+  <span class="marque">Hypostasia</span>
+  <span class="titre-doc" id="titre-barre">—</span>
+  <div class="droite">
+    <button id="btn-dashboard" title="État du débat">◍ <span class="libelle">Dashboard</span></button>
+    <button id="btn-panneau" title="Analyses (E)">▤ <span class="libelle">Analyses</span>
+      <span class="pastille-badge" id="badge-panneau" hidden></span></button>
+    <button id="btn-import" title="Importer un document">↑ <span class="libelle">Importer</span></button>
+    <button id="btn-taches" title="Mes tâches"><span id="icone-taches">✓</span>
+      <span class="pastille-badge" id="badge-taches" hidden></span></button>
+    <div class="avatar-utilisateur" title="jonas@exemple.fr">J</div>
+  </div>
+</div>
+
+<!-- ============ FIL D'ARIANE — Base › Carnet ▾ › Note (spec § 8.1) ============
+     Le N-N a detruit l'arbre : une note sous deux carnets n'a pas de parent
+     unique. Le fil le remplace, et son CHEVRON recharge la meme note dans un
+     autre carnet — on est toujours dans un carnet, un seul a la fois.
+     / The chevron reloads the same note in another notebook. -->
+<nav class="fil-ariane" id="fil-ariane" aria-label="Fil d'Ariane">
+  <span class="marque-cible" title="N'existe pas dans le produit : le seul repère actuel est le titre tronqué de la barre d'outils.">cible</span>
+  <a href="corpus.html" id="fil-base">Coopérative des Trois Vallées</a>
+  <span class="separateur-fil">›</span>
+  <span class="bascule-carnet">
+    <button class="lien-fil" id="fil-carnet" aria-haspopup="true" aria-expanded="false">
+      <span id="fil-visibilite" title="Carnet partagé">👥</span>
+      <span id="fil-carnet-nom">Conseil d'administration</span> ▾</button>
+    <div class="menu-bascule" id="menu-bascule" role="menu"></div>
+  </span>
+  <span class="separateur-fil">›</span>
+  <span class="courant" id="fil-page">—</span>
+  <span class="section-courante" id="fil-section"></span>
+</nav>
+
+<div class="note-source" id="note-source"></div>
+
+<!-- ============ PLATEAU ============ -->
+<div class="plateau">
+  <main class="colonne-lecture">
+    <div class="colonne-interieure">
+
+      <header class="entete-page">
+        <h1 class="titre-page" id="titre-page" title="Cliquer pour renommer">—</h1>
+        <div class="source-doc" id="source-doc"></div>
+        <div class="rangee-actions">
+          <button class="bouton-plat" id="btn-source">⤓ Source</button>
+          <button class="bouton-plat" id="btn-exporter">⤒ Exporter ▾</button>
+          <span class="separateur-vertical"></span>
+          <button class="bouton-plat" id="btn-historique">↺ Historique</button>
+          <!-- Les pilules V1/V2/V3 sont retirees : numeroter les versions
+               d'un document deliberatif ne dit rien de ce qui a change ni
+               de pourquoi. A remplacer par autre chose — voir la note.
+               / Version pills removed; numbering says nothing useful here. -->
+        </div>
+        <!-- Dans N carnets : une ligne par carnet, avec SES categories.
+             C'est ce bloc qui rend la categorie-sur-la-relation evidente. -->
+        <div class="bloc-carnets" id="bloc-carnets"></div>
+        <!-- Marqué « cible » : aucun modèle Carnet en base, Page.dossier est
+             une FK simple (core/models.py:106) — une note ne peut pas être
+             dans deux carnets aujourd'hui. -->
+      </header>
+
+      <div id="document"></div>
+    </div>
+  </main>
+
+  <!-- ============ PANNEAU / DRAWER ============ -->
+  <aside class="panneau" id="panneau" data-ecran="liste">
+    <div class="panneau-entete">
+      <div class="panneau-titre">
+        <button class="bouton-plat" id="btn-retour-liste" hidden>◀</button>
+        <span id="panneau-titre-texte">Extractions</span>
+        <button class="bouton-plat fermer" id="btn-fermer-panneau">✕</button>
+      </div>
+    </div>
+    <div class="panneau-corps">
+
+      <!-- ---- Écran liste ---- -->
+      <div class="ecran-panneau ecran-liste">
+        <div class="bandeau-resume" id="bandeau-resume">
+          <span id="resume-texte">—</span>
+          <button class="bouton-plat" id="btn-nouvelle-analyse">Nouvelle analyse ↻</button>
+        </div>
+        <div class="rangee-filtres">
+          <span id="compte-extractions">—</span>
+          <select id="tri-extractions" aria-label="Trier">
+            <option value="position">Position</option>
+            <option value="activite">Activité récente</option>
+          </select>
+          <span class="sep"></span>
+          <span id="pilules-contributeurs" style="display:contents"></span>
+          <button class="pilule-contributeur" id="btn-mode-filtre" title="Inverser le filtre">Sauf</button>
+        </div>
+        <div id="liste-cartes"></div>
+        <div class="section-repliable" id="section-masquees" hidden>
+          <button id="btn-masquees">▸ <span id="compte-masquees"></span> non pertinentes — Afficher</button>
+          <div id="liste-masquees" hidden></div>
+        </div>
+      </div>
+
+      <!-- ---- Écran confirmation d'analyse (confirmation_analyse.html) ---- -->
+      <div class="ecran-panneau ecran-analyse">
+        <label class="champ-etiquette" for="choix-analyseur">Analyseur</label>
+        <select class="champ-select" id="choix-analyseur">
+          <option>Hypostases — général ★</option>
+          <option>Hypostases — délibération</option>
+          <option>Concepts et définitions</option>
+        </select>
+
+        <div class="encart gris">
+          <div class="ligne"><span>Analyseur</span><span>Hypostases — général</span></div>
+          <div class="ligne"><span>Modèle IA</span><span>claude-sonnet-4-20250514</span></div>
+          <div class="ligne"><span>Pièces de prompt</span><span>5</span></div>
+          <div class="ligne"><span>Exemples few-shot</span><span>3</span></div>
+        </div>
+
+        <div class="encart ambre">
+          <div class="ligne"><span>Morceaux (~1 500 car.)</span><span id="est-chunks">9</span></div>
+          <div class="ligne"><span>Prompt par morceau</span><span>1 840 tok.</span></div>
+          <div class="ligne"><span>Tokens entrée</span><span id="est-in">21 300</span></div>
+          <div class="ligne"><span>Tokens sortie (~50 %)</span><span id="est-out">10 650</span></div>
+          <!-- Pas de ligne « réflexion » : le multiplicateur thinking n'existe
+               que pour gemini-2.5 (core/models.py:666-669), et le template réel
+               masque la ligne quand il vaut 0 (confirmation_analyse.html:85-88).
+               / No thinking line: Claude models have no multiplier. -->
+          <div class="ligne" style="margin-top:.3rem">
+            <span>Coût estimé</span><span class="cout" id="est-cout">≤ 0,35 €</span></div>
+        </div>
+
+        <button class="bouton-plat" id="btn-voir-prompt" style="margin-bottom:.6rem">
+          👁 Voir le prompt complet</button>
+        <div class="zone-prompt" id="zone-prompt"></div>
+
+        <div class="case-a-cocher">
+          <input type="checkbox" id="case-supprimer" checked>
+          <label for="case-supprimer">Supprimer les <strong>7</strong> extractions IA sans commentaire.
+            Les extractions commentées et les manuelles sont conservées.</label>
+        </div>
+
+        <div class="rangee-boutons">
+          <button class="bouton-plat principal" id="btn-lancer-analyse">Lancer l'analyse</button>
+          <button class="bouton-plat" id="btn-annuler-analyse">Annuler</button>
+        </div>
+      </div>
+
+      <!-- ---- Écran progression (cible) ---- -->
+      <div class="ecran-panneau ecran-progression">
+        <div class="encart ambre">
+          <span class="marque-cible" title="Le WebSocket ne pousse aujourd'hui que « terminé ». Le bandeau de progression du drawer est du code mort.">cible</span>
+          <div style="margin-top:.35rem"><strong>Analyse en cours</strong></div>
+          <div class="barre-progression"><div id="jauge-progression"></div></div>
+          <div class="ligne"><span id="texte-progression">morceau 0 sur 9</span>
+            <span id="compte-arrivees">0 extraction</span></div>
+        </div>
+        <div id="liste-progression"></div>
+      </div>
+
+    </div>
+  </aside>
+</div>
+
+<div class="voile" id="voile"></div>
+
+<!-- ============ ARBRE (overlay gauche) ============ -->
+<aside class="arbre" id="arbre">
+  <div class="arbre-entete"><span>Bibliothèque</span>
+    <button class="bouton-plat fermer" id="btn-fermer-arbre" style="margin-left:auto">✕</button></div>
+  <div class="arbre-corps">
+    <div class="arbre-section">
+      <button class="titre-section">▾ Mes dossiers <span style="margin-left:auto">(3, 47 p.)</span></button>
+      <!-- L'overlay ne montre plus JAMAIS de notes, seulement des contenants :
+           sous le N-N, une note apparaîtrait sous deux carnets et la question
+           « même note ou deux copies ? » n'aurait pas de réponse à l'écran.
+           On navigue base → carnet ; le carnet charge ses notes à droite.
+           / The overlay shows containers only. -->
+      <div class="noeud-dossier">
+        <div class="ligne-dossier"><span title="Carnet partagé">👥</span>
+          <span>Conseil d'administration</span><span class="compte">5 notes</span></div>
+        <ul class="liste-pages" id="pages-du-dossier"></ul>
+      </div>
+      <div class="noeud-dossier">
+        <div class="ligne-dossier"><span title="Carnet public">🌐</span>
+          <span>Veille financement</span><span class="compte">1 note</span></div>
+      </div>
+      <div class="noeud-dossier">
+        <div class="ligne-dossier"><span title="Carnet public">🌐</span>
+          <span>Communs et gouvernance</span><span class="compte">1 note</span></div>
+      </div>
+      <div class="noeud-dossier">
+        <div class="ligne-dossier"><span title="Carnet privé">🔒</span>
+          <span>Décisions techniques</span><span class="compte">1 note</span></div>
+      </div>
+    </div>
+    <div class="arbre-section">
+      <button class="titre-section">▸ Partagés avec moi</button>
+    </div>
+    <div class="arbre-section">
+      <button class="titre-section">▸ Dossiers publics</button>
+    </div>
+  </div>
+  <div class="arbre-pied">
+    <button class="bouton-plat">+ Nouveau dossier</button>
+    <button class="bouton-plat">↑ Importer</button>
+  </div>
+</aside>
+
+<!-- ============ SURFACES FLOTTANTES ============ -->
+<div class="surface surface-ancree" id="surface-dashboard">
+  <h3>État du débat</h3>
+  <p style="margin:0 0 .5rem; font-size:.85rem"><strong id="dash-chiffre">—</strong></p>
+  <div class="barre-progression"><div id="dash-jauge" style="width:0"></div></div>
+  <button class="bouton-plat principal" style="width:100%; justify-content:center"
+          id="btn-synthese">Lancer la synthèse</button>
+</div>
+
+<div class="surface surface-ancree" id="surface-taches">
+  <h3>Mes tâches récentes</h3>
+  <div id="liste-taches"></div>
+</div>
+
+<div class="surface surface-modale" id="surface-aide">
+  <h3>Raccourcis clavier</h3>
+  <div class="grille-raccourcis">
+    <kbd>T</kbd><span>Bibliothèque</span>
+    <kbd>E</kbd><span>Panneau des extractions</span>
+    <kbd>J</kbd><span>Extraction suivante</span>
+    <kbd>K</kbd><span>Extraction précédente</span>
+    <kbd>C</kbd><span>Commenter la sélectionnée</span>
+    <kbd>X</kbd><span>Masquer la sélectionnée</span>
+    <kbd>A</kbd><span>Alignement du dossier</span>
+    <kbd>Z</kbd><span>Comparer les versions</span>
+    <kbd>?</kbd><span>Cette aide</span>
+    <kbd>Échap</kbd><span>Fermer, en cascade</span>
+  </div>
+  <div class="rangee-boutons" style="margin-top:.8rem">
+    <button class="bouton-plat" id="btn-fermer-aide">Fermer</button>
+  </div>
+</div>
+
+<!-- ============ MENU DE SÉLECTION ============ -->
+<div class="menu-selection" id="menu-selection">
+  <button id="btn-extraction-manuelle" title="Créer une extraction manuelle">✎</button>
+  <button class="ia" id="btn-extraction-ia" title="Extraire par IA">✦</button>
+</div>
+
+<!-- ============ FEUILLE MOBILE ============ -->
+<div class="feuille" id="feuille">
+  <div class="poignee" id="poignee-feuille"></div>
+  <div class="contenu-feuille">
+    <div class="nav-feuille">
+      <button class="bouton-plat" id="feuille-precedent">◀</button>
+      <span id="feuille-position">—</span>
+      <button class="bouton-plat" id="feuille-suivant">▶</button>
+    </div>
+    <div id="feuille-carte"></div>
+  </div>
+</div>
+
+<!-- ============ LECTEUR AUDIO (cible) ============ -->
+<div class="lecteur">
+  <button class="bouton-lecture" id="bouton-lecture" aria-label="Lecture">▶</button>
+  <div class="piste">
+    <div class="piste-entete">
+      <span><span class="marque-cible" title="Aucun lecteur audio n'existe dans le produit. L'existant est une timeline click-to-scroll.">cible</span>
+        <span id="piste-titre">—</span></span>
+      <span id="minutage">00:00 / 00:00</span>
+    </div>
+    <div class="rail" id="rail"><div class="tete-de-lecture" id="tete" style="left:0"></div></div>
+  </div>
+</div>
+
+<div class="pile-toasts" id="pile-toasts"></div>
+
+<script>
+/* =========================================================================
+   1. REFERENTIELS TIRES DU CODE REEL
+   ========================================================================= */
+
+/* extractor_tags.py:16-62 — la famille se DEDUIT du tag, on ne la saisit pas.
+   Erreur des maquettes precedentes : « methode » y etait rangee en
+   « structurel » alors que sa famille est « objet ».
+   / The family is derived from the tag, never hand-written. */
+var HYPOSTASE_VERS_FAMILLE = {
+  classification:'epistemique', axiome:'epistemique', theorie:'epistemique',
+  definition:'epistemique', formalisme:'epistemique',
+  phenomene:'empirique', evenement:'empirique', donnee:'empirique',
+  variable:'empirique', indice:'empirique',
+  hypothese:'speculatif', conjecture:'speculatif', approximation:'speculatif',
+  structure:'structurel', invariant:'structurel', dimension:'structurel', domaine:'structurel',
+  loi:'normatif', principe:'normatif', valeur:'normatif', croyance:'normatif',
+  aporie:'problematique', paradoxe:'problematique', probleme:'problematique',
+  mode:'mode', variation:'mode', variance:'mode', paradigme:'mode',
+  objet:'objet', methode:'objet'
+};
+var DEFINITIONS = {
+  principe:"Règle générale posée comme fondement d'une conduite.",
+  probleme:"Difficulté qui appelle une résolution.",
+  phenomene:"Fait observable tel qu'il se manifeste.",
+  methode:"Manière ordonnée de procéder pour atteindre un but.",
+  conjecture:"Supposition avancée sans preuve établie.",
+  axiome:"Proposition admise sans démonstration.",
+  mode:"Manière d'être ou variante d'un même objet.",
+  structure:"Agencement stable des parties d'un tout.",
+  valeur:"Ce à quoi on attribue une importance normative."
+};
+
+/* =========================================================================
+   LA COUCHE CORPUS, VUE DEPUIS LA NOTE
+   Les categories sont portees par la RELATION note<->carnet. Une meme note
+   porte des etiquettes differentes selon le carnet qui la range.
+   / Categories live on the relation, so labels differ per notebook.
+   ========================================================================= */
+var CARNETS = {
+  'c-ca':        {nom:"Conseil d'administration", visibilite:'partage', icone:'\uD83D\uDC65'},
+  'c-veille':    {nom:"Veille financement",       visibilite:'public',  icone:'\uD83C\uDF10'},
+  'c-communs':   {nom:"Communs et gouvernance",   visibilite:'public',  icone:'\uD83C\uDF10'},
+  'c-technique': {nom:"Décisions techniques",     visibilite:'prive',   icone:'\uD83D\uDD12'}
+};
+var CATEGORIES = {
+  't-cr':{nom:'Compte rendu', couleur:'#3b82f6'}, 't-rap':{nom:'Rapport', couleur:'#8b5cf6'},
+  't-note':{nom:'Note interne', couleur:'#06b6d4'}, 't-ext':{nom:'Source externe', couleur:'#14b8a6'},
+  'th-budget':{nom:'Budget', couleur:'#f59e0b'}, 'th-gouv':{nom:'Gouvernance', couleur:'#ec4899'},
+  'th-local':{nom:'Local', couleur:'#10b981'},
+  'e-tri':{nom:'Ce trimestre', couleur:'#ef4444'}, 'e-passe':{nom:'Passé', couleur:'#6b7280'},
+  'v-aap':{nom:'Appel à projets', couleur:'#3b82f6'}, 'v-sub':{nom:'Subvention', couleur:'#8b5cf6'},
+  'v-mois':{nom:'Ce mois-ci', couleur:'#ef4444'}, 'v-passe':{nom:'Passé', couleur:'#6b7280'}
+};
+/* Les appartenances de chaque source. Noter le PDF : deux carnets, deux
+   jeux d'etiquettes. C'est tout le modele en une donnee. */
+var APPARTENANCES = {
+  pdf:  [{carnet:'c-ca', categories:['t-rap','th-budget','e-tri'], par:'Sonia', le:'3 mars 2026'},
+         {carnet:'c-veille', categories:['v-sub','v-passe'], par:'Sonia', le:'3 mars 2026'}],
+  audio:[{carnet:'c-ca', categories:['t-cr','th-gouv','e-tri'], par:'Jonas', le:'12 mars 2026'}],
+  web:  [{carnet:'c-ca', categories:['t-ext','th-gouv'], par:'Pierre', le:'8 mars 2026'},
+         {carnet:'c-communs', categories:[], par:'Pierre', le:'8 mars 2026'}],
+  md:   [{carnet:'c-technique', categories:[], par:'Jonas', le:'12 mars 2026'}]
+};
+var carnetCourant = 'c-ca';
+
+/* transcription_audio.py:23-34 — palette attribuee par ordre d'apparition. */
+var COULEURS_LOCUTEURS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6',
+                          '#ec4899','#06b6d4','#f97316','#14b8a6','#6366f1'];
+
+/* rendu_elements.py:60, 77 */
+var MAXIMUM_D_IDEES_SUPERPOSEES = 4;
+var MAXIMUM_DE_MARQUES_PAR_ELEMENT = 400;
+
+/* _card_body.html:77-79 — la citation source est tronquee a 120 signes. */
+var LONGUEUR_MAXIMALE_DE_CITATION = 120;
+
+/* =========================================================================
+   2. LES QUATRE DOCUMENTS
+   Un element = {label, texte, page?, section?, qui?, debut?, duree?,
+                 masque?, idees:[{id, cite, statut, tags[], resume,
+                 motscles[], commentaires[], detachee?}]}
+   La famille et les couleurs se DEDUISENT du tag. La citation de la carte
+   se DEDUIT du texte cite. Rien n'est saisi deux fois.
+   ========================================================================= */
+var DOCUMENTS = {
+
+pdf: {
+  titre:"Rapport annuel 2024 — Coopérative des Trois Vallées",
+  dossier:"Conseil d'administration", visibilite:"👥",
+  source:"rapport-annuel-2024.pdf · 18 pages · 1,4 Mo",
+  meta:"PDF · 214 éléments · ingéré le 3 mars 2026",
+  note:{titre:"Ce qu'un PDF apporte de plus",
+    corps:"Docling rend la <strong>position physique</strong> de chaque élément : sa page et ses boîtes. " +
+      "Un paragraphe à cheval sur deux pages en porte deux — d'où <code>p. 4–5</code> sur le bloc du bail, " +
+      "visible en mode inspection. C'est ce qui permet le lien « voir la source ». Les <code>page_header</code>, " +
+      "<code>page_footer</code> et <code>footnote</code> sont écartés à l'ingestion : 36 éléments sur 250."},
+  elements:[
+    {label:"title", page:1, texte:"Rapport annuel 2024"},
+    {label:"section_header", page:3, section:["Rapport annuel 2024"], texte:"3. Situation financière"},
+    {label:"text", page:3, section:["Rapport annuel 2024","3. Situation financière"],
+     texte:"L'exercice se clôt sur un excédent de 12 400 euros, contre un déficit de 3 100 euros l'année précédente. Ce redressement tient pour l'essentiel à la renégociation du bail commercial, obtenue en avril.",
+     idees:[{id:301, cite:"un excédent de 12 400 euros, contre un déficit de 3 100 euros l'année précédente",
+       statut:'nouveau', tags:['phenomene'], motscles:['résultat','exercice'],
+       resume:"Le résultat passe d'un déficit à un excédent d'une année sur l'autre."}]},
+    {label:"table", page:4, section:["Rapport annuel 2024","3. Situation financière"],
+     entetes:["Poste","2023","2024"],
+     lignes:[["Cotisations","42 100 €","44 800 €"],["Subventions","18 000 €","18 000 €"],
+             ["Loyer","−31 200 €","−22 400 €"],["Salaires","−29 900 €","−31 100 €"]],
+     total:["Résultat","−3 100 €","12 400 €"]},
+    {label:"text", page:4, section:["Rapport annuel 2024","3. Situation financière"],
+     texte:"Le poste des salaires progresse de 4 %, ce qui correspond à l'embauche au secrétariat décidée en assemblée. Aucun autre poste n'a été augmenté.",
+     idees:[{id:302, cite:"Le poste des salaires progresse de 4 %", statut:'commente',
+       tags:['phenomene'], motscles:['salaires','masse salariale'],
+       resume:"La masse salariale croît de quatre pour cent.",
+       commentaires:[{qui:"Sonia", quoi:"Sur douze mois pleins, ce sera plutôt 6 %."}]}]},
+    /* Deux idees qui SE CHEVAUCHENT : le service emet des marques imbriquees. */
+    {label:"text", page:4, pageFin:5, etat:"debattu",
+     section:["Rapport annuel 2024","3. Situation financière"],
+     texte:"La renégociation du bail, si elle allège durablement les charges, repose sur un accord verbal avec le propriétaire actuel. Rien ne garantit sa reconduction en cas de vente du local, hypothèse qui n'est pas à écarter compte tenu de l'âge du bailleur.",
+     idees:[{id:303, cite:"repose sur un accord verbal avec le propriétaire actuel", statut:'commente',
+       tags:['probleme','conjecture'], motscles:['bail','risque'],
+       resume:"L'allègement des charges n'est garanti par aucun écrit.",
+       commentaires:[{qui:"Jonas", quoi:"C'est le vrai risque du budget. À mettre en tête du rapport."},
+                     {qui:"Amina", quoi:"Un avenant écrit coûte 300 € de notaire. On le fait ?"}]},
+      {id:304, cite:"un accord verbal avec le propriétaire actuel. Rien ne garantit sa reconduction en cas de vente du local",
+       statut:'nouveau', tags:['conjecture'], motscles:['reconduction','vente'],
+       resume:"La reconduction du bail dépend du maintien du propriétaire actuel."}]},
+    {label:"formula", page:5, section:["Rapport annuel 2024","3. Situation financière"],
+     texte:"seuil = charges_fixes / (1 − charges_variables / recettes)"},
+    {label:"section_header", page:6, section:["Rapport annuel 2024"], texte:"4. Fréquentation"},
+    {label:"picture", page:6, section:["Rapport annuel 2024","4. Fréquentation"], texte:"",
+     legende:"Figure 2 — Fréquentation mensuelle, 2022–2024. Source : registre d'entrée."},
+    {label:"text", page:6, section:["Rapport annuel 2024","4. Fréquentation"],
+     texte:"La fréquentation progresse sur les trois indicateurs suivis. La hausse des passages hebdomadaires est la plus nette au dernier trimestre, après l'ouverture des créneaux du samedi matin."},
+    {label:"list_item", page:6, section:["Rapport annuel 2024","4. Fréquentation"],
+     texte:"Adhérents actifs : 312, en hausse de 8 %"},
+    {label:"list_item", page:6, section:["Rapport annuel 2024","4. Fréquentation"],
+     texte:"Passages hebdomadaires : 940 en moyenne"},
+    {label:"list_item", page:6, section:["Rapport annuel 2024","4. Fréquentation"],
+     texte:"Ateliers ouverts : 14, contre 11 en 2023"},
+    /* Element masque : le modele le permet, aucune interface ne le fait. */
+    {label:"text", page:7, masque:true, section:["Rapport annuel 2024","4. Fréquentation"],
+     texte:"Ce paragraphe doublonnait la section 2 ; il a été retiré du contenu utile sans être supprimé."}
+  ]},
+
+md: {
+  titre:"ADR 007 — Ancrage par élément",
+  dossier:"Veille documentaire", visibilite:"🔒",
+  source:"adr-007-ancrage-par-element.md · 4 200 signes",
+  meta:"Markdown · 31 éléments · ingéré le 12 mars 2026",
+  note:{titre:"Ce qui change avec un Markdown",
+    corps:"Même moteur, même richesse de structure. Mais <code>_provenance_de_l_element()</code> rend " +
+      "<code>{}</code> : un Markdown n'a pas de page physique, et il n'y a rien à pointer dans un " +
+      "document d'origine. En revanche les blocs de code prennent leur forme propre."},
+  elements:[
+    {label:"title", texte:"ADR 007 — Ancrage par élément"},
+    {label:"text", section:["ADR 007 — Ancrage par élément"],
+     texte:"Statut : accepté. Date : 12 mars 2026. Remplace l'ADR 003."},
+    {label:"section_header", section:["ADR 007 — Ancrage par élément"], texte:"Contexte"},
+    {label:"text", section:["ADR 007 — Ancrage par élément","Contexte"],
+     texte:"L'ancrage par décalage de caractères dans le texte entier casse dès qu'un paragraphe est corrigé en amont : toutes les positions suivantes glissent, et les extractions se retrouvent sur le mauvais passage.",
+     idees:[{id:401, cite:"toutes les positions suivantes glissent", statut:'commente',
+       tags:['probleme'], motscles:['décalage','régression'],
+       resume:"Une correction en amont invalide toutes les ancres qui suivent.",
+       commentaires:[{qui:"Jonas", quoi:"C'est exactement ce qu'on a constaté sur la page du 4 février."}]}]},
+    {label:"blockquote", section:["ADR 007 — Ancrage par élément","Contexte"],
+     texte:"Un décalage n'est pas une adresse : c'est une distance depuis un point qui bouge."},
+    {label:"section_header", section:["ADR 007 — Ancrage par élément"], texte:"Décision"},
+    {label:"text", etat:"debattu", section:["ADR 007 — Ancrage par élément","Décision"],
+     texte:"On ancre désormais dans l'élément, pas dans la page. Une extraction porte une ou plusieurs portions, chacune bornée à l'intérieur d'un élément identifié de façon stable.",
+     idees:[{id:402, cite:"On ancre désormais dans l'élément, pas dans la page", statut:'commente',
+       tags:['principe','methode'], motscles:['ancrage','élément'],
+       resume:"L'unité d'ancrage devient l'élément de document.",
+       commentaires:[{qui:"Amina", quoi:"Et pour un passage qui traverse deux paragraphes ?"},
+                     {qui:"Jonas", quoi:"Deux portions, une extraction. C'est le point suivant."}]},
+      {id:403, cite:"chacune bornée à l'intérieur d'un élément identifié de façon stable",
+       statut:'nouveau', tags:['methode'], motscles:['portion','identifiant'],
+       resume:"Chaque portion est bornée par un identifiant qui survit aux scissions."}]},
+    {label:"code", section:["ADR 007 — Ancrage par élément","Décision"],
+     texte:"class AncrageExtraction(models.Model):\n    extraction = models.ForeignKey(ExtractedEntity, related_name=\"ancrages\")\n    element    = models.ForeignKey(ElementDocument, on_delete=PROTECT)\n    ordre_dans_extraction = models.PositiveSmallIntegerField()\n    debut_dans_element    = models.PositiveIntegerField()\n    fin_dans_element      = models.PositiveIntegerField()"},
+    {label:"section_header", section:["ADR 007 — Ancrage par élément"], texte:"Conséquences"},
+    {label:"list_item", section:["ADR 007 — Ancrage par élément","Conséquences"],
+     texte:"Corriger un paragraphe ne touche plus que ses propres ancres."},
+    {label:"list_item", section:["ADR 007 — Ancrage par élément","Conséquences"],
+     texte:"Une extraction peut traverser plusieurs éléments — d'où la relation M2M."},
+    {label:"list_item", section:["ADR 007 — Ancrage par élément","Conséquences"],
+     texte:"Une portion qu'on ne retrouve plus est détachée, jamais supprimée.",
+     idees:[{id:404, cite:"détachée, jamais supprimée", statut:'nouveau',
+       tags:['principe'], motscles:['détachement','conservation'],
+       resume:"La perte de position ne détruit pas l'extraction."}]}
+  ],
+  /* Portion detachee : le service ne la dessine pas dans le texte, elle
+     n'apparait qu'au panneau. rendu_elements.py:306-312 */
+  detachees:[{id:405, statut:'commente', tags:['probleme'],
+    resume:"Le passage d'origine a été réécrit ; l'ancre ne retrouve plus son texte.",
+    citation:"les positions absolues rendent la réconciliation impossible",
+    motscles:['détachée'],
+    commentaires:[{qui:"Sonia", quoi:"C'était le paragraphe qu'on a réécrit mardi."}]}]},
+
+web: {
+  titre:"Ce que les communs nous apprennent de la gouvernance",
+  dossier:"Communs et gouvernance", visibilite:"🌐",
+  source:"https://lemondeducommun.fr/communs-gouvernance-ostrom",
+  meta:"Capture web · 24 éléments · capturée le 8 mars 2026",
+  note:{titre:"Ce qu'une capture web apporte, et ce qui lui manque",
+    corps:"L'extension envoie <code>html_readability</code>, déjà débarrassé de la navigation par " +
+      "Readability.js dans le navigateur. Docling structure ce HTML nettoyé : la hiérarchie suit celle " +
+      "du site, donc <strong>bonne quand le site est bien écrit, pauvre sinon</strong>. Pas de page " +
+      "physique, mais une <strong>URL</strong> — chaque élément peut porter une ancre de fragment."},
+  elements:[
+    {label:"title", texte:"Ce que les communs nous apprennent de la gouvernance"},
+    {label:"text", section:["Ce que les communs nous apprennent de la gouvernance"],
+     texte:"Publié le 8 mars 2026 par Claire Vasseur · 11 min de lecture"},
+    {label:"text", section:["Ce que les communs nous apprennent de la gouvernance"],
+     texte:"Depuis les travaux d'Elinor Ostrom, on sait qu'une ressource partagée peut être gérée durablement sans être ni privatisée ni nationalisée. Ce que l'on sait moins, c'est à quelles conditions.",
+     idees:[{id:501, cite:"une ressource partagée peut être gérée durablement sans être ni privatisée ni nationalisée",
+       statut:'nouveau', tags:['axiome','principe'], motscles:['communs','gestion'],
+       resume:"Une troisième voie de gestion existe entre marché et État."}]},
+    {label:"section_header", section:["Ce que les communs nous apprennent de la gouvernance"],
+     texte:"Les huit principes"},
+    {label:"text", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"Ostrom en dégage huit, tirés de l'observation de centaines de cas concrets : irrigation, pêcheries, forêts communales. Le troisième nous intéresse particulièrement ici.",
+     idees:[{id:502, cite:"tirés de l'observation de centaines de cas concrets", statut:'nouveau',
+       tags:['methode'], motscles:['induction','terrain'],
+       resume:"Les principes sont inductifs, issus de cas observés."}]},
+    {label:"blockquote", etat:"debattu",
+     section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"La plupart des personnes concernées par les règles peuvent participer à les modifier.",
+     idees:[{id:503, cite:"peuvent participer à les modifier", statut:'commente',
+       tags:['principe'], motscles:['légitimité','participation'],
+       resume:"La légitimité d'une règle tient à qui peut la changer.",
+       commentaires:[{qui:"Pierre", quoi:"C'est le principe 3, mot pour mot. Utile à citer en AG."},
+                     {qui:"Marie", quoi:"« Peuvent participer », pas « participent ». La nuance compte."}]}]},
+    {label:"text", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"La formule est prudente. Elle ne dit pas que tout le monde décide de tout, mais que personne n'est structurellement empêché de peser sur les règles qui le concernent.",
+     idees:[{id:504, cite:"personne n'est structurellement empêché de peser sur les règles qui le concernent",
+       statut:'commente', tags:['principe','mode'], motscles:['empêchement','participation'],
+       resume:"Le critère porte sur l'absence d'empêchement, pas sur la participation effective.",
+       commentaires:[{qui:"Amina", quoi:"C'est la différence entre une porte ouverte et une invitation."}]}]},
+    {label:"picture", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"", legende:"Système d'irrigation communal, huerta de Valence. Photo : CC-BY Ferran Cornellà."},
+    {label:"list_item", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"Des limites clairement définies"},
+    {label:"list_item", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"Des règles adaptées aux conditions locales"},
+    {label:"list_item", section:["Ce que les communs nous apprennent de la gouvernance","Les huit principes"],
+     texte:"Des dispositifs de choix collectif ouverts aux concernés"}
+  ]},
+
+audio: {
+  titre:"Conseil du 12 mars — enregistrement",
+  dossier:"Conseil d'administration", visibilite:"👥",
+  source:"conseil-2026-03-12.m4a · 3 min 12 · 5 locuteurs",
+  meta:"Audio · transcription diarisée · 13 tours",
+  note:{titre:"L'audio ne passe pas par Docling, et c'est normal",
+    corps:"Un enregistrement n'a ni page ni mise en page : son unité naturelle est le " +
+      "<strong>tour de parole</strong>. L'élément porte un locuteur et un intervalle en secondes, là où " +
+      "un PDF porte une page et des boîtes. C'est le seul cas où la glissière reste utile en lecture : " +
+      "<strong>qui parle et quand, c'est du contenu</strong>. Attention — il n'existe aujourd'hui " +
+      "<strong>aucune ingestion audio vers ElementDocument</strong> : la transcription vit dans " +
+      "<code>transcription_raw</code> et un HTML diarisé."},
+  elements:[
+    {label:"utterance", qui:"Marie", debut:0, duree:14,
+     texte:"Je pense qu'on va beaucoup trop vite sur ce dossier, et je voudrais qu'on prenne le temps de l'expliquer aux équipes avant de trancher.",
+     idees:[{id:601, cite:"je voudrais qu'on prenne le temps de l'expliquer aux équipes", statut:'nouveau',
+       tags:['methode','principe'], motscles:['pédagogie','préalable'],
+       resume:"L'explication aux équipes est posée en préalable à la décision."}]},
+    {label:"utterance", qui:"Jonas", debut:14, duree:13,
+     texte:"On a déjà repoussé deux fois cette décision, à un moment il faut trancher, sinon on ne fera jamais rien.",
+     idees:[{id:602, cite:"On a déjà repoussé deux fois cette décision, à un moment il faut trancher",
+       statut:'commente', tags:['probleme'], motscles:['temporalité','décision'],
+       resume:"L'ajournement répété est présenté comme un coût en soi.",
+       commentaires:[{qui:"Amina", quoi:"Deux reports, c'est factuel. Mais ça n'oblige pas à décider mal."},
+                     {qui:"Marie", quoi:"Je note qu'on n'a jamais dit pourquoi on avait reporté."}]}]},
+    {label:"utterance", qui:"Marie", debut:27, duree:16,
+     texte:"Trancher oui, mais pas sans avoir consulté les personnes qui vont vivre avec cette décision au quotidien.",
+     idees:[{id:603, cite:"pas sans avoir consulté les personnes qui vont vivre avec cette décision",
+       statut:'commente', tags:['principe','methode'], motscles:['consultation','légitimité'],
+       resume:"La consultation des personnes concernées est érigée en condition de légitimité.",
+       commentaires:[{qui:"Pierre", quoi:"C'est le principe 3 d'Ostrom, mot pour mot."}]}]},
+    {label:"utterance", qui:"Amina", debut:43, duree:19, etat:"debattu",
+     texte:"Je rejoins ce que dit Marie. On est en train de décider pour des gens qui ne sont pas dans la pièce, et qui n'ont même pas été prévenus qu'on en parlait aujourd'hui.",
+     idees:[{id:604, cite:"On est en train de décider pour des gens qui ne sont pas dans la pièce",
+       statut:'commente', tags:['probleme','phenomene'], motscles:['absence','procédure'],
+       resume:"L'absence des personnes concernées est décrite comme un vice de procédure.",
+       commentaires:[{qui:"Jonas", quoi:"D'accord sur le constat, pas sur la conclusion."},
+                     {qui:"Sonia", quoi:"On pourrait les inviter en visio, ça lève l'objection."},
+                     {qui:"Marie", quoi:"La visio ne remplace pas le fait de les prévenir à l'avance."}]}]},
+    {label:"utterance", qui:"Jonas", debut:62, duree:11,
+     texte:"D'accord, je l'entends. Mais alors on se donne une date ferme, sinon on repousse encore de six mois."},
+    {label:"utterance", qui:"Pierre", debut:73, duree:6,
+     texte:"Est-ce qu'on a une idée du budget que ça représente ?"},
+    {label:"utterance", qui:"Sonia", debut:79, duree:17,
+     texte:"Sur le budget, on est à quatre pour cent d'augmentation, essentiellement le coût de l'énergie et l'embauche au secrétariat.",
+     idees:[{id:605, cite:"quatre pour cent d'augmentation, essentiellement le coût de l'énergie et l'embauche au secrétariat",
+       statut:'nouveau', tags:['phenomene'], motscles:['budget','énergie'],
+       resume:"La hausse budgétaire est rapportée à deux causes identifiées."}]},
+    {label:"utterance", qui:"Pierre", debut:96, duree:12,
+     texte:"Quatre pour cent, c'est en dessous de l'inflation. On ne peut pas dire qu'on dérape."},
+    {label:"utterance", qui:"Marie", debut:108, duree:19,
+     texte:"Le sujet n'est pas le montant, c'est la manière dont on décide. Dix mille euros engagés sans que personne ne l'ait vu passer, c'est ça qui pose problème.",
+     idees:[{id:606, cite:"Le sujet n'est pas le montant, c'est la manière dont on décide", statut:'nouveau',
+       tags:['axiome','principe'], motscles:['gouvernance','recadrage'],
+       resume:"Le débat est déplacé du montant vers la procédure de décision."},
+      {id:607, cite:"Dix mille euros engagés sans que personne ne l'ait vu passer", statut:'commente',
+       tags:['phenomene'], motscles:['montant','opacité'],
+       resume:"Un engagement de dix mille euros a été pris hors du regard collectif.",
+       commentaires:[{qui:"Pierre", quoi:"Le montant est exact, je l'ai vérifié au compte 606."}]}]},
+    {label:"utterance", qui:"Jonas", debut:127, duree:14,
+     texte:"Alors on fixe un seuil. Au-delà de dix mille euros, ça passe en assemblée générale, point.",
+     idees:[{id:608, cite:"Au-delà de dix mille euros, ça passe en assemblée générale", statut:'nouveau',
+       tags:['methode'], motscles:['seuil','assemblée'],
+       resume:"Un seuil chiffré est proposé comme règle de passage en assemblée."}]},
+    {label:"utterance", qui:"Sonia", debut:141, duree:20,
+     texte:"Attention, si on fixe un seuil en euros sans le réévaluer, dans cinq ans l'inflation l'aura vidé de son sens.",
+     idees:[{id:609, cite:"si on fixe un seuil en euros sans le réévaluer, dans cinq ans l'inflation l'aura vidé de son sens",
+       statut:'commente', tags:['conjecture','probleme'], motscles:['inflation','indexation'],
+       resume:"Un seuil nominal non indexé perd son sens avec le temps.",
+       commentaires:[{qui:"Jonas", quoi:"On l'indexe sur le budget total, alors. Cinq pour cent."}]}]},
+    {label:"utterance", qui:"Marie", debut:161, duree:18,
+     texte:"Je propose qu'on repousse d'une semaine, qu'on invite les personnes concernées, et qu'on décide la semaine prochaine avec elles.",
+     idees:[{id:610, cite:"qu'on repousse d'une semaine, qu'on invite les personnes concernées",
+       statut:'nouveau', tags:['methode','mode'], motscles:['report','invitation'],
+       resume:"Une décision différée d'une semaine, en présence des concernés, est proposée."}]},
+    {label:"utterance", qui:"Jonas", debut:179, duree:13,
+     texte:"Une semaine, pas plus. Et on met l'ordre du jour par écrit cette fois."}
+  ]}
+};
+
+/* Les pieces du prompt, telles que modale_prompt_readonly.html les colore. */
+var PIECES_DU_PROMPT = [
+  {role:'definition', contenu:"Une hypostase est une unité de pensée identifiable dans un texte :\nun principe, un problème, un phénomène, une méthode…"},
+  {role:'instruction', contenu:"Extrais chaque hypostase du texte fourni. Cite le passage EXACT,\nsans le reformuler. Une hypostase peut porter plusieurs classes."},
+  {role:'format', contenu:'{"extractions": [{"extraction_class": "...", "extraction_text": "...",\n  "attributes": {"hypostases": "...", "resume": "...", "motscles": "..."}}]}'},
+  {role:'contexte', contenu:"Le texte provient d'un document délibératif. Les passages peuvent\nse chevaucher : deux idées distinctes sur une même phrase sont valides."},
+  {role:'exemple', contenu:'Texte : « Toute décision engageant plus de dix mille euros passe en assemblée. »\n→ [principe] « Toute décision engageant plus de dix mille euros passe en assemblée »\n   resume : « Un seuil financier déclenche le passage en assemblée. »'}
+];
+
+/* =========================================================================
+   3. OUTILS
+   ========================================================================= */
+var corps = document.body;
+var conteneurDocument = document.getElementById('document');
+var listeCartes = document.getElementById('liste-cartes');
+var panneau = document.getElementById('panneau');
+var voile = document.getElementById('voile');
+var arbre = document.getElementById('arbre');
+var feuille = document.getElementById('feuille');
+
+var sourceCourante = 'pdf';
+var ideeSelectionnee = null;
+var contributeursFiltres = new Set();
+var couleursParLocuteur = {};
+
+function echapper(t) {
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                  .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function formater(s) {
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+function toast(message, genre) {
+  var t = document.createElement('div');
+  t.className = 'toast'; if (genre) t.dataset.genre = genre;
+  t.textContent = message;
+  document.getElementById('pile-toasts').appendChild(t);
+  setTimeout(function () { t.remove(); }, 3200);
+}
+/* La famille se DEDUIT du tag — jamais saisie. / Family derived, never typed. */
+function familleDuTag(tag) { return HYPOSTASE_VERS_FAMILLE[tag] || 'objet'; }
+function couleurDuLocuteur(nom) {
+  if (!(nom in couleursParLocuteur)) {
+    couleursParLocuteur[nom] = COULEURS_LOCUTEURS[Object.keys(couleursParLocuteur).length % 10];
+  }
+  return couleursParLocuteur[nom];
+}
+function toutesLesIdees(doc) {
+  var liste = [];
+  doc.elements.forEach(function (e) { (e.idees || []).forEach(function (i) { liste.push(i); }); });
+  return liste;
+}
+
+/* =========================================================================
+   4. LE SURLIGNAGE — segments et marques IMBRIQUEES
+   Reproduit rendu_elements.py:92-275 : on decoupe le texte aux frontieres
+   de toutes les portions, puis on ouvre une marque par idee couvrant le
+   segment. Deux idees qui se chevauchent donnent donc DEUX marques
+   imbriquees sur la zone commune — chacune reste cliquable et allumable.
+   / Overlapping ideas produce NESTED marks, one per idea, as the service does.
+   ========================================================================= */
+function construireLesSegments(longueurDuTexte, portions) {
+  var frontieres = {0:true, };
+  frontieres[longueurDuTexte] = true;
+  portions.forEach(function (p) { frontieres[p.debut] = true; frontieres[p.fin] = true; });
+  var bornes = Object.keys(frontieres).map(Number).sort(function (a,b) { return a-b; });
+
+  var segments = [];
+  for (var i = 0; i < bornes.length - 1; i++) {
+    var debut = bornes[i], fin = bornes[i+1];
+    if (debut === fin) continue;
+    var couvrantes = portions.filter(function (p) { return p.debut <= debut && p.fin >= fin; });
+    /* Plafond de superposition : au-dela, on garde les portions les plus
+       larges — les plus courtes seraient illisibles. rendu_elements.py:60 */
+    if (couvrantes.length > MAXIMUM_D_IDEES_SUPERPOSEES) {
+      couvrantes = couvrantes.slice().sort(function (a,b) {
+        return (b.fin - b.debut) - (a.fin - a.debut);
+      }).slice(0, MAXIMUM_D_IDEES_SUPERPOSEES);
+    }
+    segments.push({debut:debut, fin:fin, portions:couvrantes});
+  }
+  return segments;
+}
+
+function rendreLeTexteDUnElement(element) {
+  var texte = element.texte || '';
+  var idees = element.idees || [];
+  if (!idees.length) return echapper(texte);
+
+  /* Les bornes viennent du TEXTE cite, jamais d'un comptage a la main.
+     / Bounds come from the quoted text, never hand-counted. */
+  var portions = [];
+  idees.forEach(function (idee) {
+    var debut = texte.indexOf(idee.cite);
+    if (debut === -1) { console.error('citation introuvable :', idee.cite); return; }
+    portions.push({idee:idee, debut:debut, fin:debut + idee.cite.length, ordre:0});
+  });
+  if (!portions.length) return echapper(texte);
+
+  var segments = construireLesSegments(texte.length, portions);
+
+  /* Plafond de marques : au-dela, le service rend le texte NU.
+     rendu_elements.py:77, 215-227 */
+  var nombreDeMarques = segments.reduce(function (t, s) { return t + s.portions.length; }, 0);
+  if (nombreDeMarques > MAXIMUM_DE_MARQUES_PAR_ELEMENT) {
+    return echapper(texte) +
+      '<div class="avertissement-plafond">' + nombreDeMarques + ' marques : au-delà de ' +
+      MAXIMUM_DE_MARQUES_PAR_ELEMENT + ', le texte est rendu nu (rendu_elements.py:215).</div>';
+  }
+
+  var html = '';
+  segments.forEach(function (segment) {
+    var ouvertes = segment.portions.length;
+    segment.portions.forEach(function (portion, rang) {
+      html += '<mark class="portion hl-extraction"' +
+              ' data-extraction-id="' + portion.idee.id + '"' +
+              ' data-portion="' + portion.ordre + '"' +
+              ' data-superposition="' + ouvertes + '"' +
+              ' data-statut="' + portion.idee.statut + '"' +
+              ' tabindex="0" title="' + echapper(portion.idee.resume) + '">';
+    });
+    html += echapper(texte.slice(segment.debut, segment.fin));
+    for (var k = 0; k < ouvertes; k++) html += '</mark>';
+  });
+  return html;
+}
+
+/* =========================================================================
+   5. LES FORMES PAR LABEL
+   Le service rend table et code en <pre> (BALISE_PAR_LABEL). La maquette
+   rend un vrai <table> : c'est un ECART assume, a corriger dans le service.
+   ========================================================================= */
+function tableauAplati(element) {
+  return [element.entetes.join(' ')]
+    .concat(element.lignes.map(function (l) { return l.join(' '); }))
+    .concat(element.total ? [element.total.join(' ')] : []).join(' ');
+}
+
+function corpsDeLElement(element, doclingActif) {
+  var label = doclingActif ? element.label : 'text';
+
+  if (label === 'table') {
+    return '<table><thead><tr>' +
+      element.entetes.map(function (e) { return '<th>' + echapper(e) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      element.lignes.map(function (l) {
+        return '<tr>' + l.map(function (c) { return '<td>' + echapper(c) + '</td>'; }).join('') + '</tr>';
+      }).join('') +
+      (element.total ? '<tr class="total">' +
+        element.total.map(function (c) { return '<td>' + echapper(c) + '</td>'; }).join('') + '</tr>' : '') +
+      '</tbody></table>';
+  }
+  if (label === 'picture') {
+    return '<figure><div class="cadre-image">image</div><figcaption>' +
+           echapper(element.legende || '') + '</figcaption></figure>';
+  }
+
+  var contenu = rendreLeTexteDUnElement(element);
+  if (label === 'title')          return '<h2>' + contenu + '</h2>';
+  if (label === 'section_header') return '<h3>' + contenu + '</h3>';
+  if (label === 'list_item')      return '<ul><li>' + contenu + '</li></ul>';
+  if (label === 'blockquote')     return '<blockquote>' + contenu + '</blockquote>';
+  if (label === 'code')           return '<pre class="code">' + contenu + '</pre>';
+  if (label === 'formula')        return '<div class="formule">' + contenu + '</div>';
+  return '<p>' + contenu + '</p>';
+}
+
+/* =========================================================================
+   6. LA CARTE — reproduit _card_body.html
+   ========================================================================= */
+function htmlDesBadges(tags) {
+  return tags.map(function (tag) {
+    var famille = familleDuTag(tag);
+    return '<span class="badge-hypostase" title="' +
+      echapper(DEFINITIONS[tag] || tag) + '" style="color:var(--hypostase-' + famille +
+      '-text)">' + echapper(tag) + '</span>';
+  }).join('');
+}
+
+function htmlDUneCarte(idee, citation, options) {
+  options = options || {};
+  var commentaires = idee.commentaires || [];
+  var citationTronquee = citation.length > LONGUEUR_MAXIMALE_DE_CITATION
+    ? citation.slice(0, LONGUEUR_MAXIMALE_DE_CITATION) + '…' : citation;
+
+  /* Le bouton masquer est DESACTIVE s'il y a des commentaires.
+     Garde serveur : views.py:4098-4108. / Disabled when commented. */
+  var peutMasquer = commentaires.length === 0;
+
+  var htmlCommentaires = commentaires.map(function (c) {
+    var horsFiltre = contributeursFiltres.size > 0 && !contributeursFiltres.has(c.qui);
+    var actif = contributeursFiltres.has(c.qui);
+    return '<div class="commentaire' + (horsFiltre ? ' hors-filtre' : '') + '">' +
+      '<span class="qui' + (actif ? ' contributeur-actif' : '') + '">' + echapper(c.qui) + '</span>' +
+      '<p class="quoi">' + echapper(c.quoi) + '</p></div>';
+  }).join('');
+
+  return '<div class="carte-entete">' +
+      '<span class="indicateur-statut" data-statut="' + idee.statut + '" title="' +
+        (idee.statut === 'commente' ? 'Commenté' : 'Nouveau') + '"></span>' +
+      '<div class="badges">' + htmlDesBadges(idee.tags) + '</div>' +
+      (commentaires.length
+        ? '<span class="compteur-commentaires" title="' + commentaires.length +
+          (commentaires.length > 1 ? ' commentaires' : ' commentaire') + '">💬 ' +
+          commentaires.length + '</span>' : '') +
+      '<button class="bouton-masquer" title="' +
+        (peutMasquer ? 'Masquer cette extraction' : 'Extraction avec commentaires') + '"' +
+        (peutMasquer ? '' : ' disabled') + '>⊘</button>' +
+    '</div>' +
+    '<p class="typo-machine">' + echapper(idee.resume) + '</p>' +
+    '<p class="typo-citation">[' + echapper(citationTronquee) + ']</p>' +
+    '<div class="mots-cles">' + (idee.motscles || []).map(function (m) {
+      return '<span class="mot-cle">#' + echapper(m) + '</span>'; }).join('') + '</div>' +
+    htmlCommentaires +
+    '<button class="bouton-commenter">' +
+      (options.detachee ? 'Replacer dans le texte' : 'Commenter') + '</button>' +
+    '<div class="zone-commentaire">' +
+      '<textarea placeholder="Votre commentaire…"></textarea>' +
+      '<div class="rangee-boutons" style="margin-top:.3rem">' +
+        '<button class="bouton-plat principal envoyer-commentaire">Envoyer</button></div>' +
+    '</div>' +
+    '<div class="origine-element">' + echapper(options.origine || '') + '</div>';
+}
+
+/* =========================================================================
+   7. RENDU COMPLET
+   ========================================================================= */
+var DUREE_TOTALE = 0;
+
+function rendre() {
+  var doc = DOCUMENTS[sourceCourante];
+  var doclingActif = corps.dataset.docling === 'oui';
+  var estAudio = sourceCourante === 'audio';
+  couleursParLocuteur = {};
+
+  /* --- chrome --- */
+  document.getElementById('titre-barre').textContent = doc.titre;
+  document.getElementById('titre-page').textContent = doc.titre;
+  document.getElementById('source-doc').textContent = doc.source;
+  /* Le carnet et sa visibilite viennent des APPARTENANCES, plus du document :
+     une note n'a pas « un » dossier, elle a des appartenances.
+     / A note has no single folder; it has memberships. */
+  document.getElementById('fil-page').textContent = doc.titre;
+  document.getElementById('note-source').innerHTML =
+    '<h2>' + doc.note.titre + '</h2><p>' + doc.note.corps + '</p>' +
+    (doclingActif || estAudio ? '' :
+     '<p style="margin-top:.4rem; border-left:3px solid var(--statut-commente); padding-left:.6rem">' +
+     '<strong>Docling décoché.</strong> État réel de la base dev : les éléments viennent de la ' +
+     'commande de bascule, qui découpe le texte sur les sauts de paragraphe et écrit ' +
+     '<code>label="text"</code> partout. 13 174 éléments, 0 provenance, 0 chemin de section.</p>');
+
+  /* --- le document --- */
+  conteneurDocument.innerHTML = '';
+  var finDuDernierTour = 0;
+
+  doc.elements.forEach(function (element, index) {
+    var idees = element.idees || [];
+    var pageTexte = element.page
+      ? 'p. ' + element.page + (element.pageFin ? '–' + element.pageFin : '') : '';
+
+    var elementRendu = element;
+    if (!doclingActif && element.label === 'table') {
+      elementRendu = {label:'text', texte:tableauAplati(element)};
+    }
+
+    var bloc = document.createElement('div');
+    bloc.className = 'bloc';
+    bloc.dataset.label = doclingActif ? element.label : 'text';
+    bloc.dataset.etat = element.etat || 'analyse';
+    bloc.dataset.section = (element.section || []).join(' › ');
+    bloc.dataset.index = index;
+    if (element.masque) bloc.dataset.masque = 'oui';
+    if (estAudio) {
+      bloc.dataset.debut = element.debut;
+      bloc.dataset.fin = element.debut + element.duree;
+      finDuDernierTour = element.debut + element.duree;
+    }
+
+    var glissiere = '';
+    if (estAudio) {
+      glissiere +=
+        '<span class="etiquette-locuteur" style="--couleur-locuteur:' +
+          couleurDuLocuteur(element.qui) + '" title="Renommer ce locuteur">' + element.qui + '</span>' +
+        '<span class="ligne-minutage">' +
+          '<button class="bouton-ecouter" title="Écouter à partir d\'ici (cible)">▶</button>' +
+          '<span>' + formater(element.debut) + '</span></span>' +
+        '<span class="etiquette-label">utterance</span>';
+    } else {
+      glissiere +=
+        '<span class="etiquette-label">' + (doclingActif ? element.label : 'text') + '</span>' +
+        (pageTexte ? '<span class="numero-page">' + pageTexte + '</span>' : '');
+    }
+    glissiere +=
+      '<span class="numero-element">#' + (index + 1) + '</span>' +
+      (idees.length ? '<button class="compteur-idees" title="' + idees.length +
+        (idees.length > 1 ? ' idées extraites de ce passage' : ' idée extraite de ce passage') +
+        '">' + idees.length + '</button>' : '') +
+      (element.page ? '<button class="bouton-voir-source" title="Ouvrir le document source à cette page">' +
+        '<span class="icone-source">⤴</span>' +
+        '<span class="libelle-source">voir la source</span></button>' : '') +
+      '<span class="empreinte" title="empreinte_contenu, 8 premiers signes">' +
+        (element.texte || '').length.toString(16).padStart(4,'0') + 'a3f' + (index % 10) + '</span>';
+
+    bloc.innerHTML =
+      '<div class="gouttiere">' + glissiere + '</div>' +
+      '<div class="filet-etat"></div>' +
+      '<div class="corps">' + corpsDeLElement(elementRendu, doclingActif) +
+        '<div class="editeur"><textarea>' + echapper(element.texte || '') + '</textarea>' +
+        '<div class="editeur-barre">' +
+          '<button class="bouton-plat principal valider-edition">Valider</button>' +
+          '<button class="bouton-plat annuler-edition">Annuler</button>' +
+          '<button class="bouton-plat danger supprimer-bloc">Supprimer le bloc</button>' +
+          '<span class="editeur-aide">cliquez ailleurs pour enregistrer</span>' +
+        '</div></div>' +
+      '</div>';
+    conteneurDocument.appendChild(bloc);
+  });
+
+  DUREE_TOTALE = finDuDernierTour;
+  rendreLesCartes();
+  rendreLeBlocCarnets();
+  rendreLeFilDAriane();
+  rendreLesPagesDeLArbre();
+  rafraichirLeDashboard();
+  rafraichirLeFilDeSection();
+  rafraichirLAudio();
+  construireLeRail();
+}
+
+function rendreLesCartes() {
+  var doc = DOCUMENTS[sourceCourante];
+  listeCartes.innerHTML = '';
+
+  var idees = toutesLesIdees(doc);
+  var visibles = idees.filter(function (idee) {
+    if (contributeursFiltres.size === 0) return true;
+    var auteurs = (idee.commentaires || []).map(function (c) { return c.qui; });
+    var touche = auteurs.some(function (a) { return contributeursFiltres.has(a); });
+    return corps.dataset.filtreMode === 'exclure' ? !touche : touche;
+  });
+
+  visibles.forEach(function (idee) {
+    var element = doc.elements.find(function (e) {
+      return (e.idees || []).some(function (i) { return i.id === idee.id; });
+    });
+    var carte = document.createElement('article');
+    carte.className = 'carte';
+    carte.dataset.extractionId = idee.id;
+    carte.dataset.statut = idee.statut;
+    carte.tabIndex = 0;
+    carte.innerHTML = htmlDUneCarte(idee, idee.cite, {
+      origine:'élément #' + (doc.elements.indexOf(element) + 1) +
+        (element.page ? ' · p. ' + element.page + (element.pageFin ? '–' + element.pageFin : '') : '') +
+        (element.qui ? ' · ' + element.qui + ' · ' + formater(element.debut) : '')
+    });
+    listeCartes.appendChild(carte);
+  });
+
+  /* Les portions detachees : jamais dessinees dans le texte, seulement ici. */
+  (doc.detachees || []).forEach(function (idee) {
+    var carte = document.createElement('article');
+    carte.className = 'carte est-masquee';
+    carte.dataset.statut = idee.statut;
+    carte.innerHTML =
+      '<div style="font-family:ui-monospace,Menlo,monospace; font-size:.55rem; ' +
+      'text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce); ' +
+      'margin-bottom:.3rem">ancre détachée</div>' +
+      htmlDUneCarte(idee, idee.citation, {detachee:true, origine:'aucun élément — à replacer'});
+    listeCartes.appendChild(carte);
+  });
+
+  /* Compteur et bandeau. */
+  var total = idees.length + (doc.detachees || []).length;
+  document.getElementById('compte-extractions').textContent =
+    contributeursFiltres.size
+      ? visibles.length + ' sur ' + total
+      : total + (total > 1 ? ' extractions' : ' extraction');
+  document.getElementById('resume-texte').textContent =
+    '✓ ' + idees.length + ' entités · claude-sonnet-4-20250514';
+  document.getElementById('badge-panneau').textContent = total;
+  document.getElementById('badge-panneau').hidden = total === 0;
+
+  rendreLesPilulesDeContributeurs();
+}
+
+function rendreLesPilulesDeContributeurs() {
+  var doc = DOCUMENTS[sourceCourante];
+  var comptes = {};
+  toutesLesIdees(doc).forEach(function (idee) {
+    (idee.commentaires || []).forEach(function (c) {
+      comptes[c.qui] = (comptes[c.qui] || 0) + 1;
+    });
+  });
+  var zone = document.getElementById('pilules-contributeurs');
+  zone.innerHTML = Object.keys(comptes).map(function (qui) {
+    /* Teinte HSL derivee du nom, comme drawer_vue_liste.js. */
+    var somme = 0;
+    for (var i = 0; i < qui.length; i++) somme += qui.charCodeAt(i);
+    var teinte = 'hsl(' + (somme * 37 % 360) + ' 52% 42%)';
+    return '<button class="pilule-contributeur" data-qui="' + echapper(qui) +
+      '" style="--teinte:' + teinte + '" aria-pressed="' +
+      (contributeursFiltres.has(qui) ? 'true' : 'false') + '">' +
+      echapper(qui) + ' ' + comptes[qui] + '</button>';
+  }).join('');
+}
+
+/* L'overlay ne liste plus de notes : il mene AU CARNET, qui les affichera
+   dans la colonne de lecture. C'est la seule facon d'eviter la question
+   « meme note ou deux copies ? » quand une note vit dans deux carnets.
+   / The overlay leads to the notebook, never to notes directly. */
+function rendreLesPagesDeLArbre() {
+  document.getElementById('pages-du-dossier').innerHTML =
+    '<li data-carnet="c-ca" style="opacity:.8">→ ouvrir ce carnet et ses notes</li>';
+}
+
+/* =========================================================================
+   7bis. LE BLOC « DANS N CARNETS » ET LA BASCULE DU FIL
+   ========================================================================= */
+function appartenancesDeLaSource() { return APPARTENANCES[sourceCourante] || []; }
+
+function htmlDesEtiquettes(identifiants) {
+  if (!identifiants.length) {
+    return '<span class="aucune-categorie">aucune catégorie dans ce carnet</span>';
+  }
+  return identifiants.map(function (id) {
+    var categorie = CATEGORIES[id];
+    if (!categorie) return '';
+    return '<span class="etiquette-categorie" style="--teinte:' + categorie.couleur + '">' +
+      echapper(categorie.nom) + '</span>';
+  }).join('');
+}
+
+function rendreLeBlocCarnets() {
+  var appartenances = appartenancesDeLaSource();
+  document.getElementById('bloc-carnets').innerHTML =
+    '<div class="entete-carnets">' +
+      '<span class="marque-cible" title="Couche corpus : aucun modèle Carnet en base. ' +
+        'Page.dossier est une ForeignKey simple — une note vit dans un dossier et un seul.">cible</span>' +
+      'Dans ' + appartenances.length + ' carnet' + (appartenances.length > 1 ? 's' : '') +
+      (appartenances.length > 1
+        ? '<span style="margin-left:auto; text-transform:none; letter-spacing:0; opacity:.8">' +
+          'les étiquettes changent d\'un carnet à l\'autre</span>' : '') +
+    '</div>' +
+    '<ul>' + appartenances.map(function (a) {
+      var carnet = CARNETS[a.carnet];
+      var titreVisibilite = carnet.visibilite === 'public' ? 'Carnet public'
+        : (carnet.visibilite === 'partage' ? 'Carnet partagé' : 'Carnet privé');
+      return '<li data-carnet="' + a.carnet + '">' +
+        '<span title="' + titreVisibilite + '">' + carnet.icone + '</span>' +
+        '<span class="nom-carnet">' + echapper(carnet.nom) + '</span>' +
+        '<span class="etiquettes-relation">' + htmlDesEtiquettes(a.categories) + '</span>' +
+        '<span class="actions-relation">' +
+          '<button class="bouton-plat editer-categories" title="Modifier les catégories de cette relation seulement">✎</button>' +
+          '<button class="bouton-plat retirer-carnet" title="Retirer de ce carnet">✕</button>' +
+        '</span></li>';
+    }).join('') + '</ul>' +
+    '<div class="pied-carnets"><button class="bouton-plat" id="btn-ajouter-carnet">+ Ajouter à un carnet…</button></div>';
+}
+
+document.getElementById('bloc-carnets').addEventListener('click', function (e) {
+  if (e.target.closest('#btn-ajouter-carnet')) {
+    toast("Ouvrirait le choix des carnets, avec l'avertissement chiffré si l'un d'eux est public.");
+    return;
+  }
+  var ligne = e.target.closest('li');
+  if (!ligne) return;
+  var appartenances = appartenancesDeLaSource();
+
+  if (e.target.closest('.editer-categories')) {
+    toast('Modifierait les catégories de CETTE relation seulement — les autres carnets ne bougent pas.');
+    return;
+  }
+  if (e.target.closest('.retirer-carnet')) {
+    var carnet = CARNETS[ligne.dataset.carnet];
+    if (appartenances.length === 1) {
+      /* Suppression deguisee : la note devient invisible a tous sauf son
+         proprietaire. L'avertissement doit CHIFFRER ce qui disparait.
+         / A disguised deletion: the warning must count what goes away. */
+      var idees = toutesLesIdees(DOCUMENTS[sourceCourante]);
+      var commentaires = idees.reduce(function (total, idee) {
+        return total + (idee.commentaires || []).length; }, 0);
+      toast('Dernier carnet : la note deviendrait invisible à tous sauf son propriétaire — ' +
+        'avec ses ' + idees.length + ' analyses et ses ' + commentaires + ' commentaires.', 'erreur');
+      return;
+    }
+    toast(carnet.visibilite === 'public'
+      ? 'Retirée de « ' + carnet.nom + ' » : elle n\'est plus publique.'
+      : 'Retirée de « ' + carnet.nom + ' ». Elle reste dans ' + (appartenances.length - 1) + ' autre carnet.');
+    return;
+  }
+  basculerVersLeCarnet(ligne.dataset.carnet);
+});
+
+function basculerVersLeCarnet(identifiant) {
+  carnetCourant = identifiant;
+  rendreLeFilDAriane();
+  toast('Même note, vue depuis « ' + CARNETS[identifiant].nom + ' ».');
+}
+
+function rendreLeFilDAriane() {
+  var appartenances = appartenancesDeLaSource();
+  if (!appartenances.some(function (a) { return a.carnet === carnetCourant; })) {
+    carnetCourant = appartenances.length ? appartenances[0].carnet : 'c-ca';
+  }
+  var carnet = CARNETS[carnetCourant];
+  document.getElementById('fil-carnet-nom').textContent = carnet.nom;
+  var puce = document.getElementById('fil-visibilite');
+  puce.textContent = carnet.icone;
+  puce.title = carnet.visibilite === 'public' ? 'Carnet public'
+    : (carnet.visibilite === 'partage' ? 'Carnet partagé' : 'Carnet privé');
+
+  document.getElementById('menu-bascule').innerHTML =
+    appartenances.map(function (a) {
+      var c = CARNETS[a.carnet];
+      return '<button data-carnet="' + a.carnet + '" role="menuitem" aria-current="' +
+        (a.carnet === carnetCourant) + '">' + c.icone + ' ' + echapper(c.nom) +
+        '<span class="etiquettes-menu">' + htmlDesEtiquettes(a.categories) + '</span></button>';
+    }).join('') +
+    (appartenances.length < 2
+      ? '<button disabled style="opacity:.5; cursor:default">Cette note n\'est que dans un carnet</button>'
+      : '');
+}
+
+document.getElementById('fil-carnet').addEventListener('click', function (e) {
+  e.stopPropagation();
+  var menu = document.getElementById('menu-bascule');
+  var ouvert = menu.classList.toggle('est-visible');
+  this.setAttribute('aria-expanded', ouvert);
+});
+document.getElementById('menu-bascule').addEventListener('click', function (e) {
+  var bouton = e.target.closest('button[data-carnet]');
+  if (!bouton) return;
+  basculerVersLeCarnet(bouton.dataset.carnet);
+  this.classList.remove('est-visible');
+  document.getElementById('fil-carnet').setAttribute('aria-expanded', 'false');
+});
+document.addEventListener('click', function () {
+  document.getElementById('menu-bascule').classList.remove('est-visible');
+  document.getElementById('fil-carnet').setAttribute('aria-expanded', 'false');
+});
+
+/* =========================================================================
+   8. NAVIGATION CROISEE — texte ⇄ glissiere ⇄ cartes
+   ========================================================================= */
+function toutEteindre() {
+  document.querySelectorAll('.est-active').forEach(function (n) {
+    if (n.classList.contains('pilule-contributeur')) return;
+    n.classList.remove('est-active');
+  });
+}
+/* querySelectorAll, pas querySelector : une extraction peut porter
+   PLUSIEURS portions. / All portions, not just the first. */
+function allumerIdee(identifiant, origine) {
+  toutEteindre();
+  ideeSelectionnee = identifiant;
+  var marques = document.querySelectorAll('mark[data-extraction-id="' + identifiant + '"]');
+  marques.forEach(function (m) { m.classList.add('est-active'); });
+  var carte = document.querySelector('.carte[data-extraction-id="' + identifiant + '"]');
+  if (carte) carte.classList.add('est-active');
+
+  if (origine !== 'panneau' && carte) {
+    ouvrirLePanneau();
+    carte.scrollIntoView({behavior:'smooth', block:'nearest'});
+    if (window.innerWidth <= 900) ouvrirLaFeuille(identifiant);
+  }
+  if (origine === 'panneau' && marques.length) {
+    marques[0].closest('.bloc').scrollIntoView({behavior:'smooth', block:'center'});
+  }
+}
+
+conteneurDocument.addEventListener('click', function (e) {
+  var compteur = e.target.closest('.compteur-idees');
+  if (compteur) {
+    toutEteindre();
+    var bloc = compteur.closest('.bloc');
+    var marques = bloc.querySelectorAll('mark.hl-extraction');
+    var vues = {};
+    marques.forEach(function (m) {
+      m.classList.add('est-active');
+      vues[m.dataset.extractionId] = true;
+      var c = document.querySelector('.carte[data-extraction-id="' + m.dataset.extractionId + '"]');
+      if (c) c.classList.add('est-active');
+    });
+    var premiere = Object.keys(vues)[0];
+    if (premiere) {
+      ouvrirLePanneau();
+      var c = document.querySelector('.carte[data-extraction-id="' + premiere + '"]');
+      if (c) c.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
+    return;
+  }
+  if (e.target.closest('.bouton-ecouter')) { ecouterDepuis(e.target.closest('.bloc')); return; }
+  if (e.target.closest('.bouton-voir-source')) {
+    toast('Ouvrirait le document source à la bonne page, boîte surlignée.'); return;
+  }
+  if (e.target.closest('.etiquette-locuteur')) {
+    toast('Ouvrirait la modale « renommer le locuteur » (ce bloc / les suivants / toutes les occurrences).');
+    return;
+  }
+  var editeur = e.target.closest('.editeur-barre button');
+  if (editeur) {
+    var blocEdite = editeur.closest('.bloc');
+    if (editeur.classList.contains('valider-edition')) {
+      toast('Texte enregistré. Les ancres sont repositionnées ; celles qu\'on ne retrouve pas sont détachées.', 'succes');
+    } else if (editeur.classList.contains('supprimer-bloc')) {
+      toast('Supprimerait le bloc après confirmation. Journalisé dans PageEdit.', 'erreur');
+    }
+    blocEdite.classList.remove('est-en-edition');
+    return;
+  }
+  /* La marque la plus INTERIEURE gagne : c'est celle qu'on a visée.
+     / The innermost mark wins — that is the one under the cursor. */
+  var marque = e.target.closest('mark.hl-extraction');
+  if (marque) { allumerIdee(marque.dataset.extractionId, 'texte'); }
+});
+
+/* Double-clic : édition en place. Le simple clic reste à la sélection. */
+conteneurDocument.addEventListener('dblclick', function (e) {
+  var bloc = e.target.closest('.bloc');
+  if (!bloc || bloc.dataset.masque === 'oui') return;
+  if (window.getSelection().toString().length) window.getSelection().removeAllRanges();
+  document.querySelectorAll('.bloc.est-en-edition')
+    .forEach(function (b) { b.classList.remove('est-en-edition'); });
+  bloc.classList.add('est-en-edition');
+  var zone = bloc.querySelector('textarea');
+  zone.focus();
+  zone.setSelectionRange(zone.value.length, zone.value.length);
+  if (bloc.dataset.etat === 'debattu') {
+    toast('Ce passage porte des commentaires : les ancres seront réconciliées après enregistrement.');
+  }
+});
+
+listeCartes.addEventListener('click', function (e) {
+  var carte = e.target.closest('.carte');
+  if (!carte) return;
+  if (e.target.closest('.bouton-commenter')) {
+    carte.classList.toggle('commente-ouvert');
+    var zone = carte.querySelector('textarea');
+    if (carte.classList.contains('commente-ouvert')) zone.focus();
+    return;
+  }
+  if (e.target.closest('.envoyer-commentaire')) {
+    toast('Commentaire envoyé. L\'extraction passe au statut « commenté ».', 'succes');
+    carte.classList.remove('commente-ouvert');
+    return;
+  }
+  if (e.target.closest('.bouton-masquer')) {
+    toast('Extraction masquée. Elle rejoint la section « non pertinentes ».');
+    return;
+  }
+  if (carte.dataset.extractionId) allumerIdee(carte.dataset.extractionId, 'panneau');
+});
+
+/* =========================================================================
+   9. PANNEAU ET SURFACES
+   ========================================================================= */
+function panneauEstSuperpose() {
+  return corps.dataset.panneau !== 'permanent' || window.innerWidth < 1400;
+}
+function ouvrirLePanneau() {
+  if (!panneauEstSuperpose()) return;
+  panneau.classList.add('est-ouvert');
+  voile.classList.add('est-visible');
+}
+function fermerLePanneau() {
+  panneau.classList.remove('est-ouvert');
+  voile.classList.remove('est-visible');
+}
+document.getElementById('btn-panneau').addEventListener('click', function () {
+  if (!panneauEstSuperpose()) { toast('Le panneau est déjà affiché en permanence.'); return; }
+  panneau.classList.contains('est-ouvert') ? fermerLePanneau() : ouvrirLePanneau();
+});
+document.getElementById('btn-fermer-panneau').addEventListener('click', fermerLePanneau);
+
+function ouvrirLArbre()  { arbre.classList.add('est-ouvert');  voile.classList.add('est-visible'); }
+function fermerLArbre()  { arbre.classList.remove('est-ouvert'); if (!panneau.classList.contains('est-ouvert')) voile.classList.remove('est-visible'); }
+document.getElementById('btn-arbre').addEventListener('click', ouvrirLArbre);
+document.getElementById('btn-fermer-arbre').addEventListener('click', fermerLArbre);
+voile.addEventListener('click', function () { fermerLePanneau(); fermerLArbre(); fermerLaFeuille(); });
+
+arbre.addEventListener('click', function (e) {
+  if (e.target.closest('.liste-pages li') || e.target.closest('.ligne-dossier')) {
+    window.location.href = 'corpus.html';
+  }
+});
+
+function basculerSurface(identifiant) {
+  var surface = document.getElementById(identifiant);
+  var etaitVisible = surface.classList.contains('est-visible');
+  document.querySelectorAll('.surface').forEach(function (s) { s.classList.remove('est-visible'); });
+  if (!etaitVisible) surface.classList.add('est-visible');
+}
+document.getElementById('btn-dashboard').addEventListener('click', function () { basculerSurface('surface-dashboard'); });
+document.getElementById('btn-taches').addEventListener('click', function () { basculerSurface('surface-taches'); rendreLesTaches(); });
+document.getElementById('ouvrir-aide').addEventListener('click', function () { basculerSurface('surface-aide'); });
+document.getElementById('btn-fermer-aide').addEventListener('click', function () { basculerSurface('surface-aide'); });
+
+function rafraichirLeDashboard() {
+  var idees = toutesLesIdees(DOCUMENTS[sourceCourante]);
+  var commentees = idees.filter(function (i) { return i.statut === 'commente'; }).length;
+  var part = idees.length ? Math.round(commentees / idees.length * 100) : 0;
+  document.getElementById('dash-chiffre').textContent =
+    commentees + ' sur ' + idees.length + ' extractions commentées (' + part + ' %)';
+  document.getElementById('dash-jauge').style.width = part + '%';
+}
+document.getElementById('btn-synthese').addEventListener('click', function () {
+  basculerSurface('surface-dashboard');
+  toast('Ouvrirait la confirmation de synthèse : coût, prompt, état du débat. Le résultat est une nouvelle version de page.');
+});
+
+function rendreLesTaches() {
+  document.getElementById('liste-taches').innerHTML =
+    '<div class="ligne-tache"><span style="color:var(--succes)">✓</span>' +
+    '<span>Analyse de « Rapport annuel 2024 »</span><span class="quand">il y a 4 min</span></div>' +
+    '<div class="ligne-tache"><span style="color:var(--succes)">✓</span>' +
+    '<span>Transcription de « Conseil du 12 mars »</span><span class="quand">hier</span></div>' +
+    '<div class="ligne-tache"><span style="color:var(--danger)">✕</span>' +
+    '<span>Synthèse de « ADR 007 » — erreur</span><span class="quand">hier</span></div>';
+}
+
+/* =========================================================================
+   10. LANCEMENT D'ANALYSE ET PROGRESSION
+   ========================================================================= */
+function afficherEcran(nom, titre) {
+  panneau.dataset.ecran = nom;
+  document.getElementById('panneau-titre-texte').textContent = titre;
+  document.getElementById('btn-retour-liste').hidden = (nom === 'liste');
+  ouvrirLePanneau();
+}
+document.getElementById('btn-nouvelle-analyse').addEventListener('click', function () {
+  afficherEcran('analyse', 'Analyse');
+});
+document.getElementById('btn-retour-liste').addEventListener('click', function () {
+  afficherEcran('liste', 'Extractions');
+});
+document.getElementById('btn-annuler-analyse').addEventListener('click', function () {
+  afficherEcran('liste', 'Extractions');
+});
+
+document.getElementById('btn-voir-prompt').addEventListener('click', function () {
+  var zone = document.getElementById('zone-prompt');
+  var visible = zone.classList.toggle('est-visible');
+  this.innerHTML = visible ? '👁 Masquer le prompt' : '👁 Voir le prompt complet';
+  if (visible && !zone.innerHTML) {
+    zone.innerHTML = PIECES_DU_PROMPT.map(function (piece) {
+      return '<div class="piece-prompt" data-role="' + piece.role + '">' +
+        '<span class="role">' + piece.role + '</span>' +
+        '<p class="contenu">' + echapper(piece.contenu) + '</p></div>';
+    }).join('') +
+    '<div class="piece-prompt" data-role="contexte"><span class="role">texte source</span>' +
+    '<p class="contenu">[morceau 1 sur 9 — 1 480 signes, aligné sur les frontières d\'éléments]</p></div>';
+  }
+});
+
+var minuterieProgression = null;
+document.getElementById('btn-lancer-analyse').addEventListener('click', function () {
+  if (corps.dataset.progression !== 'direct') {
+    /* Comportement RÉEL : le drawer se ferme, un toast, puis le bouton tâches. */
+    fermerLePanneau();
+    afficherEcran('liste', 'Extractions');
+    toast('Analyse lancée. Vous serez notifié à la fin.');
+    document.getElementById('icone-taches').innerHTML = '<span class="tourniquet"></span>';
+    document.getElementById('badge-taches').textContent = '1';
+    document.getElementById('badge-taches').hidden = false;
+    setTimeout(function () {
+      document.getElementById('icone-taches').textContent = '✓';
+      toast('Analyse terminée — 9 extractions.', 'succes');
+    }, 5000);
+    return;
+  }
+  lancerLaProgressionEnDirect();
+});
+
+/* Progression en direct — CIBLE. Le back crée déjà les entités morceau par
+   morceau ; il ne manque que l'événement WebSocket par chunk. La boucle
+   étant désormais dans notre code (analyse_par_element.py:148), le fork de
+   l'Annotator LangExtract n'a plus de raison d'être.
+   / Target behaviour: the loop is ours now, so no LangExtract fork needed. */
+function lancerLaProgressionEnDirect() {
+  afficherEcran('progression', 'Analyse en cours');
+  var liste = document.getElementById('liste-progression');
+  liste.innerHTML = '';
+  var idees = toutesLesIdees(DOCUMENTS[sourceCourante]);
+  var nombreDeChunks = 9, chunk = 0, arrivees = 0;
+  clearInterval(minuterieProgression);
+
+  minuterieProgression = setInterval(function () {
+    chunk++;
+    document.getElementById('jauge-progression').style.width = (chunk / nombreDeChunks * 100) + '%';
+    document.getElementById('texte-progression').textContent =
+      'morceau ' + chunk + ' sur ' + nombreDeChunks;
+
+    /* Chaque morceau rend 0, 1 ou 2 extractions — comme le vrai moteur. */
+    var combien = Math.min(idees.length - arrivees, chunk % 3 === 0 ? 2 : 1);
+    for (var i = 0; i < combien; i++) {
+      var idee = idees[arrivees++];
+      if (!idee) break;
+      var carte = document.createElement('article');
+      carte.className = 'carte vient-d-arriver';
+      carte.dataset.statut = idee.statut;
+      carte.innerHTML = htmlDUneCarte(idee, idee.cite, {origine:'morceau ' + chunk});
+      liste.appendChild(carte);
+    }
+    document.getElementById('compte-arrivees').textContent =
+      arrivees + (arrivees > 1 ? ' extractions' : ' extraction');
+
+    if (chunk >= nombreDeChunks) {
+      clearInterval(minuterieProgression);
+      toast('Analyse terminée — ' + arrivees + ' extractions.', 'succes');
+      setTimeout(function () { afficherEcran('liste', 'Extractions'); }, 900);
+    }
+  }, 850);
+}
+
+/* =========================================================================
+   11. FILTRES DE CONTRIBUTEURS
+   ========================================================================= */
+document.getElementById('pilules-contributeurs').addEventListener('click', function (e) {
+  var pilule = e.target.closest('.pilule-contributeur');
+  if (!pilule) return;
+  var qui = pilule.dataset.qui;
+  contributeursFiltres.has(qui) ? contributeursFiltres.delete(qui) : contributeursFiltres.add(qui);
+  rendreLesCartes();
+});
+document.getElementById('btn-mode-filtre').addEventListener('click', function () {
+  corps.dataset.filtreMode = corps.dataset.filtreMode === 'exclure' ? 'inclure' : 'exclure';
+  this.textContent = corps.dataset.filtreMode === 'exclure' ? 'Sauf ✓' : 'Sauf';
+  rendreLesCartes();
+});
+document.getElementById('tri-extractions').addEventListener('change', function () {
+  toast('Trierait par ' + (this.value === 'position' ? 'position dans le texte' : 'activité récente') + '.');
+});
+
+/* =========================================================================
+   12. MENU DE SELECTION
+   ========================================================================= */
+var menuSelection = document.getElementById('menu-selection');
+document.addEventListener('mouseup', function (e) {
+  if (e.target.closest('.menu-selection') || e.target.closest('.panneau')) return;
+  var selection = window.getSelection();
+  if (!selection.toString().trim() || !e.target.closest('.colonne-lecture')) {
+    menuSelection.classList.remove('est-visible'); return;
+  }
+  var boite = selection.getRangeAt(0).getBoundingClientRect();
+  menuSelection.classList.add('est-visible');
+  menuSelection.style.left = Math.max(6, Math.min(
+    boite.left + boite.width/2 - 32, window.innerWidth - 80)) + 'px';
+  menuSelection.style.top = Math.max(6, boite.top - 38) + 'px';
+});
+document.getElementById('btn-extraction-manuelle').addEventListener('click', function () {
+  menuSelection.classList.remove('est-visible');
+  toast('Ouvrirait le formulaire d\'extraction manuelle : résumé libre + hypostase parmi 30, en 8 familles.');
+});
+document.getElementById('btn-extraction-ia').addEventListener('click', function () {
+  menuSelection.classList.remove('est-visible');
+  toast('Extraction IA sur la sélection — appel synchrone, jusqu\'à 30 s.');
+});
+
+/* =========================================================================
+   13. FEUILLE MOBILE
+   ========================================================================= */
+function ouvrirLaFeuille(identifiant) {
+  var doc = DOCUMENTS[sourceCourante];
+  var idees = toutesLesIdees(doc);
+  var index = idees.findIndex(function (i) { return String(i.id) === String(identifiant); });
+  if (index === -1) return;
+  var idee = idees[index];
+  document.getElementById('feuille-carte').innerHTML =
+    '<article class="carte est-active" data-statut="' + idee.statut + '">' +
+    htmlDUneCarte(idee, idee.cite, {}) + '</article>';
+  document.getElementById('feuille-position').textContent = (index + 1) + ' sur ' + idees.length;
+  feuille.dataset.index = index;
+  feuille.classList.add('est-ouverte');
+}
+function fermerLaFeuille() { feuille.classList.remove('est-ouverte'); }
+document.getElementById('poignee-feuille').addEventListener('click', fermerLaFeuille);
+function naviguerDansLaFeuille(pas) {
+  var idees = toutesLesIdees(DOCUMENTS[sourceCourante]);
+  var index = (Number(feuille.dataset.index) + pas + idees.length) % idees.length;
+  ouvrirLaFeuille(idees[index].id);
+  allumerIdee(idees[index].id, 'feuille');
+}
+document.getElementById('feuille-suivant').addEventListener('click', function () { naviguerDansLaFeuille(1); });
+document.getElementById('feuille-precedent').addEventListener('click', function () { naviguerDansLaFeuille(-1); });
+/* Balayage horizontal, comme bottom_sheet.js (seuil 50 px, ratio 2:1). */
+var departX = 0, departY = 0;
+feuille.addEventListener('touchstart', function (e) {
+  departX = e.touches[0].clientX; departY = e.touches[0].clientY;
+}, {passive:true});
+feuille.addEventListener('touchend', function (e) {
+  var dx = e.changedTouches[0].clientX - departX;
+  var dy = e.changedTouches[0].clientY - departY;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 2) naviguerDansLaFeuille(dx < 0 ? 1 : -1);
+}, {passive:true});
+
+/* =========================================================================
+   14. FIL DE SECTION ET LECTEUR
+   ========================================================================= */
+var filSection = document.getElementById('fil-section');
+function rafraichirLeFilDeSection() {
+  if (corps.dataset.docling !== 'oui' || sourceCourante === 'audio') {
+    filSection.textContent = ''; return;
+  }
+  var seuil = document.getElementById('fil-ariane').getBoundingClientRect().bottom;
+  var courante = '', blocs = conteneurDocument.querySelectorAll('.bloc');
+  for (var i = 0; i < blocs.length; i++) {
+    if (blocs[i].getBoundingClientRect().top > seuil) break;
+    courante = blocs[i].dataset.section || courante;
+  }
+  /* Un fil qui ne porte que le titre du document n'apprend rien. */
+  filSection.textContent = courante.indexOf(' › ') === -1
+    ? '' : '§ ' + courante.split(' › ').pop();
+}
+window.addEventListener('scroll', rafraichirLeFilDeSection, {passive:true});
+
+var instantAudio = 0, enLecture = false, minuterieAudio = null;
+function construireLeRail() {
+  var rail = document.getElementById('rail');
+  rail.querySelectorAll('.segment-locuteur').forEach(function (s) { s.remove(); });
+  if (sourceCourante !== 'audio' || !DUREE_TOTALE) return;
+  DOCUMENTS.audio.elements.forEach(function (element) {
+    var segment = document.createElement('div');
+    segment.className = 'segment-locuteur' + ((element.idees || []).length ? ' a-des-idees' : '');
+    segment.style.width = (element.duree / DUREE_TOTALE * 100) + '%';
+    segment.style.background = couleurDuLocuteur(element.qui);
+    rail.insertBefore(segment, document.getElementById('tete'));
+  });
+}
+function rafraichirLAudio() {
+  if (sourceCourante !== 'audio' || !DUREE_TOTALE) {
+    document.getElementById('minutage').textContent = '00:00 / 00:00';
+    document.getElementById('piste-titre').textContent = '—';
+    return;
+  }
+  document.getElementById('tete').style.left = (instantAudio / DUREE_TOTALE * 100) + '%';
+  document.getElementById('minutage').textContent =
+    formater(instantAudio) + ' / ' + formater(DUREE_TOTALE);
+  var blocs = Array.prototype.slice.call(conteneurDocument.querySelectorAll('.bloc'));
+  var courant = null;
+  blocs.forEach(function (b) {
+    if (instantAudio >= +b.dataset.debut && instantAudio < +b.dataset.fin) courant = b;
+  });
+  blocs.forEach(function (b) { b.classList.toggle('bloc-en-lecture', b === courant); });
+  document.getElementById('piste-titre').textContent = courant
+    ? courant.querySelector('.etiquette-locuteur').textContent +
+      ' · tour ' + (blocs.indexOf(courant) + 1) + ' sur ' + blocs.length : '—';
+  if (courant && enLecture) courant.scrollIntoView({block:'center'});
+}
+document.getElementById('bouton-lecture').addEventListener('click', function () {
+  enLecture = !enLecture;
+  this.textContent = enLecture ? '❚❚' : '▶';
+  if (enLecture) {
+    minuterieAudio = setInterval(function () {
+      instantAudio += 1;
+      if (instantAudio >= DUREE_TOTALE) instantAudio = 0;
+      rafraichirLAudio();
+    }, 400);
+  } else { clearInterval(minuterieAudio); }
+});
+document.getElementById('rail').addEventListener('click', function (e) {
+  if (!DUREE_TOTALE) return;
+  var boite = this.getBoundingClientRect();
+  instantAudio = Math.round((e.clientX - boite.left) / boite.width * DUREE_TOTALE);
+  rafraichirLAudio();
+});
+function ecouterDepuis(bloc) {
+  instantAudio = +bloc.dataset.debut;
+  rafraichirLAudio();
+  if (!enLecture) document.getElementById('bouton-lecture').click();
+}
+
+/* =========================================================================
+   15. RACCOURCIS CLAVIER (keyboard.js)
+   ========================================================================= */
+document.addEventListener('keydown', function (e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  var cible = e.target;
+  if (cible.matches('input, textarea, select')) return;
+
+  var touche = e.key.toLowerCase();
+  if (touche === 't') { arbre.classList.contains('est-ouvert') ? fermerLArbre() : ouvrirLArbre(); }
+  else if (touche === 'e') { document.getElementById('btn-panneau').click(); }
+  else if (touche === 'j' || touche === 'k') {
+    var idees = toutesLesIdees(DOCUMENTS[sourceCourante]);
+    if (!idees.length) return;
+    var index = idees.findIndex(function (i) { return String(i.id) === String(ideeSelectionnee); });
+    index = (index + (touche === 'j' ? 1 : -1) + idees.length) % idees.length;
+    allumerIdee(idees[index].id, 'clavier');
+  }
+  else if (touche === 'c' && ideeSelectionnee) {
+    var carte = document.querySelector('.carte[data-extraction-id="' + ideeSelectionnee + '"]');
+    if (carte) { carte.classList.add('commente-ouvert'); carte.querySelector('textarea').focus(); }
+  }
+  else if (touche === 'x' && ideeSelectionnee) { toast('Masquerait l\'extraction sélectionnée.'); }
+  else if (touche === 'a') { toast('Ouvrirait l\'alignement du dossier : hypostases × documents.'); }
+  else if (touche === 'z') { toast('Basculerait vers la comparaison de versions.'); }
+  else if (e.key === '?') { basculerSurface('surface-aide'); }
+  else if (e.key === 'Escape') {
+    /* Cascade, comme keyboard.js:288-352. */
+    if (feuille.classList.contains('est-ouverte')) { fermerLaFeuille(); return; }
+    var surfaceVisible = document.querySelector('.surface.est-visible');
+    if (surfaceVisible) { surfaceVisible.classList.remove('est-visible'); return; }
+    var enEdition = document.querySelector('.bloc.est-en-edition');
+    if (enEdition) { enEdition.classList.remove('est-en-edition'); return; }
+    if (panneau.classList.contains('est-ouvert')) { fermerLePanneau(); return; }
+    if (arbre.classList.contains('est-ouvert')) { fermerLArbre(); return; }
+    toutEteindre(); ideeSelectionnee = null;
+  }
+});
+
+/* =========================================================================
+   16. TITRE EDITABLE (hypostasia.js:793-856)
+   Clic simple sur le H1 -> champ. Entree ou clic ailleurs enregistre,
+   Echap annule. La delegation evite d'avoir a re-brancher un noeud
+   remplace. / Delegation, so the replaced node needs no re-binding.
+   ========================================================================= */
+document.addEventListener('click', function (e) {
+  var titre = e.target.closest('#titre-page');
+  if (!titre || titre.dataset.enEdition) return;
+
+  var ancien = titre.textContent;
+  var champ = document.createElement('input');
+  champ.id = 'champ-titre';
+  champ.value = ancien;
+  champ.style.cssText = 'font-family:inherit; font-size:1.7rem; font-weight:bold; width:100%;' +
+    'border:1px solid var(--statut-commente); border-radius:4px; padding:.05rem .3rem;' +
+    'background:var(--papier); color:var(--encre)';
+  titre.replaceWith(champ);
+  champ.focus();
+  champ.select();
+
+  var termine = false;
+  function terminer(enregistrer) {
+    if (termine) return;
+    termine = true;
+    var nouveauTitre = document.createElement('h1');
+    nouveauTitre.className = 'titre-page';
+    nouveauTitre.id = 'titre-page';
+    nouveauTitre.title = 'Cliquer pour renommer';
+    nouveauTitre.textContent = enregistrer ? champ.value : ancien;
+    champ.replaceWith(nouveauTitre);
+    if (enregistrer && champ.value !== ancien) {
+      document.getElementById('titre-barre').textContent = champ.value;
+      document.getElementById('fil-page').textContent = champ.value;
+      DOCUMENTS[sourceCourante].titre = champ.value;
+      toast('Titre modifié. Journalisé dans l\'historique.', 'succes');
+    }
+  }
+  champ.addEventListener('keydown', function (evenement) {
+    if (evenement.key === 'Enter')  { evenement.preventDefault(); terminer(true); }
+    if (evenement.key === 'Escape') { evenement.preventDefault(); terminer(false); }
+  });
+  champ.addEventListener('blur', function () { terminer(true); });
+});
+
+/* =========================================================================
+   17. PUPITRE
+   ========================================================================= */
+function changerDeSource(cle) {
+  if (enLecture) document.getElementById('bouton-lecture').click();
+  sourceCourante = cle;
+  corps.dataset.source = cle;
+  document.getElementById('choix-source').value = cle;
+  instantAudio = 0;
+  ideeSelectionnee = null;
+  contributeursFiltres.clear();
+  afficherEcran('liste', 'Extractions');
+  if (panneauEstSuperpose()) fermerLePanneau();
+  rendre();
+  window.scrollTo({top:0});
+}
+document.getElementById('choix-source').addEventListener('change', function () {
+  changerDeSource(this.value);
+});
+[['mode-lecture','lecture'], ['mode-inspection','inspection']].forEach(function (paire) {
+  document.getElementById(paire[0]).addEventListener('click', function () {
+    corps.dataset.mode = paire[1];
+    ['mode-lecture','mode-inspection'].forEach(function (id) {
+      document.getElementById(id).setAttribute('aria-pressed', id === paire[0] ? 'true' : 'false');
+    });
+    rafraichirLeFilDeSection();
+  });
+});
+document.getElementById('int-docling').addEventListener('change', function () {
+  corps.dataset.docling = this.checked ? 'oui' : 'non'; rendre();
+});
+document.getElementById('int-panneau').addEventListener('change', function () {
+  corps.dataset.panneau = this.checked ? 'permanent' : 'drawer';
+  if (this.checked && window.innerWidth >= 1400) fermerLePanneau();
+  toast(this.checked
+    ? 'Panneau permanent au-delà de 1400 px, drawer en dessous.'
+    : 'Drawer partout — c\'est le comportement du produit aujourd\'hui.');
+});
+document.getElementById('int-lecteur').addEventListener('change', function () {
+  corps.dataset.lecteur = this.checked ? 'oui' : 'non';
+  if (!this.checked && enLecture) document.getElementById('bouton-lecture').click();
+});
+document.getElementById('int-progression').addEventListener('change', function () {
+  corps.dataset.progression = this.checked ? 'direct' : 'differe';
+});
+document.getElementById('btn-import').addEventListener('click', function () {
+  toast('Ouvrirait le sélecteur de fichier : PDF, DOCX, MD, TXT, PPTX, XLSX + 10 formats audio.');
+});
+document.getElementById('btn-source').addEventListener('click', function () {
+  toast('Téléchargerait le fichier d\'origine.');
+});
+document.getElementById('btn-exporter').addEventListener('click', function () {
+  toast('Menu : export JSON (audio), export Markdown, copier en Markdown.');
+});
+document.getElementById('btn-historique').addEventListener('click', function () {
+  toast('Ouvrirait l\'historique : chaque PageEdit, avec son diff avant/après.');
+});
+
+/* =========================================================================
+   18. CLAIR / SOMBRE
+   Trois etats : « systeme » (aucun attribut, prefers-color-scheme decide),
+   « clair » et « sombre » forces. L'attribut se pose sur <html>.
+   Note : le produit n'a AUCUN mode sombre aujourd'hui.
+   ========================================================================= */
+(function () {
+  var racine = document.documentElement;
+  var bouton = document.getElementById('bascule-theme');
+  /* Le clair est le DEPART, pas le systeme : la maquette doit s'ouvrir
+     sur le meme rendu pour tout le monde. / Light first, for everyone. */
+  var ETATS = [{valeur:'light', libelle:'○ clair'},
+               {valeur:'dark',  libelle:'● sombre'},
+               {valeur:'', libelle:'◑ système'}];
+  var indice = 0;
+  function appliquer() {
+    var etat = ETATS[indice];
+    if (etat.valeur) racine.dataset.theme = etat.valeur; else delete racine.dataset.theme;
+    bouton.textContent = etat.libelle;
+    bouton.title = 'Thème : ' + etat.libelle.slice(2) + ' — le produit n\'en a pas encore';
+  }
+  bouton.addEventListener('click', function () {
+    indice = (indice + 1) % ETATS.length; appliquer();
+  });
+  appliquer();
+})();
+
+window.addEventListener('resize', function () {
+  if (!panneauEstSuperpose()) fermerLePanneau();
+});
+
+rendre();
+
+/* =========================================================================
+   DEEP-LINK ?extraction={id}
+   Le produit le fait deja (hypostasia.js:521-604). C'est par la que le
+   sourcing d'un wiki retombe dans le document : on arrive sur la note,
+   le passage s'allume, sa carte est amenee.
+   / This is where a wiki citation lands.
+   ========================================================================= */
+(function () {
+  var demandee = new URLSearchParams(window.location.search).get('extraction');
+  if (!demandee) return;
+  var sourceTrouvee = null;
+  Object.keys(DOCUMENTS).forEach(function (cle) {
+    toutesLesIdees(DOCUMENTS[cle]).forEach(function (idee) {
+      if (String(idee.id) === String(demandee)) sourceTrouvee = cle;
+    });
+  });
+  if (!sourceTrouvee) {
+    toast('Extraction ' + demandee + ' introuvable dans cette maquette.', 'erreur');
+    return;
+  }
+  if (sourceTrouvee !== sourceCourante) changerDeSource(sourceTrouvee);
+  setTimeout(function () {
+    allumerIdee(demandee, 'lien');
+    var marque = document.querySelector('mark[data-extraction-id="' + demandee + '"]');
+    if (marque) marque.closest('.bloc').scrollIntoView({behavior:'smooth', block:'center'});
+    toast('Passage cité par la synthèse.');
+  }, 600);
+})();
+</script>
+</body>
+</html>

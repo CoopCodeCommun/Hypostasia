@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hypostasia — rendu par éléments, tous les cas</title>
+<style>
+/* =========================================================================
+   MAQUETTE — rendu de lecture par ElementDocument
+   LOCALISATION : tmp/maquettes/rendu-par-elements.html
+
+   Statique et autonome. Les données viennent de la base dev.
+   Aucune dépendance réseau : les polices sont des piles système.
+   ========================================================================= */
+
+:root {
+  /* Encre et papier — le document reste le sujet */
+  --papier:        #fdfcfa;
+  --papier-creux:  #f5f3ef;
+  --encre:         #1c1b19;
+  --encre-douce:   #6b6862;
+  --filet:         #e4e0d8;
+
+  /* Les quatre statuts de débat du projet */
+  --consensuel:    #2f7d5d;
+  --discutable:    #c47f2a;
+  --discute:       #b8912e;
+  --controverse:   #b8453a;
+  --neutre:        #8a867e;
+
+  --gouttiere:     104px;
+  --rythme:        1.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papier:       #16151a;
+    --papier-creux: #1e1d23;
+    --encre:        #eceae4;
+    --encre-douce:  #9b968d;
+    --filet:        #33313a;
+    --consensuel:   #64b98f;
+    --discutable:   #e0a95c;
+    --discute:      #d4bb63;
+    --controverse:  #e07a6e;
+    --neutre:       #7d7a74;
+  }
+}
+/* Sombre force : les memes tokens, mais qui l'emportent sur le systeme.
+   Forced dark: same tokens, winning over the system preference. */
+:root[data-theme="dark"] {
+    --papier:       #16151a;
+    --papier-creux: #1e1d23;
+    --encre:        #eceae4;
+    --encre-douce:  #9b968d;
+    --filet:        #33313a;
+    --consensuel:   #64b98f;
+    --discutable:   #e0a95c;
+    --discute:      #d4bb63;
+    --controverse:  #e07a6e;
+    --neutre:       #7d7a74;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--papier);
+  color: var(--encre);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  line-height: 1.65;
+}
+
+.page { max-width: 62rem; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+
+/* --- En-tête de la maquette (hors sujet, volontairement sobre) --- */
+.entete-maquette { border-bottom: 1px solid var(--filet); padding-bottom: 1.5rem; margin-bottom: 3rem; }
+.entete-maquette h1 { font-size: 1.5rem; margin: 0 0 .35rem; letter-spacing: -.01em; }
+.entete-maquette p { margin: 0; color: var(--encre-douce); font-size: .95rem; }
+
+.cas { margin: 3.5rem 0; }
+.cas > h2 {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  font-size: .72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .1em; color: var(--encre-douce);
+  margin: 0 0 .3rem; padding-bottom: .3rem;
+  border-bottom: 1px solid var(--filet);
+}
+.cas > .pourquoi {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .78rem; color: var(--encre-douce);
+  margin: 0 0 1.4rem; line-height: 1.5;
+}
+
+/* =========================================================================
+   LE RENDU LUI-MEME
+   ========================================================================= */
+
+.document { --largeur-gouttiere: var(--gouttiere); }
+
+.bloc {
+  display: grid;
+  grid-template-columns: var(--largeur-gouttiere) 1fr;
+  gap: 0 1.25rem;
+  margin-bottom: var(--rythme);
+  position: relative;
+}
+
+/* --- La gouttière : tout ce qui n'est pas le document --- */
+.gouttiere {
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  font-size: .68rem;
+  line-height: 1.4;
+  color: var(--encre-douce);
+  text-align: right;
+  padding-top: .32rem;
+  display: flex; flex-direction: column; align-items: flex-end; gap: .25rem;
+  user-select: none;
+}
+
+/* L'état de l'élément : un filet, pas un fond.
+   Un document sans analyse est visuellement vierge. */
+.filet-etat {
+  position: absolute;
+  left: calc(var(--largeur-gouttiere) + .45rem);
+  top: .45rem; bottom: .15rem;
+  width: 2px; border-radius: 1px;
+  background: transparent;
+}
+.bloc[data-etat="analyse"]  .filet-etat { background: var(--filet); }
+.bloc[data-etat="debattu"]  .filet-etat { background: var(--controverse); }
+.bloc[data-etat="masque"]   .filet-etat {
+  background: repeating-linear-gradient(to bottom,
+    var(--neutre) 0 3px, transparent 3px 7px);
+}
+
+.etiquette-gouttiere { display: block; }
+.etiquette-locuteur { color: var(--encre); font-weight: 600; }
+.etiquette-section  { font-style: normal; opacity: .8; }
+.compteur-idees {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.15rem; height: 1.15rem; padding: 0 .3rem;
+  border: 1px solid var(--filet); border-radius: 999px;
+  font-size: .62rem; color: var(--encre-douce);
+}
+
+/* --- Le corps : le texte, et rien d'autre --- */
+.corps { min-width: 0; }
+.corps p { margin: 0; }
+.corps h2 { font-size: 1.45rem; margin: .2rem 0 .1rem; letter-spacing: -.01em; }
+.corps h3 { font-size: 1.05rem; margin: .2rem 0 .1rem; letter-spacing: .01em; }
+.corps ul { margin: 0; padding-left: 1.1rem; }
+.corps li { margin: 0 0 .3rem; }
+.corps pre {
+  margin: 0; padding: .7rem .85rem;
+  background: var(--papier-creux); border: 1px solid var(--filet);
+  border-radius: 3px;
+  font-family: ui-monospace, Menlo, monospace; font-size: .8rem;
+  white-space: pre-wrap; overflow-x: auto; line-height: 1.5;
+}
+
+/* --- LE SURLIGNAGE : on souligne, on ne colorie pas ---
+   Un fond translucide empilé trois fois devient une soupe.
+   Un soulignement empilé reste lisible, et son épaisseur
+   encode le nombre d'idées qui se superposent. */
+mark.portion {
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  /* Chaque idée dessine SON trait, à sa propre hauteur.
+     Deux idées superposées = deux traits visibles l'un sous l'autre,
+     pas un trait plus épais qu'on ne saurait pas lire. */
+  background-image: linear-gradient(var(--couleur-statut, var(--neutre)),
+                                    var(--couleur-statut, var(--neutre)));
+  background-size: 100% 2px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  padding-bottom: .1em;
+  transition: background-color .12s ease;
+}
+mark.portion[data-statut="nouveau"]      { --couleur-statut: var(--neutre); }
+mark.portion[data-statut="commente"]     { --couleur-statut: var(--controverse); }
+mark.portion[data-statut="consensuel"]   { --couleur-statut: var(--consensuel); }
+mark.portion[data-statut="discutable"]   { --couleur-statut: var(--discutable); }
+
+/* Deux idées se croisent ici : deux traits, espacés de 3 px. */
+mark.portion[data-superposition="2"] {
+  padding-bottom: .22em;
+  background-image:
+    linear-gradient(var(--couleur-statut), var(--couleur-statut)),
+    linear-gradient(var(--couleur-doublure, var(--neutre)), var(--couleur-doublure, var(--neutre)));
+  background-size: 100% 2px, 100% 2px;
+  background-position: 0 100%, 0 calc(100% - 4px);
+}
+/* Trois : trois traits. Au-delà, on empile un aplat très léger plutôt
+   que d'ajouter des traits qu'on ne distinguerait plus. */
+mark.portion[data-superposition="3"] {
+  padding-bottom: .34em;
+  background-image:
+    linear-gradient(var(--couleur-statut), var(--couleur-statut)),
+    linear-gradient(var(--couleur-doublure, var(--neutre)), var(--couleur-doublure, var(--neutre))),
+    linear-gradient(var(--neutre), var(--neutre));
+  background-size: 100% 2px, 100% 2px, 100% 2px;
+  background-position: 0 100%, 0 calc(100% - 4px), 0 calc(100% - 8px);
+}
+mark.portion[data-superposition="4"] {
+  padding-bottom: .34em;
+  background-color: color-mix(in srgb, var(--couleur-statut) 10%, transparent);
+  background-image:
+    linear-gradient(var(--couleur-statut), var(--couleur-statut)),
+    linear-gradient(var(--couleur-doublure, var(--neutre)), var(--couleur-doublure, var(--neutre))),
+    linear-gradient(var(--neutre), var(--neutre));
+  background-size: 100% 2px, 100% 2px, 100% 2px;
+  background-position: 0 100%, 0 calc(100% - 4px), 0 calc(100% - 8px);
+}
+
+mark.portion:hover,
+mark.portion.est-active {
+  background-color: color-mix(in srgb, var(--couleur-statut) 16%, transparent);
+}
+mark.portion:focus-visible { outline: 2px solid var(--encre); outline-offset: 2px; }
+
+/* Toutes les portions d'une même idée s'allument ensemble. */
+mark.portion[data-superposition="2"],
+mark.portion[data-superposition="3"] { --couleur-doublure: #9aa0a6; }
+
+.document.survol-idee-4412 mark.portion[data-idee="4412"] {
+  background: color-mix(in srgb, var(--couleur-statut) 14%, transparent);
+}
+
+/* --- Élément masqué : présent, mais retiré du contenu utile --- */
+.bloc[data-etat="masque"] .corps {
+  opacity: .45;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--neutre);
+}
+
+/* --- Bloc audio : le locuteur remplace la section --- */
+.bloc[data-source="audio"] .etiquette-locuteur::before {
+  content: "";
+  display: inline-block; width: .5rem; height: .5rem;
+  border-radius: 50%; margin-right: .35rem;
+  background: var(--couleur-locuteur, var(--neutre));
+  vertical-align: baseline;
+}
+
+/* --- Le drawer des idées détachées --- */
+.detachees {
+  margin-top: 2rem; padding: 1rem 1.15rem;
+  border: 1px dashed var(--filet); border-radius: 4px;
+  background: var(--papier-creux);
+}
+.detachees h3 {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .09em;
+  margin: 0 0 .6rem; color: var(--encre-douce);
+}
+.carte-detachee {
+  display: flex; align-items: baseline; gap: .6rem;
+  padding: .5rem 0; border-top: 1px solid var(--filet);
+  font-size: .9rem;
+}
+.carte-detachee:first-of-type { border-top: none; }
+.badge-detache {
+  flex: none;
+  font-family: ui-monospace, Menlo, monospace; font-size: .6rem;
+  text-transform: uppercase; letter-spacing: .07em;
+  padding: .12rem .4rem; border-radius: 2px;
+  border: 1px solid var(--neutre); color: var(--encre-douce);
+}
+.action-detachee {
+  margin-left: auto; flex: none;
+  font-family: ui-monospace, Menlo, monospace; font-size: .7rem;
+  color: var(--encre-douce); text-decoration: underline;
+  text-underline-offset: 3px; cursor: pointer; background: none; border: none;
+}
+
+/* --- Responsive : la gouttière passe au-dessus --- */
+@media (max-width: 44rem) {
+  .bloc { grid-template-columns: 1fr; gap: .3rem; }
+  .gouttiere {
+    flex-direction: row; align-items: center; text-align: left;
+    gap: .55rem; padding-top: 0;
+  }
+  .filet-etat { left: 0; top: auto; bottom: auto; height: 100%; }
+  .bloc { padding-left: .75rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  mark.portion { transition: none; }
+}
+</style>
+<style>
+.barre-theme { position:fixed; top:.8rem; right:.9rem; z-index:99; }
+#bascule-theme { font-family:ui-monospace,Menlo,monospace; font-size:.66rem; cursor:pointer; background:var(--papier); color:var(--encre); border:1px solid var(--filet); border-radius:3px; padding:.25rem .6rem; }
+</style>
+</head>
+<body>
+<div class="barre-theme"><button id="bascule-theme" aria-label="Changer de thème">○ clair</button></div>
+<div class="page">
+
+<header class="entete-maquette">
+  <h1>Rendu de lecture par éléments</h1>
+  <p>Maquette statique — données réelles de la base dev. Chaque section montre un cas que le rendu doit tenir.</p>
+</header>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>1 — Document sans analyse</h2>
+  <p class="pourquoi">État LIBRE : aucune marque, aucune couleur. Un document non analysé doit être visuellement vierge. L'encre apparaît au fur et à mesure du travail.</p>
+
+  <div class="document">
+    <div class="bloc" data-etat="libre">
+      <div class="gouttiere"></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p>Le conseil se réunit le 12 mars pour statuer sur le budget de fonctionnement et sur les règles de décision engageante.</p></div>
+    </div>
+    <div class="bloc" data-etat="libre">
+      <div class="gouttiere"></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p>Aucune analyse n'a encore été lancée sur cette page.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>2 — Une idée dans un seul élément</h2>
+  <p class="pourquoi">État ANALYSÉ : filet gris dans la gouttière, soulignement simple sous le passage. Le compteur dit combien d'idées touchent ce bloc.</p>
+
+  <div class="document">
+    <div class="bloc" data-etat="analyse">
+      <div class="gouttiere"><span class="compteur-idees">1</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p>Le budget augmente de quatre pour cent cette année. <mark class="portion" data-statut="nouveau" data-idee="101" tabindex="0">Cette hausse s'explique par le coût de l'énergie</mark>, qui a doublé depuis deux ans sur nos locaux.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>3 — Une idée débattue</h2>
+  <p class="pourquoi">État DÉBATTU : le filet prend la couleur du statut. Éditer ce bloc demandera une justification.</p>
+
+  <div class="document">
+    <div class="bloc" data-etat="debattu">
+      <div class="gouttiere"><span class="compteur-idees">1</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p><mark class="portion" data-statut="commente" data-idee="102" tabindex="0">Les décisions engageant plus de dix mille euros seront prises en assemblée générale</mark>, et non plus en bureau restreint.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>4 — Une idée qui traverse trois éléments</h2>
+  <p class="pourquoi">Cas réel, page « Statuts de la coopérative ». Une seule extraction, trois portions. Les trois soulignements partagent la couleur et l'identifiant : survoler l'un allume les trois. Sans le fil de gouttière, c'est ce lien-là qui porte la continuité.</p>
+
+  <div class="document survol-idee-4412">
+    <div class="bloc" data-etat="analyse">
+      <div class="gouttiere"><span class="etiquette-gouttiere etiquette-section">Objet social</span><span class="compteur-idees">1</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p>La coopérative a pour objet le développement d'outils numériques communs. <mark class="portion" data-statut="nouveau" data-idee="4412" tabindex="0">La finalité de la coopérative se traduit par les principes suivants :</mark></p></div>
+    </div>
+    <div class="bloc" data-etat="analyse">
+      <div class="gouttiere"><span class="compteur-idees">1</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><ul><li><mark class="portion" data-statut="nouveau" data-idee="4412" tabindex="0">Gestion démocratique : 1 associé = 1 voix,</mark></li></ul></div>
+    </div>
+    <div class="bloc" data-etat="analyse">
+      <div class="gouttiere"><span class="compteur-idees">1</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><ul><li><mark class="portion" data-statut="nouveau" data-idee="4412" tabindex="0">Propriété collective et pérennité : actifs et réserves impartageables.</mark></li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>5 — Cinq idées imbriquées dans un même élément</h2>
+  <p class="pourquoi">Cas réel, page « Éric Sadin ». Une extraction couvre tout le paragraphe [0:191], quatre autres se logent dedans. Le soulignement s'épaissit là où les idées se superposent — le texte reste lisible, ce qu'un empilement de fonds ne garantit pas.</p>
+
+  <div class="document">
+    <div class="bloc" data-etat="analyse">
+      <div class="gouttiere"><span class="compteur-idees">5</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p><mark class="portion" data-statut="nouveau" data-idee="201" data-superposition="1" tabindex="0">Il poursuit ses thèses dans </mark><mark class="portion" data-statut="nouveau" data-idee="202" data-superposition="2" tabindex="0">L'Humanité augmentée. L'administration numérique du monde</mark><mark class="portion" data-statut="nouveau" data-idee="201" data-superposition="1"> (</mark><mark class="portion" data-statut="nouveau" data-idee="203" data-superposition="2" tabindex="0">2013</mark><mark class="portion" data-statut="nouveau" data-idee="201" data-superposition="1">), puis dans </mark><mark class="portion" data-statut="nouveau" data-idee="204" data-superposition="2" tabindex="0">La Silicolonisation du monde. L'irrésistible expansion du libéralisme numérique</mark><mark class="portion" data-statut="nouveau" data-idee="201" data-superposition="1"> (</mark><mark class="portion" data-statut="nouveau" data-idee="205" data-superposition="2" tabindex="0">2016</mark><mark class="portion" data-statut="nouveau" data-idee="201" data-superposition="1">).</mark></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>6 — Deux idées qui se croisent</h2>
+  <p class="pourquoi">Le cas qu'aucune imbrication ne peut représenter : A couvre 0→64, B couvre 40→98. Le découpage en segments produit trois zones, dont une partagée. Sans lui, le HTML serait mal fermé et le navigateur « réparerait » en silence.</p>
+
+  <div class="document">
+    <div class="bloc" data-etat="debattu">
+      <div class="gouttiere"><span class="compteur-idees">2</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p><mark class="portion" data-statut="nouveau" data-idee="301" data-superposition="1" tabindex="0">On décide pour des gens qui ne sont pas dans la pièce, </mark><mark class="portion" data-statut="commente" data-idee="302" data-superposition="2" tabindex="0">et qui n'ont même pas été prévenus</mark><mark class="portion" data-statut="commente" data-idee="302" data-superposition="1"> qu'on en parlait aujourd'hui.</mark></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>7 — Les six formes d'élément</h2>
+  <p class="pourquoi">Docling rend des labels typés. Chacun a sa balise. Un label inconnu retombe sur un paragraphe : jamais de plantage sur une forme imprévue.</p>
+
+  <div class="document">
+    <div class="bloc" data-etat="libre">
+      <div class="gouttiere"><span class="etiquette-gouttiere">title</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><h2>Charte de gouvernance</h2></div>
+    </div>
+    <div class="bloc" data-etat="libre">
+      <div class="gouttiere"><span class="etiquette-gouttiere">section_header</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><h3>Ce que l'IA ne doit pas remplacer</h3></div>
+    </div>
+    <div class="bloc" data-etat="analyse">
+      <div class="gouttiere"><span class="etiquette-gouttiere">text</span><span class="compteur-idees">1</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p><mark class="portion" data-statut="nouveau" data-idee="401" tabindex="0">Le jugement des personnes concernées</mark> ne se délègue pas.</p></div>
+    </div>
+    <div class="bloc" data-etat="libre">
+      <div class="gouttiere"><span class="etiquette-gouttiere">list_item</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><ul><li>la délibération collective</li><li>le temps long de la décision partagée</li></ul></div>
+    </div>
+    <div class="bloc" data-etat="libre">
+      <div class="gouttiere"><span class="etiquette-gouttiere">table</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><pre>| Principe        | Application         |
+|-----------------|---------------------|
+| Limites claires | Savoir qui décide   |
+| Règles locales  | Adapter au contexte |</pre></div>
+    </div>
+    <div class="bloc" data-etat="libre">
+      <div class="gouttiere"><span class="etiquette-gouttiere">formula</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p>C = Σ (pᵢ · log pᵢ)</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>8 — Transcription audio</h2>
+  <p class="pourquoi">La gouttière accueille le locuteur et l'horodatage, là où un document met sa section. Même structure, contenu différent — c'est ce qui permet de généraliser l'UI audio existante sans la dupliquer.</p>
+
+  <div class="document">
+    <div class="bloc" data-etat="analyse" data-source="audio">
+      <div class="gouttiere">
+        <span class="etiquette-gouttiere etiquette-locuteur" style="--couleur-locuteur:#2f7d5d">Marie</span>
+        <span class="etiquette-gouttiere">12:04</span>
+        <span class="compteur-idees">1</span>
+      </div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p>Je pense qu'on va trop vite sur ce dossier, et <mark class="portion" data-statut="nouveau" data-idee="501" tabindex="0">je voudrais qu'on prenne le temps de l'expliquer aux équipes</mark>.</p></div>
+    </div>
+    <div class="bloc" data-etat="debattu" data-source="audio">
+      <div class="gouttiere">
+        <span class="etiquette-gouttiere etiquette-locuteur" style="--couleur-locuteur:#b8453a">Jonas</span>
+        <span class="etiquette-gouttiere">12:31</span>
+        <span class="compteur-idees">1</span>
+      </div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p><mark class="portion" data-statut="commente" data-idee="502" tabindex="0">On a déjà repoussé deux fois, à un moment il faut trancher</mark>.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>9 — Élément masqué</h2>
+  <p class="pourquoi">La transcription a inventé du bruit. L'élément reste visible, barré et grisé, filet en pointillés. Il ne part plus à l'IA, et le masquage est réversible. Ses portions sont détachées : aucune marque ne s'y pose.</p>
+
+  <div class="document">
+    <div class="bloc" data-etat="analyse" data-source="audio">
+      <div class="gouttiere"><span class="etiquette-gouttiere etiquette-locuteur" style="--couleur-locuteur:#2f7d5d">Marie</span><span class="compteur-idees">1</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p>Je me charge de les contacter <mark class="portion" data-statut="nouveau" data-idee="601" tabindex="0">demain matin</mark>.</p></div>
+    </div>
+    <div class="bloc" data-etat="masque" data-source="audio">
+      <div class="gouttiere"><span class="etiquette-gouttiere">masqué</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p>Merci d'avoir regardé cette vidéo, n'oubliez pas de vous abonner.<span class="visually-hidden"> — élément masqué du contenu utile</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>10 — Idées détachées</h2>
+  <p class="pourquoi">Le texte source a changé, ou apparaît maintenant à deux endroits. On ne devine pas : aucune marque n'est posée dans le document. L'idée reste ici, avec un moyen de la replacer à la main.</p>
+
+  <div class="detachees">
+    <h3>3 idées ont perdu leur passage</h3>
+    <div class="carte-detachee">
+      <span class="badge-detache">détachée</span>
+      <span>Le seuil de dix mille euros doit être réévalué chaque année.</span>
+      <button class="action-detachee">Replacer dans le texte</button>
+    </div>
+    <div class="carte-detachee">
+      <span class="badge-detache">apparaît 2 fois</span>
+      <span>La délibération collective</span>
+      <button class="action-detachee">Choisir le passage</button>
+    </div>
+    <div class="carte-detachee">
+      <span class="badge-detache">élément masqué</span>
+      <span>N'oubliez pas de vous abonner.</span>
+      <button class="action-detachee">Démasquer l'élément</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<section class="cas">
+  <h2>11 — Cas limites</h2>
+  <p class="pourquoi">Caractères à échapper, élément très court, idée couvrant tout l'élément, idées adjacentes bord à bord.</p>
+
+  <div class="document">
+    <div class="bloc" data-etat="libre">
+      <div class="gouttiere"><span class="etiquette-gouttiere">échappement</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p>Le script &lt;script&gt;alert(1)&lt;/script&gt; et l'esperluette &amp; doivent s'afficher comme du texte.</p></div>
+    </div>
+    <div class="bloc" data-etat="libre">
+      <div class="gouttiere"><span class="etiquette-gouttiere">court</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p>Oui.</p></div>
+    </div>
+    <div class="bloc" data-etat="analyse">
+      <div class="gouttiere"><span class="compteur-idees">1</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p><mark class="portion" data-statut="nouveau" data-idee="701" tabindex="0">L'idée couvre exactement tout l'élément, du premier au dernier caractère.</mark></p></div>
+    </div>
+    <div class="bloc" data-etat="analyse">
+      <div class="gouttiere"><span class="compteur-idees">2</span></div>
+      <div class="filet-etat"></div>
+      <div class="corps"><p><mark class="portion" data-statut="nouveau" data-idee="801" tabindex="0">Deux idées bord à bord,</mark><mark class="portion" data-statut="commente" data-idee="802" tabindex="0"> sans un espace entre elles.</mark></p></div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+/* Allumer toutes les portions d'une même idée au survol.
+   Sans le fil de gouttière, c'est ce lien qui porte la continuité. */
+document.querySelectorAll('mark.portion').forEach(function (marque) {
+  function allumer(actif) {
+    var idee = marque.dataset.idee;
+    document.querySelectorAll('mark.portion[data-idee="' + idee + '"]')
+      .forEach(function (jumelle) { jumelle.classList.toggle('est-active', actif); });
+  }
+  marque.addEventListener('mouseenter', function () { allumer(true); });
+  marque.addEventListener('mouseleave', function () { allumer(false); });
+  marque.addEventListener('focus', function () { allumer(true); });
+  marque.addEventListener('blur', function () { allumer(false); });
+});
+</script>
+<script>/* =========================================================================
+   CLAIR / SOMBRE
+   Trois etats : « systeme » (aucun attribut, prefers-color-scheme decide),
+   « clair » et « sombre » forces. L'attribut se pose sur <html> pour que
+   les deux blocs de tokens sachent qui l'emporte.
+   Three states: system, forced light, forced dark. / <html data-theme>.
+   ========================================================================= */
+(function () {
+  var racine = document.documentElement;
+  var bouton = document.getElementById('bascule-theme');
+  /* Le clair est le DEPART, pas le systeme : la maquette doit s'ouvrir
+     sur le meme rendu pour tout le monde. / Light first, for everyone. */
+  var ETATS = [
+    { valeur: 'light',  libelle: '\u25CB clair' },
+    { valeur: 'dark',   libelle: '\u25CF sombre' },
+    { valeur: '',       libelle: '\u25D1 système' }
+  ];
+  var indice = 0;
+  function appliquer() {
+    var etat = ETATS[indice];
+    if (etat.valeur) { racine.dataset.theme = etat.valeur; }
+    else { delete racine.dataset.theme; }
+    bouton.textContent = etat.libelle;
+    bouton.title = 'Thème : ' + etat.libelle.slice(2) + ' — cliquer pour changer';
+  }
+  bouton.addEventListener('click', function () {
+    indice = (indice + 1) % ETATS.length;
+    appliquer();
+  });
+  appliquer();
+})();
+</script>
+</body>
+</html>

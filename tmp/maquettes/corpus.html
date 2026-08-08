@@ -1,0 +1,1961 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hypostasia — base, carnet, wikis et synthèses</title>
+<style>
+/* =========================================================================
+   HYPOSTASIA — COUCHE CORPUS
+   LOCALISATION : tmp/maquettes/corpus.html
+
+   Accompagne SPEC-corpus-base-carnet-note.md v1.1 et la refonte des
+   syntheses au niveau carnet.
+
+   TROIS NIVEAUX : base de connaissances -> carnet -> note.
+   Deux cardinalites N-N. La categorie appartient a la RELATION
+   note<->carnet, jamais a la note (spec § 3.2).
+
+   DEUX GENRES DE SYNTHESE, et c'est le coeur de cette maquette :
+
+   · Le WIKI est thematique et VIVANT. Un article par sujet, alimente par
+     toutes les notes du carnet qui le touchent, mis a jour par section_ops
+     (INSPIRATION_ATOMIC.md § 7) : le modele renvoie des operations, pas une
+     reecriture, et le diff s'accepte. Un wiki ne s'adopte pas, il se suit.
+
+   · La SYNTHESE DIRIGEE est un ACTE DATE. Commandee sur un axe de
+     categories ou une selection, figee, jamais reecrite. C'est ce qu'un
+     conseil adopte.
+
+   LE SOURCING, tel que l'etat de l'art 2026 le prescrit :
+     1. indexer au grain de la preuve (ici : AncrageExtraction) ;
+     2. selectionner les preuves AVANT d'ecrire ;
+     3. generer avec citations resolues MECANIQUEMENT, au grain du
+        paragraphe — demander plus fin au modele degrade l'attribution
+        de 16 a 276 % ;
+     4. verifier : verbatim puis NLI, trois etats affiches
+        (verifie / faible / non source) ;
+     5. serialiser en W3C Web Annotation (TextQuoteSelector +
+        TextPositionSelector + Media Fragments pour l'audio).
+
+   ET LE CONTROLE QUE PERSONNE N'OFFRE : montrer ce que la synthese
+   n'a PAS repris. Difference ensembliste, cout LLM nul, et c'est ce qui
+   rend une synthese contestable — donc utilisable dans une gouvernance.
+
+   PIEGE TRAITE : une synthese est une note du carnet, donc elle
+   deviendrait source de la synthese suivante. Au troisieme tour le wiki
+   se cite lui-meme. Le type de note les exclut MECANIQUEMENT du corpus
+   source (voir estUneSource()).
+
+   Tout est simule. Aucune requete.
+   ========================================================================= */
+
+:root {
+  --papier:#fdfcfa; --papier-creux:#f5f3ef; --papier-panneau:#faf8f4;
+  --encre:#1c1b19; --encre-douce:#6b6862; --filet:#e4e0d8;
+  --barre:#1c1b19; --barre-texte:#fdfcfa;
+  --statut-nouveau:#999999; --statut-commente:#E69F00;
+  --revelation:#f0ede6;
+  --cible:#7C5CBF; --danger:#b91c1c; --succes:#047857; --info:#4338ca;
+
+  /* Les trois etats de verification d'une affirmation. */
+  --verifie:#047857; --faible:#b45309; --non-source:#b91c1c;
+
+  --hypostase-epistemique-text:#4338ca; --hypostase-empirique-text:#047857;
+  --hypostase-speculatif-text:#b45309;  --hypostase-structurel-text:#475569;
+  --hypostase-normatif-text:#6d28d9;    --hypostase-problematique-text:#b91c1c;
+  --hypostase-mode-text:#0e7490;        --hypostase-objet-text:#64748b;
+
+  --barre-outils:44px; --barre-fil:32px; --preuve:26rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+    --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a;
+    --revelation:#26242c; --barre:#0d0c10;
+  }
+}
+:root[data-theme="dark"] {
+  --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+  --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a;
+  --revelation:#26242c; --barre:#0d0c10;
+}
+
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--papier); color:var(--encre);
+  font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+  line-height:1.7; font-size:17px;
+}
+.mono { font-family:ui-monospace,"SF Mono",Menlo,monospace; }
+button { font-family:inherit; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+
+/* ---- Pupitre ---- */
+.pupitre {
+  position:sticky; top:0; z-index:90; background:var(--cible); color:#fff;
+  padding:.4rem .8rem; display:flex; align-items:center; gap:.55rem; flex-wrap:wrap;
+  font-family:ui-monospace,Menlo,monospace; font-size:.66rem;
+}
+.pupitre button {
+  font:inherit; cursor:pointer; background:transparent; color:#fff;
+  border:1px solid rgba(255,255,255,.4); border-radius:3px; padding:.15rem .5rem;
+}
+.pupitre button[aria-pressed="true"] { background:#fff; color:var(--cible); }
+.pupitre .sep { width:1px; height:1rem; background:rgba(255,255,255,.3); }
+.pupitre .titre { font-weight:700; letter-spacing:.04em; }
+
+/* ---- Barre d'outils ---- */
+.barre-outils {
+  position:sticky; top:2.05rem; z-index:70; height:var(--barre-outils);
+  background:var(--barre); color:var(--barre-texte);
+  display:flex; align-items:center; gap:.5rem; padding:0 .7rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.72rem;
+}
+.barre-outils button {
+  background:transparent; border:1px solid transparent; color:inherit;
+  border-radius:4px; padding:.25rem .5rem; cursor:pointer; font-size:.72rem;
+  display:inline-flex; align-items:center; gap:.3rem; white-space:nowrap;
+}
+.barre-outils button:hover { background:rgba(255,255,255,.12); }
+.barre-outils .marque { font-weight:700; }
+.barre-outils .droite { margin-left:auto; display:flex; align-items:center; gap:.25rem; }
+.avatar-utilisateur {
+  width:1.5rem; height:1.5rem; border-radius:50%; background:#3b82f6; color:#fff;
+  display:grid; place-items:center; font-size:.68rem; font-weight:700;
+}
+
+/* =============== FIL D'ARIANE avec bascule de carnet (spec § 8.1) ===============
+   Le N-N a detruit l'arbre : une note sous deux carnets posait une question
+   sans reponse. Le fil la remplace, et son chevron recharge la MEME note
+   dans un AUTRE carnet.
+   ATTENTION : le conteneur parent ne doit pas etre overflow-hidden, sinon
+   le menu de bascule est invisible — defaut releve en relecture adverse. */
+.fil-ariane {
+  position:sticky; top:calc(2.05rem + var(--barre-outils)); z-index:66;
+  min-height:var(--barre-fil); display:flex; align-items:center; gap:.35rem;
+  padding:0 .9rem; background:var(--papier-creux); border-bottom:1px solid var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.65rem; color:var(--encre-douce);
+  overflow:visible;              /* surtout pas hidden */
+}
+.fil-ariane a, .fil-ariane .lien {
+  color:inherit; text-decoration:none; cursor:pointer; background:none;
+  border:none; padding:.1rem .2rem; font:inherit; border-radius:3px;
+}
+.fil-ariane a:hover, .fil-ariane .lien:hover { color:var(--encre); background:var(--papier); }
+.fil-ariane .courant { color:var(--encre); font-weight:600; }
+.fil-ariane .sep { opacity:.4; }
+.bascule-carnet { position:relative; }
+.menu-bascule {
+  position:absolute; top:calc(100% + .25rem); left:0; z-index:95; min-width:15rem;
+  background:var(--papier); border:1px solid var(--filet); border-radius:6px;
+  box-shadow:0 6px 24px rgba(0,0,0,.16); padding:.3rem; display:none;
+}
+.menu-bascule.est-visible { display:block; }
+.menu-bascule button {
+  display:flex; width:100%; align-items:center; gap:.4rem; text-align:left;
+  background:none; border:none; padding:.3rem .45rem; border-radius:4px;
+  cursor:pointer; font-family:ui-monospace,Menlo,monospace; font-size:.65rem;
+  color:var(--encre);
+}
+.menu-bascule button:hover { background:var(--papier-creux); }
+.menu-bascule button[aria-current="true"] { font-weight:700; }
+.menu-bascule .etiquettes { margin-left:auto; display:flex; gap:.2rem; }
+
+/* =============== DISPOSITION =============== */
+.zone { max-width:64rem; margin:0 auto; padding:2rem 1.5rem 5rem; }
+.zone.large { max-width:80rem; }
+.entete-zone { margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid var(--filet); }
+.entete-zone h1 { font-size:1.65rem; line-height:1.25; margin:0 0 .25rem; letter-spacing:-.015em; }
+.entete-zone .meta {
+  font-size:.7rem; color:var(--encre-douce); font-family:ui-monospace,Menlo,monospace;
+  display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+}
+.guide-redaction {
+  margin-top:.8rem; padding:.55rem .7rem; background:var(--papier-creux);
+  border-left:3px solid var(--info); border-radius:0 4px 4px 0; font-size:.82rem;
+}
+.guide-redaction strong { font-size:.7rem; font-family:ui-monospace,Menlo,monospace;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--info); display:block; margin-bottom:.2rem; }
+
+/* ---- Onglets du carnet ---- */
+.onglets { display:flex; gap:.2rem; border-bottom:1px solid var(--filet); margin-bottom:1.2rem; }
+.onglets button {
+  background:none; border:none; border-bottom:2px solid transparent; cursor:pointer;
+  padding:.45rem .7rem; font-family:ui-monospace,Menlo,monospace; font-size:.68rem;
+  color:var(--encre-douce); margin-bottom:-1px;
+}
+.onglets button[aria-selected="true"] { color:var(--encre); border-bottom-color:var(--statut-commente); font-weight:700; }
+.onglets .compteur-onglet {
+  display:inline-block; margin-left:.3rem; font-size:.58rem; opacity:.65;
+}
+.panneau-onglet { display:none; }
+.panneau-onglet.est-actif { display:block; }
+
+/* ---- Facettes (spec § 8.2 : ET entre listes, OU dans une liste) ---- */
+.facettes { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem; align-items:flex-start; }
+.axe {
+  border:1px solid var(--filet); border-radius:5px; padding:.35rem .5rem;
+  background:var(--papier); min-width:9rem;
+}
+.axe > .nom-axe {
+  display:block; font-family:ui-monospace,Menlo,monospace; font-size:.56rem;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--encre-douce); margin-bottom:.25rem;
+}
+.axe .categories { display:flex; flex-wrap:wrap; gap:.2rem; }
+.puce-categorie {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; cursor:pointer;
+  border:1px solid var(--teinte,var(--filet)); color:var(--teinte,var(--encre-douce));
+  background:none; border-radius:999px; padding:.08rem .45rem; white-space:nowrap;
+}
+.puce-categorie[aria-pressed="true"] { background:var(--teinte); color:#fff; border-color:var(--teinte); }
+.resume-filtres {
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem; color:var(--encre-douce);
+  margin-bottom:.7rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+}
+
+/* ---- Liste de notes ---- */
+.liste-notes { list-style:none; margin:0; padding:0; }
+.ligne-note {
+  display:grid; grid-template-columns:auto 1fr auto; gap:.6rem; align-items:start;
+  padding:.55rem .5rem; border-bottom:1px solid var(--filet); cursor:pointer;
+}
+.ligne-note:hover { background:var(--papier-creux); }
+.ligne-note .rang {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; color:var(--encre-douce);
+  display:flex; flex-direction:column; align-items:center; gap:.1rem; padding-top:.15rem;
+}
+.ligne-note .titre-note { font-size:.95rem; line-height:1.4; }
+.ligne-note .sous-note {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; color:var(--encre-douce);
+  margin-top:.15rem; display:flex; gap:.4rem; flex-wrap:wrap; align-items:center;
+}
+.ligne-note .etiquettes { display:flex; gap:.2rem; flex-wrap:wrap; margin-top:.25rem; }
+.etiquette-categorie {
+  font-family:ui-monospace,Menlo,monospace; font-size:.56rem;
+  border:1px solid var(--teinte,var(--filet)); color:var(--teinte,var(--encre-douce));
+  border-radius:2px; padding:.04rem .3rem; white-space:nowrap;
+}
+.boutons-ordre { display:flex; flex-direction:column; gap:.1rem; }
+.boutons-ordre button {
+  border:1px solid var(--filet); background:var(--papier); color:var(--encre-douce);
+  border-radius:3px; cursor:pointer; font-size:.55rem; line-height:1; padding:.1rem .25rem;
+}
+.boutons-ordre button:hover { border-color:var(--encre-douce); color:var(--encre); }
+.epingle-marque { color:var(--statut-commente); }
+.badge-type {
+  font-family:ui-monospace,Menlo,monospace; font-size:.53rem; text-transform:uppercase;
+  letter-spacing:.07em; border-radius:2px; padding:.05rem .3rem; white-space:nowrap;
+  border:1px solid currentColor;
+}
+.badge-type[data-type="wiki"]     { color:var(--info); }
+.badge-type[data-type="synthese"] { color:var(--cible); }
+.badge-type[data-type="note"]     { display:none; }
+
+/* =============== WIKI / SYNTHESE : l'article =============== */
+.article-synthese { max-width:44rem; }
+.article-synthese h2 { font-size:1.25rem; margin:1.8rem 0 .5rem; letter-spacing:-.012em; }
+.article-synthese h2:first-of-type { margin-top:.5rem; }
+.article-synthese p { margin:0 0 .9rem; }
+.entete-article {
+  border:1px solid var(--filet); border-radius:6px; padding:.7rem .8rem;
+  margin-bottom:1.2rem; background:var(--papier-panneau);
+  font-family:ui-monospace,Menlo,monospace; font-size:.64rem; line-height:1.6;
+}
+.entete-article .ligne { display:flex; justify-content:space-between; gap:1rem; }
+.entete-article .ligne span:first-child { color:var(--encre-douce); }
+.bandeau-genre {
+  display:flex; align-items:center; gap:.4rem; margin-bottom:.5rem;
+  font-size:.6rem; text-transform:uppercase; letter-spacing:.08em;
+}
+.bandeau-genre[data-genre="wiki"]     { color:var(--info); }
+.bandeau-genre[data-genre="synthese"] { color:var(--cible); }
+.bandeau-genre .pastille-vivante {
+  width:.45rem; height:.45rem; border-radius:50%; background:currentColor;
+  animation:pulsation 2.4s ease-in-out infinite;
+}
+@keyframes pulsation { 50% { opacity:.3; } }
+
+/* ---- La citation [N] ---- */
+.renvoi {
+  display:inline-block; font-family:ui-monospace,Menlo,monospace; font-size:.62rem;
+  vertical-align:super; line-height:1; cursor:pointer; border:none; background:none;
+  padding:0 .08rem; color:var(--info); text-decoration:none;
+}
+.renvoi:hover, .renvoi.est-active { text-decoration:underline; font-weight:700; }
+/* Trois etats, pas un taux de citation : « citation presente » ne dit rien
+   de « citation correcte » (39 a 77 % seulement sont verifiees). */
+.affirmation { border-bottom:2px solid transparent; padding-bottom:.02em; }
+.affirmation[data-verification="verifie"]     { border-bottom-color:color-mix(in srgb,var(--verifie) 45%,transparent); }
+.affirmation[data-verification="faible"]      { border-bottom-color:color-mix(in srgb,var(--faible) 55%,transparent); }
+.affirmation[data-verification="non_source"]  { border-bottom-color:color-mix(in srgb,var(--non-source) 55%,transparent);
+  background:color-mix(in srgb,var(--non-source) 5%,transparent); }
+.affirmation.est-active { background:color-mix(in srgb,var(--statut-commente) 16%,transparent); }
+body[data-verifications="non"] .affirmation { border-bottom-color:transparent !important; background:none !important; }
+
+.legende-verification {
+  display:flex; gap:.8rem; flex-wrap:wrap; margin:.6rem 0 1rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; color:var(--encre-douce);
+}
+.legende-verification span { display:inline-flex; align-items:center; gap:.25rem; }
+.legende-verification i { width:1.1rem; height:2px; display:inline-block; font-style:normal; }
+
+/* ---- Ce qui n'a pas été repris ---- */
+.ecarte {
+  margin-top:2rem; border:1px solid var(--filet); border-radius:6px; overflow:hidden;
+}
+.ecarte > summary {
+  cursor:pointer; padding:.55rem .7rem; background:var(--papier-creux);
+  font-family:ui-monospace,Menlo,monospace; font-size:.65rem; color:var(--encre);
+  list-style:none; display:flex; align-items:center; gap:.4rem;
+}
+.ecarte > summary::-webkit-details-marker { display:none; }
+.ecarte > summary::before { content:"▸"; opacity:.5; }
+.ecarte[open] > summary::before { content:"▾"; }
+.ecarte .contenu-ecarte { padding:.6rem .7rem; }
+.ecarte .explication {
+  font-size:.8rem; color:var(--encre-douce); margin:0 0 .7rem; line-height:1.55;
+}
+
+/* ---- Carte de preuve ---- */
+.carte-preuve {
+  border:1px solid var(--filet); border-radius:5px; padding:.5rem .6rem;
+  margin-bottom:.45rem; background:var(--papier); cursor:pointer;
+}
+.carte-preuve:hover { box-shadow:0 1px 6px rgba(0,0,0,.07); }
+.carte-preuve .entete-preuve {
+  display:flex; align-items:center; gap:.35rem; margin-bottom:.3rem; flex-wrap:wrap;
+}
+.indicateur-statut { width:.72rem; height:.72rem; flex:none; }
+.indicateur-statut[data-statut="nouveau"] { border:2px solid var(--statut-nouveau); border-radius:50%; }
+.indicateur-statut[data-statut="commente"] {
+  background:var(--statut-commente); clip-path:polygon(50% 0%, 0% 100%, 100% 100%);
+}
+.badge-hypostase {
+  font-family:ui-monospace,Menlo,monospace; font-size:.55rem; text-transform:uppercase;
+  letter-spacing:.06em; padding:.06rem .32rem; border-radius:2px; white-space:nowrap;
+  background:none; border:1px solid currentColor; opacity:.85; cursor:help;
+}
+.carte-preuve .provenance {
+  margin-left:auto; font-family:ui-monospace,Menlo,monospace; font-size:.57rem;
+  color:var(--encre-douce);
+}
+.carte-preuve .citation-exacte {
+  font-style:italic; font-size:.85rem; line-height:1.5; margin:0;
+}
+.carte-preuve .resume-machine {
+  font-family:ui-monospace,Menlo,monospace; font-size:.72rem; color:var(--encre-douce);
+  margin:0 0 .25rem;
+}
+.carte-preuve .debat {
+  margin-top:.4rem; padding-top:.35rem; border-top:1px dashed var(--filet);
+  font-size:.78rem;
+}
+.carte-preuve .debat .qui { font-weight:700; font-size:.68rem; }
+.carte-preuve .selecteurs {
+  margin-top:.4rem; font-family:ui-monospace,Menlo,monospace; font-size:.55rem;
+  color:var(--encre-douce); line-height:1.5; display:none;
+}
+body[data-selecteurs="oui"] .carte-preuve .selecteurs { display:block; }
+
+/* ---- Panneau de preuve (a droite) ---- */
+.panneau-preuve {
+  position:fixed; top:0; right:0; bottom:0; width:var(--preuve); max-width:100vw; z-index:88;
+  background:var(--papier-panneau); border-left:1px solid var(--filet);
+  transform:translateX(100%); transition:transform .2s ease;
+  display:flex; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.14);
+}
+.panneau-preuve.est-ouvert { transform:translateX(0); }
+.panneau-preuve .entete {
+  padding:.6rem .7rem; border-bottom:1px solid var(--filet); display:flex;
+  align-items:center; gap:.5rem; font-family:ui-monospace,Menlo,monospace; font-size:.65rem;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce);
+}
+.panneau-preuve .corps { flex:1; overflow-y:auto; padding:.7rem; }
+.etat-verification {
+  display:inline-flex; align-items:center; gap:.3rem; border-radius:3px;
+  padding:.1rem .4rem; font-family:ui-monospace,Menlo,monospace; font-size:.58rem;
+  text-transform:uppercase; letter-spacing:.06em; border:1px solid currentColor;
+}
+.etat-verification[data-etat="verifie"]    { color:var(--verifie); }
+.etat-verification[data-etat="faible"]     { color:var(--faible); }
+.etat-verification[data-etat="non_source"] { color:var(--non-source); }
+
+/* ---- Mise à jour incrémentale (section_ops) ---- */
+.diff-operations { margin-top:.6rem; }
+.operation {
+  border:1px solid var(--filet); border-left-width:3px; border-radius:0 5px 5px 0;
+  padding:.5rem .6rem; margin-bottom:.45rem; background:var(--papier);
+}
+.operation[data-op="AppendToSection"] { border-left-color:var(--succes); }
+.operation[data-op="ReplaceSection"]  { border-left-color:var(--faible); }
+.operation[data-op="InsertSection"]   { border-left-color:var(--info); }
+.operation[data-op="NoChange"]        { border-left-color:var(--encre-douce); }
+.operation .entete-op {
+  display:flex; align-items:center; gap:.4rem; margin-bottom:.3rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.58rem;
+  text-transform:uppercase; letter-spacing:.06em; color:var(--encre-douce);
+}
+.operation .heading-op { color:var(--encre); text-transform:none; letter-spacing:0; font-weight:700; }
+.operation .contenu-op { font-size:.85rem; line-height:1.55; }
+.operation.rejetee { opacity:.55; }
+.operation .motif-rejet {
+  margin-top:.35rem; font-family:ui-monospace,Menlo,monospace; font-size:.58rem;
+  color:var(--danger);
+}
+
+/* =============== ALIGNEMENT =============== */
+.tableau-alignement { width:100%; border-collapse:collapse; font-size:.8rem; }
+.tableau-alignement th, .tableau-alignement td {
+  border:1px solid var(--filet); padding:.35rem .5rem; vertical-align:top; text-align:left;
+}
+.tableau-alignement thead th {
+  background:var(--papier-creux); font-family:ui-monospace,Menlo,monospace;
+  font-size:.6rem; font-weight:600; position:sticky; top:calc(2.05rem + var(--barre-outils) + var(--barre-fil));
+  z-index:5;
+}
+.tableau-alignement tbody th {
+  background:var(--papier-panneau); font-family:ui-monospace,Menlo,monospace;
+  font-size:.62rem; position:sticky; left:0; min-width:8rem; font-weight:600;
+}
+.bandeau-famille th {
+  background:color-mix(in srgb, var(--couleur-famille) 14%, transparent) !important;
+  color:var(--couleur-famille); font-family:ui-monospace,Menlo,monospace;
+  font-size:.6rem; text-transform:uppercase; letter-spacing:.08em; cursor:pointer;
+}
+.cellule-vide { color:var(--encre-douce); opacity:.4; text-align:center; }
+.cellule-alignement { cursor:pointer; }
+.cellule-alignement:hover { background:var(--revelation); }
+.cellule-alignement .compte {
+  font-family:ui-monospace,Menlo,monospace; font-size:.55rem; color:var(--encre-douce);
+  display:block; margin-bottom:.1rem;
+}
+.cellule-alignement .apercu { font-size:.75rem; line-height:1.4; }
+body[data-alignement="source"] .cellule-alignement .apercu-resume { display:none; }
+body[data-alignement="resume"] .cellule-alignement .apercu-source { display:none; }
+
+/* =============== COMMUN =============== */
+.bouton-plat {
+  font-family:ui-monospace,Menlo,monospace; font-size:.64rem; cursor:pointer;
+  background:var(--papier); color:var(--encre); border:1px solid var(--filet);
+  border-radius:4px; padding:.22rem .55rem; display:inline-flex; align-items:center; gap:.25rem;
+}
+.bouton-plat:hover { border-color:var(--encre-douce); }
+.bouton-plat.principal { background:var(--encre); color:var(--papier); border-color:var(--encre); }
+.bouton-plat.danger { color:var(--danger); border-color:color-mix(in srgb,var(--danger) 35%,transparent); }
+.bouton-plat:disabled { opacity:.4; cursor:not-allowed; }
+.rangee-boutons { display:flex; gap:.4rem; flex-wrap:wrap; }
+.marque-cible {
+  font-size:.55rem; text-transform:uppercase; letter-spacing:.07em; color:var(--cible);
+  border:1px solid var(--cible); border-radius:2px; padding:.02rem .28rem; cursor:help;
+}
+.vide {
+  padding:2rem 1rem; text-align:center; color:var(--encre-douce); font-size:.88rem;
+}
+.avertissement {
+  border:1px solid color-mix(in srgb,var(--statut-commente) 40%,transparent);
+  background:color-mix(in srgb,var(--statut-commente) 8%, transparent);
+  border-radius:5px; padding:.6rem .7rem; margin:.6rem 0; font-size:.82rem; line-height:1.55;
+}
+.avertissement strong { display:block; margin-bottom:.2rem; }
+
+.surface {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:92;
+  background:var(--papier); border:1px solid var(--filet); border-radius:8px;
+  box-shadow:0 10px 40px rgba(0,0,0,.22); padding:1rem 1.1rem;
+  width:min(38rem,94vw); max-height:84vh; overflow-y:auto; display:none;
+}
+.surface.est-visible { display:block; }
+.surface h3 {
+  margin:0 0 .6rem; font-family:ui-monospace,Menlo,monospace; font-size:.66rem;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--encre-douce);
+}
+.voile { position:fixed; inset:0; background:rgba(0,0,0,.42); z-index:87; display:none; }
+.voile.est-visible { display:block; }
+
+.champ-select, .champ-texte {
+  width:100%; font-family:ui-monospace,Menlo,monospace; font-size:.68rem;
+  background:var(--papier); color:var(--encre); border:1px solid var(--filet);
+  border-radius:4px; padding:.3rem .4rem; margin-bottom:.6rem;
+}
+.champ-etiquette {
+  display:block; font-family:ui-monospace,Menlo,monospace; font-size:.58rem;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce); margin-bottom:.2rem;
+}
+
+.pile-toasts {
+  position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); z-index:95;
+  display:flex; flex-direction:column; gap:.4rem; align-items:center; pointer-events:none;
+}
+.toast {
+  background:var(--encre); color:var(--papier); border-radius:5px; padding:.45rem .8rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.66rem; max-width:90vw;
+  box-shadow:0 4px 16px rgba(0,0,0,.2);
+}
+.toast[data-genre="erreur"] { background:var(--danger); }
+.toast[data-genre="succes"] { background:var(--succes); }
+
+@media (max-width: 800px) {
+  body { font-size:16px; }
+  .panneau-preuve { width:100vw; }
+  .facettes { flex-direction:column; }
+  .axe { width:100%; }
+}
+</style>
+</head>
+<body data-vue="carnet" data-alignement="resume" data-verifications="oui" data-selecteurs="non">
+
+<div class="pupitre">
+  <span class="titre">MAQUETTE CORPUS</span>
+  <button id="aller-base" aria-pressed="false">base</button>
+  <button id="aller-carnet" aria-pressed="true">carnet</button>
+  <span class="sep"></span>
+  <button id="int-verifications" aria-pressed="true">états de vérification</button>
+  <button id="int-selecteurs" aria-pressed="false">sélecteurs W3C</button>
+  <span class="sep"></span>
+  <button id="bascule-theme">○ clair</button>
+  <a class="bouton-plat" href="maquette.html" style="text-decoration:none">↩ la note</a>
+</div>
+
+<div class="barre-outils">
+  <button id="btn-nav" title="Bases et carnets">☰</button>
+  <span class="marque">Hypostasia</span>
+  <div class="droite">
+    <button id="btn-nouveau-wiki">✦ Nouveau wiki</button>
+    <button id="btn-nouvelle-synthese">▤ Nouvelle synthèse</button>
+    <div class="avatar-utilisateur" title="jonas@exemple.fr">J</div>
+  </div>
+</div>
+
+<nav class="fil-ariane" id="fil-ariane" aria-label="Fil d'Ariane">
+  <span class="marque-cible" title="Le fil d'Ariane remplace l'arbre de navigation, que le N-N rend impossible : une note sous deux carnets n'a pas de parent unique.">cible</span>
+  <button class="lien" id="fil-base">Coopérative des Trois Vallées</button>
+  <span class="sep">›</span>
+  <span class="bascule-carnet">
+    <button class="lien courant" id="fil-carnet" aria-haspopup="true" aria-expanded="false">
+      Conseil d'administration ▾</button>
+    <div class="menu-bascule" id="menu-bascule" role="menu"></div>
+  </span>
+  <span class="sep" id="sep-note" hidden>›</span>
+  <span class="courant" id="fil-note" hidden></span>
+</nav>
+
+<!-- ================= VUE BASE ================= -->
+<div class="zone" id="vue-base" hidden>
+  <header class="entete-zone">
+    <h1>Coopérative des Trois Vallées</h1>
+    <div class="meta"><span id="meta-base"></span></div>
+  </header>
+  <div class="facettes" id="facettes-base"></div>
+  <ul class="liste-notes" id="liste-carnets"></ul>
+</div>
+
+<!-- ================= VUE CARNET ================= -->
+<div class="zone large" id="vue-carnet">
+  <header class="entete-zone">
+    <h1 id="titre-carnet">—</h1>
+    <div class="meta">
+      <span id="meta-carnet"></span>
+      <span id="visibilite-carnet"></span>
+    </div>
+    <div class="guide-redaction" id="guide-redaction"></div>
+  </header>
+
+  <div class="onglets" role="tablist">
+    <button role="tab" aria-selected="true"  data-onglet="notes">Notes<span class="compteur-onglet" id="cpt-notes"></span></button>
+    <button role="tab" aria-selected="false" data-onglet="wikis">Wikis<span class="compteur-onglet" id="cpt-wikis"></span></button>
+    <button role="tab" aria-selected="false" data-onglet="syntheses">Synthèses dirigées<span class="compteur-onglet" id="cpt-syntheses"></span></button>
+    <button role="tab" aria-selected="false" data-onglet="preuves">Sélection des preuves</button>
+    <button role="tab" aria-selected="false" data-onglet="alignement">Alignement</button>
+  </div>
+
+  <!-- ---- Onglet notes ---- -->
+  <div class="panneau-onglet est-actif" data-panneau="notes">
+    <div class="facettes" id="facettes-carnet"></div>
+    <div class="resume-filtres" id="resume-filtres"></div>
+    <ul class="liste-notes" id="liste-notes"></ul>
+  </div>
+
+  <!-- ---- Onglet wikis ---- -->
+  <div class="panneau-onglet" data-panneau="wikis">
+    <div id="liste-wikis"></div>
+    <div id="article-wiki" hidden></div>
+  </div>
+
+  <!-- ---- Onglet synthèses ---- -->
+  <div class="panneau-onglet" data-panneau="syntheses">
+    <div id="liste-syntheses"></div>
+    <div id="article-synthese" hidden></div>
+  </div>
+
+  <!-- ---- Onglet sélection des preuves ----
+       L'ecran vit dans son propre fichier ; en HTMX ce sera le meme panneau
+       charge ici. L'onglet y mene en gardant le fil d'Ariane.
+       / Same panel, loaded in place once on HTMX. -->
+  <div class="panneau-onglet" data-panneau="preuves">
+    <div class="avertissement">
+      <strong>Ce qui entre dans une synthèse, et pourquoi</strong>
+      Cet écran se règle <em>avant</em> d'écrire : regroupement des extractions,
+      similarités affichées, positions isolées préservées, contradictions repérées,
+      et la liste de ce que l'analyse n'a jamais touché. C'est aussi l'étape qu'on
+      traverse en lançant une synthèse dirigée ou en créant un wiki.
+    </div>
+    <div class="rangee-boutons" style="margin-top:.8rem">
+      <a class="bouton-plat principal" style="text-decoration:none"
+         href="selection-preuves.html">Ouvrir la sélection des preuves →</a>
+    </div>
+  </div>
+
+  <!-- ---- Onglet alignement ---- -->
+  <div class="panneau-onglet" data-panneau="alignement">
+    <div class="avertissement">
+      <strong>L'alignement suit les facettes du carnet</strong>
+      La spec le laisse scopé au carnet en notant que « la limite de 6 pages rencontrera
+      des carnets qui grossissent ». On aligne donc les notes que les filtres ont retenues,
+      pas le carnet entier : la limite se règle par la conception, pas par un plafond.
+    </div>
+    <div class="facettes" id="facettes-alignement"></div>
+    <div class="resume-filtres">
+      <span id="resume-alignement"></span>
+      <button class="bouton-plat" id="btn-mode-alignement">Voir la source</button>
+      <button class="bouton-plat" id="btn-export-alignement">⤓ Export Markdown</button>
+    </div>
+    <div style="overflow-x:auto"><table class="tableau-alignement" id="tableau-alignement"></table></div>
+  </div>
+</div>
+
+<!-- ================= PANNEAU DE PREUVE ================= -->
+<aside class="panneau-preuve" id="panneau-preuve">
+  <div class="entete">
+    <span id="titre-preuve">Preuve</span>
+    <button class="bouton-plat" id="fermer-preuve" style="margin-left:auto">✕</button>
+  </div>
+  <div class="corps" id="corps-preuve"></div>
+</aside>
+
+<div class="voile" id="voile"></div>
+
+<!-- ================= SURFACES ================= -->
+<div class="surface" id="surface-nouvelle-synthese">
+  <h3>Nouvelle synthèse dirigée</h3>
+  <p style="font-size:.84rem; margin:0 0 .8rem; color:var(--encre-douce)">
+    Une synthèse dirigée est un <strong>acte daté</strong> : elle est figée à sa production
+    et n'est jamais réécrite. C'est ce qu'un conseil adopte. Pour un texte qui suit
+    le carnet, créez plutôt un wiki.</p>
+  <label class="champ-etiquette" for="synth-titre">Titre</label>
+  <input class="champ-texte" id="synth-titre" value="Synthèse du conseil du 12 mars">
+  <label class="champ-etiquette" for="synth-axe">Diriger par</label>
+  <select class="champ-select" id="synth-axe"></select>
+  <div id="synth-portee"></div>
+  <div class="avertissement" id="synth-recap"></div>
+  <div class="rangee-boutons">
+    <button class="bouton-plat principal" id="synth-lancer">Produire la synthèse</button>
+    <button class="bouton-plat" id="synth-annuler">Annuler</button>
+  </div>
+</div>
+
+<div class="surface" id="surface-nouveau-wiki">
+  <h3>Nouveau wiki</h3>
+  <p style="font-size:.84rem; margin:0 0 .8rem; color:var(--encre-douce)">
+    Un wiki est <strong>thématique et vivant</strong> : il agrège toutes les extractions
+    du carnet qui touchent son sujet, et se met à jour par opérations de section
+    quand le carnet grossit. Il ne s'adopte pas, il se suit.</p>
+  <label class="champ-etiquette" for="wiki-sujet">Sujet</label>
+  <input class="champ-texte" id="wiki-sujet" value="Le seuil de passage en assemblée">
+  <div class="avertissement" id="wiki-recap"></div>
+  <div class="rangee-boutons">
+    <button class="bouton-plat principal" id="wiki-lancer">Créer le wiki</button>
+    <button class="bouton-plat" id="wiki-annuler">Annuler</button>
+  </div>
+</div>
+
+<div class="surface" id="surface-diff">
+  <h3>Mise à jour du wiki — opérations proposées</h3>
+  <p style="font-size:.84rem; margin:0 0 .6rem; color:var(--encre-douce)">
+    Le modèle ne réécrit pas l'article : il renvoie une liste d'opérations
+    (<span class="mono">AppendToSection</span>, <span class="mono">ReplaceSection</span>,
+    <span class="mono">InsertSection</span>, <span class="mono">NoChange</span>) qu'un applier
+    fusionne. Une opération dont le titre de section n'existe pas dans l'article est
+    <strong>rejetée mécaniquement</strong> — c'est une hallucination, pas une proposition.</p>
+  <div class="diff-operations" id="diff-operations"></div>
+  <div class="rangee-boutons">
+    <button class="bouton-plat principal" id="diff-accepter">Appliquer les opérations retenues</button>
+    <button class="bouton-plat" id="diff-annuler">Annuler</button>
+  </div>
+</div>
+
+<div class="pile-toasts" id="pile-toasts"></div>
+
+<script>
+/* =========================================================================
+   1. REFERENTIELS
+   ========================================================================= */
+var HYPOSTASE_VERS_FAMILLE = {
+  classification:'epistemique', axiome:'epistemique', theorie:'epistemique',
+  definition:'epistemique', formalisme:'epistemique',
+  phenomene:'empirique', evenement:'empirique', donnee:'empirique',
+  variable:'empirique', indice:'empirique',
+  hypothese:'speculatif', conjecture:'speculatif', approximation:'speculatif',
+  structure:'structurel', invariant:'structurel', dimension:'structurel', domaine:'structurel',
+  loi:'normatif', principe:'normatif', valeur:'normatif', croyance:'normatif',
+  aporie:'problematique', paradoxe:'problematique', probleme:'problematique',
+  mode:'mode', variation:'mode', variance:'mode', paradigme:'mode',
+  objet:'objet', methode:'objet'
+};
+var NOMS_DE_FAMILLES = {
+  epistemique:'Épistémique', empirique:'Empirique', speculatif:'Spéculatif',
+  structurel:'Structurel', normatif:'Normatif', problematique:'Problématique',
+  mode:'Mode / Variation', objet:'Objet / Méthode'
+};
+function familleDuTag(tag) { return HYPOSTASE_VERS_FAMILLE[tag] || 'objet'; }
+
+/* Les trois types de note. Le TYPE N'EST PAS COSMETIQUE : il exclut
+   mecaniquement les syntheses du corpus source, sinon au troisieme tour
+   le wiki se cite lui-meme et la deliberation disparait sous ses resumes.
+   / The type mechanically excludes syntheses from the source corpus. */
+var TYPE_NOTE = 'note', TYPE_WIKI = 'wiki', TYPE_SYNTHESE = 'synthese';
+function estUneSource(note) { return note.type === TYPE_NOTE; }
+
+/* =========================================================================
+   2. LE CORPUS MOCKE
+   Base -> carnets -> notes, avec les categories portees par la RELATION.
+   ========================================================================= */
+
+/* Les AXES de classement — c'est `ListeDeCategories` dans le modele, et
+   c'est le SEUL mot employe a l'ecran. Un axe porte des CATEGORIES.
+   Piege a eviter : l'un des axes du carnet s'appelle « Thème », ce qui
+   n'en fait pas un synonyme d'« axe ». D'ou l'affichage systematique du
+   nombre de categories a cote du nom de l'axe.
+   Praxis documente un plafond de 3 axes de 10 categories ; on n'en fait
+   pas une contrainte de base, seulement un avertissement d'interface.
+   / One axis = one ListeDeCategories, holding categories. */
+var AXES_CA = [
+  {nom:'Type',     categories:[
+    {id:'t-cr', nom:'Compte rendu', couleur:'#3b82f6'},
+    {id:'t-rap', nom:'Rapport',     couleur:'#8b5cf6'},
+    {id:'t-note', nom:'Note interne', couleur:'#06b6d4'},
+    {id:'t-ext', nom:'Source externe', couleur:'#14b8a6'}]},
+  {nom:'Thème',    categories:[
+    {id:'th-budget', nom:'Budget',      couleur:'#f59e0b'},
+    {id:'th-gouv',   nom:'Gouvernance', couleur:'#ec4899'},
+    {id:'th-local',  nom:'Local',       couleur:'#10b981'}]},
+  {nom:'Échéance', categories:[
+    {id:'e-tri', nom:'Ce trimestre', couleur:'#ef4444'},
+    {id:'e-passe', nom:'Passé',      couleur:'#6b7280'}]}
+];
+var AXES_VEILLE = [
+  {nom:'Type', categories:[
+    {id:'v-aap', nom:'Appel à projets', couleur:'#3b82f6'},
+    {id:'v-sub', nom:'Subvention',      couleur:'#8b5cf6'}]},
+  {nom:'Échéance', categories:[
+    {id:'v-mois', nom:'Ce mois-ci', couleur:'#ef4444'},
+    {id:'v-passe', nom:'Passé',     couleur:'#6b7280'}]}
+];
+
+/* Les extractions : la brique de preuve. Une extraction porte son ancrage
+   (note, element, offsets) ET son debat. C'est ce qu'une citation resout.
+   / An extraction carries its anchor AND its debate. */
+var EXTRACTIONS = [
+  {id:601, note:'n-conseil-12mars', element:1, debut:36, fin:92,
+   citation:"je voudrais qu'on prenne le temps de l'expliquer aux équipes",
+   resume:"L'explication aux équipes est posée en préalable à la décision.",
+   tags:['methode','principe'], statut:'nouveau', qui:'Marie', temps:'00:00–00:14',
+   commentaires:[]},
+  {id:602, note:'n-conseil-12mars', element:2, debut:0, fin:71,
+   citation:"On a déjà repoussé deux fois cette décision, à un moment il faut trancher",
+   resume:"L'ajournement répété est présenté comme un coût en soi.",
+   tags:['probleme'], statut:'commente', qui:'Jonas', temps:'00:14–00:27',
+   commentaires:[{qui:'Amina', quoi:"Deux reports, c'est factuel. Mais ça n'oblige pas à décider mal."},
+                 {qui:'Marie', quoi:"Je note qu'on n'a jamais dit pourquoi on avait reporté."}]},
+  {id:603, note:'n-conseil-12mars', element:3, debut:13, fin:88,
+   citation:"pas sans avoir consulté les personnes qui vont vivre avec cette décision",
+   resume:"La consultation des personnes concernées est érigée en condition de légitimité.",
+   tags:['principe','methode'], statut:'commente', qui:'Marie', temps:'00:27–00:43',
+   commentaires:[{qui:'Pierre', quoi:"C'est le principe 3 d'Ostrom, mot pour mot."}]},
+  {id:604, note:'n-conseil-12mars', element:4, debut:29, fin:97,
+   citation:"On est en train de décider pour des gens qui ne sont pas dans la pièce",
+   resume:"L'absence des personnes concernées est décrite comme un vice de procédure.",
+   tags:['probleme','phenomene'], statut:'commente', qui:'Amina', temps:'00:43–01:02',
+   commentaires:[{qui:'Jonas', quoi:"D'accord sur le constat, pas sur la conclusion."},
+                 {qui:'Sonia', quoi:"On pourrait les inviter en visio, ça lève l'objection."},
+                 {qui:'Marie', quoi:"La visio ne remplace pas le fait de les prévenir à l'avance."}]},
+  {id:606, note:'n-conseil-12mars', element:9, debut:0, fin:64,
+   citation:"Le sujet n'est pas le montant, c'est la manière dont on décide",
+   resume:"Le débat est déplacé du montant vers la procédure de décision.",
+   tags:['axiome','principe'], statut:'nouveau', qui:'Marie', temps:'01:48–02:07',
+   commentaires:[]},
+  {id:607, note:'n-conseil-12mars', element:9, debut:66, fin:124,
+   citation:"Dix mille euros engagés sans que personne ne l'ait vu passer",
+   resume:"Un engagement de dix mille euros a été pris hors du regard collectif.",
+   tags:['phenomene'], statut:'commente', qui:'Marie', temps:'01:48–02:07',
+   commentaires:[{qui:'Pierre', quoi:"Le montant est exact, je l'ai vérifié au compte 606."}]},
+  {id:608, note:'n-conseil-12mars', element:10, debut:19, fin:81,
+   citation:"Au-delà de dix mille euros, ça passe en assemblée générale",
+   resume:"Un seuil chiffré est proposé comme règle de passage en assemblée.",
+   tags:['methode'], statut:'nouveau', qui:'Jonas', temps:'02:07–02:21',
+   commentaires:[]},
+  {id:609, note:'n-conseil-12mars', element:11, debut:11, fin:112,
+   citation:"si on fixe un seuil en euros sans le réévaluer, dans cinq ans l'inflation l'aura vidé de son sens",
+   resume:"Un seuil nominal non indexé perd son sens avec le temps.",
+   tags:['conjecture','probleme'], statut:'commente', qui:'Sonia', temps:'02:21–02:41',
+   commentaires:[{qui:'Jonas', quoi:"On l'indexe sur le budget total, alors. Cinq pour cent."}]},
+  {id:610, note:'n-conseil-12mars', element:12, debut:14, fin:96,
+   citation:"qu'on repousse d'une semaine, qu'on invite les personnes concernées",
+   resume:"Une décision différée d'une semaine, en présence des concernés, est proposée.",
+   tags:['methode','mode'], statut:'nouveau', qui:'Marie', temps:'02:41–02:59',
+   commentaires:[]},
+
+  {id:301, note:'n-rapport-2024', element:3, debut:26, fin:104,
+   citation:"un excédent de 12 400 euros, contre un déficit de 3 100 euros l'année précédente",
+   resume:"Le résultat passe d'un déficit à un excédent d'une année sur l'autre.",
+   tags:['phenomene'], statut:'nouveau', page:3, commentaires:[]},
+  {id:302, note:'n-rapport-2024', element:5, debut:0, fin:39,
+   citation:"Le poste des salaires progresse de 4 %",
+   resume:"La masse salariale croît de quatre pour cent.",
+   tags:['phenomene'], statut:'commente', page:4,
+   commentaires:[{qui:'Sonia', quoi:"Sur douze mois pleins, ce sera plutôt 6 %."}]},
+  {id:303, note:'n-rapport-2024', element:6, debut:62, fin:117,
+   citation:"repose sur un accord verbal avec le propriétaire actuel",
+   resume:"L'allègement des charges n'est garanti par aucun écrit.",
+   tags:['probleme','conjecture'], statut:'commente', page:'4–5',
+   commentaires:[{qui:'Jonas', quoi:"C'est le vrai risque du budget. À mettre en tête du rapport."},
+                 {qui:'Amina', quoi:"Un avenant écrit coûte 300 € de notaire. On le fait ?"}]},
+
+  {id:304, note:'n-rapport-2024', element:6, debut:38, fin:145,
+   citation:"un accord verbal avec le propriétaire actuel. Rien ne garantit sa reconduction en cas de vente du local",
+   resume:"La reconduction du bail dépend du maintien du propriétaire actuel.",
+   tags:['conjecture'], statut:'nouveau', page:'4–5', commentaires:[]},
+  {id:605, note:'n-conseil-12mars', element:7, debut:19, fin:113,
+   citation:"quatre pour cent d'augmentation, essentiellement le coût de l'énergie et l'embauche au secrétariat",
+   resume:"La hausse budgétaire est rapportée à deux causes identifiées.",
+   tags:['phenomene'], statut:'nouveau', qui:'Sonia', temps:'01:19–01:36', commentaires:[]},
+
+  {id:701, note:'n-conseil-9fev', element:2, debut:0, fin:78,
+   citation:"On avait dit qu'on validerait le budget avant de signer quoi que ce soit",
+   resume:"Une règle de séquence budget-avant-signature avait déjà été posée.",
+   tags:['principe','methode'], statut:'commente', qui:'Pierre', temps:'00:11–00:24',
+   commentaires:[{qui:'Marie', quoi:"Et personne ne l'a appliquée depuis. C'est le sujet."}]},
+  {id:702, note:'n-conseil-9fev', element:5, debut:8, fin:70,
+   citation:"trois mille euros, c'est déjà beaucoup pour une décision de bureau",
+   resume:"Un premier seuil implicite, plus bas, avait été évoqué en février.",
+   tags:['conjecture'], statut:'nouveau', qui:'Amina', temps:'01:02–01:19', commentaires:[]},
+
+  {id:801, note:'n-statuts', element:4, debut:0, fin:96,
+   citation:"L'assemblée générale est seule compétente pour les engagements pluriannuels",
+   resume:"Les statuts réservent les engagements pluriannuels à l'assemblée générale.",
+   tags:['loi','structure'], statut:'nouveau', page:2, commentaires:[]},
+  {id:802, note:'n-statuts', element:7, debut:0, fin:83,
+   citation:"Le conseil rend compte de ses décisions à la plus prochaine assemblée",
+   resume:"Une obligation de compte rendu a posteriori pèse sur le conseil.",
+   tags:['loi','methode'], statut:'commente', page:3,
+   commentaires:[{qui:'Sonia', quoi:"Donc décider vite n'est pas illégal. C'est juste discutable."}]},
+
+  {id:503, note:'n-ostrom', element:6, debut:0, fin:84,
+   citation:"La plupart des personnes concernées par les règles peuvent participer à les modifier",
+   resume:"La légitimité d'une règle tient à qui peut la changer.",
+   tags:['principe'], statut:'commente',
+   commentaires:[{qui:'Pierre', quoi:"C'est le principe 3, mot pour mot. Utile à citer en AG."},
+                 {qui:'Marie', quoi:"« Peuvent participer », pas « participent ». La nuance compte."}]},
+  {id:504, note:'n-ostrom', element:7, debut:56, fin:139,
+   citation:"personne n'est structurellement empêché de peser sur les règles qui le concernent",
+   resume:"Le critère porte sur l'absence d'empêchement, pas sur la participation effective.",
+   tags:['principe','mode'], statut:'commente',
+   commentaires:[{qui:'Amina', quoi:"C'est la différence entre une porte ouverte et une invitation."}]}
+];
+
+var NOTES = [
+  {id:'n-conseil-12mars', type:TYPE_NOTE, titre:"Conseil du 12 mars — enregistrement",
+   source:"audio · 3 min 12 · 5 locuteurs", date:"12 mars 2026", extraits:9, maquettee:true},
+  {id:'n-rapport-2024', type:TYPE_NOTE, titre:"Rapport annuel 2024 — Coopérative des Trois Vallées",
+   source:"PDF · 18 pages", date:"3 mars 2026", extraits:4, maquettee:true},
+  /* Le compte d'extraits est DERIVE des donnees, jamais saisi : un compte
+     annonce qui diverge du reel casserait « ecartees = perimetre − citees ».
+     / Counts are derived, never typed. */
+  {id:'n-conseil-9fev', type:TYPE_NOTE, titre:"Conseil du 9 février — enregistrement",
+   source:"audio · 2 min 41 · 4 locuteurs", date:"9 février 2026", extraits:2},
+  {id:'n-statuts', type:TYPE_NOTE, titre:"Statuts de la coopérative — version 2023",
+   source:"PDF · 11 pages", date:"14 janvier 2026", extraits:2},
+  {id:'n-ostrom', type:TYPE_NOTE, titre:"Ce que les communs nous apprennent de la gouvernance",
+   source:"capture web · lemondeducommun.fr", date:"8 mars 2026", extraits:2, maquettee:true},
+  {id:'n-adr007', type:TYPE_NOTE, titre:"ADR 007 — Ancrage par élément",
+   source:"Markdown · 4 200 signes", date:"12 mars 2026", extraits:0, maquettee:true},
+  /* Les syntheses SONT des notes du carnet — c'est le point du modele.
+     Elles y sont donc listees, avec leur type, ce qui rend le garde-fou
+     anti-auto-citation REEL : estUneSource() a quelque chose a filtrer.
+     / Syntheses are notes, so the anti-self-citation guard has real work. */
+  {id:'w-decision', type:TYPE_WIKI, titre:"La procédure de décision",
+   source:"wiki · 4 sections", date:"14 mars 2026", extraits:0},
+  {id:'w-bail', type:TYPE_WIKI, titre:"Le bail et les charges",
+   source:"wiki · 2 sections", date:"11 mars 2026", extraits:0},
+  {id:'s-12mars', type:TYPE_SYNTHESE, titre:"Synthèse du conseil du 12 mars",
+   source:"synthèse dirigée · figée", date:"12 mars 2026", extraits:0},
+  {id:'s-gouvernance', type:TYPE_SYNTHESE, titre:"État du débat sur la gouvernance — axe Thème",
+   source:"synthèse dirigée · figée", date:"14 mars 2026", extraits:0}
+];
+
+/* Les appartenances : LA piece centrale. Les categories sont ICI, sur la
+   RELATION note<->carnet — pas sur la note. Une meme note porte des
+   etiquettes differentes selon le carnet. / Categories live on the relation. */
+var APPARTENANCES = [
+  {note:'n-conseil-12mars', carnet:'c-ca', categories:['t-cr','th-gouv','e-tri'],
+   epinglee:true,  ordre:1, integree_par:'Jonas', integree_le:'12 mars 2026'},
+  {note:'n-rapport-2024',  carnet:'c-ca', categories:['t-rap','th-budget','e-tri'],
+   epinglee:false, ordre:2, integree_par:'Sonia', integree_le:'3 mars 2026'},
+  {note:'n-conseil-9fev',  carnet:'c-ca', categories:['t-cr','th-gouv','e-passe'],
+   epinglee:false, ordre:3, integree_par:'Jonas', integree_le:'9 février 2026'},
+  {note:'n-statuts',       carnet:'c-ca', categories:['t-note','th-gouv'],
+   epinglee:false, ordre:4, integree_par:'Marie', integree_le:'14 janvier 2026'},
+  {note:'n-ostrom',        carnet:'c-ca', categories:['t-ext','th-gouv'],
+   epinglee:false, ordre:5, integree_par:'Pierre', integree_le:'8 mars 2026'},
+  /* La MEME note dans un autre carnet, avec d'AUTRES categories. */
+  {note:'n-ostrom',        carnet:'c-communs', categories:[], epinglee:true, ordre:1,
+   integree_par:'Pierre', integree_le:'8 mars 2026'},
+  {note:'n-rapport-2024',  carnet:'c-veille', categories:['v-sub','v-passe'],
+   epinglee:false, ordre:1, integree_par:'Sonia', integree_le:'3 mars 2026'},
+  {note:'n-adr007',        carnet:'c-technique', categories:[], epinglee:false, ordre:1,
+   integree_par:'Jonas', integree_le:'12 mars 2026'},
+  {note:'w-decision',   carnet:'c-ca', categories:['th-gouv'], epinglee:false, ordre:6,
+   integree_par:'Marie', integree_le:'14 mars 2026'},
+  {note:'w-bail',       carnet:'c-ca', categories:['th-budget'], epinglee:false, ordre:7,
+   integree_par:'Marie', integree_le:'11 mars 2026'},
+  {note:'s-12mars',     carnet:'c-ca', categories:['t-cr','th-gouv'], epinglee:false, ordre:8,
+   integree_par:'Jonas', integree_le:'12 mars 2026'},
+  {note:'s-gouvernance', carnet:'c-ca', categories:['th-gouv'], epinglee:false, ordre:9,
+   integree_par:'Jonas', integree_le:'14 mars 2026'}
+];
+
+var CARNETS = [
+  {id:'c-ca', nom:"Conseil d'administration", visibilite:'partage', axes:AXES_CA,
+   guide:"Une note par séance. Le titre porte la date. On range en « Compte rendu » "
+       + "les transcriptions, en « Note interne » les documents produits par le conseil, "
+       + "en « Source externe » ce qui vient d'ailleurs. L'axe Échéance sert au tri de fin "
+       + "de trimestre : passez en « Passé » ce qui est clos."},
+  {id:'c-veille', nom:"Veille financement", visibilite:'public', axes:AXES_VEILLE,
+   guide:"Un appel à projets par note. Datez l'échéance dans le titre."},
+  {id:'c-communs', nom:"Communs et gouvernance", visibilite:'public', axes:[], guide:""},
+  {id:'c-technique', nom:"Décisions techniques", visibilite:'prive', axes:[], guide:""}
+];
+
+/* =========================================================================
+   3. LES SYNTHESES — deux genres, un seul modele de citation
+   Chaque affirmation porte : son texte, ses sources (ids d'extraction), et
+   son etat de verification. L'etat vient d'un controle en DEUX temps :
+     · verbatim — le texte cite existe-t-il litteralement dans la source ?
+     · NLI      — la source implique-t-elle vraiment l'affirmation ?
+   80,6 % des affirmations invérifiables sont des ERREURS D'ATTRIBUTION,
+   pas des hallucinations : c'est reparable, d'ou cet etage.
+   ========================================================================= */
+var WIKIS = [
+  {id:'w-decision', type:TYPE_WIKI, carnet:'c-ca',
+   titre:"La procédure de décision",
+   sujet:"Comment le conseil décide, et à quelles conditions une décision est tenue pour légitime",
+   maj:"14 mars 2026, 09:12", tours:4, modele:"claude-sonnet-4-20250514",
+   sections:[
+     {heading:"Ce qui est établi", paragraphes:[
+       {texte:"Le conseil s'est donné une règle de séquence — valider le budget avant de signer — et cette règle n'a pas été appliquée depuis qu'elle a été posée.",
+        sources:[701], verification:'verifie'},
+       {texte:"Les statuts réservent les engagements pluriannuels à l'assemblée générale et imposent au conseil de rendre compte de ses décisions à la plus prochaine assemblée.",
+        sources:[801,802], verification:'verifie'},
+       {texte:"Un engagement de dix mille euros a été pris sans passer par le collectif, montant vérifié au compte 606.",
+        sources:[607], verification:'verifie'}]},
+     {heading:"Le point de désaccord", paragraphes:[
+       {texte:"Deux lectures s'opposent sur ce qui fait problème. Pour l'une, le retard répété est un coût en soi et il faut trancher ; pour l'autre, le sujet n'est pas le montant mais la manière dont on décide.",
+        sources:[602,606], verification:'verifie'},
+       {texte:"L'absence des personnes concernées est décrite comme un vice de procédure, et cette description est elle-même contestée : on accorde le constat sans en tirer la même conclusion.",
+        sources:[604], verification:'verifie'},
+       {texte:"Une visioconférence a été proposée pour lever l'objection, mais elle ne répond pas au reproche de ne pas avoir prévenu à l'avance.",
+        sources:[604], verification:'faible'}]},
+     {heading:"Les règles proposées", paragraphes:[
+       {texte:"Un seuil de dix mille euros déclencherait le passage en assemblée générale.",
+        sources:[608], verification:'verifie'},
+       {texte:"Ce seuil est contesté sur sa durabilité : non indexé, il perdrait son sens en cinq ans sous l'effet de l'inflation. Une indexation sur le budget total a été avancée en réponse.",
+        sources:[609], verification:'verifie'},
+       {texte:"Un seuil plus bas, de trois mille euros, avait été évoqué en février sans être retenu.",
+        sources:[702], verification:'faible'},
+       {texte:"La pratique du conseil converge vers une règle de consultation préalable des personnes concernées.",
+        sources:[], verification:'non_source'}]},
+     {heading:"Ce que dit la littérature", paragraphes:[
+       {texte:"Le critère de légitimité retenu dans le débat recoupe le troisième principe d'Ostrom : la plupart des personnes concernées par les règles peuvent participer à les modifier.",
+        sources:[503], verification:'verifie'},
+       {texte:"La formulation est prudente : le critère porte sur l'absence d'empêchement structurel, pas sur la participation effective.",
+        sources:[504], verification:'verifie'}]}
+   ],
+   /* Ce que le wiki N'A PAS repris. Difference ensembliste, cout LLM nul.
+      C'est ce qui rend une synthese contestable — donc utilisable. */
+   ecartees:[601,603,610,301,302,303]},
+
+  {id:'w-bail', type:TYPE_WIKI, carnet:'c-ca',
+   titre:"Le bail et les charges",
+   sujet:"L'état du bail commercial et son effet sur les comptes",
+   maj:"11 mars 2026, 16:40", tours:2, modele:"claude-sonnet-4-20250514",
+   sections:[
+     {heading:"L'état des comptes", paragraphes:[
+       {texte:"L'exercice 2024 se clôt sur un excédent de 12 400 euros, après un déficit de 3 100 euros l'année précédente.",
+        sources:[301], verification:'verifie'},
+       {texte:"La masse salariale progresse de quatre pour cent, une estimation contestée : sur douze mois pleins, elle serait plutôt de six pour cent.",
+        sources:[302], verification:'verifie'}]},
+     {heading:"Le risque non couvert", paragraphes:[
+       {texte:"Le redressement tient à une renégociation de bail qui repose sur un accord verbal avec le propriétaire actuel. Rien ne garantit sa reconduction.",
+        sources:[303], verification:'verifie'},
+       {texte:"Un avenant écrit a été chiffré à trois cents euros de notaire ; la décision de le faire n'est pas prise.",
+        sources:[303], verification:'faible'}]}
+   ],
+   ecartees:[601,602,603,604,605,606,607,608,609,610,701,702,801,802,503,504]}
+];
+
+var SYNTHESES = [
+  {id:'s-12mars', type:TYPE_SYNTHESE, carnet:'c-ca',
+   titre:"Synthèse du conseil du 12 mars",
+   axe:"— portée : une note", produite:"12 mars 2026, 21:04", figee:true,
+   modele:"claude-sonnet-4-20250514", portee:['n-conseil-12mars'],
+   sections:[
+     {heading:"Ce qui a été décidé", paragraphes:[
+       {texte:"La décision est reportée d'une semaine, avec invitation des personnes concernées à la séance suivante.",
+        sources:[610], verification:'verifie'},
+       {texte:"L'ordre du jour sera transmis par écrit.",
+        sources:[], verification:'non_source'}]},
+     {heading:"Ce qui reste ouvert", paragraphes:[
+       {texte:"Le seuil de dix mille euros pour le passage en assemblée est proposé mais pas adopté ; son indexation n'est pas tranchée.",
+        sources:[608,609], verification:'verifie'},
+       {texte:"Le désaccord de fond porte sur la place du montant dans le débat : pour une partie du conseil, la question est procédurale et non financière.",
+        sources:[606,602], verification:'verifie'}]},
+     {heading:"Les positions exprimées", paragraphes:[
+       {texte:"La consultation préalable des personnes concernées est posée comme condition de légitimité, avec un appui explicite au troisième principe d'Ostrom.",
+        sources:[603], verification:'verifie'},
+       {texte:"L'absence des concernés est qualifiée de vice de procédure ; ce constat est partagé, sa conclusion ne l'est pas.",
+        sources:[604], verification:'verifie'}]}
+   ],
+   ecartees:[601,605,607,701,702,801,802,503,504,301,302,303,304]},
+
+  {id:'s-gouvernance', type:TYPE_SYNTHESE, carnet:'c-ca',
+   titre:"État du débat sur la gouvernance — axe Thème",
+   axe:"— dirigée par l'axe « Thème », catégorie « Gouvernance »",
+   produite:"14 mars 2026, 08:30", figee:true, modele:"claude-sonnet-4-20250514",
+   portee:['n-conseil-12mars','n-conseil-9fev','n-statuts','n-ostrom'],
+   sections:[
+     {heading:"Le cadre statutaire", paragraphes:[
+       {texte:"Les statuts réservent les engagements pluriannuels à l'assemblée et imposent un compte rendu a posteriori. Décider vite n'est donc pas irrégulier, seulement discutable.",
+        sources:[801,802], verification:'verifie'}]},
+     {heading:"La règle que le conseil se donne", paragraphes:[
+       {texte:"Une règle de séquence budget-avant-signature avait été posée en février et n'a pas été suivie.",
+        sources:[701], verification:'verifie'},
+       {texte:"La consultation préalable des personnes concernées est avancée comme condition de légitimité, et rattachée au troisième principe d'Ostrom.",
+        sources:[603,503], verification:'verifie'},
+       {texte:"Le critère retenu porte sur l'absence d'empêchement, pas sur la participation effective.",
+        sources:[504], verification:'verifie'}]},
+     {heading:"Ce qui bloque", paragraphes:[
+       {texte:"L'absence des concernés est qualifiée de vice de procédure, sans accord sur la conclusion à en tirer.",
+        sources:[604], verification:'verifie'},
+       {texte:"L'ajournement répété est opposé comme un coût en soi.",
+        sources:[602], verification:'verifie'}]}
+   ],
+   ecartees:[601,605,607,608,609,610,702,301,302,303,304]}
+];
+
+/* Les operations que le modele propose au prochain tour du wiki.
+   La derniere est REJETEE mecaniquement : son heading n'existe pas. */
+var OPERATIONS_PROPOSEES = [
+  {op:'AppendToSection', heading:"Les règles proposées",
+   contenu:"Une indexation du seuil sur le budget total, à hauteur de cinq pour cent, a été avancée en réponse à l'objection d'érosion.",
+   sources:[609]},
+  {op:'InsertSection', heading:"Ce qui n'a pas été tranché", after_heading:"Les règles proposées",
+   contenu:"Le report d'une semaine est acquis, mais ni le seuil ni son mode de révision n'ont été adoptés.",
+   sources:[610,608]},
+  {op:'ReplaceSection', heading:"Ce que dit la littérature",
+   contenu:"Le critère de légitimité recoupe le troisième principe d'Ostrom, dont la formulation prudente porte sur l'absence d'empêchement structurel.",
+   sources:[503,504]},
+  {op:'InsertSection', heading:"Recommandations du conseil", after_heading:"Conclusion générale",
+   contenu:"Le conseil recommande d'adopter le seuil dès la prochaine séance.",
+   sources:[], rejetee:true,
+   motif:"after_heading « Conclusion générale » est absent de l'article : hallucination, opération jetée."}
+];
+
+/* =========================================================================
+   4. OUTILS
+   ========================================================================= */
+var corps = document.body;
+var carnetCourant = 'c-ca';
+var filtresActifs = {};      /* {nomAxe: Set(idCategorie)} pour l'onglet notes */
+var filtresAlignement = {};
+var articleOuvert = null;
+
+function echapper(t) {
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                  .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(message, genre) {
+  var t = document.createElement('div');
+  t.className = 'toast'; if (genre) t.dataset.genre = genre;
+  t.textContent = message;
+  document.getElementById('pile-toasts').appendChild(t);
+  setTimeout(function () { t.remove(); }, 3400);
+}
+function leCarnet(id) { return CARNETS.find(function (c) { return c.id === id; }); }
+function laNote(id)   { return NOTES.find(function (n) { return n.id === id; }); }
+function nombreDExtraits(idDeNote) {
+  return EXTRACTIONS.filter(function (e) { return e.note === idDeNote; }).length;
+}
+function lExtraction(id) { return EXTRACTIONS.find(function (e) { return e.id === id; }); }
+function laCategorie(carnet, id) {
+  var trouvee = null;
+  (leCarnet(carnet).axes || []).forEach(function (axe) {
+    axe.categories.forEach(function (c) { if (c.id === id) trouvee = c; });
+  });
+  return trouvee;
+}
+function appartenancesDuCarnet(carnet) {
+  return APPARTENANCES.filter(function (a) { return a.carnet === carnet; });
+}
+function carnetsDeLaNote(note) {
+  return APPARTENANCES.filter(function (a) { return a.note === note; });
+}
+function articlesDuCarnet(carnet, type) {
+  return (type === TYPE_WIKI ? WIKIS : SYNTHESES)
+    .filter(function (a) { return a.carnet === carnet; });
+}
+
+/* Les facettes : OU dans un axe, ET entre les axes (spec § 8.2). */
+function passeLesFiltres(appartenance, filtres, carnet) {
+  var axes = leCarnet(carnet).axes || [];
+  return axes.every(function (axe) {
+    var choisies = filtres[axe.nom];
+    if (!choisies || choisies.size === 0) return true;         /* axe inactif */
+    return appartenance.categories.some(function (c) { return choisies.has(c); });
+  });
+}
+function notesFiltrees(carnet, filtres, avecLesSyntheses) {
+  return appartenancesDuCarnet(carnet)
+    .filter(function (a) { return avecLesSyntheses || estUneSource(laNote(a.note)); })
+    .filter(function (a) { return passeLesFiltres(a, filtres, carnet); })
+    .sort(function (a, b) {
+      if (a.epinglee !== b.epinglee) return a.epinglee ? -1 : 1;
+      return a.ordre - b.ordre;
+    });
+}
+function extractionsDuPerimetre(idsDeNotes) {
+  return EXTRACTIONS.filter(function (e) { return idsDeNotes.indexOf(e.note) !== -1; });
+}
+
+/* =========================================================================
+   5. FIL D'ARIANE ET BASCULE DE CARNET
+   ========================================================================= */
+function rendreLeFil() {
+  document.getElementById('fil-carnet').innerHTML =
+    echapper(leCarnet(carnetCourant).nom) + ' ▾';
+  var menu = document.getElementById('menu-bascule');
+  menu.innerHTML = CARNETS.map(function (c) {
+    var icone = c.visibilite === 'public' ? '🌐' : (c.visibilite === 'partage' ? '👥' : '🔒');
+    return '<button data-carnet="' + c.id + '" role="menuitem" aria-current="' +
+      (c.id === carnetCourant) + '">' + icone + ' ' + echapper(c.nom) +
+      '<span class="etiquettes">' + appartenancesDuCarnet(c.id).length + ' notes</span></button>';
+  }).join('');
+}
+document.getElementById('fil-carnet').addEventListener('click', function (e) {
+  e.stopPropagation();
+  var menu = document.getElementById('menu-bascule');
+  var ouvert = menu.classList.toggle('est-visible');
+  this.setAttribute('aria-expanded', ouvert);
+});
+document.getElementById('menu-bascule').addEventListener('click', function (e) {
+  var bouton = e.target.closest('button[data-carnet]');
+  if (!bouton) return;
+  changerDeCarnet(bouton.dataset.carnet);
+  this.classList.remove('est-visible');
+  document.getElementById('fil-carnet').setAttribute('aria-expanded', 'false');
+});
+document.addEventListener('click', function () {
+  document.getElementById('menu-bascule').classList.remove('est-visible');
+  document.getElementById('fil-carnet').setAttribute('aria-expanded', 'false');
+});
+
+function changerDeCarnet(id) {
+  carnetCourant = id;
+  filtresActifs = {};
+  filtresAlignement = {};
+  articleOuvert = null;
+  document.getElementById('article-wiki').hidden = true;
+  document.getElementById('article-synthese').hidden = true;
+  document.getElementById('liste-wikis').hidden = false;
+  document.getElementById('liste-syntheses').hidden = false;
+  rendreTout();
+  toast('Carnet : ' + leCarnet(id).nom);
+}
+
+/* =========================================================================
+   6. VUE CARNET — onglet notes
+   ========================================================================= */
+function rendreLesFacettes(conteneurId, filtres, surChangement) {
+  var carnet = leCarnet(carnetCourant);
+  var zone = document.getElementById(conteneurId);
+  if (!carnet.axes || !carnet.axes.length) {
+    zone.innerHTML = '<div class="resume-filtres">Ce carnet n\'a pas encore d\'axe de classement.</div>';
+    return;
+  }
+  zone.innerHTML = carnet.axes.map(function (axe) {
+    return '<div class="axe"><span class="nom-axe">' + echapper(axe.nom) +
+      ' <span style="opacity:.6">(' + axe.categories.length + ')</span></span>' +
+      '<div class="categories">' + axe.categories.map(function (c) {
+        var active = filtres[axe.nom] && filtres[axe.nom].has(c.id);
+        return '<button class="puce-categorie" data-axe="' + echapper(axe.nom) +
+          '" data-categorie="' + c.id + '" style="--teinte:' + c.couleur +
+          '" aria-pressed="' + (active ? 'true' : 'false') + '">' + echapper(c.nom) + '</button>';
+      }).join('') + '</div></div>';
+  }).join('');
+
+  zone.onclick = function (e) {
+    var puce = e.target.closest('.puce-categorie');
+    if (!puce) return;
+    var axe = puce.dataset.axe, id = puce.dataset.categorie;
+    if (!filtres[axe]) filtres[axe] = new Set();
+    filtres[axe].has(id) ? filtres[axe].delete(id) : filtres[axe].add(id);
+    surChangement();
+  };
+}
+
+function texteDesFiltres(filtres) {
+  var morceaux = [];
+  Object.keys(filtres).forEach(function (axe) {
+    if (!filtres[axe] || !filtres[axe].size) return;
+    var noms = Array.from(filtres[axe]).map(function (id) {
+      var c = laCategorie(carnetCourant, id); return c ? c.nom : id;
+    });
+    morceaux.push(axe + ' : ' + noms.join(' OU '));
+  });
+  return morceaux.length ? morceaux.join('  ET  ') : '';
+}
+
+function rendreLesNotes() {
+  var retenues = notesFiltrees(carnetCourant, filtresActifs);
+  var toutes = appartenancesDuCarnet(carnetCourant);
+  var texte = texteDesFiltres(filtresActifs);
+  document.getElementById('resume-filtres').innerHTML =
+    '<span>' + retenues.length + ' sur ' + toutes.length + ' notes</span>' +
+    (texte ? '<span style="opacity:.75">' + echapper(texte) + '</span>' +
+             '<button class="bouton-plat" id="vider-filtres">Tout afficher</button>' : '');
+  var vider = document.getElementById('vider-filtres');
+  if (vider) vider.onclick = function () { filtresActifs = {}; rendreLesFacettes('facettes-carnet', filtresActifs, rendreLesNotes); rendreLesNotes(); };
+
+  var liste = document.getElementById('liste-notes');
+  if (!retenues.length) {
+    liste.innerHTML = '<li class="vide">Aucune note ne correspond à ces filtres.</li>';
+    return;
+  }
+  liste.innerHTML = retenues.map(function (a, rang) {
+    var note = laNote(a.note);
+    var autres = carnetsDeLaNote(a.note).length;
+    return '<li class="ligne-note" data-note="' + a.note + '">' +
+      '<span class="rang">' + (a.epinglee ? '<span class="epingle-marque" title="Épinglée">📌</span>' :
+        '<span>' + (rang + 1) + '</span>') + '</span>' +
+      '<span><span class="titre-note">' + echapper(note.titre) + '</span>' +
+        '<span class="sous-note"><span>' + echapper(note.source) + '</span>' +
+          '<span>· ' + nombreDExtraits(a.note) + ' extractions</span>' +
+          (autres > 1 ? '<span>· dans ' + autres + ' carnets</span>' : '') +
+        '</span>' +
+        '<span class="etiquettes">' + a.categories.map(function (id) {
+          var c = laCategorie(carnetCourant, id);
+          return c ? '<span class="etiquette-categorie" style="--teinte:' + c.couleur + '">' +
+            echapper(c.nom) + '</span>' : '';
+        }).join('') + '</span>' +
+      '</span>' +
+      '<span class="boutons-ordre">' +
+        '<button class="monter" title="Monter" aria-label="Monter cette note">▲</button>' +
+        '<button class="descendre" title="Descendre" aria-label="Descendre cette note">▼</button>' +
+      '</span></li>';
+  }).join('');
+}
+
+document.getElementById('liste-notes').addEventListener('click', function (e) {
+  var ligne = e.target.closest('.ligne-note');
+  if (!ligne) return;
+  /* Ordre manuel au CLAVIER autant qu'a la souris : la spec § 8.3 exige
+     une alternative au glisser-deposer, qui a d'ailleurs ete abandonne. */
+  if (e.target.closest('.monter') || e.target.closest('.descendre')) {
+    var pas = e.target.closest('.monter') ? -1 : 1;
+    var retenues = notesFiltrees(carnetCourant, filtresActifs);
+    var index = retenues.findIndex(function (a) { return a.note === ligne.dataset.note; });
+    var voisin = retenues[index + pas];
+    if (!voisin) { toast('Déjà à l\'extrémité de la liste.'); return; }
+    var courante = retenues[index];
+    var tampon = courante.ordre; courante.ordre = voisin.ordre; voisin.ordre = tampon;
+    if (courante.epinglee !== voisin.epinglee) { courante.epinglee = voisin.epinglee; }
+    rendreLesNotes();
+    toast('Ordre modifié — l\'ordre manuel donne le fil narratif du carnet.');
+    return;
+  }
+  window.location.href = 'maquette.html';
+});
+
+/* =========================================================================
+   7. VUE BASE
+   ========================================================================= */
+function rendreLaBase() {
+  document.getElementById('meta-base').textContent =
+    CARNETS.length + ' carnets · ' + NOTES.length + ' notes · ' +
+    (WIKIS.length + SYNTHESES.length) + ' synthèses';
+  document.getElementById('facettes-base').innerHTML =
+    '<div class="resume-filtres">La base porte ses propres axes de classement, appliqués aux ' +
+    '<strong>carnets</strong> — mêmes règles, un cran au-dessus.</div>';
+  document.getElementById('liste-carnets').innerHTML = CARNETS.map(function (c) {
+    var icone = c.visibilite === 'public' ? '🌐' : (c.visibilite === 'partage' ? '👥' : '🔒');
+    var wikis = articlesDuCarnet(c.id, TYPE_WIKI).length;
+    var syntheses = articlesDuCarnet(c.id, TYPE_SYNTHESE).length;
+    return '<li class="ligne-note" data-carnet="' + c.id + '">' +
+      '<span class="rang">' + icone + '</span>' +
+      '<span><span class="titre-note">' + echapper(c.nom) + '</span>' +
+        '<span class="sous-note"><span>' + appartenancesDuCarnet(c.id).length + ' notes</span>' +
+        (wikis ? '<span>· ' + wikis + ' wiki' + (wikis > 1 ? 's' : '') + '</span>' : '') +
+        (syntheses ? '<span>· ' + syntheses + ' synthèse' + (syntheses > 1 ? 's' : '') + '</span>' : '') +
+        '<span>· ' + (c.axes || []).length + ' axes de classement</span></span></span>' +
+      '<span class="boutons-ordre"></span></li>';
+  }).join('');
+}
+document.getElementById('liste-carnets').addEventListener('click', function (e) {
+  var ligne = e.target.closest('.ligne-note');
+  if (!ligne) return;
+  changerDeCarnet(ligne.dataset.carnet);
+  allerA('carnet');
+});
+
+/* =========================================================================
+   8. LES ARTICLES — wiki et synthèse dirigée
+   ========================================================================= */
+function htmlDesBadges(tags) {
+  return tags.map(function (tag) {
+    var famille = familleDuTag(tag);
+    return '<span class="badge-hypostase" title="famille ' + NOMS_DE_FAMILLES[famille] +
+      '" style="color:var(--hypostase-' + famille + '-text)">' + echapper(tag) + '</span>';
+  }).join('');
+}
+
+/* Les renvois [N] sont numerotes A L'AFFICHAGE, par ordre d'apparition, et
+   resolus MECANIQUEMENT vers des ids d'extraction. On ne stocke jamais un
+   numero : un index de chunk est instable entre deux ingestions, et une
+   citation stockee par index pointe vers autre chose apres reindexation.
+   / Numbers are display-time only; ids are what is stored. */
+function numeroterLesRenvois(article) {
+  var ordre = [], vus = {};
+  article.sections.forEach(function (section) {
+    section.paragraphes.forEach(function (p) {
+      p.sources.forEach(function (id) {
+        if (!(id in vus)) { vus[id] = ordre.length + 1; ordre.push(id); }
+      });
+    });
+  });
+  return {numeroDe:vus, ordre:ordre};
+}
+
+function htmlDUnArticle(article) {
+  var numerotation = numeroterLesRenvois(article);
+  var estWiki = article.type === TYPE_WIKI;
+
+  var entete =
+    '<div class="bandeau-genre" data-genre="' + article.type + '">' +
+      (estWiki ? '<span class="pastille-vivante"></span>wiki vivant'
+               : '▤ synthèse dirigée · figée') + '</div>' +
+    '<div class="entete-article">' +
+      (estWiki
+        ? '<div class="ligne"><span>Sujet</span><span>' + echapper(article.sujet) + '</span></div>' +
+          '<div class="ligne"><span>Dernière mise à jour</span><span>' + article.maj + '</span></div>' +
+          '<div class="ligne"><span>Tours de mise à jour</span><span>' + article.tours + '</span></div>'
+        : '<div class="ligne"><span>Produite le</span><span>' + article.produite + '</span></div>' +
+          '<div class="ligne"><span>Portée</span><span>' + article.portee.length + ' notes</span></div>' +
+          '<div class="ligne"><span>Direction</span><span>' + echapper(article.axe) + '</span></div>') +
+      '<div class="ligne"><span>Modèle</span><span>' + article.modele + '</span></div>' +
+      '<div class="ligne"><span>Sources citées</span><span>' + numerotation.ordre.length +
+        ' extractions</span></div>' +
+    '</div>';
+
+  var legende =
+    '<div class="legende-verification">' +
+      '<span><i style="background:var(--verifie)"></i>vérifié — verbatim + implication</span>' +
+      '<span><i style="background:var(--faible)"></i>faible — la source n\'implique pas tout</span>' +
+      '<span><i style="background:var(--non-source)"></i>non sourcé — aucune extraction ne le porte</span>' +
+    '</div>';
+
+  var corpsArticle = article.sections.map(function (section) {
+    return '<h2>' + echapper(section.heading) + '</h2>' +
+      section.paragraphes.map(function (p, i) {
+        var renvois = p.sources.map(function (id) {
+          return '<button class="renvoi" data-extraction="' + id + '" ' +
+            'title="Voir la preuve">[' + numerotation.numeroDe[id] + ']</button>';
+        }).join('');
+        return '<p><span class="affirmation" data-verification="' + p.verification +
+          '" data-sources="' + p.sources.join(',') + '" tabindex="0">' +
+          echapper(p.texte) + '</span> ' + renvois + '</p>';
+      }).join('');
+  }).join('');
+
+  /* Ce qui n'a PAS ete repris : difference ensembliste, cout nul. */
+  var ecartees = (article.ecartees || []).map(lExtraction).filter(Boolean);
+  var blocEcarte =
+    '<details class="ecarte"' + (ecartees.length ? '' : ' hidden') + '>' +
+      '<summary>' + ecartees.length + ' extractions du périmètre n\'ont pas été reprises</summary>' +
+      '<div class="contenu-ecarte">' +
+        '<p class="explication">Une synthèse dit ce qu\'elle retient ; elle ne dit jamais ce ' +
+        'qu\'elle a laissé de côté. C\'est pourtant une simple différence d\'ensembles — les ' +
+        'extractions du périmètre moins celles qui sont citées — donc calculable sans aucun ' +
+        'appel au modèle. C\'est ce qui rend une synthèse contestable, et donc utilisable ' +
+        'dans une gouvernance.</p>' +
+        ecartees.map(htmlDUneCartePreuve).join('') +
+      '</div></details>';
+
+  var actions = estWiki
+    ? '<div class="rangee-boutons" style="margin-top:1.5rem">' +
+        '<button class="bouton-plat principal js-maj-wiki">↻ Mettre à jour</button>' +
+        '<button class="bouton-plat js-retour-liste">◀ Tous les wikis</button></div>'
+    : '<div class="rangee-boutons" style="margin-top:1.5rem">' +
+        '<button class="bouton-plat js-retour-liste">◀ Toutes les synthèses</button>' +
+        '<button class="bouton-plat" disabled title="Une synthèse dirigée est figée : ' +
+          'c\'est un acte daté, pas un texte vivant. Pour un texte qui suit le carnet, ' +
+          'créez un wiki.">↻ Mettre à jour</button></div>';
+
+  return '<h1 style="font-size:1.5rem; margin:0 0 .5rem; letter-spacing:-.015em">' +
+    echapper(article.titre) + '</h1>' + entete + legende +
+    '<div class="article-synthese">' + corpsArticle + '</div>' + blocEcarte + actions;
+}
+
+function htmlDUneCartePreuve(extraction) {
+  var note = laNote(extraction.note);
+  var provenance = extraction.qui
+    ? extraction.qui + ' · ' + extraction.temps
+    : (extraction.page ? 'p. ' + extraction.page : '');
+  return '<article class="carte-preuve" data-extraction="' + extraction.id + '">' +
+    '<div class="entete-preuve">' +
+      '<span class="indicateur-statut" data-statut="' + extraction.statut + '"></span>' +
+      htmlDesBadges(extraction.tags) +
+      '<span class="provenance">' + echapper(note.titre.slice(0, 34)) +
+        (note.titre.length > 34 ? '…' : '') + (provenance ? ' · ' + provenance : '') + '</span>' +
+    '</div>' +
+    '<p class="resume-machine">' + echapper(extraction.resume) + '</p>' +
+    '<p class="citation-exacte">« ' + echapper(extraction.citation) + ' »</p>' +
+    (extraction.commentaires.length
+      ? '<div class="debat">' + extraction.commentaires.map(function (c) {
+          return '<div><span class="qui">' + echapper(c.qui) + '</span> — ' +
+                 echapper(c.quoi) + '</div>'; }).join('') + '</div>'
+      : '') +
+    /* Selecteurs W3C : la redondance est ce qui permet de retrouver
+       l'ancre apres edition du document. */
+    '<div class="selecteurs">' +
+      'TextQuoteSelector · exact = « ' + echapper(extraction.citation.slice(0, 40)) + '… »<br>' +
+      'TextPositionSelector · element ' + extraction.element +
+        ', start ' + extraction.debut + ', end ' + extraction.fin +
+      (extraction.temps ? '<br>FragmentSelector · #t=npt:' +
+        extraction.temps.replace('–', ',').replace(/:/g, '') : '') +
+    '</div>' +
+    '</article>';
+}
+
+function ouvrirLArticle(article) {
+  articleOuvert = article;
+  var estWiki = article.type === TYPE_WIKI;
+  var zoneListe = document.getElementById(estWiki ? 'liste-wikis' : 'liste-syntheses');
+  var zoneArticle = document.getElementById(estWiki ? 'article-wiki' : 'article-synthese');
+  zoneListe.hidden = true;
+  zoneArticle.hidden = false;
+  zoneArticle.innerHTML = htmlDUnArticle(article);
+  document.getElementById('sep-note').hidden = false;
+  var filNote = document.getElementById('fil-note');
+  filNote.hidden = false;
+  filNote.textContent = article.titre;
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function fermerLArticle() {
+  if (!articleOuvert) return;
+  var estWiki = articleOuvert.type === TYPE_WIKI;
+  document.getElementById(estWiki ? 'liste-wikis' : 'liste-syntheses').hidden = false;
+  document.getElementById(estWiki ? 'article-wiki' : 'article-synthese').hidden = true;
+  articleOuvert = null;
+  document.getElementById('sep-note').hidden = true;
+  document.getElementById('fil-note').hidden = true;
+  fermerLaPreuve();
+}
+
+function rendreLesListesDArticles() {
+  ['wikis','syntheses'].forEach(function (genre) {
+    var type = genre === 'wikis' ? TYPE_WIKI : TYPE_SYNTHESE;
+    var articles = articlesDuCarnet(carnetCourant, type);
+    document.getElementById(genre === 'wikis' ? 'cpt-wikis' : 'cpt-syntheses').textContent =
+      articles.length ? '(' + articles.length + ')' : '';
+    var zone = document.getElementById('liste-' + genre);
+    if (!articles.length) {
+      zone.innerHTML = '<div class="vide">' +
+        (type === TYPE_WIKI
+          ? 'Aucun wiki dans ce carnet. Un wiki agrège les extractions d\'un sujet et se met à jour avec le carnet.'
+          : 'Aucune synthèse dirigée. Une synthèse est un acte daté, figé à sa production.') +
+        '</div>';
+      return;
+    }
+    zone.innerHTML =
+      '<div class="avertissement" style="border-color:var(--filet); background:var(--papier-creux)">' +
+      '<strong>' + (type === TYPE_WIKI ? 'Wiki : thématique et vivant' : 'Synthèse dirigée : un acte daté') + '</strong>' +
+      (type === TYPE_WIKI
+        ? 'Un article par sujet, alimenté par toutes les extractions du carnet qui le touchent. ' +
+          'Mis à jour par opérations de section — le modèle propose un diff, un humain l\'accepte. ' +
+          'Un wiki ne s\'adopte pas, il se suit.'
+        : 'Commandée sur un axe de catégories ou une sélection de notes, produite une fois, ' +
+          'jamais réécrite. C\'est ce qu\'un conseil adopte, et ce qu\'on peut lui opposer plus tard.') +
+      '</div>' +
+      '<ul class="liste-notes">' + articles.map(function (a) {
+        var numerotation = numeroterLesRenvois(a);
+        var etats = {verifie:0, faible:0, non_source:0};
+        a.sections.forEach(function (s) { s.paragraphes.forEach(function (p) { etats[p.verification]++; }); });
+        return '<li class="ligne-note" data-article="' + a.id + '">' +
+          '<span class="rang">' + (type === TYPE_WIKI ? '✦' : '▤') + '</span>' +
+          '<span><span class="titre-note">' + echapper(a.titre) + '</span>' +
+            '<span class="sous-note">' +
+              '<span class="badge-type" data-type="' + a.type + '">' + a.type + '</span>' +
+              '<span>' + (type === TYPE_WIKI ? 'màj ' + a.maj : a.produite) + '</span>' +
+              '<span>· ' + numerotation.ordre.length + ' sources</span>' +
+              '<span>· ' + (a.ecartees || []).length + ' écartées</span>' +
+              '<span style="color:var(--verifie)">· ' + etats.verifie + ' vérifiées</span>' +
+              (etats.faible ? '<span style="color:var(--faible)">· ' + etats.faible + ' faibles</span>' : '') +
+              (etats.non_source ? '<span style="color:var(--non-source)">· ' + etats.non_source + ' non sourcées</span>' : '') +
+            '</span></span>' +
+          '<span class="boutons-ordre"></span></li>';
+      }).join('') + '</ul>';
+    zone.querySelector('.liste-notes').onclick = function (e) {
+      var ligne = e.target.closest('.ligne-note');
+      if (!ligne) return;
+      var article = articles.find(function (a) { return a.id === ligne.dataset.article; });
+      if (article) ouvrirLArticle(article);
+    };
+  });
+}
+
+/* Délégation sur les articles : renvois, affirmations, cartes de preuve. */
+document.addEventListener('click', function (e) {
+  var renvoi = e.target.closest('.renvoi');
+  if (renvoi) {
+    e.stopPropagation();
+    ouvrirLaPreuve([Number(renvoi.dataset.extraction)], renvoi);
+    return;
+  }
+  var affirmation = e.target.closest('.affirmation');
+  if (affirmation) {
+    var sources = affirmation.dataset.sources
+      ? affirmation.dataset.sources.split(',').map(Number) : [];
+    ouvrirLaPreuve(sources, affirmation);
+    return;
+  }
+  var carte = e.target.closest('.carte-preuve');
+  if (carte) { ouvrirLaPreuve([Number(carte.dataset.extraction)], carte); return; }
+  if (e.target.closest('.js-retour-liste')) { fermerLArticle(); return; }
+  if (e.target.closest('.js-maj-wiki')) { ouvrirLeDiff(); return; }
+});
+
+/* =========================================================================
+   9. LE PANNEAU DE PREUVE
+   ========================================================================= */
+var panneauPreuve = document.getElementById('panneau-preuve');
+function ouvrirLaPreuve(ids, origine) {
+  document.querySelectorAll('.est-active').forEach(function (n) { n.classList.remove('est-active'); });
+  if (origine) origine.classList.add('est-active');
+
+  var corpsPreuve = document.getElementById('corps-preuve');
+  if (!ids.length) {
+    document.getElementById('titre-preuve').textContent = 'Non sourcé';
+    corpsPreuve.innerHTML =
+      '<div class="etat-verification" data-etat="non_source">non sourcé</div>' +
+      '<p style="font-size:.86rem; line-height:1.6; margin-top:.6rem">Aucune extraction du ' +
+      'périmètre ne porte cette affirmation. Elle peut être vraie et venir du modèle ; ' +
+      'elle n\'est pas <em>attestée</em> par le corpus.</p>' +
+      '<p style="font-size:.86rem; line-height:1.6">Sur les affirmations invérifiables, ' +
+      '<strong>80,6 % sont des erreurs d\'attribution</strong> et non des inventions : ' +
+      'le contenu est juste, il est rattaché à la mauvaise source. C\'est pour ça que ' +
+      'l\'étage de vérification vaut mieux qu\'un meilleur prompt.<br>' +
+      '<span class="mono" style="font-size:.6rem; opacity:.7">source : revue d\'état de ' +
+      'l\'art 2026 (ALCE, LongBench-Cite, FACTS) — mesure sur d\'autres systèmes, ' +
+      'pas sur celui-ci</span></p>' +
+      '<div class="rangee-boutons" style="margin-top:.7rem">' +
+        '<button class="bouton-plat" id="preuve-chercher">Chercher une source</button>' +
+        '<button class="bouton-plat danger" id="preuve-retirer">Retirer l\'affirmation</button></div>';
+  } else {
+    var extractions = ids.map(lExtraction).filter(Boolean);
+    var multi = extractions.length > 1;
+    document.getElementById('titre-preuve').textContent =
+      multi ? extractions.length + ' sources' : 'Preuve';
+    corpsPreuve.innerHTML =
+      (multi
+        ? '<div class="avertissement" style="font-size:.8rem"><strong>Affirmation multi-sources</strong>' +
+          'Dès qu\'une affirmation croise deux sources, l\'attribution correcte tombe autour de ' +
+          '<strong>30 %</strong> dans l\'état de l\'art. C\'est le régime de toute synthèse ' +
+          'intéressante — d\'où la vérification systématique.' +
+          '<br><span class="mono" style="font-size:.6rem; opacity:.7">source : benchmarks ' +
+          'ALCE / LongBench-Cite, 2026 — mesuré sur d\'autres systèmes</span></div>'
+        : '') +
+      extractions.map(function (extraction) {
+        var note = laNote(extraction.note);
+        /* Pas de lien mort : une note absente de la maquette de lecture le dit.
+         / No dead links: a note not mocked elsewhere says so. */
+      return htmlDUneCartePreuve(extraction) +
+          '<div class="rangee-boutons" style="margin:-.2rem 0 .8rem">' +
+            (note.maquettee
+              ? '<a class="bouton-plat" style="text-decoration:none" href="maquette.html?extraction=' +
+                  extraction.id + '">↗ Ouvrir dans « ' + echapper(note.titre.slice(0, 26)) + '… »</a>'
+              : '<span class="bouton-plat" style="opacity:.55; cursor:default" ' +
+                'title="Cette note n\'est pas maquettée dans l\'écran de lecture">' +
+                '↗ note non maquettée</span>') +
+          '</div>';
+      }).join('');
+  }
+  panneauPreuve.classList.add('est-ouvert');
+}
+function fermerLaPreuve() {
+  panneauPreuve.classList.remove('est-ouvert');
+  document.querySelectorAll('.affirmation.est-active, .renvoi.est-active')
+    .forEach(function (n) { n.classList.remove('est-active'); });
+}
+document.getElementById('fermer-preuve').addEventListener('click', fermerLaPreuve);
+document.getElementById('corps-preuve').addEventListener('click', function (e) {
+  if (e.target.closest('#preuve-chercher')) {
+    toast('Chercherait dans les ' + EXTRACTIONS.length + ' extractions du carnet une source pour cette affirmation.');
+  }
+  if (e.target.closest('#preuve-retirer')) {
+    toast('Retirerait l\'affirmation de l\'article. Journalisé.', 'erreur');
+  }
+});
+
+/* =========================================================================
+   10. MISE A JOUR INCREMENTALE (section_ops)
+   ========================================================================= */
+function ouvrirLeDiff() {
+  if (!articleOuvert || articleOuvert.type !== TYPE_WIKI) return;
+  var titresExistants = articleOuvert.sections.map(function (s) { return s.heading; });
+
+  document.getElementById('diff-operations').innerHTML = OPERATIONS_PROPOSEES.map(function (op, i) {
+    /* Rejet MECANIQUE : un heading absent de l'article est une
+       hallucination, on jette l'operation entiere. Deterministe, pas
+       heuristique. / Mechanical rejection, not a heuristic. */
+    var cible = op.op === 'InsertSection' ? op.after_heading : op.heading;
+    var introuvable = op.op !== 'InsertSection'
+      ? titresExistants.indexOf(op.heading) === -1
+      : (op.after_heading && titresExistants.indexOf(op.after_heading) === -1);
+    var rejetee = op.rejetee || introuvable;
+
+    return '<div class="operation' + (rejetee ? ' rejetee' : '') + '" data-op="' + op.op +
+      '" data-index="' + i + '">' +
+      '<div class="entete-op">' +
+        (rejetee ? '' : '<input type="checkbox" checked data-op-index="' + i + '">') +
+        '<span>' + op.op + '</span>' +
+        '<span class="heading-op">' + echapper(op.heading) + '</span>' +
+        (op.after_heading ? '<span>après « ' + echapper(op.after_heading) + ' »</span>' : '') +
+      '</div>' +
+      '<div class="contenu-op">' + echapper(op.contenu) +
+        (op.sources || []).map(function (id) {
+          return ' <button class="renvoi" data-extraction="' + id + '">[·]</button>'; }).join('') +
+      '</div>' +
+      (rejetee ? '<div class="motif-rejet">✕ ' + echapper(op.motif ||
+        'Section « ' + cible + ' » absente de l\'article : hallucination, opération jetée.') + '</div>' : '') +
+      '</div>';
+  }).join('');
+
+  ouvrirSurface('surface-diff');
+}
+document.getElementById('diff-accepter').addEventListener('click', function () {
+  var retenues = document.querySelectorAll('#diff-operations input[type=checkbox]:checked').length;
+  var rejetees = document.querySelectorAll('#diff-operations .operation.rejetee').length;
+  fermerSurfaces();
+  toast(retenues + ' opérations appliquées, ' + rejetees + ' rejetée' +
+        (rejetees > 1 ? 's' : '') + ' mécaniquement.', 'succes');
+  if (articleOuvert) {
+    articleOuvert.tours += 1;
+    articleOuvert.maj = '14 mars 2026, 11:47';
+    ouvrirLArticle(articleOuvert);
+  }
+});
+document.getElementById('diff-annuler').addEventListener('click', fermerSurfaces);
+
+/* =========================================================================
+   11. CREATION D'UN WIKI ET D'UNE SYNTHESE
+   ========================================================================= */
+function ouvrirSurface(id) {
+  document.querySelectorAll('.surface').forEach(function (s) { s.classList.remove('est-visible'); });
+  document.getElementById(id).classList.add('est-visible');
+  document.getElementById('voile').classList.add('est-visible');
+}
+function fermerSurfaces() {
+  document.querySelectorAll('.surface').forEach(function (s) { s.classList.remove('est-visible'); });
+  document.getElementById('voile').classList.remove('est-visible');
+}
+document.getElementById('voile').addEventListener('click', fermerSurfaces);
+
+document.getElementById('btn-nouvelle-synthese').addEventListener('click', function () {
+  var carnet = leCarnet(carnetCourant);
+  var select = document.getElementById('synth-axe');
+  select.innerHTML =
+    '<option value="">Toutes les notes du carnet</option>' +
+    (carnet.axes || []).map(function (axe) {
+      return axe.categories.map(function (c) {
+        return '<option value="' + axe.nom + '|' + c.id + '">Axe « ' + echapper(axe.nom) +
+               ' » · ' + echapper(c.nom) + '</option>';
+      }).join('');
+    }).join('') +
+    '<option value="__selection__">Les notes retenues par les filtres actuels</option>';
+  rafraichirLeRecapSynthese();
+  ouvrirSurface('surface-nouvelle-synthese');
+});
+document.getElementById('synth-axe').addEventListener('change', rafraichirLeRecapSynthese);
+
+function rafraichirLeRecapSynthese() {
+  var valeur = document.getElementById('synth-axe').value;
+  var appartenances;
+  if (valeur === '__selection__') {
+    appartenances = notesFiltrees(carnetCourant, filtresActifs);
+  } else if (valeur) {
+    var idCategorie = valeur.split('|')[1];
+    appartenances = appartenancesDuCarnet(carnetCourant).filter(function (a) {
+      return a.categories.indexOf(idCategorie) !== -1;
+    });
+  } else {
+    appartenances = appartenancesDuCarnet(carnetCourant);
+  }
+  /* LES SYNTHESES NE SONT JAMAIS SOURCES D'UNE SYNTHESE. Sans cette
+     exclusion, le wiki se citerait lui-meme au troisieme tour. */
+  var idsDeNotes = appartenances.map(function (a) { return a.note; })
+    .filter(function (id) { return estUneSource(laNote(id)); });
+  var extractions = extractionsDuPerimetre(idsDeNotes);
+  var commentees = extractions.filter(function (e) { return e.statut === 'commente'; }).length;
+  var commentaires = extractions.reduce(function (t, e) { return t + e.commentaires.length; }, 0);
+
+  document.getElementById('synth-portee').innerHTML =
+    '<div class="resume-filtres">Portée : ' + idsDeNotes.length + ' notes · ' +
+    extractions.length + ' extractions · ' + commentaires + ' commentaires</div>';
+  document.getElementById('synth-recap').innerHTML =
+    '<strong>État du débat sur ce périmètre</strong>' +
+    commentees + ' extractions sur ' + extractions.length + ' portent au moins un commentaire (' +
+    (extractions.length ? Math.round(commentees / extractions.length * 100) : 0) + ' %). ' +
+    'Les wikis et les synthèses du carnet sont <strong>exclus du corpus source</strong> : ' +
+    'sans cette règle, une synthèse citerait la précédente et la délibération d\'origine ' +
+    'disparaîtrait sous ses propres résumés.';
+}
+document.getElementById('synth-annuler').addEventListener('click', fermerSurfaces);
+document.getElementById('synth-lancer').addEventListener('click', function () {
+  var titre = document.getElementById('synth-titre').value || 'Synthèse sans titre';
+  var choix = document.getElementById('synth-axe');
+  var libelle = choix.selectedIndex > 0 ? choix.options[choix.selectedIndex].text : 'toutes les notes';
+  fermerSurfaces();
+  toast('Synthèse « ' + titre + ' » lancée sur ' + libelle + '. Figée à sa production.', 'succes');
+  var modele = SYNTHESES[0];
+  SYNTHESES.push(Object.assign({}, modele, {
+    id:'s-' + Date_mock(), titre:titre, carnet:carnetCourant,
+    axe:'— ' + libelle, produite:'14 mars 2026, 12:03'
+  }));
+  rendreLesListesDArticles();
+});
+
+document.getElementById('btn-nouveau-wiki').addEventListener('click', function () {
+  var extractions = extractionsDuPerimetre(
+    appartenancesDuCarnet(carnetCourant).map(function (a) { return a.note; })
+      .filter(function (id) { return estUneSource(laNote(id)); }));
+  document.getElementById('wiki-recap').innerHTML =
+    '<strong>Sélection des preuves avant écriture</strong>' +
+    'Le modèle ne choisit pas ses sources en écrivant : on lui remet un ensemble ' +
+    'd\'extractions déjà sélectionnées. Sur ce carnet, ' + extractions.length +
+    ' extractions sont candidates.<br><br>' +
+    '<strong>Pas de sélection par centroïde</strong> — un argument minoritaire est, par ' +
+    'construction, loin du centre sémantique : il ne remonterait jamais. Pour un outil de ' +
+    'délibération, c\'est exactement l\'inverse de ce qu\'on veut.';
+  ouvrirSurface('surface-nouveau-wiki');
+});
+document.getElementById('wiki-annuler').addEventListener('click', fermerSurfaces);
+document.getElementById('wiki-lancer').addEventListener('click', function () {
+  var sujet = document.getElementById('wiki-sujet').value || 'Sans sujet';
+  fermerSurfaces();
+  toast('Wiki « ' + sujet + ' » créé. Il se mettra à jour avec le carnet.', 'succes');
+  WIKIS.push(Object.assign({}, WIKIS[0], {
+    id:'w-' + Date_mock(), titre:sujet, sujet:sujet, carnet:carnetCourant,
+    maj:'14 mars 2026, 12:05', tours:1
+  }));
+  rendreLesListesDArticles();
+});
+var compteurMock = 0;
+function Date_mock() { compteurMock += 1; return 'nouveau' + compteurMock; }
+
+/* =========================================================================
+   12. ALIGNEMENT — une vue du carnet, filtrée par les mêmes facettes
+   ========================================================================= */
+function rendreLAlignement() {
+  var retenues = notesFiltrees(carnetCourant, filtresAlignement)
+    .filter(function (a) { return estUneSource(laNote(a.note)); });
+  var idsDeNotes = retenues.map(function (a) { return a.note; });
+  var extractions = extractionsDuPerimetre(idsDeNotes);
+
+  var texte = texteDesFiltres(filtresAlignement);
+  document.getElementById('resume-alignement').textContent =
+    retenues.length + ' notes · ' + extractions.length + ' extractions' + (texte ? '  —  ' + texte : '');
+
+  /* Lignes = hypostases groupées par famille. Colonnes = notes retenues. */
+  var parTag = {};
+  extractions.forEach(function (e) {
+    e.tags.forEach(function (tag) {
+      if (!parTag[tag]) parTag[tag] = {};
+      if (!parTag[tag][e.note]) parTag[tag][e.note] = [];
+      parTag[tag][e.note].push(e);
+    });
+  });
+  var tags = Object.keys(parTag).sort(function (a, b) {
+    var fa = familleDuTag(a), fb = familleDuTag(b);
+    return fa === fb ? a.localeCompare(b) : fa.localeCompare(fb);
+  });
+
+  var table = document.getElementById('tableau-alignement');
+  if (!tags.length) {
+    table.innerHTML = '<tbody><tr><td class="vide">Aucune extraction sur ce périmètre.</td></tr></tbody>';
+    return;
+  }
+
+  var entete = '<thead><tr><th>Hypostase</th>' + idsDeNotes.map(function (id) {
+    var note = laNote(id);
+    return '<th title="' + echapper(note.titre) + '">' +
+      echapper(note.titre.length > 26 ? note.titre.slice(0, 26) + '…' : note.titre) + '</th>';
+  }).join('') + '</tr></thead>';
+
+  var familleCourante = null, lignes = '';
+  tags.forEach(function (tag) {
+    var famille = familleDuTag(tag);
+    if (famille !== familleCourante) {
+      familleCourante = famille;
+      lignes += '<tr class="bandeau-famille" style="--couleur-famille:var(--hypostase-' +
+        famille + '-text)"><th colspan="' + (idsDeNotes.length + 1) + '">' +
+        NOMS_DE_FAMILLES[famille] + '</th></tr>';
+    }
+    lignes += '<tr><th>' + echapper(tag) + '</th>' + idsDeNotes.map(function (id) {
+      var cellule = parTag[tag][id];
+      if (!cellule || !cellule.length) return '<td class="cellule-vide">—</td>';
+      return '<td class="cellule-alignement" data-extraction="' + cellule[0].id + '">' +
+        '<span class="compte">' + cellule.length + '</span>' +
+        '<span class="apercu apercu-resume">' + echapper(cellule[0].resume) + '</span>' +
+        '<span class="apercu apercu-source">« ' + echapper(cellule[0].citation) + ' »</span>' +
+        '</td>';
+    }).join('') + '</tr>';
+  });
+
+  table.innerHTML = entete + '<tbody>' + lignes + '</tbody>';
+}
+document.getElementById('tableau-alignement').addEventListener('click', function (e) {
+  var cellule = e.target.closest('.cellule-alignement');
+  if (cellule) ouvrirLaPreuve([Number(cellule.dataset.extraction)], cellule);
+  var bandeau = e.target.closest('.bandeau-famille');
+  if (bandeau) toast('Replierait cette famille d\'hypostases.');
+});
+document.getElementById('btn-mode-alignement').addEventListener('click', function () {
+  var source = corps.dataset.alignement === 'source';
+  corps.dataset.alignement = source ? 'resume' : 'source';
+  this.textContent = source ? 'Voir la source' : 'Voir le résumé';
+});
+document.getElementById('btn-export-alignement').addEventListener('click', function () {
+  toast('Exporterait le tableau en Markdown.');
+});
+
+/* =========================================================================
+   13. ONGLETS, VUES, THEME
+   ========================================================================= */
+document.querySelector('.onglets').addEventListener('click', function (e) {
+  var bouton = e.target.closest('button[data-onglet]');
+  if (!bouton) return;
+  document.querySelectorAll('.onglets button').forEach(function (b) {
+    b.setAttribute('aria-selected', b === bouton ? 'true' : 'false');
+  });
+  document.querySelectorAll('.panneau-onglet').forEach(function (p) {
+    p.classList.toggle('est-actif', p.dataset.panneau === bouton.dataset.onglet);
+  });
+  if (bouton.dataset.onglet === 'alignement') rendreLAlignement();
+  fermerLaPreuve();
+});
+
+function allerA(vue) {
+  corps.dataset.vue = vue;
+  document.getElementById('vue-base').hidden = (vue !== 'base');
+  document.getElementById('vue-carnet').hidden = (vue !== 'carnet');
+  document.getElementById('aller-base').setAttribute('aria-pressed', vue === 'base');
+  document.getElementById('aller-carnet').setAttribute('aria-pressed', vue === 'carnet');
+  window.scrollTo({top:0});
+}
+document.getElementById('aller-base').addEventListener('click', function () { allerA('base'); });
+document.getElementById('aller-carnet').addEventListener('click', function () { allerA('carnet'); });
+document.getElementById('fil-base').addEventListener('click', function () { allerA('base'); });
+document.getElementById('btn-nav').addEventListener('click', function () { allerA('base'); });
+
+document.getElementById('int-verifications').addEventListener('click', function () {
+  var actif = corps.dataset.verifications === 'oui';
+  corps.dataset.verifications = actif ? 'non' : 'oui';
+  this.setAttribute('aria-pressed', !actif);
+  toast(actif
+    ? 'États masqués. Un taux de citation élevé ne dit rien de la fiabilité : 39 à 77 % seulement sont vérifiées.'
+    : 'États affichés : vérifié, faible, non sourcé.');
+});
+document.getElementById('int-selecteurs').addEventListener('click', function () {
+  var actif = corps.dataset.selecteurs === 'oui';
+  corps.dataset.selecteurs = actif ? 'non' : 'oui';
+  this.setAttribute('aria-pressed', !actif);
+});
+
+document.addEventListener('keydown', function (e) {
+  if (e.target.matches('input, textarea, select')) return;
+  if (e.key === 'Escape') {
+    if (document.querySelector('.surface.est-visible')) { fermerSurfaces(); return; }
+    if (panneauPreuve.classList.contains('est-ouvert')) { fermerLaPreuve(); return; }
+    if (articleOuvert) { fermerLArticle(); return; }
+    if (corps.dataset.vue === 'carnet') allerA('base');
+  }
+});
+
+(function () {
+  var racine = document.documentElement;
+  var bouton = document.getElementById('bascule-theme');
+  /* Le clair est le DEPART, pas le systeme : la maquette doit s'ouvrir
+     sur le meme rendu pour tout le monde. / Light first, for everyone. */
+  var ETATS = [{valeur:'light', libelle:'○ clair'},
+               {valeur:'dark',  libelle:'● sombre'},
+               {valeur:'', libelle:'◑ système'}];
+  var indice = 0;
+  function appliquer() {
+    var etat = ETATS[indice];
+    if (etat.valeur) racine.dataset.theme = etat.valeur; else delete racine.dataset.theme;
+    bouton.textContent = etat.libelle;
+  }
+  bouton.addEventListener('click', function () { indice = (indice + 1) % 3; appliquer(); });
+  appliquer();
+})();
+
+/* =========================================================================
+   14. RENDU
+   ========================================================================= */
+function rendreTout() {
+  var carnet = leCarnet(carnetCourant);
+  document.getElementById('titre-carnet').textContent = carnet.nom;
+  var appartenances = appartenancesDuCarnet(carnetCourant)
+    .filter(function (a) { return estUneSource(laNote(a.note)); });
+  var nombreDeCategories = (carnet.axes || []).reduce(function (total, axe) {
+    return total + axe.categories.length;
+  }, 0);
+  document.getElementById('meta-carnet').textContent =
+    appartenances.length + ' notes · ' + (carnet.axes || []).length + ' axes de classement · ' +
+    nombreDeCategories + ' catégories';
+  document.getElementById('visibilite-carnet').textContent =
+    carnet.visibilite === 'public' ? '🌐 public'
+      : (carnet.visibilite === 'partage' ? '👥 partagé' : '🔒 privé');
+  var guide = document.getElementById('guide-redaction');
+  if (carnet.guide) {
+    guide.hidden = false;
+    guide.innerHTML = '<strong>Guide de rédaction de ce carnet</strong>' + echapper(carnet.guide);
+  } else { guide.hidden = true; }
+
+  document.getElementById('cpt-notes').textContent = '(' + appartenances.length + ')';
+  rendreLeFil();
+  rendreLesFacettes('facettes-carnet', filtresActifs, rendreLesNotes);
+  rendreLesFacettes('facettes-alignement', filtresAlignement, rendreLAlignement);
+  rendreLesNotes();
+  rendreLesListesDArticles();
+  rendreLaBase();
+  if (document.querySelector('.panneau-onglet[data-panneau="alignement"]').classList.contains('est-actif')) {
+    rendreLAlignement();
+  }
+}
+
+allerA('carnet');
+rendreTout();
+</script>
+</body>
+</html>
