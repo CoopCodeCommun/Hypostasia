@@ -75,6 +75,67 @@ def _exiger_authentification(request):
     return redirect("/auth/login/")
 
 
+def _refuser_si_une_analyse_tourne(request, page):
+    """
+    Refuse une edition tant qu'une analyse tourne sur la page.
+    Retourne None si OK, ou une HttpResponse 409 avec un toast si bloque.
+    / Refuses an edit while an analysis runs. Returns None or a 409.
+
+    LOCALISATION : front/views.py
+
+    POURQUOI CE REFUS EXISTE
+
+    Une analyse lit le texte de la page, l'envoie au LLM, attend, puis
+    ecrit ses extractions avec des positions calculees sur CE texte. Entre
+    les deux, il peut s'ecouler plusieurs minutes.
+
+    Si le texte change pendant ce temps, les positions ecrites a la fin ne
+    designent plus le bon passage. Pire, la transcription ecrase purement
+    et simplement le texte a sa fin : l'edition de l'utilisateur
+    disparaitrait sans un mot.
+    / An edit mid-analysis yields wrong positions, or is silently erased.
+
+    On refuse donc l'edition, avec un message qui dit clairement que c'est
+    passager. 409 Conflict et non 403 : ce n'est pas un droit qui manque,
+    c'est un moment mal choisi.
+    / 409, not 403: it is not a missing right, it is bad timing.
+
+    :param request: la requete Django
+    :param page: la Page qu'on veut editer
+    :return: None si l'edition peut passer, une HttpResponse sinon
+    """
+    from hypostasis_extractor.services.garde_edition import (
+        une_analyse_tourne_sur_la_page,
+    )
+
+    if not une_analyse_tourne_sur_la_page(page):
+        return None
+
+    logger.info(
+        "Edition refusee sur la page %s : une analyse est en cours.", page.pk,
+    )
+
+    if request.headers.get("HX-Request"):
+        reponse = HttpResponse(status=409)
+        reponse["HX-Trigger"] = json.dumps({
+            "toast": {
+                "items": [{
+                    "level_tag": "warning",
+                    "text": (
+                        "Une analyse est en cours sur cette page. "
+                        "Réessayez dans un instant."
+                    ),
+                }],
+            },
+        })
+        return reponse
+
+    return HttpResponse(
+        "Une analyse est en cours sur cette page. Reessayez dans un instant.",
+        status=409,
+    )
+
+
 def _utilisateur_a_acces_dossier(utilisateur, dossier):
     """
     Verifie si un utilisateur a acces en lecture a un dossier.
@@ -2353,6 +2414,14 @@ class LectureViewSet(viewsets.ViewSet):
 
         page = get_object_or_404(Page, pk=pk)
 
+        # Une analyse en cours lit ce texte et ecrira ses
+        # positions dessus : le changer maintenant les rendrait
+        # fausses, ou ferait ecraser cette edition a la fin du job.
+        # / An edit mid-analysis yields wrong positions.
+        refus_analyse = _refuser_si_une_analyse_tourne(request, page)
+        if refus_analyse:
+            return refus_analyse
+
         # Valider les donnees du formulaire / Validate form data
         serializer_renommage = RenommerLocuteurSerializer(data=request.data)
         serializer_renommage.is_valid(raise_exception=True)
@@ -2555,6 +2624,14 @@ class LectureViewSet(viewsets.ViewSet):
 
         page = get_object_or_404(Page, pk=pk)
 
+        # Une analyse en cours lit ce texte et ecrira ses
+        # positions dessus : le changer maintenant les rendrait
+        # fausses, ou ferait ecraser cette edition a la fin du job.
+        # / An edit mid-analysis yields wrong positions.
+        refus_analyse = _refuser_si_une_analyse_tourne(request, page)
+        if refus_analyse:
+            return refus_analyse
+
         # Valider les donnees du formulaire / Validate form data
         serializer_edition = EditerBlocSerializer(data=request.data)
         serializer_edition.is_valid(raise_exception=True)
@@ -2698,6 +2775,14 @@ class LectureViewSet(viewsets.ViewSet):
         from .services.transcription_audio import construire_html_diarise
 
         page = get_object_or_404(Page, pk=pk)
+
+        # Une analyse en cours lit ce texte et ecrira ses
+        # positions dessus : le changer maintenant les rendrait
+        # fausses, ou ferait ecraser cette edition a la fin du job.
+        # / An edit mid-analysis yields wrong positions.
+        refus_analyse = _refuser_si_une_analyse_tourne(request, page)
+        if refus_analyse:
+            return refus_analyse
 
         # Valider les donnees / Validate data
         serializer_suppression = SupprimerBlocSerializer(data=request.data)

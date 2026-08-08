@@ -1,3 +1,7 @@
+import hashlib
+import re
+import uuid
+
 from django.db import models
 from django.conf import settings
 from solo.models import SingletonModel
@@ -1354,6 +1358,22 @@ class SourceLink(models.Model):
         related_name="source_links",
         help_text="Commentaires a l'origine du passage / Comments that originated the passage",
     )
+    # Ancrage par element (moteur ELEMENT) — SPEC v2 section 2.4.
+    # extraction_source repond a "QUELLE extraction a alimente ce passage ?".
+    # ancrage_source repond a "DANS QUEL ELEMENT, et a quel endroit exact ?".
+    # Les deux cohabitent : le premier donne l'extraction entiere, le second
+    # la portion precise dans un element.
+    # Les anciens champs start_char_source / end_char_source restent en place
+    # et ne sont pas touches (section 9 : les deux moteurs coexistent).
+    # / ancrage_source points to the precise portion within one element.
+    ancrage_source = models.ForeignKey(
+        "hypostasis_extractor.AncrageExtraction",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="liens_de_provenance",
+        help_text="La portion d'extraction precise qui a alimente ce passage "
+                  "de synthese / The precise extraction portion that fed this passage",
+    )
     type_lien = models.CharField(
         max_length=20, choices=TypeLien.choices,
         help_text="Type de lien de provenance / Provenance link type",
@@ -1370,3 +1390,313 @@ class SourceLink(models.Model):
 
     def __str__(self):
         return f"SourceLink #{self.pk} — {self.get_type_lien_display()} — {self.page_cible}"
+
+
+# =============================================================================
+# ANCRAGE PAR ELEMENT — moteur ELEMENT (SPEC v2, phase A)
+# / Element-based anchoring — ELEMENT engine (SPEC v2, phase A)
+#
+# LOCALISATION : core/models.py
+#
+# Ces modeles vivent A COTE de l'ancien moteur (ExtractedEntity.start_char /
+# end_char), ils ne le remplacent pas. Les deux moteurs coexistent : aucune
+# donnee existante n'est convertie, aucun ancien champ n'est retire (SPEC v2
+# section 9).
+# / These models live NEXT TO the old engine, they do not replace it.
+# =============================================================================
+
+
+def empreinte_du_texte(texte: str) -> str:
+    """
+    Calcule l'empreinte d'un texte, pour reconnaitre un element inchange.
+    / Computes a text fingerprint, to recognize an unchanged element.
+
+    LOCALISATION : core/models.py
+
+    On veut qu'un texte qui n'a change QUE par des espaces ou par la casse
+    donne la meme empreinte. Sinon, une re-ingestion croirait que l'element
+    est nouveau alors qu'il dit la meme chose.
+
+    ETAPES :
+    1. On met tout en minuscules.
+    2. On ecrase les suites d'espaces en un seul espace.
+    3. On enleve les espaces au debut et a la fin.
+    4. On calcule le SHA256 du resultat.
+
+    Utilise par le moteur d'ajout par re-ingestion (SPEC v2 section 5.3),
+    qui n'est pas encore ecrit. Le champ ElementDocument.empreinte_contenu
+    est rempli des maintenant pour que ce moteur trouve la donnee prete.
+
+    :param texte: Le texte de l'element / The element text
+    :return: Une empreinte SHA256 en hexadecimal (64 caracteres)
+    """
+    # Etape 1 et 2 : minuscules, puis espaces ecrases en un seul
+    # / Step 1 and 2: lowercase, then whitespace collapsed to a single space
+    texte_en_minuscules = texte.lower()
+    texte_aux_espaces_ecrases = re.sub(r"\s+", " ", texte_en_minuscules)
+
+    # Etape 3 : on enleve les espaces au debut et a la fin
+    # / Step 3: strip leading and trailing spaces
+    texte_normalise = texte_aux_espaces_ecrases.strip()
+
+    # Etape 4 : SHA256 du texte normalise
+    # / Step 4: SHA256 of the normalized text
+    return hashlib.sha256(texte_normalise.encode("utf-8")).hexdigest()
+
+
+class EtatElement(models.TextChoices):
+    """
+    Le regime d'edition d'un element depend de ce qui s'y est attache.
+    / Editing regime of an element depends on what is attached to it.
+
+    LOCALISATION : core/models.py
+
+    Cet etat n'est JAMAIS saisi a la main. Il est recalcule par le signal
+    recalculer_etat_de_l_element (hypostasis_extractor/signals.py).
+
+    Il n'y a PAS d'etat SCELLE : le scellement a ete abandonne (YAGNI).
+    / There is no SCELLE state: sealing was dropped (YAGNI).
+    """
+    LIBRE = "libre", "Libre — aucune extraction"
+    ANALYSE = "analyse", "Analysé — extractions sans commentaire"
+    DEBATTU = "debattu", "Débattu — des commentaires sont attachés"
+
+
+class ElementDocument(models.Model):
+    """
+    Un element adressable du document : un paragraphe, un titre, un item de
+    liste, un tableau, ou un tour de parole dans une transcription.
+    / An addressable element of the document.
+
+    LOCALISATION : core/models.py
+
+    C'est l'unite d'ancrage. Avec le moteur ELEMENT, une extraction ne pointe
+    plus dans le texte global de la page. Elle pointe vers un ou plusieurs
+    ElementDocument, via la table de liaison AncrageExtraction
+    (hypostasis_extractor/models.py).
+
+    Pourquoi identifiant_stable et pas le self_ref de Docling ("#/texts/4") ?
+    Parce que le self_ref est un numero de position. Si on coupe un element
+    en deux, toutes les positions suivantes glissent, et les ancres pointent
+    au mauvais endroit. identifiant_stable, lui, ne bouge jamais.
+    / identifiant_stable never moves, unlike Docling's positional self_ref.
+    """
+
+    page = models.ForeignKey(
+        Page,
+        on_delete=models.CASCADE,
+        related_name="elements",
+        verbose_name="Page qui contient cet element",
+        help_text="Page a laquelle cet element appartient / Page this element belongs to",
+    )
+
+    identifiant_stable = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+        help_text="Notre identifiant. Ne change jamais, meme apres scission "
+                  "ou fusion — c'est ce a quoi toute ancre se refere.",
+    )
+
+    reference_docling = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Le self_ref d'origine, ex '#/texts/4'. Indicatif seulement, "
+                  "jamais utilise comme cle.",
+    )
+
+    ordre = models.PositiveIntegerField(
+        help_text="Position dans le document, 0, 1, 2, 3... Renumerote "
+                  "librement a chaque scission/fusion/ajout : rien d'autre "
+                  "ne depend de sa valeur numerique que le tri.",
+    )
+
+    label = models.CharField(
+        max_length=32,
+        help_text="Label Docling : text, section_header, title, list_item, "
+                  "table, formula, code...",
+    )
+
+    texte = models.TextField(
+        help_text="Le texte de cet element. C'est ici qu'on ancre.",
+    )
+
+    empreinte_contenu = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text="SHA256 du texte normalise (espaces ecrases, minuscules). "
+                  "Utilise par le moteur d'ajout par re-ingestion pour "
+                  "reconnaitre un element inchange.",
+    )
+
+    chemin_de_section = models.JSONField(
+        default=list,
+        help_text="Titres parents au moment de l'ingestion, ex "
+                  "['Introduction', '1) Le calcul des IA']. Instantane, "
+                  "pas re-derive automatiquement apres une scission de titre.",
+    )
+
+    provenance = models.JSONField(
+        default=dict,
+        help_text="Provenance physique, selon la source. "
+                  "PDF -> {page_no, boites: [{l,t,r,b,coord_origin}, ...]} "
+                  "(LISTE de boites : un paragraphe a cheval sur deux pages "
+                  "ou deux colonnes produit plusieurs entrees). "
+                  "audio -> {start_time, end_time, voice}. "
+                  "md/html/txt -> {}",
+    )
+
+    etat = models.CharField(
+        max_length=16,
+        choices=EtatElement.choices,
+        default=EtatElement.LIBRE,
+        help_text="Recalcule par signal. Ne jamais assigner a la main.",
+    )
+
+    masque = models.BooleanField(
+        default=False,
+        help_text="Element retire du contenu utile sans etre supprime. "
+                  "Cas reel : la transcription audio invente un segment "
+                  "(bruit, musique, doublon). Reversible, trace dans "
+                  "ElementOperation.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["page", "ordre"]
+        verbose_name = "Element de document"
+        verbose_name_plural = "Elements de document"
+        constraints = [
+            # DEFERRABLE : la contrainte est verifiee a la FIN de la
+            # transaction, pas a chaque ligne ecrite.
+            #
+            # Sans ca, le moteur de structure serait incodable. Scinder un
+            # element, c'est creer deux morceaux qui prennent sa place :
+            # le premier morceau reclame l'ordre de l'element d'origine,
+            # qui existe encore a cet instant. Fusionner ou renumeroter
+            # pose le meme probleme — decaler tous les ordres de +1 fait
+            # forcement se telescoper deux lignes en cours de route.
+            #
+            # Differer la verification laisse la transaction passer par des
+            # etats temporairement incoherents, mais garantit qu'a la fin,
+            # deux elements d'une meme page n'ont jamais le meme ordre.
+            # / Deferred: checked at COMMIT, so the structure engine can
+            # pass through temporarily inconsistent states.
+            models.UniqueConstraint(
+                fields=["page", "ordre"],
+                name="unicite_ordre_dans_la_page",
+                deferrable=models.Deferrable.DEFERRED,
+            ),
+        ]
+
+    def __str__(self):
+        debut_du_texte = self.texte[:40]
+        return f"ElementDocument #{self.pk} — {self.label} — {debut_du_texte}"
+
+
+class TypeOperationElement(models.TextChoices):
+    """
+    Les operations de STRUCTURE possibles sur un element.
+    / The possible STRUCTURE operations on an element.
+
+    LOCALISATION : core/models.py
+
+    A ne pas confondre avec TypeEdit, qui couvre les corrections de TEXTE
+    (titre, contenu, bloc de transcription, locuteur). Les deux journaux
+    sont separes et se lisent ensemble dans l'historique de la page.
+    / Not to be confused with TypeEdit, which covers TEXT corrections.
+    """
+    SCISSION = "scission", "Élément scindé"
+    FUSION = "fusion", "Éléments fusionnés"
+    MASQUAGE = "masquage", "Élément masqué"
+    DEMASQUAGE = "demasquage", "Élément démasqué"
+
+
+class ElementOperation(models.Model):
+    """
+    Historique des operations de structure sur les elements.
+    / History of structural operations on elements.
+
+    LOCALISATION : core/models.py
+
+    Pourquoi un modele separe de PageEdit ? Parce que TypeEdit ne connait
+    que des corrections de texte (TITRE, CONTENU, BLOC_TRANSCRIPTION,
+    LOCUTEUR). Il n'a ni SCISSION, ni FUSION, ni MASQUAGE. Detourner
+    PageEdit obligerait a ajouter des types qui n'ont rien a y faire.
+    / TypeEdit only knows text corrections, not structural operations.
+
+    POURQUOI LE JOURNAL EST RATTACHE A LA PAGE, ET PAS SEULEMENT A L'ELEMENT
+
+    Une scission et une fusion SUPPRIMENT toujours leurs elements sources.
+    Si le journal ne tenait qu'a l'element, la premiere operation suivante
+    effacerait en cascade l'histoire de la precedente : scinder puis
+    refusionner ne laisserait aucune trace de la scission. Le journal
+    serait decoratif — et l'invariant « rien ne disparait en silence »
+    serait faux la ou il compte le plus.
+
+    Le journal tient donc a la PAGE, qui, elle, ne disparait pas au fil
+    des operations. La reference a l'element devient indicative : elle
+    passe a NULL quand l'element est supprime, et identifiant_stable_element
+    garde de quoi le reconnaitre.
+    / The journal hangs off the Page, which survives; the element FK is
+    indicative and nulls out.
+    """
+    page = models.ForeignKey(
+        Page,
+        on_delete=models.CASCADE,
+        related_name="operations_sur_elements",
+        help_text="Page ou l'operation a eu lieu / Page where the operation happened",
+    )
+    element = models.ForeignKey(
+        ElementDocument,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="operations",
+        help_text="Element concerne, s'il existe encore / Element affected, if it still exists",
+    )
+    identifiant_stable_element = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="L'identifiant de l'element au moment de l'operation. "
+                  "Survit a sa suppression / The element's id at operation time",
+    )
+    donnees = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Contexte de l'operation : position de coupe, elements "
+                  "sources, etc. Meme role que PageEdit.donnees_avant "
+                  "/ Operation context: cut position, source elements...",
+    )
+    type_operation = models.CharField(
+        max_length=16,
+        choices=TypeOperationElement.choices,
+        help_text="Type d'operation de structure / Structural operation type",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="operations_sur_elements",
+        help_text="Utilisateur ayant fait l'operation / User who performed the operation",
+    )
+    justification = models.TextField(
+        blank=True,
+        help_text="Pourquoi cette operation a ete faite / Why this operation was performed",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        verbose_name = "Operation sur un element"
+        verbose_name_plural = "Operations sur les elements"
+
+    def __str__(self):
+        return (
+            f"ElementOperation #{self.pk} — "
+            f"{self.get_type_operation_display()} — page {self.page_id}"
+        )

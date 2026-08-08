@@ -583,7 +583,9 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
     # / Set job to PROCESSING
     job_transcription.status = TranscriptionJobStatus.PROCESSING
     job_transcription.celery_task_id = self.request.id or ""
-    job_transcription.save(update_fields=["status", "celery_task_id"])
+    job_transcription.save(
+        update_fields=["status", "celery_task_id", "updated_at"],
+    )
 
     logger.info(
         "transcrire_audio_task: demarrage job=%s page=%s fichier=%s provider=%s",
@@ -1068,7 +1070,13 @@ def analyser_page_task(self, job_id):
     # / Set job to PROCESSING
     job_extraction.status = ExtractionJobStatus.PROCESSING
     job_extraction.error_message = None
-    job_extraction.save(update_fields=["status", "error_message"])
+    # "updated_at" est liste explicitement : Django n'applique auto_now
+    # qu'aux champs presents dans update_fields. Sans lui, la date reste
+    # figee a la creation, et la garde d'edition
+    # (hypostasis_extractor/services/garde_edition.py) ne peut pas savoir
+    # si ce job est encore vivant.
+    # / auto_now only applies to fields listed in update_fields.
+    job_extraction.save(update_fields=["status", "error_message", "updated_at"])
 
     logger.info(
         "analyser_page_task: demarrage job=%s page=%s model=%s",
@@ -1288,7 +1296,12 @@ def analyser_page_task(self, job_id):
             # Sauvegarder le compteur d'entites pour le suivi en DB.
             # / Save entity counter for DB tracking.
             job_extraction.entities_count = nombre_entites_creees
-            job_extraction.save(update_fields=["entities_count"])
+            # "updated_at" : ce callback est appele a chaque chunk traite.
+            # C'est le seul signe de vie regulier d'une analyse longue.
+            # / This callback is a long analysis's only regular sign of life.
+            job_extraction.save(
+                update_fields=["entities_count", "updated_at"],
+            )
 
         # 5. Creer l'annotateur avec callback et lancer l'extraction
         # batch_length=TAILLE_BATCH pour paralleliser les appels LLM.

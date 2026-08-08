@@ -35,4 +35,5 @@ dependencies = [
     "channels-redis>=4.1",
     "stripe>=8.0",
     "markdown>=3.10.2",
+    "docling>=2.118.0",
 ]

@@ -5,6 +5,363 @@
 
 ---
 
+## 2026-08-05 — Ingestion Docling, simplifications, bascule des pages existantes
+
+**Quoi / What :** Docling installe et branche, deux simplifications du modele, et
+une commande de bascule des pages du moteur ANCIEN vers le moteur ELEMENT.
+
+### Ingestion Docling / Docling ingestion
+`services/ingestion_docling.py` convertit un fichier en ElementDocument. Verifie
+sur un markdown avec titres, liste et tableau : 9 elements, labels corrects
+(`title`, `section_header`, `text`, `list_item`, `table`), chemins de section
+hierarchiques.
+
+Deux points traites que Docling ne fait pas seul :
+- **Les tableaux sont serialises en markdown.** Un tableau Docling n'a pas
+  d'attribut texte : son contenu est dans sa structure. Sans serialisation, il
+  arriverait vide et tout son contenu serait perdu pour l'analyse.
+- **Chaque boite PDF garde SON numero de page.** `page_no` est unique au niveau
+  de la provenance, alors que les boites sont une liste : un paragraphe a cheval
+  sur deux pages aurait vu ses boites de la page 2 dessinees sur la page 1.
+
+Chaine complete verifiee avec un appel LLM reel : Docling -> 9 elements ->
+1 chunk -> 4 extractions -> 14 portions, dont 2 couvrant plusieurs elements.
+
+### Deux simplifications / Two simplifications
+| Quoi / What | Pourquoi / Why |
+|---|---|
+| `ElementDocument.element_parent` supprime | Scission et fusion suppriment toujours leurs sources, et le `SET_NULL` vidait donc la reference a chaque fois. Un champ qui ne peut jamais rien indiquer invite a s'y fier a tort. La filiation vit dans `ElementOperation.donnees` |
+| `EtatAncrage` passe de trois etats a deux | `EXACTE` et `RETROUVEE` se comportaient exactement pareil : ni le regime d'edition, ni l'affichage, ni le calcul d'etat ne les distinguaient. Fusionnes en `ANCREE` |
+
+### Bascule des pages existantes / Migrating existing pages
+`manage.py basculer_vers_le_moteur_element` decoupe `text_readability` en
+elements et tente de re-ancrer les extractions en cherchant leur texte, avec la
+regle habituelle : plusieurs occurrences, on ne devine pas.
+
+Resultat sur le dev (538 pages, 29 921 extractions) : **13 174 elements crees,
+8 585 ancres recuperees (28,7 %)**. Aucune extraction ni commentaire supprime :
+celles qu'on ne retrouve pas restent en base, detachees.
+
+### On traduit les anciens offsets, on ne cherche pas le texte
+Les anciennes extractions portent `start_char` et `end_char` : des positions
+dans `text_readability`, ecrites par l'alignement de LangExtract au moment de
+l'analyse. **Ces positions sont fiables** — verifie sur echantillon : aucune
+hors bornes, 5 % seulement a 0-0 (jamais alignees).
+
+Comme les elements sont decoupes dans CE MEME texte, il suffit de noter ou
+commence chaque paragraphe pour traduire un ancien offset en portions. C'est un
+calcul d'intersection, exactement celui que `services/ancrage.py` fait deja pour
+le nouveau moteur.
+
+Trois versions successives de la commande, et ce que chacune a appris :
+
+| Methode | Re-ancrage | Extractions commentees |
+|---|---|---|
+| Chercher `extraction_text`, element par element | 39,7 % | 51/115 |
+| + insensible a la casse et a la typographie, sur le texte colle | 48,6 % | 66/115 |
+| **Traduire `start_char`/`end_char`** | **99,7 %** | **113/115** |
+
+Chercher le texte etait a la fois inutile et moins bon :
+- ca rejetait des ancres correctes au motif que le texte apparaissait ailleurs
+  dans la page (« ambigu »), alors que l'offset, lui, savait laquelle etait la
+  bonne ;
+- ca echouait sur les alignements partiels de LangExtract, ou `extraction_text`
+  est plus long que ce qui a reellement ete trouve dans le document ;
+- ca echouait sur les differences d'ecriture entre le texte rendu et le
+  document (un `\n` devenu espace, une apostrophe courbe).
+
+**Note** : une analyse intermediaire avait conclu que 73 % des extractions
+etaient des reformulations et non des citations. C'etait faux, et c'etait un
+artefact de la methode de mesure — une recherche de texte trop litterale, pas
+un fait sur les donnees. `extraction_text` porte bien la citation.
+
+### Migration
+- **Migration necessaire / Migration required :** Oui — `core.0039` et
+  `hypostasis_extractor.0033` (suppression du champ, fusion des etats, avec
+  conversion des donnees existantes).
+- La commande de bascule, elle, se lance a la demande, et accepte `--a-blanc`
+  pour voir ce qui se passerait sans rien ecrire.
+
+---
+
+## 2026-08-05 — Ancrage par element, phase D : pipeline d'analyse + garde d'edition
+
+**Quoi / What :** `services/analyse_par_element.py` (chunks -> LangExtract ->
+ancres) et `services/garde_edition.py` (interdire l'edition pendant une analyse).
+
+**Pourquoi / Why :** c'est la piece qui relie tout le reste. Le chunking (phase C)
+decoupe sur les frontieres d'elements, le LLM analyse chaque chunk seul,
+l'intersection (phase B) traduit les positions rendues en portions d'ancrage.
+Verifie contre Gemini 2.5 Flash : sur une liste a puces de trois elements, le
+modele rend un span qui les traverse tous les trois, et le pipeline produit trois
+portions ordonnees pointant chacune le bon texte.
+
+### Fichiers ajoutes / Added files
+| Fichier / File | Role / Purpose |
+|---|---|
+| `hypostasis_extractor/services/analyse_par_element.py` | Pipeline d'analyse du moteur ELEMENT |
+| `hypostasis_extractor/services/garde_edition.py` | Refus d'editer pendant une analyse |
+| `hypostasis_extractor/tests/test_analyse_par_element.py` | 19 tests, LLM simule |
+| `hypostasis_extractor/tests/test_analyse_llm_reel.py` | 3 tests d'integration, appels LLM reels |
+| `hypostasis_extractor/tests/test_garde_edition.py` | 24 tests |
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `front/tasks.py` | `"updated_at"` ajoute aux `update_fields` des jobs (battement de coeur pour la garde d'edition) |
+| `front/views.py` | `_refuser_si_une_analyse_tourne()` + garde sur `renommer_locuteur`, `editer_bloc`, `supprimer_bloc` |
+| `services/reconciliation.py`, `moteur_structure.py`, `masquage.py`, `reingestion.py` | Appel de la garde en tete de chaque operation d'edition |
+
+### Deux decisions du proprietaire / Two owner decisions
+1. **Les gros elements partent entiers**, sans decoupage. `max_char_buffer` est
+   calcule plus grand que le chunk pour que LangExtract le recoive tel quel.
+   A noter : ca ne protege pas les positions (LangExtract les re-base de toute
+   facon), ca garantit que le modele lit chaque element ENTIER, dans son
+   contexte.
+2. **L'edition est bloquee pendant une analyse.** Un delai de grace de 90 minutes
+   empeche qu'un worker Celery interrompu condamne une page pour toujours — cas
+   documente dans le CHANGELOG du 19 juin 2026.
+
+### Defauts corriges apres relecture adverse / Fixed after adversarial review
+| Defaut / Defect | Correction |
+|---|---|
+| `lx.extract` telecharge le texte s'il ressemble a une URL (`fetch_urls=True` par defaut) : un element qui est un lien nu aurait fait analyser la page distante, avec des ancres fausses et une requete sortante pilotee par le document ingere | `fetch_urls=False` |
+| Une analyse dont TOUS les chunks echouent finissait `COMPLETED`, indiscernable d'une page sans rien a extraire | Passage en `ERROR`, et bilan persiste dans `raw_result` |
+| Une extraction incoherente (span a l'envers) faisait tomber toute l'analyse | Attrapee par extraction, comptee dans `extractions_refusees` |
+| Relancer un job dupliquait toutes ses extractions | Purge des entites du job avant analyse |
+| Un JSON tronque par `max_output_tokens` perdait le chunk entier | `resolver_params={"suppress_parse_errors": True}` |
+| `updated_at` n'etait jamais rafraichi : le delai de grace mesurait l'age depuis la creation, pas la vie du job | Battement de coeur dans `front/tasks.py`, et la garde regarde les deux dates |
+| La garde ne protegeait que la couche elements, qu'aucun code n'appelle encore, alors que les vraies editions passent par `front/views.py` | Garde ajoutee sur les trois vues d'edition |
+
+### Tests avec appels LLM reels / Real LLM tests
+Ils coutent de l'argent et dependent de ce que le modele repond. Double verrou :
+le tag `llm_reel` **et** la variable `TESTS_LLM_REELS`. Django n'excluant pas les
+tags par defaut, le tag seul ne protegerait pas.
+
+```bash
+docker exec -e TESTS_LLM_REELS=1 hypostasia_dev_web \
+    uv run python manage.py test hypostasis_extractor --tag=llm_reel
+```
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+### Ce qui reste avant utilisation / Remaining before use
+Le pipeline n'est appele par aucune tache Celery ni vue. Il manque : la tache
+Celery (avec `_check_ia_active`, notifications, progression), le bouton dans
+l'interface, et le compteur de tokens que la spec section 4.2 declare necessaire.
+
+---
+
+## 2026-08-05 — Ancrage par element, phase G : masquage et re-ingestion
+
+**Quoi / What :** `services/masquage.py` (masquer, demasquer) et
+`services/reingestion.py` (reconcilier les elements par empreinte).
+
+**Pourquoi / Why :** deux besoins distincts.
+- **Masquer** : la transcription audio invente du contenu — un bruit de fond
+  transcrit en mots, une phrase repetee. Ce n'est ni une coquille a corriger
+  (il n'y a rien a corriger VERS) ni une note d'incertitude. L'element sort du
+  contenu utile sans etre supprime, et l'operation est reversible.
+- **Re-ingerer** : un pad de 200 comptes-rendus grossit d'un compte-rendu par
+  semaine. Il faut re-analyser sans repayer 200 appels au LLM ni perdre les
+  debats attaches aux 199 autres. Les elements sont reconnus par empreinte de
+  contenu, jamais par position.
+
+### Fichiers ajoutes / Added files
+| Fichier / File | Role / Purpose |
+|---|---|
+| `hypostasis_extractor/services/masquage.py` | Masquer, demasquer, detacher les portions |
+| `hypostasis_extractor/services/reingestion.py` | Reconciliation des elements par empreinte |
+| `hypostasis_extractor/tests/test_masquage_et_reingestion.py` | 26 tests |
+
+### Ecarts avec la spec, et pourquoi / Deviations from the spec
+| Ou / Where | Ecart / Deviation | Raison / Reason |
+|---|---|---|
+| 5.4 | Le demasquage ne reutilise pas la reconciliation | Celle-ci repositionne apres un CHANGEMENT de texte et rend la main quand le texte est inchange — exactement le cas du demasquage. Elle exclut de plus les portions detachees, a raison |
+| 5.4 | Le journal note un hash du texte BRUT, pas l'empreinte normalisee | L'empreinte ecrase les espaces et la casse. Corriger une double espace pendant un masquage decale tous les offsets qui suivent sans changer l'empreinte d'un iota : les portions seraient rattachees a des positions fausses |
+| 5.4 | Le journal note les identifiants des portions detachees | Un element peut porter des portions detachees AVANT le masquage, par une correction anterieure. Les rattacher au demasquage les ferait pointer n'importe quoi. Seules celles que ce masquage a detachees reviennent |
+| 5.3 | Les elements deja masques sont apparies, pas exclus | En les excluant, un element masque dont le texte reste dans la source serait recree en doublon a chaque re-ingestion, masque a son tour, exclu, recree... Un pad re-ingere cinquante fois accumulerait cinquante copies du meme bruit |
+| 5.3 | Les empreintes en double sont signalees des DEUX cotes | Ne regarder que l'ancien document laisse passer le cas le plus probable : un intitule repete qui apparait une seconde fois dans le NOUVEAU contenu |
+| 5.3 | Le masquage par re-ingestion passe par `masquer_un_element` | Un masquage ecrit a la main ne serait ni journalise ni recuperable : l'element ne pourrait jamais retrouver ses ancres, meme a texte strictement identique |
+| 5.3 | Numerotation en deux temps (plage temporaire puis renumerotation) | Un element masque restant a l'ordre 0 entre en collision definitive avec un nouvel element cree a l'ordre 0. Ce conflit-la n'est pas transitoire, donc la contrainte differee le refuse a juste titre |
+| 5.2 | La fusion refuse un element masque avec un visible | Le resultat ne pourrait etre ni l'un ni l'autre : visible, il renverrait au LLM le bruit qu'un humain avait retire ; masque, il ferait disparaitre du contenu utile |
+
+### Migration
+- **Migration necessaire / Migration required :** Non — aucun changement de schema.
+
+---
+
+## 2026-08-05 — Ancrage par element, phase F : moteur scission / fusion
+
+**Quoi / What :** `services/moteur_structure.py` — couper un element en deux,
+recoller deux elements adjacents, en redistribuant les portions d'ancrage.
+Plus deux changements de schema que ces operations rendent necessaires.
+
+**Pourquoi / Why :** une transcription audio colle deux tours de parole en un
+seul element, ou attribue le mauvais locuteur au milieu d'un segment. Sans
+scission ni fusion, la seule facon de corriger serait de tout re-analyser et de
+perdre le debat attache. « Recoller un tour de parole scinde » est l'operation
+numero un sur une vraie diarisation.
+
+### Fichiers ajoutes / Added files
+| Fichier / File | Role / Purpose |
+|---|---|
+| `hypostasis_extractor/services/moteur_structure.py` | Scission, fusion, coalescence, renumerotation |
+| `hypostasis_extractor/tests/test_moteur_structure.py` | 41 tests |
+
+### Changement de schema 1 : contraintes d'unicite DEFERRABLE
+Les contraintes `unicite_ordre_dans_la_page` et `unicite_ordre_dans_l_extraction`
+sont desormais verifiees au COMMIT, plus a chaque ligne ecrite.
+
+**Raison :** le pseudo-code de la spec section 5.1 est incodable autrement. Il
+cree le premier morceau avec l'`ordre` de l'element d'origine, qui existe encore
+a cet instant — `IntegrityError` immediate, verifiee empiriquement. Meme
+probleme pour le decalage des `ordre_dans_extraction` : decaler des numeros
+de +1 fait forcement se telescoper deux lignes en chemin.
+
+**Consequences a connaitre :**
+- Une violation d'unicite sur ces deux tables ne se manifeste plus au `save()`
+  mais au commit, donc hors de tout `try/except` place autour de l'ecriture.
+- `bulk_create(ignore_conflicts=True)` et tout `ON CONFLICT` sont desormais
+  refuses par PostgreSQL sur ces deux tables : une contrainte deferrable ne peut
+  pas servir d'arbitre a un upsert.
+
+### Changement de schema 2 : le journal des operations tient a la Page
+`ElementOperation.element` passe de `CASCADE` a `SET_NULL`, et le modele gagne
+`page` (FK obligatoire), `identifiant_stable_element` et `donnees`.
+
+**Raison :** scission et fusion suppriment toujours leurs elements sources. Avec
+une CASCADE sur l'element, chaque operation effacait l'historique de la
+precedente — scinder puis refusionner ne laissait aucune trace de la scission.
+Le journal etait decoratif, et l'invariant « rien ne disparait en silence » faux
+la ou il compte le plus.
+
+### Defauts de la spec corriges au passage / Spec defects fixed
+| Section | Defaut / Defect |
+|---|---|
+| 5.1 | Le pseudo-code viole la contrainte d'unicite des la premiere ligne ; son `transaction.atomic()` arrive apres les `create` |
+| 5.2 | La fusion promeut toutes les portions en `RETROUVEE`, y compris celles qui etaient `DETACHEE` — une portion detachee ressuscitait sur des offsets jamais valides |
+| 5.2 | La coalescence recollait deux portions distantes de la longueur du separateur, ou qu'elles soient. Deux portions separees par deux caracteres de vrai texte etaient recollees en avalant ce texte. On ne recolle plus qu'a la couture |
+| 5.2 | `_fusionner_les_provenances` : les boites PDF du second element heritaient du `page_no` du premier, donc auraient ete dessinees sur la mauvaise page. Chaque boite porte desormais sa page |
+
+### Migration
+- **Migration necessaire / Migration required :** Oui
+- `core.0037` (contrainte deferrable), `hypostasis_extractor.0032` (idem),
+  `core.0038` (journal rattache a la page, ecrite a la main car la table est
+  vide et le champ `page` non-nullable).
+- **Sans effet sur les donnees existantes** : les trois tables concernees ne
+  sont alimentees par aucun pipeline a ce stade.
+
+---
+
+## 2026-08-05 — Ancrage par element, phases B, C et E : intersection, chunking, reconciliation
+
+**Quoi / What :** les trois algorithmes du moteur ELEMENT qui ne dependent
+d'aucune decision d'interface.
+- **Phase B** — `services/ancrage.py` : transforme un span rendu par LangExtract
+  (des offsets dans le texte d'un chunk) en portions d'ancrage, une par element
+  traverse.
+- **Phase C** — `services/chunking.py` : regroupe les elements en chunks sans
+  jamais couper un element en deux.
+- **Phase E** — `services/reconciliation.py` : repositionne les portions apres
+  une correction de texte, et serialise les corrections concurrentes.
+
+**Pourquoi / Why :** ce sont les trois endroits ou une ancre peut devenir fausse.
+Un chunk qui coupe un element fait lire une demi-phrase au LLM ; un span mal
+traduit ancre au mauvais endroit ; une correction de texte fait glisser toutes
+les positions. Chacun des trois refuse de deviner : quand la position n'est pas
+certaine, la portion est marquee `DETACHEE` plutot que placee au hasard.
+
+### Fichiers ajoutes / Added files
+| Fichier / File | Role / Purpose |
+|---|---|
+| `hypostasis_extractor/services/ancrage.py` | Decoupage d'un span en portions + table des offsets |
+| `hypostasis_extractor/services/chunking.py` | Construction des chunks alignes sur les elements |
+| `hypostasis_extractor/services/reconciliation.py` | Repositionnement des portions + verrou de concurrence |
+| `hypostasis_extractor/tests/test_chunking_par_element.py` | 23 tests |
+| `hypostasis_extractor/tests/test_reconciliation.py` | 23 tests |
+
+### Fichiers deplaces / Moved files
+| Avant / Before | Apres / After | Raison / Reason |
+|---|---|---|
+| `hypostasis_extractor/services.py` | `hypostasis_extractor/services/__init__.py` | La spec impose un paquet `services/`. Les imports existants restent valides ; les imports relatifs internes sont passes de `from .models` a `from ..models` |
+| `hypostasis_extractor/tests.py` | `hypostasis_extractor/tests/test_modeles_extraction.py` | Un module et un paquet de meme nom empechaient `manage.py test` de decouvrir les tests |
+
+### Ecarts avec la spec, et pourquoi / Deviations from the spec
+| Ou / Where | Ecart / Deviation | Raison / Reason |
+|---|---|---|
+| section 2.3 | Parametre `decalages_dans_l_element` ajoute | La table d'offsets de la spec dit ou un morceau d'element est DANS LE CHUNK, jamais ou il est DANS L'ELEMENT. Sans cette information, une portion d'un element trop gros serait ancree a 0 |
+| section 2.3 | Un element absent de la table leve une erreur au lieu d'etre saute | Un saut silencieux produit une ancre incomplete que rien en aval ne detecte : la portion du milieu disparait et la numerotation se resserre |
+| section 4.1 | Taille calculee par somme des longueurs, pas par `position_debut/fin_dans_page` | Ces attributs n'existent pas sur `ElementDocument`. La somme mesure en plus exactement ce que le budget veut borner : le texte reellement envoye au LLM |
+| section 4.1 | Cle `offsets` ajoutee a chaque chunk | La section 2.3 dit reutiliser « la meme table que celle utilisee pour construire le chunk » — table que le chunker de la spec ne produisait pas |
+| section 4.1 | Un element plus gros que le budget part entier | La regle 1 est declaree obligatoire. Consequence : un chunk ne contient jamais une sous-chaine d'element, contrairement a ce que la section 2.3 envisage |
+| section 6 | `reconcilier_les_portions_de_l_element` ecrit aussi le texte | La spec appelle `texte_de_la_portion_avant_edition()`, methode inexistante, tout en ayant retire `ancien_texte`. Les deux sont inconciliables |
+| section 6 | Les portions des extractions masquees sont repositionnees | Les ignorer laisserait des offsets perimes qui ressortiraient faux au demasquage |
+| section 6 | Les portions deja `DETACHEE` sont exclues | Leurs offsets ne veulent plus rien dire : les reutiliser pouvait faire repasser une portion `EXACTE` sur un passage sans rapport |
+
+### Migration
+- **Migration necessaire / Migration required :** Non — aucun changement de schema.
+
+---
+
+## 2026-08-05 — Ancrage par element, phase A : modeles et signal d'etat
+
+**Quoi / What :** ajout du socle de donnees du moteur ELEMENT — `ElementDocument`,
+`AncrageExtraction` (ancre multi-elements), `ElementOperation`, le champ
+`SourceLink.ancrage_source`, et le signal `recalculer_etat_de_l_element`.
+Implemente la phase A de `SPEC-ancrage-par-element-v2.md` (section 11).
+
+**Pourquoi / Why :** l'ancrage actuel se fait par offsets de caracteres dans un
+texte plat. Des qu'un texte est corrige, les positions glissent et le lien avec
+le passage source est perdu. Le nouveau moteur ancre dans un element de document
+identifie par un UUID stable, via une table de liaison ordonnee qui permet a une
+extraction de couvrir plusieurs elements — mesure : une extraction d'une phrase
+enjambe deja deux elements dans 7,5 % des cas, une extraction de deux phrases
+dans 76 % des cas.
+
+**Etat / Status :** socle de donnees uniquement. Aucun pipeline ne cree encore
+d'element : le moteur d'intersection (phase B), le chunking (phase C) et
+l'ingestion (phase D) restent a ecrire. Le nouveau moteur n'est donc lu par
+aucun code existant.
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `core/models.py` | + `empreinte_du_texte()`, `EtatElement`, `ElementDocument`, `TypeOperationElement`, `ElementOperation` ; + champ `SourceLink.ancrage_source` ; imports `hashlib`, `re`, `uuid` |
+| `hypostasis_extractor/models.py` | + `EtatAncrage`, `AncrageExtraction` (table de liaison M2M ordonnee) |
+| `hypostasis_extractor/signals.py` | + `recalculer_etat_de_l_element()` et ses trois recepteurs (ancrage, commentaire, masquage d'extraction) |
+| `hypostasis_extractor/tests/` | Nouveau package + `test_ancrage_m2m.py` (37 tests) |
+| `core/migrations/0035_elementdocument_elementoperation.py` | Creation des modeles |
+| `core/migrations/0036_sourcelink_ancrage_source_and_more.py` | FK croisees + contrainte d'unicite |
+| `hypostasis_extractor/migrations/0031_ancrageextraction.py` | Creation de la table de liaison |
+
+### Coexistence des deux moteurs / Both engines coexist
+Conformement a la section 9 de la spec, **aucun ancien champ n'est retire ni
+modifie**. `ExtractedEntity.start_char` / `end_char` et
+`SourceLink.start_char_source` / `end_char_source` restent en place et
+fonctionnent comme avant. Les trois migrations sont purement additives
+(`CreateModel`, `AddField`, `AddConstraint`) — aucun `RemoveField`, aucun
+`AlterField`, aucun `RunPython`. Trois tests de non-regression verifient
+explicitement que les anciens champs existent toujours.
+
+### Regle de calcul de l'etat / State computation rule
+Une portion d'ancrage ne compte dans l'etat d'un element que si son extraction
+n'est **pas masquee** et que son ancrage n'est **pas detache**. Consequence
+voulue : un element dont toutes les portions sont detachees redevient `LIBRE`,
+donc librement editable. Il n'y a pas d'etat `SCELLE` — le scellement a ete
+abandonne (YAGNI).
+
+### Migration
+- **Migration necessaire / Migration required :** Oui
+- `core.0035`, `hypostasis_extractor.0031`, `core.0036` — dans cet ordre, gere
+  automatiquement par les dependances.
+- Commande : `docker exec hypostasia_web uv run python manage.py migrate`
+- **Sans effet sur les donnees existantes** : uniquement des tables nouvelles et
+  une colonne nullable sur `SourceLink`.
+
+---
+
 ## 2026-06-19 — Fix : taches en erreur bloquees en « En cours » (statut "error" vs "failed")
 
 **Quoi / What :** correction d'une regression du widget « taches » : un job

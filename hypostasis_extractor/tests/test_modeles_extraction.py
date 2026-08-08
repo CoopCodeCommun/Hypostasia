@@ -4,7 +4,7 @@ Tests pour l'application Hypostasis Extractor.
 
 from django.test import TestCase
 from core.models import Page, AIModel, Provider
-from .models import ExtractionJob, ExtractedEntity, ExtractionExample
+from hypostasis_extractor.models import ExtractionJob, ExtractedEntity, ExtractionExample
 
 
 class ExtractionJobModelTests(TestCase):
