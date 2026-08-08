@@ -1006,23 +1006,19 @@ body[data-source="audio"][data-lecteur="oui"] .lecteur { display:flex; }
 
         <div class="encart gris">
           <div class="ligne"><span>Analyseur</span><span>Hypostases — général</span></div>
-          <div class="ligne"><span>Modèle IA</span><span>claude-sonnet-4-20250514</span></div>
+          <div class="ligne"><span>Modèle IA</span><span>gemini-2.5-flash</span></div>
           <div class="ligne"><span>Pièces de prompt</span><span>5</span></div>
           <div class="ligne"><span>Exemples few-shot</span><span>3</span></div>
         </div>
 
-        <div class="encart ambre">
-          <div class="ligne"><span>Morceaux (~1 500 car.)</span><span id="est-chunks">9</span></div>
-          <div class="ligne"><span>Prompt par morceau</span><span>1 840 tok.</span></div>
-          <div class="ligne"><span>Tokens entrée</span><span id="est-in">21 300</span></div>
-          <div class="ligne"><span>Tokens sortie (~50 %)</span><span id="est-out">10 650</span></div>
-          <!-- Pas de ligne « réflexion » : le multiplicateur thinking n'existe
-               que pour gemini-2.5 (core/models.py:666-669), et le template réel
-               masque la ligne quand il vaut 0 (confirmation_analyse.html:85-88).
-               / No thinking line: Claude models have no multiplier. -->
-          <div class="ligne" style="margin-top:.3rem">
-            <span>Coût estimé</span><span class="cout" id="est-cout">≤ 0,35 €</span></div>
-        </div>
+        <!-- Chaque ligne est DERIVEE du document affiché, avec les valeurs
+             du code : budget de 1 500 signes par morceau (chunking.py),
+             sortie estimée à 50 % de l'entrée, multiplicateur de réflexion
+             ×5 pour gemini-2.5 (core/models.py:666-669), tarif
+             0,30/2,50 $ par million (core/models.py:627), taux 0,92 €/$,
+             marge ×1,5 arrondie au centime supérieur (views.py:1840-1846).
+             / Every line derived; nothing typed. -->
+        <div class="encart ambre" id="encart-estimation"></div>
 
         <button class="bouton-plat" id="btn-voir-prompt" style="margin-bottom:.6rem">
           👁 Voir le prompt complet</button>
@@ -1030,7 +1026,8 @@ body[data-source="audio"][data-lecteur="oui"] .lecteur { display:flex; }
 
         <div class="case-a-cocher">
           <input type="checkbox" id="case-supprimer" checked>
-          <label for="case-supprimer">Supprimer les <strong>7</strong> extractions IA sans commentaire.
+          <label for="case-supprimer">Supprimer les
+            <strong id="compte-a-supprimer">—</strong> extractions IA sans commentaire.
             Les extractions commentées et les manuelles sont conservées.</label>
         </div>
 
@@ -1242,6 +1239,37 @@ var COULEURS_LOCUTEURS = ['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6',
 /* rendu_elements.py:60, 77 */
 var MAXIMUM_D_IDEES_SUPERPOSEES = 4;
 var MAXIMUM_DE_MARQUES_PAR_ELEMENT = 400;
+
+/* Les valeurs de l'estimation, telles que le code les fixe.
+   / The real constants behind the cost estimate. */
+var BUDGET_PAR_MORCEAU = 1500;              /* chunking.py */
+var SIGNES_PAR_TOKEN = 4;                   /* approximation cl100k */
+var SURCOUT_DE_PROMPT_PAR_MORCEAU = 1840;   /* pieces + exemples few-shot */
+var PART_DE_SORTIE = 0.5;                   /* views.py — sortie ~50 % de l'entree */
+var MULTIPLICATEUR_THINKING = 5;            /* core/models.py:666-669, gemini-2.5 */
+var TARIF_ENTREE_PAR_MILLION = 0.30;        /* core/models.py:627 */
+var TARIF_SORTIE_PAR_MILLION = 2.50;
+var TAUX_USD_EUR = 0.92;                    /* core/models.py:691 */
+var MARGE = 1.5;                            /* views.py:1840-1846 */
+
+function estimerLAnalyse(doc) {
+  var signes = (doc.elements || []).reduce(function (total, element) {
+    return total + (element.texte || '').length;
+  }, 0);
+  var morceaux = Math.max(1, Math.ceil(signes / BUDGET_PAR_MORCEAU));
+  var tokensEntree = morceaux * SURCOUT_DE_PROMPT_PAR_MORCEAU +
+    Math.round(signes / SIGNES_PAR_TOKEN);
+  var tokensSortie = Math.round(tokensEntree * PART_DE_SORTIE);
+  var tokensReflexion = tokensSortie * MULTIPLICATEUR_THINKING;
+  var dollars = (tokensEntree * TARIF_ENTREE_PAR_MILLION +
+    (tokensSortie + tokensReflexion) * TARIF_SORTIE_PAR_MILLION) / 1000000;
+  var euros = Math.max(0.01, Math.ceil(dollars * TAUX_USD_EUR * MARGE * 100) / 100);
+  return {signes:signes, morceaux:morceaux, tokensEntree:tokensEntree,
+          tokensSortie:tokensSortie, tokensReflexion:tokensReflexion, euros:euros};
+}
+function grouperLesMilliers(nombre) {
+  return String(nombre).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
 
 /* _card_body.html:77-79 — la citation source est tronquee a 120 signes. */
 var LONGUEUR_MAXIMALE_DE_CITATION = 120;
@@ -1577,6 +1605,7 @@ function rendre() {
   });
 
   DUREE_TOTALE = finDuDernierTour;
+  rendreLEstimation(doc);
   rendreLesCartes();
   rendreLeBlocCarnets();
   rendreLeFilDAriane();
@@ -1585,6 +1614,29 @@ function rendre() {
   rafraichirLeFilDeSection();
   rafraichirLAudio();
   construireLeRail();
+}
+
+function rendreLEstimation(doc) {
+  var e = estimerLAnalyse(doc);
+  document.getElementById('encart-estimation').innerHTML =
+    '<div class="ligne"><span>Morceaux (~' + BUDGET_PAR_MORCEAU + ' signes)</span><span>' +
+      e.morceaux + '</span></div>' +
+    '<div class="ligne"><span>Texte à analyser</span><span>' +
+      grouperLesMilliers(e.signes) + ' signes</span></div>' +
+    '<div class="ligne"><span>Tokens entrée</span><span>' +
+      grouperLesMilliers(e.tokensEntree) + '</span></div>' +
+    '<div class="ligne"><span>Tokens sortie (~50 %)</span><span>' +
+      grouperLesMilliers(e.tokensSortie) + '</span></div>' +
+    '<div class="ligne"><span>Tokens réflexion (×' + MULTIPLICATEUR_THINKING +
+      ')</span><span>' + grouperLesMilliers(e.tokensReflexion) + '</span></div>' +
+    '<div class="ligne" style="margin-top:.3rem"><span>Coût estimé</span>' +
+      '<span class="cout">≤ ' + e.euros.toFixed(2).replace('.', ',') + ' €</span></div>';
+
+  /* Le compte d'extractions supprimables est DERIVE, pas annonce. */
+  var sansCommentaire = toutesLesIdees(doc).filter(function (idee) {
+    return !(idee.commentaires || []).length;
+  }).length;
+  document.getElementById('compte-a-supprimer').textContent = sansCommentaire;
 }
 
 function rendreLesCartes() {
@@ -1636,7 +1688,7 @@ function rendreLesCartes() {
       ? visibles.length + ' sur ' + total
       : total + (total > 1 ? ' extractions' : ' extraction');
   document.getElementById('resume-texte').textContent =
-    '✓ ' + idees.length + ' entités · claude-sonnet-4-20250514';
+    '✓ ' + idees.length + ' entités · gemini-2.5-flash';
   document.getElementById('badge-panneau').textContent = total;
   document.getElementById('badge-panneau').hidden = total === 0;
 

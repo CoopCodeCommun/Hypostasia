@@ -1174,6 +1174,31 @@ Voir squelette PHASE-35 dans l'Annexe A.
 
 ## 7. Update incrémental des synthèses (section_ops)
 
+> ⚠️ **CORRIGÉ PAR `SPEC-synthese-carnet.md` § 6 (8 août 2026)**
+>
+> Deux comportements décrits ci-dessous sont **abandonnés** :
+>
+> 1. `AppendToSection` / `ReplaceSection` avec un `heading` introuvable :
+>    ce document prescrit un `logger.warning` et **jette le contenu en silence**.
+>    → Remplacé par un **rejet visible**, contenu conservé et montré à l'humain.
+>    Jeter du contenu sans trace est une perte de données.
+>
+> 2. `InsertSection` avec un `after_heading` introuvable :
+>    ce document prescrit un **fallback en fin d'article**.
+>    → Remplacé par un **rejet visible**. Un titre absent est une hallucination
+>    du modèle, pas une approximation de placement ; insérer à un endroit qu'il
+>    n'a pas choisi est pire qu'un rejet, parce que personne ne le voit.
+>
+> Le contrôle mécanique est par ailleurs **étendu aux sources** : une opération
+> de contenu dont `sources` est vide, ou dont une source est hors du périmètre,
+> est rejetée de la même façon.
+>
+> Enfin, la numérotation `[N]` **n'est pas stockée** dans le markdown : elle est
+> attribuée à l'affichage depuis des identifiants d'extraction. Un index stocké
+> est instable entre deux ingestions.
+>
+> Le reste de cette section (schéma des opérations, prompt, applier) reste valide.
+
 ### Pattern Atomic
 
 Source : `crates/atomic-core/src/wiki/section_ops.rs` et le prompt

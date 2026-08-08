@@ -686,6 +686,7 @@ body[data-alignement="resume"] .cellule-alignement .apercu-source { display:none
 
 <div class="pile-toasts" id="pile-toasts"></div>
 
+<script src="donnees.js"></script>
 <script>
 /* =========================================================================
    1. REFERENTIELS
@@ -755,164 +756,66 @@ var AXES_VEILLE = [
 /* Les extractions : la brique de preuve. Une extraction porte son ancrage
    (note, element, offsets) ET son debat. C'est ce qu'une citation resout.
    / An extraction carries its anchor AND its debate. */
-var EXTRACTIONS = [
-  {id:601, note:'n-conseil-12mars', element:1, debut:36, fin:92,
-   citation:"je voudrais qu'on prenne le temps de l'expliquer aux équipes",
-   resume:"L'explication aux équipes est posée en préalable à la décision.",
-   tags:['methode','principe'], statut:'nouveau', qui:'Marie', temps:'00:00–00:14',
-   commentaires:[]},
-  {id:602, note:'n-conseil-12mars', element:2, debut:0, fin:71,
-   citation:"On a déjà repoussé deux fois cette décision, à un moment il faut trancher",
-   resume:"L'ajournement répété est présenté comme un coût en soi.",
-   tags:['probleme'], statut:'commente', qui:'Jonas', temps:'00:14–00:27',
-   commentaires:[{qui:'Amina', quoi:"Deux reports, c'est factuel. Mais ça n'oblige pas à décider mal."},
-                 {qui:'Marie', quoi:"Je note qu'on n'a jamais dit pourquoi on avait reporté."}]},
-  {id:603, note:'n-conseil-12mars', element:3, debut:13, fin:88,
-   citation:"pas sans avoir consulté les personnes qui vont vivre avec cette décision",
-   resume:"La consultation des personnes concernées est érigée en condition de légitimité.",
-   tags:['principe','methode'], statut:'commente', qui:'Marie', temps:'00:27–00:43',
-   commentaires:[{qui:'Pierre', quoi:"C'est le principe 3 d'Ostrom, mot pour mot."}]},
-  {id:604, note:'n-conseil-12mars', element:4, debut:29, fin:97,
-   citation:"On est en train de décider pour des gens qui ne sont pas dans la pièce",
-   resume:"L'absence des personnes concernées est décrite comme un vice de procédure.",
-   tags:['probleme','phenomene'], statut:'commente', qui:'Amina', temps:'00:43–01:02',
-   commentaires:[{qui:'Jonas', quoi:"D'accord sur le constat, pas sur la conclusion."},
-                 {qui:'Sonia', quoi:"On pourrait les inviter en visio, ça lève l'objection."},
-                 {qui:'Marie', quoi:"La visio ne remplace pas le fait de les prévenir à l'avance."}]},
-  {id:606, note:'n-conseil-12mars', element:9, debut:0, fin:64,
-   citation:"Le sujet n'est pas le montant, c'est la manière dont on décide",
-   resume:"Le débat est déplacé du montant vers la procédure de décision.",
-   tags:['axiome','principe'], statut:'nouveau', qui:'Marie', temps:'01:48–02:07',
-   commentaires:[]},
-  {id:607, note:'n-conseil-12mars', element:9, debut:66, fin:124,
-   citation:"Dix mille euros engagés sans que personne ne l'ait vu passer",
-   resume:"Un engagement de dix mille euros a été pris hors du regard collectif.",
-   tags:['phenomene'], statut:'commente', qui:'Marie', temps:'01:48–02:07',
-   commentaires:[{qui:'Pierre', quoi:"Le montant est exact, je l'ai vérifié au compte 606."}]},
-  {id:608, note:'n-conseil-12mars', element:10, debut:19, fin:81,
-   citation:"Au-delà de dix mille euros, ça passe en assemblée générale",
-   resume:"Un seuil chiffré est proposé comme règle de passage en assemblée.",
-   tags:['methode'], statut:'nouveau', qui:'Jonas', temps:'02:07–02:21',
-   commentaires:[]},
-  {id:609, note:'n-conseil-12mars', element:11, debut:11, fin:112,
-   citation:"si on fixe un seuil en euros sans le réévaluer, dans cinq ans l'inflation l'aura vidé de son sens",
-   resume:"Un seuil nominal non indexé perd son sens avec le temps.",
-   tags:['conjecture','probleme'], statut:'commente', qui:'Sonia', temps:'02:21–02:41',
-   commentaires:[{qui:'Jonas', quoi:"On l'indexe sur le budget total, alors. Cinq pour cent."}]},
-  {id:610, note:'n-conseil-12mars', element:12, debut:14, fin:96,
-   citation:"qu'on repousse d'une semaine, qu'on invite les personnes concernées",
-   resume:"Une décision différée d'une semaine, en présence des concernés, est proposée.",
-   tags:['methode','mode'], statut:'nouveau', qui:'Marie', temps:'02:41–02:59',
-   commentaires:[]},
+/* Les extractions viennent du corpus partage. Elles y portent des offsets
+   DERIVES du texte de leur element ; ici ils etaient tapes a la main, et
+   19 sur 20 etaient faux — ce qui rendait les selecteurs W3C affiches
+   impossibles a comparer au vrai moteur.
+   / Derived anchors; the typed ones were wrong 19 times out of 20. */
+var EXTRACTIONS = catalogueDesExtractions().map(function (e) {
+  var minutage = null;
+  if (e.debutAudio !== undefined && e.debutAudio !== null) {
+    var d = e.debutAudio, f = e.debutAudio + e.dureeAudio;
+    minutage = String(Math.floor(d / 60)).padStart(2, '0') + ':' + String(d % 60).padStart(2, '0') +
+      '–' + String(Math.floor(f / 60)).padStart(2, '0') + ':' + String(f % 60).padStart(2, '0');
+  }
+  return {
+    id: e.id, note: 'n-' + e.source, element: e.indexElement + 1,
+    debut: e.debut, fin: e.fin,
+    debutSecondes: e.debutAudio, finSecondes: e.debutAudio !== undefined
+      ? e.debutAudio + e.dureeAudio : undefined,
+    citation: e.citation, resume: e.resume, tags: e.tags, statut: e.statut,
+    qui: e.qui, temps: minutage, page: e.page, commentaires: e.commentaires
+  };
+});
 
-  {id:301, note:'n-rapport-2024', element:3, debut:26, fin:104,
-   citation:"un excédent de 12 400 euros, contre un déficit de 3 100 euros l'année précédente",
-   resume:"Le résultat passe d'un déficit à un excédent d'une année sur l'autre.",
-   tags:['phenomene'], statut:'nouveau', page:3, commentaires:[]},
-  {id:302, note:'n-rapport-2024', element:5, debut:0, fin:39,
-   citation:"Le poste des salaires progresse de 4 %",
-   resume:"La masse salariale croît de quatre pour cent.",
-   tags:['phenomene'], statut:'commente', page:4,
-   commentaires:[{qui:'Sonia', quoi:"Sur douze mois pleins, ce sera plutôt 6 %."}]},
-  {id:303, note:'n-rapport-2024', element:6, debut:62, fin:117,
-   citation:"repose sur un accord verbal avec le propriétaire actuel",
-   resume:"L'allègement des charges n'est garanti par aucun écrit.",
-   tags:['probleme','conjecture'], statut:'commente', page:'4–5',
-   commentaires:[{qui:'Jonas', quoi:"C'est le vrai risque du budget. À mettre en tête du rapport."},
-                 {qui:'Amina', quoi:"Un avenant écrit coûte 300 € de notaire. On le fait ?"}]},
-
-  {id:304, note:'n-rapport-2024', element:6, debut:38, fin:145,
-   citation:"un accord verbal avec le propriétaire actuel. Rien ne garantit sa reconduction en cas de vente du local",
-   resume:"La reconduction du bail dépend du maintien du propriétaire actuel.",
-   tags:['conjecture'], statut:'nouveau', page:'4–5', commentaires:[]},
-  {id:605, note:'n-conseil-12mars', element:7, debut:19, fin:113,
-   citation:"quatre pour cent d'augmentation, essentiellement le coût de l'énergie et l'embauche au secrétariat",
-   resume:"La hausse budgétaire est rapportée à deux causes identifiées.",
-   tags:['phenomene'], statut:'nouveau', qui:'Sonia', temps:'01:19–01:36', commentaires:[]},
-
-  {id:701, note:'n-conseil-9fev', element:2, debut:0, fin:78,
-   citation:"On avait dit qu'on validerait le budget avant de signer quoi que ce soit",
-   resume:"Une règle de séquence budget-avant-signature avait déjà été posée.",
-   tags:['principe','methode'], statut:'commente', qui:'Pierre', temps:'00:11–00:24',
-   commentaires:[{qui:'Marie', quoi:"Et personne ne l'a appliquée depuis. C'est le sujet."}]},
-  {id:702, note:'n-conseil-9fev', element:5, debut:8, fin:70,
-   citation:"trois mille euros, c'est déjà beaucoup pour une décision de bureau",
-   resume:"Un premier seuil implicite, plus bas, avait été évoqué en février.",
-   tags:['conjecture'], statut:'nouveau', qui:'Amina', temps:'01:02–01:19', commentaires:[]},
-
-  {id:801, note:'n-statuts', element:4, debut:0, fin:96,
-   citation:"L'assemblée générale est seule compétente pour les engagements pluriannuels",
-   resume:"Les statuts réservent les engagements pluriannuels à l'assemblée générale.",
-   tags:['loi','structure'], statut:'nouveau', page:2, commentaires:[]},
-  {id:802, note:'n-statuts', element:7, debut:0, fin:83,
-   citation:"Le conseil rend compte de ses décisions à la plus prochaine assemblée",
-   resume:"Une obligation de compte rendu a posteriori pèse sur le conseil.",
-   tags:['loi','methode'], statut:'commente', page:3,
-   commentaires:[{qui:'Sonia', quoi:"Donc décider vite n'est pas illégal. C'est juste discutable."}]},
-
-  {id:503, note:'n-ostrom', element:6, debut:0, fin:84,
-   citation:"La plupart des personnes concernées par les règles peuvent participer à les modifier",
-   resume:"La légitimité d'une règle tient à qui peut la changer.",
-   tags:['principe'], statut:'commente',
-   commentaires:[{qui:'Pierre', quoi:"C'est le principe 3, mot pour mot. Utile à citer en AG."},
-                 {qui:'Marie', quoi:"« Peuvent participer », pas « participent ». La nuance compte."}]},
-  {id:504, note:'n-ostrom', element:7, debut:56, fin:139,
-   citation:"personne n'est structurellement empêché de peser sur les règles qui le concernent",
-   resume:"Le critère porte sur l'absence d'empêchement, pas sur la participation effective.",
-   tags:['principe','mode'], statut:'commente',
-   commentaires:[{qui:'Amina', quoi:"C'est la différence entre une porte ouverte et une invitation."}]}
-];
-
-var NOTES = [
-  {id:'n-conseil-12mars', type:TYPE_NOTE, titre:"Conseil du 12 mars — enregistrement",
-   source:"audio · 3 min 12 · 5 locuteurs", date:"12 mars 2026", extraits:9, maquettee:true},
-  {id:'n-rapport-2024', type:TYPE_NOTE, titre:"Rapport annuel 2024 — Coopérative des Trois Vallées",
-   source:"PDF · 18 pages", date:"3 mars 2026", extraits:4, maquettee:true},
-  /* Le compte d'extraits est DERIVE des donnees, jamais saisi : un compte
-     annonce qui diverge du reel casserait « ecartees = perimetre − citees ».
-     / Counts are derived, never typed. */
-  {id:'n-conseil-9fev', type:TYPE_NOTE, titre:"Conseil du 9 février — enregistrement",
-   source:"audio · 2 min 41 · 4 locuteurs", date:"9 février 2026", extraits:2},
-  {id:'n-statuts', type:TYPE_NOTE, titre:"Statuts de la coopérative — version 2023",
-   source:"PDF · 11 pages", date:"14 janvier 2026", extraits:2},
-  {id:'n-ostrom', type:TYPE_NOTE, titre:"Ce que les communs nous apprennent de la gouvernance",
-   source:"capture web · lemondeducommun.fr", date:"8 mars 2026", extraits:2, maquettee:true},
-  {id:'n-adr007', type:TYPE_NOTE, titre:"ADR 007 — Ancrage par élément",
-   source:"Markdown · 4 200 signes", date:"12 mars 2026", extraits:0, maquettee:true},
-  /* Les syntheses SONT des notes du carnet — c'est le point du modele.
-     Elles y sont donc listees, avec leur type, ce qui rend le garde-fou
-     anti-auto-citation REEL : estUneSource() a quelque chose a filtrer.
-     / Syntheses are notes, so the anti-self-citation guard has real work. */
+/* Les NOTES sont derivees du corpus : leur nombre d'extraits est compte,
+   jamais annonce. Les syntheses s'y ajoutent, avec leur type — c'est ce
+   qui rend le garde-fou anti-auto-citation reel.
+   / Counts derived; syntheses added with their type. */
+var NOTES = Object.keys(DOCUMENTS).map(function (cle) {
+  return {id: 'n-' + cle, type: TYPE_NOTE, cle: cle, titre: DOCUMENTS[cle].titre,
+          source: DOCUMENTS[cle].source, maquettee: ['pdf','audio','web','md'].indexOf(cle) !== -1};
+}).concat([
   {id:'w-decision', type:TYPE_WIKI, titre:"La procédure de décision",
-   source:"wiki · 4 sections", date:"14 mars 2026", extraits:0},
+   source:"wiki · 4 sections", maquettee:false},
   {id:'w-bail', type:TYPE_WIKI, titre:"Le bail et les charges",
-   source:"wiki · 2 sections", date:"11 mars 2026", extraits:0},
+   source:"wiki · 2 sections", maquettee:false},
   {id:'s-12mars', type:TYPE_SYNTHESE, titre:"Synthèse du conseil du 12 mars",
-   source:"synthèse dirigée · figée", date:"12 mars 2026", extraits:0},
+   source:"synthèse dirigée · figée", maquettee:false},
   {id:'s-gouvernance', type:TYPE_SYNTHESE, titre:"État du débat sur la gouvernance — axe Thème",
-   source:"synthèse dirigée · figée", date:"14 mars 2026", extraits:0}
-];
+   source:"synthèse dirigée · figée", maquettee:false}
+]);
 
 /* Les appartenances : LA piece centrale. Les categories sont ICI, sur la
    RELATION note<->carnet — pas sur la note. Une meme note porte des
    etiquettes differentes selon le carnet. / Categories live on the relation. */
 var APPARTENANCES = [
-  {note:'n-conseil-12mars', carnet:'c-ca', categories:['t-cr','th-gouv','e-tri'],
+  {note:'n-audio', carnet:'c-ca', categories:['t-cr','th-gouv','e-tri'],
    epinglee:true,  ordre:1, integree_par:'Jonas', integree_le:'12 mars 2026'},
-  {note:'n-rapport-2024',  carnet:'c-ca', categories:['t-rap','th-budget','e-tri'],
+  {note:'n-pdf',  carnet:'c-ca', categories:['t-rap','th-budget','e-tri'],
    epinglee:false, ordre:2, integree_par:'Sonia', integree_le:'3 mars 2026'},
-  {note:'n-conseil-9fev',  carnet:'c-ca', categories:['t-cr','th-gouv','e-passe'],
+  {note:'n-fevrier',  carnet:'c-ca', categories:['t-cr','th-gouv','e-passe'],
    epinglee:false, ordre:3, integree_par:'Jonas', integree_le:'9 février 2026'},
   {note:'n-statuts',       carnet:'c-ca', categories:['t-note','th-gouv'],
    epinglee:false, ordre:4, integree_par:'Marie', integree_le:'14 janvier 2026'},
-  {note:'n-ostrom',        carnet:'c-ca', categories:['t-ext','th-gouv'],
+  {note:'n-web',        carnet:'c-ca', categories:['t-ext','th-gouv'],
    epinglee:false, ordre:5, integree_par:'Pierre', integree_le:'8 mars 2026'},
   /* La MEME note dans un autre carnet, avec d'AUTRES categories. */
-  {note:'n-ostrom',        carnet:'c-communs', categories:[], epinglee:true, ordre:1,
+  {note:'n-web',        carnet:'c-communs', categories:[], epinglee:true, ordre:1,
    integree_par:'Pierre', integree_le:'8 mars 2026'},
-  {note:'n-rapport-2024',  carnet:'c-veille', categories:['v-sub','v-passe'],
+  {note:'n-pdf',  carnet:'c-veille', categories:['v-sub','v-passe'],
    epinglee:false, ordre:1, integree_par:'Sonia', integree_le:'3 mars 2026'},
-  {note:'n-adr007',        carnet:'c-technique', categories:[], epinglee:false, ordre:1,
+  {note:'n-md',        carnet:'c-technique', categories:[], epinglee:false, ordre:1,
    integree_par:'Jonas', integree_le:'12 mars 2026'},
   {note:'w-decision',   carnet:'c-ca', categories:['th-gouv'], epinglee:false, ordre:6,
    integree_par:'Marie', integree_le:'14 mars 2026'},
@@ -981,8 +884,7 @@ var WIKIS = [
         sources:[504], verification:'verifie'}]}
    ],
    /* Ce que le wiki N'A PAS repris. Difference ensembliste, cout LLM nul.
-      C'est ce qui rend une synthese contestable — donc utilisable. */
-   ecartees:[601,603,610,301,302,303]},
+      C'est ce qui rend une synthese contestable — donc utilisable. */},
 
   {id:'w-bail', type:TYPE_WIKI, carnet:'c-ca',
    titre:"Le bail et les charges",
@@ -999,15 +901,14 @@ var WIKIS = [
         sources:[303], verification:'verifie'},
        {texte:"Un avenant écrit a été chiffré à trois cents euros de notaire ; la décision de le faire n'est pas prise.",
         sources:[303], verification:'faible'}]}
-   ],
-   ecartees:[601,602,603,604,605,606,607,608,609,610,701,702,801,802,503,504]}
+   ]}
 ];
 
 var SYNTHESES = [
   {id:'s-12mars', type:TYPE_SYNTHESE, carnet:'c-ca',
    titre:"Synthèse du conseil du 12 mars",
    axe:"— portée : une note", produite:"12 mars 2026, 21:04", figee:true,
-   modele:"claude-sonnet-4-20250514", portee:['n-conseil-12mars'],
+   modele:"claude-sonnet-4-20250514", portee:['n-audio'],
    sections:[
      {heading:"Ce qui a été décidé", paragraphes:[
        {texte:"La décision est reportée d'une semaine, avec invitation des personnes concernées à la séance suivante.",
@@ -1024,14 +925,13 @@ var SYNTHESES = [
         sources:[603], verification:'verifie'},
        {texte:"L'absence des concernés est qualifiée de vice de procédure ; ce constat est partagé, sa conclusion ne l'est pas.",
         sources:[604], verification:'verifie'}]}
-   ],
-   ecartees:[601,605,607,701,702,801,802,503,504,301,302,303,304]},
+   ]},
 
   {id:'s-gouvernance', type:TYPE_SYNTHESE, carnet:'c-ca',
    titre:"État du débat sur la gouvernance — axe Thème",
    axe:"— dirigée par l'axe « Thème », catégorie « Gouvernance »",
    produite:"14 mars 2026, 08:30", figee:true, modele:"claude-sonnet-4-20250514",
-   portee:['n-conseil-12mars','n-conseil-9fev','n-statuts','n-ostrom'],
+   portee:['n-audio','n-fevrier','n-statuts','n-web'],
    sections:[
      {heading:"Le cadre statutaire", paragraphes:[
        {texte:"Les statuts réservent les engagements pluriannuels à l'assemblée et imposent un compte rendu a posteriori. Décider vite n'est donc pas irrégulier, seulement discutable.",
@@ -1048,8 +948,7 @@ var SYNTHESES = [
         sources:[604], verification:'verifie'},
        {texte:"L'ajournement répété est opposé comme un coût en soi.",
         sources:[602], verification:'verifie'}]}
-   ],
-   ecartees:[601,605,607,608,609,610,702,301,302,303,304]}
+   ]}
 ];
 
 /* Les operations que le modele propose au prochain tour du wiki.
@@ -1109,6 +1008,21 @@ function appartenancesDuCarnet(carnet) {
 function carnetsDeLaNote(note) {
   return APPARTENANCES.filter(function (a) { return a.note === note; });
 }
+/* Le perimetre d'un article : les extractions des notes qu'il couvre. Une
+   synthese dirigee a une portee explicite ; un wiki prend tout le carnet.
+   Les syntheses en sont toujours exclues — elles ne sont jamais sources.
+   / A directed synthesis has a scope; a wiki takes the notebook. */
+function extractionsDuPerimetreDeLArticle(article) {
+  var identifiantsDeNotes = article.portee
+    ? article.portee.slice()
+    : appartenancesDuCarnet(article.carnet)
+        .filter(function (a) { return estUneSource(laNote(a.note)); })
+        .map(function (a) { return a.note; });
+  return EXTRACTIONS.filter(function (e) {
+    return identifiantsDeNotes.indexOf(e.note) !== -1;
+  });
+}
+
 function articlesDuCarnet(carnet, type) {
   return (type === TYPE_WIKI ? WIKIS : SYNTHESES)
     .filter(function (a) { return a.carnet === carnet; });
@@ -1386,7 +1300,13 @@ function htmlDUnArticle(article) {
   }).join('');
 
   /* Ce qui n'a PAS ete repris : difference ensembliste, cout nul. */
-  var ecartees = (article.ecartees || []).map(lExtraction).filter(Boolean);
+  /* Ce que l'article n'a PAS repris : PERIMETRE moins CITEES, calcule au
+     rendu. Les listes tapees etaient fausses sur trois articles sur
+     quatre — or c'est la fonctionnalite que personne d'autre n'offre,
+     elle ne peut pas etre approximative.
+     / Set difference at render time; hand-typed lists were wrong. */
+  var ecartees = extractionsDuPerimetreDeLArticle(article)
+    .filter(function (e) { return numerotation.ordre.indexOf(e.id) === -1; });
   var blocEcarte =
     '<details class="ecarte"' + (ecartees.length ? '' : ' hidden') + '>' +
       '<summary>' + ecartees.length + ' extractions du périmètre n\'ont pas été reprises</summary>' +
@@ -1439,8 +1359,10 @@ function htmlDUneCartePreuve(extraction) {
       'TextQuoteSelector · exact = « ' + echapper(extraction.citation.slice(0, 40)) + '… »<br>' +
       'TextPositionSelector · element ' + extraction.element +
         ', start ' + extraction.debut + ', end ' + extraction.fin +
-      (extraction.temps ? '<br>FragmentSelector · #t=npt:' +
-        extraction.temps.replace('–', ',').replace(/:/g, '') : '') +
+      (extraction.debutSecondes !== undefined && extraction.debutSecondes !== null
+        ? '<br>FragmentSelector · ' +
+          fragmentTemporel(extraction.debutSecondes, extraction.finSecondes)
+        : '') +
     '</div>' +
     '</article>';
 }
@@ -1507,7 +1429,8 @@ function rendreLesListesDArticles() {
               '<span class="badge-type" data-type="' + a.type + '">' + a.type + '</span>' +
               '<span>' + (type === TYPE_WIKI ? 'màj ' + a.maj : a.produite) + '</span>' +
               '<span>· ' + numerotation.ordre.length + ' sources</span>' +
-              '<span>· ' + (a.ecartees || []).length + ' écartées</span>' +
+              '<span>· ' + (extractionsDuPerimetreDeLArticle(a).length -
+                numerotation.ordre.length) + ' écartées</span>' +
               '<span style="color:var(--verifie)">· ' + etats.verifie + ' vérifiées</span>' +
               (etats.faible ? '<span style="color:var(--faible)">· ' + etats.faible + ' faibles</span>' : '') +
               (etats.non_source ? '<span style="color:var(--non-source)">· ' + etats.non_source + ' non sourcées</span>' : '') +

@@ -68,7 +68,16 @@ with sync_playwright() as p:
     verifier("non sourcé : état affiché", page.locator('#corps-preuve .etat-verification').count() == 1)
 
     page.locator('.ecarte:visible summary').click(); page.wait_for_timeout(250)
-    verifier("ce qui n'a pas été repris", page.locator('.ecarte:visible .carte-preuve').count() == 6)
+    # « écartées » est une DIFFERENCE D'ENSEMBLES : on ne verifie pas un
+    # nombre fige, on verifie l'invariant — perimetre moins citees.
+    # / Verify the invariant, not a frozen count.
+    annonce = int(page.locator('.ecarte:visible summary').inner_text().split()[0])
+    cartes = page.locator('.ecarte:visible .carte-preuve').count()
+    perimetre = page.evaluate('extractionsDuPerimetreDeLArticle(articleOuvert).length')
+    cites = page.evaluate('identifiantsCitesParLArticle(articleOuvert).length')
+    verifier("écartées = périmètre − citées",
+             cartes == annonce == perimetre - cites,
+             "annonce=%d cartes=%d perimetre=%d cites=%d" % (annonce, cartes, perimetre, cites))
 
     page.locator(".js-maj-wiki:visible").click(); page.wait_for_timeout(350)
     verifier("section_ops : 4 opérations", page.locator('#diff-operations .operation').count() == 4)
@@ -134,6 +143,26 @@ with sync_playwright() as p:
             casses.append(href)
     page2.close()
     verifier("tous les liens de preuve aboutissent", not casses, str(casses[:3]))
+
+    # Etalon : chaque citation doit se retrouver dans le texte de son
+    # element, sinon l'ancrage affiche serait faux.
+    page.goto('file:///app/tmp/maquettes/corpus.html', wait_until='networkidle')
+    page.wait_for_timeout(300)
+    introuvables = page.evaluate(
+        'catalogueDesExtractions().filter(function(e){return e.debut === -1;})'
+        '.map(function(e){return e.id;})')
+    verifier("tous les ancrages sont retrouvés dans le texte",
+             not introuvables, str(introuvables))
+    # Et la couverture doit etre la jointure qu'elle pretend etre.
+    page.goto('file:///app/tmp/maquettes/selection-preuves.html', wait_until='networkidle')
+    page.wait_for_timeout(300)
+    ecarts = page.evaluate('''Object.keys(DOCUMENTS).filter(function (cle) {
+        var c = couvertureDuDocument(cle);
+        var reels = (DOCUMENTS[cle].elements || [])
+          .filter(function (e) { return (e.idees || []).length; }).length;
+        return c.couverts !== reels;
+      })''')
+    verifier("la couverture est une vraie jointure", not ecarts, str(ecarts))
 
     verifier("aucune erreur console", not erreurs, str(erreurs[:1]))
     nav.close()
