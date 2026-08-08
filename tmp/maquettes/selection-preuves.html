@@ -585,6 +585,7 @@ Sur de vrais embeddings, cette échelle serait remplacée par la similarité cos
 
 <div class="pile-toasts" id="pile-toasts"></div>
 
+<script src="donnees.js"></script>
 <script>
 /* =========================================================================
    1. LES DONNEES
@@ -610,157 +611,55 @@ var HYPOSTASE_VERS_FAMILLE = {
 };
 function familleDuTag(tag) { return HYPOSTASE_VERS_FAMILLE[tag] || 'objet'; }
 
-var EXTRACTIONS = [
-  /* --- Grappe « le seuil de passage en assemblée » ---------------------
-     CAS D'EPREUVE N°2 : deux positions OPPOSEES sur le meme sujet, donc
-     geometriquement PROCHES. Un resume par centroide en ferait une seule
-     position. C'est le cas qui condamne le centroide-representant. */
-  {id:608, note:'Conseil du 12 mars', qui:'Jonas', quand:'02:07',
-   citation:"Au-delà de dix mille euros, ça passe en assemblée générale",
-   resume:"Un seuil chiffré est proposé comme règle de passage en assemblée.",
-   tags:['methode'], statut:'nouveau', commentaires:[],
-   polarite:'proposition', x:420, y:142},
-  {id:609, note:'Conseil du 12 mars', qui:'Sonia', quand:'02:21',
-   citation:"si on fixe un seuil en euros sans le réévaluer, dans cinq ans l'inflation l'aura vidé de son sens",
-   resume:"Un seuil nominal non indexé perd son sens avec le temps.",
-   tags:['conjecture','probleme'], statut:'commente',
-   commentaires:[{qui:'Jonas', quoi:"On l'indexe sur le budget total, alors. Cinq pour cent."}],
-   polarite:'contre', x:436, y:152},
-  {id:702, note:'Conseil du 9 février', qui:'Amina', quand:'01:02',
-   citation:"trois mille euros, c'est déjà beaucoup pour une décision de bureau",
-   resume:"Un premier seuil implicite, plus bas, avait été évoqué en février.",
-   tags:['conjecture'], statut:'nouveau', commentaires:[],
-   polarite:'proposition', x:428, y:164},
+/* CE QUI EST PROPRE A CET ECRAN, et rien d'autre :
+   · la position 2D — elle tient lieu de projection d'un espace
+     d'embedding, personne ne peut la deduire du texte ;
+   · la polarite — c'est ce qu'une SECONDE PASSE LLM detecterait ; un
+     embedding ne la voit pas, et c'est tout le propos de cet ecran.
+   Le reste (citation, resume, tags, statut, commentaires, note, ancrage)
+   vient du corpus partage. / Only what this screen alone can know. */
+var GEOMETRIE = {
+  301:{x:510, y:232, polarite:'constat'},
+  302:{x:528, y:240, polarite:'constat'},
+  303:{x:70, y:272, polarite:'contre'},
+  503:{x:136, y:96, polarite:'pour'},
+  504:{x:152, y:112, polarite:'pour'},
+  601:{x:256, y:238, polarite:'pour'},
+  602:{x:240, y:222, polarite:'contre'},
+  603:{x:130, y:92, polarite:'pour'},
+  604:{x:132, y:110, polarite:'contre'},
+  606:{x:398, y:158, polarite:'pour'},
+  607:{x:516, y:250, polarite:'constat'},
+  608:{x:420, y:142, polarite:'proposition'},
+  609:{x:436, y:152, polarite:'contre'},
+  610:{x:244, y:240, polarite:'proposition'},
+  701:{x:474, y:72, polarite:'pour'},
+  702:{x:428, y:164, polarite:'proposition'},
+  801:{x:470, y:52, polarite:'constat'},
+  802:{x:486, y:64, polarite:'constat'},
+  803:{x:450, y:110, polarite:'constat'},
+};
 
-  /* --- Grappe « la légitimité d'une décision » -------------------------
-     CAS D'EPREUVE N°3 : 603 et 503 sont un quasi-doublon, dits a trois
-     semaines d'intervalle dans deux notes differentes. On ne fusionne pas. */
-  {id:603, note:'Conseil du 12 mars', qui:'Marie', quand:'00:27',
-   citation:"pas sans avoir consulté les personnes qui vont vivre avec cette décision",
-   resume:"La consultation des personnes concernées est érigée en condition de légitimité.",
-   tags:['principe','methode'], statut:'commente',
-   commentaires:[{qui:'Pierre', quoi:"C'est le principe 3 d'Ostrom, mot pour mot."}],
-   polarite:'pour', x:130, y:92},
-  {id:503, note:'Ce que les communs nous apprennent', qui:null, quand:null,
-   citation:"La plupart des personnes concernées par les règles peuvent participer à les modifier",
-   resume:"La légitimité d'une règle tient à qui peut la changer.",
-   tags:['principe'], statut:'commente',
-   commentaires:[{qui:'Pierre', quoi:"C'est le principe 3, mot pour mot. Utile à citer en AG."},
-                 {qui:'Marie', quoi:"« Peuvent participer », pas « participent ». La nuance compte."}],
-   polarite:'pour', x:136, y:96},
-  {id:504, note:'Ce que les communs nous apprennent', qui:null, quand:null,
-   citation:"personne n'est structurellement empêché de peser sur les règles qui le concernent",
-   resume:"Le critère porte sur l'absence d'empêchement, pas sur la participation effective.",
-   tags:['principe','mode'], statut:'commente',
-   commentaires:[{qui:'Amina', quoi:"C'est la différence entre une porte ouverte et une invitation."}],
-   polarite:'pour', x:152, y:112},
-  {id:604, note:'Conseil du 12 mars', qui:'Amina', quand:'00:43',
-   citation:"On est en train de décider pour des gens qui ne sont pas dans la pièce",
-   resume:"L'absence des personnes concernées est décrite comme un vice de procédure.",
-   tags:['probleme','phenomene'], statut:'commente',
-   commentaires:[{qui:'Jonas', quoi:"D'accord sur le constat, pas sur la conclusion."},
-                 {qui:'Sonia', quoi:"On pourrait les inviter en visio, ça lève l'objection."},
-                 {qui:'Marie', quoi:"La visio ne remplace pas le fait de les prévenir à l'avance."}],
-   polarite:'contre', x:132, y:110},
-
-  /* --- Grappe « le rythme de la décision » ----------------------------- */
-  {id:602, note:'Conseil du 12 mars', qui:'Jonas', quand:'00:14',
-   citation:"On a déjà repoussé deux fois cette décision, à un moment il faut trancher",
-   resume:"L'ajournement répété est présenté comme un coût en soi.",
-   tags:['probleme'], statut:'commente',
-   commentaires:[{qui:'Amina', quoi:"Deux reports, c'est factuel. Mais ça n'oblige pas à décider mal."},
-                 {qui:'Marie', quoi:"Je note qu'on n'a jamais dit pourquoi on avait reporté."}],
-   polarite:'contre', x:240, y:222},
-  {id:601, note:'Conseil du 12 mars', qui:'Marie', quand:'00:00',
-   citation:"je voudrais qu'on prenne le temps de l'expliquer aux équipes",
-   resume:"L'explication aux équipes est posée en préalable à la décision.",
-   tags:['methode','principe'], statut:'nouveau', commentaires:[],
-   polarite:'pour', x:256, y:238},
-  {id:610, note:'Conseil du 12 mars', qui:'Marie', quand:'02:41',
-   citation:"qu'on repousse d'une semaine, qu'on invite les personnes concernées",
-   resume:"Une décision différée d'une semaine, en présence des concernés, est proposée.",
-   tags:['methode','mode'], statut:'nouveau', commentaires:[],
-   polarite:'proposition', x:244, y:240},
-
-  /* --- Grappe « les comptes » ------------------------------------------ */
-  {id:301, note:'Rapport annuel 2024', qui:null, quand:null, page:3,
-   citation:"un excédent de 12 400 euros, contre un déficit de 3 100 euros l'année précédente",
-   resume:"Le résultat passe d'un déficit à un excédent d'une année sur l'autre.",
-   tags:['phenomene'], statut:'nouveau', commentaires:[],
-   polarite:'constat', x:510, y:232},
-  {id:302, note:'Rapport annuel 2024', qui:null, quand:null, page:4,
-   citation:"Le poste des salaires progresse de 4 %",
-   resume:"La masse salariale croît de quatre pour cent.",
-   tags:['phenomene'], statut:'commente',
-   commentaires:[{qui:'Sonia', quoi:"Sur douze mois pleins, ce sera plutôt 6 %."}],
-   polarite:'constat', x:528, y:240},
-  {id:607, note:'Conseil du 12 mars', qui:'Marie', quand:'01:48',
-   citation:"Dix mille euros engagés sans que personne ne l'ait vu passer",
-   resume:"Un engagement de dix mille euros a été pris hors du regard collectif.",
-   tags:['phenomene'], statut:'commente',
-   commentaires:[{qui:'Pierre', quoi:"Le montant est exact, je l'ai vérifié au compte 606."}],
-   polarite:'constat', x:516, y:250},
-
-  /* --- CAS D'EPREUVE N°1 : un avis ISOLE, loin de tout ------------------
-     Personne d'autre ne parle du bail. Un tri par centralite ne le ferait
-     jamais remonter — et c'est peut-etre le vrai risque du budget. */
-  {id:303, note:'Rapport annuel 2024', qui:null, quand:null, page:'4–5',
-   citation:"repose sur un accord verbal avec le propriétaire actuel",
-   resume:"L'allègement des charges n'est garanti par aucun écrit.",
-   tags:['probleme','conjecture'], statut:'commente',
-   commentaires:[{qui:'Jonas', quoi:"C'est le vrai risque du budget. À mettre en tête du rapport."},
-                 {qui:'Amina', quoi:"Un avenant écrit coûte 300 € de notaire. On le fait ?"}],
-   polarite:'contre', x:70, y:272},
-
-  /* --- CAS D'EPREUVE N°4 : une extraction A LA FRONTIERE -----------------
-     Elle parle du montant ET de la procedure, et se tient a 27 de la
-     grappe du seuil — juste au-dela du seuil par defaut. Bougez le
-     curseur de 24 a 28 : elle passe de « seule » a « absorbee ».
-
-     NOTE D'HONNETETE : en liaison simple, un point a mi-chemin de DEUX
-     grappes ne bascule pas de l'une a l'autre — il les FUSIONNE (c'est le
-     cas n°5). Le vrai basculement d'appartenance est un comportement de
-     l'affectation forcee : en k-means, cette extraction change de cluster
-     selon k, sans qu'aucun de ces decoupages soit plus juste que l'autre.
-     / Single-linkage merges; only forced assignment reassigns. */
-  {id:606, note:'Conseil du 12 mars', qui:'Marie', quand:'01:48',
-   citation:"Le sujet n'est pas le montant, c'est la manière dont on décide",
-   resume:"Le débat est déplacé du montant vers la procédure de décision.",
-   tags:['axiome','principe'], statut:'nouveau', commentaires:[],
-   polarite:'pour', x:398, y:158},
-
-  /* --- CAS D'EPREUVE N°5 : LE POINT-PONT --------------------------------
-     Cette extraction parle du seuil ET des statuts. Elle est a 44 de l'un
-     et 58 de l'autre. En liaison simple, elle rejoint le seuil vers 44,
-     puis fusionne les DEUX grappes vers 59 : deux sujets sans rapport
-     n'en font plus qu'un a cause d'un seul point intermediaire.
-     C'est l'effet de chaine, et c'est le defaut propre de l'algorithme
-     qu'on a choisi. / The chain effect: one bridge merges two topics. */
-  {id:803, note:'Statuts de la coopérative', qui:null, quand:null, page:5,
-   citation:"Tout seuil financier fixé par le conseil doit figurer au règlement intérieur",
-   resume:"Un seuil décidé par le conseil n'a de portée qu'inscrit au règlement.",
-   tags:['loi','methode'], statut:'nouveau', commentaires:[],
-   polarite:'constat', x:450, y:110},
-
-  /* --- Le cadre statutaire --------------------------------------------- */
-  {id:801, note:'Statuts de la coopérative', qui:null, quand:null, page:2,
-   citation:"L'assemblée générale est seule compétente pour les engagements pluriannuels",
-   resume:"Les statuts réservent les engagements pluriannuels à l'assemblée générale.",
-   tags:['loi','structure'], statut:'nouveau', commentaires:[],
-   polarite:'constat', x:470, y:52},
-  {id:802, note:'Statuts de la coopérative', qui:null, quand:null, page:3,
-   citation:"Le conseil rend compte de ses décisions à la plus prochaine assemblée",
-   resume:"Une obligation de compte rendu a posteriori pèse sur le conseil.",
-   tags:['loi','methode'], statut:'commente',
-   commentaires:[{qui:'Sonia', quoi:"Donc décider vite n'est pas illégal. C'est juste discutable."}],
-   polarite:'constat', x:486, y:64},
-  {id:701, note:'Conseil du 9 février', qui:'Pierre', quand:'00:11',
-   citation:"On avait dit qu'on validerait le budget avant de signer quoi que ce soit",
-   resume:"Une règle de séquence budget-avant-signature avait déjà été posée.",
-   tags:['principe','methode'], statut:'commente',
-   commentaires:[{qui:'Marie', quoi:"Et personne ne l'a appliquée depuis. C'est le sujet."}],
-   polarite:'pour', x:474, y:72}
-];
+/* Les extractions du perimetre, assemblees depuis donnees.js. Les bornes
+   d'ancrage sont DERIVEES du texte, jamais tapees : 19 sur 20 etaient
+   fausses quand elles l'etaient. / Anchors derived, never typed. */
+var EXTRACTIONS = catalogueDesExtractions()
+  .filter(function (e) { return GEOMETRIE[e.id]; })
+  .map(function (e) {
+    var minutage = null;
+    if (e.debutAudio !== undefined && e.debutAudio !== null) {
+      minutage = String(Math.floor(e.debutAudio / 60)).padStart(2, '0') + ':' +
+                 String(e.debutAudio % 60).padStart(2, '0');
+    }
+    return {
+      id: e.id, note: e.note, qui: e.qui, quand: minutage, page: e.page,
+      citation: e.citation, resume: e.resume, tags: e.tags,
+      statut: e.statut, commentaires: e.commentaires,
+      indexElement: e.indexElement, debut: e.debut, fin: e.fin,
+      polarite: GEOMETRIE[e.id].polarite,
+      x: GEOMETRIE[e.id].x, y: GEOMETRIE[e.id].y
+    };
+  });
 
 /* Les oppositions que la SECONDE PASSE detecte. Un embedding ne peut pas
    les produire : il verrait ces paires comme « proches », c'est-a-dire
@@ -777,18 +676,15 @@ var OPPOSITIONS = [
 ];
 
 /* La couverture : ce que l'analyse n'a jamais touché. Chiffres par note. */
-var COUVERTURE = [
-  {note:'Conseil du 12 mars',   elements:13, couverts:8,
-   exemples:["« Une semaine, pas plus. Et on met l'ordre du jour par écrit cette fois. »",
-             "« Est-ce qu'on a une idée du budget que ça représente ? »"]},
-  {note:'Rapport annuel 2024',  elements:41, couverts:4,
-   exemples:["tout le chapitre 4 « Fréquentation » (9 éléments)",
-             "le tableau des comptes (1 élément)"]},
-  {note:'Conseil du 9 février', elements:11, couverts:2, exemples:[]},
-  {note:'Statuts de la coopérative', elements:28, couverts:2,
-   exemples:["les articles 1 à 6 (statut juridique, objet social)"]},
-  {note:'Ce que les communs nous apprennent', elements:11, couverts:2, exemples:[]}
-];
+/* La COUVERTURE est une JOINTURE, pas une liste. Les chiffres tapes ici
+   contredisaient la jointure qu'ils pretendaient etre : 41 elements
+   annonces contre 14 reels, 4 couverts contre 3.
+   / Computed, exactly as the screen claims. */
+var COUVERTURE = Object.keys(DOCUMENTS).map(function (cle) {
+  var couverture = couvertureDuDocument(cle);
+  return {note: couverture.note, elements: couverture.elements,
+          couverts: couverture.couverts, exemples: couverture.nonCouverts.slice(0, 2)};
+});
 
 /* =========================================================================
    2. LE MOTEUR — tout est calcule, rien n'est ecrit a la main
