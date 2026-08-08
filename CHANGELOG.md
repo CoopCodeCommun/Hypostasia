@@ -5,6 +5,133 @@
 
 ---
 
+## 2026-08-08 — Couche corpus, phase C : permissions par les carnets
+
+**Quoi / What :** les trois fonctions de permission de la couche corpus
+(SPEC-corpus § 5.2) : `_utilisateur_a_acces_page`,
+`_utilisateur_peut_ecrire_page`, `_est_proprietaire_page`, plus le helper
+`_dossiers_contenant_la_page` (contrat prefetch, § 5.3).
+
+**Pourquoi / Why :** sous le N-N, « le dossier de la page » n'existe plus.
+L'acces se derive des carnets (le plus permissif gagne), la propriete
+s'ELARGIT (owner de la note OU owner d'un carnet la contenant) — le prof
+garde la moderation sur les captures des eleves, l'eleve garde ses droits.
+Le comportement legacy (note sans carnet sans owner → tout authentifie)
+est preserve.
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `front/views.py` | + les 3 fonctions + helper ; `_est_proprietaire_dossier` marquee DEPRECIEE (bascule des appelants en phase D, en un seul lot) |
+| `core/tests/test_corpus_permissions.py` | 17 tests : carnet le plus permissif, anonyme sur carnet public, legacy, cas-piege (owner sans acces : les carnets decident), partage direct et par groupe, superuser (lecture oui / ecriture non), moderation du prof, droits de l'auteur, lecture != ecriture, zero requete avec prefetch (chemins sans DossierPartage) |
+
+### Relecture / Review
+Relecture adverse passee (8 aout) : 1 bloquant corrige — le bypass
+superuser en ECRITURE, absent de la spec et de l'existant, a ete retire
+(seule la lecture a un bypass, prescrit). 4 points « a trancher avant la
+phase D » consignes dans la fiche A TESTER (ecriture des orphelines,
+proprietaire sans lecture, dossiers legacy owner=None — 0 en dev —,
+assertNumQueries de la vue de liste).
+
+### Migration
+- **Migration necessaire / Migration required :** Non. Aucun appelant
+  converti : les vues existantes lisent toujours `page.dossier` (phase D).
+
+---
+
+## 2026-08-08 — Couche corpus, phase B : validation des categories
+
+**Quoi / What :** la validation « qui n'a pas le droit de manquer »
+(SPEC-corpus § 3.4) : une categorie appliquee a une appartenance doit venir
+du carnet (ou de la base) de cette appartenance.
+
+**Pourquoi / Why :** sans elle, le vocabulaire d'un carnet fuit dans un
+autre — exactement ce que la categorie portee par la relation existe pour
+empecher. Deux etages : le serializer (erreur de formulaire propre) et les
+signaux m2m_changed (filet de securite, meme un .add() en shell est refuse).
+
+### Fichiers ajoutes / Added files
+| Fichier / File | Role / Purpose |
+|---|---|
+| `core/services/corpus.py` | Les deux validateurs (cote carnet, cote base) |
+| `core/signals.py` | Les deux signaux m2m_changed, avec le kwarg `reverse` gere dans les deux sens (le cas que la v1.0 de la spec cassait) |
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `core/apps.py` | `ready()` importe les signaux |
+| `core/serializers.py` | + `CategoriserUneNoteSerializer` |
+| `core/tests/test_corpus_modele.py` | + 14 tests de validation (sens direct, inverse — nominal ET refus —, .set(), cote base, serializer : etrangere, introuvable, liste vide) |
+
+### Relecture / Review
+Relecture adverse passee (8 aout) : pas de bloquant. Correctifs appliques —
+tests nominaux de la branche reverse (le seul trou par lequel une regression
+sur LE point v1.0 serait passee), garde de contexte du serializer,
+`dispatch_uid` sur les signaux, docstring honnete sur la limite du through
+(les ecritures directes sur la table de liaison ne declenchent aucun signal),
+borne `max_length=100` sur la liste.
+
+### Piege documente / Documented pitfall
+Une ValidationError levee par le signal sort du bloc atomique interne du
+`.add()` : dans un test (ou une vue sous transaction), les requetes
+suivantes exigent un savepoint (`with transaction.atomic():` autour de
+l'appel refuse). Les tests montrent le patron.
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-08 — Couche corpus, phase A : modeles, migrations, role_special
+
+**Quoi / What :** le socle de donnees de la couche corpus
+(SPEC-corpus-base-carnet-note.md v1.1 § 3, § 4.2, § 6.3) : les modeles
+`BaseDeConnaissances`, `AppartenancePageDossier`, `AppartenanceDossierBase`,
+`ListeDeCategories`, `CategorieDossier`, `CategorieBase`, le champ
+`Dossier.role_special`, et les migrations de schema + donnees.
+
+**Pourquoi / Why :** une note doit pouvoir vivre dans plusieurs carnets sans
+duplication, avec un classement propre a chaque carnet — la categorie est un
+attribut de la RELATION note-carnet, pas de la note. Et les carnets
+« magiques » (« A ranger », « Mes imports ») etaient retrouves par leur nom :
+les renommer cassait la capture et l'import.
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `core/models.py` | + 6 modeles corpus, + `RoleSpecialDossier`, + `Dossier.role_special` avec contrainte `unicite_role_special_par_proprietaire` |
+| `core/migrations/0040_...py` | Schema : les 6 modeles + role_special + contraintes |
+| `core/migrations/0041_creer_les_appartenances_depuis_la_fk.py` | Donnees, REVERSIBLE : une appartenance par page ayant un dossier, `integree_le=page.created_at`, bilan chiffre + controle d'integrite qui leve si les comptes different |
+| `core/migrations/0042_estampiller_les_dossiers_speciaux.py` | Donnees, REVERSIBLE : pose `role_special` sur les carnets historiques (plus ancien seulement en cas d'homonymes, jamais sans owner) |
+| `core/views.py` | `_resoudre_dossier` : fallback retrouve par `role_special`, plus par nom |
+| `front/views.py` | `_obtenir_ou_creer_dossier_imports` : idem |
+| `core/migrations/0043_...py` | Contrainte role_special reprise avec `nulls_distinct=False` (les fourre-tout sans owner sont limites aussi — retour de relecture) |
+| `core/tests/` | `tests.py` (vide) converti en paquet : `test_corpus_modele.py` (18 tests), `test_corpus_migration.py` (4 tests MigrationExecutor), `test_role_special.py` (8 tests) |
+
+### Decisions / Decisions
+- `Page.dossier` reste en place, intouchee : la FK porte le « premier carnet »
+  pendant la coexistence. Son retrait est la migration 3 de la spec, apres
+  recette. / The FK stays during coexistence.
+- La question ouverte n°1 de la spec (pages sans dossier -> « A ranger » ?)
+  est tranchee de facon conservatrice : on ne les touche pas. Le comportement
+  d'acces legacy (tout authentifie si owner=None) sera preserve par la
+  phase C (§ 5.2). Sur la base de dev : 1 seule page concernee.
+- L'extension continue de filtrer par nom (`popup.js`), sans casser : les noms
+  par defaut ne changent pas (spec § 6.3). Reserve : un carnet special
+  renomme AVANT la migration n'est pas estampille — un doublon apparaitra
+  a la capture suivante (aucun cas sur la base de dev, verifie).
+- Relecture adverse passee (8 aout) : 3 correctifs appliques — idempotence
+  de 0042 sur base partiellement estampillee, controle d'integrite de 0041
+  compte les lignes creees (pas la table), `nulls_distinct=False` sur la
+  contrainte role_special. Chaque correctif a son test.
+
+### Migration
+- **Migration necessaire / Migration required :** Oui — `core.0040`, `0041`,
+  `0042`, `0043`. Appliquees sur la base de dev : 537 pages avec dossier ->
+  537 appartenances (COHERENT), 14 « Mes imports » estampilles.
+
+---
+
 ## 2026-08-05 — Ingestion Docling, simplifications, bascule des pages existantes
 
 **Quoi / What :** Docling installe et branche, deux simplifications du modele, et

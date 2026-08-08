@@ -701,17 +701,18 @@ Quatre specs se complètent, et elles doivent être lues dans cet ordre :
 
 | Spec | Couche | Dans le dépôt |
 |---|---|---|
-| `SPEC-ancrage-par-element-v2.md` | ancrage — élément, portion, réconciliation | **non** — reflétée par le code, qui l'implémente |
+| `SPEC-ancrage-par-element-v2.md` v2.0 | ancrage — élément, portion, réconciliation | oui, déposée le 8 août 2026 — **implémentée**, avec trois écarts documentés |
 | `SPEC-corpus-base-carnet-note.md` v1.1 | corpus — base, carnet, note, catégories | oui, déposée le 8 août 2026 |
 | `SPEC-synthese-carnet.md` v1.0 | synthèse — deux genres, sourcing, vérification | oui |
 | `SPEC-selection-des-preuves.md` v1.0 | sélection — regroupement, oppositions, audit | oui |
 
-La spec d'ancrage reste absente : elle est la seule dont le contenu soit
-entièrement lisible dans le code, puisqu'elle est implémentée
-(`hypostasis_extractor/services/`, `front/services/rendu_elements.py`, et les
-migrations `core.0035-0039` / `hypostasis_extractor.0031-0033`). À déposer tout
-de même, pour que les décisions qu'elle a écartées — et les raisons — ne se
-perdent pas.
+Les quatre sont maintenant dans le dépôt. Celle d'ancrage y figure bien qu'elle
+soit déjà implémentée, et c'est délibéré : le code porte ce qui a été retenu,
+jamais ce qui a été écarté ni pourquoi. Trois de ses décisions ont d'ailleurs
+changé en cours de route — son § 5.1 violait une contrainte d'unicité dès la
+première ligne (les contraintes sont devenues `DEFERRABLE`), `element_parent`
+a été retiré, et `EtatAncrage` réduit à deux valeurs. Ces écarts sont notés en
+tête du fichier et au `CHANGELOG.md`.
 
 | Chantier | État | Preuve |
 |---|---|---|

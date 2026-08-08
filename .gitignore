@@ -32,3 +32,12 @@ tailwindcss
 /logs/django.log
 /logs/extractor.log
 /logs/runserver.log
+
+# Donnees utilisateur : PDF, audio, transcriptions. Contient des verbatims
+# nominatifs — n'a rien a faire dans un depot.
+# / User data, including named transcripts. Never in the repository.
+/media/
+
+# Profil NSS d'un navigateur local (certificats, cles).
+# / Local browser NSS profile.
+/.pki/

@@ -2,8 +2,10 @@ import hashlib
 import re
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 from solo.models import SingletonModel
 
 # Create your models here.
@@ -42,8 +44,29 @@ class VisibiliteDossier(models.TextChoices):
     PUBLIC = "public", "Public"
 
 
+class RoleSpecialDossier(models.TextChoices):
+    """
+    Role technique d'un carnet « magique », independant de son nom.
+    / Technical role of a "magic" notebook, independent of its name.
+
+    Avant ce champ, « A ranger » et « Mes imports » etaient retrouves par
+    get_or_create(name=...) : un utilisateur qui renommait son carnet
+    cassait ces flux (SPEC-corpus § 6.3).
+    / Before this field, these notebooks were found by name; renaming
+    them broke the flows.
+    """
+    A_RANGER = "a_ranger", "À ranger"
+    MES_IMPORTS = "mes_imports", "Mes imports"
+
+
 class Dossier(models.Model):
-    """Dossier de classement pour organiser les pages."""
+    """Dossier de classement pour organiser les pages.
+
+    A l'ecran, un Dossier s'appelle un « carnet » (SPEC-corpus § 3.0 :
+    le renommage du modele est abandonne, seul le mot affiche change).
+    / On screen, a Dossier is called a "carnet" (notebook); the model
+    rename was abandoned, only the displayed word changes.
+    """
 
     name = models.CharField(max_length=200, help_text="Nom du dossier")
     # Proprietaire du dossier (null = legacy/donnees existantes)
@@ -67,6 +90,19 @@ class Dossier(models.Model):
         default=VisibiliteDossier.PRIVE,
         help_text="Niveau de visibilite du dossier / Folder visibility level",
     )
+    # Role technique du carnet, vide pour un carnet ordinaire.
+    # Les flux « A ranger » et « Mes imports » filtrent sur ce champ,
+    # plus jamais sur le nom (SPEC-corpus § 6.3).
+    # / Technical role, empty for an ordinary notebook. Flows filter on
+    # this field, never on the name anymore.
+    role_special = models.CharField(
+        max_length=20,
+        choices=RoleSpecialDossier.choices,
+        blank=True,
+        default="",
+        help_text="Role technique ('a_ranger', 'mes_imports') ou vide. "
+                  "Un seul carnet par role et par proprietaire.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -74,6 +110,25 @@ class Dossier(models.Model):
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            # Un proprietaire n'a qu'UN carnet « A ranger » et UN
+            # « Mes imports ». Les carnets ordinaires (role vide) ne sont
+            # pas limites.
+            # / One "A ranger" and one "Mes imports" per owner; ordinary
+            # notebooks are unlimited.
+            models.UniqueConstraint(
+                fields=["owner", "role_special"],
+                condition=~models.Q(role_special=""),
+                # Sans nulls_distinct=False, Postgres considere chaque
+                # owner NULL comme distinct : un nombre illimite de
+                # fourre-tout sans proprietaire pourrait exister (retour
+                # de relecture).
+                # / Without nulls_distinct=False, Postgres treats each
+                # NULL owner as distinct.
+                nulls_distinct=False,
+                name="unicite_role_special_par_proprietaire",
+            ),
+        ]
 
 
 class Page(models.Model):
@@ -1700,3 +1755,347 @@ class ElementOperation(models.Model):
             f"ElementOperation #{self.pk} — "
             f"{self.get_type_operation_display()} — page {self.page_id}"
         )
+
+
+# ---------------------------------------------------------------------------
+# COUCHE CORPUS — base de connaissances, carnet, note
+# (SPEC-corpus-base-carnet-note.md v1.1, § 3)
+# / CORPUS LAYER — knowledge base, notebook, note
+#
+# Le modele a trois niveaux de Praxis : une note (Page) vit dans plusieurs
+# carnets (Dossier), un carnet vit dans plusieurs bases. Les deux relations
+# N-N sont portees par des tables de liaison qui portent ELLES-MEMES les
+# categories : le classement d'une note est propre a chaque carnet.
+# / Praxis' three-level model: N-N relations carried by link tables which
+# themselves carry the categories.
+# ---------------------------------------------------------------------------
+
+
+class BaseDeConnaissances(models.Model):
+    """
+    Un ensemble de carnets, porte par un collectif.
+    / A set of notebooks, held by a collective.
+
+    LOCALISATION : core/models.py
+
+    Exemples reels attendus :
+      - un reseau regional de tiers-lieux : ses carnets thematiques de veille
+      - un lycee : ses carnets par classe, par projet, par instance
+
+    Ce niveau est FACULTATIF. Un carnet peut exister sans base, directement
+    au niveau plateforme — c'est le cas dans Praxis pour les carnets de
+    veille collective ouverte. On ne force personne a creer une base pour
+    ouvrir un carnet.
+    / This level is OPTIONAL: a notebook can live without any base.
+    """
+
+    nom = models.CharField(
+        max_length=200,
+        help_text="Nom de la base de connaissances / Knowledge base name",
+    )
+    slug = models.SlugField(
+        max_length=220,
+        unique=True,
+        help_text="Identifiant d'URL, ex 'reseau-tiers-lieux-occitanie'.",
+    )
+    description = models.TextField(blank=True, default="")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="bases_possedees",
+    )
+    visibilite = models.CharField(
+        max_length=10,
+        choices=VisibiliteDossier.choices,   # PRIVE / PARTAGE / PUBLIC, existant
+        default=VisibiliteDossier.PRIVE,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nom"]
+        verbose_name = "Base de connaissances"
+        verbose_name_plural = "Bases de connaissances"
+
+    def __str__(self):
+        return self.nom
+
+
+class AppartenancePageDossier(models.Model):
+    """
+    Rattachement d'une note a un carnet, avec les categories propres A CE
+    CARNET, l'epinglage et l'ordre manuel.
+    / Membership of a note in a notebook, with categories specific TO THIS
+    NOTEBOOK, pinning and manual ordering.
+
+    LOCALISATION : core/models.py
+
+    C'EST LA PIECE CENTRALE DE LA SPEC CORPUS.
+
+    Une meme note rattachee a deux carnets a DEUX lignes ici, avec des
+    categories differentes dans chacune. Exemple observe sur Praxis : la
+    note "Appel a projets APCHQ 2026" appartient a deux carnets et porte
+    des categories distinctes dans chacun.
+
+    La categorie n'est donc PAS un attribut de la note. C'est un attribut
+    de la RELATION note-carnet. Si on mettait les categories sur la Page,
+    le premier collectif a classer imposerait son vocabulaire a tous les
+    suivants — exactement ce qu'on veut eviter.
+    / The category is an attribute of the note-notebook RELATION, never
+    of the note itself.
+    """
+
+    page = models.ForeignKey(
+        "Page",
+        on_delete=models.CASCADE,
+        related_name="appartenances_dossiers",
+    )
+    dossier = models.ForeignKey(
+        "Dossier",
+        on_delete=models.CASCADE,
+        related_name="appartenances_pages",
+    )
+    categories = models.ManyToManyField(
+        "CategorieDossier",
+        blank=True,
+        related_name="appartenances",
+        help_text="Categories de CE carnet appliquees a CETTE note. "
+                  "Validation applicative (phase B) : chaque categorie doit "
+                  "venir du meme carnet que cette appartenance.",
+    )
+    integree_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="integrations_de_notes",
+    )
+
+    # PAS auto_now_add : la migration de donnees (SPEC-corpus § 4.2) doit
+    # pouvoir ecrire page.created_at ici. auto_now_add ecrase toute valeur
+    # assignee, y compris via bulk_create et les modeles historiques.
+    # / NOT auto_now_add: the data migration must be able to write
+    # page.created_at here.
+    integree_le = models.DateTimeField(default=timezone.now)
+
+    epinglee = models.BooleanField(
+        default=False,
+        help_text="Remonte en tete du carnet, avant le tri normal",
+    )
+    ordre_manuel = models.PositiveIntegerField(
+        default=0,
+        help_text="Ordre de curation. 0 = pas d'ordre impose, on retombe "
+                  "sur le tri chronologique. Sert a donner un ordre "
+                  "NARRATIF : les temps d'une deliberation.",
+    )
+
+    class Meta:
+        ordering = ["dossier", "-epinglee", "ordre_manuel", "-integree_le"]
+        verbose_name = "Appartenance note-carnet"
+        verbose_name_plural = "Appartenances note-carnet"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["page", "dossier"],
+                name="unicite_page_dans_un_dossier",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Page {self.page_id} dans dossier {self.dossier_id}"
+
+
+class AppartenanceDossierBase(models.Model):
+    """
+    Rattachement d'un carnet a une base, avec les categories propres A
+    CETTE BASE. Meme patron, un cran au-dessus.
+    / Membership of a notebook in a knowledge base. Same pattern, one
+    level up.
+
+    LOCALISATION : core/models.py
+    """
+
+    dossier = models.ForeignKey(
+        "Dossier", on_delete=models.CASCADE, related_name="appartenances_bases",
+    )
+    base = models.ForeignKey(
+        "BaseDeConnaissances", on_delete=models.CASCADE,
+        related_name="appartenances_dossiers",
+    )
+    categories = models.ManyToManyField(
+        "CategorieBase", blank=True, related_name="appartenances",
+    )
+    integre_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="integrations_de_carnets",
+    )
+    integre_le = models.DateTimeField(default=timezone.now)
+    epingle = models.BooleanField(default=False)
+    ordre_manuel = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["base", "-epingle", "ordre_manuel", "-integre_le"]
+        verbose_name = "Appartenance carnet-base"
+        verbose_name_plural = "Appartenances carnet-base"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dossier", "base"],
+                name="unicite_dossier_dans_une_base",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Dossier {self.dossier_id} dans base {self.base_id}"
+
+
+class ListeDeCategories(models.Model):
+    """
+    Un axe de classement dans un carnet ou une base.
+    / A classification axis within a notebook or a knowledge base.
+
+    LOCALISATION : core/models.py
+
+    Exemple pour un carnet de veille financement :
+      liste "Type"       -> Appel a projets, Subvention, Prix
+      liste "Echeance"   -> Ce mois-ci, Ce trimestre, Passe
+      liste "Territoire" -> Regional, National, Europeen
+
+    DEPLACER UNE LISTE EST INTERDIT : son contenant (carnet ou base) est
+    fixe a la creation. Changer le contenant rendrait incoherentes toutes
+    les categorisations deja posees avec ses categories. clean() le refuse ;
+    pour deplacer un axe, on en cree un nouveau dans le carnet cible.
+    / Moving a list is forbidden: its container is fixed at creation.
+    """
+
+    nom = models.CharField(max_length=100)
+
+    # Une liste appartient SOIT a un carnet, SOIT a une base. Jamais aux deux.
+    # / A list belongs EITHER to a notebook OR to a base. Never both.
+    dossier = models.ForeignKey(
+        "Dossier", on_delete=models.CASCADE,
+        null=True, blank=True, related_name="listes_de_categories",
+    )
+    base = models.ForeignKey(
+        "BaseDeConnaissances", on_delete=models.CASCADE,
+        null=True, blank=True, related_name="listes_de_categories",
+    )
+
+    ordre = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["dossier", "base", "ordre", "nom"]
+        verbose_name = "Liste de categories"
+        verbose_name_plural = "Listes de categories"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(dossier__isnull=False, base__isnull=True)
+                    | models.Q(dossier__isnull=True, base__isnull=False)
+                ),
+                name="liste_appartient_a_un_seul_contenant",
+            ),
+        ]
+
+    def __str__(self):
+        return self.nom
+
+    def clean(self):
+        """
+        Refuse le deplacement d'une liste vers un autre contenant.
+        / Refuses moving a list to another container.
+
+        On compare avec l'etat en base : si la liste existe deja et que son
+        carnet ou sa base change, on refuse. L'interface n'offre pas cette
+        operation ; ce clean() est le filet de securite.
+        / Compared against the DB state; the UI does not offer the move.
+        """
+        if self.pk is None:
+            return
+
+        etat_en_base = ListeDeCategories.objects.get(pk=self.pk)
+        contenant_change = (
+            etat_en_base.dossier_id != self.dossier_id
+            or etat_en_base.base_id != self.base_id
+        )
+        if contenant_change:
+            raise ValidationError(
+                "Le contenant d'une liste de catégories est fixé à sa "
+                "création. Pour déplacer un axe, créez-en un nouveau dans "
+                "le carnet cible. / A category list's container is fixed "
+                "at creation."
+            )
+
+
+class CategorieDossier(models.Model):
+    """
+    Une categorie applicable aux notes d'un carnet.
+    / A category applicable to the notes of one notebook.
+
+    LOCALISATION : core/models.py
+
+    PAS DE CHAMP dossier ICI (SPEC-corpus § 3.3, correction n°4) : le
+    denormaliser pouvait diverger de liste.dossier apres un deplacement de
+    liste. Le carnet se lit via self.liste.dossier. Une jointure de plus,
+    a l'echelle d'un proto, contre une classe entiere de bugs en moins.
+    / No denormalized dossier field: read the notebook via the list.
+    """
+    liste = models.ForeignKey(
+        ListeDeCategories, on_delete=models.CASCADE,
+        related_name="categories_de_dossier",
+    )
+    nom = models.CharField(max_length=100)
+    couleur = models.CharField(
+        max_length=7, blank=True, default="",
+        help_text="Hex optionnel, ex '#E69F00'. Vide = palette Wong par defaut.",
+    )
+    ordre = models.PositiveSmallIntegerField(default=0)
+
+    @property
+    def dossier_id(self):
+        """Le carnet de cette categorie, via sa liste. / This category's notebook."""
+        return self.liste.dossier_id
+
+    class Meta:
+        ordering = ["liste", "ordre", "nom"]
+        verbose_name = "Categorie de carnet"
+        verbose_name_plural = "Categories de carnet"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["liste", "nom"], name="unicite_nom_dans_la_liste",
+            ),
+        ]
+
+    def __str__(self):
+        return self.nom
+
+
+class CategorieBase(models.Model):
+    """
+    Une categorie applicable aux carnets d'une base. Meme patron.
+    / A category applicable to the notebooks of one base. Same pattern.
+
+    LOCALISATION : core/models.py
+    """
+    liste = models.ForeignKey(
+        ListeDeCategories, on_delete=models.CASCADE,
+        related_name="categories_de_base",
+    )
+    nom = models.CharField(max_length=100)
+    couleur = models.CharField(max_length=7, blank=True, default="")
+    ordre = models.PositiveSmallIntegerField(default=0)
+
+    @property
+    def base_id(self):
+        """La base de cette categorie, via sa liste. / This category's base."""
+        return self.liste.base_id
+
+    class Meta:
+        ordering = ["liste", "ordre", "nom"]
+        verbose_name = "Categorie de base"
+        verbose_name_plural = "Categories de base"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["liste", "nom"], name="unicite_nom_dans_la_liste_de_base",
+            ),
+        ]
+
+    def __str__(self):
+        return self.nom

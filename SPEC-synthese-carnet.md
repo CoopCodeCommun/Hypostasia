@@ -26,6 +26,9 @@ commentaires FR/EN)
 | 8 | « Ce qui n'a pas été repris » est une **différence d'ensembles**, jamais une liste | 8 |
 | 9 | La **couverture** distingue « inventé » de « jamais extrait » | 9 |
 | 10 | Pas de journal des acceptations en v1 — YAGNI assumé | 11.3 |
+| 11 | Le marqueur stocké est `[[ext:<id>]]` ; le numéro `[N]` ne l'est jamais | 4.4 |
+| 12 | Une source supprimée : refusée si une dirigée cite, signalée si un wiki cite | 4.2 |
+| 13 | Le périmètre d'un wiki est défini par des **facettes**, pas par son sujet | 3.1.1 |
 
 ---
 
@@ -818,7 +821,7 @@ qu'il appelle n'existe pas, et la touche `/` est un placeholder. Hors périmètr
 | Phase | Contenu | Dépend de |
 |---|---|---|
 | **A** | `type_de_note` + migration + `notes_sources_du_carnet()` + tests | corpus phase A |
-| **B** | `SourceLink` : `PROTECT`, champs `article`/`section`, **écriture dans la tâche** | A |
+| **B** | `SourceLink` : `etat_de_la_source` + signal d'arbitrage, `type_lien="cite"`, parseur de marqueurs, **écriture dans la tâche** | A |
 | **C** | `Wiki` et `SyntheseDirigee` + migration des synthèses existantes | A |
 | **D** | § 8 écartées et § 9 couverture (calculs purs, testables sans UI) | B, C |
 | **E** | `garde_edition` : blocage sur synthèse figée | B |

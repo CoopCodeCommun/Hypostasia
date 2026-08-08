@@ -21,6 +21,8 @@
 | 6 | Le regroupement est **auditable** : chaque appartenance s'explique par son arête | 6 |
 | 7 | Pas de pgvector pour ce calcul — O(n²) suffit à l'échelle d'un carnet | 7 |
 | 8 | Le **débat** est un critère de tri que personne d'autre n'a | 8 |
+| 9 | Le **résultat** du regroupement est persisté, pas seulement ses paramètres | 6.2 |
+| 10 | Métrique de production : **distance cosinus**, seuil 0,25 | 6.5 |
 
 ---
 
@@ -172,8 +174,13 @@ def part_des_paires_hors_seuil(membres, seuil):
     """
 ```
 
-Le **diamètre** du groupe est affiché en permanence dès trois membres, pas seulement en
-cas d'alerte. Un chiffre visible vaut mieux qu'un seuil d'alerte à régler.
+**Le seuil d'alerte est fixé à un tiers** — au-delà de 34 % de paires hors seuil, le
+groupe est signalé. C'est un choix, et il faut le dire plutôt que de revendiquer une
+absence de facteur arbitraire : ce qui est non arbitraire, c'est la **mesure** (elle ne
+dépend pas du réglage) ; le seuil d'alerte, lui, est conventionnel.
+
+Le **diamètre** est par ailleurs affiché en permanence dès trois membres, alerte ou non.
+Un chiffre visible vaut mieux qu'un seuil à régler.
 
 ---
 
@@ -252,12 +259,26 @@ class RegroupementRun(models.Model):
     Meme patron qu'AnalyseurVersion et ExtractionJob.raw_result, deja
     pratiques dans le depot.
     """
-    dossier = models.ForeignKey("Dossier", on_delete=models.CASCADE)
+    dossier = models.ForeignKey("Dossier", on_delete=models.CASCADE,
+                                related_name="regroupements")
     modele_embedding = models.CharField(max_length=100)
-    version_embedding = models.CharField(max_length=50)
+    version_embedding = models.CharField(
+        max_length=50,
+        help_text="Change des qu'on rembedde : un run n'est rejouable que "
+                  "contre les vecteurs qui l'ont produit.",
+    )
     algorithme = models.CharField(max_length=40)
-    parametres = models.JSONField(
-        help_text="Seuil, ordre d'initialisation, tout ce qui change le resultat.",
+    seuil = models.FloatField()
+    # Le PERIMETRE est fige par ses IDENTIFIANTS, pas par ses filtres : un
+    # filtre reevalue six mois plus tard ne rend pas le meme ensemble.
+    # / Frozen by ids, not by filters.
+    extractions_du_perimetre = models.ManyToManyField(
+        "hypostasis_extractor.ExtractedEntity", related_name="runs_qui_la_couvrent",
+    )
+    filtres_de_facettes = models.JSONField(
+        default=dict,
+        help_text="Les categories choisies au moment du run. Indicatif : "
+                  "c'est extractions_du_perimetre qui fait foi.",
     )
     lance_le = models.DateTimeField(auto_now_add=True)
     lance_par = models.ForeignKey(settings.AUTH_USER_MODEL,
@@ -265,9 +286,82 @@ class RegroupementRun(models.Model):
 ```
 
 **Un recalcul est un nouveau run, jamais un écrasement.** Comparer deux runs doit être
-possible.
+possible — et ne l'est que si le résultat, pas seulement les paramètres, est conservé.
 
-### 6.2 Chaque appartenance s'explique par son arête
+### 6.2 Le résultat est persisté, sinon rien n'est auditable
+
+Stocker les paramètres d'un run sans son résultat ne sert à rien : six mois plus tard, on
+ne peut pas montrer *pourquoi* deux extractions étaient ensemble, seulement les recalculer
+— et le recalcul peut différer si les vecteurs ont bougé.
+
+```python
+class GroupeDeRegroupement(models.Model):
+    """
+    Un groupe produit par un run. Il porte ses mesures, pas seulement ses
+    membres. / A group with its measurements, not just its members.
+
+    LOCALISATION : core/models.py
+    """
+    run = models.ForeignKey(RegroupementRun, on_delete=models.CASCADE,
+                            related_name="groupes")
+    rang = models.PositiveSmallIntegerField(
+        help_text="Position dans le run. Sert a comparer deux runs.",
+    )
+    nom = models.CharField(
+        max_length=200,
+        help_text="Derive de l'hypostase dominante, JAMAIS du texte du "
+                  "membre central — nommer par le centre, c'est deja "
+                  "resumer par lui (§ 3.3).",
+    )
+    diametre = models.FloatField(
+        help_text="Plus grande distance entre deux membres. Affiche des "
+                  "trois membres, alerte ou non.",
+    )
+    part_des_paires_hors_seuil = models.FloatField(
+        help_text="Mesure de l'effet de chaine (§ 4.3). Ces paires-la ne se "
+                  "sont jamais approchees.",
+    )
+
+
+class AppartenanceAuGroupe(models.Model):
+    """
+    Pourquoi CETTE extraction est dans CE groupe.
+    / Why THIS extraction is in THIS group.
+
+    LOCALISATION : core/models.py
+
+    C'EST LA PIECE QUI REND LE REGROUPEMENT AUDITABLE. Sans l'arete
+    d'entree persistee, « pourquoi ces deux-la ensemble ? » n'a pas de
+    reponse consultable : il faudrait recalculer, donc supposer que rien
+    n'a bouge.
+    """
+    groupe = models.ForeignKey(GroupeDeRegroupement, on_delete=models.CASCADE,
+                               related_name="appartenances")
+    extraction = models.ForeignKey("hypostasis_extractor.ExtractedEntity",
+                                   on_delete=models.CASCADE, related_name="+")
+    # L'ARETE D'ENTREE : le membre du groupe le plus proche, et sa distance.
+    # Definition arretee : le plus-proche-voisin INTRA-GROUPE — deterministe,
+    # independant de l'ordre de fusion, donc reproductible et verifiable.
+    # / Nearest in-group neighbour: deterministic, order-independent.
+    voisin_d_entree = models.ForeignKey(
+        "hypostasis_extractor.ExtractedEntity", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="+",
+        help_text="Null pour un singleton.",
+    )
+    distance_d_entree = models.FloatField(null=True, blank=True)
+    similarite_au_centroide = models.FloatField(
+        help_text="DESCRIPTIVE seulement. Ce n'est pas elle qui a decide "
+                  "l'appartenance — c'est l'arete.",
+    )
+    deplacee_a_la_main = models.BooleanField(default=False)
+    justification_du_deplacement = models.TextField(blank=True, default="")
+```
+
+**Ce que ça permet, et qui est impossible autrement** : comparer deux runs, afficher
+l'arête d'entrée six mois après, calculer `Opposition.meme_groupe` sans recalcul, et
+déplacer une extraction à la main — il faut bien un objet à déplacer.
+
+### 6.3 Chaque appartenance s'explique par son arête
 
 C'est le point le plus important de ce paragraphe, et celui qui était faux dans une
 première version de l'étalon.
@@ -284,17 +378,24 @@ Ce qu'il faut afficher :
 Et, pour chaque voisin listé, **son groupe** — un voisin très proche mais rangé ailleurs
 est précisément ce qu'un humain doit voir pour contester.
 
-### 6.3 Le déplacement manuel est possible et journalisé
+### 6.4 Le déplacement manuel est possible et journalisé
 
 Un humain doit pouvoir sortir une extraction d'un groupe ou l'y mettre, **avec une
 justification**. Patron existant : `ElementOperation` (`core/models.py:1617-1702`), qui
 journalise déjà les scissions et fusions d'éléments.
 
-### 6.4 L'échelle doit être dite
+### 6.5 L'échelle doit être dite
 
-La similarité affichée n'est pas un cosinus tant qu'on travaille sur une projection : il
-faut le dire **à l'écran**, pas dans un commentaire de code. Distance et similarité ne
-peuvent pas cohabiter sans que leur relation soit visible.
+**En production, la métrique est la distance cosinus** : `d = 1 − cos(u, v)`, donc dans
+`[0, 2]`, et `2` pour des vecteurs opposés. La similarité affichée est `1 − d`, donc dans
+`[−1, 1]` — en pratique `[0, 1]` sur des textes. **Le seuil par défaut est 0,25** en
+distance cosinus, soit une similarité de 0,75.
+
+L'étalon, lui, travaille sur des positions 2D posées à la main : son échelle
+(`1 − distance ⁄ 260`), son seuil (24) et toutes ses distances (15, 19, 300) sont des
+artefacts de maquette, **pas des mesures d'embeddings**. C'est écrit à l'écran, et ça doit
+le rester : distance et similarité ne peuvent pas cohabiter sans que leur relation soit
+visible.
 
 ---
 
@@ -313,7 +414,11 @@ pgvector sert la **recherche** à l'échelle de la base entière. Ce n'est pas c
 
 Ce qu'il faut, en revanche :
 
-- un champ `embedding` sur `ExtractedEntity` (dimension du modèle retenu) ;
+- un champ `embedding` sur `ExtractedEntity`. **Type retenu** : `ArrayField(FloatField())`
+  — pas de JSONField (pas d'opérateur vectoriel, sérialisation coûteuse), pas de
+  `VectorField` (il exige pgvector, qu'on n'installe pas ici). **Dimension** : 1536, celle
+  de `text-embedding-3-small`, qui est le modèle par défaut de cette spec. Changer de
+  modèle change la dimension : d'où `RegroupementRun.version_embedding` (§ 6.1) ;
 - une abstraction d'embedding dans `core/llm_providers.py`, qui ne fait aujourd'hui que
   du chat ;
 - une tâche Celery de calcul par lot — patron `ExtractionJob` déjà rodé.
@@ -376,7 +481,7 @@ jamais produit d'extraction.
 | `test_une_position_isolee_reste_un_groupe` | agglomératif, singleton préservé |
 | `test_kmeans_absorbe_les_isolees` | démonstration du défaut — le test documente |
 | `test_le_resultat_est_reproductible` | deux exécutions identiques → mêmes groupes |
-| `test_l_effet_de_chaine_est_detecte` | point-pont → part des paires hors seuil ≥ seuil d'alerte |
+| `test_l_effet_de_chaine_est_detecte` | point-pont → part des paires hors seuil ≥ 0,34 |
 | `test_le_diametre_est_calcule` | pas de facteur proportionnel au seuil |
 | `test_l_arete_d_entree_est_retrouvable` | pour chaque membre, le voisin qui l'a fait entrer |
 
@@ -404,7 +509,7 @@ jamais produit d'extraction.
 |---|---|---|
 | **A** | Champ `embedding` + abstraction dans `llm_providers` + tâche de calcul par lot | — |
 | **B** | `regroupement.py` : distances, agglomératif, diamètre, effet de chaîne + tests | A |
-| **C** | `RegroupementRun` + `Opposition` + migrations | B |
+| **C** | `RegroupementRun` + `GroupeDeRegroupement` + `AppartenanceAuGroupe` + `Opposition` + migrations | B |
 | **D** | Passe d'oppositions (LLM, transverse) | C |
 | **E** | Tri par le débat, raisons d'entrée | B |
 | **F** | UI : l'onglet du carnet, la carte, les groupes énumérés, le panneau « pourquoi » | C, D, E |

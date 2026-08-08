@@ -18,7 +18,7 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, Configuration, Dossier, DossierPartage, GroupeUtilisateurs, Invitation, Page, PageEdit, Question, ReponseQuestion, TranscriptionConfig, VisibiliteDossier
+from core.models import AIModel, Configuration, Dossier, DossierPartage, GroupeUtilisateurs, Invitation, Page, PageEdit, Question, ReponseQuestion, RoleSpecialDossier, TranscriptionConfig, VisibiliteDossier
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
     ExampleExtraction, ExtractionAttribute,
@@ -250,12 +250,155 @@ def _est_proprietaire_dossier(utilisateur, page):
     / Checks if the user is the owner of the folder containing the page.
 
     LOCALISATION : front/views.py
+
+    DEPRECIE PAR LA COUCHE CORPUS (SPEC-corpus § 5.1) : sous le N-N,
+    « le dossier de la page » n'existe plus. Remplacee par
+    _est_proprietaire_page() ; les appelants basculent en phase D,
+    en un seul lot.
+    / DEPRECATED by the corpus layer: replaced by _est_proprietaire_page().
+    Callers are converted in phase D, in one batch.
     """
     if not utilisateur or not utilisateur.is_authenticated:
         return False
     if not page.dossier:
         return False
     return page.dossier.owner == utilisateur
+
+
+# ---------------------------------------------------------------------------
+# PERMISSIONS DE LA COUCHE CORPUS (SPEC-corpus § 5.2)
+# L'acces a une note se derive de SES CARNETS — le plus permissif gagne.
+# La propriete s'elargit (owner de la note OU owner d'un carnet), elle ne
+# se deplace pas. Ces quatre fonctions (un helper + trois regles)
+# remplaceront les lecteurs de page.dossier en phase D.
+# / CORPUS LAYER PERMISSIONS: access derives from the note's notebooks —
+# most permissive wins. Ownership widens, never moves.
+# ---------------------------------------------------------------------------
+
+
+def _dossiers_contenant_la_page(page, dossiers_precharges=None):
+    """
+    Les carnets contenant une note, en reutilisant le prefetch si
+    l'appelant l'a fait.
+    / The notebooks containing a note, reusing the caller's prefetch.
+
+    LOCALISATION : front/views.py
+
+    Toute vue qui LISTE des notes doit passer dossiers_precharges (issus
+    d'un prefetch_related) : sans cela, chaque note de la liste coute une
+    requete — le N+1 classique (spec § 5.3).
+    / List views must pass dossiers_precharges from a prefetch_related.
+    """
+    if dossiers_precharges is not None:
+        return list(dossiers_precharges)
+    return list(
+        Dossier.objects.filter(appartenances_pages__page=page).distinct()
+    )
+
+
+def _utilisateur_a_acces_page(utilisateur, page, dossiers_precharges=None):
+    """
+    Un utilisateur accede a une note s'il accede a AU MOINS UN carnet qui
+    la contient.
+    / A user can access a note if they can access AT LEAST ONE notebook
+    containing it.
+
+    LOCALISATION : front/views.py
+
+    C'est la regle la plus permissive, et c'est voulu : ranger une note
+    dans un carnet public LA REND PUBLIQUE. L'interface doit le dire au
+    moment du rangement (spec § 7.3), pas apres.
+
+    CAS LEGACY PRESERVE : une note sans aucun carnet et sans owner est
+    accessible a TOUT UTILISATEUR AUTHENTIFIE — c'est le comportement
+    actuel (spec § 5.2, correction n°6 : la v1.0 rendait ces notes
+    invisibles pour tous).
+    / Legacy case preserved: ownerless, notebook-less notes stay readable
+    by any authenticated user.
+    """
+    if utilisateur and utilisateur.is_authenticated and utilisateur.is_superuser:
+        return True
+
+    dossiers_contenant_la_note = _dossiers_contenant_la_page(
+        page, dossiers_precharges
+    )
+
+    for dossier in dossiers_contenant_la_note:
+        if _utilisateur_a_acces_dossier(utilisateur, dossier):
+            return True
+
+    if dossiers_contenant_la_note:
+        return False
+
+    # Aucun carnet : on retombe exactement sur le comportement actuel.
+    # / No notebook: fall back to exactly the current behaviour.
+    if page.owner_id is None:
+        return bool(utilisateur and utilisateur.is_authenticated)
+    return _est_proprietaire_page(utilisateur, page)
+
+
+def _utilisateur_peut_ecrire_page(utilisateur, page, dossiers_precharges=None):
+    """
+    Ecrire sur une note exige le droit d'ecriture sur AU MOINS UN carnet
+    qui la contient.
+    / Writing to a note requires write access to AT LEAST ONE notebook
+    containing it.
+
+    LOCALISATION : front/views.py
+    """
+    if not utilisateur or not utilisateur.is_authenticated:
+        return False
+
+    # PAS de bypass superuser ici : le code prescrit (spec § 5.2) n'en a
+    # pas, et _utilisateur_peut_ecrire_dossier n'en a pas non plus. Seule
+    # la LECTURE a un bypass superuser. En ajouter un ici serait un
+    # changement de gouvernance jamais discute (relecture C).
+    # / NO superuser bypass on write: neither the spec nor the existing
+    # folder-level function has one. Only READ has it.
+    dossiers_contenant_la_note = _dossiers_contenant_la_page(
+        page, dossiers_precharges
+    )
+
+    for dossier in dossiers_contenant_la_note:
+        if _utilisateur_peut_ecrire_dossier(utilisateur, dossier):
+            return True
+
+    if dossiers_contenant_la_note:
+        return False
+    return _est_proprietaire_page(utilisateur, page)
+
+
+def _est_proprietaire_page(utilisateur, page):
+    """
+    Remplace _est_proprietaire_dossier(utilisateur, page).
+    / Replaces _est_proprietaire_dossier(utilisateur, page).
+
+    LOCALISATION : front/views.py
+
+    ON ELARGIT, ON NE DEPLACE PAS (spec § 5.2, correction n°5). La v1.0
+    faisait primer page.owner seul. Consequence non vue a l'epoque :
+    l'extension renseigne TOUJOURS page.owner = request.user
+    (core/views.py:229). Donc pour toute page capturee par un eleve, le
+    prof proprietaire du carnet de classe PERDAIT la moderation. Ce
+    n'etait pas une preservation du comportement, c'etait un basculement
+    de gouvernance non discute.
+
+    Regle retenue : proprietaire de la note OU proprietaire d'un carnet
+    qui la contient. Le titulaire actuel garde ses droits, l'auteur en
+    gagne.
+    / Rule: note owner OR owner of a containing notebook. The current
+    holder keeps their rights, the author gains theirs.
+    """
+    if not utilisateur or not utilisateur.is_authenticated:
+        return False
+
+    if page.owner_id == utilisateur.pk:
+        return True
+
+    return Dossier.objects.filter(
+        appartenances_pages__page=page,
+        owner=utilisateur,
+    ).exists()
 
 
 def _peut_supprimer_extraction(utilisateur, entite):
@@ -351,8 +494,13 @@ def _obtenir_ou_creer_dossier_imports(utilisateur):
 
     LOCALISATION : front/views.py
     """
+    # Retrouve par le ROLE technique, plus par le nom : un carnet renomme
+    # reste retrouve (SPEC-corpus § 6.3).
+    # / Found by technical ROLE, no longer by name.
     dossier_imports, _cree = Dossier.objects.get_or_create(
-        name="Mes imports", owner=utilisateur,
+        role_special=RoleSpecialDossier.MES_IMPORTS,
+        owner=utilisateur,
+        defaults={"name": "Mes imports"},
     )
     return dossier_imports
 

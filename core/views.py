@@ -10,7 +10,7 @@ from rest_framework.authentication import SessionAuthentication, TokenAuthentica
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Dossier, DossierPartage, Page
+from .models import Dossier, DossierPartage, Page, RoleSpecialDossier
 from .serializers import ClasserDepuisExtensionSerializer, PageCreateSerializer, PageListSerializer
 
 logger = logging.getLogger("core")
@@ -411,11 +411,15 @@ def _resoudre_dossier(utilisateur, dossier_id_soumis):
         except Dossier.DoesNotExist:
             pass
 
-    # Fallback : dossier "A ranger" de l'utilisateur
-    # / Fallback: user's "A ranger" folder
+    # Fallback : le fourre-tout de l'utilisateur, retrouve par son ROLE
+    # technique et plus par son nom — un carnet renomme reste retrouve
+    # (SPEC-corpus § 6.3). Le nom n'est qu'une valeur d'affichage initiale.
+    # / Fallback: the user's inbox, found by its technical ROLE, no longer
+    # by name — a renamed notebook is still found.
     dossier_a_ranger, _cree = Dossier.objects.get_or_create(
-        name="A ranger",
+        role_special=RoleSpecialDossier.A_RANGER,
         owner=utilisateur,
+        defaults={"name": "A ranger"},
     )
     return dossier_a_ranger
 
