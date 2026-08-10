@@ -1,0 +1,74 @@
+{# ============================================================= #}
+{# FORMULAIRE — COUPER UN PASSAGE EN DEUX (U1)                    #}
+{# / Form — split one element in two                              #}
+{#                                                                #}
+{# LOCALISATION : front/templates/front/includes/                 #}
+{#                _formulaire_element_scission.html               #}
+{#                                                                #}
+{# Rendu par ElementViewSet.formulaire_scission, injecte dans     #}
+{# #zone-dialogue-element. Le texte est montre dans un textarea   #}
+{# EN LECTURE SEULE : on y place le curseur (clic ou fleches, ca  #}
+{# marche au clavier), et « Couper ici » lit la position au       #}
+{# moment de l'envoi.                                             #}
+{#                                                                #}
+{# TROIS PRECAUTIONS D'OFFSET (relecture U1, defauts H1 et H2) :  #}
+{# 1. Un retour a la ligne LITTERAL suit l'ouverture du textarea :#}
+{#    le parseur HTML avale toujours le premier — sans lui, un    #}
+{#    texte commencant par \n decalerait tous les offsets de 1.   #}
+{# 2. selectionStart compte des unites UTF-16 ; le serveur coupe  #}
+{#    en points de code. Array.from convertit (un emoji avant le  #}
+{#    curseur decalerait la coupe d'un cran, sans aucun signal).  #}
+{# 3. L'empreinte du texte AFFICHE voyage avec le formulaire : si #}
+{#    le texte change entre l'ouverture et l'envoi, le serveur    #}
+{#    repond 409 au lieu de couper un AUTRE texte au hasard.      #}
+{# / Literal newline after <textarea> (parser eats one) ;         #}
+{# UTF-16 -> code points via Array.from ; displayed-text          #}
+{# fingerprint checked server-side under the lock.                #}
+{#                                                                #}
+{# En cas d'echec (400/409), la reponse porte un toast FALC mais  #}
+{# le dialogue modal est en top layer AU-DESSUS du toast (defaut  #}
+{# M2) : la zone role="alert" du dialogue reprend le message.     #}
+{# ============================================================= #}
+<dialog class="dialogue-element" id="dialogue-element-ouvert"
+        aria-labelledby="titre-dialogue-element"
+        data-testid="dialogue-element-scission">
+    <h2 id="titre-dialogue-element">Couper ce passage en deux</h2>
+    <form hx-post="/elements/{{ element.pk }}/scinder/"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          hx-swap="none"
+          hx-disabled-elt="find button[type='submit']"
+          hx-on::config-request="var ta = document.getElementById('texte-element-a-couper'); event.detail.parameters.position_de_coupe = Array.from(ta.value.slice(0, ta.selectionStart)).length;"
+          hx-on::response-error="var entete = event.detail.xhr.getResponseHeader('HX-Trigger'); var message = 'Une erreur est survenue. Réessayez.'; try { message = JSON.parse(entete).showToast.message; } catch (e) {} var zone = this.querySelector('.erreur-du-dialogue'); zone.textContent = message; zone.hidden = false;">
+        <p class="aide" id="consigne-de-scission">Placez le curseur dans le
+            texte, à l'endroit exact de la coupe. Puis appuyez sur
+            « Couper ici ».</p>
+        <label for="texte-element-a-couper" class="visually-hidden">Le
+            texte du passage (lecture seule, placez-y le curseur)</label>
+        <textarea id="texte-element-a-couper" rows="6" readonly
+                  aria-describedby="consigne-de-scission"
+                  data-testid="champ-texte-scission">
+{{ element.texte }}</textarea>
+        <input type="hidden" name="position_de_coupe" value="">
+        <input type="hidden" name="empreinte_du_texte"
+               value="{{ element.empreinte_contenu }}">
+        <p class="erreur-du-dialogue" role="alert" hidden
+           data-testid="erreur-dialogue-element"></p>
+        <div class="pied-du-dialogue">
+            <button type="button" class="bouton-du-dialogue"
+                    onclick="this.closest('dialog').close()"
+                    data-testid="btn-annuler-dialogue">Annuler</button>
+            <button type="submit" class="bouton-du-dialogue principal"
+                    data-testid="btn-envoyer-scission">Couper ici</button>
+        </div>
+    </form>
+</dialog>
+<script>
+/* Ouvre le dialogue en MODAL des son injection.
+   / Opens the dialog as a modal right after injection. */
+(function () {
+    var dialogue = document.getElementById('dialogue-element-ouvert');
+    if (dialogue && !dialogue.open) {
+        dialogue.showModal();
+    }
+})();
+</script>
