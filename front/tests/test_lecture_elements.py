@@ -17,7 +17,7 @@ rendre `html_annote` / `html_readability` a l'identique.
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from core.models import ElementDocument, MoteurDePage, Page, empreinte_du_texte
+from core.models import ElementDocument, Page, empreinte_du_texte
 from hypostasis_extractor.models import (
     AncrageExtraction,
     ExtractedEntity,
@@ -39,81 +39,95 @@ class LectureParElementsTest(TestCase):
         )
         self.client.force_login(self.proprietaire)
 
-    def _creer_une_page(self, suffixe, moteur):
+    def _creer_une_page(self, suffixe):
         return Page.objects.create(
             url=f"http://exemple.local/brd-{suffixe}",
             html_original="<p>original</p>",
             html_readability="<p>Le HTML readability de repli.</p>",
             text_readability="texte",
             content_hash=f"hash-brd-{suffixe}",
-            owner=self.proprietaire, moteur=moteur,
+            owner=self.proprietaire,
             status="completed",
-        )
+
+    )
 
     def _ajouter_un_element(self, page, texte, ordre=0, label="text",
                             masque=False):
         return ElementDocument.objects.create(
             page=page, ordre=ordre, label=label, texte=texte,
             empreinte_contenu=empreinte_du_texte(texte), masque=masque,
-        )
+
+    )
 
     def _lire(self, page):
-        return self.client.get(f"/lire/{page.pk}/", HTTP_HX_REQUEST="true")
+        return self.client.get(f"/lire/{page.pk}/", HTTP_HX_REQUEST="true",
 
-    def test_une_page_ancienne_rend_le_html_readability(self):
+    )
+
+    def test_une_page_sans_element_rend_le_html_readability(self):
         # Aucune regression : le chemin ANCIEN est inchange.
         # / No regression on the OLD path.
-        page = self._creer_une_page("ancienne", MoteurDePage.ANCIEN)
+        page = self._creer_une_page("ancienne")
 
         reponse = self._lire(page)
 
-        self.assertEqual(reponse.status_code, 200)
+        self.assertEqual(reponse.status_code, 200,
+        )
         contenu = reponse.content.decode()
-        self.assertIn("Le HTML readability de repli.", contenu)
+        self.assertIn("Le HTML readability de repli.", contenu,
+        )
         self.assertNotIn("blocs-elements", contenu)
 
     def test_une_page_element_rend_ses_blocs(self):
         # La lecture d'une page ELEMENT vient des ElementDocument, pas
         # du html_readability : titres et paragraphes avec leur balise.
         # / ELEMENT reading comes from the elements, not readability HTML.
-        page = self._creer_une_page("element", MoteurDePage.ELEMENT)
+        page = self._creer_une_page("element")
         self._ajouter_un_element(page, "Le grand titre", ordre=0, label="title")
-        self._ajouter_un_element(page, "Un paragraphe de corps.", ordre=1)
+        self._ajouter_un_element(page, "Un paragraphe de corps.", ordre=1,
+
+        )
 
         reponse = self._lire(page)
 
-        self.assertEqual(reponse.status_code, 200)
+        self.assertEqual(reponse.status_code, 200,
+        )
         contenu = reponse.content.decode()
-        self.assertIn('data-testid="blocs-elements"', contenu)
+        self.assertIn('data-testid="blocs-elements"', contenu,
+        )
         self.assertIn("Le grand titre", contenu)
-        self.assertIn("Un paragraphe de corps.", contenu)
+        self.assertIn("Un paragraphe de corps.", contenu,
+        )
         # Le HTML de repli n'est PAS rendu en double.
         # / The fallback HTML is not rendered too.
-        self.assertNotIn("Le HTML readability de repli.", contenu)
+        self.assertNotIn("Le HTML readability de repli.", contenu,
+
+    )
 
     def test_les_portions_sont_marquees_dans_le_texte(self):
         # Une extraction ancree sur une portion pose une marque
         # `mark.portion` sur CE passage — c'est tout l'objet du moteur.
         # / An anchored extraction marks exactly its portion.
-        page = self._creer_une_page("portions", MoteurDePage.ELEMENT)
+        page = self._creer_une_page("portions")
         element = self._ajouter_un_element(
             page, "Le jugement des personnes compte beaucoup.",
         )
         job = ExtractionJob.objects.create(page=page, status="completed")
         extraction = ExtractedEntity.objects.create(
             job=job, extraction_class="principe",
-            extraction_text="jugement", start_char=3, end_char=11,
-        )
+            extraction_text="jugement", start_char=3, end_char=11)
         AncrageExtraction.objects.create(
             extraction=extraction, element=element,
             ordre_dans_extraction=0,
             debut_dans_element=3, fin_dans_element=11,
+
         )
 
         reponse = self._lire(page)
 
         contenu = reponse.content.decode()
-        self.assertIn('mark class="portion hl-extraction"', contenu)
+        self.assertIn('mark class="portion hl-extraction"', contenu,
+        )
         self.assertIn(f'data-extraction-id="{extraction.pk}"', contenu)
 
     def test_un_element_masque_n_est_pas_un_bloc_de_lecture(self):
@@ -123,16 +137,18 @@ class LectureParElementsTest(TestCase):
         # mais jamais comme un bloc du texte.
         # / A masked element leaves the reading flow; since U1 it shows
         # as an un-hideable placeholder for writers (other test file).
-        page = self._creer_une_page("masque", MoteurDePage.ELEMENT)
+        page = self._creer_une_page("masque")
         self._ajouter_un_element(page, "Contenu visible.", ordre=0)
         self._ajouter_un_element(
             page, "Pied de page repete.", ordre=1, masque=True,
+
         )
 
         reponse = self._lire(page)
 
         contenu = reponse.content.decode()
-        self.assertIn("Contenu visible.", contenu)
+        self.assertIn("Contenu visible.", contenu,
+        )
         self.assertNotIn('data-testid="bloc-element-1"', contenu)
 
     def test_le_css_neutralise_les_defauts_navigateur_de_mark(self):
@@ -145,20 +161,21 @@ class LectureParElementsTest(TestCase):
         from pathlib import Path
 
         css = Path(
-            "front/static/front/css/maquette.css",
-        ).read_text(encoding="utf-8")
+            "front/static/front/css/maquette.css").read_text(encoding="utf-8",
+        )
         regle = re.search(
             r"mark\.hl-extraction\s*\{([^}]*)\}", css,
         )
         self.assertIsNotNone(regle, "le reset mark.hl-extraction a disparu")
-        self.assertIn("color: inherit", regle.group(1))
+        self.assertIn("color: inherit", regle.group(1),
+        )
         self.assertIn("background: none", regle.group(1))
 
     def test_une_page_element_sans_element_retombe_sur_le_repli(self):
         # Ingestion echouee (zero element) : plutot le HTML de repli
         # qu'une page blanche — le pipeline synchrone l'a rempli (BR-B).
         # / Failed ingestion: fallback HTML beats a blank page.
-        page = self._creer_une_page("vide", MoteurDePage.ELEMENT)
+        page = self._creer_une_page("vide")
 
         reponse = self._lire(page)
 

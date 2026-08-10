@@ -22,7 +22,7 @@ L'etalon `tmp/maquettes/maquette.html` (l. 1671-1682) prevoit une carte
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from core.models import ElementDocument, MoteurDePage, Page, empreinte_du_texte
+from core.models import ElementDocument, Page, empreinte_du_texte
 from hypostasis_extractor.models import (
     AncrageExtraction,
     EtatAncrage,
@@ -48,7 +48,6 @@ class AncresDetacheesDansLePanneauTest(TestCase):
             html_original="x", html_readability="x",
             text_readability=TEXTE, content_hash="empreinte-detachees",
             title="Note a ancres detachees",
-            moteur=MoteurDePage.ELEMENT,
             owner=self.lecteur,
         )
         self.element = ElementDocument.objects.create(
@@ -65,12 +64,14 @@ class AncresDetacheesDansLePanneauTest(TestCase):
         return ExtractedEntity.objects.create(
             job=self.job, extraction_class="idee",
             extraction_text=texte, start_char=0, end_char=len(texte),
-        )
+
+    )
 
     def _ouvrir_le_panneau(self):
         return self.client.get(
             f"/extractions/drawer_contenu/?page_id={self.page.pk}",
-        )
+
+    )
 
     def test_une_idee_detachee_est_annoncee_dans_sa_carte(self):
         extraction = self._creer_une_extraction("budget")
@@ -78,22 +79,29 @@ class AncresDetacheesDansLePanneauTest(TestCase):
             extraction=extraction, element=self.element,
             debut_dans_element=0, fin_dans_element=3,
             ordre_dans_extraction=0, etat_ancrage=EtatAncrage.DETACHEE,
+
         )
 
         reponse = self._ouvrir_le_panneau()
 
-        self.assertContains(reponse, "ancre détachée")
+        self.assertContains(reponse, "ancre détachée",
+
+    )
 
     def test_une_idee_sans_aucune_ancre_est_annoncee_aussi(self):
         # Du point de vue du lecteur, c'est la meme situation : une idee
         # que rien ne montre dans le texte. 1 715 extractions de la base
         # sont dans ce cas apres la reconversion.
         # / Same situation for the reader: an idea shown nowhere.
-        self._creer_une_extraction("une idee sans passage")
+        self._creer_une_extraction("une idee sans passage",
+
+        )
 
         reponse = self._ouvrir_le_panneau()
 
-        self.assertContains(reponse, "ancre détachée")
+        self.assertContains(reponse, "ancre détachée",
+
+    )
 
     def test_une_idee_bien_ancree_n_est_pas_annoncee_detachee(self):
         extraction = self._creer_une_extraction("budget")
@@ -101,11 +109,14 @@ class AncresDetacheesDansLePanneauTest(TestCase):
             extraction=extraction, element=self.element,
             debut_dans_element=0, fin_dans_element=3,
             ordre_dans_extraction=0, etat_ancrage=EtatAncrage.ANCREE,
+
         )
 
         reponse = self._ouvrir_le_panneau()
 
-        self.assertNotContains(reponse, "ancre détachée")
+        self.assertNotContains(reponse, "ancre détachée",
+
+    )
 
     def test_l_avis_de_plafond_est_bien_RENDU_dans_le_bloc(self):
         # Les tests du plafond ne verifiaient que la valeur calculee par
@@ -129,10 +140,13 @@ class AncresDetacheesDansLePanneauTest(TestCase):
                 }],
                 "la_note_est_modifiable": False,
             },
+
         )
 
         self.assertIn("avis-surlignage-abandonne", html)
-        self.assertIn("623", html)
+        self.assertIn("623", html,
+
+    )
 
     def test_un_bloc_ordinaire_ne_porte_aucun_avis(self):
         from django.template.loader import render_to_string
@@ -151,20 +165,31 @@ class AncresDetacheesDansLePanneauTest(TestCase):
                 }],
                 "la_note_est_modifiable": False,
             },
+
         )
 
         self.assertNotIn("avis-surlignage-abandonne", html)
 
-    def test_sur_une_page_ancien_aucune_idee_n_est_dite_detachee(self):
-        # Une page qui n'est pas passee au moteur ELEMENT n'a pas
-        # d'ancres du tout : les declarer toutes detachees serait un
-        # mensonge de masse. (2 pages de la base sont restees ANCIEN.)
-        # / A non-ELEMENT page has no anchors at all; saying otherwise
-        # would be a mass falsehood.
-        self.page.moteur = MoteurDePage.ANCIEN
-        self.page.save(update_fields=["moteur"])
-        self._creer_une_extraction("budget")
+    def test_une_idee_ancree_reste_non_detachee_parmi_des_detachees(self):
+        """
+        L'etiquette suit l'ancre de CHAQUE idee.
+
+        Ce test verifiait qu'une page de l'ANCIEN moteur n'etiquetait
+        rien. Ce moteur n'existe plus, ni le flag qui le designait : ce
+        qui reste a prouver est que l'etiquette se decide idee par idee,
+        et non par un etat global de la page.
+        / The label is decided per idea, not by a page-wide state.
+        """
+        ancree = self._creer_une_extraction("budget")
+        AncrageExtraction.objects.create(
+            extraction=ancree, element=self.element,
+            debut_dans_element=0, fin_dans_element=3,
+            ordre_dans_extraction=0, etat_ancrage=EtatAncrage.ANCREE,
+        )
+        self._creer_une_extraction("une idee sans passage")
 
         reponse = self._ouvrir_le_panneau()
 
-        self.assertNotContains(reponse, "ancre détachée")
+        # Une seule etiquette, pour la seule idee sans ancre.
+        # / One label, for the one idea without an anchor.
+        self.assertEqual(reponse.content.decode().count("ancre détachée"), 1)

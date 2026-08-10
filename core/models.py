@@ -142,20 +142,6 @@ class Dossier(models.Model):
         ]
 
 
-class MoteurDePage(models.TextChoices):
-    """
-    Le moteur d'ancrage d'une Page (SPEC-ancrage v2 § 9, branchement
-    BR-A). Les DEUX coexistent : les pages existantes restent ANCIEN et
-    fonctionnent a l'identique ; toute nouvelle page ingeree passe par
-    ELEMENT. Un CHAMP explicite, pas `elements.exists()` : une
-    ingestion ELEMENT echouee laisse zero element et serait prise pour
-    une page ANCIEN (decision D1, cahier du branchement, 9 aout).
-    / The page's anchoring engine; explicit field, never inferred.
-    """
-    ANCIEN = "ancien", "Ancien moteur (offsets)"
-    ELEMENT = "element", "Moteur par élément"
-
-
 class EtatIngestion(models.TextChoices):
     """
     Ou en est le DECOUPAGE EN ELEMENTS d'une page (U2, dette § 5 du
@@ -223,20 +209,6 @@ class Page(models.Model):
     # une clause filter(), pas en boucle Python (SPEC-synthese § 2).
     # / The note's kind, as a field: the exclusion rule must be a filter
     # clause, never a Python loop.
-    # Le moteur d'ancrage de cette page (SPEC-ancrage v2 § 9). Ecrit a
-    # l'ingestion, jamais bascule en douce — la reconversion ANCIEN ->
-    # ELEMENT est une commande explicite du proprietaire (§ 9.5).
-    # / The anchoring engine, set at ingestion time, never silently
-    # switched.
-    moteur = models.CharField(
-        max_length=10,
-        choices=MoteurDePage.choices,
-        default=MoteurDePage.ANCIEN,
-        db_index=True,
-        help_text="Moteur d'ancrage : 'ancien' (offsets plats) ou "
-                  "'element' (ElementDocument + portions). Les deux "
-                  "coexistent, aucune migration de force.",
-    )
     ingestion_etat = models.CharField(
         max_length=12,
         choices=EtatIngestion.choices,

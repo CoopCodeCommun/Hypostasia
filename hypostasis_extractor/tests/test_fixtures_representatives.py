@@ -37,10 +37,12 @@ RAISON_DU_SKIP = (
     "docker exec -e TESTS_DOCLING=1 ... --tag=docling"
 )
 
-from core.models import MoteurDePage, Page
+from core.models import Page
 
 REPERTOIRE_DES_FIXTURES = os.path.join(
     os.path.dirname(__file__), "fixtures",
+
+
 )
 
 
@@ -56,7 +58,9 @@ class BaseFixturesTestCase(TestCase):
             html_original="<p>o</p>", html_readability="<p>l</p>",
             text_readability="texte", content_hash="hash-brf",
             owner=self.utilisateur,
-        )
+
+
+)
 
 
 class CouvertureDesFixturesTest(BaseFixturesTestCase):
@@ -67,15 +71,18 @@ class CouvertureDesFixturesTest(BaseFixturesTestCase):
         # vers Docling (BR-B). / Plain text never goes to Docling.
         from hypostasis_extractor.services.ingestion_docling import (
             fichier_couvert_par_docling,
+
         )
 
         self.assertFalse(
             fichier_couvert_par_docling("notes-texte-brut.txt"),
-        )
+
+    )
 
     def test_les_fixtures_versionnees_existent(self):
         for nom in ["pad-markdown.md", "notes-texte-brut.txt"]:
-            chemin = os.path.join(REPERTOIRE_DES_FIXTURES, nom)
+            chemin = os.path.join(REPERTOIRE_DES_FIXTURES, nom,
+            )
             self.assertTrue(os.path.exists(chemin), chemin)
 
 
@@ -90,18 +97,24 @@ class ConversionReelleDuPadMarkdownTest(BaseFixturesTestCase):
     def test_le_pad_markdown_est_decoupe_en_elements_structures(self):
         from hypostasis_extractor.services.ingestion_docling import (
             ingerer_un_fichier,
+
         )
 
         chemin = os.path.join(REPERTOIRE_DES_FIXTURES, "pad-markdown.md")
-        elements = ingerer_un_fichier(self.page, chemin)
+        elements = ingerer_un_fichier(self.page, chemin,
+
+        )
 
         self.page.refresh_from_db()
-        self.assertEqual(self.page.moteur, MoteurDePage.ELEMENT)
+        self.assertTrue(self.page.elements.exists(),
+
+        )
 
         labels = [element.label for element in elements]
         # Les titres du pad sont des elements de titre, pas du texte.
         # / Pad headings become title elements.
-        self.assertIn("title", labels)
+        self.assertIn("title", labels,
+        )
         self.assertGreaterEqual(labels.count("section_header"), 3)
         # DECOUVERTE BR-F (documentee, pas corrigee) : le backend
         # markdown de Docling traite chaque LIGNE source comme un
@@ -112,18 +125,22 @@ class ConversionReelleDuPadMarkdownTest(BaseFixturesTestCase):
         # consigne dans la fiche A TESTER. / Docling's md backend
         # splits on hard-wrapped lines: a two-line bullet loses its
         # list_item label. Documented reality, not a target.
-        self.assertGreaterEqual(labels.count("list_item"), 2)
+        self.assertGreaterEqual(labels.count("list_item"), 2,
+
+        )
 
         # Le chemin de section suit la hierarchie du pad.
         # / Section paths follow the pad hierarchy.
         elements_des_points = [
             e for e in elements if "refonte du site web" in e.texte
         ]
-        self.assertEqual(len(elements_des_points), 1)
+        self.assertEqual(len(elements_des_points), 1,
+        )
         self.assertIn(
             "Points en attente",
             elements_des_points[0].chemin_de_section,
-        )
+
+)
 
 
 @tag("docling")
@@ -139,6 +156,7 @@ class ConversionReelleDUnDocxAvecTableauTest(BaseFixturesTestCase):
 
         from hypostasis_extractor.services.ingestion_docling import (
             ingerer_un_fichier,
+
         )
 
         document = docx.Document()
@@ -157,23 +175,28 @@ class ConversionReelleDUnDocxAvecTableauTest(BaseFixturesTestCase):
             ligne.cells[1].text = droite
 
         with tempfile.NamedTemporaryFile(
-            suffix=".docx", delete=False,
-        ) as fichier:
-            document.save(fichier.name)
+            suffix=".docx", delete=False) as fichier:
+            document.save(fichier.name,
+            )
             chemin = fichier.name
 
         try:
             elements = ingerer_un_fichier(self.page, chemin)
         finally:
-            os.unlink(chemin)
+            os.unlink(chemin,
+
+        )
 
         labels = [element.label for element in elements]
-        self.assertIn("table", labels)
+        self.assertIn("table", labels,
+
+        )
 
         element_tableau = next(
             e for e in elements if e.label == "table"
         )
         # Le contenu des cellules est dans le texte de l'element : les
         # extractions pourront s'y ancrer. / Cell content is anchorable.
-        self.assertIn("6 500 euros", element_tableau.texte)
+        self.assertIn("6 500 euros", element_tableau.texte,
+        )
         self.assertIn("Formations", element_tableau.texte)

@@ -1719,13 +1719,28 @@ class Phase09FichiersStatiquesTest(TestCase):
     # / CSS: dots and inline card present, left icons removed
     # -------------------------------------------------------------------------
 
-    def test_css_contient_pastilles_marge(self):
-        """hypostasia.css contient la classe .pastilles-marge."""
-        self.assertIn(".pastilles-marge", self.contenu_css)
+    def test_le_css_des_pastilles_de_marge_a_disparu(self):
+        """
+        Garde anti-retour : plus une regle pour les pastilles en marge.
 
-    def test_css_contient_pastille_extraction(self):
-        """hypostasia.css contient la classe .pastille-extraction."""
-        self.assertIn(".pastille-extraction", self.contenu_css)
+        Elles appartenaient a l'ancien moteur ; la maquette n'en a jamais
+        eu (les ancres sont le surlignage inline). Le JS qui les
+        fabriquait a ete supprime — laisser leur CSS aurait entretenu
+        l'illusion qu'elles existent encore.
+
+        ATTENTION en relisant ce nettoyage : plusieurs regles etaient
+        PARTAGEES avec `.indicateur-statut`, bien vivant dans
+        `_card_body.html`. Seul le selecteur mort a ete retire de
+        celles-la, jamais la regle entiere.
+        / Anti-return guard; shared rules kept for .indicateur-statut.
+        """
+        self.assertNotIn(".pastille-extraction", self.contenu_css)
+        self.assertNotIn(".pastilles-marge", self.contenu_css)
+
+    def test_l_indicateur_de_statut_des_cartes_est_intact(self):
+        """La contre-epreuve : ce qui partageait ces regles vit encore."""
+        self.assertIn('.indicateur-statut[data-statut="nouveau"]', self.contenu_css)
+        self.assertIn('.indicateur-statut[data-statut="commente"]', self.contenu_css)
 
     def test_css_ne_contient_plus_icones_before(self):
         """hypostasia.css ne contient plus de .hl-extraction::before (icones marge gauche supprimees)."""
@@ -1756,9 +1771,29 @@ class Phase09MarginaliaJSContenuTest(TestCase):
         """marginalia.js contient la section COMMUNICATION stack-ccc."""
         self.assertIn("COMMUNICATION", self.contenu_js)
 
-    def test_fonction_construire_pastilles(self):
-        """marginalia.js exporte construirePastillesMarginales()."""
-        self.assertIn("function construirePastillesMarginales()", self.contenu_js)
+    def test_plus_aucune_fabrique_de_pastilles_marginales(self):
+        """
+        Les pastilles en marge ont DISPARU du produit — garde anti-retour.
+
+        La maquette n'en a jamais eu : les ancres sont le surlignage
+        inline `mark.portion.hl-extraction` et l'interaction est un clic
+        sur l'ancre. `construirePastillesMarginales` avait ete neutralisee
+        le 10 aout (elle ne faisait plus que nettoyer d'eventuels
+        residus), puis supprimee avec la mort de l'ancien moteur : plus
+        rien, ni serveur ni JS, ne produit une seule pastille.
+        / Margin dots are gone; nothing produces one any more.
+        """
+        self.assertNotIn("construirePastillesMarginales", self.contenu_js)
+        self.assertNotIn("pastilles-marge", self.contenu_js)
+
+    def test_aucun_autre_script_n_appelle_la_fabrique_de_pastilles(self):
+        """Supprimer la fonction sans ses appelants laisserait un ReferenceError."""
+        for nom in ("hypostasia.js", "drawer_vue_liste.js"):
+            contenu = (STATIC_FRONT / "js" / nom).read_text(encoding="utf-8")
+            self.assertNotIn(
+                "construirePastillesMarginales", contenu,
+                f"{nom} appelle encore la fabrique de pastilles",
+            )
 
     def test_mapping_couleurs_statut(self):
         """marginalia.js contient le mapping COULEURS_STATUT binaire (A.8)."""
@@ -1770,9 +1805,32 @@ class Phase09MarginaliaJSContenuTest(TestCase):
         """marginalia.js ecoute htmx:afterSwap pour reconstruire les pastilles."""
         self.assertIn("htmx:afterSwap", self.contenu_js)
 
-    def test_dom_content_loaded(self):
-        """marginalia.js construit les pastilles au DOMContentLoaded."""
-        self.assertIn("DOMContentLoaded", self.contenu_js)
+    def test_le_clic_sur_une_ancre_est_ecoute_sans_attendre_le_chargement(self):
+        """
+        Le handler est pose sur `document`, pas dans un DOMContentLoaded.
+
+        Ce test exigeait un `DOMContentLoaded` — il n'existait que pour
+        construire les pastilles en marge au chargement. Les pastilles
+        supprimees, l'ecouteur l'a ete aussi. Le clic sur une ancre
+        inline, lui, est delegue a `document` : il fonctionne quel que
+        soit le moment ou le fragment arrive (swap HTMX compris), ce
+        qu'un DOMContentLoaded ne garantirait justement pas.
+        / Delegated on `document`, so HTMX-injected anchors work too.
+        """
+        self.assertIn("document.addEventListener('click'", self.contenu_js)
+        self.assertIn(
+            "#readability-content .hl-extraction[data-extraction-id]",
+            self.contenu_js,
+        )
+
+    def test_le_filtre_par_contributeur_agit_sur_les_ancres_inline(self):
+        """
+        Il estompait des pastilles en marge : plus aucune n'existe, donc
+        il ne trouvait plus un seul noeud et etait INERTE sans le dire.
+        / It dimmed margin dots that no longer exist: silently inert.
+        """
+        self.assertIn("ancre-hors-filtre", self.contenu_js)
+        self.assertNotIn("pastille-hors-filtre", self.contenu_js)
 
 
 class Phase09HypostasiaJSAdaptationsTest(TestCase):
@@ -1789,118 +1847,17 @@ class Phase09HypostasiaJSAdaptationsTest(TestCase):
         # / The old handler used "clicRelatifX" to detect left margin clicks
         self.assertNotIn("clicRelatifX", self.contenu_js)
 
-    def test_scroll_carte_cherche_pastille(self):
-        """scrollToCarteDepuisBloc declenche un clic pastille si pas de carte inline."""
-        self.assertIn(".pastille-extraction[data-extraction-id=", self.contenu_js)
+    def test_scroll_carte_passe_par_le_panneau_et_non_par_une_pastille(self):
+        """
+        `scrollToCarteDepuisBloc` ouvre le panneau sur la bonne carte.
 
-
-class Phase09AnnotationDataStatutTest(TestCase):
-    """Verifie que annoter_html_avec_barres ajoute data-statut aux spans.
-    / Verify that annoter_html_avec_barres adds data-statut to spans."""
-
-    def test_span_contient_data_statut_par_defaut(self):
-        """Un span annote contient data-statut='nouveau' par defaut (PHASE-26c)."""
-        from front.utils import annoter_html_avec_barres
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-        from core.models import Page
-
-        # Creer une page avec du texte simple
-        # / Create a page with simple text
-        page_test = Page.objects.create(
-            title="Test data-statut",
-            html_original="<html><body>Hello world</body></html>",
-            html_readability="<p>Hello world</p>",
-            text_readability="Hello world",
-        )
-        job_test = ExtractionJob.objects.create(
-            page=page_test, name="Test", status="completed",
-        )
-        entite_test = ExtractedEntity.objects.create(
-            job=job_test,
-            extraction_class="concept",
-            extraction_text="Hello",
-            start_char=0,
-            end_char=5,
-        )
-
-        html_annote = annoter_html_avec_barres(
-            page_test.html_readability,
-            page_test.text_readability,
-            [entite_test],
-        )
-        self.assertIn('data-statut="nouveau"', html_annote)
-        self.assertIn('data-extraction-id=', html_annote)
-
-    def test_span_contient_data_statut_consensuel(self):
-        """Un span annote avec statut_debat='consensuel' a data-statut='consensuel'."""
-        from front.utils import annoter_html_avec_barres
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-        from core.models import Page
-
-        page_test = Page.objects.create(
-            title="Test consensuel",
-            html_original="<html><body>Bonjour monde</body></html>",
-            html_readability="<p>Bonjour monde</p>",
-            text_readability="Bonjour monde",
-        )
-        job_test = ExtractionJob.objects.create(
-            page=page_test, name="Test", status="completed",
-        )
-        entite_consensuelle = ExtractedEntity.objects.create(
-            job=job_test,
-            extraction_class="these",
-            extraction_text="Bonjour",
-            start_char=0,
-            end_char=7,
-            statut_debat="consensuel",
-        )
-
-        html_annote = annoter_html_avec_barres(
-            page_test.html_readability,
-            page_test.text_readability,
-            [entite_consensuelle],
-        )
-        self.assertIn('data-statut="consensuel"', html_annote)
-
-    def test_span_contient_data_statut_controverse(self):
-        """Un span annote avec statut_debat='controverse' a data-statut='controverse'."""
-        from front.utils import annoter_html_avec_barres
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-        from core.models import Page
-
-        page_test = Page.objects.create(
-            title="Test controverse",
-            html_original="<html><body>Debat anime</body></html>",
-            html_readability="<p>Debat anime</p>",
-            text_readability="Debat anime",
-        )
-        job_test = ExtractionJob.objects.create(
-            page=page_test, name="Test", status="completed",
-        )
-        entite_controversee = ExtractedEntity.objects.create(
-            job=job_test,
-            extraction_class="argument",
-            extraction_text="Debat",
-            start_char=0,
-            end_char=5,
-            statut_debat="controverse",
-        )
-
-        html_annote = annoter_html_avec_barres(
-            page_test.html_readability,
-            page_test.text_readability,
-            [entite_controversee],
-        )
-        self.assertIn('data-statut="controverse"', html_annote)
-
-
-
-
-
-# =============================================================================
-# PHASE-10 — Drawer vue liste des extractions
-# / PHASE-10 — Drawer extraction list view
-# =============================================================================
+        Son repli cliquait une pastille en marge. Celles-ci sont mortes
+        avec l'ancien moteur : le repli ne trouvait plus rien et le
+        chemin restant est le seul vrai.
+        / Its fallback clicked a margin dot; those are gone.
+        """
+        self.assertNotIn(".pastille-extraction", self.contenu_js)
+        self.assertIn("ouvrirDrawerEtScrollerVersCarte", self.contenu_js)
 
 
 class Phase10TemplateDrawerExisteTest(TestCase):
@@ -4474,9 +4431,15 @@ class Phase21CSSMobileTest(TestCase):
         """La classe .bottom-sheet-contenu est definie."""
         self.assertIn(".bottom-sheet-contenu {", self.contenu_css)
 
-    def test_pastilles_cachees_mobile(self):
-        """Les pastilles de marge sont cachees en mobile."""
-        self.assertIn(".pastilles-marge { display: none", self.contenu_css)
+    def test_le_surlignage_porte_les_ancres_sur_mobile(self):
+        """
+        Il n'y a plus de pastille a cacher sur mobile : la regle
+        `.pastilles-marge { display: none }` est partie avec elles. Ce
+        qui compte est que l'ancre reste tapable.
+        / No dots left to hide; what matters is the anchor stays tappable.
+        """
+        self.assertNotIn(".pastilles-marge", self.contenu_css)
+        self.assertIn(".hl-extraction[data-extraction-id]", self.contenu_css)
 
     def test_arbre_plein_ecran_mobile(self):
         """L'arbre prend 100vw sur mobile."""

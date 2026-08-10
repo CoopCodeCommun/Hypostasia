@@ -21,7 +21,7 @@ un-hideable placeholders for writers, stay absent for readers.
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from core.models import ElementDocument, MoteurDePage, Page, empreinte_du_texte
+from core.models import ElementDocument, Page, empreinte_du_texte
 
 Utilisateur = get_user_model()
 
@@ -46,7 +46,7 @@ class BaseBoutonsElementsTest(TestCase):
             html_original="<p>o</p>",
             html_readability="<p>Repli readability.</p>",
             text_readability="texte", content_hash="hash-u1-boutons",
-            owner=self.proprietaire, moteur=MoteurDePage.ELEMENT,
+            owner=self.proprietaire,
             status="completed",
         )
         self.element_titre = self._element(
@@ -54,18 +54,19 @@ class BaseBoutonsElementsTest(TestCase):
         )
         self.element_corps = self._element(
             "Un paragraphe de corps.", ordre=1,
-        )
+
+    )
 
     def _element(self, texte, ordre=0, label="text", masque=False):
         return ElementDocument.objects.create(
             page=self.page, ordre=ordre, label=label, texte=texte,
             empreinte_contenu=empreinte_du_texte(texte), masque=masque,
-        )
+
+    )
 
     def _lire(self):
         return self.client.get(
-            f"/lire/{self.page.pk}/", HTTP_HX_REQUEST="true",
-        ).content.decode()
+            f"/lire/{self.page.pk}/", HTTP_HX_REQUEST="true").content.decode()
 
 
 class BoutonsPourQuiPeutEcrireTest(BaseBoutonsElementsTest):
@@ -73,18 +74,24 @@ class BoutonsPourQuiPeutEcrireTest(BaseBoutonsElementsTest):
 
     def setUp(self):
         super().setUp()
-        self.client.force_login(self.proprietaire)
+        self.client.force_login(self.proprietaire,
+
+    )
 
     def test_la_bascule_du_mode_structure_est_rendue(self):
         contenu = self._lire()
-        self.assertIn('data-testid="bouton-mode-structure"', contenu)
+        self.assertIn('data-testid="bouton-mode-structure"', contenu,
+        )
         # C'est un bouton a bascule : son etat est annonce.
         # / It is a toggle: its state is announced.
-        self.assertIn('aria-pressed', contenu)
+        self.assertIn('aria-pressed', contenu,
+
+    )
 
     def test_chaque_bloc_porte_son_groupe_de_boutons(self):
         contenu = self._lire()
-        self.assertIn('data-testid="actions-element-0"', contenu)
+        self.assertIn('data-testid="actions-element-0"', contenu,
+        )
         self.assertIn('data-testid="actions-element-1"', contenu)
 
     def test_les_boutons_visent_les_bons_endpoints(self):
@@ -93,9 +100,11 @@ class BoutonsPourQuiPeutEcrireTest(BaseBoutonsElementsTest):
         # Corriger et scinder ouvrent un FORMULAIRE (GET) ; recoller et
         # masquer agissent directement (POST + confirmation HTMX).
         # / Correct & split fetch a form; merge & hide post directly.
-        self.assertIn(f"/elements/{pk}/formulaire_correction/", contenu)
+        self.assertIn(f"/elements/{pk}/formulaire_correction/", contenu,
+        )
         self.assertIn(f"/elements/{pk}/formulaire_scission/", contenu)
-        self.assertIn(f"/elements/{pk}/masquer/", contenu)
+        self.assertIn(f"/elements/{pk}/masquer/", contenu,
+        )
         # Recoller vise le SUIVANT : le bouton existe sur le premier
         # bloc, pas sur le dernier (il n'y a rien apres lui).
         # / Merge targets the NEXT one: present on the first block,
@@ -106,29 +115,40 @@ class BoutonsPourQuiPeutEcrireTest(BaseBoutonsElementsTest):
         )
         self.assertNotIn(
             f"/elements/{pk}/fusionner_avec_le_suivant/", contenu,
-        )
+
+    )
 
     def test_le_conteneur_du_dialogue_est_rendu(self):
         # Les formulaires (corriger, scinder) s'ouvrent dans un dialogue
         # injecte ici. / The forms open inside this dialog container.
         contenu = self._lire()
-        self.assertIn('data-testid="zone-dialogue-element"', contenu)
+        self.assertIn('data-testid="zone-dialogue-element"', contenu,
+
+    )
 
     def test_un_element_masque_apparait_en_placeholder_demasquable(self):
-        masque = self._element("Pied de page repete.", ordre=2, masque=True)
+        masque = self._element("Pied de page repete.", ordre=2, masque=True,
+        )
         contenu = self._lire()
-        self.assertIn('data-testid="element-masque-2"', contenu)
+        self.assertIn('data-testid="element-masque-2"', contenu,
+        )
         self.assertIn(f"/elements/{masque.pk}/demasquer/", contenu)
         # Le texte est la, pour savoir CE QU'on demasque.
         # / The text is shown so one knows what gets restored.
-        self.assertIn("Pied de page repete.", contenu)
+        self.assertIn("Pied de page repete.", contenu,
+
+    )
 
     def test_un_element_masque_n_est_pas_un_bloc_de_lecture(self):
         # Masque = hors du texte de lecture ; le placeholder est un
         # autre testid. / Hidden means out of the reading flow.
-        self._element("Pied de page repete.", ordre=2, masque=True)
+        self._element("Pied de page repete.", ordre=2, masque=True,
+        )
         contenu = self._lire()
-        self.assertNotIn('data-testid="bloc-element-2"', contenu)
+        self.assertNotIn('data-testid="bloc-element-2"', contenu,
+
+
+)
 
 
 class BoutonsPourUnSimpleLecteurTest(BaseBoutonsElementsTest):
@@ -136,18 +156,25 @@ class BoutonsPourUnSimpleLecteurTest(BaseBoutonsElementsTest):
 
     def setUp(self):
         super().setUp()
-        self.client.force_login(self.lecteur_superuser)
+        self.client.force_login(self.lecteur_superuser,
+
+    )
 
     def test_ni_bascule_ni_boutons_pour_un_lecteur(self):
         contenu = self._lire()
-        self.assertNotIn('data-testid="bouton-mode-structure"', contenu)
+        self.assertNotIn('data-testid="bouton-mode-structure"', contenu,
+        )
         self.assertNotIn('data-testid="actions-element-0"', contenu)
-        self.assertNotIn("/formulaire_correction/", contenu)
+        self.assertNotIn("/formulaire_correction/", contenu,
+
+    )
 
     def test_un_element_masque_reste_absent_pour_un_lecteur(self):
-        self._element("Pied de page repete.", ordre=2, masque=True)
+        self._element("Pied de page repete.", ordre=2, masque=True,
+        )
         contenu = self._lire()
-        self.assertNotIn("Pied de page repete.", contenu)
+        self.assertNotIn("Pied de page repete.", contenu,
+        )
         self.assertNotIn('data-testid="element-masque-2"', contenu)
 
 
@@ -160,14 +187,16 @@ class BoutonsSurUnePageAncienneTest(BaseBoutonsElementsTest):
             html_original="<p>o</p>",
             html_readability="<p>Repli readability.</p>",
             text_readability="texte", content_hash="hash-u1-ancienne",
-            owner=self.proprietaire, moteur=MoteurDePage.ANCIEN,
+            owner=self.proprietaire,
             status="completed",
         )
         self.client.force_login(self.proprietaire)
         contenu = self.client.get(
-            f"/lire/{page_ancienne.pk}/", HTTP_HX_REQUEST="true",
-        ).content.decode()
-        self.assertNotIn('data-testid="bouton-mode-structure"', contenu)
+            f"/lire/{page_ancienne.pk}/", HTTP_HX_REQUEST="true").content.decode()
+        self.assertNotIn('data-testid="bouton-mode-structure"', contenu,
+
+
+)
 
 
 class CorrectifsRelectureU1Test(BaseBoutonsElementsTest):
@@ -178,22 +207,28 @@ class CorrectifsRelectureU1Test(BaseBoutonsElementsTest):
 
     def setUp(self):
         super().setUp()
-        self.client.force_login(self.proprietaire)
+        self.client.force_login(self.proprietaire,
+
+    )
 
     def test_un_bloc_pre_ne_gagne_aucune_ligne_parasite(self):
         # H3 : l'include des boutons injectait ~24 retours a la ligne
         # VISIBLES dans un <pre> (contenu preformate). Le texte doit
         # etre immediatement suivi du groupe d'actions.
         # / The action include must not leak newlines into a <pre>.
-        self._element("ligne un\nligne deux", ordre=2, label="code")
+        self._element("ligne un\nligne deux", ordre=2, label="code",
+        )
         contenu = self._lire()
-        self.assertIn("ligne un\nligne deux<span", contenu)
+        self.assertIn("ligne un\nligne deux<span", contenu,
+
+    )
 
     def test_le_bouton_recoller_est_absent_si_le_suivant_est_masque(self):
         # M8 : fusionner un visible avec un masque est toujours refuse
         # par le service — le bouton ne doit pas etre propose.
         # / No merge button when the NEXT element is hidden.
-        masque = self._element("Pied de page.", ordre=2, masque=True)
+        masque = self._element("Pied de page.", ordre=2, masque=True,
+        )
         dernier = self._element("Fin du texte.", ordre=3)
         contenu = self._lire()
         self.assertNotIn(
@@ -204,20 +239,25 @@ class CorrectifsRelectureU1Test(BaseBoutonsElementsTest):
         self.assertIn(
             f"/elements/{self.element_titre.pk}/fusionner_avec_le_suivant/",
             contenu,
-        )
+
+    )
 
     def test_une_liste_entierement_masquee_ne_rend_pas_un_ul_vide(self):
         # B3 : pour un simple lecteur, une liste dont toutes les puces
         # sont masquees ne doit pas laisser un <ul></ul> vide.
         # / No empty <ul> for readers when every bullet is hidden.
         self._element("Puce cachee une.", ordre=2, label="list_item",
-                      masque=True)
+                      masque=True,
+        )
         self._element("Puce cachee deux.", ordre=3, label="list_item",
-                      masque=True)
+                      masque=True,
+        )
         self.client.force_login(self.lecteur_superuser)
         contenu = self._lire()
         import re
-        self.assertNotRegex(contenu, r"<ul>\s*</ul>")
+        self.assertNotRegex(contenu, r"<ul>\s*</ul>",
+
+    )
 
     def test_l_etat_du_bouton_a_bascule_est_annonce_sur_le_bouton(self):
         # B4 : l'assertion d'origine acceptait un aria-pressed pose

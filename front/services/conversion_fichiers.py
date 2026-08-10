@@ -30,7 +30,7 @@ def convertir_fichier_en_html(fichier_uploade, nom_fichier):
     Raises:
         ValueError: Si l'extension n'est pas supportee
     """
-    from front.utils import extraire_texte_depuis_html
+    from front.services.texte_depuis_html import extraire_texte_depuis_html
 
     extension = os.path.splitext(nom_fichier)[1].lower()
     nom_sans_extension = os.path.splitext(nom_fichier)[0]

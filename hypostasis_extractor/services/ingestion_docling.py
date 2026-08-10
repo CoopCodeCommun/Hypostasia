@@ -356,7 +356,6 @@ def creer_les_elements_d_une_page(page, elements_bruts):
             f"les ancres existantes."
         )
 
-    from core.models import MoteurDePage
 
     elements_crees = []
     with transaction.atomic():
@@ -372,19 +371,6 @@ def creer_les_elements_d_une_page(page, elements_bruts):
                 provenance=element_brut.get("provenance") or {},
             ))
 
-        # Le flag moteur est pose ICI, au seul endroit par lequel toute
-        # ingestion element passe (BR-A, decision D1) : une page qui a
-        # des elements EST une page ELEMENT. DANS la meme transaction
-        # que les elements (relecture U2, defaut M3) : sinon un crash
-        # entre les deux laisse des elements commites avec moteur=ANCIEN
-        # — une demi-ingestion que « Relancer » refuse a jamais (elle a
-        # deja des elements) et que la redelivraison ne repare pas.
-        # / Stamped INSIDE the elements' transaction: a crash between
-        # the two would leave a half-ingestion that relaunch refuses
-        # forever and redelivery never repairs.
-        if page.moteur != MoteurDePage.ELEMENT:
-            page.moteur = MoteurDePage.ELEMENT
-            page.save(update_fields=["moteur"])
 
     logger.info(
         "Page %s : %s element(s) cree(s) depuis Docling.",

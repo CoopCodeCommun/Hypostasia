@@ -392,7 +392,6 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte) !important; }
    la FORME (cercle creux vs triangle plein) reste le porteur
    daltonien-safe de l'information. / The dot's ring was under 3:1 in
    light mode; the shape keeps carrying the meaning. */
-.pastille-extraction[data-statut="nouveau"],
 .indicateur-statut[data-statut="nouveau"] {
   border-color: var(--filet-statut-nouveau) !important;
 }
@@ -784,25 +783,7 @@ mark.hl-extraction {
   color: var(--encre) !important;
 }
 
-/* Les PASTILLES DE MARGE. Le halo de la pastille active etait le bleu
-   Tailwind en dur (hypostasia.css:281) : il passe a l'ambre, seul
-   accent fonctionnel de l'etalon. Les formes (cercle creux / triangle
-   plein) ne bougent pas : elles portent l'information sans la couleur.
-   / Active dot halo: hard-coded Tailwind blue -> the single functional
-   amber accent. Shapes untouched (colorblind-safe). */
-.pastille-extraction.pastille-active {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--statut-commente) 45%, transparent);
-}
-.pastille-extraction[data-statut="nouveau"],
 .indicateur-statut[data-statut="nouveau"] { border-color: var(--statut-nouveau); }
-/* Cible tactile : les pastilles font 16px, sous les 24px de WCAG 2.5.8.
-   La geometrie ne peut pas grandir (clip-path du triangle, et un
-   pseudo-element serait rogne par ce meme clip-path) : on passe par
-   l'EXCEPTION D'ESPACEMENT de 2.5.8 — 16px + 8px de gap = 24px de
-   centre a centre, aucun cercle de 24px ne chevauche son voisin.
-   / Spacing exception of WCAG 2.5.8 instead of resizing: clip-path
-   forbids both growing and a larger pseudo-element. */
-#readability-content .pastilles-marge { gap: 8px; }
 
 /* Les ANIMATIONS de flash etaient en bleu/indigo Tailwind ecrits en dur
    dans des @keyframes — un remappage de token ne pouvait pas les
@@ -1328,4 +1309,17 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
   font-family: ui-monospace, Menlo, monospace;
   font-size: .55rem; text-transform: uppercase; letter-spacing: .07em;
   color: var(--encre-douce); margin-bottom: .3rem;
+}
+
+/* Ancre estompee par le filtre par contributeur (recablage du 10 aout). */
+/* Le filtre estompait les pastilles en marge ; celles-ci ayant disparu  */
+/* avec l'ancien moteur, il ne trouvait plus un noeud et etait INERTE.   */
+/* Il agit maintenant sur l'ancre inline elle-meme. On BAISSE l'ancre    */
+/* hors filtre au lieu de rehausser celles qui restent : le texte garde  */
+/* son contraste de lecture, seul le surlignage s'efface.                */
+/* / Dim the anchor, never the text: reading contrast is preserved.      */
+#readability-content .hl-extraction.ancre-hors-filtre {
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
 }

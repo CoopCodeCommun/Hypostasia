@@ -568,12 +568,6 @@ document.body.addEventListener('lectureReload', function(evenement) {
                 boutonModeStructure.focus();
             }
         }
-
-        // Reconstruire les pastilles marginales apres le remplacement du contenu
-        // / Rebuild margin pastilles after content replacement
-        if (typeof construirePastillesMarginales === 'function') {
-            construirePastillesMarginales();
-        }
     });
 });
 
@@ -837,16 +831,7 @@ function scrollToCarteDepuisBloc(extractionId) {
         return;
     }
 
-    // Fallback : declencher le clic pastille (qui ouvrira aussi le drawer)
-    // / Fallback: trigger dot click (which will also open the drawer)
-    var pastille = document.querySelector('.pastille-extraction[data-extraction-id="' + extractionId + '"]');
-    if (pastille) {
-        pastille.click();
-        return;
-    }
-
-    // Fallback : panneau droit (si pas de pastille)
-    // / Fallback: right panel (if no dot)
+    // Fallback : panneau droit / Fallback: right panel
     ouvrirPanneauDroit();
 
     // Nettoyer les cartes en flash precedentes / Clean previous flashing cards
@@ -1039,7 +1024,7 @@ function sauvegarderBlocEditionOuvert() {
 }
 
 // --- Double-clic pour editer un bloc de transcription ---
-// Le simple clic reste libre pour la selection de texte et les pastilles.
+// Le simple clic reste libre pour la selection de texte.
 // Le double-clic ouvre l'edition inline du bloc.
 // / Double-click to edit a transcription block —
 // Single click stays free for text selection and extraction dots.
@@ -1219,31 +1204,26 @@ document.addEventListener('click', function(evenement) {
     var zoneLecture = document.getElementById('zone-lecture');
     if (!zoneLecture) return;
 
-    // Charger la page puis attendre que marginalia.js ait injecte les spans
-    // / Load the page then wait for marginalia.js to inject the spans
+    // Charger la page, puis attendre que le serveur ait rendu ses blocs
+    // / Load the page, then wait for the server-rendered blocks
     htmx.ajax('GET', '/lire/' + pageId + '/', {target: '#zone-lecture', swap: 'innerHTML', pushUrl: true});
 
-    // Polling : attendre que le span ou la pastille apparaisse (marginalia.js les cree apres le swap)
-    // / Polling: wait for the span or dot to appear (marginalia.js creates them after swap)
+    // Polling : attendre que l'ancre apparaisse dans le DOM apres le swap
+    // / Polling: wait for the anchor to appear after the swap
     _attendreEtNaviguer(extractionId, 0);
 });
 
 /**
- * Attend que le span hl-extraction ou la pastille apparaisse dans le DOM, puis navigue.
+ * Attend que l'ancre inline apparaisse dans le DOM, puis navigue.
  * Retry toutes les 200ms, max 15 tentatives (3 secondes).
- * / Waits for the hl-extraction span or dot to appear in the DOM, then navigates.
- * / Retries every 200ms, max 15 attempts (3 seconds).
+ * / Waits for the inline anchor to appear in the DOM, then navigates.
  */
 function _attendreEtNaviguer(extractionId, tentative) {
     var maxTentatives = 15;
     var spanTrouve = document.querySelector(
         '#readability-content .hl-extraction[data-extraction-id="' + extractionId + '"]'
     );
-    var pastilleTrouvee = document.querySelector(
-        '.pastille-extraction[data-extraction-id="' + extractionId + '"]'
-    );
-
-    if (spanTrouve || pastilleTrouvee) {
+    if (spanTrouve) {
         _naviguerVersExtraction(extractionId);
         return;
     }
@@ -1277,17 +1257,6 @@ function _naviguerVersExtraction(extractionId) {
         void spanExtraction.offsetWidth;
         spanExtraction.classList.add('ancre-active');
         spanExtraction.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    // 2. Ouvrir la carte inline via la pastille (si elle existe)
-    // / 2. Open the inline card via the dot (if it exists)
-    var pastille = document.querySelector('.pastille-extraction[data-extraction-id="' + extractionId + '"]');
-    if (pastille) {
-        // Delai pour laisser le scroll se terminer avant d'ouvrir la carte
-        // / Delay to let scroll finish before opening the card
-        setTimeout(function() {
-            pastille.click();
-        }, 500);
     }
 }
 

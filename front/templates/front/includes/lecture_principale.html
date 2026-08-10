@@ -234,7 +234,12 @@
         {% if blocs_de_lecture %}
             {% include "front/includes/_blocs_elements.html" %}
         {% else %}
-            {{ html_annote|default:page.html_readability|safe }}
+            {# Repli : une page dont l'ingestion n'a produit aucun bloc #}
+            {# rend son HTML readability, NU. Il portait autrefois les    #}
+            {# surlignages de l'ancien moteur (`html_annote`) ; celui-ci  #}
+            {# est mort, et le surlignage vit desormais dans les blocs.   #}
+            {# / Fallback for a block-less page: bare readability HTML.   #}
+            {{ page.html_readability|safe }}
         {% endif %}
     </article>
 

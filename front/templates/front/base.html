@@ -12,10 +12,10 @@
     {# gets in a tab bar, a bookmark or a history entry. #}
     <title>{% if article %}{{ article.title|truncatechars:60 }} — Hypostasia{% elif page_preloaded %}{{ page_preloaded.title|default:"Sans titre"|truncatechars:60 }} — Hypostasia{% elif carnet %}{{ carnet.name|truncatechars:60 }} — Hypostasia{% elif base %}{{ base.nom|truncatechars:60 }} — Hypostasia{% elif carnets_liste_preloaded %}Carnets — Hypostasia{% elif bases_liste_preloaded %}Bases de connaissances — Hypostasia{% else %}Hypostasia — Bibliothèque{% endif %}</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
-    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=34">
+    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=35">
     {# La couche maquette globale (9 aout 2026) : le design de l'etalon #}
     {# applique au chrome — chargee EN DERNIER, elle re-teinte le reste. #}
-    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=23">
+    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=24">
     {# Le theme 3 etats, applique AVANT le premier rendu (lot T7) : #}
     {# charge plus bas, la page clignoterait du clair vers le sombre. #}
     {# / Three-state theme, applied before first paint. #}
@@ -393,7 +393,7 @@
 
 
     <script src="{% static 'front/js/hypostasia.js' %}?v=37"></script>
-    <script src="{% static 'front/js/marginalia.js' %}?v=22"></script>
+    <script src="{% static 'front/js/marginalia.js' %}?v=23"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
     <script src="{% static 'front/js/arbre_overlay.js' %}?v=23"></script>
     <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=23"></script>

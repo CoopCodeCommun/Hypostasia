@@ -42,15 +42,17 @@ class MoteurElementE2ETest(PlaywrightLiveTestCase):
             "- seconde puce du parcours\n"
         )
         fichier_temp = tempfile.NamedTemporaryFile(
-            suffix=".md", delete=False, mode="w", encoding="utf-8",
-        )
+            suffix=".md", delete=False, mode="w", encoding="utf-8")
         fichier_temp.write(contenu_du_pad)
         fichier_temp.close()
 
         try:
-            self.naviguer_vers("/")
+            self.naviguer_vers("/",
+            )
             input_fichier = self.page.locator("#input-import-fichier")
-            input_fichier.set_input_files(fichier_temp.name)
+            input_fichier.set_input_files(fichier_temp.name,
+
+            )
 
             # L'import + l'ingestion Docling (EAGER) tournent dans le
             # POST : delai large pour absorber le premier chargement de
@@ -60,28 +62,34 @@ class MoteurElementE2ETest(PlaywrightLiveTestCase):
             self.page.wait_for_selector(
                 "#readability-content, .titre-page-cliquable",
                 timeout=120_000,
+
             )
 
             # La note est nee ELEMENT en base.
             # / The note was born ELEMENT in the database.
-            from core.models import MoteurDePage, Page
+            from core.models import Page
             note = Page.objects.filter(
-                original_filename__endswith=".md",
-            ).latest("id")
-            self.assertEqual(note.moteur, MoteurDePage.ELEMENT)
-            self.assertGreaterEqual(note.elements.count(), 4)
+                original_filename__endswith=".md").latest("id",
+            )
+            self.assertTrue(note.elements.exists())
+            self.assertGreaterEqual(note.elements.count(), 4,
+
+            )
 
             # On ROUVRE la note : la lecture doit venir des blocs
             # elements (BR-D), pas du HTML readability.
             # / Reopen the note: reading comes from element blocks.
-            self.naviguer_vers(f"/lire/{note.pk}/")
+            self.naviguer_vers(f"/lire/{note.pk}/",
+            )
             self.page.wait_for_selector(
                 '[data-testid="blocs-elements"]', timeout=30_000,
+
             )
 
             zone = self.page.locator('[data-testid="blocs-elements"]')
             texte_de_la_zone = zone.text_content()
-            self.assertIn("Premiere section", texte_de_la_zone)
+            self.assertIn("Premiere section", texte_de_la_zone,
+            )
             self.assertIn("premiere puce du parcours", texte_de_la_zone)
 
             # Le titre est un vrai bloc de titre, la puce un vrai <li>.
@@ -89,15 +97,12 @@ class MoteurElementE2ETest(PlaywrightLiveTestCase):
             self.assertGreaterEqual(
                 self.page.locator(
                     '[data-testid="blocs-elements"] h3, '
-                    '[data-testid="blocs-elements"] h2',
-                ).count(),
+                    '[data-testid="blocs-elements"] h2').count(),
                 1,
             )
             self.assertEqual(
                 self.page.locator(
-                    '[data-testid="blocs-elements"] ul li',
-                ).count(),
-                2,
-            )
+                    '[data-testid="blocs-elements"] ul li').count(),
+                2)
         finally:
             os.unlink(fichier_temp.name)

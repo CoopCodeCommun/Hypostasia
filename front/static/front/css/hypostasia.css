@@ -250,50 +250,17 @@ body { font-family: 'B612', sans-serif; }
     border-bottom-width: 2px;
 }
 
-/* Conteneur de pastilles en marge droite (PHASE-09) */
-/* / Right margin dot container (PHASE-09) */
-#readability-content .pastilles-marge {
-    position: absolute;
-    right: -3rem;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    z-index: 5;
-}
-
-/* Pastille individuelle (16px, forme par statut via clip-path) */
-/* / Individual dot (16px, shape per status via clip-path) */
-.pastille-extraction {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    transition: transform 0.15s;
-    flex-shrink: 0;
-}
-.pastille-extraction:hover {
-    transform: scale(1.3);
-}
-.pastille-extraction.pastille-active {
-    transform: scale(1.3);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
-}
-
 /* Formes par statut (binaire A.8 : nouveau / commente) — daltonien-safe : chaque statut a une forme unique */
 /* nouveau = cercle creux gris (rien a signaler) */
 /* commente = triangle plein orange (discussion en cours) */
 /* / Shapes per status (A.8 binary: new / commented) — colorblind-safe */
 /* nouveau = empty grey circle (nothing to signal) */
 /* commente = filled orange triangle (discussion in progress) */
-.pastille-extraction[data-statut="nouveau"],
 .indicateur-statut[data-statut="nouveau"] {
     background: transparent !important;
     border: 2px solid #999999;
     border-radius: 50%;
 }
-.pastille-extraction[data-statut="commente"],
 .indicateur-statut[data-statut="commente"] {
     background-color: var(--statut-commente-accent);
     clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
@@ -1476,10 +1443,8 @@ body { font-family: 'B612', sans-serif; }
     /* Sur mobile, les pastilles de marge sont masquees car pas de place.
        Le surlignage du texte prend le relais avec un fond colore plus marque.
        Les couleurs suivent les statuts de debat, comme sur desktop.
-       / On mobile, margin dots are hidden (no space).
-       Text highlighting takes over with a stronger colored background.
-       Colors follow debate statuses, same as desktop. */
-    .pastilles-marge { display: none !important; }
+       / Text highlighting carries the anchors, on mobile as on desktop.
+       Colors follow debate statuses. */
     .hl-extraction[data-extraction-id] {
         cursor: pointer;
         -webkit-tap-highlight-color: rgba(59,130,246,0.2);
@@ -1625,12 +1590,6 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
     opacity: 0.35;
 }
 
-/* Pastille non concernee par le contributeur selectionne */
-/* / Pastille not matching the selected contributor */
-.pastille-extraction.pastille-hors-filtre {
-    opacity: 0.15;
-    pointer-events: none;
-}
 
 /* Pilule reset "Tous x" — style discret (PHASE-26a-bis) */
 /* / Reset pill "Tous x" — subtle style (PHASE-26a-bis) */

@@ -19,7 +19,7 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, EtatIngestion, GroupeUtilisateurs, Invitation, MoteurDePage, Page, PageEdit, Question, ReponseQuestion, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, VisibiliteDossier
+from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, EtatIngestion, GroupeUtilisateurs, Invitation, Page, PageEdit, Question, ReponseQuestion, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, VisibiliteDossier
 from core.services.corpus import (
     deplacer_une_note_vers_un_carnet,
     ranger_une_note_dans_un_carnet,
@@ -47,7 +47,6 @@ from .serializers import (
     SupprimerBlocSerializer, SynthetiserSerializer,
     est_fichier_audio, est_fichier_json,
 )
-from .utils import annoter_html_avec_barres
 
 logger = logging.getLogger(__name__)
 
@@ -1150,7 +1149,6 @@ class LectureViewSet(viewsets.ViewSet):
         # / If a job exists, retrieve entities from ALL completed jobs
         # / (not just the last one) to be consistent with the E drawer.
         entites_existantes = None
-        html_annote = None
         ids_entites_commentees = set()
         if dernier_job_termine:
             tous_les_jobs_de_la_page = ExtractionJob.objects.filter(
@@ -1161,12 +1159,6 @@ class LectureViewSet(viewsets.ViewSet):
             )
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 toutes_entites_non_masquees
-            )
-            # Annoter le HTML avec des ancres pour le scroll-to-extraction
-            # / Annotate HTML with anchors for scroll-to-extraction
-            html_annote = annoter_html_avec_barres(
-                page.html_readability, page.text_readability,
-                entites_existantes, ids_entites_commentees,
             )
 
         # Recupere toutes les versions de cette page (racine + restitutions)
@@ -1195,7 +1187,6 @@ class LectureViewSet(viewsets.ViewSet):
         est_proprietaire = _est_proprietaire_page(request.user, page)
         contexte_partage = {
             "page": page,
-            "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": dernier_job_termine,
             "entities": entites_existantes,
@@ -1274,15 +1265,6 @@ class LectureViewSet(viewsets.ViewSet):
         # / Retrieve entities already created by the Celery callback
         entites_deja_creees = _entites_deja_creees_pour_job(job_en_cours)
 
-        # Annoter le texte avec les entites deja trouvees (annotations partielles)
-        # / Annotate text with already found entities (partial annotations)
-        html_annote = None
-        if entites_deja_creees.exists():
-            html_annote = annoter_html_avec_barres(
-                page.html_readability or '',
-                page.text_readability or '',
-                list(entites_deja_creees),
-            )
 
         # Versions de la page / Page versions
         toutes_les_versions = page.toutes_les_versions
@@ -1302,7 +1284,6 @@ class LectureViewSet(viewsets.ViewSet):
 
         contexte_lecture = {
             "page": page,
-            "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": None,
             "entities": None,
@@ -1343,7 +1324,6 @@ class LectureViewSet(viewsets.ViewSet):
         est_proprietaire = _est_proprietaire_page(request.user, page)
         return render(request, "front/base.html", {
             "page_preloaded": page,
-            "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": None,
             "entities": None,
@@ -1411,7 +1391,6 @@ class LectureViewSet(viewsets.ViewSet):
         ).select_related("analyseur_version").order_by("-created_at").first()
 
         entites_existantes = None
-        html_annote = None
         ids_entites_commentees = set()
         if dernier_job_termine:
             # Entites de TOUS les jobs termines (coherent avec le drawer E)
@@ -1421,15 +1400,10 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 toutes_entites
             )
-            html_annote = annoter_html_avec_barres(
-                page.html_readability, page.text_readability,
-                entites_existantes, ids_entites_commentees,
-            )
 
         toutes_les_versions = page.toutes_les_versions
         contexte_partage = {
             "page": page,
-            "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": dernier_job_termine,
             "entities": entites_existantes,
@@ -2252,23 +2226,23 @@ class LectureViewSet(viewsets.ViewSet):
         # Texte source de la page (sera envoye au LLM, reparti en chunks).
         # U3 (reste § 5 du cahier) : pour une page ELEMENT, on rejoue le
         # VRAI decoupage (construire_les_chunks sur ses elements
-        # visibles) — le decoupage arithmetique de text_readability
+        # visibles) : le decoupage arithmetique de text_readability
         # donnait un nombre de chunks approximatif, donc un overhead de
-        # prompt sous- ou sur-compte. L'ANCIEN moteur garde son calcul.
-        # / ELEMENT pages replay the real chunking for the estimate;
-        # OLD pages keep the arithmetic split.
+        # prompt sous- ou sur-compte. Une page sans element retombe sur
+        # ce calcul approche, plus bas.
+        # / Replay the real chunking for the estimate; a block-less page
+        # falls back to the arithmetic split below.
         chunks_reels_de_la_page = None
-        if page.moteur == MoteurDePage.ELEMENT:
-            elements_visibles_de_la_page = list(
-                page.elements.filter(masque=False).order_by("ordre"),
+        elements_visibles_de_la_page = list(
+            page.elements.filter(masque=False).order_by("ordre"),
+        )
+        if elements_visibles_de_la_page:
+            from hypostasis_extractor.services.chunking import (
+                construire_les_chunks,
             )
-            if elements_visibles_de_la_page:
-                from hypostasis_extractor.services.chunking import (
-                    construire_les_chunks,
-                )
-                chunks_reels_de_la_page = construire_les_chunks(
-                    elements_visibles_de_la_page,
-                )
+            chunks_reels_de_la_page = construire_les_chunks(
+                elements_visibles_de_la_page,
+            )
 
         if chunks_reels_de_la_page:
             texte_source_page = "\n\n".join(
@@ -2529,24 +2503,19 @@ class LectureViewSet(viewsets.ViewSet):
             },
         )
 
-        # Lancer la tache Celery en arriere-plan — routee selon le moteur
-        # de la page (BR-C, SPEC-ancrage § 9) : une page ELEMENT part sur
-        # l'analyse par elements (ancres par portions), une page ANCIEN
-        # part exactement comme avant (offsets). Meme job, meme retour
-        # utilisateur : le moteur est un detail d'implementation.
-        # / Launch the Celery task, routed by the page's engine flag.
-        if page.moteur == MoteurDePage.ELEMENT:
-            from hypostasis_extractor.tasks_element import (
-                analyser_une_page_avec_le_moteur_element,
-            )
-            analyser_une_page_avec_le_moteur_element.delay(job_extraction.pk)
-        else:
-            from front.tasks import analyser_page_task
-            analyser_page_task.delay(job_extraction.pk)
+        # Lancer la tache Celery en arriere-plan. Il n'y a plus qu'un
+        # moteur : l'analyse par elements. Le routage par `Page.moteur`
+        # (BR-C) a disparu avec l'ancien — une page depourvue d'elements
+        # ne produira simplement aucune ancre, ce que le job dira.
+        # / One engine left: the routing by Page.moteur is gone.
+        from hypostasis_extractor.tasks_element import (
+            analyser_une_page_avec_le_moteur_element,
+        )
+        analyser_une_page_avec_le_moteur_element.delay(job_extraction.pk)
 
         logger.info(
-            "analyser: job pk=%s cree pour page=%s analyseur=%s moteur=%s — tache Celery lancee",
-            job_extraction.pk, pk, analyseur.name, page.moteur,
+            "analyser: job pk=%s cree pour page=%s analyseur=%s — tache Celery lancee",
+            job_extraction.pk, pk, analyseur.name,
         )
 
         # Refonte A.6 : retour d'un simple toast HX-Trigger au lieu du drawer
@@ -3354,7 +3323,6 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Re-annoter le HTML avec les barres d'extraction si un job existe
         # / Re-annotate HTML with extraction bars if a job exists
-        html_annote = None
         dernier_job_termine = ExtractionJob.objects.filter(
             page=page, status="completed",
         ).select_related("analyseur_version").order_by("-created_at").first()
@@ -3365,17 +3333,12 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             )
-            html_annote = annoter_html_avec_barres(
-                page.html_readability, page.text_readability,
-                entites_existantes, ids_entites_commentees,
-            )
 
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
 
         return render(request, "front/includes/lecture_principale.html", {
             "page": page,
-            "html_annote": html_annote,
             "versions": toutes_les_versions,
             "page_racine": page_racine,
         })
@@ -3456,7 +3419,6 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Re-annoter le HTML avec les barres d'extraction si un job existe
         # / Re-annotate HTML with extraction bars if a job exists
-        html_annote = None
         dernier_job_termine = ExtractionJob.objects.filter(
             page=page, status="completed",
         ).select_related("analyseur_version").order_by("-created_at").first()
@@ -3467,17 +3429,12 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             )
-            html_annote = annoter_html_avec_barres(
-                page.html_readability, page.text_readability,
-                entites_existantes, ids_entites_commentees,
-            )
 
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
 
         return render(request, "front/includes/lecture_principale.html", {
             "page": page,
-            "html_annote": html_annote,
             "versions": toutes_les_versions,
             "page_racine": page_racine,
         })
@@ -4044,6 +4001,51 @@ class ExtractionViewSet(viewsets.ViewSet):
         )
         return job_manuel
 
+    def _contenu_de_lecture(self, request, page):
+        """
+        Rend le contenu de `#readability-content` pour un swap OOB.
+        / Renders the content of `#readability-content` for an OOB swap.
+
+        LOCALISATION : front/views.py
+
+        POURQUOI CETTE AIDE EXISTE
+
+        Cinq actions du panneau remplacent TOUT le contenu de la zone de
+        lecture par un swap « out of band ». Elles le construisaient avec
+        l'ANCIEN moteur — le HTML readability annote. Sur une page
+        ELEMENT, la lecture est faite de BLOCS : le swap les ecrasait,
+        et le lecteur perdait ses blocs, ses boutons d'operations et ses
+        ancres apres avoir simplement cree une extraction a la main.
+
+        Ces vues ne consultaient pas `Page.moteur` — elles ont ete
+        ecrites avant lui. Le rendu passe desormais par le meme service
+        que la lecture, donc par la meme verite.
+        / These views predate Page.moteur and wiped the ELEMENT blocks.
+
+        Une page sans bloc (ingestion echouee) retombe sur son
+        `html_readability`, exactement comme le fait le gabarit de
+        lecture. / A block-less page falls back to its readability HTML.
+        """
+        from front.services.rendu_elements import (
+            construire_les_blocs_de_lecture,
+        )
+        from front.templatetags.corpus_permissions import est_modifiable_par
+
+        blocs_de_lecture = construire_les_blocs_de_lecture(page)
+        if not blocs_de_lecture:
+            return page.html_readability or ""
+
+        return render_to_string(
+            "front/includes/_blocs_elements.html",
+            {
+                "blocs_de_lecture": blocs_de_lecture,
+                "la_note_est_modifiable": est_modifiable_par(
+                    page, request.user,
+                ),
+            },
+            request=request,
+        )
+
     def _render_panneau_complet_avec_oob(self, request, page):
         """
         Re-rend le panneau d'analyse + OOB swap du readability-content annote.
@@ -4073,12 +4075,6 @@ class ExtractionViewSet(viewsets.ViewSet):
             masquee=True,
         ).count()
 
-        # Annoter le HTML / Annotate HTML
-        html_annote = annoter_html_avec_barres(
-            page.html_readability, page.text_readability,
-            entites_visibles, ids_entites_commentees,
-        )
-
         # Dernier job pour le contexte du panneau / Latest job for panel context
         dernier_job = tous_les_jobs_termines.order_by("-created_at").first()
 
@@ -4095,11 +4091,11 @@ class ExtractionViewSet(viewsets.ViewSet):
             request=request,
         )
 
-        # OOB swap pour le contenu de lecture annote
-        # / OOB swap for annotated reading content
+        # OOB swap du contenu de lecture, rendu par le moteur de la page
+        # / OOB swap of the reading content, rendered by the page's engine
         html_readability_oob = (
             '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
-            + (html_annote or page.html_readability)
+            + self._contenu_de_lecture(request, page)
             + '</article>'
         )
 
@@ -4142,18 +4138,12 @@ class ExtractionViewSet(viewsets.ViewSet):
             masquee=True,
         ).count()
 
-        # Annoter le HTML / Annotate HTML
-        html_annote = annoter_html_avec_barres(
-            page.html_readability, page.text_readability,
-            entites_visibles, ids_entites_commentees,
-        )
-
         # Dernier job pour le contexte du panneau / Latest job for panel context
         dernier_job = tous_les_jobs_termines.order_by("-created_at").first()
 
-        # Contenu principal : readability annote
-        # / Main content: annotated readability
-        html_readability_principal = html_annote or page.html_readability
+        # Contenu principal, rendu par le moteur de la page
+        # / Main content, rendered by the page's engine
+        html_readability_principal = self._contenu_de_lecture(request, page)
 
         # OOB swap pour le panneau d'extractions
         # / OOB swap for extraction panel
@@ -5119,50 +5109,39 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / new/commented status no longer makes sense as a sort criterion.
         if parametre_tri == "activite":
             toutes_les_entites = toutes_les_entites.order_by("-created_at")
-        elif page.moteur == MoteurDePage.ELEMENT:
-            # U3 (reste § 5 du cahier) : sur une page ELEMENT,
-            # start_char est un offset de CHUNK — le tri « position »
-            # suit l'ANCRE (ordre de l'element, debut dans l'element).
-            # / ELEMENT pages sort by anchor, not chunk offset.
+        else:
+            # U3 : `start_char` est un offset de CHUNK, pas une position
+            # dans la page — le tri « position » suit donc l'ANCRE
+            # (ordre de l'element, puis debut dans l'element).
+            # / Sort by anchor: start_char is a chunk offset.
             toutes_les_entites = _trier_les_entites_par_ancre(
                 toutes_les_entites,
             )
-        else:
-            toutes_les_entites = toutes_les_entites.order_by("start_char")
 
         # QUELLES IDEES NE SONT MONTREES NULLE PART DANS LE TEXTE.
         #
-        # Sur une page ELEMENT, une idee se montre par ses portions
-        # ancrees. Celle qui n'en a aucune — detachee par la reconversion
-        # du 10 aout, ou jamais alignee par l'ancien moteur — n'apparait
-        # QUE dans ce panneau. Le dire est la condition pour qu'un humain
+        # Une idee se montre par ses portions ancrees. Celle qui n'en a
+        # aucune — detachee par la reconversion du 10 aout, ou jamais
+        # alignee par l'ancien moteur — n'apparait QUE dans ce panneau. Le dire est la condition pour qu'un humain
         # puisse la replacer : sans etiquette, elle est indiscernable de
         # celles qui sont bien posees, et la promesse « un humain
         # tranchera » ne veut rien dire.
-        #
-        # Sur une page ANCIEN il n'y a pas d'ancre du tout : les declarer
-        # toutes detachees serait un mensonge de masse.
         # / Which ideas are shown nowhere in the text.
         from hypostasis_extractor.models import AncrageExtraction, EtatAncrage
 
-        identifiants_ancres = set()
-        if page.moteur == MoteurDePage.ELEMENT:
-            identifiants_ancres = set(
-                AncrageExtraction.objects.filter(
-                    extraction__job__page=page,
-                    etat_ancrage=EtatAncrage.ANCREE,
-                ).values_list("extraction_id", flat=True)
-            )
+        identifiants_ancres = set(
+            AncrageExtraction.objects.filter(
+                extraction__job__page=page,
+                etat_ancrage=EtatAncrage.ANCREE,
+            ).values_list("extraction_id", flat=True)
+        )
 
         # Separer visibles et masquees (non_pertinent) pour le template
         # / Separate visible and hidden (non_pertinent) for the template
         entites_visibles = []
         entites_masquees = []
         for entite in toutes_les_entites:
-            entite.est_detachee = (
-                page.moteur == MoteurDePage.ELEMENT
-                and entite.pk not in identifiants_ancres
-            )
+            entite.est_detachee = entite.pk not in identifiants_ancres
             if entite.masquee:
                 entites_masquees.append(entite)
             else:
@@ -5353,7 +5332,6 @@ class ImportViewSet(viewsets.ViewSet):
         ia_active = _get_ia_active()
         contexte_partage = {
             "page": page_importee,
-            "html_annote": None,
             "analyseurs_actifs": analyseurs_actifs,
             "job": None,
             "entities": None,
@@ -5659,7 +5637,6 @@ class ImportViewSet(viewsets.ViewSet):
         ia_active = _get_ia_active()
         contexte_partage = {
             "page": page_importee,
-            "html_annote": None,
             "analyseurs_actifs": analyseurs_actifs,
             "job": None,
             "entities": None,

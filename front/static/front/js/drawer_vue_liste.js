@@ -101,12 +101,6 @@
 
             zoneLecture.innerHTML = doc.body.firstElementChild.innerHTML;
             htmx.process(zoneLecture);
-
-            // Reconstruire les pastilles marginales apres le remplacement du contenu
-            // / Rebuild margin pastilles after content replacement
-            if (typeof construirePastillesMarginales === 'function') {
-                construirePastillesMarginales();
-            }
         });
     }
 

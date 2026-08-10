@@ -25,7 +25,7 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from core.models import ElementDocument, EtatIngestion, MoteurDePage, Page, empreinte_du_texte
+from core.models import ElementDocument, EtatIngestion, Page, empreinte_du_texte
 
 Utilisateur = get_user_model()
 
@@ -52,7 +52,7 @@ class CaptureWebRouteVersDoclingTest(TestCase):
                 "html_readability": html_readability,
             },
             content_type="application/json",
-        )
+)
 
     @mock.patch(
         "hypostasis_extractor.tasks_element"
@@ -60,12 +60,14 @@ class CaptureWebRouteVersDoclingTest(TestCase):
     )
     def test_une_capture_lance_l_ingestion_et_pose_l_etat(self, delay_mock):
         reponse = self._capturer()
-        self.assertEqual(reponse.status_code, 201)
+        self.assertEqual(reponse.status_code, 201,
+        )
         page = Page.objects.get(url="https://exemple.test/article")
         # Double ecriture : l'affichage reste ANCIEN a la creation.
         # / Double write: display stays OLD at creation time.
-        self.assertEqual(page.moteur, MoteurDePage.ANCIEN)
-        delay_mock.assert_called_once_with(page.pk)
+        self.assertFalse(page.elements.exists())
+        delay_mock.assert_called_once_with(page.pk,
+        )
         self.assertEqual(page.ingestion_etat, EtatIngestion.EN_ATTENTE)
 
     @mock.patch(
@@ -73,12 +75,15 @@ class CaptureWebRouteVersDoclingTest(TestCase):
         ".ingerer_une_capture_web_avec_docling.delay"
     )
     def test_un_broker_en_panne_ne_promet_rien(self, delay_mock):
-        delay_mock.side_effect = Exception("broker indisponible")
+        delay_mock.side_effect = Exception("broker indisponible",
+        )
         reponse = self._capturer()
-        self.assertEqual(reponse.status_code, 201)
+        self.assertEqual(reponse.status_code, 201,
+        )
         page = Page.objects.get(url="https://exemple.test/article")
-        self.assertEqual(page.ingestion_etat, "")
-        self.assertEqual(page.moteur, MoteurDePage.ANCIEN)
+        self.assertEqual(page.ingestion_etat, "",
+        )
+        self.assertFalse(page.elements.exists())
 
     @mock.patch(
         "hypostasis_extractor.tasks_element"
@@ -88,7 +93,8 @@ class CaptureWebRouteVersDoclingTest(TestCase):
         # Le serializer exige html_original : une capture en est
         # toujours pourvue. Sans lui, 400 et aucune tache. / The
         # serializer requires html_original; without it, 400 and no task.
-        reponse = self._capturer(html_original="")
+        reponse = self._capturer(html_original="",
+        )
         self.assertEqual(reponse.status_code, 400)
         delay_mock.assert_not_called()
 
@@ -105,7 +111,8 @@ class IngestionCaptureWebTacheTest(TestCase):
             text_readability="Titre Corps.",
             content_hash="hash-capture-tache",
             ingestion_etat=EtatIngestion.EN_ATTENTE,
-        )
+
+    )
 
     def test_la_tache_convertit_le_html_en_elements(self):
         from hypostasis_extractor import tasks_element
@@ -116,19 +123,21 @@ class IngestionCaptureWebTacheTest(TestCase):
         ]
         with mock.patch(
             "hypostasis_extractor.services.ingestion_docling"
-            ".convertir_du_html_avec_docling", return_value=object(),
-        ), mock.patch(
+            ".convertir_du_html_avec_docling", return_value=object()), mock.patch(
             "hypostasis_extractor.services.ingestion_docling"
-            ".extraire_les_elements_bruts", return_value=elements_factices,
-        ):
+            ".extraire_les_elements_bruts", return_value=elements_factices):
             tasks_element.ingerer_une_capture_web_avec_docling.apply(
                 args=[self.page.pk],
-            )
+
+        )
 
         self.page.refresh_from_db()
-        self.assertEqual(self.page.moteur, MoteurDePage.ELEMENT)
+        self.assertTrue(self.page.elements.exists(),
+        )
         self.assertEqual(self.page.ingestion_etat, EtatIngestion.REUSSIE)
-        self.assertEqual(self.page.elements.count(), 2)
+        self.assertEqual(self.page.elements.count(), 2,
+
+    )
 
     def test_un_echec_laisse_la_page_ancienne_et_lisible(self):
         from hypostasis_extractor import tasks_element
@@ -136,19 +145,23 @@ class IngestionCaptureWebTacheTest(TestCase):
         with mock.patch(
             "hypostasis_extractor.services.ingestion_docling"
             ".convertir_du_html_avec_docling",
-            side_effect=RuntimeError("conversion HTML impossible"),
-        ):
+            side_effect=RuntimeError("conversion HTML impossible")):
             tasks_element.ingerer_une_capture_web_avec_docling.apply(
                 args=[self.page.pk],
-            )
+
+        )
 
         self.page.refresh_from_db()
-        self.assertEqual(self.page.moteur, MoteurDePage.ANCIEN)
+        self.assertFalse(self.page.elements.exists(),
+        )
         self.assertEqual(self.page.ingestion_etat, EtatIngestion.ECHOUEE)
-        self.assertNotEqual(self.page.ingestion_detail, "")
+        self.assertNotEqual(self.page.ingestion_detail, "",
+        )
         # La page reste lisible par l'ancien moteur.
         # / The page stays readable via the old engine.
-        self.assertEqual(self.page.html_readability, "<h1>Titre</h1><p>Corps.</p>")
+        self.assertEqual(self.page.html_readability, "<h1>Titre</h1><p>Corps.</p>",
+
+    )
 
     def test_une_page_sans_html_original_echoue_proprement(self):
         from hypostasis_extractor import tasks_element
@@ -157,13 +170,13 @@ class IngestionCaptureWebTacheTest(TestCase):
             url="https://exemple.test/vide",
             html_original="", html_readability="<p>x</p>",
             text_readability="x", content_hash="hash-capture-vide",
-            ingestion_etat=EtatIngestion.EN_ATTENTE,
-        )
+            ingestion_etat=EtatIngestion.EN_ATTENTE)
         tasks_element.ingerer_une_capture_web_avec_docling.apply(
-            args=[page_vide.pk],
-        )
+            args=[page_vide.pk])
         page_vide.refresh_from_db()
-        self.assertEqual(page_vide.ingestion_etat, EtatIngestion.ECHOUEE)
+        self.assertEqual(page_vide.ingestion_etat, EtatIngestion.ECHOUEE,
+
+    )
 
     def test_une_page_deja_ingeree_n_est_pas_reconvertie(self):
         from hypostasis_extractor import tasks_element
@@ -174,9 +187,7 @@ class IngestionCaptureWebTacheTest(TestCase):
         )
         with mock.patch(
             "hypostasis_extractor.services.ingestion_docling"
-            ".convertir_du_html_avec_docling",
-        ) as conversion_mock:
+            ".convertir_du_html_avec_docling") as conversion_mock:
             tasks_element.ingerer_une_capture_web_avec_docling.apply(
-                args=[self.page.pk],
-            )
+                args=[self.page.pk])
         conversion_mock.assert_not_called()

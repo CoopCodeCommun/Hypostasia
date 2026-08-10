@@ -19,10 +19,8 @@ from core.models import (
     AIModel,
     Configuration,
     ElementDocument,
-    MoteurDePage,
     Page,
-    empreinte_du_texte,
-)
+    empreinte_du_texte)
 from hypostasis_extractor.models import (
     AncrageExtraction,
     AnalyseurSyntaxique,
@@ -41,37 +39,43 @@ class BaseRestesTest(TestCase):
         )
         self.client.force_login(self.proprietaire)
 
-    def _creer_une_page(self, suffixe, moteur):
+    def _creer_une_page(self, suffixe):
         return Page.objects.create(
             url=f"http://exemple.local/u3-{suffixe}",
             html_original="<p>o</p>",
             html_readability="<p>repli</p>",
             text_readability="x",
             content_hash=f"hash-u3-{suffixe}",
-            owner=self.proprietaire, moteur=moteur,
+            owner=self.proprietaire,
             status="completed",
-        )
+
+    )
 
     def _element(self, page, texte, ordre):
         return ElementDocument.objects.create(
             page=page, ordre=ordre, label="text", texte=texte,
             empreinte_contenu=empreinte_du_texte(texte),
-        )
+
+    )
 
     def _extraction(self, page, texte, start_char):
-        job = ExtractionJob.objects.create(page=page, status="completed")
+        job = ExtractionJob.objects.create(page=page, status="completed",
+        )
         return ExtractedEntity.objects.create(
             job=job, extraction_class="principe",
             extraction_text=texte,
             start_char=start_char, end_char=start_char + len(texte),
-        )
+
+    )
 
     def _ancrer(self, extraction, element, debut, fin):
         return AncrageExtraction.objects.create(
             extraction=extraction, element=element,
             ordre_dans_extraction=0,
             debut_dans_element=debut, fin_dans_element=fin,
-        )
+
+
+)
 
 
 class OrdreDesCartesDuPanneauTest(BaseRestesTest):
@@ -82,42 +86,53 @@ class OrdreDesCartesDuPanneauTest(BaseRestesTest):
         # chunks DIFFERENTS) contredit l'ordre du document : l'ecran
         # doit suivre le document. / start_char (chunk offset) says A
         # first; the document says B first — the document wins.
-        page = self._creer_une_page("tri", MoteurDePage.ELEMENT)
+        page = self._creer_une_page("tri")
         element_haut = self._element(page, "Premier paragraphe du texte.", 0)
-        element_bas = self._element(page, "Second paragraphe du texte.", 1)
+        element_bas = self._element(page, "Second paragraphe du texte.", 1,
+
+        )
 
         extraction_du_bas = self._extraction(
             page, "Second", start_char=0,      # chunk 2, offset 0
         )
-        self._ancrer(extraction_du_bas, element_bas, 0, 6)
+        self._ancrer(extraction_du_bas, element_bas, 0, 6,
+        )
         extraction_du_haut = self._extraction(
             page, "paragraphe du texte", start_char=50,   # chunk 1, offset 50
         )
-        self._ancrer(extraction_du_haut, element_haut, 8, 27)
+        self._ancrer(extraction_du_haut, element_haut, 8, 27,
+
+        )
 
         reponse = self.client.get(
             f"/extractions/drawer_contenu/?page_id={page.pk}",
         )
         contenu = reponse.content.decode()
-        position_haut = contenu.find(f'data-entity-id="{extraction_du_haut.pk}"')
+        position_haut = contenu.find(f'data-entity-id="{extraction_du_haut.pk}"',
+        )
         position_bas = contenu.find(f'data-entity-id="{extraction_du_bas.pk}"')
-        self.assertNotEqual(position_haut, -1)
+        self.assertNotEqual(position_haut, -1,
+        )
         self.assertNotEqual(position_bas, -1)
         self.assertLess(
             position_haut, position_bas,
             "l'extraction de l'element 0 doit preceder celle de l'element 1",
-        )
+
+    )
 
     def test_une_extraction_sans_portion_passe_en_dernier(self):
         # Une extraction detachee (ou d'un vieux job a offsets) n'a pas
         # de place SURE dans le document : elle ferme la marche au lieu
         # de s'intercaler au hasard. / Un-anchored extractions go last.
-        page = self._creer_une_page("detachee", MoteurDePage.ELEMENT)
+        page = self._creer_une_page("detachee")
         element = self._element(page, "Un paragraphe utile.", 0)
 
-        extraction_sans_portion = self._extraction(page, "fantome", 0)
+        extraction_sans_portion = self._extraction(page, "fantome", 0,
+        )
         extraction_ancree = self._extraction(page, "paragraphe", 30)
-        self._ancrer(extraction_ancree, element, 3, 13)
+        self._ancrer(extraction_ancree, element, 3, 13,
+
+        )
 
         reponse = self.client.get(
             f"/extractions/drawer_contenu/?page_id={page.pk}",
@@ -130,25 +145,33 @@ class OrdreDesCartesDuPanneauTest(BaseRestesTest):
             f'data-entity-id="{extraction_sans_portion.pk}"',
         )
         self.assertNotEqual(position_ancree, -1)
-        self.assertNotEqual(position_fantome, -1)
+        self.assertNotEqual(position_fantome, -1,
+        )
         self.assertLess(position_ancree, position_fantome)
 
-    def test_une_page_ancienne_reste_triee_par_start_char(self):
+    def test_une_page_sans_ancre_reste_triee_par_start_char(self):
         # Aucune regression sur l'ANCIEN moteur : start_char y est un
         # offset de page, fiable. / OLD pages keep start_char order.
-        page = self._creer_une_page("ancien", MoteurDePage.ANCIEN)
+        page = self._creer_une_page("ancien")
         extraction_deux = self._extraction(page, "seconde", start_char=40)
-        extraction_une = self._extraction(page, "premiere", start_char=5)
+        extraction_une = self._extraction(page, "premiere", start_char=5,
+
+        )
 
         reponse = self.client.get(
             f"/extractions/drawer_contenu/?page_id={page.pk}",
         )
         contenu = reponse.content.decode()
-        position_une = contenu.find(f'data-entity-id="{extraction_une.pk}"')
+        position_une = contenu.find(f'data-entity-id="{extraction_une.pk}"',
+        )
         position_deux = contenu.find(f'data-entity-id="{extraction_deux.pk}"')
-        self.assertNotEqual(position_une, -1)
+        self.assertNotEqual(position_une, -1,
+        )
         self.assertNotEqual(position_deux, -1)
-        self.assertLess(position_une, position_deux)
+        self.assertLess(position_une, position_deux,
+
+
+)
 
 
 class EstimationDuDrawerTest(BaseRestesTest):
@@ -163,8 +186,7 @@ class EstimationDuDrawerTest(BaseRestesTest):
         configuration.ai_model = modele
         configuration.save()
         analyseur = AnalyseurSyntaxique.objects.create(
-            name="Analyseur U3", type_analyseur="analyser", is_active=True,
-        )
+            name="Analyseur U3", type_analyseur="analyser", is_active=True)
         PromptPiece.objects.create(
             analyseur=analyseur, name="i", role="instruction",
             content="Analyse.", order=0,
@@ -177,24 +199,30 @@ class EstimationDuDrawerTest(BaseRestesTest):
         # estimation aurait dit 1. / Real chunking says 3, the old
         # text_readability arithmetic said 1.
         self._preparer_l_analyse()
-        page = self._creer_une_page("estimation", MoteurDePage.ELEMENT)
+        page = self._creer_une_page("estimation")
         for ordre in range(3):
-            self._element(page, "a" * 800, ordre)
+            self._element(page, "a" * 800, ordre,
+
+        )
 
         reponse = self.client.get(
             f"/lire/{page.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(reponse.status_code, 200)
-        self.assertEqual(reponse.context["nombre_chunks_estime"], 3)
+        self.assertEqual(reponse.context["nombre_chunks_estime"], 3,
 
-    def test_l_estimation_ancienne_est_inchangee(self):
+    )
+
+    def test_l_estimation_d_une_page_sans_element_reste_arithmetique(self):
         # ANCIEN : decoupage arithmetique de text_readability, comme
         # avant. / OLD pages keep the arithmetic estimate.
         self._preparer_l_analyse()
-        page = self._creer_une_page("estim-ancien", MoteurDePage.ANCIEN)
+        page = self._creer_une_page("estim-ancien")
         page.text_readability = "b" * 3200   # ceil(3200/1500) = 3
-        page.save(update_fields=["text_readability"])
+        page.save(update_fields=["text_readability"],
+
+        )
 
         reponse = self.client.get(
             f"/lire/{page.pk}/previsualiser_analyse/",

@@ -69,7 +69,7 @@ class PageCreateSerializer(serializers.ModelSerializer):
         import hashlib
         import logging
 
-        from front.utils import extraire_texte_depuis_html
+        from front.services.texte_depuis_html import extraire_texte_depuis_html
 
         logger = logging.getLogger("core")
 

@@ -1,147 +1,80 @@
 """
-Tests du flag moteur d'une Page (branchement BR-A).
-/ Page engine flag tests (wiring phase BR-A).
+La suppression du flag `Page.moteur` refuse de perdre des surlignages.
+/ Removing Page.moteur refuses to silently drop highlights.
 
 LOCALISATION : core/tests/test_moteur_flag.py
 
-SPEC-ancrage-par-element-v2 § 9 : les DEUX moteurs coexistent, une Page
-porte un flag « moteur » — ANCIEN ou ELEMENT. Decision D1 du cahier des
-charges du branchement (9 aout) : un CHAMP explicite, pas le
-discriminant implicite `page.elements.exists()` qui casse sur une page
-ELEMENT a zero element (ingestion echouee).
-/ Explicit engine field; the implicit discriminant breaks on a
-zero-element ELEMENT page.
+Ce fichier verifiait le CHAMP `Page.moteur` : son defaut, ses deux
+valeurs, sa pose a l'ingestion, et le fait qu'une migration ne bascule
+rien. Le champ a ete supprime le 10 aout 2026 avec l'ancien moteur — un
+flag qui ne commande plus rien est une question sans objet.
+
+Ce qui reste a prouver tient en une chose : la migration 0056 doit
+S'ARRETER si elle est jouee sur une base ou des pages attendent encore
+leur reconversion (la production, une sauvegarde restauree). Sans ce
+controle, elles seraient affichees sans leurs surlignages, en silence.
+/ What remains worth proving: migration 0056 must refuse to run where
+pages still await reconversion.
 """
 
-from django.contrib.auth import get_user_model
-from django.db import connection
-from django.db.migrations.executor import MigrationExecutor
-from django.test import TestCase, TransactionTestCase
+from django.test import TestCase
 
-from core.models import MoteurDePage, Page
+import importlib
 
-Utilisateur = get_user_model()
-
-
-def creer_une_page(url_unique, **champs):
-    """Cree une page minimale. / Minimal page."""
-    return Page.objects.create(
-        url=url_unique,
-        html_original="<p>o</p>",
-        html_readability="<p>l</p>",
-        text_readability="texte",
-        content_hash=f"hash-{url_unique}",
-        title=f"Note {url_unique[-12:]}",
-        **champs,
-    )
+module_de_migration = importlib.import_module(
+    "core.migrations.0056_suppression_du_flag_moteur",
+)
 
 
-class FlagMoteurTest(TestCase):
-    """Le champ Page.moteur. / The Page.moteur field."""
+class GardeDeLaMigrationDuFlagTest(TestCase):
+    """Le controle de la migration 0056. / Migration 0056's guard."""
 
-    def test_le_moteur_par_defaut_est_l_ancien(self):
-        # Toute page creee sans rien dire reste sur l'ANCIEN moteur :
-        # aucune regression sur l'existant (§ 9.2).
-        # / Default is the OLD engine: zero regression.
-        page = creer_une_page("http://exemple.local/bra-defaut")
-        self.assertEqual(page.moteur, MoteurDePage.ANCIEN)
+    def test_elle_s_arrete_s_il_reste_des_pages_sur_l_ancien(self):
+        garde = module_de_migration.refuser_si_des_pages_sont_encore_sur_l_ancien
 
-    def test_les_deux_moteurs_existent(self):
-        self.assertEqual(MoteurDePage.ANCIEN, "ancien")
-        self.assertEqual(MoteurDePage.ELEMENT, "element")
+        with self.assertRaises(RuntimeError) as leve:
+            garde(_ApplicationsFeintes(nombre_de_pages_anciennes=7), None)
 
-    def test_une_page_element_sans_element_reste_element(self):
-        # LE cas qui justifie le champ (D1) : une ingestion ELEMENT qui
-        # echoue laisse zero element — le discriminant implicite
-        # `elements.exists()` la prendrait pour une page ANCIEN.
-        # / A failed ELEMENT ingestion has zero elements; the implicit
-        # discriminant would misread it.
-        page = creer_une_page(
-            "http://exemple.local/bra-vide", moteur=MoteurDePage.ELEMENT,
-        )
-        self.assertFalse(page.elements.exists())
-        self.assertEqual(page.moteur, MoteurDePage.ELEMENT)
+        message = str(leve.exception)
+        self.assertIn("7", message)
+        # Le message doit DIRE quoi faire, pas seulement refuser.
+        # / The message must say what to do, not merely refuse.
+        self.assertIn("basculer_vers_le_moteur_element", message)
+
+    def test_elle_laisse_passer_une_base_entierement_reconvertie(self):
+        garde = module_de_migration.refuser_si_des_pages_sont_encore_sur_l_ancien
+
+        garde(_ApplicationsFeintes(nombre_de_pages_anciennes=0), None)
 
 
-ETAT_AVANT_FLAG = [("core", "0052_provenance_du_verdict")]
-ETAT_APRES_FLAG = [("core", "0053_page_moteur")]
+class _RequeteFeinte:
+    def __init__(self, combien):
+        self._combien = combien
+
+    def count(self):
+        return self._combien
 
 
-class MigrationDuFlagMoteurTest(TransactionTestCase):
+class _ModeleFeint:
+    def __init__(self, combien):
+        self.objects = self
+        self._combien = combien
+
+    def filter(self, **_criteres):
+        return _RequeteFeinte(self._combien)
+
+
+class _ApplicationsFeintes:
     """
-    La migration ne bascule RIEN (§ 9.2) : tout l'existant reste
-    ANCIEN, elements dormants compris. Le flag vient des ingestions.
-    / The migration flips nothing: all existing pages stay ANCIEN.
+    Le champ `moteur` n'existe plus dans le modele : on ne peut donc pas
+    creer de vraie page ANCIEN pour exercer la garde. On lui donne le
+    registre historique qu'une migration recoit.
+    / The field is gone from the model, so we feed the guard the kind of
+    historical registry a migration receives.
     """
 
-    def _migrer_vers(self, cibles):
-        executor = MigrationExecutor(connection)
-        executor.loader.build_graph()
-        executor.migrate(cibles)
-        return executor.loader.project_state(cibles).apps
+    def __init__(self, nombre_de_pages_anciennes):
+        self._modele = _ModeleFeint(nombre_de_pages_anciennes)
 
-    def tearDown(self):
-        executor = MigrationExecutor(connection)
-        executor.loader.build_graph()
-        executor.migrate(executor.loader.graph.leaf_nodes())
-        super().tearDown()
-
-    def test_l_existant_reste_ancien_meme_avec_des_elements(self):
-        apps_avant = self._migrer_vers(ETAT_AVANT_FLAG)
-        PageHistorique = apps_avant.get_model("core", "Page")
-        ElementHistorique = apps_avant.get_model("core", "ElementDocument")
-
-        page_ancienne = PageHistorique.objects.create(
-            url="http://exemple.local/bra-mig-ancienne",
-            html_original="<p>o</p>", html_readability="<p>l</p>",
-            text_readability="texte", content_hash="hash-bra-1",
-        )
-        page_element = PageHistorique.objects.create(
-            url="http://exemple.local/bra-mig-element",
-            html_original="<p>o</p>", html_readability="<p>l</p>",
-            text_readability="texte", content_hash="hash-bra-2",
-        )
-        ElementHistorique.objects.create(
-            page_id=page_element.pk, ordre=0, label="text",
-            texte="un element", empreinte_contenu="e" * 64,
-        )
-
-        apps_apres = self._migrer_vers(ETAT_APRES_FLAG)
-        PageApres = apps_apres.get_model("core", "Page")
-
-        # § 9.2 : TOUT l'existant reste ANCIEN — meme une page qui
-        # porte deja des elements (537/541 en dev ont des elements
-        # DORMANTS issus des phases de test : les basculer ferait
-        # changer le rendu du corpus entier d'un coup). La bascule est
-        # une reconversion explicite (§ 9.5), pas une migration.
-        # / Existing pages ALL stay ANCIEN, even element-bearing ones.
-        self.assertEqual(
-            PageApres.objects.get(pk=page_ancienne.pk).moteur, "ancien",
-        )
-        self.assertEqual(
-            PageApres.objects.get(pk=page_element.pk).moteur, "ancien",
-        )
-
-
-class PoseDuFlagALIngestionTest(TestCase):
-    """
-    BR-A : l'ingestion ELEMENT pose le flag — le champ est ecrit au
-    SEUL endroit par lequel toute ingestion element passe.
-    / ELEMENT ingestion stamps the flag at its single choke point.
-    """
-
-    def test_creer_les_elements_pose_le_moteur_element(self):
-        from hypostasis_extractor.services.ingestion_docling import (
-            creer_les_elements_d_une_page,
-        )
-
-        page = creer_une_page("http://exemple.local/bra-ingestion")
-        self.assertEqual(page.moteur, MoteurDePage.ANCIEN)
-
-        creer_les_elements_d_une_page(page, [
-            {"texte": "Premier élément.", "label": "text"},
-        ])
-
-        page.refresh_from_db()
-        self.assertEqual(page.moteur, MoteurDePage.ELEMENT)
-        self.assertEqual(page.elements.count(), 1)
+    def get_model(self, _application, _modele):
+        return self._modele

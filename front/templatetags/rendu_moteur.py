@@ -15,8 +15,6 @@ applies the same rule everywhere, at the single place that displays.
 
 from django import template
 
-from core.models import MoteurDePage
-
 register = template.Library()
 
 
@@ -33,7 +31,7 @@ def blocs_de_lecture_de(page):
     par le pipeline synchrone (BR-B) — jamais une page blanche.
     / A zero-element ELEMENT page falls back to readability HTML.
     """
-    if page is None or page.moteur != MoteurDePage.ELEMENT:
+    if page is None:
         return []
 
     from front.services.rendu_elements import construire_les_blocs_de_lecture

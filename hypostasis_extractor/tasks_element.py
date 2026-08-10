@@ -275,7 +275,7 @@ def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fich
     convertir sans lancer d'analyse.
     / Converting is slow but free; analysing costs money. Keep them apart.
     """
-    from core.models import EtatIngestion, MoteurDePage, Page
+    from core.models import EtatIngestion, Page
     from hypostasis_extractor.services import ingestion_docling
 
     try:
@@ -290,12 +290,10 @@ def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fich
             "re-ingestion pour ne pas perdre les ancres existantes.",
             page.pk,
         )
-        # Redelivraison Celery apres un succes : la page ELEMENT est
-        # bien ingeree, l'etat le dit. Les elements DORMANTS d'une page
-        # ANCIEN (phases de test) ne changent rien. (U2)
+        # Redelivraison Celery apres un succes : la page a ses
+        # elements, l'etat le dit. (U2)
         # / Celery redelivery after success: keep the state truthful.
-        if page.moteur == MoteurDePage.ELEMENT:
-            _noter_l_etat_d_ingestion(page.pk, EtatIngestion.REUSSIE)
+        _noter_l_etat_d_ingestion(page.pk, EtatIngestion.REUSSIE)
         return {"erreur": "page deja ingeree"}
 
     # L'etat « en cours » est visible dans la lecture (U2) — c'est le
@@ -376,7 +374,7 @@ def ingerer_une_capture_web_avec_docling(self, identifiant_de_la_page):
     :param identifiant_de_la_page: la cle primaire de la Page capturee
     :return: {"elements": int} ou un dict d'erreur
     """
-    from core.models import EtatIngestion, MoteurDePage, Page
+    from core.models import EtatIngestion, Page
     from hypostasis_extractor.services import ingestion_docling
 
     try:
@@ -389,8 +387,7 @@ def ingerer_une_capture_web_avec_docling(self, identifiant_de_la_page):
         logger.warning(
             "Page %s a deja des elements : ingestion web refusee.", page.pk,
         )
-        if page.moteur == MoteurDePage.ELEMENT:
-            _noter_l_etat_d_ingestion(page.pk, EtatIngestion.REUSSIE)
+        _noter_l_etat_d_ingestion(page.pk, EtatIngestion.REUSSIE)
         return {"erreur": "page deja ingeree"}
 
     _noter_l_etat_d_ingestion(page.pk, EtatIngestion.EN_COURS)
