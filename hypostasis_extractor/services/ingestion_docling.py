@@ -124,6 +124,51 @@ def convertir_un_fichier_avec_docling(chemin_du_fichier):
     return resultat.document
 
 
+def convertir_du_html_avec_docling(html, nom_source="capture-web.html"):
+    """
+    Passe du HTML (capture web) a Docling et rend son document.
+    / Runs HTML (web capture) through Docling and returns its document.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    U4 (decision D2, ordre 2) : la capture web n'a pas de fichier sur
+    disque — elle a son HTML en base (page.html_original). Docling
+    convertit un flux nomme en `.html` exactement comme un fichier ; on
+    lui passe donc un DocumentStream plutot qu'un chemin. Memes
+    gardes-fous de ressources que la conversion de fichier.
+    / Web capture has no file on disk, only HTML in the DB; Docling
+    converts a named stream just like a file.
+
+    :param html: le HTML a convertir (str)
+    :param nom_source: un nom de flux finissant par .html (le backend
+        de Docling se choisit sur l'extension)
+    :return: le DoclingDocument
+    :raises RuntimeError: si la conversion echoue
+    """
+    import io
+
+    from docling.datamodel.base_models import DocumentStream
+    from docling.document_converter import DocumentConverter
+
+    flux = DocumentStream(
+        name=nom_source,
+        stream=io.BytesIO((html or "").encode("utf-8")),
+    )
+    convertisseur = DocumentConverter()
+    try:
+        resultat = convertisseur.convert(
+            flux,
+            max_num_pages=LIMITE_DE_PAGES_DOCLING,
+            max_file_size=LIMITE_DE_TAILLE_DOCLING,
+        )
+    except Exception as erreur:
+        raise RuntimeError(
+            f"Docling n'a pas pu convertir le HTML capturé : {erreur}"
+        ) from erreur
+
+    return resultat.document
+
+
 def extraire_les_elements_bruts(document_docling):
     """
     Parcourt un DoclingDocument et rend des elements bruts.
@@ -311,6 +356,8 @@ def creer_les_elements_d_une_page(page, elements_bruts):
             f"les ancres existantes."
         )
 
+    from core.models import MoteurDePage
+
     elements_crees = []
     with transaction.atomic():
         for position, element_brut in enumerate(elements_bruts):
@@ -325,18 +372,24 @@ def creer_les_elements_d_une_page(page, elements_bruts):
                 provenance=element_brut.get("provenance") or {},
             ))
 
+        # Le flag moteur est pose ICI, au seul endroit par lequel toute
+        # ingestion element passe (BR-A, decision D1) : une page qui a
+        # des elements EST une page ELEMENT. DANS la meme transaction
+        # que les elements (relecture U2, defaut M3) : sinon un crash
+        # entre les deux laisse des elements commites avec moteur=ANCIEN
+        # — une demi-ingestion que « Relancer » refuse a jamais (elle a
+        # deja des elements) et que la redelivraison ne repare pas.
+        # / Stamped INSIDE the elements' transaction: a crash between
+        # the two would leave a half-ingestion that relaunch refuses
+        # forever and redelivery never repairs.
+        if page.moteur != MoteurDePage.ELEMENT:
+            page.moteur = MoteurDePage.ELEMENT
+            page.save(update_fields=["moteur"])
+
     logger.info(
         "Page %s : %s element(s) cree(s) depuis Docling.",
         page.pk, len(elements_crees),
     )
-    # Le flag moteur est pose ICI, au seul endroit par lequel toute
-    # ingestion element passe (BR-A, decision D1) : une page qui a des
-    # elements EST une page ELEMENT, meme si l'ingestion echoue plus
-    # loin. / The engine flag is stamped at the single choke point.
-    from core.models import MoteurDePage
-    if page.moteur != MoteurDePage.ELEMENT:
-        page.moteur = MoteurDePage.ELEMENT
-        page.save(update_fields=["moteur"])
 
     return elements_crees
 
@@ -353,5 +406,29 @@ def ingerer_un_fichier(page, chemin_du_fichier):
     :return: la liste des ElementDocument crees
     """
     document_docling = convertir_un_fichier_avec_docling(chemin_du_fichier)
+    elements_bruts = extraire_les_elements_bruts(document_docling)
+    return creer_les_elements_d_une_page(page, elements_bruts)
+
+
+def ingerer_une_capture_web(page):
+    """
+    Enchaine conversion Docling du HTML capture et creation des elements.
+    / Chains Docling HTML conversion and element creation.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    U4 : la source est page.html_original (le HTML brut capture par
+    l'extension), pas un fichier. / The source is the captured HTML.
+
+    :param page: la Page a peupler
+    :return: la liste des ElementDocument crees
+    :raises ValueError: si la page n'a pas de HTML a decouper
+    """
+    html = page.html_original or ""
+    if not html.strip():
+        raise ValueError(
+            f"La page {page.pk} n'a pas de HTML original a decouper."
+        )
+    document_docling = convertir_du_html_avec_docling(html)
     elements_bruts = extraire_les_elements_bruts(document_docling)
     return creer_les_elements_d_une_page(page, elements_bruts)

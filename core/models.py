@@ -156,6 +156,21 @@ class MoteurDePage(models.TextChoices):
     ELEMENT = "element", "Moteur par élément"
 
 
+class EtatIngestion(models.TextChoices):
+    """
+    Ou en est le DECOUPAGE EN ELEMENTS d'une page (U2, dette § 5 du
+    cahier de branchement : l'echec etait silencieux). L'etat vide
+    (defaut) = aucune ingestion demandee — les pages nees avant U2, les
+    .txt, les captures web. La tache ecrit en_cours/reussie/echouee ;
+    la vue d'import et la relance ecrivent en_attente.
+    / Where the element ingestion stands; empty = never requested.
+    """
+    EN_ATTENTE = "en_attente", "Découpage en attente"
+    EN_COURS = "en_cours", "Découpage en cours"
+    REUSSIE = "reussie", "Découpage réussi"
+    ECHOUEE = "echouee", "Découpage échoué"
+
+
 class TypeDeNote(models.TextChoices):
     """
     Ce qu'une note EST. Ce n'est pas une etiquette d'affichage : le type
@@ -221,6 +236,30 @@ class Page(models.Model):
         help_text="Moteur d'ancrage : 'ancien' (offsets plats) ou "
                   "'element' (ElementDocument + portions). Les deux "
                   "coexistent, aucune migration de force.",
+    )
+    ingestion_etat = models.CharField(
+        max_length=12,
+        choices=EtatIngestion.choices,
+        default="",
+        blank=True,
+        help_text="Etat du decoupage en elements (U2). Vide = jamais "
+                  "demande. Ecrit par la vue d'import (en_attente) et "
+                  "par la tache Docling (en_cours/reussie/echouee).",
+    )
+    ingestion_detail = models.TextField(
+        blank=True,
+        default="",
+        help_text="Message FALC montre a l'utilisateur quand le "
+                  "decoupage a echoue. / Plain-words failure message.",
+    )
+    ingestion_maj_le = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Quand ingestion_etat a change pour la derniere fois "
+                  "(U2). Sert a detecter un etat actif FANTOME : un "
+                  "worker tue laisse 'en_cours' pour toujours ; au-dela "
+                  "d'un delai la relance est de nouveau permise. / When "
+                  "the state last changed; used to break a stale active "
+                  "state left by a dead worker.",
     )
     type_de_note = models.CharField(
         max_length=10,

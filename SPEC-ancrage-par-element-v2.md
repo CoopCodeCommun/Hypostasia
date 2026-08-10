@@ -152,6 +152,52 @@ et `SPEC-selection-des-preuves.md` v1.0 (couches au-dessus)
 >    PageEdit (type contenu), celui des opérations de structure reste
 >    dans ElementOperation (créé par les services).
 
+> **Addendum du 10 août 2026 — question ouverte n°1 TRANCHÉE par la
+> mesure (D3 du cahier de branchement)** :
+>
+> Mesure sur les 24 transcriptions diarisées réelles de la base dev
+> (2 153 tours de parole) — protocole et chiffres complets dans
+> `PLAN/mesure-D3-frontiere-audio-2026-08-10.md` :
+>
+> 1. **Pas de frontière préférentielle au changement de locuteur** :
+>    +12,6 % d'appels LLM pour un gain de 2 points (chunks
+>    multi-locuteurs 59,3 % → 57,3 %). Un tour médian fait 125
+>    caractères : un chunk en contient toujours plusieurs, c'est
+>    l'ancre M2M qui porte l'attribution au locuteur (§ 4.1, même
+>    conclusion que côté sections). Le chunking audio est au budget
+>    seul.
+> 2. **L'élément audio est le TOUR DE PAROLE** (segments ASR
+>    consécutifs d'un même locuteur), jamais le segment : éléments =
+>    segments produirait 605 coupes en plein tour sur ce corpus (85 %
+>    des frontières internes), zéro avec les tours.
+> 3. **Un tour au-delà du budget de chunk (1 500 c — 6,5 % des tours,
+>    max observé 34 715 c) est scindé À L'INGESTION** en éléments
+>    consécutifs du même locuteur, coupe posée à la frontière de
+>    segment ASR la plus proche du budget. La règle « jamais couper un
+>    élément » reste entière en aval.
+
+---
+
+> **Addendum du 10 août 2026 — U4 : bascule de la CAPTURE WEB
+> (décision D2, ordre 2)** :
+>
+> Après l'import fichier (BR-B), la capture web (extension navigateur,
+> `POST /api/pages/`) nourrit à son tour le moteur ELEMENT, sur le même
+> patron :
+> 1. La source est `page.html_original` (le HTML capturé), pas un
+>    fichier sur disque : Docling convertit un `DocumentStream` nommé
+>    `.html` (`convertir_du_html_avec_docling`,
+>    `ingerer_une_capture_web`).
+> 2. La tâche `ingerer_une_capture_web_avec_docling` partage la file
+>    dédiée `ingestion_docling` (concurrence 1) — une seule conversion
+>    à la fois sur l'hôte 8 Go, fichier ou HTML confondus.
+> 3. Double écriture de transition : le pipeline synchrone remplit
+>    `html_readability`, l'affichage reste ANCIEN jusqu'à ce que les
+>    éléments existent ; un échec laisse une page ANCIEN lisible (repli
+>    honnête), l'état d'ingestion (U2) le dit et permet la relance.
+
+---
+
 ## 0. Ce qui change par rapport à la v1, et pourquoi
 
 La v1 a été relue par un agent adverse (`RELECTURE-spec-ancrage.md`). Cinq défauts structurels rendaient la v1 non codable telle quelle. La v2 les corrige un par un.

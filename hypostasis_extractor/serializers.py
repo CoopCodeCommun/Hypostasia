@@ -523,6 +523,15 @@ class ScissionDElementSerializer(serializers.Serializer):
             "min_value": "La coupe doit laisser du texte des deux côtés / Must split inside the text",
         },
     )
+    # L'empreinte du texte AFFICHE dans le formulaire (relecture U1,
+    # defaut H2) : si le texte a change entre l'ouverture du formulaire
+    # et l'envoi, la position de coupe s'appliquerait a un AUTRE texte
+    # — corruption silencieuse. La vue compare sous le verrou.
+    # / Fingerprint of the DISPLAYED text: a stale one means the cut
+    # would land on different text; the view compares under the lock.
+    empreinte_du_texte = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=128,
+    )
     # La justification passe AUSSI par le serializer (relecture BR-E,
     # defaut n°3) : en brut, un dict JSON filait jusqu'a psycopg.
     # / The justification goes through the serializer too.

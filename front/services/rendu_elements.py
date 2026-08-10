@@ -316,11 +316,26 @@ def construire_les_blocs_de_lecture(page):
         portions_par_element.setdefault(portion.element_id, []).append(portion)
 
     blocs = []
-    for element in elements:
+    for indice, element in enumerate(elements):
         portions_de_l_element = portions_par_element.get(element.pk, [])
         identifiants_des_idees = {
             portion.extraction_id for portion in portions_de_l_element
         }
+
+        # « Recoller avec le suivant » (U1) n'a de sens que si un
+        # suivant existe ET qu'il est visible : le service refuse
+        # toujours de fusionner un visible avec un masque (relecture
+        # U1, defaut M8) — le bouton ne doit donc pas etre propose.
+        # / Merge button only when a VISIBLE next element exists: the
+        # service always refuses merging into a hidden one.
+        element_suivant = (
+            elements[indice + 1] if indice + 1 < len(elements) else None
+        )
+        fusion_possible = (
+            element_suivant is not None
+            and not element_suivant.masque
+            and not element.masque
+        )
 
         blocs.append({
             "element": element,
@@ -330,6 +345,7 @@ def construire_les_blocs_de_lecture(page):
             ),
             "nombre_d_idees": len(identifiants_des_idees),
             "est_masque": element.masque,
+            "fusion_possible": fusion_possible,
         })
 
     return _regrouper_les_items_de_liste(blocs)
@@ -368,5 +384,15 @@ def _regrouper_les_items_de_liste(blocs):
         liste_en_cours = None
         bloc["est_une_liste"] = False
         blocs_regroupes.append(bloc)
+
+    # Une liste dont TOUTES les puces sont masquees ne doit pas rendre
+    # un <ul> vide chez un simple lecteur (relecture U1, defaut B3) —
+    # le template a besoin de le savoir sans regarder chaque puce.
+    # / Flag fully-hidden lists so the template can skip the empty <ul>.
+    for bloc in blocs_regroupes:
+        if bloc.get("est_une_liste"):
+            bloc["toutes_masquees"] = all(
+                puce["est_masque"] for puce in bloc["puces"]
+            )
 
     return blocs_regroupes

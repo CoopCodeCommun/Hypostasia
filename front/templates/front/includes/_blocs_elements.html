@@ -1,45 +1,93 @@
 {# ============================================================= #}
-{# LECTURE PAR ELEMENTS — pages au moteur ELEMENT (BR-D)          #}
+{# LECTURE PAR ELEMENTS — pages au moteur ELEMENT (BR-D + U1)     #}
 {# / Element-based reading — pages on the ELEMENT engine          #}
 {#                                                                #}
 {# LOCALISATION : front/templates/front/includes/_blocs_elements.html #}
 {#                                                                #}
 {# Recoit `blocs_de_lecture`, construit par                       #}
-{# front/services/rendu_elements.py:construire_les_blocs_de_lecture. #}
-{# Chaque bloc est soit une liste regroupee (est_une_liste, puces) #}
-{# soit un element simple (balise, html_du_texte, est_masque).     #}
-{# Le html_du_texte est deja echappe et marque par PORTION         #}
-{# (mark.portion.hl-extraction, markup fige par test_rendu_elements) #}
-{# — le |safe est donc legitime ici, et seulement ici.             #}
+{# front/services/rendu_elements.py:construire_les_blocs_de_lecture, #}
+{# ET `la_note_est_modifiable`, evalue UNE SEULE FOIS par          #}
+{# lecture_principale.html (relecture U1, defaut M7 : trois        #}
+{# evaluations refaisaient trois fois les requetes de carnets).    #}
+{# Si la variable manque (autre contexte d'inclusion), son vide    #}
+{# est FAUX : on retombe sur le rendu lecteur, sans boutons — le   #}
+{# defaut sur. / `la_note_est_modifiable` is evaluated once by the #}
+{# caller; a missing value falls back to the reader rendering.     #}
 {#                                                                #}
-{# Un element MASQUE (bruit : pied de page repete...) n'est pas    #}
-{# rendu : sa gestion (voir, demasquer) arrive avec BR-E.          #}
-{# / Masked elements are skipped; managing them comes with BR-E.   #}
+{# Chaque bloc est soit une liste regroupee (est_une_liste, puces, #}
+{# toutes_masquees) soit un element simple (balise, html_du_texte, #}
+{# est_masque, fusion_possible). Le html_du_texte est deja echappe #}
+{# et marque par PORTION (markup fige par test_rendu_elements).    #}
+{#                                                                #}
+{# U1 — LES OPERATIONS D'ELEMENT ONT LEURS BOUTONS :               #}
+{# - qui PEUT ECRIRE recoit dans chaque bloc un groupe de boutons  #}
+{#   (_actions_element.html), INVISIBLE hors mode structure (CSS   #}
+{#   #zone-lecture.mode-structure) ;                               #}
+{# - un element MASQUE devient pour lui un PLACEHOLDER demasquable #}
+{#   (visible en mode structure seulement) — jamais un bloc du     #}
+{#   texte. Un simple lecteur n'a RIEN de tout ca dans son DOM, et #}
+{#   une liste entierement masquee ne lui laisse pas un <ul> vide. #}
+{# / Writers get per-block action buttons and un-hideable          #}
+{# placeholders; readers get none of it, not even an empty <ul>.   #}
 {# ============================================================= #}
 <div data-testid="blocs-elements">
     {% for bloc in blocs_de_lecture %}
         {% if bloc.est_une_liste %}
+            {% if la_note_est_modifiable or not bloc.toutes_masquees %}
             <ul>
                 {% for puce in bloc.puces %}
-                    {% if not puce.est_masque %}
+                    {% if puce.est_masque %}
+                        {% if la_note_est_modifiable %}
+                        <li class="element-masque"
+                            data-element-id="{{ puce.element.pk }}"
+                            data-testid="element-masque-{{ puce.element.ordre }}">
+                            <span class="etiquette">Passage masqué</span>
+                            <span class="extrait">{{ puce.element.texte|truncatechars:160 }}</span>
+                            <button type="button"
+                                    hx-post="/elements/{{ puce.element.pk }}/demasquer/"
+                                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                                    hx-swap="none"
+                                    hx-disabled-elt="this"
+                                    data-testid="btn-element-demasquer"
+                                    title="Rétablir ce passage dans la lecture">démasquer</button>
+                        </li>
+                        {% endif %}
+                    {% else %}
                         <li data-element-id="{{ puce.element.pk }}"
-                            data-testid="bloc-element-{{ puce.element.ordre }}">{{ puce.html_du_texte }}</li>
+                            data-testid="bloc-element-{{ puce.element.ordre }}">{{ puce.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" with bloc=puce %}{% endif %}</li>
                     {% endif %}
                 {% endfor %}
             </ul>
-        {% elif not bloc.est_masque %}
+            {% endif %}
+        {% elif bloc.est_masque %}
+            {% if la_note_est_modifiable %}
+            <div class="element-masque"
+                 data-element-id="{{ bloc.element.pk }}"
+                 data-testid="element-masque-{{ bloc.element.ordre }}">
+                <span class="etiquette">Passage masqué</span>
+                <span class="extrait">{{ bloc.element.texte|truncatechars:160 }}</span>
+                <button type="button"
+                        hx-post="/elements/{{ bloc.element.pk }}/demasquer/"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                        hx-swap="none"
+                        hx-disabled-elt="this"
+                        data-testid="btn-element-demasquer"
+                        title="Rétablir ce passage dans la lecture">démasquer</button>
+            </div>
+            {% endif %}
+        {% else %}
             {% if bloc.balise == "h2" %}
                 <h2 data-element-id="{{ bloc.element.pk }}"
-                    data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h2>
+                    data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h2>{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}
             {% elif bloc.balise == "h3" %}
                 <h3 data-element-id="{{ bloc.element.pk }}"
-                    data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h3>
+                    data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h3>{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}
             {% elif bloc.balise == "pre" %}
                 <pre data-element-id="{{ bloc.element.pk }}"
-                     data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</pre>
+                     data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</pre>
             {% else %}
                 <p data-element-id="{{ bloc.element.pk }}"
-                   data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</p>
+                   data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</p>
             {% endif %}
         {% endif %}
     {% endfor %}

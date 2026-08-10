@@ -116,10 +116,13 @@ class LectureParElementsTest(TestCase):
         self.assertIn('mark class="portion hl-extraction"', contenu)
         self.assertIn(f'data-extraction-id="{extraction.pk}"', contenu)
 
-    def test_un_element_masque_n_est_pas_rendu(self):
-        # Un element masque (bruit : pied de page repete...) sort de la
-        # lecture. Sa gestion (voir, demasquer) arrive avec BR-E.
-        # / A masked element leaves the reading; managing it is BR-E.
+    def test_un_element_masque_n_est_pas_un_bloc_de_lecture(self):
+        # Un element masque (bruit : pied de page repete...) sort du
+        # TEXTE de lecture. Depuis U1 il apparait en PLACEHOLDER
+        # demasquable pour qui peut ecrire (test_boutons_elements) —
+        # mais jamais comme un bloc du texte.
+        # / A masked element leaves the reading flow; since U1 it shows
+        # as an un-hideable placeholder for writers (other test file).
         page = self._creer_une_page("masque", MoteurDePage.ELEMENT)
         self._ajouter_un_element(page, "Contenu visible.", ordre=0)
         self._ajouter_un_element(
@@ -130,7 +133,7 @@ class LectureParElementsTest(TestCase):
 
         contenu = reponse.content.decode()
         self.assertIn("Contenu visible.", contenu)
-        self.assertNotIn("Pied de page repete.", contenu)
+        self.assertNotIn('data-testid="bloc-element-1"', contenu)
 
     def test_le_css_neutralise_les_defauts_navigateur_de_mark(self):
         # Verif visuelle BR-D (9 aout) : sans reset, <mark> rend du

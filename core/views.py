@@ -249,6 +249,33 @@ class PageViewSet(viewsets.ViewSet):
             page_creee.dossier,
         )
 
+        # U4 (decision D2, ordre 2) : une capture web nourrit AUSSI le
+        # moteur ELEMENT — meme patron que l'import fichier (BR-B). Le
+        # pipeline synchrone ci-dessus a rempli html_readability :
+        # l'affichage reste ANCIEN (double ecriture) jusqu'a ce que les
+        # elements existent. La page devient ELEMENT quand la tache
+        # aboutit ; un echec laisse une page ANCIEN lisible. Broker en
+        # panne : la creation reste un succes, sans fausse promesse.
+        # / Web capture also feeds the ELEMENT engine, same pattern as
+        # file import; a dead broker must not turn a successful capture
+        # into a 500.
+        if (page_creee.html_original or "").strip():
+            from hypostasis_extractor.tasks_element import (
+                ingerer_une_capture_web_avec_docling,
+            )
+            try:
+                ingerer_une_capture_web_avec_docling.delay(page_creee.pk)
+                Page.objects.filter(
+                    pk=page_creee.pk, ingestion_etat="",
+                ).update(ingestion_etat="en_attente")
+            except Exception as erreur_de_broker:
+                logger.error(
+                    "PageViewSet.create: ingestion web NON lancee pour la "
+                    "page %d (broker indisponible ? %s) — la page reste "
+                    "sur l'ancien moteur",
+                    page_creee.pk, erreur_de_broker,
+                )
+
         return Response(
             PageListSerializer(page_creee).data,
             status=status.HTTP_201_CREATED,

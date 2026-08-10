@@ -31,4 +31,11 @@ celery_app.conf.task_routes = {
     "hypostasis_extractor.tasks_element.ingerer_un_fichier_avec_docling": {
         "queue": "ingestion_docling",
     },
+    # La capture web (U4) partage la MEME file dediee : une conversion
+    # Docling a la fois sur l'hote 8 Go, fichier ou HTML confondus.
+    # / Web capture shares the same dedicated queue: one Docling
+    # conversion at a time, file or HTML alike.
+    "hypostasis_extractor.tasks_element.ingerer_une_capture_web_avec_docling": {
+        "queue": "ingestion_docling",
+    },
 }

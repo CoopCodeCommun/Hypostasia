@@ -177,6 +177,52 @@
     {# les classes de MISE EN FORME (graisse, marges, arrondis) restent. #}
     {# / Colored prose-* utilities removed: they hard-set `color` on #}
     {# descendants and beat the Typography variables (1.02:1 in dark). #}
+    {# BR-D (SPEC-ancrage § 9) : une page ELEMENT est rendue depuis    #}
+    {# ses ElementDocument, marques par PORTION. Le tag applique la    #}
+    {# meme regle quel que soit l'endroit qui rend ce partial.         #}
+    {# Zero bloc (page ANCIEN, ou ingestion echouee) -> repli sur      #}
+    {# le HTML annote / readability, comme avant.                      #}
+    {# / ELEMENT pages render from their elements, marked per          #}
+    {# portion; zero blocks falls back to the old path.                #}
+    {% blocs_de_lecture_de page as blocs_de_lecture %}
+
+    {# U1 — LE MODE STRUCTURE : un bouton a bascule, pour qui PEUT     #}
+    {# ECRIRE la note (meme regle que les endpoints d'element). Il     #}
+    {# pose la classe mode-structure sur #zone-lecture — PAS sur ce    #}
+    {# partial : lectureReload ne remplace que l'innerHTML de          #}
+    {# #zone-lecture, le mode survit donc au rechargement apres une    #}
+    {# operation ; le gestionnaire lectureReload (hypostasia.js)       #}
+    {# resynchronise aria-pressed et le focus apres chaque             #}
+    {# remplacement (relecture U1, defauts M1 et M9 : un script        #}
+    {# inline injecte par innerHTML ne s'execute jamais).              #}
+    {# Le droit est evalue UNE fois ici (defaut M7) et transmis a      #}
+    {# _blocs_elements.html par le contexte.                           #}
+    {# / The toggle sets mode-structure on #zone-lecture, which        #}
+    {# survives lectureReload; the JS handler re-syncs aria-pressed;   #}
+    {# the write right is evaluated once and passed down.              #}
+    {% with la_note_est_modifiable=page|est_modifiable_par:request.user %}
+    {# U2 — l'etat du decoupage en elements, pour qui peut ecrire :    #}
+    {# en attente / en cours (sonde auto-rafraichie), ou echec avec la #}
+    {# relance. Rien quand tout va bien. / Ingestion status chip.      #}
+    {% if page.ingestion_etat and page.ingestion_etat != "reussie" %}
+    {% include "front/includes/_etat_ingestion.html" with peut_ecrire=la_note_est_modifiable numero_d_essai=0 plafond_atteint=False %}
+    {% endif %}
+    {% if blocs_de_lecture and la_note_est_modifiable %}
+    <div class="mb-2 flex items-center gap-2">
+        <button type="button" id="bouton-mode-structure"
+                onclick="basculerModeStructure(this)"
+                aria-pressed="false"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                data-testid="bouton-mode-structure"
+                title="Afficher les boutons pour corriger, couper, recoller ou masquer chaque passage">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487zm0 0L19.5 7.125"/>
+            </svg>
+            Modifier la structure
+        </button>
+    </div>
+    {% endif %}
+
     <article id="readability-content" class="lecture-article prose prose-slate prose-lg max-w-none
                     prose-headings:font-semibold
                     prose-p:mb-5 prose-p:mt-0
@@ -185,20 +231,21 @@
                     prose-img:rounded-lg prose-img:shadow-sm
                     prose-a:no-underline hover:prose-a:underline
                     prose-table:text-sm">
-        {# BR-D (SPEC-ancrage § 9) : une page ELEMENT est rendue depuis #}
-        {# ses ElementDocument, marques par PORTION. Le tag applique la #}
-        {# meme regle quel que soit l'endroit qui rend ce partial.      #}
-        {# Zero bloc (page ANCIEN, ou ingestion echouee) -> repli sur   #}
-        {# le HTML annote / readability, comme avant.                   #}
-        {# / ELEMENT pages render from their elements, marked per       #}
-        {# portion; zero blocks falls back to the old path.             #}
-        {% blocs_de_lecture_de page as blocs_de_lecture %}
         {% if blocs_de_lecture %}
             {% include "front/includes/_blocs_elements.html" %}
         {% else %}
             {{ html_annote|default:page.html_readability|safe }}
         {% endif %}
     </article>
+
+    {# U1 — le conteneur du dialogue des formulaires d'element         #}
+    {# (corriger, couper en deux). Le formulaire rendu par le serveur  #}
+    {# y est injecte, puis son script ouvre le <dialog> en modal.      #}
+    {# / Container for the element form dialogs.                       #}
+    {% if blocs_de_lecture and la_note_est_modifiable %}
+    <div id="zone-dialogue-element" data-testid="zone-dialogue-element"></div>
+    {% endif %}
+    {% endwith %}
 
     {# Zone ou le modal de renommage de locuteur sera injecte via HTMX #}
     {# / Zone where the speaker renaming modal will be injected via HTMX #}

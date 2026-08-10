@@ -2413,8 +2413,16 @@ class Phase10DrawerContenuTriTest(TestCase):
     / Verify drawer sort options (position, activite, statut) (PHASE-10)."""
 
     def setUp(self):
+        from django.contrib.auth.models import User
         from core.models import Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
+
+        # Le drawer verifie l'acces a la page (securite du 10 aout).
+        # / The drawer now checks page access.
+        self.utilisateur = User.objects.create_user(
+            username="tri_drawer", password="test1234",
+        )
+        self.client.force_login(self.utilisateur)
 
         self.page = Page.objects.create(
             title="Page tri test",
@@ -4231,6 +4239,11 @@ class DrawerAmelioreEndpointTest(TestCase):
             html_readability="<p>Test content</p>",
             text_readability="Test content.",
         )
+        # Le drawer verifie desormais l'acces a la page (securite du 10
+        # aout : cet endpoint rendait le texte de toute page en anonyme).
+        # La page n'a ni owner ni carnet -> lisible par tout authentifie.
+        # / The drawer now checks page access; log in.
+        self.client.force_login(self.user_alice)
 
         self.job_test = ExtractionJob.objects.create(
             page=self.page_test, name="Job test", status="completed", ai_model=None,
@@ -4485,8 +4498,16 @@ class Phase21EndpointCarteMobileTest(TestCase):
     / Verify carte_mobile endpoint."""
 
     def setUp(self):
+        from django.contrib.auth.models import User
         from core.models import Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
+
+        # La carte mobile verifie l'acces a la page (securite du 10 aout).
+        # / The mobile card now checks page access.
+        self.utilisateur = User.objects.create_user(
+            username="mobile_carte", password="test1234",
+        )
+        self.client.force_login(self.utilisateur)
 
         self.page = Page.objects.create(
             title="Page mobile test",
@@ -4764,12 +4785,23 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
     """Teste l'endpoint previsualiser_analyse via RequestFactory."""
 
     def setUp(self):
+        from django.contrib.auth.models import User
         from core.models import Page, AIModel, Configuration
         from hypostasis_extractor.models import (
             AnalyseurSyntaxique, PromptPiece, AnalyseurExample,
             ExampleExtraction, ExtractionAttribute,
         )
         self.factory = RequestFactory()
+
+        # previsualiser_analyse verifie desormais l'acces a la page
+        # (securite du 10 aout : le prompt complet contient tout le
+        # texte). RequestFactory ne pose pas request.user : on le fait
+        # nous-memes, comme le ferait le middleware. La page n'a ni
+        # owner ni carnet -> lisible par tout authentifie.
+        # / previsualiser_analyse now checks page access; set request.user.
+        self.utilisateur = User.objects.create_user(
+            username="previsu_user", password="test1234",
+        )
 
         # Creer une page avec du contenu
         # / Create a page with content
@@ -4839,6 +4871,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         self.assertEqual(reponse.status_code, 200)
@@ -4851,6 +4884,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             {"analyseur_id": self.analyseur.pk},
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         self.assertEqual(reponse.status_code, 200)
@@ -4862,6 +4896,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -4874,6 +4909,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -4889,6 +4925,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -4906,6 +4943,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -4920,6 +4958,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -4932,6 +4971,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")

@@ -12,14 +12,14 @@ from django.db.models import Case, Count, Prefetch, Value, When
 from django.utils import timezone
 from django.utils.html import escape, strip_tags
 from django.db.models import Q
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.template.loader import render_to_string
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, GroupeUtilisateurs, Invitation, MoteurDePage, Page, PageEdit, Question, ReponseQuestion, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, VisibiliteDossier
+from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, EtatIngestion, GroupeUtilisateurs, Invitation, MoteurDePage, Page, PageEdit, Question, ReponseQuestion, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, VisibiliteDossier
 from core.services.corpus import (
     deplacer_une_note_vers_un_carnet,
     ranger_une_note_dans_un_carnet,
@@ -836,6 +836,60 @@ def _entites_deja_creees_pour_job(job):
     ).select_related("job").order_by("start_char")
 
 
+def _trier_les_entites_par_ancre(entites):
+    """
+    Trie des extractions dans l'ORDRE DU DOCUMENT d'une page ELEMENT.
+    / Sorts extractions in document order for an ELEMENT page.
+
+    LOCALISATION : front/views.py
+
+    Sur une page ELEMENT, start_char est un offset DE CHUNK : trier
+    dessus entrelace les extractions des differents chunks (reste § 5
+    du cahier de branchement, solde en U3). La place d'une extraction
+    dans le document, c'est sa PREMIERE portion d'ancrage :
+    (ordre de l'element, debut dans l'element).
+
+    Les extractions SANS portion utilisable (detachees, ou vieux job a
+    offsets sur une page reconvertie) n'ont pas de place sure : elles
+    ferment la marche, dans leur ordre start_char — plutot en queue
+    qu'intercalees au hasard.
+    / Anchored extractions sort by (element order, offset); un-anchored
+    ones go last rather than interleaving randomly.
+
+    :param entites: queryset ou liste d'ExtractedEntity
+    :return: liste triee
+    """
+    from hypostasis_extractor.models import AncrageExtraction, EtatAncrage
+
+    entites = list(entites)
+    if not entites:
+        return entites
+
+    ancres = AncrageExtraction.objects.filter(
+        extraction__in=entites,
+    ).exclude(
+        etat_ancrage=EtatAncrage.DETACHEE,
+    ).values_list("extraction_id", "element__ordre", "debut_dans_element")
+
+    ancre_minimale_par_extraction = {}
+    for extraction_id, ordre_de_l_element, debut in ancres:
+        cle_de_tri = (ordre_de_l_element, debut)
+        ancre_connue = ancre_minimale_par_extraction.get(extraction_id)
+        if ancre_connue is None or cle_de_tri < ancre_connue:
+            ancre_minimale_par_extraction[extraction_id] = cle_de_tri
+
+    # Apres tout le document : aucun element n'atteint cet ordre.
+    # / Past the whole document: no element ever reaches this order.
+    place_des_sans_ancre = (10 ** 9, 10 ** 9)
+
+    entites.sort(key=lambda entite: (
+        ancre_minimale_par_extraction.get(entite.pk, place_des_sans_ancre),
+        entite.start_char or 0,
+        entite.pk,
+    ))
+    return entites
+
+
 def _calculer_consensus(page):
     """
     Calcule des stats binaires de debat pour une page :
@@ -1316,6 +1370,11 @@ class LectureViewSet(viewsets.ViewSet):
             return refus
         page = get_object_or_404(Page, pk=pk)
 
+        # Garde d'ECRITURE (famille du 10 aout) : tout compte connecte
+        # pouvait renommer n'importe quelle note. / Write guard.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
+
         # Validation via serializer DRF
         # / Validation via DRF serializer
         serializer_titre = ModifierTitrePageSerializer(data=request.data)
@@ -1704,6 +1763,14 @@ class LectureViewSet(viewsets.ViewSet):
         """
         page = get_object_or_404(Page, pk=pk)
 
+        # Garde de lecture (famille du 10 aout) : ce telechargement
+        # rendait la source ORIGINALE de n'importe quelle note, sans
+        # etre connecte. / Read guard: this leaked any note's original
+        # source, unauthenticated.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
+
         if page.source_type == "audio":
             if page.source_file:
                 # Renvoyer le fichier audio original
@@ -1757,6 +1824,14 @@ class LectureViewSet(viewsets.ViewSet):
         / Exports a page's content as JSON or Markdown.
         """
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde de lecture (famille du 10 aout) : l'export rendait le
+        # texte INTEGRAL de n'importe quelle note, sans etre connecte.
+        # / Read guard: the export leaked any note's full text.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
+
         format_export = request.query_params.get("type_export", "markdown")
 
         if page.source_type == "audio":
@@ -1838,6 +1913,194 @@ class LectureViewSet(viewsets.ViewSet):
             "raccourcis": liste_raccourcis,
         })
 
+    @action(detail=True, methods=["GET"], url_path="etat_ingestion")
+    def etat_ingestion(self, request, pk=None):
+        """
+        La sonde d'etat du decoupage en elements (U2).
+        / The element-ingestion status probe.
+
+        LOCALISATION : front/views.py — LectureViewSet
+
+        FLUX (patron du retour de production F1/F2) :
+        1. La puce d'etat rendue dans la lecture s'interroge ici toutes
+           les 5 s tant que l'ingestion est active (en_attente ou
+           en_cours), avec un compteur ?essai=N.
+        2. Reussite -> reponse vide + HX-Trigger lectureReload : la
+           lecture se recharge et passe aux blocs ELEMENT.
+        3. Echec -> la puce d'echec, avec le bouton de relance.
+        4. Plafond d'essais atteint (worker mort ?) -> une puce SANS
+           interrogation, avec un bouton « Verifier a nouveau ».
+        """
+        page = get_object_or_404(Page, pk=pk)
+        # Meme regle que la lecture, doctrine du 404.
+        # / Same access rule as reading, 404 doctrine.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
+
+        try:
+            numero_d_essai = int(request.query_params.get("essai", "0"))
+        except (TypeError, ValueError):
+            numero_d_essai = 0
+
+        if page.ingestion_etat == EtatIngestion.REUSSIE:
+            reponse = HttpResponse("")
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Découpage en éléments terminé.",
+                    "icon": "success",
+                },
+                "lectureReload": {"page_id": str(page.pk)},
+            })
+            return reponse
+
+        # ~5 minutes a 5 s par essai : au-dela, un worker mort ne doit
+        # pas faire interroger le serveur pour toujours (garde-fou F1).
+        # / Capped polling: a dead worker becomes a message.
+        plafond_atteint = numero_d_essai >= 60
+
+        return render(request, "front/includes/_etat_ingestion.html", {
+            "page": page,
+            "numero_d_essai": numero_d_essai,
+            "plafond_atteint": plafond_atteint,
+            "peut_ecrire": _utilisateur_peut_ecrire_page(request.user, page),
+        })
+
+    @action(detail=True, methods=["POST"], url_path="relancer_ingestion")
+    def relancer_ingestion(self, request, pk=None):
+        """
+        Relance le decoupage en elements d'une page (U2).
+        / Relaunches the element ingestion for a page.
+
+        LOCALISATION : front/views.py — LectureViewSet
+
+        GARDES, dans l'ordre :
+        1. Droit d'ECRITURE (meme regle que les operations d'element).
+        2. Pas de relance pendant une ingestion active (409 FALC).
+        3. Pas de relance d'une page qui a deja ses elements (409) —
+           la re-ingestion qui preserve les ancres est un autre flux.
+        4. Type de fichier couvert par Docling (409 sinon).
+        """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
+
+        page = get_object_or_404(Page, pk=pk)
+
+        # Doctrine du 404 (relecture U2, defaut M1) : un tiers SANS
+        # acces lecture ne doit pas distinguer une note interdite d'une
+        # note absente — sinon ce POST enumere les pk des notes privees.
+        # Le lecteur-non-ecrivain, lui, sait deja que la note existe
+        # (il la lit) : 403 franc. / 404 for no-access; 403 for a
+        # reader who cannot write.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            reponse = HttpResponse(status=403)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Vous n'avez pas le droit de modifier "
+                               "cette note.",
+                    "icon": "warning",
+                },
+            })
+            return reponse
+
+        def _refus_falc(message):
+            reponse_de_refus = HttpResponse(status=409)
+            reponse_de_refus["HX-Trigger"] = json.dumps({
+                "showToast": {"message": message, "icon": "warning"},
+            })
+            return reponse_de_refus
+
+        # Un etat actif FANTOME (relecture U2, defaut H2) : un worker
+        # docling tue en pleine conversion (serveur 8 Go, concurrence 1)
+        # laisse en_cours pour toujours. Au-dela de DELAI_INGESTION_
+        # FANTOME_MIN sans mise a jour, on autorise la relance : le
+        # message « attendez » deviendrait un mensonge. / A dead worker
+        # leaves an active state forever; past a delay, allow relaunch.
+        DELAI_INGESTION_FANTOME_MIN = 15
+        ingestion_active = page.ingestion_etat in (
+            EtatIngestion.EN_ATTENTE, EtatIngestion.EN_COURS,
+        )
+        if ingestion_active:
+            derniere_maj = page.ingestion_maj_le
+            fantome = (
+                derniere_maj is not None
+                and (timezone.now() - derniere_maj)
+                > timedelta(minutes=DELAI_INGESTION_FANTOME_MIN)
+            )
+            if not fantome:
+                return _refus_falc(
+                    "Un découpage est déjà en cours pour cette note. "
+                    "Attendez qu'il se termine.",
+                )
+
+        if page.elements.exists():
+            return _refus_falc(
+                "Cette note a déjà ses éléments : il n'y a rien à "
+                "relancer.",
+            )
+
+        # Le fichier source doit exister ET etre d'un type couvert
+        # (relecture U2, defaut M2) : original_filename peut manquer sur
+        # de vieilles pages — on se rabat sur le nom du fichier stocke.
+        # / The source file must exist and be a covered type; fall back
+        # on the stored file name.
+        if not page.source_file:
+            return _refus_falc(
+                "Le fichier d'origine n'est plus disponible : le "
+                "découpage est impossible. La note reste lisible.",
+            )
+        from hypostasis_extractor.services.ingestion_docling import (
+            fichier_couvert_par_docling,
+        )
+        nom_du_fichier = page.original_filename or page.source_file.name or ""
+        if not fichier_couvert_par_docling(nom_du_fichier):
+            return _refus_falc(
+                "Ce type de fichier ne se découpe pas en éléments. "
+                "La note reste lisible telle quelle.",
+            )
+
+        from hypostasis_extractor.tasks_element import (
+            ingerer_un_fichier_avec_docling,
+        )
+        try:
+            ingerer_un_fichier_avec_docling.delay(page.pk)
+        except Exception as erreur_de_broker:
+            logger.error(
+                "relance ingestion: NON lancee pour la page pk=%s (%s)",
+                page.pk, erreur_de_broker,
+            )
+            reponse = HttpResponse(status=503)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Le découpage n'a pas pu être relancé "
+                               "(service indisponible). Réessayez dans "
+                               "un instant.",
+                    "icon": "error",
+                },
+            })
+            return reponse
+
+        Page.objects.filter(pk=page.pk).update(
+            ingestion_etat=EtatIngestion.EN_ATTENTE, ingestion_detail="",
+            ingestion_maj_le=timezone.now(),
+        )
+
+        reponse = render(request, "front/includes/_etat_ingestion.html", {
+            "page": Page.objects.get(pk=page.pk),
+            "numero_d_essai": 0,
+            "plafond_atteint": False,
+            "peut_ecrire": True,
+        })
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {
+                "message": "Découpage en éléments relancé.",
+                "icon": "success",
+            },
+        })
+        return reponse
+
     @action(detail=True, methods=["GET"], url_path="previsualiser_analyse")
     def previsualiser_analyse(self, request, pk=None):
         """
@@ -1850,6 +2113,14 @@ class LectureViewSet(viewsets.ViewSet):
         / If the last job errored → shows the error with option to re-launch.
         """
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde de lecture (famille du 10 aout) : le prompt complet
+        # rendu ici contient TOUT le texte de la note — c'etait la
+        # fuite la plus grave de la famille. / Read guard: the full
+        # prompt embeds the whole note text.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
 
         # Acces direct (F5) → rediriger vers la page de lecture
         # Cette vue ne sert que comme partial HTMX, pas en acces direct
@@ -1978,9 +2249,33 @@ class LectureViewSet(viewsets.ViewSet):
         # / This is exactly what the LLM receives on top of each chunk's text.
         prompt_overhead_reel = generateur_prompt.render(question="")
 
-        # Texte source de la page (sera envoye au LLM, reparti en chunks)
-        # / Source text from the page (will be sent to the LLM, split in chunks)
-        texte_source_page = page.text_readability or ""
+        # Texte source de la page (sera envoye au LLM, reparti en chunks).
+        # U3 (reste § 5 du cahier) : pour une page ELEMENT, on rejoue le
+        # VRAI decoupage (construire_les_chunks sur ses elements
+        # visibles) — le decoupage arithmetique de text_readability
+        # donnait un nombre de chunks approximatif, donc un overhead de
+        # prompt sous- ou sur-compte. L'ANCIEN moteur garde son calcul.
+        # / ELEMENT pages replay the real chunking for the estimate;
+        # OLD pages keep the arithmetic split.
+        chunks_reels_de_la_page = None
+        if page.moteur == MoteurDePage.ELEMENT:
+            elements_visibles_de_la_page = list(
+                page.elements.filter(masque=False).order_by("ordre"),
+            )
+            if elements_visibles_de_la_page:
+                from hypostasis_extractor.services.chunking import (
+                    construire_les_chunks,
+                )
+                chunks_reels_de_la_page = construire_les_chunks(
+                    elements_visibles_de_la_page,
+                )
+
+        if chunks_reels_de_la_page:
+            texte_source_page = "\n\n".join(
+                chunk["texte"] for chunk in chunks_reels_de_la_page
+            )
+        else:
+            texte_source_page = page.text_readability or ""
 
         # Prompt complet pour l'affichage (overhead + texte source)
         # / Full prompt for display (overhead + source text)
@@ -2001,12 +2296,16 @@ class LectureViewSet(viewsets.ViewSet):
         tokens_overhead_par_chunk = len(encodeur_tokens.encode(prompt_overhead_reel))
         tokens_texte_source = len(encodeur_tokens.encode(texte_source_page))
 
-        # Nombre de chunks estimes (langextract coupe aux frontieres de phrases,
-        # mais on approxime avec un decoupage brut par taille de buffer)
-        # / Estimated chunk count (langextract cuts at sentence boundaries,
-        # / but we approximate with raw buffer size division)
-        taille_max_chunk = 1500
-        nombre_chunks_estime = max(1, math.ceil(len(texte_source_page) / taille_max_chunk))
+        # Nombre de chunks : le VRAI compte pour une page ELEMENT (U3),
+        # l'approximation par taille de buffer pour l'ANCIEN moteur.
+        # / Real count for ELEMENT pages, arithmetic for OLD ones.
+        if chunks_reels_de_la_page:
+            nombre_chunks_estime = max(1, len(chunks_reels_de_la_page))
+        else:
+            taille_max_chunk = 1500
+            nombre_chunks_estime = max(
+                1, math.ceil(len(texte_source_page) / taille_max_chunk),
+            )
 
         # Total input = overhead repete N fois + texte source (reparti sur les chunks)
         # / Total input = overhead repeated N times + source text (spread across chunks)
@@ -2278,6 +2577,12 @@ class LectureViewSet(viewsets.ViewSet):
         / If a synthesis job is running \u2192 returns the polling partial.
         """
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde de lecture (famille du 10 aout) : le prompt de synthese
+        # contient le texte et les extractions. / Read guard.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
 
         # Acces direct (F5) \u2192 rediriger vers la lecture / Direct access (F5) \u2192 redirect
         if not request.headers.get("HX-Request"):
@@ -2677,6 +2982,12 @@ class LectureViewSet(viewsets.ViewSet):
         / Returns the modal partial for renaming a speaker.
         """
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde de lecture (famille du 10 aout). / Read guard.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
+
         ancien_nom = request.query_params.get("speaker", "")
         index_bloc = request.query_params.get("block_index", "0")
 
@@ -2698,6 +3009,13 @@ class LectureViewSet(viewsets.ViewSet):
         from .services.transcription_audio import construire_html_diarise
 
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde d'ECRITURE (famille du 10 aout) : reecrire la
+        # transcription d'autrui etait possible pour tout compte
+        # connecte. / Write guard: any account could rewrite anyone's
+        # transcription.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
 
         # Une analyse en cours lit ce texte et ecrira ses
         # positions dessus : le changer maintenant les rendrait
@@ -2833,6 +3151,13 @@ class LectureViewSet(viewsets.ViewSet):
         from .services.transcription_audio import COULEURS_LOCUTEURS, _formater_timestamp
 
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde de lecture (famille du 10 aout) : le formulaire rend le
+        # texte d'un bloc de transcription. / Read guard.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
+
         index_bloc = int(request.query_params.get("block_index", "0"))
 
         # Extraire le texte et les metadonnees du bloc cible depuis transcription_raw
@@ -2908,6 +3233,13 @@ class LectureViewSet(viewsets.ViewSet):
         from .services.transcription_audio import construire_html_diarise
 
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde d'ECRITURE (famille du 10 aout) : reecrire la
+        # transcription d'autrui etait possible pour tout compte
+        # connecte. / Write guard: any account could rewrite anyone's
+        # transcription.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
 
         # Une analyse en cours lit ce texte et ecrira ses
         # positions dessus : le changer maintenant les rendrait
@@ -3060,6 +3392,13 @@ class LectureViewSet(viewsets.ViewSet):
         from .services.transcription_audio import construire_html_diarise
 
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde d'ECRITURE (famille du 10 aout) : reecrire la
+        # transcription d'autrui etait possible pour tout compte
+        # connecte. / Write guard: any account could rewrite anyone's
+        # transcription.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
 
         # Une analyse en cours lit ce texte et ecrira ses
         # positions dessus : le changer maintenant les rendrait
@@ -3314,6 +3653,14 @@ class DossierViewSet(viewsets.ViewSet):
             return refus
 
         dossier_cible = get_object_or_404(Dossier, pk=pk)
+
+        # Garde OWNER (famille du 10 aout) : lire les partages fuyait
+        # les emails des invitations, et le POST permettait d'ajouter
+        # ou retirer des partages sur le dossier d'autrui. Meme regle
+        # que renommer/detruire/inviter. / Owner guard: reading leaked
+        # invitation emails; POST could edit anyone's shares.
+        if dossier_cible.owner != request.user:
+            return _reponse_acces_refuse(request)
 
         if request.method == "POST":
             # Detecter si c'est un retrait (retirer_user_id / retirer_groupe_id) ou un ajout
@@ -3843,6 +4190,12 @@ class ExtractionViewSet(viewsets.ViewSet):
         if not page_id:
             return HttpResponse("page_id requis.", status=400)
         page = get_object_or_404(Page, pk=page_id)
+        # Garde de lecture (famille du 10 aout) : ce panneau rend
+        # TOUTES les extractions de la page. / Read guard: this panel
+        # renders every extraction of the page.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
         html_complet = self._render_panneau_complet_avec_oob(request, page)
         return HttpResponse(html_complet)
 
@@ -3869,6 +4222,11 @@ class ExtractionViewSet(viewsets.ViewSet):
             return HttpResponse("Aucune page selectionnee.", status=400)
 
         page = get_object_or_404(Page, pk=validated_page_id)
+
+        # Garde de lecture (famille du 10 aout). / Read guard.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
 
         # Calculer start_char dans text_readability cote serveur
         # / Compute start_char in text_readability server-side
@@ -3928,6 +4286,13 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         donnees = serializer.validated_data
         page = get_object_or_404(Page, pk=donnees["page_id"])
+
+        # Garde d'ECRITURE (famille du 10 aout) : tout compte connecte
+        # pouvait creer une extraction sur n'importe quelle note.
+        # / Write guard.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
+
         job_manuel = self._get_or_create_job_manuel(page)
 
         # Lire les paires cle/valeur dynamiques depuis le formulaire
@@ -3977,6 +4342,14 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         entite = get_object_or_404(ExtractedEntity, pk=identifiant_entite)
 
+        # La regle du produit (SPEC-corpus § 5.2), doctrine du 404 :
+        # une extraction d'une note interdite est INTROUVABLE, au meme
+        # octet qu'une extraction absente (correctif du 10 aout — cette
+        # action ne verifiait rien). / Product access rule, 404
+        # doctrine: forbidden is byte-identical to missing.
+        if not _utilisateur_a_acces_page(request.user, entite.job.page):
+            raise Http404("No ExtractedEntity matches the given query.")
+
         # Compter les commentaires pour cette entite
         # / Count comments for this entity
         nombre_commentaires = CommentaireExtraction.objects.filter(entity=entite).count()
@@ -4014,6 +4387,13 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         donnees = serializer.validated_data
         entite = get_object_or_404(ExtractedEntity, pk=donnees["entity_id"])
+
+        # Garde d'ACCES (famille du 10 aout) : le debat est ouvert a
+        # qui peut LIRE la note — pas au reste du monde. / Access
+        # guard: the debate is open to whoever can read the note.
+        refus = _verifier_acces_page(request, entite.job.page)
+        if refus:
+            return refus
 
         # Creer le commentaire (le signal Django met statut_debat a "commente")
         # / Create the comment (Django signal sets statut_debat to "commente")
@@ -4102,6 +4482,12 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         page = get_object_or_404(Page, pk=page_id)
 
+        # Garde PROPRIETAIRE (famille du 10 aout) : une suppression en
+        # masse est destructrice — meme regle que masquer/restaurer.
+        # / Owner guard: mass deletion, same rule as hide/restore.
+        if not _est_proprietaire_page(request.user, page):
+            return _reponse_acces_refuse(request)
+
         # Supprimer les entites IA sans commentaires (pas les jobs entiers pour garder celles avec commentaires)
         # / Delete AI entities without comments (not entire jobs, to keep commented ones)
         entites_ia_sans_commentaires = ExtractedEntity.objects.filter(
@@ -4150,6 +4536,14 @@ class ExtractionViewSet(viewsets.ViewSet):
             return HttpResponse("page_id requis.", status=400)
 
         page = get_object_or_404(Page, pk=page_id)
+
+        # Doctrine du 404 (correctif du 10 aout) : une note interdite
+        # est introuvable — pas d'oracle d'existence par ce formulaire.
+        # / 404 doctrine: forbidden note is indistinguishable from
+        # missing.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
+
         tous_les_analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
 
         return render(request, "front/includes/modale_promouvoir_entrainement.html", {
@@ -4181,6 +4575,14 @@ class ExtractionViewSet(viewsets.ViewSet):
         analyseur_id = serializer.validated_data["analyseur_id"]
 
         page = get_object_or_404(Page, pk=page_id)
+
+        # Garde PROPRIETAIRE (famille du 10 aout) : promouvoir copie le
+        # texte de la note ET ses extractions dans un exemple
+        # d'entrainement global. / Owner guard: promotion copies the
+        # note's text into a global training example.
+        if not _est_proprietaire_page(request.user, page):
+            return _reponse_acces_refuse(request)
+
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
 
         # Recupere toutes les entites IA de la page (jobs completed avec ai_model)
@@ -4309,6 +4711,12 @@ class ExtractionViewSet(viewsets.ViewSet):
             return reponse
 
         page = get_object_or_404(Page, pk=identifiant_page)
+
+        # Garde d'ECRITURE (famille du 10 aout) : une analyse LIT la
+        # note et COUTE de l'argent — jamais pour un tiers sans droit.
+        # / Write guard: an analysis reads the note and costs money.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
 
         # Verifier que l'IA est activee et qu'un modele est configure
         # / Check that AI is enabled and a model is configured
@@ -4540,6 +4948,11 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         page = get_object_or_404(Page, pk=identifiant_page)
 
+        # Doctrine du 404 (correctif du 10 aout) : les stats de debat
+        # d'une note interdite sont introuvables. / 404 doctrine.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
+
         # Calculer l'etat du consensus via le helper / Compute consensus state via helper
         donnees_consensus = _calculer_consensus(page)
 
@@ -4571,6 +4984,16 @@ class ExtractionViewSet(viewsets.ViewSet):
             return HttpResponse("page_id requis.", status=400)
 
         page = get_object_or_404(Page, pk=identifiant_page)
+
+        # La regle du produit (SPEC-corpus § 5.2), doctrine du 404
+        # (correctif du 10 aout) : ce drawer rendait le TEXTE de toutes
+        # les extractions de N'IMPORTE QUELLE page, sans etre connecte.
+        # Une note interdite est desormais INTROUVABLE, au meme octet
+        # qu'une note absente — pas d'oracle d'existence.
+        # / This drawer leaked every extraction's text for any page,
+        # unauthenticated. Forbidden is now byte-identical to missing.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
 
         # Refonte A.6 : plus de drawer "analyse en cours" specifique. Si un job
         # tourne, on nettoie quand meme les jobs bloques (pour que les vues
@@ -4696,6 +5119,14 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / new/commented status no longer makes sense as a sort criterion.
         if parametre_tri == "activite":
             toutes_les_entites = toutes_les_entites.order_by("-created_at")
+        elif page.moteur == MoteurDePage.ELEMENT:
+            # U3 (reste § 5 du cahier) : sur une page ELEMENT,
+            # start_char est un offset de CHUNK — le tri « position »
+            # suit l'ANCRE (ordre de l'element, debut dans l'element).
+            # / ELEMENT pages sort by anchor, not chunk offset.
+            toutes_les_entites = _trier_les_entites_par_ancre(
+                toutes_les_entites,
+            )
         else:
             toutes_les_entites = toutes_les_entites.order_by("start_char")
 
@@ -5169,6 +5600,19 @@ class ImportViewSet(viewsets.ViewSet):
             try:
                 ingerer_un_fichier_avec_docling.delay(page_importee.pk)
                 ingestion_docling_lancee = True
+                # U2 : l'etat est VISIBLE dans la lecture des maintenant
+                # (puce d'attente). Update CONDITIONNEL sur l'etat vide
+                # (relecture U2, defaut H1) : un worker eclair peut
+                # avoir deja pose en_cours/echouee AVANT cette ligne —
+                # on ne l'ecrase pas, la tache fait foi.
+                # / Conditional on the empty state: a fast worker may
+                # already have written; the task's write wins.
+                Page.objects.filter(
+                    pk=page_importee.pk, ingestion_etat="",
+                ).update(
+                    ingestion_etat=EtatIngestion.EN_ATTENTE,
+                    ingestion_detail="", ingestion_maj_le=timezone.now(),
+                )
                 logger.info(
                     "import fichier: ingestion Docling lancee pour la page pk=%s",
                     page_importee.pk,
@@ -5500,6 +5944,13 @@ class QuestionnaireViewSet(viewsets.ViewSet):
             return HttpResponse("page_id requis.", status=400)
 
         page = get_object_or_404(Page, pk=page_id)
+
+        # Garde de lecture, doctrine du 404 (famille du 10 aout) : les
+        # questions et reponses d'une note interdite sont introuvables,
+        # au meme octet qu'une note absente. / Read guard, 404 doctrine.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
+
         return self._render_questionnaire(request, page)
 
     @action(detail=False, methods=["POST"], url_path="poser_question")
@@ -5521,6 +5972,12 @@ class QuestionnaireViewSet(viewsets.ViewSet):
 
         donnees = serializer.validated_data
         page = get_object_or_404(Page, pk=donnees["page_id"])
+
+        # Garde d'ACCES (famille du 10 aout) : questionner exige de
+        # pouvoir lire la note. / Access guard: asking requires reading.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
 
         # Creer la question / Create the question
         Question.objects.create(
@@ -5554,6 +6011,12 @@ class QuestionnaireViewSet(viewsets.ViewSet):
 
         donnees = serializer.validated_data
         question = get_object_or_404(Question, pk=donnees["question_id"])
+
+        # Garde d'ACCES (famille du 10 aout) : repondre exige de
+        # pouvoir lire la note de la question. / Access guard.
+        refus = _verifier_acces_page(request, question.page)
+        if refus:
+            return refus
 
         # Creer la reponse / Create the answer
         ReponseQuestion.objects.create(

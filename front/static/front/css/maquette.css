@@ -1139,3 +1139,166 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
     transition-duration: .01ms !important;
   }
 }
+
+/* =========================================================================
+   U1 — LE MODE STRUCTURE : boutons d'operations d'element
+   Les groupes .actions-element (dans chaque bloc) et les placeholders
+   .element-masque sont RENDUS pour qui peut ecrire, mais INVISIBLES tant
+   que #zone-lecture ne porte pas .mode-structure (bouton a bascule).
+   display:none les retire aussi de l'arbre d'accessibilite : un lecteur
+   d'ecran ne traverse pas trente boutons au fil du texte en mode lecture.
+   / U1 structure mode: per-block action buttons and masked-element
+   placeholders, hidden (display:none, out of the a11y tree too) until
+   #zone-lecture carries .mode-structure.
+   ========================================================================= */
+
+.actions-element { display: none; }
+#zone-lecture.mode-structure .actions-element {
+  display: inline-flex; gap: .3rem; flex-wrap: wrap;
+  margin-left: .5rem; vertical-align: middle;
+}
+/* Les boutons : petits, monospace, neutres — la grammaire des controles
+   discrets de l'etalon (.bouton-icone). Le filet de contour est
+   --filet-controle : le --filet nu fait 1,28:1 la ou WCAG 1.4.11 veut
+   3:1 (lecon T5). Taille de police FIXE : le groupe vit aussi dans des
+   h2/h3. / Small mono neutral buttons; --filet-controle for 3:1. */
+.actions-element button {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .68rem; line-height: 1; font-weight: 400;
+  color: var(--encre-douce); background: var(--papier);
+  border: 1px solid var(--filet-controle); border-radius: 4px;
+  /* min-height 24px : cible WCAG 2.5.8 (les ~22 px mesures en
+     verification U1 passaient dessous). / 24px target size. */
+  padding: .32rem .55rem; min-height: 24px; cursor: pointer;
+}
+.actions-element button:hover {
+  color: var(--encre); background: var(--papier-creux);
+}
+.actions-element button.danger:hover {
+  color: var(--danger); border-color: var(--danger);
+}
+
+/* Le placeholder d'un element masque : visible en mode structure
+   seulement, en retrait assume — filet pointille, encre douce (4,6:1
+   sur papier clair), JAMAIS un fond semantique plein sous du texte
+   fige. / Masked-element placeholder, structure mode only. */
+.element-masque { display: none; }
+#zone-lecture.mode-structure .element-masque {
+  display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
+  border: 1px dashed var(--filet-controle); border-radius: 5px;
+  background: var(--papier-creux); color: var(--encre-douce);
+  padding: .45rem .7rem; margin: .6rem 0; font-size: .85rem;
+  list-style: none;
+}
+.element-masque .etiquette {
+  font-family: ui-monospace, Menlo, monospace; font-size: .62rem;
+  text-transform: uppercase; letter-spacing: .07em;
+}
+.element-masque .extrait { font-style: italic; }
+.element-masque button {
+  font-family: ui-monospace, Menlo, monospace; font-size: .68rem;
+  color: var(--encre); background: var(--papier);
+  border: 1px solid var(--filet-controle); border-radius: 4px;
+  padding: .28rem .5rem; cursor: pointer;
+}
+.element-masque button:hover { background: var(--papier-creux); }
+
+/* Le dialogue des formulaires d'element (corriger, couper en deux).
+   <dialog> natif : voile, focus et Echap viennent du navigateur ; ici,
+   seulement l'habillage aux tokens du theme. / Element form dialog:
+   native <dialog>, theme tokens only. */
+.dialogue-element {
+  /* margin:auto — le preflight Tailwind (*{margin:0}) ecrase le
+     centrage NATIF de <dialog> : sans cette ligne il se colle en haut
+     a gauche (verification navigateur U1, defaut D1). Bordure en
+     --filet-controle + ombre : en sombre, --filet contre la page
+     voilee faisait 1,53:1 — la surface du modal ne se detachait pas
+     (defaut D2). / margin:auto restores native centering against the
+     Tailwind preflight; controle-grade border + shadow so the modal
+     separates from the dimmed page in dark mode. */
+  margin: auto;
+  border: 1px solid var(--filet-controle); border-radius: 8px;
+  background: var(--papier); color: var(--encre);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+  padding: 1.1rem 1.3rem; max-width: 34rem; width: calc(100% - 2rem);
+}
+.dialogue-element::backdrop { background: rgba(0, 0, 0, .45); }
+/* La zone d'erreur du dialogue : la grammaire des etats de ce design
+   system — un filet GAUCHE danger, jamais un fond semantique plein
+   sous du texte fige (defaut D3 de la verification U1).
+   / The dialog's error zone follows the left-rule state grammar. */
+.dialogue-element .erreur-du-dialogue {
+  border-left: 3px solid var(--danger);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border-radius: 0 5px 5px 0;
+  padding: .45rem .7rem; margin: .5rem 0 0;
+  font-size: .85rem;
+}
+.dialogue-element h2 {
+  font-size: 1.05rem; font-weight: 600; margin: 0 0 .8rem;
+}
+.dialogue-element label { font-size: .85rem; }
+.dialogue-element textarea {
+  width: 100%; margin: .4rem 0; padding: .5rem .6rem;
+  font-family: Georgia, serif; font-size: .95rem; line-height: 1.5;
+  color: var(--encre); background: var(--papier-panneau);
+  border: 1px solid var(--filet-controle); border-radius: 5px;
+}
+.dialogue-element .aide {
+  font-size: .78rem; color: var(--encre-douce); margin: .2rem 0 .6rem;
+}
+.dialogue-element .pied-du-dialogue {
+  display: flex; justify-content: flex-end; gap: .5rem; margin-top: .6rem;
+}
+.dialogue-element .bouton-du-dialogue {
+  font-family: ui-monospace, Menlo, monospace; font-size: .75rem;
+  color: var(--encre); background: var(--papier);
+  border: 1px solid var(--filet-controle); border-radius: 5px;
+  padding: .4rem .8rem; cursor: pointer;
+}
+.dialogue-element .bouton-du-dialogue:hover { background: var(--papier-creux); }
+/* Le bouton principal : encre sur papier INVERSES — le couple le plus
+   contraste du systeme, dans les deux themes (jamais de white fige,
+   lecon T10/F4-F10). / Primary: inverted ink/paper, never fixed white. */
+.dialogue-element .bouton-du-dialogue.principal {
+  background: var(--encre); color: var(--papier); border-color: var(--encre);
+}
+
+/* Relecture U1 (defaut H3) : l'include des boutons vit aussi dans des
+   <pre> ou white-space:pre rend chaque retour a la ligne VISIBLE — les
+   blancs internes au groupe redeviennent ordinaires ici.
+   / Inside <pre>, internal whitespace must collapse again. */
+.actions-element { white-space: normal; }
+
+/* La puce d'etat de l'ingestion (U2) : discrete en marche normale,
+   grammaire du filet GAUCHE danger en echec. Le voyant est decoratif
+   (aria-hidden), l'etat est dans le TEXTE. / Ingestion status chip. */
+.etat-ingestion {
+  display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
+  font-family: ui-monospace, Menlo, monospace; font-size: .78rem;
+  color: var(--encre-douce); background: var(--papier-panneau);
+  border: 1px solid var(--filet); border-radius: 5px;
+  padding: .45rem .7rem; margin: 0 0 1rem;
+}
+.etat-ingestion .voyant {
+  width: .5rem; height: .5rem; border-radius: 50%;
+  background: var(--encre-douce); align-self: center;
+  animation: voyant-ingestion 1.6s ease-in-out infinite;
+}
+@keyframes voyant-ingestion {
+  0%, 100% { opacity: .35; } 50% { opacity: 1; }
+}
+.etat-ingestion.echec {
+  border-left: 3px solid var(--danger); border-radius: 0 5px 5px 0;
+  color: var(--encre);
+}
+.etat-ingestion.echec .voyant { background: var(--danger); animation: none; }
+.etat-ingestion .detail { font-style: italic; color: var(--encre-douce); }
+.etat-ingestion button {
+  font-family: ui-monospace, Menlo, monospace; font-size: .7rem;
+  color: var(--encre); background: var(--papier);
+  border: 1px solid var(--filet-controle); border-radius: 4px;
+  padding: .32rem .55rem; min-height: 24px; cursor: pointer;
+}
+.etat-ingestion button:hover { background: var(--papier-creux); }

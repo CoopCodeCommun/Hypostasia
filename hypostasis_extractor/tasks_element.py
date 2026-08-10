@@ -226,6 +226,32 @@ def _prevenir_l_utilisateur(job_extraction, statut):
         )
 
 
+def _noter_l_etat_d_ingestion(identifiant_de_la_page, etat, detail=""):
+    """
+    Ecrit l'etat d'ingestion sur la page, en une requete UPDATE (U2).
+    / Writes the ingestion state on the page in one UPDATE query.
+
+    LOCALISATION : hypostasis_extractor/tasks_element.py
+
+    Un update() cible, jamais un save() de l'objet entier : la page
+    peut etre modifiee ailleurs pendant la conversion (titre, carnets),
+    on ne doit ecraser que ces trois champs. L'horodatage permet a la
+    relance de detecter un etat actif FANTOME (worker tue, relecture
+    U2 defaut H2). La tache FAIT FOI : elle ecrit sans condition —
+    c'est la VUE qui pose son etat sous condition (defaut H1).
+    / Targeted update with a timestamp; the task's write always wins,
+    the view's write is conditional.
+    """
+    from django.utils import timezone
+
+    from core.models import Page
+
+    Page.objects.filter(pk=identifiant_de_la_page).update(
+        ingestion_etat=etat, ingestion_detail=detail,
+        ingestion_maj_le=timezone.now(),
+    )
+
+
 @shared_task(bind=True)
 def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fichier=None):
     """
@@ -249,8 +275,8 @@ def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fich
     convertir sans lancer d'analyse.
     / Converting is slow but free; analysing costs money. Keep them apart.
     """
-    from core.models import Page
-    from hypostasis_extractor.services.ingestion_docling import ingerer_un_fichier
+    from core.models import EtatIngestion, MoteurDePage, Page
+    from hypostasis_extractor.services import ingestion_docling
 
     try:
         page = Page.objects.get(pk=identifiant_de_la_page)
@@ -264,7 +290,18 @@ def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fich
             "re-ingestion pour ne pas perdre les ancres existantes.",
             page.pk,
         )
+        # Redelivraison Celery apres un succes : la page ELEMENT est
+        # bien ingeree, l'etat le dit. Les elements DORMANTS d'une page
+        # ANCIEN (phases de test) ne changent rien. (U2)
+        # / Celery redelivery after success: keep the state truthful.
+        if page.moteur == MoteurDePage.ELEMENT:
+            _noter_l_etat_d_ingestion(page.pk, EtatIngestion.REUSSIE)
         return {"erreur": "page deja ingeree"}
+
+    # L'etat « en cours » est visible dans la lecture (U2) — c'est le
+    # premier moment ou l'on SAIT que le worker a pris le travail.
+    # / First moment the worker provably took the job.
+    _noter_l_etat_d_ingestion(page.pk, EtatIngestion.EN_COURS)
 
     # Resoudre le chemin depuis la page si la vue ne l'a pas donne.
     # `.path` peut lever avec un stockage non-fichier : on le dit
@@ -276,6 +313,12 @@ def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fich
                 "Page %s : pas de fichier source, ingestion impossible.",
                 page.pk,
             )
+            _noter_l_etat_d_ingestion(
+                page.pk, EtatIngestion.ECHOUEE,
+                "Le fichier d'origine n'est plus disponible : le "
+                "découpage en éléments est impossible. La note reste "
+                "lisible.",
+            )
             return {"erreur": "page sans fichier source"}
         try:
             chemin_du_fichier = page.source_file.path
@@ -284,18 +327,100 @@ def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fich
                 "Page %s : le stockage ne donne pas de chemin local (%s).",
                 page.pk, erreur_de_stockage,
             )
+            _noter_l_etat_d_ingestion(
+                page.pk, EtatIngestion.ECHOUEE,
+                "Le fichier d'origine n'est pas accessible sur ce "
+                "serveur : le découpage en éléments est impossible. La "
+                "note reste lisible.",
+            )
             return {"erreur": "fichier source sans chemin local"}
 
     try:
-        elements = ingerer_un_fichier(page, chemin_du_fichier)
+        elements = ingestion_docling.ingerer_un_fichier(page, chemin_du_fichier)
     except Exception as erreur:
         logger.exception(
             "Page %s : l'ingestion Docling a echoue.", page.pk,
         )
+        # Le detail technique va au journal ; l'ecran parle simplement
+        # et rappelle que rien n'est perdu (U2, FALC).
+        # / Technical detail in the log; the screen speaks plainly.
+        _noter_l_etat_d_ingestion(
+            page.pk, EtatIngestion.ECHOUEE,
+            "La conversion du fichier a échoué. La note reste lisible "
+            "telle quelle. Vous pouvez relancer le découpage.",
+        )
         return {"erreur": str(erreur)}
 
+    _noter_l_etat_d_ingestion(page.pk, EtatIngestion.REUSSIE)
     logger.info(
         "Page %s : %s element(s) ingere(s) depuis %s.",
         page.pk, len(elements), chemin_du_fichier,
+    )
+    return {"elements": len(elements)}
+
+
+@shared_task(bind=True)
+def ingerer_une_capture_web_avec_docling(self, identifiant_de_la_page):
+    """
+    Convertit le HTML d'une capture web en elements, via Docling (U4).
+    / Converts a web capture's HTML into elements, via Docling.
+
+    LOCALISATION : hypostasis_extractor/tasks_element.py
+
+    Decision D2 (ordre 2) : meme patron que l'ingestion de fichier,
+    mais la source est page.html_original (pas un fichier sur disque).
+    Meme file dediee `ingestion_docling` a concurrence 1, memes etats
+    (U2), meme repli honnete : un echec laisse une page ANCIEN lisible.
+    / Same pattern as file ingestion; the source is the captured HTML.
+
+    :param identifiant_de_la_page: la cle primaire de la Page capturee
+    :return: {"elements": int} ou un dict d'erreur
+    """
+    from core.models import EtatIngestion, MoteurDePage, Page
+    from hypostasis_extractor.services import ingestion_docling
+
+    try:
+        page = Page.objects.get(pk=identifiant_de_la_page)
+    except Page.DoesNotExist:
+        logger.error("Page %s introuvable.", identifiant_de_la_page)
+        return {"erreur": "page introuvable"}
+
+    if page.elements.exists():
+        logger.warning(
+            "Page %s a deja des elements : ingestion web refusee.", page.pk,
+        )
+        if page.moteur == MoteurDePage.ELEMENT:
+            _noter_l_etat_d_ingestion(page.pk, EtatIngestion.REUSSIE)
+        return {"erreur": "page deja ingeree"}
+
+    _noter_l_etat_d_ingestion(page.pk, EtatIngestion.EN_COURS)
+
+    try:
+        elements = ingestion_docling.ingerer_une_capture_web(page)
+    except ValueError as erreur:
+        # Pas de HTML a decouper : dit simplement, page lisible.
+        # / No HTML to split; said plainly, page still readable.
+        logger.warning("Page %s : capture sans HTML (%s).", page.pk, erreur)
+        _noter_l_etat_d_ingestion(
+            page.pk, EtatIngestion.ECHOUEE,
+            "Cette page capturée n'a pas de contenu à découper en "
+            "éléments. Elle reste lisible telle quelle.",
+        )
+        return {"erreur": "capture sans html"}
+    except Exception as erreur:
+        logger.exception(
+            "Page %s : l'ingestion Docling du HTML a echoue.", page.pk,
+        )
+        _noter_l_etat_d_ingestion(
+            page.pk, EtatIngestion.ECHOUEE,
+            "La conversion de la page capturée a échoué. La note reste "
+            "lisible telle quelle. Vous pouvez relancer le découpage.",
+        )
+        return {"erreur": str(erreur)}
+
+    _noter_l_etat_d_ingestion(page.pk, EtatIngestion.REUSSIE)
+    logger.info(
+        "Page %s : %s element(s) ingere(s) depuis le HTML capture.",
+        page.pk, len(elements),
     )
     return {"elements": len(elements)}

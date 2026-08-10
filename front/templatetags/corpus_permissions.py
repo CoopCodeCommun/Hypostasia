@@ -34,3 +34,23 @@ def est_moderable_par(page, utilisateur):
     from front.views import _est_proprietaire_page
 
     return _est_proprietaire_page(utilisateur, page)
+
+
+@register.filter(name="est_modifiable_par")
+def est_modifiable_par(page, utilisateur):
+    """
+    Vrai si l'utilisateur PEUT ECRIRE la note (droit d'ecriture sur au
+    moins un carnet qui la contient — SPEC-corpus § 5.2). C'est LA MEME
+    regle que les endpoints d'element (_utilisateur_peut_ecrire_page) :
+    le bouton et le droit ne divergent pas (lecon de la phase D).
+    / True if the user can WRITE the note — the exact rule the element
+    endpoints enforce, so button and right never diverge.
+
+    Usage : {% if page|est_modifiable_par:request.user %}
+    """
+    # Import local pour eviter de charger front.views a l'import des
+    # templatetags. / Local import to avoid loading front.views at
+    # templatetag import time.
+    from front.views import _utilisateur_peut_ecrire_page
+
+    return _utilisateur_peut_ecrire_page(utilisateur, page)

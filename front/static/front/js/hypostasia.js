@@ -399,9 +399,39 @@ document.body.addEventListener('fermerDrawer', function() {
 // / Other errors (500, 404, etc.) show a generic SweetAlert
 document.body.addEventListener('htmx:responseError', function(evenement) {
     var codeHttp = evenement.detail.xhr.status;
-    // Ignorer les 403 d'auth — gerees par HX-Trigger authRequise
-    // / Skip auth 403s — handled by HX-Trigger authRequise
-    if (codeHttp === 403) return;
+    // 403 : gere par authRequise ou par un toast FALC quand la vue en
+    // envoie un. Un 403 NU (DRF, session expiree — relecture U1,
+    // defaut M5) n'a AUCUN des deux : sans ce repli, le clic echouait
+    // en silence total. / A bare 403 (expired session) used to fail
+    // silently; offer the login prompt.
+    if (codeHttp === 403) {
+        var enTete403 = evenement.detail.xhr.getResponseHeader('HX-Trigger') || '';
+        if (enTete403.indexOf('authRequise') === -1
+                && enTete403.indexOf('showToast') === -1) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Connexion requise',
+                text: 'Votre session a expiré. Connectez-vous pour continuer.',
+                confirmButtonText: 'Se connecter',
+                showCancelButton: true,
+                cancelButtonText: 'Annuler',
+                confirmButtonColor: '#2563eb',
+            }).then(function (resultat) {
+                if (resultat.isConfirmed) {
+                    window.location.href = '/auth/login/';
+                }
+            });
+        }
+        return;
+    }
+    // Une reponse d'erreur qui porte deja son toast FALC (HX-Trigger
+    // showToast — les 409/400 des operations d'element, U1) n'a pas
+    // besoin d'un second SweetAlert generique par-dessus : le toast
+    // dit mieux, en francais simple, ce qui s'est passe.
+    // / An error that carries its own FALC toast doesn't need the
+    // generic SweetAlert on top.
+    var enTeteTrigger = evenement.detail.xhr.getResponseHeader('HX-Trigger') || '';
+    if (enTeteTrigger.indexOf('showToast') !== -1) return;
     var texteErreur = evenement.detail.xhr.responseText || 'Erreur inconnue';
     Swal.fire({
         icon: 'error',
@@ -456,6 +486,33 @@ document.body.addEventListener('showToast', function(evenement) {
     });
 });
 
+// --- Mode structure (U1) : les boutons d'operations d'element ---
+/**
+ * Bascule le mode structure de la lecture
+ * / Toggles the reading zone's structure mode
+ *
+ * LOCALISATION : front/static/front/js/hypostasia.js
+ *
+ * Appelee par le bouton #bouton-mode-structure
+ * (front/templates/front/includes/lecture_principale.html).
+ *
+ * La classe est posee sur #zone-lecture et PAS sur le partial de
+ * lecture : lectureReload (ci-dessous) ne remplace que l'innerHTML de
+ * #zone-lecture, donc le mode survit au rechargement qui suit chaque
+ * operation (corriger, couper, recoller, masquer). Le CSS
+ * (#zone-lecture.mode-structure, maquette.css) revele alors les
+ * groupes .actions-element et les placeholders .element-masque.
+ * / The class lives on #zone-lecture so it survives lectureReload.
+ *
+ * @param {HTMLElement} bouton - le bouton a bascule (aria-pressed)
+ */
+function basculerModeStructure(bouton) {
+    var zone = document.getElementById('zone-lecture');
+    if (!zone) return;
+    var actif = zone.classList.toggle('mode-structure');
+    bouton.setAttribute('aria-pressed', actif ? 'true' : 'false');
+}
+
 // --- Rechargement de la zone de lecture via HX-Trigger lectureReload ---
 // Les vues envoient HX-Trigger: {"lectureReload": {"page_id": "42"}}
 // / Reading zone reload via HX-Trigger lectureReload
@@ -492,6 +549,25 @@ document.body.addEventListener('lectureReload', function(evenement) {
 
         zoneLecture.innerHTML = doc.body.firstElementChild.innerHTML;
         htmx.process(zoneLecture);
+
+        // U1 : la classe mode-structure survit sur #zone-lecture, mais
+        // le bouton a bascule est re-rendu a neuf (aria-pressed=false).
+        // Un script inline injecte par innerHTML ne s'execute JAMAIS
+        // (relecture U1, defaut M1) : la resynchronisation vit donc
+        // ICI. Et si le remplacement a emporte le dialogue modal, le
+        // focus est tombe sur body — on le rend au bouton (defaut M9).
+        // / Re-sync the toggle's aria-pressed after the reload (inline
+        // scripts injected via innerHTML never run) and restore focus.
+        var boutonModeStructure = document.getElementById('bouton-mode-structure');
+        if (boutonModeStructure) {
+            var modeStructureActif = zoneLecture.classList.contains('mode-structure');
+            boutonModeStructure.setAttribute(
+                'aria-pressed', modeStructureActif ? 'true' : 'false'
+            );
+            if (modeStructureActif && document.activeElement === document.body) {
+                boutonModeStructure.focus();
+            }
+        }
 
         // Reconstruire les pastilles marginales apres le remplacement du contenu
         // / Rebuild margin pastilles after content replacement

@@ -28,8 +28,8 @@ import json
 import logging
 
 from django.db import transaction
-from django.http import HttpResponse
-from django.shortcuts import get_object_or_404
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404, render
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 
@@ -91,6 +91,29 @@ def _reponse_avec_toast(message, statut, icone="warning"):
     reponse = HttpResponse(status=statut)
     reponse["HX-Trigger"] = json.dumps({
         "showToast": {"message": message, "icon": icone},
+    })
+    return reponse
+
+
+def _reponse_passage_disparu():
+    """
+    Le pk vise n'existe plus (relecture U1, defaut M4) : en
+    collaboration, chaque scission ou fusion d'autrui REMPLACE des
+    lignes — les boutons rendus chez les autres pointent des morts.
+    404 + toast FALC + rechargement : jamais la page 404 brute dans un
+    SweetAlert. / Dead pk: FALC toast + reading reload, never the raw
+    404 page.
+    """
+    reponse = HttpResponse(status=404)
+    reponse["HX-Trigger"] = json.dumps({
+        "showToast": {
+            "message": (
+                "Ce passage vient de changer ou n'existe plus. "
+                "La lecture va se recharger."
+            ),
+            "icon": "info",
+        },
+        "lectureReload": {},
     })
     return reponse
 
@@ -164,10 +187,61 @@ class ElementViewSet(viewsets.ViewSet):
         if not _utilisateur_peut_ecrire_page(request.user, page):
             return _reponse_avec_toast(
                 "Vous n'avez pas le droit de modifier cette note. "
-                "Demandez l'acces a la personne qui la possede.",
+                "Demandez l'accès à la personne qui la possède.",
                 statut=403,
             )
         return None
+
+    @action(detail=True, methods=["GET"])
+    def formulaire_correction(self, request, pk=None):
+        """
+        Le formulaire de correction du texte, rendu par le serveur (U1).
+        / The server-rendered text-correction form.
+
+        FLUX : bouton « corriger » (_actions_element.html) -> GET ici ->
+        injecte dans #zone-dialogue-element -> le script du gabarit
+        ouvre le <dialog> en modal -> POST corriger.
+        Le droit est LE MEME que pour agir : pas de formulaire pour qui
+        ne peut pas ecrire. / Same write rule as the action itself.
+        """
+        element = ElementDocument.objects.select_related("page").filter(
+            pk=pk,
+        ).first()
+        if element is None:
+            return _reponse_passage_disparu()
+        refus = self._refus_si_pas_le_droit(request, element.page)
+        if refus:
+            return refus
+        return render(
+            request,
+            "front/includes/_formulaire_element_correction.html",
+            {"element": element},
+        )
+
+    @action(detail=True, methods=["GET"])
+    def formulaire_scission(self, request, pk=None):
+        """
+        Le formulaire de scission : placer le curseur, couper (U1).
+        / The split form: place the caret, cut.
+
+        La position de coupe est lue au moment de l'envoi depuis
+        selectionStart du textarea (en lecture seule) — le gabarit
+        porte ce cablage. / The cut position comes from the read-only
+        textarea's selectionStart at submit time.
+        """
+        element = ElementDocument.objects.select_related("page").filter(
+            pk=pk,
+        ).first()
+        if element is None:
+            return _reponse_passage_disparu()
+        refus = self._refus_si_pas_le_droit(request, element.page)
+        if refus:
+            return refus
+        return render(
+            request,
+            "front/includes/_formulaire_element_scission.html",
+            {"element": element},
+        )
 
     @action(detail=True, methods=["POST"])
     def corriger(self, request, pk=None):
@@ -231,6 +305,8 @@ class ElementViewSet(viewsets.ViewSet):
                         "identifiant_stable": str(element.identifiant_stable),
                     },
                 )
+        except Http404:
+            return _reponse_passage_disparu()
         except EditionBloqueePendantAnalyse:
             return _reponse_avec_toast(
                 _message_falc_du_blocage_par_analyse(), statut=409,
@@ -258,13 +334,26 @@ class ElementViewSet(viewsets.ViewSet):
         """
         serializer = ScissionDElementSerializer(data=request.data)
         if not serializer.is_valid():
+            # Le message dit QUOI FAIRE (relecture U1, defaut M6) : le
+            # cas de loin le plus courant est un envoi sans avoir place
+            # le curseur. / Say what to do: the common case is
+            # submitting without placing the caret.
+            if "position_de_coupe" in serializer.errors:
+                return _reponse_avec_toast(
+                    "Placez d'abord le curseur dans le texte, à "
+                    "l'endroit exact de la coupe. Puis appuyez sur "
+                    "« Couper ici ».",
+                    statut=400,
+                )
             return _reponse_avec_toast(
-                "La coupe demandée n'est pas valable : position entière "
-                "obligatoire, justification de 500 caractères au plus.",
+                "La justification ne doit pas dépasser 500 caractères.",
                 statut=400,
             )
         position_de_coupe = serializer.validated_data["position_de_coupe"]
         justification = serializer.validated_data.get("justification", "")
+        empreinte_annoncee = serializer.validated_data.get(
+            "empreinte_du_texte", "",
+        )
 
         from hypostasis_extractor.services.moteur_structure import (
             scinder_un_element,
@@ -281,11 +370,28 @@ class ElementViewSet(viewsets.ViewSet):
                 if refus:
                     return refus
 
+                # Le texte a-t-il change depuis l'affichage du
+                # formulaire ? (relecture U1, defaut H2) La position de
+                # coupe n'a de sens que sur le texte AFFICHE : sur un
+                # autre texte, elle couperait au mauvais endroit, sans
+                # aucun signal. / Has the text changed since the form
+                # was shown? A stale cut position corrupts silently.
+                if (empreinte_annoncee
+                        and empreinte_annoncee != element.empreinte_contenu):
+                    return _reponse_avec_toast(
+                        "Ce passage a été modifié entre-temps. Fermez "
+                        "la fenêtre et rouvrez-la pour couper le texte "
+                        "à jour.",
+                        statut=409,
+                    )
+
                 scinder_un_element(
                     element, position_de_coupe,
                     utilisateur=request.user,
                     justification=justification,
                 )
+        except Http404:
+            return _reponse_passage_disparu()
         except EditionBloqueePendantAnalyse:
             return _reponse_avec_toast(
                 _message_falc_du_blocage_par_analyse(), statut=409,
@@ -295,7 +401,17 @@ class ElementViewSet(viewsets.ViewSet):
                 _message_falc_du_blocage_par_synthese(blocage), statut=409,
             )
         except ValueError as erreur:
-            return _reponse_avec_toast(str(erreur), statut=400)
+            # Jamais str(erreur) brut vers l'utilisateur (relecture U1,
+            # defaut M6) : le detail va au journal, l'ecran parle
+            # simplement. / Raw error text goes to the log, not the
+            # user.
+            logger.info("Scission refusée (élément %s) : %s", pk, erreur)
+            return _reponse_avec_toast(
+                "On ne peut pas couper là. Placez le curseur au milieu "
+                "du texte : il faut garder du texte des deux côtés de "
+                "la coupe.",
+                statut=400,
+            )
 
         return _reponse_de_succes(
             element.page, "Élément coupé en deux.",
@@ -351,6 +467,8 @@ class ElementViewSet(viewsets.ViewSet):
                     utilisateur=request.user,
                     justification=justification,
                 )
+        except Http404:
+            return _reponse_passage_disparu()
         except EditionBloqueePendantAnalyse:
             return _reponse_avec_toast(
                 _message_falc_du_blocage_par_analyse(), statut=409,
@@ -360,7 +478,23 @@ class ElementViewSet(viewsets.ViewSet):
                 _message_falc_du_blocage_par_synthese(blocage), statut=409,
             )
         except ValueError as erreur:
-            return _reponse_avec_toast(str(erreur), statut=400)
+            # Message FALC dedie (relecture U1, defauts M6 et M8) : le
+            # cas reel est « le suivant est masque » — le bouton n'est
+            # plus rendu dans ce cas, mais un rendu perime peut encore
+            # l'envoyer. / Dedicated plain-words message; the real case
+            # is a hidden next element from a stale render.
+            logger.info("Fusion refusée (élément %s) : %s", pk, erreur)
+            if "masque" in str(erreur):
+                return _reponse_avec_toast(
+                    "Le passage suivant est masqué. Rétablissez-le "
+                    "d'abord si vous voulez les recoller.",
+                    statut=400,
+                )
+            return _reponse_avec_toast(
+                "Ces deux passages ne peuvent pas être recollés en "
+                "l'état. Rechargez la page et réessayez.",
+                statut=400,
+            )
 
         return _reponse_de_succes(
             element.page, "Les deux éléments ont été recollés.",
@@ -396,6 +530,8 @@ class ElementViewSet(viewsets.ViewSet):
                     element, justification=justification,
                     utilisateur=request.user,
                 )
+        except Http404:
+            return _reponse_passage_disparu()
         except EditionBloqueePendantAnalyse:
             return _reponse_avec_toast(
                 _message_falc_du_blocage_par_analyse(), statut=409,
@@ -441,6 +577,8 @@ class ElementViewSet(viewsets.ViewSet):
                     element, justification=justification,
                     utilisateur=request.user,
                 )
+        except Http404:
+            return _reponse_passage_disparu()
         except EditionBloqueePendantAnalyse:
             return _reponse_avec_toast(
                 _message_falc_du_blocage_par_analyse(), statut=409,
