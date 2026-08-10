@@ -1302,3 +1302,30 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
   padding: .32rem .55rem; min-height: 24px; cursor: pointer;
 }
 .etat-ingestion button:hover { background: var(--papier-creux); }
+
+/* ------------------------------------------------------------------ */
+/* Avis « trop d'idees pour les surligner » (reconversion du 10 aout). */
+/* Un bloc peut porter plus d'idees qu'on ne peut en marquer sans      */
+/* rendre la page inutilisable. Il le DIT ici, au lieu de se presenter */
+/* comme un texte ordinaire. Filet gauche : la grammaire des etats de  */
+/* ce design system (jamais la teinte seule).                          */
+/* / The block says it carries ideas it cannot show.                   */
+.avis-surlignage-abandonne {
+  font-size: .82rem; color: var(--encre-douce);
+  background: var(--papier-creux);
+  border-left: 3px solid var(--filet-controle);
+  border-radius: 0 4px 4px 0;
+  padding: .5rem .7rem; margin: 0 0 .6rem;
+  font-style: italic;
+}
+
+/* Etiquette « ancre detachee » sur une carte du panneau (10 aout).    */
+/* Reprise de l'etalon (maquette.html l. 1671-1682) : petite capitale  */
+/* monospace, discrete mais lisible. Elle doit se voir sans crier :    */
+/* c'est un etat a trancher, pas une erreur.                           */
+/* / A state to be resolved, not an error to shout about.              */
+.carte-ancre-detachee {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .55rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--encre-douce); margin-bottom: .3rem;
+}

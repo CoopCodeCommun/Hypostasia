@@ -1989,9 +1989,26 @@ class Phase10BaseHtmlDrawerTest(TestCase):
         self.assertIn('36rem', self.contenu_base)
 
     def test_drawer_z_index_superieur_backdrop(self):
-        """Le drawer (z-50) a un z-index superieur au backdrop (z-40)."""
-        self.assertIn('z-40', self.contenu_base)  # backdrop
-        self.assertIn('z-50', self.contenu_base)  # drawer
+        """
+        Le drawer passe AU-DESSUS de son voile, et les deux au-dessus du
+        fil d'Ariane. / The drawer sits above its backdrop, both above
+        the breadcrumb.
+
+        Ce test cherchait les classes Tailwind `z-40`/`z-50`. Elles ont
+        disparu le 10 aout, quand les z-index sont passes en STYLE INLINE
+        — le build Tailwind est FIGE, et le fil d'Ariane a un z-index de
+        66 qu'aucune classe standard ne depasse (`z-[70]` n'aurait rien
+        produit). Le test est reste sur l'ancienne ecriture et affirmait
+        donc une propriete que le fichier ne portait plus.
+        / The classes were replaced by inline z-index on 10 August.
+        """
+        self.assertIn(
+            'id="drawer-backdrop"', self.contenu_base,
+        )
+        voile = self.contenu_base.split('id="drawer-backdrop"')[1][:200]
+        panneau = self.contenu_base.split('id="drawer-overlay"')[1][:300]
+        self.assertIn("z-index: 68;", voile)
+        self.assertIn("z-index: 70;", panneau)
 
 
 class Phase10EndpointMasquerTest(TestCase):

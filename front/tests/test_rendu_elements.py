@@ -329,6 +329,41 @@ class RenduDuTexteTest(BaseRenduTestCase):
         # / The text itself is rendered, and escaped.
         self.assertEqual(html, "z" * 4000)
 
+    def test_le_bloc_dit_combien_d_idees_ne_sont_pas_surlignees(self):
+        """
+        Rendre le texte nu SANS le dire laisse le lecteur devant une page
+        ou rien n'est surligne, sans moyen de savoir que des centaines
+        d'idees s'y rattachent. Constate au navigateur sur /lire/419/
+        apres la reconversion : 623 ancres, zero marque, aucun message.
+        Le code promettait pourtant de « le dire dans le bloc » — il n'en
+        faisait qu'un logger.warning, invisible pour qui lit la page.
+        / Rendering plain text silently leaves the reader with no clue.
+        """
+        element = self._ajouter_un_element("z" * 4000)
+        for numero in range(MAXIMUM_DE_MARQUES_PAR_ELEMENT + 50):
+            self._ancrer(element, numero * 4, numero * 4 + 3, ordre=0)
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        bloc = next(
+            bloc for bloc in blocs if bloc["element"].pk == element.pk
+        )
+        self.assertEqual(
+            bloc["idees_non_surlignees"],
+            MAXIMUM_DE_MARQUES_PAR_ELEMENT + 50,
+        )
+
+    def test_un_bloc_normal_n_annonce_aucune_idee_non_surlignee(self):
+        element = self._ajouter_un_element("z" * 400)
+        self._ancrer(element, 0, 3, ordre=0)
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        bloc = next(
+            bloc for bloc in blocs if bloc["element"].pk == element.pk
+        )
+        self.assertEqual(bloc["idees_non_surlignees"], 0)
+
     def test_sous_le_plafond_le_surlignage_reste(self):
         """Contre-epreuve : le plafond ne se declenche pas pour rien."""
         element = self._ajouter_un_element("z" * 400)

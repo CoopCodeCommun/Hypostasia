@@ -76,6 +76,19 @@
             </div>
             {% endif %}
         {% else %}
+            {% if bloc.idees_non_surlignees %}
+            {# Ce bloc porte trop d'idees pour les surligner toutes sans #}
+            {# rendre la page inutilisable. On le DIT, au lieu de servir #}
+            {# un texte nu dont rien n'indique qu'il porte des preuves.  #}
+            {# / Say it, instead of serving bare text that hides them.   #}
+            <p class="avis-surlignage-abandonne"
+               data-testid="avis-surlignage-abandonne-{{ bloc.element.ordre }}">
+                Ce passage porte {{ bloc.idees_non_surlignees }} idées :
+                trop pour les surligner sans rendre la lecture
+                impossible. Elles restent consultables dans le panneau
+                des idées.
+            </p>
+            {% endif %}
             {% if bloc.balise == "h2" %}
                 <h2 data-element-id="{{ bloc.element.pk }}"
                     data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h2>{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}

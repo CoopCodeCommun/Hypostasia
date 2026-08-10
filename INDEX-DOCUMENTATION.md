@@ -25,6 +25,13 @@
   `decision-element-seul-moteur`) : le moteur ELEMENT devient le SEUL moteur,
   l'ANCIEN meurt (offsets, marge, pastilles). Toute spec qui décrit le double
   moteur (§ 9 de SPEC-ancrage) est à relire sous cet angle.
+- **⚠️ LA RECONVERSION EST FAITE (10 août, R1).** La base ne compte plus que
+  **228 pages, dont 226 sur ELEMENT** (2 laissées ANCIEN faute de contenu
+  lisible : pages 97 et 680), et elle a été **allégée de ses doublons
+  d'essai** — 983 commentaires humains intacts. Tout document qui parle de
+  « 542 pages ANCIEN », de « 546 pages » ou d'une reconversion « à faire »
+  est PÉRIMÉ sur ce point. Voir `A TESTER et DOCUMENTER/
+  reconversion-moteur-element-r1.md` et le CHANGELOG (entrée R1).
 - **Vocabulaire « phase » AMBIGU** : SPEC-ancrage numérote A-K + addenda BR-A→E
   + U1-U5 ; SPEC-synthese numérote A-I ; SPEC-corpus numérote A-I ;
   `PLAN/PHASES/` numérote 1-29. « phase H » ne désigne PAS la même chose selon
@@ -101,7 +108,9 @@
 
 Une fiche par phase livrée : quoi, comment tester, vérifications en base.
 - Ancrage : `ancrage-par-element-phase-a.md`, `ancrage-par-element-phases-b-a-g.md`,
-  `branchement-moteur-phases-br-a-b.md`, **`usage-moteur-element-u1-u3.md`** (U1-U4 + sécurité).
+  `branchement-moteur-phases-br-a-b.md`, **`usage-moteur-element-u1-u3.md`** (U1-U4 + sécurité),
+  **`reconversion-moteur-element-r1.md`** (R1 — la bascule de la base + l'allégement,
+  avec les deux commandes, leurs gardes et les chiffres avant/après).
 - Corpus : `corpus-phase-a`→`corpus-phase-g` (7 fiches).
 - Synthèse : `synthese-phase-c`→`synthese-phase-g`, `synthese-phases-h-i-ecrans.md`.
 

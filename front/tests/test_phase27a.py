@@ -191,13 +191,23 @@ class SourceLinkModelTest(TestCase):
         self.assertEqual(lien.justification, "Passage reformulé")
 
     def test_type_lien_choices(self):
-        """Les 4 types de lien sont disponibles."""
-        self.assertEqual(len(TypeLien.choices), 4)
+        """
+        Les types de lien de provenance disponibles.
+
+        Ce test en attendait QUATRE. Un cinquieme, `cite`, est arrive
+        avec la phase B de la synthese (SPEC-synthese § 4.5, migration
+        core.0048 du 9 aout) : c'est lui qui relie un wiki ou une
+        synthese a l'extraction qu'il cite. Le test est reste sur son
+        compte d'origine et etait rouge sur la branche depuis.
+        / A fifth type, `cite`, arrived with the synthesis layer.
+        """
         valeurs = [choix[0] for choix in TypeLien.choices]
+        self.assertEqual(len(TypeLien.choices), 5)
         self.assertIn("identique", valeurs)
         self.assertIn("modifie", valeurs)
         self.assertIn("nouveau", valeurs)
         self.assertIn("supprime", valeurs)
+        self.assertIn("cite", valeurs)
 
 
 # =============================================================================

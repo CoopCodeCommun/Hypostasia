@@ -181,7 +181,63 @@ def construire_les_segments(longueur_du_texte, portions):
     return segments
 
 
-def rendre_le_texte_d_un_element(element, portions):
+def _nombre_de_marques_prevu(segments):
+    """
+    Combien de <mark> le surlignage produirait, avant de le construire.
+    / How many <mark> the highlighting would produce, before building it.
+
+    LOCALISATION : front/services/rendu_elements.py
+    """
+    return sum(
+        min(len(portions_couvrantes), MAXIMUM_D_IDEES_SUPERPOSEES)
+        for _debut, _fin, portions_couvrantes in segments
+    )
+
+
+def le_surlignage_depasse_le_plafond(element, portions, segments=None):
+    """
+    Dit si cet element renoncera au surlignage faute de place.
+    / Says whether this element will give up highlighting.
+
+    LOCALISATION : front/services/rendu_elements.py
+
+    :param element: l'ElementDocument a rendre
+    :param portions: ses portions non detachees
+    :param segments: les segments deja calcules, si l'appelant les a
+    :return: True si le texte sera rendu nu
+
+    PASSER LES SEGMENTS QUAND ON LES A DEJA
+
+    `construire_les_segments` coute O(segments x portions). Sur
+    l'element pathologique que ce plafond existe pour contenir — 2 469
+    portions, 4 876 segments — chaque recalcul se compte en millions
+    d'iterations. Le laisser recalculer ici puis dans le rendu puis dans
+    la construction des blocs triplerait ce cout, precisement sur les
+    pages les plus lourdes.
+    / Recomputing would triple the cost on the very pages this cap exists
+    to protect.
+
+    POURQUOI L'APPELANT DOIT POUVOIR LE DEMANDER
+
+    Renoncer au surlignage est defendable ; le faire SANS LE DIRE ne
+    l'est pas. Constate au navigateur apres la reconversion du 10 aout :
+    la page 419 porte 623 ancres et n'affichait pas une seule marque, ni
+    le moindre message — le lecteur n'avait aucun moyen de savoir que ces
+    idees existaient. Le bloc a besoin de la reponse pour l'annoncer.
+    / Giving up is defensible; doing it silently is not.
+    """
+    if segments is None:
+        segments = construire_les_segments(
+            len(element.texte or ""), portions,
+        )
+    if not segments:
+        return False
+    return (
+        _nombre_de_marques_prevu(segments) > MAXIMUM_DE_MARQUES_PAR_ELEMENT
+    )
+
+
+def rendre_le_texte_d_un_element(element, portions, segments=None):
     """
     Rend le texte d'un element en HTML, avec ses surlignages.
     / Renders an element's text as HTML, with its highlights.
@@ -205,18 +261,14 @@ def rendre_le_texte_d_un_element(element, portions):
     / Escaping the whole text first would shift every offset.
     """
     texte = element.texte or ""
-    segments = construire_les_segments(len(texte), portions)
+    if segments is None:
+        segments = construire_les_segments(len(texte), portions)
 
     if not segments:
         return mark_safe("")
 
-    # Combien de marques ce rendu produirait-il ? On le sait avant de
-    # construire quoi que ce soit. / Count before building anything.
-    nombre_de_marques_prevu = sum(
-        min(len(portions_couvrantes), MAXIMUM_D_IDEES_SUPERPOSEES)
-        for _debut, _fin, portions_couvrantes in segments
-    )
-    if nombre_de_marques_prevu > MAXIMUM_DE_MARQUES_PAR_ELEMENT:
+    nombre_de_marques_prevu = _nombre_de_marques_prevu(segments)
+    if le_surlignage_depasse_le_plafond(element, portions, segments):
         logger.warning(
             "Element %s : %s marques prevues sur %s segments — au-dela du "
             "plafond de %s. Le texte est rendu SANS surlignage : au-dela de "
@@ -337,13 +389,31 @@ def construire_les_blocs_de_lecture(page):
             and not element.masque
         )
 
+        # Les segments servent au rendu ET a la question « ce bloc
+        # renonce-t-il au surlignage ? ». Un seul calcul pour les deux.
+        # / One computation, two uses.
+        segments_de_l_element = construire_les_segments(
+            len(element.texte or ""), portions_de_l_element,
+        )
+
         blocs.append({
             "element": element,
             "balise": BALISE_PAR_LABEL.get(element.label, BALISE_PAR_DEFAUT),
             "html_du_texte": rendre_le_texte_d_un_element(
-                element, portions_de_l_element,
+                element, portions_de_l_element, segments_de_l_element,
             ),
             "nombre_d_idees": len(identifiants_des_idees),
+            # Combien d'idees ce bloc porte sans pouvoir les montrer.
+            # Zero dans l'immense majorite des cas ; le bloc n'en parle
+            # que lorsqu'il y renonce vraiment.
+            # / How many ideas this block carries without showing them.
+            "idees_non_surlignees": (
+                len(identifiants_des_idees)
+                if le_surlignage_depasse_le_plafond(
+                    element, portions_de_l_element, segments_de_l_element,
+                )
+                else 0
+            ),
             "est_masque": element.masque,
             "fusion_possible": fusion_possible,
         })

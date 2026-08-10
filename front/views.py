@@ -5130,11 +5130,39 @@ class ExtractionViewSet(viewsets.ViewSet):
         else:
             toutes_les_entites = toutes_les_entites.order_by("start_char")
 
+        # QUELLES IDEES NE SONT MONTREES NULLE PART DANS LE TEXTE.
+        #
+        # Sur une page ELEMENT, une idee se montre par ses portions
+        # ancrees. Celle qui n'en a aucune — detachee par la reconversion
+        # du 10 aout, ou jamais alignee par l'ancien moteur — n'apparait
+        # QUE dans ce panneau. Le dire est la condition pour qu'un humain
+        # puisse la replacer : sans etiquette, elle est indiscernable de
+        # celles qui sont bien posees, et la promesse « un humain
+        # tranchera » ne veut rien dire.
+        #
+        # Sur une page ANCIEN il n'y a pas d'ancre du tout : les declarer
+        # toutes detachees serait un mensonge de masse.
+        # / Which ideas are shown nowhere in the text.
+        from hypostasis_extractor.models import AncrageExtraction, EtatAncrage
+
+        identifiants_ancres = set()
+        if page.moteur == MoteurDePage.ELEMENT:
+            identifiants_ancres = set(
+                AncrageExtraction.objects.filter(
+                    extraction__job__page=page,
+                    etat_ancrage=EtatAncrage.ANCREE,
+                ).values_list("extraction_id", flat=True)
+            )
+
         # Separer visibles et masquees (non_pertinent) pour le template
         # / Separate visible and hidden (non_pertinent) for the template
         entites_visibles = []
         entites_masquees = []
         for entite in toutes_les_entites:
+            entite.est_detachee = (
+                page.moteur == MoteurDePage.ELEMENT
+                and entite.pk not in identifiants_ancres
+            )
             if entite.masquee:
                 entites_masquees.append(entite)
             else:
