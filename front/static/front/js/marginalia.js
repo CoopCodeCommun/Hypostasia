@@ -35,61 +35,17 @@
     // Scanne les spans hl-extraction, groupe par bloc parent, cree les pastilles
     // / Scan hl-extraction spans, group by parent block, create dots
     function construirePastillesMarginales() {
-        // Nettoyer les pastilles existantes / Clean existing dots
+        // CONFORMITE MAQUETTE (10 aout) : la maquette n'a PAS de pastilles
+        // en marge. Les ancres sont le SURLIGNAGE INLINE
+        // (mark.portion.hl-extraction, pose par BR-D) et l'interaction se
+        // fait au CLIC sur l'ancre elle-meme (voir le handler plus bas,
+        // equivalent de allumerIdee de la maquette). On ne cree donc plus
+        // aucune pastille ; on se contente de nettoyer d'eventuels
+        // residus (anciennes pastilles laissees par un cache).
+        // / The mock has no margin dots: anchors are the inline highlight
+        // and interaction is a click on the anchor. We only clean leftovers.
         document.querySelectorAll('.pastilles-marge').forEach(function(el) {
             el.remove();
-        });
-
-        var tousLesSpans = document.querySelectorAll('#readability-content .hl-extraction[data-statut]');
-        if (!tousLesSpans.length) return;
-
-        // Grouper les spans par element bloc parent
-        // / Group spans by parent block element
-        var spansParBloc = new Map();
-        tousLesSpans.forEach(function(span) {
-            var blocParent = span.closest('p, div, blockquote, li, h1, h2, h3, h4, h5, h6');
-            if (!blocParent) return;
-
-            // Exclure le conteneur #readability-content lui-meme (c'est un div)
-            // / Exclude the #readability-content container itself (it's a div)
-            if (blocParent.id === 'readability-content') return;
-
-            if (!spansParBloc.has(blocParent)) {
-                spansParBloc.set(blocParent, []);
-            }
-            spansParBloc.get(blocParent).push(span);
-        });
-
-        // Pour chaque bloc parent, creer un conteneur de pastilles
-        // / For each parent block, create a dot container
-        spansParBloc.forEach(function(spans, blocParent) {
-            var conteneurPastilles = document.createElement('div');
-            conteneurPastilles.className = 'pastilles-marge';
-
-            // Position verticale alignee avec le premier span du bloc
-            // / Vertical position aligned with the first span in the block
-            var rectBloc = blocParent.getBoundingClientRect();
-            var rectPremierSpan = spans[0].getBoundingClientRect();
-            var decalageHaut = rectPremierSpan.top - rectBloc.top;
-            conteneurPastilles.style.top = decalageHaut + 'px';
-
-            spans.forEach(function(span) {
-                var extractionId = span.dataset.extractionId;
-                var statut = span.dataset.statut || 'nouveau';
-                var couleur = COULEURS_STATUT[statut] || COULEURS_STATUT.nouveau;
-
-                var pastille = document.createElement('button');
-                pastille.className = 'pastille-extraction';
-                pastille.dataset.extractionId = extractionId;
-                pastille.dataset.statut = statut;
-                pastille.style.backgroundColor = couleur;
-                pastille.title = 'Extraction #' + extractionId + ' — ' + statut;
-                pastille.setAttribute('aria-label', 'Voir extraction ' + extractionId);
-
-                conteneurPastilles.appendChild(pastille);
-            });
-
-            blocParent.appendChild(conteneurPastilles);
         });
     }
 
@@ -163,17 +119,29 @@
     }
 
 
-    // --- Clic sur une pastille : ouvre le drawer + scroll vers la carte ---
-    // / Click on a dot: open drawer + scroll to card
+    // --- Clic sur une ANCRE (surlignage inline) : ouvre le drawer + scroll ---
+    // CONFORMITE MAQUETTE (10 aout) : l'interaction se fait desormais au clic
+    // sur l'ancre inline `mark.hl-extraction` elle-meme (equivalent de
+    // allumerIdee dans maquette.html), plus sur une pastille en marge. Le
+    // fallback `.pastille-extraction` reste au cas ou un residu subsiste,
+    // sans effet nuisible. / Interaction now happens on a click on the
+    // inline highlight itself, matching the mock.
     document.addEventListener('click', function(evenement) {
-        var pastille = evenement.target.closest('.pastille-extraction');
-        if (!pastille) return;
-        // Ne pas traiter les pilules contributeur (elles ont aussi pastille-extraction ?)
-        // / Don't treat contributor pills (just in case)
-        if (pastille.classList.contains('pilule-contributeur')) return;
+        var ancre = evenement.target.closest(
+            '#readability-content .hl-extraction[data-extraction-id], .pastille-extraction'
+        );
+        if (!ancre) return;
+        // Ne pas traiter les pilules contributeur / Skip contributor pills
+        if (ancre.classList.contains('pilule-contributeur')) return;
 
-        var extractionId = pastille.dataset.extractionId;
+        var extractionId = ancre.dataset.extractionId;
         if (!extractionId) return;
+
+        // Ne pas voler une SELECTION de texte en cours : si l'utilisateur
+        // vient de surligner du texte (drag), on le laisse tranquille.
+        // / Don't steal an in-progress text selection.
+        var selection = window.getSelection && window.getSelection();
+        if (selection && selection.toString().length > 0) return;
 
         // Si mobile, ouvrir le bottom sheet (PHASE-21)
         // / If mobile, open bottom sheet (PHASE-21)

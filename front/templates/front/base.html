@@ -227,11 +227,17 @@
 
     <!-- Backdrop overlay arbre (PHASE-08) -->
     <!-- / Tree overlay backdrop (PHASE-08) -->
-    <div id="arbre-backdrop" class="fixed inset-0 bg-black/40 z-40 hidden opacity-0"></div>
+    {# z-index en inline : le build Tailwind est fige et ne genere PAS les #}
+    {# classes arbitraires z-[..], et l'echelle standard plafonne a z-50 < #}
+    {# le fil d'Ariane (66). Le voile et le panneau doivent passer AU-DESSUS #}
+    {# du fil, sinon sa bande haute reste cliquable/illisible (conformite #}
+    {# maquette, agent du 10 aout). / Inline z-index: the frozen Tailwind #}
+    {# build has no arbitrary z-[..] and caps at z-50, below the breadcrumb. #}
+    <div id="arbre-backdrop" class="fixed inset-0 bg-black/40 hidden opacity-0" style="z-index: 68;"></div>
 
     <!-- Overlay arbre lateral (PHASE-08) -->
     <!-- / Side tree overlay (PHASE-08) -->
-    <aside id="arbre-overlay" class="fixed top-0 left-0 bottom-0 z-50 bg-white shadow-xl -translate-x-full pointer-events-none flex flex-col" style="width: 20rem;" aria-label="Navigation bibliothèque" data-testid="arbre-overlay">
+    <aside id="arbre-overlay" class="fixed top-0 left-0 bottom-0 bg-white shadow-xl -translate-x-full pointer-events-none flex flex-col" style="width: 20rem; z-index: 70;" aria-label="Navigation bibliothèque" data-testid="arbre-overlay">
         <!-- Header overlay -->
         <div class="h-12 border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
             <span class="font-semibold text-sm text-slate-700">Bibliothèque</span>
@@ -252,7 +258,9 @@
         </div>
         <!-- Menu contextuel arbre — dans l'overlay pour rester au-dessus du backdrop (PHASE-25) -->
         <!-- / Tree context menu — inside overlay to stay above backdrop (PHASE-25) -->
-        <div id="arbre-ctx-menu" class="hidden fixed bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px] z-[100] text-sm" data-testid="arbre-ctx-menu" role="menu" aria-label="Actions"></div>
+        {# z-index inline (build Tailwind fige, z-[100] inerte) : le menu #}
+        {# contextuel doit dominer le contenu de l'overlay (70). #}
+        <div id="arbre-ctx-menu" class="hidden fixed bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px] text-sm" style="z-index: 100;" data-testid="arbre-ctx-menu" role="menu" aria-label="Actions"></div>
         <!-- Footer overlay : actions rapides -->
         <!-- / Overlay footer: quick actions -->
         <div class="arbre-footer">
@@ -277,11 +285,11 @@
 
     <!-- Backdrop overlay drawer (PHASE-10) -->
     <!-- / Drawer overlay backdrop (PHASE-10) -->
-    <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 z-40 hidden opacity-0"></div>
+    <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 hidden opacity-0" style="z-index: 68;"></div>
 
     <!-- Overlay drawer vue liste (PHASE-10) -->
     <!-- / Drawer list view overlay (PHASE-10) -->
-    <aside id="drawer-overlay" class="fixed top-0 right-0 bottom-0 z-50 bg-white shadow-xl translate-x-full pointer-events-none flex flex-col" style="width: min(36rem, 100vw);" aria-label="Analyses" data-testid="drawer-overlay">
+    <aside id="drawer-overlay" class="fixed top-0 right-0 bottom-0 bg-white shadow-xl translate-x-full pointer-events-none flex flex-col" style="width: min(36rem, 100vw); z-index: 70;" aria-label="Analyses" data-testid="drawer-overlay">
         <!-- Header drawer -->
         <div class="h-12 border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
             <div class="flex items-center gap-2">
@@ -385,7 +393,7 @@
 
 
     <script src="{% static 'front/js/hypostasia.js' %}?v=37"></script>
-    <script src="{% static 'front/js/marginalia.js' %}?v=21"></script>
+    <script src="{% static 'front/js/marginalia.js' %}?v=22"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
     <script src="{% static 'front/js/arbre_overlay.js' %}?v=23"></script>
     <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=23"></script>
