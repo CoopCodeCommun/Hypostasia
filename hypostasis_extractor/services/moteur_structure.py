@@ -49,7 +49,10 @@ from core.models import (
 from ..models import AncrageExtraction, EtatAncrage
 from ..signals import recalculer_etat_de_l_element
 from .ancrage import SEPARATEUR_DE_JONCTION
-from .garde_edition import verifier_qu_aucune_analyse_ne_tourne
+from .garde_edition import (
+    verifier_qu_aucune_analyse_ne_tourne,
+    verifier_qu_aucune_synthese_ne_cite,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +84,10 @@ def scinder_un_element(element, position_de_coupe, utilisateur=None,
        n'est qu'un nouveau cas du meme algorithme, pas un cas special.
     """
     verifier_qu_aucune_analyse_ne_tourne(element.page)
+    # Scinder un element cite par une synthese FIGEE couperait sa preuve
+    # en deux (SPEC-synthese § 5, phase E). / Splitting a frozen-cited
+    # element would cut its evidence in half.
+    verifier_qu_aucune_synthese_ne_cite(element)
     _verifier_la_position_de_coupe(element, position_de_coupe)
 
     texte_original = element.texte
@@ -293,6 +300,11 @@ def fusionner_deux_elements(premier, second, utilisateur=None, justification="")
     / Portions of the second shift by len(first) + len(separator).
     """
     verifier_qu_aucune_analyse_ne_tourne(premier.page)
+    # La fusion touche les DEUX elements : chacun doit etre libre de
+    # toute citation figee (SPEC-synthese § 5, phase E).
+    # / Merging touches BOTH elements: each must be citation-free.
+    verifier_qu_aucune_synthese_ne_cite(premier)
+    verifier_qu_aucune_synthese_ne_cite(second)
 
     if premier.page_id != second.page_id:
         raise ValueError(

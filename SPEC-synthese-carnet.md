@@ -10,6 +10,143 @@ maquette est un défaut de l'une des deux, à trancher avant de coder
 **Conventions** : skill `djc` (ViewSets explicites, serializers DRF, HTMX, FALC,
 commentaires FR/EN)
 
+> **Addendum du 8 août 2026 — trous relevés à l'implémentation**, après
+> relecture de la note d'architecture (mémoire Atomic, « architecture cible
+> du moteur de recherche et de synthèse sourcée ») et du code d'Atomic :
+>
+> 1. **Contrôle optimiste de concurrence sur les propositions de mise à
+>    jour** (absent du § 6) : entre `previsualiser_maj` et `appliquer_maj`,
+>    l'article peut avoir changé. La proposition porte l'`updated_at` de
+>    l'article au moment de sa production ; s'il a bougé, l'application est
+>    refusée visiblement (« proposition périmée »), jamais écrasée. C'est la
+>    règle d'Atomic, reprise telle quelle.
+> 2. **Contrôle de complétude anti-troncature** (absent du § 4) : le contrat
+>    de génération exige une ligne finale de contrôle (patron Atomic
+>    `CITATIONS_USED:`) — pas de ligne = génération tronquée = échec bruyant,
+>    jamais une synthèse tronquée enregistrée comme un succès. Même cause que
+>    la récupération de JSON tronqué du fork LangExtract, même remède.
+> 3. **Niveaux de titre exposés** (§ 6 muet) : l'applieur ne résout que les
+>    titres de niveau 2 (`##`) ; le prompt n'expose que ceux-là. Un `###`
+>    proposé serait rejeté — autant ne jamais le montrer au modèle.
+> 4. **Clarification rejet par opération** : Atomic rejette la proposition
+>    ENTIÈRE au moindre titre halluciné, parce qu'une application partielle
+>    avance son point de reprise pendant que des faits n'ont pas atterri.
+>    Cette spec rejette PAR OPÉRATION (§ 6.2) et c'est correct ICI : le wiki
+>    Hypostasia n'a pas de point de reprise — son périmètre est recalculé à
+>    chaque tour et TOUT le groupe repart au modèle (§ 3.1.1, sélection
+>    § 3.3). Rien n'est perdu par une application partielle, et c'est un
+>    humain qui accepte opération par opération.
+
+> **Addendum du 9 août 2026 — décisions de la phase C** (modèles + réécriture
+> de `synthetiser_page_task`) :
+>
+> 5. **`SyntheseDirigee.dossier` est `SET_NULL` nullable, pas `CASCADE`**
+>    (écart au § 3.2). Deux cas réels l'imposent : la suppression du carnet
+>    (l'acte daté et son périmètre figé doivent SURVIVRE — la preuve d'une
+>    adoption ne disparaît pas avec le rangement, alors que la note qui
+>    porte l'article survit de toute façon) ; et la synthèse commandée
+>    depuis une note hors carnet, que le flux existant autorise (1 page en
+>    dev). `Wiki.dossier` reste `CASCADE` : un wiki sans carnet n'a pas de
+>    sens, son périmètre EST le carnet.
+> 6. **Le « carnet d'origine de la demande » (§ 2.1) est un paramètre
+>    optionnel du POST** : `dossier_id`, validé par la vue (le carnet doit
+>    exister ET être accessible en ÉCRITURE au demandeur, sinon 400 —
+>    personne ne range sa synthèse chez autrui). En son absence — l'UI
+>    actuelle ne le pose pas encore, c'est la phase H — repli : la synthèse
+>    reprend les carnets de la note source. Le périmètre figé de la tâche
+>    mono-note est `[racine de la note source]` ; `produite_par` est le
+>    demandeur (posé par la vue dans le job), à défaut l'owner de la source.
+> 7. **Format exact de la ligne de contrôle (précision de l'addendum
+>    n°2)** : la DERNIÈRE ligne non vide de la réponse doit commencer par
+>    `CITATIONS_USED:` suivie des identifiants cités séparés par des
+>    virgules, ou `aucune`. Elle est retirée du texte stocké (c'est un
+>    contrôle, pas un contenu). Les identifiants annoncés sont conservés
+>    dans `raw_result["citations_annoncees"]` à titre de diagnostic mais ne
+>    sont PAS un critère d'échec : la vérité des citations reste le texte
+>    et ses marqueurs (§ 4.4), la ligne ne sert qu'à prouver que la
+>    génération est arrivée entière.
+> 8. **Le rendu HTML dérivé remplace les marqueurs par des renvois `[N]`**
+>    (ordre de première apparition) avant échappement et parsing markdown.
+>    Le numéro n'est jamais persisté : `text_readability` garde les
+>    marqueurs (§ 4.4), le HTML n'est qu'une projection recalculable.
+> 9. **Séquencement assumé jusqu'à la phase H** (relecture adverse du
+>    9 août, I4) : une synthèse produite apparaît dans l'ARBRE latéral du
+>    carnet (qui liste toutes les appartenances) mais PAS dans l'écran
+>    carnet (qui filtre `type_de_note=NOTE`, C.6) — son onglet « Synthèses
+>    dirigées » est la phase H. L'inverse (filtrer l'arbre aussi) la
+>    rendrait invisible partout. Corollaire : une synthèse d'une note hors
+>    carnet est rangée dans le « À ranger » du demandeur, jamais orpheline.
+> 10. **La ligne de contrôle est tolérée habillée** (backticks, gras, bloc
+>    de code — le prompt la montre entre backticks, un modèle qui recopie
+>    ce format ne perd pas sa génération) ; et le HTML rendu passe par une
+>    allowlist bleach (balises + protocoles http/https/mailto) : la
+>    syntaxe de lien markdown traverse `html.escape`, sans allowlist un
+>    `[texte](javascript:…)` deviendrait un lien actif rendu `|safe`.
+
+> **Addendum du 9 août 2026 (soir) — décisions des phases D et E** (relecture
+> adverse de la phase D) :
+>
+> 11. **Le périmètre d'une dirigée est figé DEUX fois** : les notes
+>    (`notes_du_perimetre`, § 3.2) ET les extractions effectivement
+>    proposées au modèle (`SyntheseDirigee.extractions_du_perimetre` +
+>    flag `perimetre_d_extractions_fige`, migration 0051). Sans le second
+>    figeage, une ré-analyse postérieure réécrivait « ce qui n'a pas été
+>    repris » (§ 8) avec des extractions que l'acte daté n'a jamais vues.
+>    Un flag levé avec un M2M vide veut dire « rien n'a été proposé »
+>    (analyseur sans extractions) : écartées = ∅, pas « tout ». Les 292
+>    synthèses historiques ont le flag à False : leur § 8 est un recalcul
+>    dynamique, approximatif et assumé (l'écran phase H devra le dire).
+> 12. **« Les extractions d'une note » = TOUS ses jobs terminés** (analyse,
+>    manuelles, sélection), non masquées — jamais « le dernier job », qu'une
+>    seule extraction manuelle suffisait à évincer. C'est la définition de
+>    l'écran d'analyse ; le prompt de la tâche, le périmètre de citation et
+>    les écartées § 8 l'utilisent tous. Le filtre `non_pertinent` est mort
+>    depuis la migration extractor 0029 (fusionné dans `masquee`).
+> 13. **La couverture § 9 ne compte pas** les extractions masquées, les
+>    ancres DETACHEE ni les jobs inachevés. Limite restante à afficher :
+>    le total inclut les éléments non textuels (titres, tableaux), qui ne
+>    porteront jamais d'extraction — le rapport n'est pas un pourcentage
+>    de lecture comparable entre documents.
+> 14. **Phase E — la garde § 5 couvre cinq sites** : réconciliation,
+>    masquage, scission, fusion (les deux éléments), réingestion (au
+>    niveau page). Le DÉMASQUAGE n'est PAS gardé (relecture E, I1) : il
+>    vérifie le hash et repasse des ancres de DETACHEE à ANCREE — il rend
+>    la preuve PLUS fidèle ; le bloquer enfermait l'utilisateur. Les vues
+>    du moteur élément n'existant pas encore (phases H-K ancrage), le
+>    message FALC § 5.3 vit dans l'exception, qui nomme la synthèse et
+>    sa date.
+> 15. **Phase F — le schéma des opérations est contractualisé** : des
+>    objets `{"type", "section" | "titre"+"apres", "contenu"}` avec
+>    `type` ∈ {no_change, append_to_section, replace_section,
+>    insert_section} — traduction assumée en snake_case français du
+>    schéma d'INSPIRATION_ATOMIC § 7 (op/heading/after_heading/content).
+>    Les `sources` du § 6.3 sont DÉRIVÉES des marqueurs `[[ext:N]]` du
+>    contenu, jamais un champ parallèle. Règles ajoutées par la relecture
+>    (prouvées par exécution) : un contenu qui contient une ligne-titre
+>    `##` est rejeté (seule insert_section crée une section) ; un insert
+>    dont le titre existe déjà est rejeté (un doublon rendrait la section
+>    ambiguë pour toujours) ; les titres se comparent tronqués à 200
+>    (taille de SourceLink.section) ; UNE opération de contenu par
+>    section et par lot ; une opération JSON malformée est rejetée par
+>    opération, jamais en détruisant le lot ; l'ancre d'insertion vide a
+>    un motif honnête (le prompt de la phase G l'exigera toujours).
+> 16. **Phase G — les règles du verdict** (relecture du 9 août, prouvée
+>    par exécution) : la ré-indexation des citations RÉCONCILIE les
+>    verdicts § 7 au lieu de les détruire — un verdict est reporté quand
+>    la paire (extraction, paragraphe) est inchangée, une contestation
+>    humaine dont la paire a disparu est signalée à l'appelant, jamais
+>    perdue en silence. Le prompt du juge NLI encadre les données par des
+>    délimiteurs nonce (l'affirmation et la source sont des contenus non
+>    fiables) ; une réponse aux indices dupliqués/hors lot invalide le
+>    LOT ENTIER (le bon défaut : NON_VERIFIE). La fidélité au débat
+>    (§ 7.4) se JUGE : verbatim du commentaire puis implication —
+>    soutient → « sourcé par le débat », sinon FAIBLE. Une source
+>    supprimée perd son verdict ; des bornes cibles périmées ne sont
+>    jamais jugées ; une extraction masquée ou une ancre détachée n'est
+>    pas blanchie ; un échec technique du juge ne dégrade aucun verdict.
+>    NON_SOURCE reste un état d'AFFICHAGE (paragraphe sans marqueur),
+>    jamais posé en base.
+
 ---
 
 ## 0. Ce que cette spec décide
@@ -292,9 +429,11 @@ job_extraction.entities.all().delete()
 
 Un `on_delete=PROTECT` sur `SourceLink.extraction_source` ferait donc lever
 `ProtectedError` à toute relance d'analyse sur une note citée — **y compris par un simple
-wiki**. Cela gèlerait le corpus exactement comme le § 5.1 dit vouloir l'éviter. Deux
-autres chemins suppriment aussi des extractions :
-`hypostasis_extractor/services/__init__.py:242` et `hypostasis_extractor/views.py:904`.
+wiki**. Cela gèlerait le corpus exactement comme le § 5.1 dit vouloir l'éviter. Un
+autre chemin supprime aussi des extractions :
+`hypostasis_extractor/services/__init__.py:242`. *(Correction du 9 août :
+`hypostasis_extractor/views.py:904`, cité ici en v1.0, supprime en réalité une
+`ExampleExtraction` du bac à essai des analyseurs — pas une extraction de corpus.)*
 
 **La règle retenue : `SET_NULL` au niveau ORM, arbitrage par signal.**
 
@@ -841,11 +980,26 @@ qu'il appelle n'existe pas, et la touche `/` est un placeholder. Hors périmètr
 2. **Que devient une synthèse quand une de ses notes quitte le carnet ?** Le périmètre est
    figé, donc la synthèse garde sa trace. Mais la note n'est plus accessible aux mêmes
    personnes. Faut-il masquer la citation, ou la garder en signalant l'accès perdu ?
-3. **La vérification NLI, avec quel modèle ?** Un petit modèle local suffirait et
-   coûterait moins qu'un appel API par affirmation. À chiffrer.
+3. **La vérification NLI, avec quel modèle ?** ~~Un petit modèle local suffirait et
+   coûterait moins qu'un appel API par affirmation. À chiffrer.~~ **TRANCHÉE par le
+   propriétaire (9 août 2026)** : le juge NLI est **le LLM déjà configuré** (via
+   `appeler_llm`), appelé **en lot** (une requête juge N paires) et **à la demande**
+   (un geste explicite de vérification, jamais automatique à la production). Chiffrage
+   retenu : ~0,01-0,05 € par synthèse en lot, contre ~1 Go de RAM permanente pour un
+   modèle local sur un serveur de 8 Go partagé avec la prod — et une qualité moindre
+   sur du français délibératif. L'interface du service permet de brancher un modèle
+   local plus tard sans réécriture si le volume l'exige un jour.
 4. **L'alignement cross-documents** (`views_alignement.py`) devient une vue du carnet
    filtrée par facettes. Est-ce une quatrième forme de synthèse, ou une visualisation ?
    La maquette le traite comme une visualisation.
+5. **(Relevée par la relecture du 9 août, phase E — TRANCHÉE par le propriétaire
+   le 9 août.)** Le § 5.2 exonère l'édition de blocs de l'ancien moteur
+   (`editer_bloc`), en s'appuyant sur `reconciliation.py` — mais la réconciliation
+   ne tourne PAS sur l'ancien moteur. Décision : **au plus simple — `editer_bloc`
+   reste non gardé, le gel effectif du § 5 sera livré avec le branchement du moteur
+   élément.** Les cinq gardes de la phase E sont en place et prendront effet à la
+   bascule ; d'ici là, un passage cité reste techniquement modifiable par l'ancien
+   chemin, et c'est assumé.
 
 ---
 

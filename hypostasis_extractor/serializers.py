@@ -479,3 +479,63 @@ class RejectTestExtractionSerializer(serializers.Serializer):
     note = serializers.CharField(required=False, allow_blank=True, default="")
 
 
+
+
+# ============================================================
+# Serializers de l'ElementViewSet (BR-E) — un par action POST.
+# / ElementViewSet serializers — one per POST action.
+# LOCALISATION : hypostasis_extractor/serializers.py
+# ============================================================
+
+class CorrectionDElementSerializer(serializers.Serializer):
+    """
+    Validation de la correction du texte d'un element.
+    / Validates an element text correction.
+    """
+    texte = serializers.CharField(
+        trim_whitespace=False,
+        error_messages={
+            "required": "Le texte est obligatoire / Text is required",
+            "blank": "Le texte ne peut pas être vide / Text cannot be blank",
+        },
+    )
+
+    def validate_texte(self, valeur):
+        # Un texte fait uniquement d'espaces est un texte vide.
+        # / Whitespace-only text is empty text.
+        if not valeur.strip():
+            raise serializers.ValidationError(
+                "Le texte ne peut pas être vide / Text cannot be blank",
+            )
+        return valeur
+
+
+class ScissionDElementSerializer(serializers.Serializer):
+    """
+    Validation de la position de coupe d'une scission.
+    / Validates a split position.
+    """
+    position_de_coupe = serializers.IntegerField(
+        min_value=1,
+        error_messages={
+            "required": "La position de coupe est obligatoire / Required",
+            "invalid": "La position doit être un nombre entier / Integer required",
+            "min_value": "La coupe doit laisser du texte des deux côtés / Must split inside the text",
+        },
+    )
+    # La justification passe AUSSI par le serializer (relecture BR-E,
+    # defaut n°3) : en brut, un dict JSON filait jusqu'a psycopg.
+    # / The justification goes through the serializer too.
+    justification = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=500,
+    )
+
+
+class JustificationDElementSerializer(serializers.Serializer):
+    """
+    Justification optionnelle (masquer/demasquer) — tracee au journal.
+    / Optional justification, kept in the journal.
+    """
+    justification = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=500,
+    )

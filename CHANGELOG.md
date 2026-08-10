@@ -5,6 +5,1800 @@
 
 ---
 
+## 2026-08-10 — Recette connectee : les sept dernieres frictions
+## (F4 a F10) — l'ecran en savait plus qu'il n'en disait
+
+**Quoi / What :** les sept defauts d'experience restants de la recette
+du carnet 1. Un fil les relie : **l'ecran detenait l'information et ne
+la donnait pas**.
+
+**F4 — lire un article ne changeait pas l'URL.** Pas de `hx-push-url`
+sur les liens des listes : on lisait un wiki a l'adresse du carnet, F5
+ramenait a la liste des notes, et le lien n'etait pas partageable
+depuis l'endroit meme ou on lisait.
+
+**F5 — le diff parlait en langage machine** au moment precis ou l'on
+demande d'accepter ou de refuser : `append_to_section` s'affichait tel
+quel, et `[[ext:35284]]` exposait une syntaxe interne masquee PARTOUT
+ailleurs. Deux filtres de gabarit traduisent desormais a l'affichage,
+sans toucher aux donnees. Un troisieme detecte une operation dont le
+contenu n'est QUE des marqueurs et le DIT : le defaut B2 a ete corrige
+cote back, mais un diff qu'on accepte les yeux fermes est un diff
+inutile — l'ecran doit rester capable de le signaler.
+
+**F6 — le verdict se lisait comme une separation.** Un filet bas
+pleine largeur sous le paragraphe : en recette, il a d'abord ete pris
+pour une bordure decorative. Dans ce design system un etat se porte a
+GAUCHE — c'est deja le cas du guide de redaction, des operations de
+diff, des messages d'etat. Le verdict rejoint cette grammaire, et
+chaque paragraphe porte un `title` qui NOMME son etat : une couleur ne
+se lit pas toute seule.
+
+**F7 — la legende promettait des couleurs absentes.** Elle annoncait
+les six etats, « non source » compris, avant meme la premiere
+verification. Elle n'annonce plus que ceux que le texte porte
+reellement, et s'ouvre en disant ce que la couleur qualifie — le
+paragraphe, par son verdict le PLUS FAIBLE.
+
+**F8 — trois actions, une seule ligne.** Produire un wiki, proposer une
+mise a jour et verifier des citations donnaient trois entrees
+identiques dans « Mes taches », parce que tout ce qui n'etait pas une
+synthese tombait dans « analyse ». Un `libelle_de_tache` les distingue
+— la logique (`type_tache`, marquage lu, cible du lien) n'a pas bouge.
+Les accents manquants de ce panneau, seul endroit de l'interface dans
+ce cas, sont retablis.
+
+**F9 — le titre de l'onglet** disait « Bibliotheque » partout. C'est
+pourtant souvent le SEUL nom qu'une page recoit : dans une barre de dix
+onglets, dans un signet, dans un historique.
+
+**F10 — le moteur n'etait pas nommable.** On ne le choisit pas a la
+creation ; a defaut, l'ecran le NOMME et dit ou il se change.
+
+Quatre ecarts de contraste trouves par la verification et corriges,
+dont un de ce lot : le filet « pas encore verifie » tombait a
+**2,94:1**, six centiemes sous le seuil, a cause d'un alpha de 70 %.
+Les trois autres etaient preexistants — filet du guide de redaction
+(2,12:1), compteur du bouton taches (3,30:1), taille de la pastille de
+renvoi.
+
+**Une regression introduite puis levee, qui merite d'etre ecrite.** En
+remappant le fond du compteur de taches sur `--succes`, on a **re-commis
+l'erreur que le lot T10 avait pourtant corrigee ailleurs** : un fond
+semantique PLEIN ne peut pas porter un `white` fige. En theme sombre
+ces tokens sont des pastels CLAIRS — ils y servent de texte sur fond
+sombre — et le `color: white !important` de hypostasia.css:1920 y
+tombait a **1,52:1**, pire qu'avant le correctif. Le token qui suit le
+theme est `--papier`. Les quatre etats du badge (y compris l'etat
+neutre, dernier `white` fige du composant) sont desormais entre 5,3 et
+11,9:1 dans les deux themes. Regle a appliquer sans reflechir : **quand
+on remappe un fond, on verifie ce que le TEXTE devient dans les deux
+themes**, et on cherche un `color` en dur dans l'ancienne feuille.
+
+14 tests neufs, 659 tests unitaires et 104 e2e verts.
+
+| Fichier | Changement |
+|---|---|
+| `front/templatetags/lisibilite_diff.py` | **nouveau** : 3 filtres d'affichage pour le diff |
+| `front/templates/front/corpus/partials/diff_operations.html` | operations nommees, marqueurs lisibles, alerte « sans redaction » |
+| `front/templates/front/corpus/article.html` | legende conditionnee aux etats presents |
+| `front/views_synthese.py` | `etats_de_verification_presents`, `title` des verdicts, moteur annonce |
+| `front/views_taches.py` | `libelle_de_tache` : les actions se distinguent |
+| `front/templates/front/includes/taches_dropdown.html` | libelles distincts, accents retablis |
+| `front/templates/front/base.html` | `<title>` par ecran |
+| `front/templates/front/corpus/liste_{wikis,syntheses}.html` | `hx-push-url`, moteur annonce |
+| `front/templates/front/corpus/_style_maquette.html` | verdict a gauche, pastille de renvoi, filets ≥ 3:1 |
+| `front/tests/test_frictions_recette_f4_f10.py` | **nouveau** : 14 tests |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-10 — Recette connectee : les trois frictions FRONT sont
+## corrigees (F1, F2, F3)
+
+**Quoi / What :** les trois defauts d'experience releves par la recette
+connectee du carnet 1 (PLAN/recette-connectee-2026-08-10.md). Ils
+avaient un point commun : **le produit travaillait sans le dire**.
+
+**F1 — une production se lancait sans le moindre retour.** « Creer le
+wiki » et « Produire la synthese » renvoyaient LA LISTE. Le nouvel
+objet y apparaissait comme s'il etait fini — « tour 1 · 0 sources · 465
+ecartees » — alors que la tache venait de partir. Rien ne disait
+d'attendre, rien ne se rafraichissait : en recette, la conclusion
+naturelle etait « le wiki est vide » et le reflexe, recliquer.
+
+**F2 — la verification ne disait jamais qu'elle etait finie.** Son
+message « Verification lancee… » restait affiche POUR TOUJOURS : le
+partial etait rendu sans `hx_get`, donc sans interrogation. Les
+verdicts n'apparaissaient qu'apres un rechargement manuel que rien ne
+suggerait.
+
+**F3 — appliquer un diff depuis l'URL d'un article ne faisait RIEN.**
+Le formulaire visait `#corpus-panneau-onglet`, qui n'existe que dans
+l'onglet du carnet : un utilisateur arrive par lien partage ou par F5
+cliquait « Appliquer les operations cochees » sans aucun effet. La
+cible est desormais l'article lui-meme (`closest
+[data-testid='synthese-article']`, remplace en `outerHTML`), present
+dans les DEUX contextes — et la reponse EST l'article.
+
+**Un seul point d'entree pour F1 et F2** : `GET /wikis/{pk}/etat/` et
+`GET /syntheses/{page_pk}/etat/`, avec `?job_id=N`. Tant que le job
+tourne, il se renvoie lui-meme (`hx-trigger="load delay:3s"`) ; quand
+il finit, il rend ce que l'utilisateur attend — la LISTE apres une
+production (il est dans l'onglet, il voit sa ligne avec ses vrais
+compteurs), l'ARTICLE apres une verification (il y est deja, ce sont
+les verdicts qu'il attend).
+
+**Trois garde-fous**, parce qu'un ecran qui interroge en boucle est une
+friction de plus : un compteur d'essais transforme un worker mort en
+MESSAGE au bout de ~5 minutes au lieu d'interroger indefiniment ; un
+job en erreur le dit et rassure (« Rien n'a ete modifie ») ; et un job
+qui appartient a une AUTRE page n'est pas suivi (404) — le suivi
+respecte l'acces a l'article comme le reste du produit.
+
+10 tests neufs verrouillent le tout, y compris ce qu'on ne peut pas
+exercer au navigateur sans declencher un appel LLM facture : job en
+attente, plafond d'essais, job en erreur, job d'une autre page. Verifie
+aussi au navigateur (endpoint, cablage, non-regression, aucune erreur
+JS), sans lancer une seule production.
+
+591 tests unitaires + 104 e2e verts.
+
+| Fichier | Changement |
+|---|---|
+| `front/views_synthese.py` | `_etat_de_la_tache()`, action `etat` sur les deux ViewSets, retours de creation et de verification |
+| `front/templates/front/corpus/partials/diff_operations.html` | la cible d'application existe enfin dans les deux contextes |
+| `front/tests/test_retour_de_production.py` | **nouveau** : 10 tests (F1, F2, F3, garde-fous, acces) |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-10 — Recette connectee : les trois defauts BACK sont corriges (B1, B2, B3)
+
+**Contexte / Context :** la recette connectee du carnet 1 (session
+Opus, PLAN/recette-connectee-2026-08-10.md) a revele 4 defauts back
+dans la couche synthese livree la veille. Trois sont corriges en TDD :
+
+**B1 — les compteurs du wiki se contredisaient** (23 renvois annonces,
+25 affiches) : l'indexation absorbait les doublons d'un marqueur dans
+un meme paragraphe (un lien par couple, § 4.4) mais le TEXTE gardait
+toutes les occurrences. Le doublon sort desormais du texte aussi
+(`indexer_les_citations`, nouveau compteur `doublons_absorbes` dans le
+bilan) : tous les compteurs de l'ecran coincident. Verification faite
+au passage : le clic, lui, pointait deja le BON lien (mapping par
+extraction + position, zero orphelin sur le wiki 3 reel) — le defaut
+etait le comptage, pas l'attribution.
+
+**B2 — les operations de mise a jour au contenu reduit a un marqueur
+nu** (`"contenu": "[[ext:35284]]"` → paragraphes orphelins [4]) : une
+operation dont le contenu, marqueurs retires, est vide est REJETEE
+avec motif FALC (`section_ops._controler_les_sources`) — le modele
+doit proposer un passage redige ET source.
+
+**B3 — la troncature du volet des ecartees etait muette** (« 458 »
+au resume, 200 lignes affichees) : le volet affiche desormais le TOTAL
+et annonce « les 200 premieres sont affichees ».
+
+**B4 consigne, pas code** : la pauvrete du sourçage (2 extractions
+citees sur 465) est un probleme de PROMPT — B2 forcera deja le modele
+a rediger ; les `marqueurs_retires` sont signales dans raw_result
+depuis la phase C mais n'ont pas de surface UI. A retravailler avec
+les consignes de production.
+
+Tests : `core.tests.test_synthese_citations` (3 nouveaux, 38 verts),
+`core.tests.test_section_ops` (3 nouveaux, 27 verts),
+`front.tests.test_synthese_phase_h` (1 nouveau, 17 verts) +
+non-regression synthese (52 + 25 verts).
+Fichiers : `core/services/synthese.py`, `core/services/section_ops.py`,
+`front/views_synthese.py`, `partials/ecartees.html`.
+
+## 2026-08-10 — Branchement du moteur d'ancrage, BR-F : fixtures representatives et parcours e2e — LE BRANCHEMENT BR-A→F EST COMPLET
+
+**Quoi / What :** fixtures § 9.4 versionnees
+(`hypostasis_extractor/tests/fixtures/` : pad markdown structure,
+texte brut temoin du repli) + tests de conversion REELLE par Docling
+(pad → title/section_header/list_item/chemins de section ; docx avec
+TABLEAU fabrique par python-docx → element `table` au contenu
+ancrable). Opt-in : `TESTS_DOCLING=1` + `--tag=docling` — jamais dans
+une suite ordinaire (8 Go). Et le parcours E2E complet au navigateur
+(`front/tests/e2e/test_23_moteur_element.py`) : import d'un `.md` par
+le bouton reel → ingestion eager → la note rouverte se lit par BLOCS
+(h2/h3/p/ul-li, `data-testid="blocs-elements"`), 8,6 s.
+/ Representative fixtures + real-Docling conversion tests (opt-in) +
+the full browser journey.
+
+**Decouverte consignee (le role meme des fixtures)** : le backend
+markdown de Docling traite chaque LIGNE source comme un element — un
+paragraphe a retours a la ligne durs se fragmente (« l'ete. » devient
+un element), et une puce continuee sur deux lignes perd son label
+`list_item`. Reel documente dans le test, pas corrige : les pads reels
+s'ecrivent sans retour dur ; a reevaluer si la recette montre une gene.
+
+**Relecture adverse BR-E appliquee (9 defauts, 5 corriges + tests)** :
+1. HAUTE — deux scissions simultanees sur la MEME page se percutaient
+   au commit (renumerotation page-entiere + contrainte d'ordre
+   DEFERRED → IntegrityError → 500) : les operations de STRUCTURE
+   (scinder, fusionner) posent desormais le verrou de PAGE avant tout ;
+   corriger/masquer restent au verrou de ligne.
+2. La justification > 500 caracteres etait AVALEE en silence
+   (is_valid sans controle) : refusee en 400 desormais, partout.
+3. La justification de scinder/fusionner passait en brut (un dict JSON
+   → 500 psycopg) : serializers partout, convention respectee.
+4. Les toasts 409 montraient les messages internes des exceptions
+   (pk, « job(s) », moitie anglaise) : messages FALC dedies — celui de
+   la synthese NOMME toujours la synthese bloquante (§ 5.3).
+5. Corriger sans changement polluait PageEdit : no-op propre + toast
+   « Aucun changement » ; le journal porte l'identifiant STABLE (l'ordre
+   est renumerote par les scissions).
+Consignes sans code (BASSE, § 5 du cahier) : verrou avant controle de
+droit (oracle d'existence conforme au reste du depot), messages de
+course fusion/scission perfectibles, error_messages morts des
+serializers.
+
+Tests : 18 verts sur test_views_element (5 nouveaux TDD RED→GREEN),
+fixtures 4 + 2 docling reels, e2e 1.
+
+**Le § 9 de la spec est tenu de bout en bout** : import → ingestion
+Docling (file dediee, bornee) → flag ELEMENT → analyse par elements
+(LLM reel verifie) → lecture par blocs marques par portion (verifiee
+au navigateur, clair/sombre) → operations d'element sous verrou et
+gardes. L'existant ANCIEN n'a pas bouge (543 test_phases verts).
+Restent, hors perimetre du branchement : BR-G (visualiseur PDF,
+curseur audio — a cadrer separement), la bascule de la capture web et
+de l'audio (D2), la reconversion explicite § 9.5.
+
+## 2026-08-09 — Branchement du moteur d'ancrage, BR-E : les operations sur un element ont leurs endpoints
+
+**Quoi / What :** nouveau `ElementViewSet`
+(`hypostasis_extractor/views_element.py`, routes `/elements/<pk>/...`) :
+`corriger` (texte + reconciliation des portions + journal PageEdit),
+`scinder`, `fusionner_avec_le_suivant`, `masquer`, `demasquer` — un
+serializer par action (convention du depot). Les GARDES des services
+(analyse en cours, synthese figee qui cite) remontent en **409 avec
+leur message FALC** ; les entrees invalides en 400 ; un tiers sans
+droit d'ecriture en 403 (meme regle que la lecture :
+`_utilisateur_peut_ecrire_page`, import paresseux anti-cycle).
+/ Element operation endpoints; service guards surface as 409 FALC.
+
+**Le verrou § 7 est POSE** (defaut de concurrence consigne le 8 aout) :
+chaque action ouvre une transaction et `select_for_update()` la ou les
+lignes ElementDocument AVANT d'appeler le service — la fusion
+verrouille les DEUX voisins. Reponses : 200 + HX-Trigger
+{showToast, lectureReload} — le front recharge la lecture, qui re-rend
+les blocs BR-D. Pas d'UI dediee encore (boutons a venir avec BR-F/G).
+
+**Verification visuelle BR-D (agent maquette, Chromium reel)** — 2
+defauts HAUTE decouverts et corriges dans la foulee : le passage
+`span`→`mark` reveillait les DEFAUTS NAVIGATEUR de `<mark>` — texte
+MarkText noir dur (1,28:1 en mode sombre) et fond jaune fluo pour tout
+statut sans regle CSS, dont `non_pertinent` (4 182 extractions en
+base). Correctif : reset `mark.hl-extraction` dans maquette.css,
+specificite (0,1,1) calculee pour perdre contre les fonds par statut.
+Conformes par ailleurs : structure des blocs, typographie identique a
+la zone de lecture, 4 marques sur les bonnes portions a travers
+h2/p/li/h3, zero regression sur l'ancien rendu (verifie sur 2 pages
+temoins, clair et sombre), zero erreur console. Ecart de parti pris
+consigne : surlignage permanent (choix T7) la ou l'etalon revele au
+survol — a trancher plus tard.
+
+Tests : `hypostasis_extractor.tests.test_views_element` (14) + verrou
+CSS dans test_lecture_elements — TDD RED→GREEN, 40 verts sur le
+perimetre BR. Fichiers : `hypostasis_extractor/views_element.py`
+(nouveau), `hypostasis_extractor/serializers.py` (3 serializers),
+`front/urls.py`, `front/static/front/css/maquette.css`.
+
+Suite : BR-F (fixtures representatives + parcours e2e ELEMENT).
+
+## 2026-08-09 — Branchement du moteur d'ancrage, BR-D : la lecture rend les elements
+
+**Quoi / What :** une page ELEMENT est desormais AFFICHEE depuis ses
+ElementDocument — titres, paragraphes, listes regroupees, chaque
+portion d'extraction marquee `mark.portion.hl-extraction` sur SON
+passage exact (`front/services/rendu_elements.py`, ecrit en phase G,
+enfin branche). Une page ANCIEN, ou une page ELEMENT a zero element
+(ingestion echouee), retombe sur `html_annote`/`html_readability`
+comme avant — jamais de page blanche.
+/ ELEMENT pages now render from their elements with per-portion marks;
+OLD pages are untouched.
+
+**Le branchement passe par un tag de template**
+(`front/templatetags/rendu_moteur.py`), pas par les contextes de vue :
+lecture_principale.html est rendu depuis PLUS DE SIX endroits, et
+injecter `blocs_de_lecture` dans chacun garantissait l'oubli — le meme
+piege que corpus_permissions avait resolu pour est_proprietaire. Les
+elements MASQUES ne sont pas rendus (leur gestion arrive avec BR-E).
+
+**Relecture BR-C appliquee dans la foulee (3 correctifs testes)** :
+1. HAUTE — battement de coeur par chunk dans l'analyse ELEMENT
+   (`analyse_par_element.py`) + le juge de blocage distingue un job
+   PENDING en file (tolere 90 min, plafond de la garde d'edition) d'un
+   PROCESSING fige (5 min sans battement = mort) : fini les faux
+   « Timeout » qui relancaient des analyses en double.
+2. MOYENNE — `analyser_page_task` revalide le moteur A L'EXECUTION et
+   delegue au moteur ELEMENT si la page a bascule entre le clic et
+   l'execution (course avec l'ingestion Docling) : jamais
+   d'extractions a offsets sans portions sur une page ELEMENT.
+3. Consignes au § 5 du cahier (pas de code) : ordre des cartes du
+   panneau encore par start_char (entrelace pour ELEMENT — cosmetique),
+   drawer d'estimation chunke encore a l'ancienne, anti-doublon sans
+   verrou sur double-clic rapide (preexistant, attenue par la
+   transition atomique de la tache ELEMENT).
+
+**Collisions de tests entre sessions resolues** :
+`hypostasia/settings_test_fable.py` donne a cette session sa base de
+test dediee (`test_hypostasia_fable`) — les runs paralleles des deux
+sessions ne se detruisent plus (« database test_hypostasia does not
+exist », deadlocks : c'etait ca).
+
+Tests : `front.tests.test_lecture_elements` (5) +
+`front.tests.test_analyse_routage` (9 au total) + battement de coeur
+(`test_analyse_par_element.BattementDeCoeurTest`) — TDD RED→GREEN ;
+`front.tests.test_phases` : 543 verts (non-regression totale).
+Fichiers : `front/templatetags/rendu_moteur.py` (nouveau),
+`front/templates/front/includes/_blocs_elements.html` (nouveau),
+`lecture_principale.html`, `front/views.py`, `front/tasks.py`,
+`hypostasis_extractor/services/analyse_par_element.py`,
+`hypostasia/settings_test_fable.py` (nouveau).
+
+Suite : BR-E (ElementViewSet : corriger, scinder, fusionner, masquer —
+avec le verrou ElementDocument).
+
+## 2026-08-09 — Branchement du moteur d'ancrage, BR-C : l'analyse route selon le moteur
+
+**Quoi / What :** le bouton « analyser » lance desormais
+`analyser_une_page_avec_le_moteur_element` (ancres par PORTIONS) quand
+`page.moteur == element`, et `analyser_page_task` (offsets) sinon.
+Meme ExtractionJob, meme toast : le moteur est un detail
+d'implementation pour la personne qui lit.
+/ The "analyse" button now routes by the page's engine flag.
+
+**M6 tranché — coexistence des jobs** : la relance ne purge pas les
+jobs precedents (meme semantique que l'ancien moteur) ; la promesse
+§ 4.2 de SPEC-synthese est tenue par les gardes deja en place
+(`nettoyer_ia` refuse AVANT purge et AVANT l'appel LLM ; le chemin
+ELEMENT porte sa garde interne). Ecarts § 4.2 assumes par addendum
+date (pas de compteur de tokens, boucle sequentielle — une vertu sur
+8 Go —, `suppress_parse_errors`).
+
+**Verifie en reel** : job 938 sur la page 674 (ELEMENT) —
+`raw_result.moteur='element'`, 1 chunk, LLM reel, 2,9 s, zero erreur.
+La fenetre « analyse ANCIEN sur page ELEMENT » (relecture BR-B, defaut
+n°4) s'est refermee avant toute analyse reelle.
+
+Tests : `front.tests.test_analyse_routage` (2, TDD RED→GREEN).
+Fichiers : `front/views.py` (action `analyser`).
+
+Suite : BR-D (affichage par elements dans lecture_principale).
+
+## 2026-08-09 — Branchement du moteur d'ancrage, BR-B : l'import de fichier nourrit le moteur ELEMENT
+
+**Quoi / What :** quand un fichier importe est d'un type que Docling
+sait convertir (`.pdf`, `.docx`, `.md`, `.pptx`, `.xlsx`), la vue
+d'import lance desormais `ingerer_un_fichier_avec_docling` en
+arriere-plan, EN PLUS du pipeline synchrone existant. C'est la premiere
+vraie bascule de flux du § 9 : les nouvelles pages couvertes deviennent
+ELEMENT (le flag est pose par la tache, mecanique BR-A).
+/ Covered file imports now ALSO launch Docling element ingestion in the
+background — the first real flow switch of § 9.
+
+**Decision de transition (double ecriture)** : le pipeline synchrone
+continue de remplir `html_readability` — l'AFFICHAGE reste celui de
+l'ancien moteur jusqu'a BR-D (`rendu_elements` n'a pas encore
+d'appelant). Aucune regression visible ; les elements s'accumulent en
+attendant leur ecran. Le `.txt` (sans structure) et le `.json` de
+transcription restent entierement sur leurs pipelines d'origine, et le
+toast le dit honnetement : « Fichier importé — découpage en éléments
+lancé » seulement quand c'est vrai.
+
+**Verifie en reel** : import d'un `.md` par la vraie vue, ingestion par
+le vrai worker Celery (meme conteneur, chemin `source_file.path`
+partage) — page 674, 4 elements, `moteur=element`, premiere page
+ELEMENT nee du flux reel en dev. Pas de course delay/commit
+(autocommit, pas d'ATOMIC_REQUESTS) ; les e2e (eager) n'uploadent que
+du `.txt`, donc aucun Docling synchrone dans les suites.
+
+**Relecture adverse (7 défauts, tous traités le soir même)** :
+1. HAUTE — aucun garde-fou de ressources : conversion bornée
+   (`max_num_pages=200`, `max_file_size=50 Mo` — un `.docx` est un zip,
+   la limite d'upload porte sur la taille compressée) et **file Celery
+   dédiée `ingestion_docling` à concurrence 1** (task_routes +
+   programme supervisord `celery_worker_docling` ; redémarrage du
+   conteneur requis pour l'activer) — jamais deux Docling en même temps
+   sur l'hôte 8 Go partagé avec la prod.
+2. Broker en panne : `.delay` encadré, l'import reste un succès (page
+   ANCIEN lisible), toast sans fausse promesse.
+3. Échec d'ingestion silencieux : assumé et consigné (pas de surface UI
+   avant BR-D/E — fiche A TESTER + § 5 du cahier).
+4. Fenêtre BR-B→BR-D (analyse ANCIEN payée sur page ELEMENT →
+   extractions sans portions) : dette écrite au § 5 du cahier, à
+   trancher à BR-C.
+5. La vue ne passe plus que `page.pk` : la tâche résout le chemin
+   depuis `source_file` (découplage du stockage).
+6. Tests renforcés : `.docx` réel (binaire), conversion en échec →
+   Docling jamais lancé, media de test nettoyé.
+7. Toast double : timer paramétrable (`showToast.timer`), 4,5 s pour ce
+   message (public FALC).
+
+Tests : `front.tests.test_import_docling` (8) +
+`hypostasis_extractor.tests.test_tasks_element` (3 nouveaux) +
+`hypostasis_extractor.tests.test_ingestion_docling` (3 nouveaux), TDD
+RED→GREEN — 46 verts au total sur le périmètre.
+Fichiers : `hypostasis_extractor/services/ingestion_docling.py`,
+`hypostasis_extractor/tasks_element.py`, `front/views.py`,
+`hypostasia/celery.py`, `supervisord.conf`,
+`front/static/front/js/hypostasia.js`.
+
+Suite : BR-C (routage de l'analyse pour les pages ELEMENT).
+
+## 2026-08-09 — SECURITE : l'alignement ne verifiait aucune permission
+
+**Quoi / What :** `/alignement/tableau/` et
+`/alignement/export_markdown/` ne controlaient RIEN.
+`?dossier_id=N` alignait n'importe quel carnet, `?page_ids=1,2`
+n'importe quelles notes — par leur simple identifiant, sans etre
+connecte. Le tableau produit affiche le TEXTE des extractions et leurs
+resumes, et l'export en fait un fichier telechargeable : c'etait une
+fuite directe et complete du contenu prive d'autrui. Repere en portant
+l'onglet Alignement du carnet, corrige ici.
+
+**Le correctif** applique la regle deja en vigueur partout ailleurs
+(`_utilisateur_a_acces_dossier`, `_utilisateur_a_acces_page` : on
+accede a une note si on accede a AU MOINS UN carnet qui la contient),
+aux DEUX vecteurs — le mode `page_ids` etait le plus grave, deux
+identifiants suffisaient.
+
+**Le filtrage est SILENCIEUX**, et c'est un choix : une page interdite
+est retiree exactement comme une page inexistante, un carnet interdit
+repond comme un carnet absent, **au meme octet**. Repondre « acces
+refuse » aurait confirme l'existence de la note — c'est la doctrine du
+404 plutot que du 403 deja retenue pour les bases privees (phase H
+corpus). Deux tests le verifient en comparant les reponses.
+
+**Le superuser garde son acces en lecture** : la regle du produit lui
+en accorde un, et un alignement plus strict que le reste serait
+incoherent.
+
+**Trois classes de tests existantes passaient GRACE au trou**
+(`Phase18EndpointTableauTest`, `Phase18EndpointExportMarkdownTest`,
+`Phase18bDossierAlignementEndpointTest`) : elles creent des pages et un
+dossier sans owner et appelaient l'endpoint en ANONYME. Ces objets
+« legacy » sont lisibles par tout utilisateur AUTHENTIFIE — c'est deja
+ce que fait `/lire/` pour eux. Les tests se connectent desormais et
+redeviennent ce qu'ils sont : des tests du RENDU du tableau.
+
+**Preuve que les tests mordent** : les gardes ont ete temporairement
+neutralisees, 7 des 11 tests de securite echouent ; restaurees, les 11
+passent. Verifie aussi en conditions reelles sur le dev — anonyme, un
+carnet prive repond 404, ses notes par `page_ids` 400, l'export 404,
+aucune occurrence de leur contenu ; le carnet public repond 200.
+
+616 tests unitaires et 104 e2e verts.
+
+| Fichier | Changement |
+|---|---|
+| `front/views_alignement.py` | controle d'acces sur les deux vecteurs, filtrage silencieux |
+| `front/tests/test_alignement_permissions.py` | **nouveau** : 11 tests (fuite, oracle, export, superuser, non-regression) |
+| `front/tests/test_phases.py` | 3 classes Phase18 connectees — elles passaient grace au trou |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Architecture de page : le fil d'Ariane, les actions du
+## carnet, l'alignement, la provenance des notes
+
+**Quoi / What :** quatre ajouts de structure, front pur, sur le design
+de l'etalon (`tmp/maquettes/corpus.html`).
+
+**1. LE FIL D'ARIANE « Base > Carnet > Note »**, colle sous la barre,
+sur les ecrans carnet, article et note. Il porte la BASCULE DE CARNET.
+Sa raison d'etre est ecrite dans l'etalon : **le N-N a tue l'arbre**.
+Une note rangee dans deux carnets n'a pas de parent unique, donc pas de
+place dans une arborescence. Le fil montre UN chemin parmi ceux qui
+existent, et son chevron permet d'en changer — sur un carnet il liste
+les carnets accessibles, sur une note **les carnets qui contiennent
+cette note** (basculer = relire la meme note sous un autre classement,
+via `?carnet=N`).
+Trois decisions de securite : la regle d'acces est EXTRAITE dans
+`carnets_visibles_par()` pour n'exister qu'une fois (le fil et la liste
+des carnets la partagent) ; un `?carnet=N` n'est honore que si le
+carnet contient vraiment la note et que le visiteur y a acces — un
+parametre d'URL ne sert jamais d'oracle ; une base non publique
+n'apparait pas dans le fil d'un visiteur qui n'y a pas acces, le nom
+seul etant deja une fuite.
+
+**2. « Nouveau wiki » et « Nouvelle synthese » dans l'en-tete du
+carnet.** Ils n'ouvrent AUCUN chemin nouveau : ils activent l'onglet qui
+porte deja le formulaire, attendent son arrivee en HTMX
+(MutationObserver plutot qu'un delai devine), y font defiler et posent
+le focus.
+
+**3. UN ONGLET ALIGNEMENT** qui rouvre le flux EXISTANT
+(`window.alignement.ouvrirDossier`, soit
+`/alignement/tableau/?dossier_id=N` — l'endpoint prenait deja le
+carnet). Il ne prend PAS la selection d'onglet : le gabarit du tableau
+est un fragment de MODALE, l'injecter dans un panneau aurait demande de
+le reecrire, donc du back.
+
+**4. SOUS-NOTES ENRICHIES** : marque de source (audio / web / fichier),
+nom de fichier tronque, extractions, « dans N carnets ». Tout vient du
+`select_related('page')` et des annotations DEJA calculees : aucune
+requete de plus.
+
+Verifie au navigateur. Six ecarts trouves et corriges, dont trois qui
+valaient le detour : le fil **ne collait pas** au haut de la zone — un
+element sticky se cale sur la boite de CONTENU, et le `p-8` du
+conteneur le figeait 32px plus bas en laissant defiler du texte dans la
+bande au-dessus ; et l'ecouteur « clic dehors » du menu, pose a chaque
+injection du fragment, **s'empilait a chaque navigation HTMX** sur des
+menus depuis longtemps detaches. Le troisieme est un piege de
+diagnostic : le debordement horizontal a 390px semblait venir des
+tableaux de transcription ; ils ont bien ete corriges, mais le vrai
+coupable etait le formulaire « + Ajouter a… » du bloc carnets, un flex
+sans wrap dont le `<select>` porte le nom de TOUS les carnets
+disponibles. Sans la chaine d'ancetres de l'element le plus a droite,
+on aurait cru le probleme regle.
+
+### Deux constats a remonter (hors perimetre front)
+- **`/alignement/tableau/?dossier_id=N` ne verifie AUCUNE permission**
+  (`front/views_alignement.py`, `_recuperer_pages_depuis_parametres`) :
+  `Dossier.objects.get(pk=...)` sans controle d'acces. N'importe qui
+  peut aligner les notes d'un carnet prive. Le lot n'aggrave rien —
+  l'onglet n'apparait que sur un carnet deja ouvert — mais la faille
+  existe et merite un correctif.
+- **La duree et les locuteurs d'un audio ne sont pas sur `Page`** : ils
+  derivent de la transcription. Impossible de les afficher dans les
+  sous-notes sans requete lourde, donc absents (demande consignee).
+
+623 tests verts.
+
+| Fichier | Changement |
+|---|---|
+| `front/views_corpus.py` | `carnets_visibles_par()` extrait, `contexte_du_fil_d_ariane()` |
+| `front/views.py` | fil d'Ariane sur la lecture ; l'acces direct reutilise le contexte partage |
+| `front/views_synthese.py` | fil d'Ariane sur l'article |
+| `front/templates/front/corpus/_fil_ariane.html` | **nouveau** : le fil et sa bascule |
+| `front/templates/front/corpus/carnet_detail.html` | 2 boutons d'en-tete, onglet Alignement |
+| `front/templates/front/corpus/partials/notes_du_carnet.html` | sous-notes enrichies |
+| `front/static/front/css/maquette.css` | `.fil-ariane`, `.menu-bascule`, collant reel, tableaux larges, formulaires enroulables |
+| `hypostasia/settings_test_opus.py` | **nouveau** : base de test dediee a cette session (fin des collisions entre les deux sessions paralleles) |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Les toasts parlent enfin aux lecteurs d'ecran
+
+**Quoi / What :** l'application confirme ses actions par des toasts
+SweetAlert (« Note supprimee », « Analyse lancee »…). SweetAlert
+annonce ses MODALES — role=dialog, focus deplace — mais **pas ses
+toasts** : ni modaux ni focalises, ils apparaissaient, vivaient trois
+secondes et disparaissaient en silence. Une personne qui n'a pas les
+yeux sur l'ecran ne savait jamais si son action avait abouti. L'etalon
+de design n'a pas d'aria-live non plus : c'est un point ou la bascule
+devait faire MIEUX que lui.
+
+**Deux decisions de conception.**
+1. On n'annonce pas depuis le toast : une region live creee en meme
+   temps que son contenu n'est pas annoncee de facon fiable. On ecrit
+   dans une region PERSISTANTE (`#zone-annonces`, dans base.html),
+   presente des le rendu, que la technologie d'assistance surveille
+   depuis le debut.
+2. On n'a pas touche aux sept fichiers qui appellent `Swal.fire`
+   (hypostasia, keyboard, arbre_overlay, arbre_context_menu,
+   drawer_vue_liste, dashboard_consensus, alignement) : `annonces.js`
+   ENVELOPPE `Swal.fire` une seule fois. Un seul point d'entree couvre
+   l'existant et le futur — le prochain toast ecrit ailleurs sera
+   annonce sans que personne y pense.
+
+Les modales restent volontairement exclues : les annoncer en plus
+ferait entendre le message deux fois. Le vidage puis la reecriture
+differee de 50 ms sont necessaires pour que deux messages IDENTIQUES a
+la suite soient bien re-annonces.
+
+Verifie au navigateur, y compris sur un vrai toast du produit
+(« Copier en Markdown ») : region presente avant tout toast, invisible
+mais non masquee (1x1px hors ecran, ni display:none ni aria-hidden),
+`title` + `text` concatenes, `html:` reduit au texte, modale sans
+annonce, aucune erreur JS. 543 tests verts, dont 3 neufs qui figent le
+contrat — y compris l'ORDRE DE CHARGEMENT : charge avant SweetAlert,
+le script renoncerait silencieusement.
+
+| Fichier | Changement |
+|---|---|
+| `front/static/front/js/annonces.js` | **nouveau** : enveloppe Swal.fire, annonce les toasts |
+| `front/templates/front/base.html` | region live persistante + chargement apres SweetAlert |
+| `front/tests/test_phases.py` | 3 tests : region live, ordre de chargement, exclusion des modales |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Bascule CSS, lot T10 : les ecrans staff, et la fin du
+## chantier
+
+**Quoi / What :** les ecrans d'administration de `hypostasis_extractor`
+(configuration des LLM, editeur d'analyseur, historique et diff de
+versions, exemples, entrainements) n'avaient jamais ete touches. Ils
+sont ecrits ENTIEREMENT en utilitaires Tailwind : ~300 occurrences
+colorees sur 18 gabarits.
+
+**Aucun de ces gabarits n'a ete modifie.** Les enumerer classe par
+classe aurait double la feuille sans jamais couvrir les variantes
+(`hover:`, `peer-checked:`, `focus:`, `border-l-`) : on a remappe les
+ECHELLES elles-memes — slate/gray, green/emerald, red/rose,
+amber/yellow/orange, violet/purple — en laissant le NIVEAU porter le
+role (50-100 fond, 200-300 filet, 400+ teinte pleine). Les ambres
+partent sur `--faible` et non sur `--statut-commente` : en texte,
+l'ambre pur ne fait que 2,2:1.
+
+La verification a trouve six defauts que le seul remappage ne pouvait
+pas corriger, tous repares :
+- un fond semantique PLEIN portait du texte `blanc` : en sombre ces
+  fonds s'eclaircissent et le blanc y tombait a **1,52:1** (badge
+  « IA active »). Le texte y est desormais `--papier`, qui suit le
+  theme ;
+- `.text-slate-300` sert de TEXTE (numeros d'ordre a 9px) la ou le
+  niveau 300 de l'echelle est reserve aux filets de controle : 3,02:1 ;
+- **241 champs** dessines avec `border-slate-200`, un filet decoratif a
+  1,19:1 — les elements de formulaire prennent maintenant
+  `--filet-controle` ;
+- **`focus:outline-none` battait le focus visible global** (0,2,0
+  contre 0,1,0) : un champ focalise au clavier ne montrait plus rien
+  des que son `ring` etait absent. Le focus est un invariant
+  d'accessibilite (WCAG 2.4.7), il passe en `!important` ;
+- sous 640px, les rangees de controles poussaient leur bouton
+  « Sauver » HORS du viewport, sans defilement pour le rattraper ;
+- les deux ecrans de versions n'avaient aucun conteneur et commencaient
+  au bord gauche de la fenetre.
+
+**Le code mort du poste 0.1, supprime dans la foulee.** Verification
+faite, il ne s'agissait pas de trois VUES cassees mais de trois
+BRANCHES HTML a l'interieur de ViewSets DRF qui servent aussi du JSON —
+supprimer les vues aurait casse l'API. Ces branches etaient
+**doublement mortes** : leur template etend `core/base.html`, absent du
+depot, ET la condition `request.accepted_renderer.format == 'html'` ne
+pouvait jamais etre vraie, aucun renderer HTML n'etant configure (DRF
+s'en tient a JSON + BrowsableAPI, dont le format est `api`). Verifie
+en reel avant et apres : `/api/extraction-jobs/` et
+`/api/extraction-examples/` repondent 200 en JSON comme en HTML, avant
+comme apres. Retire : les 3 branches, et 4 gabarits
+(`job_list.html`, `job_detail.html`, `example_list.html`, plus
+`analyseur_list.html`, orphelin sans aucune reference).
+
+782 tests `hypostasis_extractor` + `test_phases` et 104 e2e verts apres
+la suppression.
+
+104 tests e2e et 585 tests unitaires verts.
+
+| Fichier | Changement |
+|---|---|
+| `front/static/front/css/maquette.css` | section T10 : 5 echelles remappees + 6 correctifs cibles |
+| `front/templates/front/*.html` | cache-busting maquette.css v15 |
+| `hypostasis_extractor/views.py` | 3 branches HTML mortes retirees (l'API JSON est intacte) |
+| `hypostasis_extractor/templates/.../{job_list,job_detail,example_list,analyseur_list}.html` | supprimes (~285 lignes) |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Bascule CSS, lots T6 a T9 : pages nues, theme sombre,
+## overlays, purge — et les restes d'accessibilite
+
+**Quoi / What :** la fin du chantier de bascule. Toujours du front pur :
+aucun modele, aucune migration, aucun endpoint touche. Chaque lot a ete
+verifie au navigateur par un agent Playwright avec contrastes calcules,
+et chaque ecart trouve a ete corrige puis contre-verifie.
+
+**T6 — les cinq pages nues** (connexion, inscription, token, 403,
+invitation) : elles n'avaient AUCUN equivalent dans la maquette
+(cahier des charges § 2.4, trou n°1). Gabarit neuf `.page-nue` — une
+`.zone-corpus` etroite de 26rem — qui REUTILISE les composants
+existants (`.champ-*`, `.bouton-plat`, `.surface-formulaire`,
+`.message-etat`, `.pied-page`) plutot que d'inventer un systeme
+parallele. Elles chargent maintenant la couche maquette : ce sont les
+premieres pages hors `base.html` a le faire.
+
+**T7 — le theme sombre, qui n'existait pas.** Mecanisme a trois etats
+de l'etalon (`:root` / `@media prefers-color-scheme` /
+`[data-theme="dark"]`) plus la PERSISTANCE `localStorage` que l'etalon
+n'a pas, appliquee dans le `<head>` avant le premier rendu pour ne pas
+clignoter. Les 8 tokens de surface sont ceux de l'etalon au bit pres
+(verifie contre le fichier). **Ses accents, eux, ne survivent pas au
+fond sombre** — `--info` y tombe a 2,26:1 — donc ils basculent aussi,
+ainsi que les 8 familles d'hypostases, les deux tokens de statut et le
+filet de controle. Trouve et repare a la verification : l'onboarding
+entier reste en couleurs Tailwind (titre a 1,02:1), un ilot `#fafbfc`
+oublie, les ombres portees noires devenues invisibles, les soulignements
+de statut ecrits en `rgba()` fixe (1,37:1) et **l'ambre pur lui-meme,
+qui ne fait que 2,20:1 sur le papier clair** — d'ou un token
+`--filet-statut-commente` qui le fonce en clair et le laisse pur en
+sombre.
+
+**T8 — les overlays.** Modale d'alignement (les fonds blancs sticky
+etaient vises par les classes de la MAQUETTE, absentes de
+l'application : corrige sur les vraies classes), badges d'hypostase du
+drawer re-derives de la teinte de leur famille, bottom sheet, voiles.
+**Decouverte du lot** : les 150 lignes de `.ws-toast*`
+(hypostasia.css:1668-1810) sont du CSS MORT — zero occurrence dans un
+`.js`, un `.html` ou un `.py`. Les « deux systemes de toasts » du
+cahier des charges n'en font plus qu'un : c'est SweetAlert qu'on
+habille.
+
+**T9 — la purge.** Deux `.woff2` de Lora orphelins supprimes (aucun
+`@font-face` ne les nommait). Et les **deux tests-mensonges** reecrits
+sur le contrat REEL : « le body est en B612 » devient « la couche
+maquette, chargee en dernier, met le body en Georgia », avec un test
+qui verifie l'ORDRE DE CHARGEMENT — c'est lui le contrat, l'inverser
+rendrait le corps a B612 sans qu'aucun autre test ne bronche.
+
+**Accessibilite — les restes du plan, tous traites :** lien
+d'evitement (la barre compte quinze controles avant le contenu),
+`aria-expanded`/`aria-haspopup`/`aria-controls` et fermeture a Echap
+avec retour du focus sur le menu utilisateur, onglets du carnet devenus
+un vrai tablist (`aria-controls`, `role=tabpanel`, `aria-labelledby`
+qui SUIT l'onglet courant, fleches en activation manuelle, un seul
+onglet dans l'ordre de tabulation), `aria-live` resserre du panneau
+entier vers la seule liste rechargee, repli `@supports` pour `:has()`,
+et le manifeste — page entiere jamais basculee, 1,02:1 en sombre —
+passe integralement en tokens.
+
+**Le troisieme reservoir de couleurs**, trouve a la toute fin : le
+plugin Tailwind Typography porte les siennes dans des variables
+`--tw-prose-*` en `oklch`, hors de portee du remappage des echelles
+comme des regles par classe. Le texte d'une citation en bloc tombait a
+**1,07:1** en sombre — un bloc vide avec une barre bleue. Les 16
+variables sont remappees a la source. Regle du chantier, confirmee
+trois fois : quand une couleur resiste, chercher la VARIABLE qui la
+porte plutot qu'ajouter un selecteur.
+
+**Deux tests-mensonges de plus, decouverts par la suite e2e** :
+« la police B612 est chargee » et « la police Lora est chargee »
+echouaient — non parce qu'une police avait disparu, mais parce que le
+navigateur ne charge une police que si un element l'emploie, et que
+depuis la decision D1 ni B612 ni Lora n'habillent plus le corps. Elles
+ne servent plus qu'aux ilots de provenance, absents d'une page sans
+extraction. Les deux tests verifient desormais la DECLARATION (comme
+celui de Srisakdi, deja ecrit ainsi), et un test neuf assied le
+nouveau contrat : le corps de lecture est en Georgia.
+
+**Une regression trouvee par la suite mobile et corrigee** : le bouton
+de bascule du theme mangeait la largeur du titre du document dans la
+barre, jusqu'a le faire disparaitre sous 640px. Il y est masque — le
+titre est plus utile la, et la bascule reste accessible depuis la page
+de reglages et les pages nues.
+
+669 tests verts (test_phases, test_rendu_elements, corpus D a H,
+phase28) et **les 104 tests e2e** de la suite complete.
+
+| Fichier | Changement |
+|---|---|
+| `front/static/front/css/maquette.css` | theme sombre 3 etats, tokens d'accents sombres, `--filet-statut-*`, overlays, SweetAlert, onboarding, lien d'evitement, repli `:has()` |
+| `front/static/front/js/theme.js` | **nouveau** : le theme 3 etats et sa persistance |
+| `front/static/front/js/user_menu.js` | aria-expanded, Echap, retour du focus |
+| `front/templates/front/{login,register,mon_token,acces_refuse,invitation_erreur}.html` | gabarit `.page-nue` + bascule de theme |
+| `front/templates/front/base.html` | lien d'evitement, bouton de theme, aria du menu |
+| `front/templates/front/corpus/_style_maquette.html` | `.page-nue`, `.vide`, `.bouton-icone`, `.groupe-actions`, contours de controles, onglet actif |
+| `front/templates/front/corpus/carnet_detail.html` | tablist complet, aria-live resserre |
+| `front/templates/front/includes/manifeste.html` | 14 couleurs en dur -> tokens |
+| `front/templates/front/includes/lecture_principale.html` | les 6 utilitaires `prose-*` COLORES retires (ils battaient les variables) |
+| `front/tests/test_phases.py` | 2 tests-mensonges reecrits + 3 tests neufs |
+| `front/tests/e2e/test_22_corpus.py` | clique la puce et non la case masquee |
+| `front/tests/e2e/test_06_charte_visuelle.py` | 2 tests de police reecrits + 1 test neuf (corps en Georgia) |
+| `front/static/front/fonts/lora-{medium,semibold}.woff2` | supprimes (orphelins) |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Bascule CSS, lots T4 et T5 : la lecture, puis les
+## trois derniers ecrans corpus
+
+**Quoi / What :** deux lots livres et verifies au navigateur (agent
+Playwright, contrastes calcules), sans toucher un modele, une migration
+ni un endpoint.
+
+**T4 — l'ecran de lecture.** Les derniers bleus du produit y vivaient.
+Plutot qu'un selecteur par utilitaire, on REMAPPE A LA SOURCE les
+echelles Tailwind `--color-blue-*` et `--color-indigo-*` vers
+`var(--info)` : d'un coup, `hover:`, `prose-a:`, `prose-blockquote:` et
+`border-l-` suivent, la ou une liste de classes ne les atteignait pas.
+Puis : liens du corps en `--info` souligne (7,71:1), citation en bloc au
+filet `--info`, legendes et en-tetes de tableau en monospace, chrome de
+la page (Source / Exporter / Historique / pilules de version) en
+monospace dense. Les PASTILLES de marge perdent leur halo bleu au profit
+de l'ambre, et leur ecart passe a 8px : 16px + 8px = 24px de centre a
+centre, soit l'EXCEPTION D'ESPACEMENT de WCAG 2.5.8 (la geometrie ne
+peut pas grandir, le clip-path du triangle l'interdit).
+Trois defauts trouves par la verification et corrigees dans la foulee :
+le flash au clic (`@keyframes hl-pulse`, `bloc-flash-pulse`, ecrits en
+bleu Tailwind en dur — les keyframes de meme nom sont REDEFINIES dans
+maquette.css, hypostasia.css n'est pas touchee) ; le nom d'utilisateur
+de la barre, NOIR SUR NOIR (1:1 -> 10,56:1) parce qu'un `<span>` a
+quatre niveaux echappait aux selecteurs « enfant direct » ; l'avatar et
+le lien Connexion sur la barre sombre (2,18:1 -> 10,18:1).
+
+**T5 — carnets_liste, bases_liste, base_detail** portes sur
+`.zone-corpus` / `.ligne-note` comme carnet_detail : ils forment
+desormais un systeme avec lui (memes polices, memes tailles, meme
+largeur de 64rem, verifie au pixel). Tous les `data-testid` sont
+conserves a l'identique. La visibilite passe en icone ET mot, les etats
+vides EXPLIQUENT la regle au lieu de la constater, et le design system
+gagne cinq composants (`.lien-navigation`, `.vide`, `.rangee-champ`,
+`.bouton-icone`, `.marque-visibilite`, `.groupe-actions`).
+**Ecart assume vs l'etalon** : un token `--filet-controle` (3,27:1)
+remplace `--filet` (1,28:1) sur le contour des champs et des boutons —
+WCAG 1.4.11 demande 3:1 quand le contour est le seul indice visuel du
+controle. L'etalon est fautif sur ce point ; la doctrine du chantier est
+de faire mieux que lui en accessibilite, pas de le copier.
+
+571 tests (test_phases + test_rendu_elements) et 122 tests corpus verts.
+
+| Fichier | Changement |
+|---|---|
+| `front/static/front/css/maquette.css` | remappage des echelles Tailwind, section T4, keyframes ambre, barre (utilisateur/avatar/connexion), `--filet-controle` |
+| `front/templates/front/corpus/_style_maquette.html` | 6 composants ajoutes, contours de controles renforces |
+| `front/templates/front/corpus/carnets_liste.html` | porte sur .zone-corpus / .ligne-note |
+| `front/templates/front/corpus/bases_liste.html` | idem |
+| `front/templates/front/corpus/base_detail.html` | idem + edition des categories dans la ligne |
+| `front/templates/front/corpus/partials/categories_de_la_base.html` | axes et categories en .axe / .etiquette-categorie |
+| `front/templates/front/corpus/partials/erreurs_formulaire.html` | rouge Tailwind -> tokens |
+| `front/templates/front/base.html` | cache-busting maquette.css v4 |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Branchement du moteur d'ancrage, BR-A : le flag Page.moteur
+
+**Quoi / What :** premiere phase du branchement (SPEC-ancrage v2 § 9,
+cahier PLAN/branchement-moteur-ancrage-cahier-des-charges.md) :
+- `Page.moteur` (ancien/element, defaut ancien, db_index) — un CHAMP
+  explicite, decision D1 : le discriminant implicite elements.exists()
+  prendrait une ingestion echouee pour une page ANCIEN.
+- Migration core.0053 (appliquee sur dev) : schema + AUCUN estampillage
+  — c'est un choix documente (§ 9.2) : tout l'existant reste ANCIEN,
+  y compris les 537 pages/541 du dev decouvertes porteuses d'elements
+  DORMANTS (phases de test du moteur). Les basculer serait changer le
+  rendu du corpus entier d'un coup ; la reconversion est une decision
+  explicite (§ 9.5), quasi gratuite le jour venu.
+- Le flag ELEMENT est pose au point de passage unique de l'ingestion
+  (creer_les_elements_d_une_page) — teste, y compris le cas D1 (page
+  ELEMENT a zero element).
+- Addendum date pose dans SPEC-ancrage-par-element-v2.md (D1-D2 +
+  decouverte).
+
+| Fichier | Changement |
+|---|---|
+| `core/models.py` | + MoteurDePage, + Page.moteur |
+| `core/migrations/0053_page_moteur.py` | Schema + noop documente |
+| `hypostasis_extractor/services/ingestion_docling.py` | Pose du flag |
+| `core/tests/test_moteur_flag.py` | 5 tests |
+
+Suite : BR-B (routage de l'import fichier vers l'ingestion Docling).
+
+### Migration
+- **Migration necessaire / Migration required :** Oui — core.0053
+  (appliquee sur dev).
+
+---
+
+## 2026-08-09 — Bascule CSS v2 : les correctifs des trois audits
+
+**Quoi / What :** trois agents (visuel Playwright, audit statique,
+audit accessibilite avec ratios calcules) ont confronte le re-skin ;
+TOUS les bloquants corriges le soir meme :
+- **Chrome repare** : les menus deroulants de la barre (utilisateur,
+  taches) etaient BLANC SUR BLANC (1,59:1) — regles nav.h-12
+  restreintes aux enfants directs, panneaux en papier/encre ; nom
+  d'utilisateur lisible ; focus PAPIER sur la barre sombre (2,18 ->
+  16,79:1) ; 4 etats du bouton taches lisibles ; separateur re-teinte.
+- **Source unique des tokens** (le :root de _style_maquette retire) +
+  REMAPPAGE des ~50 tokens de hypostasia.css vers la palette papier —
+  surfaces blanches, textes slate et halo d'ancre bleu (desormais
+  AMBRE) suivent d'un coup.
+- **Accueil onboarding** re-skinne (etait reste entier a l'ancien
+  design, 4 contrastes < 2,6) ; **corps de lecture en Georgia/encre**
+  (decision D1 : Lora quitte le corps, la maquette fait foi) ;
+  **surlignages d'extraction recolores** (les statuts riches
+  controverse/consensuel/discutable restes en base n'avaient PLUS
+  AUCUNE couleur — bug pre-existant repare : vert/rouge/ambre legers).
+- **Semantique des messages** : ambre/vert/info/danger re-teintes DANS
+  leur teinte (plus jamais fusionnes en beige), bordures assorties,
+  bg-red-50 et bg-amber-50/30 couverts.
+- **Accessibilite** : teintes Wong plus jamais en texte (1,29:1 !) —
+  contour + fond 18 % + encre ; soulignements de verdicts >= 3:1 ;
+  cibles boutons d'ordre/renvois elargies ; focus visible des
+  puces-filtres ; panneau de preuve ferme NON tabulable + role dialog
+  + focus donne a l'ouverture + Escape conditionne (ne vole plus le
+  focus) ; reduced-motion GLOBAL (46 animations de hypostasia.css
+  comprises) ; noscript des filtres fonctionnel (method/action).
+- **Acces direct** : /wikis/{id}/ et /syntheses/{id}/ rendent la page
+  COMPLETE hors HTMX (branche article_preloaded), les collections
+  carnet redirigent — plus de fragments nus en Times New Roman.
+- Arbre/drawers : monospace etalon, boutons/etats actifs en
+  papier/ambre (plus d'indigo) ; bottom-sheet papier.
+
+Verifie en navigation reelle apres redeploiement. Lots restants et
+restes a11y consignes dans PLAN/bascule-css-etat-2026-08-09.md (~6 j).
+
+| Fichier | Changement |
+|---|---|
+| `front/static/front/css/maquette.css` | v2 : tokens uniques + remappage + tous les correctifs |
+| `front/templates/front/corpus/_style_maquette.html` | :root retire, Wong, verdicts 3:1, cibles, focus, panneau |
+| `front/templates/front/corpus/article.html` | role dialog, focus, Escape conditionne |
+| `front/templates/front/corpus/carnet_detail.html` | noscript fonctionnel |
+| `front/templates/front/base.html` | branche article_preloaded |
+| `front/views_synthese.py` | acces direct -> page complete / redirect |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — La couche maquette GLOBALE : le chrome du site re-skinne
+
+**Quoi / What :** suite de la bascule (decision du proprietaire) — le
+design de l'etalon applique au RESTE du site par une couche globale :
+- `front/static/front/css/maquette.css`, chargee EN DERNIER dans
+  base.html : body Georgia sur papier, barre du haut SOMBRE en
+  monospace (le pupitre de l'etalon), arbre lateral et drawers en
+  papier-panneau avec filets, re-teinte des utilitaires Tailwind les
+  plus porteurs de l'ancien look (bg-white -> papier, text-blue ->
+  info, border-slate -> filet, bg-slate -> papier-creux), focus
+  visible global, selection ambre.
+- STRATEGIE DE COUCHE, pas de reecriture : aucun CSS existant modifie
+  (tailwind.css et hypostasia.css intacts — les ~40 classes de
+  test_phases qui assertent leur texte restent vertes, 537 tests OK),
+  aucun template du reste du site touche. Les ecrans corpus/synthese
+  gardent leur design system complet (.zone-corpus).
+- collectstatic fait, verifie en navigation reelle (fond papier,
+  Georgia, barre sombre calcules par getComputedStyle).
+- Verification en cours par 3 agents (visuel Playwright, audit
+  statique des couches, accessibilite/regressions) — rapports a
+  consigner.
+
+| Fichier | Changement |
+|---|---|
+| `front/static/front/css/maquette.css` | Nouveau : la couche globale |
+| `front/templates/front/base.html` | + le link de la couche (en dernier) |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Le design de la maquette porte dans Django (ecrans corpus/synthese)
+
+**Quoi / What :** decision du proprietaire (« l'ancien CSS est a
+jeter, le design de la maquette est tres bon ») : le design system de
+l'etalon tmp/maquettes/corpus.html est PORTE dans Django, avec les P0
+de la confrontation maquette integres.
+- `front/templates/front/corpus/_style_maquette.html` : les tokens et
+  composants de l'etalon (Georgia, papier/encre/filet, onglets a
+  soulignement ambre, puces-facettes, lignes de notes en grille,
+  article-synthese, renvois exposants, panneau de preuve LATERAL fixe
+  + voile, operations a liseret par type, surfaces de creation),
+  SCOPES sous .zone-corpus pour cohabiter avec l'ancien CSS du reste
+  du site jusqu'a la bascule complete. prefers-reduced-motion
+  respecte. Etats etendus vs etalon : source_debat, conteste,
+  non_verifie (pointille).
+- **Les P0 de la confrontation** :
+  1. LES VERDICTS AU FIL DU TEXTE : chaque paragraphe est une
+     .affirmation[data-verification] coloree (pire verdict de ses
+     citations ; AUCUNE citation = non_source ROUGE, § 4.4) +
+     legende des etats + comptes de verdicts dans l'en-tete.
+  2. Panneau de preuve LATERAL (.est-ouvert, voile, ✕, Escape,
+     renvoi marque actif, focus rendu a la fermeture).
+  3. /lire/ REDIRIGE les articles de synthese vers leur ecran
+     (un wiki ouvert par l'arbre ne perd plus ses citations) ;
+     les syntheses historiques versionnees gardent l'ecran lecture.
+  4. Navigation : bouton retour-liste, hx-push-url sur l'onglet
+     Notes, etat actif des onglets tenu par 3 lignes de JS
+     (aria-selected ne ment plus), compteurs Wikis (n) /
+     Syntheses (n).
+  5. Le compteur d'ecartees DANS le summary (« 46 extractions du
+     perimetre n'ont pas ete reprises »), charge a l'ouverture du
+     pli ; « Sources citees : N extractions (M renvois) » — deux
+     comptes, deux mots. Les lignes de liste sont QUALIFIEES
+     (sources · ecartees · verifiees · faibles).
+- La garde zero-citation (voir phases H-I) est nee d'un constat reel
+  pendant cette livraison.
+
+Verifie en navigation reelle (Playwright, hyp.nasjo.fr/carnets/1/) :
+onglet actif honnete, 8 affirmations colorees (6 faibles oranges,
+2 verifiees vertes), legende, panneau lateral + Escape, summary
+chiffre, qualification des listes, zero erreur JS.
+
+| Fichier | Changement |
+|---|---|
+| `front/templates/front/corpus/_style_maquette.html` | Nouveau : le design system de l'etalon, scope |
+| `carnet_detail.html`, `partials/notes_du_carnet.html` | Refonte aux classes maquette (testids conserves) |
+| `article.html`, `liste_wikis.html`, `liste_syntheses.html` | Refonte + P0 |
+| `partials/preuve.html`, `partials/diff_operations.html` | Classes maquette (etat-verification, operation[data-op]) |
+| `front/views_synthese.py` | Affirmations colorees, comptes distincts, qualification des lignes, compteur d'ecartees |
+| `front/views_corpus.py` | Compteurs d'onglets wikis/syntheses |
+| `front/views.py` | Redirection /lire/ des articles de synthese |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Couche synthese, phases H-I : les ecrans wikis et syntheses
+
+**Quoi / What :** la couche synthese devient VISIBLE (§ 10) :
+- **Onglets reels** sur l'ecran carnet : Notes / Wikis / Syntheses
+  dirigees (role tablist ARIA revenu avec le 2e vrai onglet, audit D8).
+- **Taches carnet-niveau** (front/tasks.py) : `produire_un_wiki_task`
+  (perimetre RECALCULE § 3.1.1), `produire_une_synthese_de_carnet_task`
+  (multi-notes — la vue cree l'acte date et FIGE le perimetre AU MOMENT
+  DU GESTE, la tache remplit), `proposer_une_maj_de_wiki_task` (des
+  operations § 6 sur les ecartees, JAMAIS auto-appliquees, fraicheur
+  addendum n°1), `verifier_les_citations_task` (§ 7 a la demande).
+  Toutes sur le contrat phase C (marqueurs, CITATIONS_USED, perimetre
+  obligatoire). NOUVELLE GARDE (constat sur GPT-4o-mini reel) : un
+  article sans AUCUNE citation sur un perimetre non vide est REFUSE —
+  un texte sans preuve n'est pas un succes.
+- **Endpoints** (front/views_synthese.py) : WikiViewSet (liste/creer
+  par carnet, article, mise_a_jour -> proposition -> appliquer,
+  verifier), SyntheseViewSet (liste/creer par carnet — garde-fou § 3.3
+  mecanique et DIT a l'utilisateur —, article, ecartees § 8 avec refus
+  honnete des historiques, couverture § 9 par note, verifier, PAS de
+  mise a jour : bouton desactive avec motif § 10), CitationViewSet
+  (panneau de preuve : citation exacte, verdict AVEC provenance § 7.2,
+  debat joint, etat de la source, retour a la source).
+- **Phase I** : le diff des operations previsualise par UN PASSAGE A
+  BLANC de l'applieur reel (jamais deux verites) — l'humain coche
+  operation par operation, le replace montre l'AVANT (§ 6.4), les
+  rejets mecaniques sont montres avec contenu conserve, les
+  contestations perdues sont affichees apres application (relecture G).
+- **Renvois [N] cliquables** : le HTML de l'article est re-rendu avec
+  des ancres HTMX liees a LEUR SourceLink (couple paragraphe-extraction
+  par bornes cibles) -> panneau de preuve.
+
+Valide sur DONNEES REELLES (carnet public « Demonstration », GPT-4o-mini) :
+synthese de carnet a 8 citations (verification reelle : 2 verifiees /
+6 faibles, provenance posee), wiki a 9 citations apres renforcement de
+la consigne de sourcage.
+
+| Fichier | Changement |
+|---|---|
+| `front/views_synthese.py` | Nouveau : 3 ViewSets |
+| `front/tasks.py` | + 4 taches + helpers partages + garde zero-citation |
+| `front/urls.py` | Routes /wikis/, /syntheses/, /citations/ + collections carnet |
+| `front/templates/front/corpus/` | liste_wikis, liste_syntheses, article + partials (preuve, ecartees, couverture, diff_operations, tache_lancee, erreur) |
+| `front/templates/front/corpus/carnet_detail.html` | Onglets reels (tablist) |
+| `front/tests/test_synthese_phase_h.py` | 16 tests |
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Couche synthese, phase G : la verification des citations
+
+**Quoi / What :** SPEC-synthese § 7 — deux controles en cascade, PAR
+PAIRE (affirmation, source) :
+1. **Verbatim** (deterministe, gratuit) : le texte cite existe-t-il
+   litteralement dans la source ACTUELLE ? Tolerant aux espaces,
+   sensible au reste. En echec sur l'extraction, on cherche dans les
+   COMMENTAIRES : une affirmation qui reprend fidelement un commentaire
+   est SOURCEE PAR LE DEBAT (§ 7.4, nouvel etat SOURCE_DEBAT +
+   commentaires_source rempli) — pas « faible ». En echec partout :
+   FAIBLE, sans payer d'appel au juge.
+2. **Implication (NLI)** : jugee par LE LLM CONFIGURE, EN LOT (une
+   requete pour N paires) et A LA DEMANDE — question ouverte n°3
+   TRANCHEE par le proprietaire (9 aout) : pas de modele local sur un
+   serveur 8 Go partage ; ~0,01-0,05 EUR par synthese en lot.
+
+Les garanties § 7.2 :
+- chaque verdict porte sa PROVENANCE (`verifie_par` = methode + modele,
+  `verifie_le`) — « un etat sans provenance est un argument d'autorite
+  automatise » ;
+- l'etat CONTESTE pose par un humain n'est JAMAIS ecrase par une
+  re-verification ;
+- un verdict ABSENT de la reponse du juge (troncature, refus) laisse la
+  paire NON_VERIFIE et le signale — jamais un faux « verifie ».
+
+| Fichier | Changement |
+|---|---|
+| `core/models.py` | EtatDeVerification + CONTESTE + SOURCE_DEBAT ; SourceLink + verifie_par/verifie_le |
+| `core/migrations/0052_provenance_du_verdict.py` | Schema (appliquee sur dev) |
+| `core/services/verification.py` | Nouveau : la cascade + le juge en lot |
+| `core/tests/test_verification.py` | 7 tests |
+
+Le declenchement (endpoint « verifier cette synthese ») est la phase H —
+le service est A LA DEMANDE par construction, jamais appele a la
+production d'une synthese.
+
+### Relecture / Review
+Relecture adverse passee (9 aout, nuit — parsing et normalisation
+prouves par execution), 2 bloquants et 7 importants corriges avec
+leurs tests (19 au total) :
+- **B1 (le plus grave)** : reconstruire l'index des citations
+  (indexer_les_citations, phase B) DETRUISAIT tous les verdicts — y
+  compris un CONTESTE humain. L'indexeur RECONCILIE desormais : un
+  verdict est reporte quand la paire (extraction, paragraphe) est
+  inchangee ; une contestation dont la paire a disparu est SIGNALEE
+  (bilan["contestations_perdues"]), jamais perdue en silence.
+- **B2 (injection)** : le prompt du juge encadre chaque donnee par des
+  delimiteurs NONCE (l'affirmation et la source viennent de notes
+  potentiellement hostiles), et une reponse aux indices dupliques,
+  hors lot ou surnumeraires est REJETEE EN ENTIER — le lot reste
+  NON_VERIFIE, jamais un faux « verifie » injectable.
+- **I1** : une exception du juge (timeout, quota) ne degrade RIEN —
+  les verdicts precedents survivent, l'echec est au bilan.
+- **I2** : une source supprimee perd son verdict vert (provenance
+  « source supprimee — verdict retire »).
+- **I3** : des bornes cibles perimees (article edite sans
+  re-indexation) ne sont JAMAIS jugees — le paragraphe doit contenir
+  son marqueur.
+- **I4** : la fidelite au DEBAT se juge aussi — reprendre un
+  commentaire verbatim puis le deformer dans la conclusion donnait un
+  SOURCE_DEBAT immerite ; le chemin debat passe au juge (soutient ->
+  SOURCE_DEBAT, sinon FAIBLE).
+- **I5** : le lot est decoupe par paquets de 20 (contextes et timeouts
+  bornes), echec par paquet isole.
+- **I6** : une extraction masquee ou une ancre detachee n'est pas
+  blanchie par un verdict frais (non_jugeables au bilan).
+- **I7** : commentaires_source suit toujours le verdict (plus de
+  provenance « debat » orpheline sous un verdict faible).
+- Mineurs : juge jamais anonyme (name ou model_choice), NFKC +
+  apostrophes typographiques dans le verbatim, tolerance puces dans
+  les lignes de verdict (indices controles strictement), marqueurs
+  retires de l'affirmation envoyee au juge, texte source charge une
+  fois par note, ordre deterministe des paires, NON_SOURCE documente
+  comme etat d'affichage (jamais pose en base).
+- Pour la phase H (fiche A TESTER) : l'etalon corpus.html ne connait
+  pas encore source_debat/conteste/non_verifie — la maquette et
+  verifier_les_maquettes.py devront etre etendus.
+
+### Migration
+- **Migration necessaire / Migration required :** Oui — core.0052
+  (appliquee sur dev).
+
+---
+
+## 2026-08-09 — Couche synthese, phase F : l'applieur d'operations de section
+
+**Quoi / What :** SPEC-synthese § 6 : le modele ne reecrit jamais un
+wiki — il propose des operations (no_change, append_to_section,
+replace_section, insert_section) qu'un applieur fusionne et qu'un
+humain accepte.
+- `core/services/section_ops.py` : `appliquer_les_operations()`,
+  fonction PURE (l'appelant phase H sauvera, reindexera les citations
+  et incrementera tours_de_mise_a_jour).
+- Un titre introuvable est une HALLUCINATION : operation rejetee
+  VISIBLEMENT avec son motif, contenu CONSERVE — jamais de fallback en
+  fin d'article, jamais de perte silencieuse (§ 6.2, corrige
+  INSPIRATION_ATOMIC § 7). Titre duplique = cible ambigue = rejet.
+- Rejet PAR OPERATION (addendum n°4) : une hallucination ne jette pas
+  les faits des autres operations.
+- Controles § 6.3 deterministes : sources DERIVEES des marqueurs
+  [[ext:N]] du contenu (le markdown est la verite) — operation sans
+  marqueur ou citant hors perimetre : rejetee.
+- Seuls les ## font frontiere (addendum n°3) ; replace retourne
+  l'ancien corps pour le diff (§ 6.4).
+- `verifier_que_la_proposition_est_fraiche()` : concurrence optimiste
+  par updated_at (addendum n°1) — proposition perimee refusee
+  visiblement, horodatage illisible traite comme perime.
+
+| Fichier | Changement |
+|---|---|
+| `core/services/section_ops.py` | Nouveau : l'applieur + la garde de fraicheur |
+| `core/tests/test_section_ops.py` | 13 tests (§ 12 + par-operation, ambiguite, ## seulement, ISO) |
+
+**Egalement** : question ouverte n°5 TRANCHEE par le proprietaire (au
+plus simple : editer_bloc reste non garde, le gel § 5 effectif sera
+livre avec le branchement du moteur element).
+
+### Relecture / Review
+Relecture adverse passee (9 aout soir, constats PROUVES par execution),
+1 bloquant et 6 importants corriges avec leurs tests (+11) :
+- **B1** : le contenu d'une operation pouvait CONTENIR un titre ## et
+  fabriquer une section que l'humain n'a pas approuvee — avec un titre
+  duplique rendant la section ambigue pour toujours. Rejet : seule
+  insert_section cree une section.
+- **I1** : insert d'un titre deja present -> rejet (meme corruption).
+- **I2** : reconnaissance de frontiere PARTAGEE applieur/indexeur
+  (`titre_de_section()`, permissive sur l'indentation) — un titre
+  indente ne range plus un ajout dans la mauvaise section.
+- **I3** : les titres se comparent tronques a 200 (la taille de
+  SourceLink.section, la forme que le prompt peut montrer au modele).
+- **I4** : une operation JSON malformee (mauvais types) est rejetee
+  PAR OPERATION avec motif, plus jamais une exception qui detruisait
+  le lot entier (addendum n°4 respecte jusqu'au bout).
+- **I5** : ancre d'insertion absente -> motif honnete (« non
+  renseignee », pas « hallucinee »).
+- **I6/addendum n°15** : le schema des operations (type/section/titre/
+  apres/contenu, snake_case FR) est contractualise dans la spec.
+- Mineurs : no_change fantome signale (M1), CRLF normalise (M2), titre
+  d'insertion multi-lignes ou en # rejete (M3), recherche par indice
+  (M4), UNE operation de contenu par section et par lot (M5 — sinon
+  l'« avant » du diff § 6.4 mentirait), indice d'origine dans les
+  resultats (M6), motifs FALC (M7), assertion discriminante (M8).
+- Caveats d'integration phase H consignes dans la docstring de
+  verifier_que_la_proposition_est_fraiche (re-controle sous verrou,
+  .isoformat() jamais un filtre localise).
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Couche synthese, phase E : le blocage d'edition d'une source citee
+
+**Quoi / What :** SPEC-synthese § 5 : editer un ElementDocument dont une
+portion appartient a une extraction citee par une synthese DIRIGEE est
+refuse — la preuve d'un acte adopte ne bouge pas. Un wiki ne bloque
+rien (il est vivant, le tour suivant corrige).
+- `EditionBloqueeParUneSynthese` + `verifier_qu_aucune_synthese_ne_cite`
+  (element) + `verifier_qu_aucune_synthese_ne_cite_la_page`
+  (reingestion) dans garde_edition.py. Le refus NOMME la synthese et sa
+  date (§ 5.3) ; seuls les liens CITE gelent (jamais les liens de
+  versionnage historiques).
+- Six sites gardes, juste apres verifier_qu_aucune_analyse_ne_tourne :
+  reconciliation, masquage, demasquage, scission, fusion (les DEUX
+  elements), reingestion (page entiere).
+- ATTENTION AU M2M : citer une extraction gele TOUS les elements
+  qu'elle traverse — une preuve coupee en deux n'est plus une preuve.
+- La reconciliation reste intacte (§ 5.2) : elle repositionne les
+  ancres des editions AUTORISEES ; le blocage protege les actes dates.
+
+| Fichier | Changement |
+|---|---|
+| `hypostasis_extractor/services/garde_edition.py` | + exception + 2 gardes |
+| `reconciliation.py`, `masquage.py`, `moteur_structure.py`, `reingestion.py` | + appels aux 6 sites |
+| `core/tests/test_garde_synthese.py` | 7 tests (§ 12 + masquage, scission, lien non-CITE) |
+
+115 tests extractor relances : aucune regression.
+
+### Relecture / Review
+Relecture adverse des lots D+E passee (9 aout soir), 3 bloquants et
+4 importants corriges avec leurs tests :
+- **B1** : la garde § 4.2 de run_langextract_job etait placee APRES
+  l'appel LLM — on payait des minutes de modele pour un job voue au
+  refus. Hissee AVANT l'appel (et gardee en profondeur avant la purge).
+- **B2** : « nettoyer les extractions IA » sur une page citee par une
+  dirigee faisait un 500 au milieu du delete. Garde § 4.2 en amont dans
+  la vue analyser, refus 409 FALC, l'extraction citee survit.
+- **B3** : le figement du perimetre (.set d'ids captures avant l'appel)
+  pouvait exploser sur une extraction purgee PENDANT la generation et
+  perdre la synthese entiere — re-requete des survivantes.
+- **I1** : le blocage du DEMASQUAGE etait un sur-blocage qui enfermait
+  (element masque par erreur puis cite -> plus jamais demasquable) :
+  retire — le demasquage verifie le hash et rend la preuve PLUS fidele.
+  La garde § 5 couvre donc CINQ sites, pas six.
+- **I2** : les ecartees d'une dirigee HISTORIQUE (perimetre jamais
+  fige) auraient annonce « 100 % ecarte » : refus explicite
+  (PerimetreDExtractionsInconnu) plutot qu'un mensonge a charge.
+- **I4** : fusion (le SECOND element bloque aussi) et reingestion page
+  desormais testees. **I5** : verifier_les_citations=False depuis la
+  reingestion (la garde page est un sur-ensemble). **M6/M8/M9** :
+  filtre « citable » unique, fixtures sur statuts morts corrigees,
+  no-op « deja masque » avant la garde.
+- **I3 (decision a trancher, consignee § 14 de la spec)** : le seul
+  chemin d'edition de texte REELLEMENT expose aujourd'hui (editer_bloc,
+  ancien moteur) n'est pas garde — le § 5.2 l'exonere explicitement,
+  mais sa justification (« reconciliation.py rend l'interdiction
+  inutile ») ne tient pas sur l'ancien moteur. Le gel effectif attend
+  le branchement du moteur element, ou une decision inverse.
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-09 — Couche synthese, phase D : ecartees et couverture (calculs purs)
+
+**Quoi / What :** les deux controles que personne n'offre (SPEC-synthese
+§ 8-9), calculables sans aucun appel au modele :
+- `extractions_ecartees(article)` : ce qu'une synthese N'A PAS repris —
+  difference d'ensembles (perimetre − citees), JAMAIS une liste
+  stockee. Perimetre : notes figees pour une dirigee, notes sources du
+  carnet AU MOMENT DU CALCUL pour un wiki ; par note, les extractions
+  citables de son dernier job d'analyse — la MEME definition que le
+  prompt de la tache (`extractions_citables_d_un_job` et
+  `dernier_job_d_analyse_de_la_note`, extraites en service partage,
+  front/tasks.py refactore pour les utiliser).
+- `couverture_de_la_note(page)` : quels elements portent au moins une
+  extraction — une jointure, pas une estimation. Separe « le modele a
+  invente » de « le passage n'a jamais ete extrait » (§ 9.1).
+- Une page ni wiki ni dirigee n'a pas de perimetre : ValueError
+  explicite, pas un resultat vide trompeur.
+
+| Fichier | Changement |
+|---|---|
+| `core/services/synthese.py` | + 5 fonctions (section PHASE D) |
+| `front/tasks.py` | Refactor : definitions partagees avec le service |
+| `core/tests/test_synthese_citations.py` | + 7 tests (3 configurations d'ecartees, wiki qui suit le carnet, refus des pages sans genre, jointure vs LEFT JOIN manuel) |
+
+### Relecture / Review
+Relecture adverse passee (9 aout soir) : 3 bloquants corriges avec
+leurs tests (+ 8 tests, classes CorrectifsRelectureDTest et
+CouvertureFiltreeTest) :
+- **B1** : « le dernier job » attrapait les jobs d'extraction manuelle
+  et de selection — UNE extraction ajoutee a la main evincait les 40 de
+  l'analyse et le § 8 devenait un blanc-seing. Nouvelle definition :
+  TOUS les jobs termines non-synthese de la note (celle de l'ecran
+  d'analyse), partagee par le prompt, le perimetre de citation et les
+  ecartees.
+- **B2** : le perimetre d'une dirigee n'etait pas vraiment fige — une
+  re-analyse posterieure reecrivait ses ecartees. La production fige
+  desormais AUSSI les extractions (M2M `extractions_du_perimetre` +
+  flag, migration core.0051, appliquee sur dev). Les 292 historiques
+  restent en recalcul dynamique assume (flag False).
+- **B3** : analyseur sans extractions -> perimetre fige VIDE -> rien
+  n'est declare « ecarte » (rien n'avait ete propose).
+- **I4** : filtre § 3.3 mecanique sur notes_du_perimetre (une synthese
+  glissee dans le perimetre fige est ignoree). **I6** : la couverture
+  ne compte plus les masquees, les ancres DETACHEE ni les jobs
+  inacheves. **I8** : le filtre non_pertinent etait MORT (fusionne dans
+  masquee par extractor 0029) — retire, tests et fixtures corriges, le
+  tri du prompt reduit a commente-d'abord. **M10/M11** : plus de N+1
+  (une requete), departage -pk. Addendums n°11-13 consignes.
+
+### Migration
+- **Migration necessaire / Migration required :** Oui — core.0051
+  (perimetre d'extractions fige, appliquee sur dev).
+
+---
+
+## 2026-08-09 — Couche synthese, phase C : la synthese devient une note du carnet
+
+**Quoi / What :** le coeur de SPEC-synthese § 2-3 :
+- Les deux genres au modele : `Wiki` (vivant — perimetre par CATEGORIES,
+  recalcule a chaque appel par `notes_du_perimetre_d_un_wiki()`, OU dans
+  un axe / ET entre axes) et `SyntheseDirigee` (acte date — perimetre de
+  NOTES fige a la production, jamais recalcule). Migration core.0049.
+- Migration core.0050 : les syntheses existantes (typees en phase A)
+  recoivent leur enregistrement SyntheseDirigee — produite_le =
+  created_at, perimetre fige = la racine dont elles etaient la version.
+  Reversible, bilan chiffre.
+- `synthetiser_page_task` REECRITE : la synthese est une note
+  `type_de_note=SYNTHESE` du carnet — plus jamais une version de page
+  (parent_page n'a plus AUCUN ecrivain, § 1). Le prompt expose
+  « Identifiant : ext:N » et exige les marqueurs `[[ext:N]]` + la ligne
+  finale `CITATIONS_USED:` ; sans elle, la generation est TRONQUEE :
+  echec bruyant (`SyntheseTronqueeError`, message FALC), rien n'est
+  enregistre. `indexer_les_citations()` est appelee avec le PERIMETRE
+  des extractions envoyees au modele (une seule definition,
+  `_extractions_pour_la_synthese`, pour le prompt ET le perimetre) — le
+  parametre est desormais OBLIGATOIRE dans la signature. Les marqueurs
+  hallucines sont retires ET signales (`raw_result["marqueurs_retires"]`).
+  Le HTML derive rend des renvois `[N]` (jamais persistes, § 4.4).
+  Tout-ou-rien : page + liens + appartenances + acte date naissent dans
+  une transaction.
+- La vue `synthetiser` accepte `dossier_id` (le carnet d'origine de la
+  demande, § 2.1) : ECRITURE exigee sur ce carnet, sinon 400 FALC. Elle
+  pose demandeur_id + dossier_id dans le job ; la tache range la
+  synthese dans ce carnet (sinon repli : les carnets de la note source)
+  via `ranger_une_note_dans_un_carnet`.
+
+**4 decisions consignees en addendum de la spec (n°5-8)** : dossier de
+la dirigee SET_NULL nullable (l'acte date survit au carnet), carnet
+d'origine optionnel avec repli, format exact de CITATIONS_USED, rendu
+[N] au HTML.
+
+### Fichiers / Files
+| Fichier | Changement |
+|---|---|
+| `core/models.py` | + `Wiki`, + `SyntheseDirigee` (fin de fichier) |
+| `core/migrations/0049_wiki_et_synthese_dirigee.py` | Schema |
+| `core/migrations/0050_estampiller_les_syntheses_dirigees_existantes.py` | Donnees, reversible |
+| `core/services/synthese.py` | + `notes_du_perimetre_d_un_wiki` ; perimetre obligatoire dans `indexer_les_citations` |
+| `front/tasks.py` | Tache reecrite + `_extractions_pour_la_synthese`, `_detacher_la_ligne_citations_used`, `_remplacer_les_marqueurs_par_des_renvois`, prompt SOURCAGE |
+| `front/views.py`, `front/serializers.py` | `dossier_id` valide (ecriture requise) + demandeur_id dans le job |
+| `core/tests/test_synthese_modele.py` | + 8 tests (genres, perimetres, migration 0050) |
+| `front/tests/test_synthese_phase_c.py` | 12 tests (note typee, citations, troncature, carnet d'origine, vue) |
+| `front/tests/test_phase28_light.py` | Adapte au nouveau contrat (CITATIONS_USED, plus de version) |
+
+### Relecture / Review
+Relecture adverse passee (9 aout) : 3 bloquants et 6 importants
+corriges, chacun avec son test (dans test_synthese_phase_c,
+test_synthese_citations, test_synthese_modele) :
+- **B1** : la ligne CITATIONS_USED habillee par le modele (backticks,
+  gras, bloc de code — le format que le prompt lui montre) n'est plus
+  rejetee comme troncature. Le fond reste strict.
+- **B2 (XSS stocke)** : la sortie markdown passe par bleach (allowlist
+  balises + protocoles http/https/mailto). `html.escape` ne touche pas
+  `[texte](url)` : un `javascript:` reconstruit APRES echappement etait
+  rendu `|safe`.
+- **B3** : on ne synthetise JAMAIS une synthese (§ 3.3) — refus 400
+  FALC dans la vue ET garde en profondeur dans la tache.
+- **I1** : le perimetre fige est la note ANALYSEE, pas sa racine (le
+  § 8 en depend).
+- **I2** : les notifications ciblent les carnets de LA SYNTHESE + le
+  demandeur (la vue lui promettait une notification).
+- **I3** : une source hors carnet -> la synthese est rangee dans le
+  « A ranger » du demandeur, jamais orpheline invisible.
+- **I5** : un titre de section > 200 caracteres est tronque au lieu de
+  detruire la synthese entiere (bulk_create).
+- **I6** : le perimetre est fige AVANT l'appel LLM — une extraction
+  masquee pendant la generation reste une citation legitime.
+- Mineurs : rollback 0050 filtre (ne supprime que ses lignes, compteur
+  exact), carnet via les appartenances si FK vide, titre date
+  (« Synthese du JJ/MM/AAAA — ... »), select_related sur l'indexeur.
+- Arbitrage I4 consigne en addendum n°9 (synthese visible dans l'arbre,
+  ecran carnet en phase H). Limites connues restantes documentees dans
+  la fiche A TESTER (garde § 4.2 no-op sur la relance nominale — les
+  anciennes extractions ne sont pas purgees ; TOCTOU dossier_id
+  vue->tache ; analyseur "texte seul" exige quand meme une analyse).
+
+### Migration
+- **Migration necessaire / Migration required :** Oui — core.0049 et
+  core.0050 (appliquees sur dev).
+
+---
+
+## 2026-08-09 — Couche synthese, phase B : le lien de citation ecrit
+
+**Quoi / What :** le prealable a tout le sourcing (SPEC-synthese § 4) :
+- `SourceLink` gagne `section`, `ordre_dans_la_section`,
+  `etat_de_verification` (par PAIRE affirmation-source),
+  `etat_de_la_source` (presente/supprimee/detachee), et
+  `TypeLien.CITE` (migration core.0048). `page_cible` EST l'article
+  citant ; `ancrage_source` = la premiere portion (§ 4.5).
+- `indexer_les_citations()` : le parseur `[[ext:<id>]]`. Le markdown est
+  la verite, les liens son index, reconstruits a chaque enregistrement.
+  Un marqueur inexistant ou hors perimetre est RETIRE du texte et
+  SIGNALE — jamais garde en silence. Sections aux titres `##` seulement
+  (addendum n°3). Bornes cibles = le paragraphe citant.
+- Signal `pre_delete` sur ExtractedEntity : citee par une DIRIGEE ->
+  suppression refusee (`SuppressionRefuseeSourceCitee`) ; citee par des
+  wikis seulement -> autorisee, citations basculees SUPPRIMEE. Jamais
+  d'orphelinage silencieux.
+- Propagation de derive : une ancre passee DETACHEE par la
+  reconciliation detache la citation qui la pointait (§ 4.2 fin).
+
+8 tests (`core/tests/test_synthese_citations.py`). L'ecriture DANS la
+tache part en phase C avec la reecriture complete de
+`synthetiser_page_task` (note typee + marqueurs + ligne CITATIONS_USED).
+
+### Relecture / Review
+Relecture adverse passee (9 aout), correctifs appliques avec leurs tests
+(17 au total) :
+- **Garde § 4.2 avant les purges** (le bloquant) : les 3 sites de purge
+  (analyse_par_element, front/tasks re-extraction, run_langextract_job)
+  appellent `verifier_qu_aucune_dirigee_ne_cite_les_extractions()` AVANT
+  de supprimer — refus propre en amont, plus d'exception au milieu d'une
+  purge. Les vues de suppression (extraction, page entiere) repondent un
+  message FALC (« citee par une synthese adoptee... ») au lieu d'un 500.
+- **Parseur robuste** : CRLF normalise, titre colle a son paragraphe
+  reconnu (« ## Titre\\nPhrase », courant chez les LLM), un lien par
+  couple (paragraphe, extraction) meme si le marqueur est duplique,
+  marqueur dans un titre retire ET signale (nom de section propre).
+- **La reindexation ne blanchit pas une derive** : une ancre deja
+  DETACHEE donne un lien DETACHEE.
+- **Propagation complete** : le masquage et la reingestion detachent
+  aussi les citations (helper partage), plus seulement la reconciliation.
+- Spec § 4.2 corrigee (views.py:904 = ExampleExtraction, pas une
+  extraction de corpus).
+- Decision documentee : « l'ecriture dans la tache » part en phase C avec
+  la reecriture complete de synthetiser_page_task — la phase B livre la
+  bibliotheque et TOUTES ses gardes, branchees aux flux existants.
+
+### Migration
+- **Migration necessaire / Migration required :** Oui — core.0048,
+  appliquee sur dev.
+
+---
+
+## 2026-08-08 — Couche synthese, phase A : le type de note et le garde-fou
+
+**Quoi / What :** `TypeDeNote` (note/wiki/synthese) sur Page (un champ,
+pas une propriete : la regle doit etre une clause filter),
+`core/services/synthese.py:notes_sources_du_carnet()` — le garde-fou
+« une synthese n'est JAMAIS source d'une autre synthese », exerce par
+test (N notes + M syntheses → N). Migration 0047 : 292 syntheses
+existantes typees (reperage par versionnage ; 0 par raw_result — les
+jobs anciens n'ont pas le marqueur). Le filtre corpus passe du
+versionnage au TYPE (dependance C.6, = estUneSource de l'etalon).
+
+**Design relu avant d'ecrire** (consigne du proprietaire) : la note
+d'architecture de la memoire Atomic + l'etalon corpus.html § 8 (articles
+= sections → paragraphes → sources, numerotation a l'affichage).
+**4 trous de spec releves et consignes en addendum de
+SPEC-synthese-carnet.md** : controle optimiste de concurrence sur les
+propositions (updated_at), ligne de controle anti-troncature
+(CITATIONS_USED), niveaux de titre exposes (## seulement), et la
+justification du rejet PAR OPERATION (pas de point de reprise chez nous,
+contrairement a Atomic).
+
+### Migration
+- **Migration necessaire / Migration required :** Oui — core.0046 (champ)
+  et 0047 (donnees, reversible), appliquees sur dev.
+
+---
+
+## 2026-08-08 — Trous de spec § 9 bouches, e2e § 10, audit UX/UI
+
+**Quoi / What :**
+1. La relation carnet-base est complete : POST /bases/{slug}/carnets/{id}/categories/
+   (validation phase B en filet) et .../epingler/, avec l'UI (crayon +
+   epingle dans le detail de base). 19 tests.
+2. Les 5 scenarios e2e que la spec § 10 prevoyait existent enfin :
+   front/tests/e2e/test_22_corpus.py (2e carnet, categorisation isolee,
+   filtres ET/OU, avertissement dernier carnet, ordre au clavier) —
+   verts dans un vrai navigateur. Les 37 controles de l'etalon passent.
+3. Audit UX/UI en navigation reelle (agent Opus, donnees = copie de
+   prod) : rapport complet dans PLAN/audit-ux-ui-2026-08-08.md
+   (16 defauts D1-D16, 18 propositions P1/P2/P3). Corrections immediates
+   appliquees : navigation « Carnets » / « Bases » dans la barre (une
+   fonctionnalite sans point d'entree n'existe pas), etat vide didactique
+   de /bases/, compteurs a zero tus, onglets « cible » regroupes en un
+   indicateur « a venir » (jargon de spec retire), bloc « Dans N
+   carnets » SOUS le titre (ordre de l'etalon), middleware
+   Cache-Control: no-cache sur le HTML (UI perimee constatee en direct).
+
+**Incident repare / Incident fixed :** hyp.nasjo.fr etait en 500 depuis
+~7 h — workers gunicorn demarres avant les changements du jour (vieux
+models.py en memoire, views.py neuf sur disque). Redemarrage du conteneur
+dev. A retenir : redemarrer hypostasia_dev_web apres chaque session de
+dev (ou ajouter --reload au gunicorn de dev).
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-08 — Couche corpus, phase H : la base de connaissances
+
+**Quoi / What :** le troisieme niveau du modele Praxis : GET /bases/ et
+/bases/{slug}/ (carnets de la base avec les categories de CHAQUE relation
+carnet-base — meme patron que la note, un cran au-dessus),
+POST carnets/ (ranger un carnet, idempotent, exige ecriture base +
+lecture carnet), GET/POST categories/ (axes de la base, validation
+phase B deja en place). Acces : public / owner / legacy — pas de partage
+fin en v1 (§ 6.2), pas de bypass superuser en ecriture. On ne nomme
+jamais un carnet que le demandeur ne peut pas lire.
+
+| Fichier | Changement |
+|---|---|
+| `front/views_corpus.py` | + BaseViewSet + les deux fonctions d'acces base |
+| `front/templates/front/corpus/` | bases_liste, base_detail, partials/categories_de_la_base |
+| `front/urls.py`, `front/templates/front/base.html` | routes /bases/ + branches de cascade |
+| `front/tests/test_corpus_phase_h.py` | 11 tests |
+
+### Relecture / Review
+Relecture adverse passee (8 aout), 4 bloquants corriges avec tests :
+- le compteur de carnets de la liste ne compte plus les carnets
+  invisibles (meme doctrine « jamais de fuite » que « dans N carnets ») ;
+- la clause legacy est RETIREE des bases : BaseDeConnaissances est un
+  modele neuf, owner=None ne peut venir que d'un compte supprime — une
+  base privee orpheline se FERME, elle ne s'ouvre pas a tout authentifie ;
+- POST /bases/ cree une base (sinon aucune base ne pouvait exister,
+  l'admin etant desactive) + formulaire dans la liste ;
+- formulaires « Ajouter un carnet » et « + Axe » dans le detail (les
+  endpoints etaient orphelins), liens croises /carnets/ ↔ /bases/.
+Egalement : 404 (pas 403) sur base privee — le slug EST le nom, un 403
+serait un oracle d'existence ; et POST .../carnets/{id}/retirer/ —
+l'owner de la base OU l'owner du carnet peut retirer (doctrine du 8 aout).
+
+### Trous de spec § 9 releves (a trancher)
+La relation carnet-base a des categories, un epinglage et un ordre manuel
+au modele (§ 3.2) mais AUCUN endpoint dans la spec § 9 pour les poser
+(pas d'equivalent de categoriser/epingler/reordonner cote base). Le
+patron « meme chose, un cran au-dessus » s'arrete a mi-chemin.
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-08 — Couche corpus, phase G : l'ecran note et le bloc « Dans N carnets »
+
+**Quoi / What :** le bloc « Dans N carnets » editable sur l'ecran de
+lecture (spec § 8.1) : chaque ligne montre un carnet ET les categories de
+la note dans CE carnet-la, avec epingler, retirer (avertissement special
+sur la DERNIERE appartenance, § 9), edition des categories par relation
+(crayon → axes de CE carnet), « Ajouter a... » avec l'avertissement
+carnet public dit AU MOMENT du geste (§ 7.3), et bascule de contexte
+(le nom du carnet ouvre le carnet). Charge en HTMX par
+GET /notes/{id}/carnets/bloc/ — aucun des 8 contextes de
+lecture_principale.html n'est touche. Racines seulement (pas les versions).
+
+**Egalement** : validateur hex strict sur CategorieDossier.couleur
+(migration core.0045 — le champ finit dans un style= inline).
+
+| Fichier | Changement |
+|---|---|
+| `front/views_corpus.py` | `bloc_carnets` (GET) + bloc enrichi (droits par ligne, carnets disponibles) |
+| `front/templates/front/corpus/partials/carnets_de_la_note.html` | Reecrit : edition complete par relation |
+| `front/templates/front/includes/lecture_principale.html` | + conteneur lazy du bloc |
+| `core/migrations/0045_alter_categoriedossier_couleur.py` | Validateur hex |
+| `front/tests/test_corpus_phase_g.py` | 7 tests |
+
+### Migration
+- **Migration necessaire / Migration required :** Oui — core.0045 (appliquee sur dev).
+
+---
+
+## 2026-08-08 — Couche corpus, phase F : l'ecran carnet contre l'etalon
+
+**Quoi / What :** l'UI carnet integree au site, construite contre l'etalon
+tmp/maquettes/corpus.html a partir du cahier des charges
+PLAN/corpus-phase-f-cahier-des-charges.md.
+
+**Decisions du proprietaire (deleguees le 8 aout, « securite et FALC
+d'abord ») :**
+1. Facettes en PUCES TOUJOURS VISIBLES (comme l'etalon), realisees en
+   cases a cocher natives habillees — etat annonce nativement, fonctionne
+   sans JavaScript (bouton Filtrer en noscript).
+2. Integration par une BRANCHE dans la cascade de base.html (le patron
+   existant du depot), pas de refonte en blocks.
+3. Retrait d'une note : ecriture sur le carnet OU propriete de la note —
+   personne ne peut rendre votre note publique sans que vous puissiez
+   l'en sortir. Teste.
+
+### Ce que l'ecran fait desormais / What the screen now does
+- En-tete : « N notes · N axes · N categories » (tout derive), visibilite
+  icone + mot, guide de redaction (nouveau champ Dossier.guide_de_redaction,
+  migration core.0044 — la spec § 2 le disait « Pris », § 3 avait oublie
+  le champ).
+- Facettes : puces par axe avec compteur « Type (3) », point colore
+  (couleur choisie ou palette Wong — jamais la couleur seule, § 8.3),
+  restauration depuis l'URL (?categorie=), etat vide explicite.
+- Resume des filtres : « X sur Y notes — Type : AAP OU Subvention ET ... »
+  avec OU et ET ecrits, bouton « Tout afficher ».
+- Ligne de note : rang ou epingle, « N extractions », « dans N carnets »
+  si N>1 (annotations en une requete), etiquettes teintees.
+- Ordre narratif au clavier : boutons monter/descendre (§ 8.3), echange
+  des voisines VISIBLES avec transfert d'epingle (etalon:1188-1194) ;
+  premier geste : l'ordre courant est fige (1..n). Les filtres actifs
+  accompagnent chaque geste.
+- Onglets : Notes actif avec compteur ; Wikis / Syntheses dirigees /
+  Selection des preuves en pastille « cible » (le produit ne pretend pas).
+- epingler/categoriser rendent la liste (ecran=carnet) ou le bloc de la
+  note selon l'origine du geste.
+
+### Fichiers / Files
+| Fichier | Changement |
+|---|---|
+| `core/models.py` | + `Dossier.guide_de_redaction`, + `CategorieDossier.couleur_effective` (palette Wong) |
+| `core/migrations/0044_dossier_guide_de_redaction.py` | Migration du champ |
+| `front/views_corpus.py` | Contexte enrichi, phrase des filtres, double contrat reordonner, cible selon l'ecran, rendu base.html vs HTMX |
+| `front/templates/front/base.html` | + branches carnet_preloaded / carnets_liste_preloaded |
+| `front/templates/front/corpus/` | carnet_detail et carnets_liste en includes du site ; notes_du_carnet avec resume et boutons |
+| `front/tests/test_corpus_phase_f.py` | 11 tests (URL, resume, ordre, epingle transferee, cible d'ecran, compteurs) |
+
+### Migration
+- **Migration necessaire / Migration required :** Oui — `core.0044`
+  (guide_de_redaction, appliquee sur dev).
+
+---
+
+## 2026-08-08 — Couche corpus, phase E : endpoints du carnet et du rangement
+
+**Quoi / What :** la premiere couche HTTP de la couche corpus
+(SPEC-corpus § 9) : `CarnetViewSet` (liste, detail, notes filtrees par
+facettes, gestion des axes/categories, ordre manuel) et
+`NoteCorpusViewSet` (ajouter a un carnet, retirer — sans jamais supprimer
+la note —, categoriser par relation, epingler). Reponses HTML/HTMX
+uniquement, `AllowAny` avec controle PAR OBJET.
+
+**Pourquoi / Why :** les phases A-D ont pose la mecanique ; ces endpoints
+la rendent actionnable. Les filtres § 8.2 : OU dans un axe, ET entre les
+axes. Ranger exige la lecture de la note ET l'ecriture sur le carnet
+cible (on ne range pas — donc on n'expose pas — ce qu'on ne peut pas lire).
+
+### Fichiers ajoutes / Added files
+| Fichier / File | Role / Purpose |
+|---|---|
+| `front/views_corpus.py` | Les deux ViewSets + le filtre par facettes |
+| `front/templates/front/corpus/` | 2 ecrans + 4 partials (bloc « Dans N carnets », notes filtrees, categories, erreurs) — mise en forme definitive en phase F contre l'etalon corpus.html |
+| `front/tests/test_corpus_phase_e.py` | 21 tests : permissions par objet, anonyme sur public, ET/OU des facettes, rangement/retrait, categorie etrangere en 400, epinglage, reordonnancement |
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `front/serializers.py` | + AjouterAUnCarnetSerializer, ReordonnerLeCarnetSerializer, GererCategoriesSerializer |
+| `front/urls.py` | + routes `/carnets/` et `/notes/` |
+
+### Relecture / Review
+Relecture adverse + comparaison structurelle a l'etalon (agent Opus)
+passees le 8 aout. 3 bloquants corriges, chacun avec son test :
+- IDOR sur retirer_d_un_carnet (l'appartenance doit exister → 404, sinon
+  l'endpoint servait d'oracle d'enumeration) ;
+- le bloc « Dans N carnets » ne montre plus que les carnets que le
+  DEMANDEUR peut lire (nommer le carnet prive d'un tiers etait une fuite) ;
+- ?categorie=abc ne fait plus de 500 (ids numeriques seulement).
+Egalement : versions non rangeables (404), reordonner en transaction +
+bulk_update, les notes sans ordre manuel (0) trient APRES les ordonnees.
+Le cahier des charges de la phase F (ecarts vs corpus.html + 7 arbitrages
+spec/etalon) est dans PLAN/corpus-phase-f-cahier-des-charges.md.
+
+### Question ouverte relevee / Open question raised
+Le proprietaire d'une note ne peut pas la retirer d'un carnet ou il n'a
+pas l'ecriture — alors qu'un tiers peut ranger sa note dans un carnet
+public et la rendre publique. La spec § 9 ne tranche pas ; « ecriture sur
+le carnet OU propriete de la note » serait defendable. A trancher.
+
+### Migration
+- **Migration necessaire / Migration required :** Non.
+
+---
+
+## 2026-08-08 — Couche corpus, phase D : bascule des lecteurs vers la table de liaison
+
+**Quoi / What :** la conversion EN UN SEUL LOT (SPEC-corpus § 4.3) de tous
+les lecteurs et ecrivains de `Page.dossier` vers la table de liaison
+`AppartenancePageDossier`. Une note rangee dans deux carnets apparait
+desormais dans les deux, partout.
+
+**Pourquoi / Why :** une conversion progressive etait incompatible avec la
+regle « toute lecture passe par la table de liaison » — pendant la
+transition, une note ajoutee a un second carnet n'y apparaissait pas.
+
+### Le service de rangement (§ 4.3)
+`core/services/corpus.py` : `ranger_une_note_dans_un_carnet` (appartenance +
+FK « premier carnet », idempotent), `retirer_une_note_d_un_carnet`
+(reaffectation de la FK a une appartenance restante, ou NULL),
+`deplacer_une_note_vers_un_carnet` (semantique actuelle du classement).
+La FK n'est plus ecrite QUE par ce service pendant la coexistence.
+
+### Fichiers modifies / Modified files
+| Fichier / File | Changement / Change |
+|---|---|
+| `core/views.py` | Creation de page et `classer_depuis_extension` via le service ; perimetre de dedup par les appartenances |
+| `front/views.py` | `_verifier_acces_page` → `_utilisateur_a_acces_page` ; 13 appels `_est_proprietaire_dossier` → `_est_proprietaire_page` (fonction supprimee) ; controles d'ecriture → `_utilisateur_peut_ecrire_page` ; imports/audio ranges via le service ; deplacement drag-drop via le service ; suppression de dossier reaffecte les FK avant delete ; arbre precharge les appartenances (`to_attr`, zero N+1) |
+| `front/templates/front/includes/_dossier_node.html` | Compteurs et liste des pages par les appartenances prechargees |
+| `front/views_alignement.py` | Perimetre par les appartenances |
+| `front/tasks.py` | Versions de synthese : appartenances repliquees depuis la racine (§ 11) ; notifications elargies aux proprietaires des carnets, dedoublonnees (`_destinataires_de_notification`) |
+| `front/tests/test_corpus_phase_d.py` | 6 tests : note visible sous ses deux carnets, compteurs, assertNumQueries(12) sur l'arbre, dedup par liaison (cas que la FK ne voyait pas), notifications dedoublonnees |
+| `front/tests/test_phases.py` | 7 setUp adaptes : l'appartenance accompagne la FK (prevu par la spec § 4.3) |
+| `core/tests/test_corpus_rangement.py` | 11 tests du service (FK premier carnet, reaffectation, idempotence) |
+| `core/tests/test_corpus_permissions.py` | + ecriture legacy des orphelines preservee (decision point 1) |
+
+### Les 4 decisions prealables (relecture C)
+1. Ecriture des orphelines owner=None : comportement actuel PRESERVE
+   (tout authentifie), symetrique de la lecture legacy. Teste.
+2. Proprietaire sans lecture : § 5.2 garde tel quel — les vues verifient
+   l'acces avant la propriete, l'ordre des controles protege.
+3. Dossiers legacy owner=None : 0 en dev (= copie de prod), risque vide.
+4. assertNumQueries : pose sur l'arbre (12 requetes, independant du nombre
+   de notes — l'ancien template faisait 5 COUNT par dossier).
+
+### Relecture / Review
+Relecture adverse passee (8 aout) : 2 bloquants corriges — les comptages
+d'en-tete de l'arbre restaient sur la FK (incoherence avec les noeuds,
+versions comptees, N+1 que le test assertNumQueries absorbait : recale de
+12 a 9 requetes, desormais independant du nombre de dossiers) ; et un 500
+sur import avec dossier_id perime (le service refuse None proprement, les
+4 sites d'import laissent la page orpheline comme avant). Egalement :
+FK des versions ecrite par le service seul, reaffectation des FK deplacee
+dans un signal pre_delete (couvre l'admin et le shell, teste), message de
+suppression honnete (orphelines vs restees ailleurs), bouton « Supprimer
+cette version » aligne sur la regle de l'endpoint via le filtre
+`est_moderable_par` (front/templatetags/corpus_permissions.py).
+
+### Limites connues / Known limits
+- Drag-drop de page : semantique mono-carnet conservee (la vue ne connait
+  que la destination ; « sortir » retire du carnet FK, pas du carnet
+  d'origine du geste). A reprendre avec l'UI multi-carnets (phase G).
+- L'ordre des notes dans l'arbre suit desormais le tri des appartenances
+  (epinglees, ordre manuel, plus recentes d'abord).
+- Notifications elargies pour la synthese seulement (§ 11) ; analyse et
+  transcription restent owner-only, comme avant.
+
+### Migration
+- **Migration necessaire / Migration required :** Non (le schema date de la
+  phase A). `Page.dossier` reste en place — son retrait est la migration 3,
+  apres recette.
+
+---
+
 ## 2026-08-08 — Couche corpus, phase C : permissions par les carnets
 
 **Quoi / What :** les trois fonctions de permission de la couche corpus

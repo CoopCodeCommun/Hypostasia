@@ -1,0 +1,25 @@
+{# LA COUVERTURE (§ 9) — jointure par note du perimetre. #}
+{# LOCALISATION : front/templates/front/corpus/partials/couverture.html #}
+{# Variables : article, couvertures [{note, total, couverts}] #}
+<div data-testid="synthese-couverture">
+    {% if couvertures %}
+    <ul class="text-sm divide-y divide-slate-100">
+        {% for ligne in couvertures %}
+        <li class="py-1" data-testid="synthese-couverture-note">
+            {{ ligne.note.title|default:"note"|truncatechars:50 }} :
+            <strong>{{ ligne.couverts }} élément{{ ligne.couverts|pluralize }}
+            sur {{ ligne.total }}</strong>
+            {% if ligne.total %}porte{{ ligne.couverts|pluralize:",nt" }} une extraction{% else %}(pas de découpage en éléments — note de l'ancien moteur){% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    <p class="text-xs text-slate-500 mt-2">
+        Avant d'adopter, savoir si l'analyse a lu un tiers du document
+        ou sa totalité change tout. Le total inclut les titres et
+        tableaux, qui ne portent jamais d'extraction.
+    </p>
+    {% else %}
+    <p class="text-sm text-slate-600">Le périmètre de cet article n'est
+        pas connu (wiki : la couverture se lit note par note).</p>
+    {% endif %}
+</div>

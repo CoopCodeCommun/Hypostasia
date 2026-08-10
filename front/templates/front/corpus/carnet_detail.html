@@ -1,0 +1,247 @@
+{# DETAIL D'UN CARNET — design de la MAQUETTE (tmp/maquettes/corpus.html) #}
+{# porte dans Django le 9 aout 2026, avec les P0 de la confrontation. #}
+{# LOCALISATION : front/templates/front/corpus/carnet_detail.html #}
+{# INCLUS dans #zone-lecture de base.html (branche carnet_preloaded) ou #}
+{# renvoye seul en HTMX. Variables : carnet, appartenances, axes, #}
+{# nombre_de_notes, nombre_de_categories, nombre_de_wikis, #}
+{# nombre_de_syntheses, categories_choisies (pks, int), peut_ecrire. #}
+{% include "front/corpus/_style_maquette.html" %}
+{% include "front/corpus/_fil_ariane.html" %}
+<div class="zone-corpus" data-testid="corpus-carnet-detail"
+     data-carnet-id="{{ carnet.pk }}">
+
+    {# EN-TETE : nom, compteurs derives, visibilite icone + mot #}
+    <header class="entete-zone">
+        <h1>{{ carnet.name }}</h1>
+        <p class="meta">
+            {{ nombre_de_notes }} note{{ nombre_de_notes|pluralize }}{% if axes %}
+            · {{ axes|length }} axe{{ axes|length|pluralize }} de classement
+            · {{ nombre_de_categories }} catégorie{{ nombre_de_categories|pluralize }}{% endif %}
+            <span data-testid="corpus-carnet-visibilite">
+                {% if carnet.visibilite == "public" %}<span role="img" aria-hidden="true">🌐</span> public{% elif carnet.visibilite == "partage" %}<span role="img" aria-hidden="true">👥</span> partagé{% else %}<span role="img" aria-hidden="true">🔒</span> privé{% endif %}
+            </span>
+        </p>
+        {# CREER DEPUIS L'EN-TETE (etalon : les deux actions du carnet #}
+        {# sont visibles sans fouiller les onglets). Ces boutons #}
+        {# n'ouvrent AUCUN chemin nouveau : ils activent l'onglet qui #}
+        {# porte deja le formulaire, puis y font defiler. Toute la #}
+        {# logique de creation reste celle des onglets. #}
+        {# / These buttons open no new path: they activate the tab that #}
+        {# already holds the form and scroll to it. #}
+        {% if peut_ecrire %}
+        <div class="rangee-boutons" data-testid="corpus-actions-carnet">
+            <button type="button" class="bouton-plat"
+                    data-ouvre-onglet="corpus-onglet-wikis"
+                    data-testid="corpus-btn-nouveau-wiki">✦ Nouveau wiki</button>
+            <button type="button" class="bouton-plat"
+                    data-ouvre-onglet="corpus-onglet-syntheses"
+                    data-testid="corpus-btn-nouvelle-synthese">▤ Nouvelle synthèse</button>
+        </div>
+        {% endif %}
+        {% if carnet.guide_de_redaction %}
+        <aside class="guide-redaction" data-testid="corpus-carnet-guide"
+               aria-label="Guide de rédaction de ce carnet">
+            <strong>Guide de rédaction de ce carnet</strong>
+            <span style="white-space:pre-line">{{ carnet.guide_de_redaction }}</span>
+        </aside>
+        {% endif %}
+    </header>
+
+    {# ONGLETS (etalon) : compteurs partout, etat actif tenu par un #}
+    {# script minuscule — l'aria-selected ne ment plus (confrontation, #}
+    {# divergence 4). / Real tabs with counters and honest state. #}
+    {# Un vrai tablist : aria-controls lie chaque onglet a SON panneau, #}
+    {# et le panneau porte role=tabpanel + aria-labelledby. Sans ce lien #}
+    {# un lecteur d'ecran annonce trois boutons sans dire ce qu'ils #}
+    {# commandent. Les onglets suivent aussi les fleches, comme le #}
+    {# demande le motif ARIA (un seul onglet dans l'ordre de tabulation). #}
+    {# / A real tablist: aria-controls, tabpanel, arrow-key navigation. #}
+    <div class="onglets" role="tablist" aria-label="Contenus du carnet">
+        <button role="tab" aria-selected="true" tabindex="0"
+                id="corpus-onglet-notes-bouton"
+                aria-controls="corpus-panneau-onglet"
+                hx-get="/carnets/{{ carnet.pk }}/" hx-target="#zone-lecture"
+                hx-swap="innerHTML" hx-push-url="true"
+                data-testid="corpus-onglet-notes">
+            Notes ({{ nombre_de_notes }})
+        </button>
+        <button role="tab" aria-selected="false" tabindex="-1"
+                id="corpus-onglet-wikis-bouton"
+                aria-controls="corpus-panneau-onglet"
+                hx-get="/carnets/{{ carnet.pk }}/wikis/"
+                hx-target="#corpus-panneau-onglet" hx-swap="innerHTML"
+                data-testid="corpus-onglet-wikis">Wikis ({{ nombre_de_wikis }})</button>
+        <button role="tab" aria-selected="false" tabindex="-1"
+                id="corpus-onglet-syntheses-bouton"
+                aria-controls="corpus-panneau-onglet"
+                hx-get="/carnets/{{ carnet.pk }}/syntheses/"
+                hx-target="#corpus-panneau-onglet" hx-swap="innerHTML"
+                data-testid="corpus-onglet-syntheses">Synthèses dirigées ({{ nombre_de_syntheses }})</button>
+        {# ALIGNEMENT : il ne charge pas un panneau mais rouvre le flux #}
+        {# EXISTANT — window.alignement.ouvrirDossier, qui appelle #}
+        {# /alignement/tableau/?dossier_id=N. Le gabarit de ce tableau #}
+        {# est un fragment de MODALE (en-tete + bouton de fermeture) : #}
+        {# l'injecter dans un panneau d'onglet aurait demande de le #}
+        {# reecrire, donc du back. On garde le flux tel quel. #}
+        {# / Alignment reuses the existing modal flow: its template is a #}
+        {# modal fragment, not a panel. #}
+        <button role="tab" aria-selected="false" tabindex="-1"
+                id="corpus-onglet-alignement-bouton"
+                aria-controls="corpus-panneau-onglet"
+                data-testid="corpus-onglet-alignement">Alignement</button>
+        <span class="a-venir" title="À venir : sélection des preuves"
+              data-testid="corpus-onglets-a-venir">+ Preuves <span>(à venir)</span></span>
+    </div>
+    <script>
+    /* L'etat actif suit le clic, et les fleches deplacent la selection.
+       / Active state follows the click; arrows move the selection. */
+    (function () {
+        var barre = document.currentScript.previousElementSibling;
+        function onglets() { return Array.prototype.slice.call(barre.querySelectorAll("[role=tab]")); }
+        /* Le panneau est declare APRES ce script : le chercher tout de
+           suite renvoie null au chargement direct de la page (F5, lien
+           externe), et le garde plus bas ne fait alors plus jamais rien.
+           On le resout au moment de s'en servir.
+           / The panel is declared after this script: resolve it lazily,
+           or it is null on a direct page load. */
+        function panneau() { return document.getElementById("corpus-panneau-onglet"); }
+        function selectionner(onglet) {
+            onglets().forEach(function (bouton) {
+                var actif = bouton === onglet;
+                bouton.setAttribute("aria-selected", actif ? "true" : "false");
+                /* Un seul onglet dans l'ordre de tabulation (motif ARIA).
+                   / Only one tab in the tab order. */
+                bouton.setAttribute("tabindex", actif ? "0" : "-1");
+            });
+            /* Le panneau est nomme par l'onglet COURANT : fige sur
+               « Notes », il faisait annoncer « Notes » au lecteur d'ecran
+               pendant qu'il lisait les wikis.
+               / The panel must be labelled by the CURRENT tab. */
+            var cible = panneau();
+            if (cible && onglet.id) { cible.setAttribute("aria-labelledby", onglet.id); }
+        }
+        barre.addEventListener("click", function (evenement) {
+            var onglet = evenement.target.closest("[role=tab]");
+            if (!onglet) { return; }
+            /* L'alignement ouvre la modale existante et NE prend pas la
+               selection : le panneau, lui, ne change pas. Sans ce
+               retour, l'onglet resterait marque actif au-dessus d'un
+               panneau qui montre les notes.
+               / Alignment opens the existing modal and does not take
+               selection: the panel below is unchanged. */
+            if (onglet.id === "corpus-onglet-alignement-bouton") {
+                if (window.alignement && window.alignement.ouvrirDossier) {
+                    window.alignement.ouvrirDossier({{ carnet.pk }});
+                }
+                return;
+            }
+            selectionner(onglet);
+        });
+        barre.addEventListener("keydown", function (evenement) {
+            var touches = { ArrowRight: 1, ArrowLeft: -1, Home: 0, End: 0 };
+            if (!(evenement.key in touches)) { return; }
+            var liste = onglets();
+            var courant = liste.indexOf(document.activeElement);
+            if (courant === -1) { return; }
+            var cible;
+            if (evenement.key === "Home") { cible = 0; }
+            else if (evenement.key === "End") { cible = liste.length - 1; }
+            else { cible = (courant + touches[evenement.key] + liste.length) % liste.length; }
+            evenement.preventDefault();
+            /* ACTIVATION MANUELLE : la fleche deplace le focus, Entree ou
+               Espace active. Activer au passage rechargeait toute la zone
+               de lecture des qu'on traversait l'onglet « Notes », qui
+               cible #zone-lecture. / Manual activation: arrows move focus,
+               Enter/Space activates. */
+            liste[cible].focus();
+        });
+    })();
+    </script>
+
+    <script>
+    /* Les deux boutons de l'en-tete activent l'onglet correspondant,
+       puis font defiler jusqu'au formulaire qu'il contient deja.
+       Aucune creation n'est declenchee ici : c'est le formulaire de
+       l'onglet qui poste, comme avant.
+       / Header buttons activate the matching tab and scroll to the form
+       it already contains. No creation logic here. */
+    (function () {
+        document.querySelectorAll("[data-ouvre-onglet]").forEach(function (bouton) {
+            bouton.addEventListener("click", function () {
+                var onglet = document.querySelector(
+                    '[data-testid="' + bouton.dataset.ouvreOnglet + '"]'
+                );
+                if (!onglet) { return; }
+                onglet.click();
+                /* Le panneau arrive en HTMX : on attend qu'il soit la
+                   plutot que de deviner un delai.
+                   / The panel arrives via HTMX: wait for it. */
+                var panneau = document.getElementById("corpus-panneau-onglet");
+                if (!panneau) { return; }
+                var observateur = new MutationObserver(function (_, self) {
+                    var formulaire = panneau.querySelector(".surface-creation");
+                    if (!formulaire) { return; }
+                    self.disconnect();
+                    formulaire.scrollIntoView({ block: "center" });
+                    var champ = formulaire.querySelector("input, textarea, select");
+                    if (champ) { champ.focus(); }
+                });
+                observateur.observe(panneau, { childList: true, subtree: true });
+                /* Filet de securite : un panneau qui n'arrive jamais ne
+                   doit pas laisser un observateur vivant. */
+                window.setTimeout(function () { observateur.disconnect(); }, 5000);
+            });
+        });
+    })();
+    </script>
+
+    <div id="corpus-panneau-onglet" role="tabpanel"
+         aria-labelledby="corpus-onglet-notes-bouton">
+    {# FACETTES : une boite par axe, puces toujours visibles (§ 8.2). #}
+    <form role="search" aria-label="Filtres par catégorie" class="facettes"
+          method="get" action="/carnets/{{ carnet.pk }}/"
+          hx-get="/carnets/{{ carnet.pk }}/notes/"
+          hx-target="#corpus-notes" hx-swap="innerHTML"
+          hx-trigger="change"
+          hx-push-url="true"
+          data-testid="corpus-filtres">
+        {% for axe in axes %}
+        <fieldset class="axe" data-testid="corpus-filtre-axe">
+            {# Le compteur evite de prendre un axe nomme « Theme » pour #}
+            {# un synonyme d'« axe » (etalon corpus.html:728-731). #}
+            <legend class="nom-axe">{{ axe.nom }} ({{ axe.categories_de_dossier.all|length }})</legend>
+            <span class="categories">
+            {% for categorie in axe.categories_de_dossier.all %}
+            <label class="puce-categorie" style="--teinte:{{ categorie.couleur_effective }}">
+                <input type="checkbox" name="categorie" value="{{ categorie.pk }}"
+                       {% if categorie.pk in categories_choisies %}checked{% endif %}
+                       data-testid="corpus-filtre-categorie">
+                {# La couleur ne porte JAMAIS seule l'information (§ 8.3). #}
+                <span class="point" role="img" aria-hidden="true"></span>
+                {{ categorie.nom }}
+            </label>
+            {% endfor %}
+            </span>
+        </fieldset>
+        {% empty %}
+        <p class="resume-filtres" style="font-style:italic"
+           data-testid="corpus-filtres-vide">
+            Ce carnet n'a pas encore d'axe de classement.
+        </p>
+        {% endfor %}
+        {% if axes %}
+        <noscript><button type="submit" class="bouton-plat">Filtrer</button></noscript>
+        {% endif %}
+    </form>
+
+    {# La liste des notes + le resume des filtres, recharges ensemble. #}
+    {# aria-live est pose ICI et non sur #corpus-panneau-onglet : c'est #}
+    {# cette liste que le filtrage recharge. Sur le panneau entier, un #}
+    {# lecteur d'ecran relisait aussi les facettes a chaque coche. #}
+    {# / aria-live on the list, not on the whole panel: only the list #}
+    {# changes when filtering. #}
+    <div id="corpus-notes" aria-live="polite">
+        {% include "front/corpus/partials/notes_du_carnet.html" %}
+    </div>
+    </div>{# /corpus-panneau-onglet #}
+</div>

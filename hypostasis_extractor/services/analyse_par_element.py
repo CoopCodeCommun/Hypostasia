@@ -118,6 +118,15 @@ def analyser_une_page_par_element(page, job_extraction, appeler_le_llm=None):
     # / Re-running a job would otherwise duplicate every extraction.
     nombre_d_extractions_purgees = job_extraction.entities.count()
     if nombre_d_extractions_purgees:
+        # Garde § 4.2 : une note citee par une synthese dirigee ne se
+        # re-analyse pas — refus PROPRE avant la purge, pas une exception
+        # au milieu. / § 4.2 guard: clean refusal before the purge.
+        from core.services.synthese import (
+            verifier_qu_aucune_dirigee_ne_cite_les_extractions,
+        )
+        verifier_qu_aucune_dirigee_ne_cite_les_extractions(
+            job_extraction.entities.all()
+        )
         job_extraction.entities.all().delete()
         logger.info(
             "Job %s relance : %s extraction(s) de la passe precedente "
@@ -146,6 +155,13 @@ def analyser_une_page_par_element(page, job_extraction, appeler_le_llm=None):
         return resultat
 
     for numero_du_chunk, chunk in enumerate(chunks):
+        # Battement de coeur (relecture BR-C) : la vue tue tout job
+        # PROCESSING dont updated_at n'a pas bouge depuis 5 minutes.
+        # Sans ce battement par chunk, une longue analyse se faisait
+        # marquer « Timeout » en plein travail, puis relancer en double.
+        # / Heartbeat: refresh updated_at before each chunk, or the
+        # staleness check kills a perfectly healthy long analysis.
+        job_extraction.save(update_fields=["updated_at"])
         try:
             extractions_brutes = appeler_le_llm(chunk["texte"], job_extraction)
         except Exception as erreur:

@@ -178,7 +178,7 @@
     margin: 0 auto;
     padding: 3rem 2rem 4rem;
     font-family: 'Lora', Georgia, serif;
-    color: #0f172a;
+    color: var(--encre);
 }
 .manifeste-header { text-align: center; margin-bottom: 2.5rem; }
 .manifeste-titre {
@@ -187,13 +187,13 @@
     font-weight: 700;
     letter-spacing: -0.02em;
     margin-bottom: 0.5rem;
-    color: #0f172a;
+    color: var(--encre);
 }
 .manifeste-sous-titre {
     font-family: 'Lora', Georgia, serif;
     font-style: italic;
     font-size: 1rem;
-    color: #64748b;
+    color: var(--encre-douce);
     line-height: 1.5;
 }
 
@@ -202,9 +202,9 @@
     font-family: 'B612', sans-serif;
     font-size: 1.125rem;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--encre);
     margin-bottom: 0.75rem;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--filet);
     padding-bottom: 0.375rem;
 }
 .manifeste-section-corps {
@@ -212,8 +212,8 @@
     line-height: 1.7;
 }
 .manifeste-section-corps p { margin-bottom: 1rem; }
-.manifeste-section-corps strong { color: #1e293b; font-weight: 600; }
-.manifeste-section-corps em { color: #475569; }
+.manifeste-section-corps strong { color: var(--encre); font-weight: 600; }
+.manifeste-section-corps em { color: var(--encre-douce); }
 
 .manifeste-liste {
     list-style: disc;
@@ -226,11 +226,11 @@
 .manifeste-citation {
     font-family: 'Lora', Georgia, serif;
     font-style: italic;
-    color: #475569;
-    border-left: 3px solid #cbd5e1;
+    color: var(--encre-douce);
+    border-left: 3px solid var(--filet-controle);
     padding: 0.75rem 1rem;
     margin: 1.25rem 0;
-    background: #fafbfc;
+    background: var(--papier-panneau);
     border-radius: 0.25rem;
 }
 .manifeste-citation cite {
@@ -238,42 +238,42 @@
     margin-top: 0.5rem;
     font-size: 0.8125rem;
     font-style: normal;
-    color: #94a3b8;
+    color: var(--encre-douce);
     font-family: 'B612', sans-serif;
 }
 
 .manifeste-footer {
     margin-top: 3rem;
     padding-top: 1.5rem;
-    border-top: 2px solid #e2e8f0;
+    border-top: 2px solid var(--filet);
 }
 .manifeste-footer-texte {
     font-size: 0.9375rem;
     line-height: 1.7;
-    color: #475569;
+    color: var(--encre-douce);
     margin-bottom: 1.5rem;
     font-family: 'Lora', Georgia, serif;
 }
 .manifeste-footer-meta {
     font-size: 0.75rem;
-    color: #94a3b8;
+    color: var(--encre-douce);
     line-height: 1.5;
     font-family: 'B612', sans-serif;
 }
 .manifeste-footer-meta code {
     font-family: 'B612 Mono', 'Courier New', monospace;
-    background: #f1f5f9;
+    background: var(--papier-creux);
     padding: 0.125rem 0.375rem;
     border-radius: 0.25rem;
     font-size: 0.75rem;
-    color: #475569;
+    color: var(--encre-douce);
 }
 .manifeste-lien {
-    color: #2563eb;
+    color: var(--info);
     text-decoration: underline;
     transition: color 0.15s;
 }
-.manifeste-lien:hover { color: #1d4ed8; }
+.manifeste-lien:hover { color: var(--info); }
 
 @media (max-width: 768px) {
     .manifeste-contenu { padding: 2rem 1rem 3rem; }

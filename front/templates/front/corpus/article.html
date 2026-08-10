@@ -1,0 +1,230 @@
+{# L'ARTICLE — wiki vivant ou synthese figee, design MAQUETTE (9 aout). #}
+{# LOCALISATION : front/templates/front/corpus/article.html #}
+{# Variables : article, wiki?, dirigee?, carnet, html_de_l_article, #}
+{# nombre_de_citations (sources DISTINCTES), nombre_de_renvois, #}
+{# comptes_de_verdicts, nombre_d_ecartees (None = perimetre inconnu), #}
+{# peut_ecrire, perimetre_de_notes?, operations_appliquees?, #}
+{# operations_rejetees?, contestations_perdues? #}
+{% include "front/corpus/_style_maquette.html" %}
+{% include "front/corpus/_fil_ariane.html" %}
+<div class="zone-corpus" data-testid="synthese-article"
+     data-article-id="{{ article.pk }}">
+
+    {# RETOUR A LA LISTE (confrontation, manque n°5). #}
+    {% if carnet %}
+    <button type="button" class="retour-liste"
+            hx-get="{% if wiki %}/carnets/{{ carnet.pk }}/wikis/{% else %}/carnets/{{ carnet.pk }}/syntheses/{% endif %}"
+            hx-target="#corpus-panneau-onglet" hx-swap="innerHTML"
+            data-testid="synthese-retour-liste">
+        ◀ {% if wiki %}Tous les wikis{% else %}Toutes les synthèses{% endif %}
+        de « {{ carnet.name|truncatechars:40 }} »</button>
+    {% endif %}
+
+    <div class="article-synthese">
+    {# BANDEAU DE GENRE : le lecteur sait TOUJOURS ce qu'il lit. #}
+    {% if wiki %}
+    <p class="bandeau-genre" data-genre="wiki" data-testid="synthese-bandeau-genre">
+        <span class="pastille-vivante" role="img" aria-hidden="true"></span>
+        Wiki — article vivant</p>
+    {% elif dirigee %}
+    <p class="bandeau-genre" data-genre="synthese" data-testid="synthese-bandeau-genre">
+        Synthèse dirigée — acte daté, figé</p>
+    {% endif %}
+
+    <h1 style="font-size:1.5rem; letter-spacing:-.015em; margin:0 0 .6rem">{{ article.title }}</h1>
+
+    {# EN-TETE D'ARTICLE : tout est DERIVE. Sources DISTINCTES et #}
+    {# renvois comptes separement (confrontation, divergence 9). #}
+    <dl class="entete-article" data-testid="synthese-entete-article">
+        {% if wiki %}
+        <div class="ligne"><span>Périmètre (recalculé)</span>
+            <span>{{ perimetre_de_notes }} note{{ perimetre_de_notes|pluralize }}</span></div>
+        <div class="ligne"><span>Tours de mise à jour</span>
+            <span data-testid="synthese-tours">{{ wiki.tours_de_mise_a_jour }}</span></div>
+        <div class="ligne"><span>Dernière mise à jour</span>
+            <span>{{ wiki.derniere_mise_a_jour|date:"d/m/Y H:i" }}</span></div>
+        {% elif dirigee %}
+        <div class="ligne"><span>Produite le</span>
+            <span>{{ dirigee.produite_le|date:"d/m/Y" }}{% if dirigee.produite_par %} par {{ dirigee.produite_par.username }}{% endif %}</span></div>
+        <div class="ligne"><span>Périmètre (figé)</span>
+            <span>{{ dirigee.notes_du_perimetre.count }} note{{ dirigee.notes_du_perimetre.count|pluralize }}</span></div>
+        {% if dirigee.categorie_de_direction %}
+        <div class="ligne"><span>Direction</span>
+            <span>{{ dirigee.axe_de_direction.nom }} : {{ dirigee.categorie_de_direction.nom }}</span></div>
+        {% endif %}
+        {% endif %}
+        <div class="ligne"><span>Sources citées</span>
+            <span data-testid="synthese-nb-citations">{{ nombre_de_citations }} extraction{{ nombre_de_citations|pluralize }}
+            ({{ nombre_de_renvois }} renvoi{{ nombre_de_renvois|pluralize }})</span></div>
+        {% if comptes_de_verdicts.verifie or comptes_de_verdicts.faible or comptes_de_verdicts.conteste %}
+        <div class="ligne"><span>Vérification</span>
+            <span data-testid="synthese-comptes-verdicts">{{ comptes_de_verdicts.verifie }} vérifiée{{ comptes_de_verdicts.verifie|pluralize }}
+            · {{ comptes_de_verdicts.faible }} faible{{ comptes_de_verdicts.faible|pluralize }}{% if comptes_de_verdicts.conteste %}
+            · {{ comptes_de_verdicts.conteste }} contestée{{ comptes_de_verdicts.conteste|pluralize }}{% endif %}</span></div>
+        {% endif %}
+    </dl>
+
+    {# LA LEGENDE DES ETATS (confrontation, manque n°2) : le lecteur #}
+    {# apprend ce que les couleurs disent — et ce qu'elles ne disent pas. #}
+    {# La legende n'annonce QUE les etats que le texte porte vraiment : #}
+    {# elle promettait « non source » avant meme la premiere #}
+    {# verification (recette, F7). Et elle dit ce que la couleur #}
+    {# QUALIFIE — le paragraphe, par son verdict le plus faible — parce #}
+    {# qu'un filet colore ne le dit pas tout seul (F6). #}
+    {# / The legend now lists only the states actually present, and #}
+    {# says what the colour qualifies. #}
+    {% if etats_de_verification_presents %}
+    <div class="legende-verification" data-testid="synthese-legende"
+         aria-label="Légende des états de vérification">
+        <span class="legende-portee">Chaque paragraphe porte son verdict le plus faible :</span>
+        {% if "verifie" in etats_de_verification_presents %}<span><i style="background:var(--verifie)"></i> vérifié (verbatim + implication)</span>{% endif %}
+        {% if "source_debat" in etats_de_verification_presents %}<span><i style="background:var(--source-debat)"></i> source en débat</span>{% endif %}
+        {% if "faible" in etats_de_verification_presents %}<span><i style="background:var(--faible)"></i> faible (la source n'implique pas tout)</span>{% endif %}
+        {% if "conteste" in etats_de_verification_presents %}<span><i style="background:var(--danger)"></i> contesté par un lecteur</span>{% endif %}
+        {% if "non_source" in etats_de_verification_presents %}<span><i style="background:var(--non-source)"></i> non sourcé (aucune preuve citée)</span>{% endif %}
+        {% if "non_verifie" in etats_de_verification_presents %}<span><i style="border-bottom:2px dotted var(--encre-douce); height:0"></i> pas encore vérifié</span>{% endif %}
+    </div>
+    {% endif %}
+
+    {# LES CONTESTATIONS PERDUES : jamais en silence (relecture G, B1). #}
+    {% if contestations_perdues %}
+    <div class="avertissement" role="alert" data-testid="synthese-contestations-perdues">
+        <strong>{{ contestations_perdues|length }} contestation{{ contestations_perdues|length|pluralize }}
+        humaine{{ contestations_perdues|length|pluralize }} n'a pas pu être
+        conservée</strong> : le paragraphe contesté a changé ou disparu
+        avec cette mise à jour. Les citations concernées repartent
+        « non vérifié ».
+    </div>
+    {% endif %}
+    {% if operations_rejetees %}
+    <div class="avertissement" data-testid="synthese-rejets-appliques">
+        <strong>{{ operations_rejetees|length }} opération{{ operations_rejetees|length|pluralize }}
+        rejetée{{ operations_rejetees|length|pluralize }}</strong> — le contenu
+        proposé est conservé, rien n'est perdu :
+        <ul style="margin:.3rem 0 0; padding-left:1.2rem">
+            {% for rejet in operations_rejetees %}
+            <li>{{ rejet.motif }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {# ACTIONS : chaque bouton dit ce qu'il fait ; le bouton interdit #}
+    {# dit POURQUOI (§ 10). #}
+    {% if peut_ecrire %}
+    <div class="rangee-boutons" role="group" aria-label="Actions sur l'article">
+        {% if wiki %}
+        <button class="bouton-plat principal"
+                hx-post="/wikis/{{ wiki.pk }}/mise_a_jour/"
+                hx-target="#synthese-zone-maj" hx-swap="innerHTML"
+                data-testid="synthese-btn-maj">Proposer une mise à jour</button>
+        <button class="bouton-plat"
+                hx-post="/wikis/{{ wiki.pk }}/verifier/"
+                hx-target="#synthese-zone-maj" hx-swap="innerHTML"
+                data-testid="synthese-btn-verifier">Vérifier les citations</button>
+        {% elif dirigee %}
+        <button class="bouton-plat" disabled
+                title="Une synthèse dirigée est figée : elle ne se met pas à jour. Pour un texte qui suit le carnet, créez un wiki ; sinon produisez une nouvelle synthèse."
+                data-testid="synthese-btn-maj-desactive">Mettre à jour</button>
+        <button class="bouton-plat"
+                hx-post="/syntheses/{{ article.pk }}/verifier/"
+                hx-target="#synthese-zone-maj" hx-swap="innerHTML"
+                data-testid="synthese-btn-verifier">Vérifier les citations</button>
+        {% endif %}
+    </div>
+    {% endif %}
+    <div id="synthese-zone-maj" aria-live="polite"></div>
+
+    {# LE CORPS : affirmations colorees par verdict, renvois [N] en #}
+    {# exposant — cliquer ouvre le panneau LATERAL de preuve. #}
+    <article data-testid="synthese-corps">{{ html_de_l_article|safe }}</article>
+
+    {# CE QUI N'A PAS ETE REPRIS (§ 8) : LE CHIFFRE DANS LE PLI #}
+    {# (confrontation, manque n°4). Charge a l'ouverture du pli. #}
+    <details class="ecarte" data-testid="synthese-ecartees-bloc">
+        <summary>
+            {% if nombre_d_ecartees is None %}Ce qui n'a pas été repris —
+            périmètre d'alors inconnu{% else %}{{ nombre_d_ecartees }}
+            extraction{{ nombre_d_ecartees|pluralize }} du périmètre
+            n'{{ nombre_d_ecartees|pluralize:"a,ont" }} pas été
+            reprise{{ nombre_d_ecartees|pluralize }}{% endif %}
+        </summary>
+        <div class="contenu-ecarte"
+             hx-get="/syntheses/{{ article.pk }}/ecartees/"
+             hx-trigger="toggle once from:closest details" hx-swap="innerHTML"
+             aria-live="polite">
+            <p class="explication">Calcul en cours…</p>
+        </div>
+    </details>
+    {% if dirigee %}
+    <details class="ecarte" data-testid="synthese-couverture-bloc">
+        <summary>Couverture de l'analyse, note par note</summary>
+        <div class="contenu-ecarte"
+             hx-get="/syntheses/{{ article.pk }}/couverture/"
+             hx-trigger="toggle once from:closest details" hx-swap="innerHTML"
+             aria-live="polite">
+            <p class="explication">Calcul en cours…</p>
+        </div>
+    </details>
+    {% endif %}
+    </div>{# /article-synthese #}
+</div>
+
+{# LE PANNEAU DE PREUVE LATERAL (etalon) + son voile : rempli par les #}
+{# renvois [N], ouvert/ferme par la classe .est-ouvert. #}
+<div class="voile-preuve" id="voile-preuve"></div>
+<aside class="panneau-preuve" id="panneau-preuve" role="dialog"
+       aria-modal="false" aria-label="Panneau de preuve"
+       data-testid="synthese-panneau-preuve">
+    <div class="entete">
+        <span>Preuve</span>
+        <button type="button" id="fermer-preuve"
+                aria-label="Fermer le panneau de preuve"
+                data-testid="synthese-fermer-preuve">✕</button>
+    </div>
+    <div class="corps" id="corps-preuve" aria-live="polite"></div>
+</aside>
+<script>
+/* Ouverture/fermeture du panneau lateral : HTMX remplit #corps-preuve,
+   ces quelques lignes tiennent la classe .est-ouvert, le voile, le
+   marquage du renvoi actif et le retour du focus a la fermeture.
+   / Side panel open/close, active-reference mark, focus handling. */
+(function () {
+    var panneau = document.getElementById("panneau-preuve");
+    var voile = document.getElementById("voile-preuve");
+    var dernier_renvoi = null;
+    if (!panneau || panneau.dataset.branche) { return; }
+    panneau.dataset.branche = "1";
+    document.body.addEventListener("htmx:afterSwap", function (evenement) {
+        if (evenement.detail.target.id !== "corps-preuve") { return; }
+        panneau.classList.add("est-ouvert");
+        voile.classList.add("est-visible");
+        /* Le focus entre dans le panneau (audit a11y I4) : un
+           utilisateur clavier ne reste pas derriere le voile. */
+        document.getElementById("fermer-preuve").focus();
+    });
+    document.body.addEventListener("click", function (evenement) {
+        var renvoi = evenement.target.closest(".renvoi");
+        if (renvoi) {
+            document.querySelectorAll(".renvoi.est-active").forEach(function (r) {
+                r.classList.remove("est-active");
+            });
+            renvoi.classList.add("est-active");
+            dernier_renvoi = renvoi;
+        }
+    });
+    function fermer() {
+        /* Conditionne a l'etat ouvert : un Escape tardif ne vole plus
+           le focus (audit a11y I4). / Only closes when actually open. */
+        if (!panneau.classList.contains("est-ouvert")) { return; }
+        panneau.classList.remove("est-ouvert");
+        voile.classList.remove("est-visible");
+        if (dernier_renvoi) { dernier_renvoi.focus(); dernier_renvoi = null; }
+    }
+    document.getElementById("fermer-preuve").addEventListener("click", fermer);
+    voile.addEventListener("click", fermer);
+    document.addEventListener("keydown", function (evenement) {
+        if (evenement.key === "Escape") { fermer(); }
+    });
+})();
+</script>

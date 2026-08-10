@@ -1,3 +1,8 @@
+{% load corpus_permissions rendu_moteur %}
+{# Le fil d'Ariane a besoin du design system pour ses tokens de #}
+{# composant ; il est inclus une seule fois, ici. #}
+{% include "front/corpus/_style_maquette.html" %}
+{% include "front/corpus/_fil_ariane.html" %}
 <div class="lecture-zone-conteneur mx-auto relative" data-page-id="{{ page.pk }}" data-dossier-id="{{ page.dossier_id|default:'' }}" data-testid="lecture-zone-principale">
     {# Barre de progression analyse IA — cachee par defaut, affichee via JS #}
     {# / AI analysis progress bar — hidden by default, shown via JS #}
@@ -54,6 +59,18 @@
             </div>
         </div>
     </div>
+
+    {# BLOC « DANS N CARNETS » (phase G corpus) : SOUS le titre et la #}
+    {# ligne source, comme l'etalon maquette.html (audit UX D9). Charge #}
+    {# en HTMX pour ne toucher aucun des 8 contextes de ce template. #}
+    {# Racines seulement. / "In N notebooks" block, below title+source #}
+    {# as in the etalon; lazy-loaded; root pages only. #}
+    {% if not page.parent_page %}
+    <div hx-get="/notes/{{ page.pk }}/carnets/bloc/" hx-trigger="load"
+         hx-swap="innerHTML" class="mb-3"
+         data-testid="corpus-bloc-conteneur"></div>
+    {% endif %}
+
 
     {# Menu switcher de versions — visible uniquement si plusieurs versions existent #}
     {# Version switcher menu — visible only if multiple versions exist #}
@@ -115,13 +132,13 @@
             Historique
         </a>
         {# Bouton supprimer cette version : visible uniquement si c'est une version #}
-        {# (parent_page non null) ET si l'utilisateur est proprietaire du dossier. #}
-        {# Verification directe via request.user vs page.dossier.owner pour eviter #}
-        {# de devoir injecter est_proprietaire dans tous les contextes (8 endroits #}
-        {# rendent ce template, certains sans le flag). #}
-        {# / Delete this version button: only visible if it's a version (parent_page non-null) #}
-        {# / AND user owns the folder. Direct check via request.user vs page.dossier.owner. #}
-        {% if page.parent_page and page.dossier and request.user.is_authenticated and request.user == page.dossier.owner %}
+        {# (parent_page non null) ET si l'utilisateur est proprietaire de la NOTE #}
+        {# (owner ou owner d'un carnet la contenant — phase D corpus). Le filtre #}
+        {# applique LA MEME regle que l'endpoint DELETE /lire/{pk}/ : le bouton #}
+        {# et le droit ne divergent plus. #}
+        {# / Delete this version button: visible when it's a version AND the user #}
+        {# owns the NOTE (same rule as the endpoint, via the filter). #}
+        {% if page.parent_page and request.user.is_authenticated and page|est_moderable_par:request.user %}
         <button type="button"
                 hx-delete="/lire/{{ page.pk }}/"
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
@@ -151,15 +168,36 @@
     </div>
     {% endif %}
 
+    {# Les utilitaires prose-*:text-* / bg-* / border-* ont ete RETIRES #}
+    {# (bascule CSS, verification finale) : ils posaient un `color` en #}
+    {# dur sur les descendants, qui primait sur les variables du plugin #}
+    {# Typography. Consequence : les titres restaient en gris 900 et #}
+    {# tombaient a 1,02:1 en theme sombre. Les couleurs viennent #}
+    {# desormais des `--tw-prose-*` remappees dans maquette.css ; seules #}
+    {# les classes de MISE EN FORME (graisse, marges, arrondis) restent. #}
+    {# / Colored prose-* utilities removed: they hard-set `color` on #}
+    {# descendants and beat the Typography variables (1.02:1 in dark). #}
     <article id="readability-content" class="lecture-article prose prose-slate prose-lg max-w-none
-                    prose-headings:font-semibold prose-headings:text-slate-900
+                    prose-headings:font-semibold
                     prose-p:mb-5 prose-p:mt-0
-                    prose-blockquote:border-l-blue-400 prose-blockquote:bg-slate-50 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r
-                    prose-figcaption:text-center prose-figcaption:text-slate-500
+                    prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r
+                    prose-figcaption:text-center
                     prose-img:rounded-lg prose-img:shadow-sm
-                    prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline
-                    prose-table:text-sm prose-th:bg-slate-100">
-        {{ html_annote|default:page.html_readability|safe }}
+                    prose-a:no-underline hover:prose-a:underline
+                    prose-table:text-sm">
+        {# BR-D (SPEC-ancrage § 9) : une page ELEMENT est rendue depuis #}
+        {# ses ElementDocument, marques par PORTION. Le tag applique la #}
+        {# meme regle quel que soit l'endroit qui rend ce partial.      #}
+        {# Zero bloc (page ANCIEN, ou ingestion echouee) -> repli sur   #}
+        {# le HTML annote / readability, comme avant.                   #}
+        {# / ELEMENT pages render from their elements, marked per       #}
+        {# portion; zero blocks falls back to the old path.             #}
+        {% blocs_de_lecture_de page as blocs_de_lecture %}
+        {% if blocs_de_lecture %}
+            {% include "front/includes/_blocs_elements.html" %}
+        {% else %}
+            {{ html_annote|default:page.html_readability|safe }}
+        {% endif %}
     </article>
 
     {# Zone ou le modal de renommage de locuteur sera injecte via HTMX #}

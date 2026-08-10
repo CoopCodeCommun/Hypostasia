@@ -78,6 +78,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # HTML jamais servi perime par le cache navigateur (audit UX D14)
+    # / HTML never served stale by the browser cache (UX audit D14)
+    'core.middleware.EmpecherLeCacheDuHtml',
 ]
 
 ROOT_URLCONF = 'hypostasia.urls'

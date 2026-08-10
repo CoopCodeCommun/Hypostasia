@@ -1,0 +1,66 @@
+{# PANNEAU DE PREUVE d'une citation (phase H, etalon § panneau) #}
+{# LOCALISATION : front/templates/front/corpus/partials/preuve.html #}
+{# Variables : lien (SourceLink CITE), extraction, note_source #}
+<div data-testid="synthese-preuve" data-lien-id="{{ lien.pk }}">
+    <h3 class="text-sm font-semibold mb-1">Preuve</h3>
+
+    {% if extraction %}
+    <blockquote class="citation-exacte"
+                data-testid="synthese-citation-exacte">
+        « {{ extraction.extraction_text }} »
+    </blockquote>
+
+    {# L'ETAT, AVEC SA PROVENANCE (§ 7.2) : jamais un verdict anonyme. #}
+    <p data-testid="synthese-etat-verification"
+       data-etat="{{ lien.etat_de_verification }}" style="margin:.2rem 0 .4rem">
+        <span class="etat-verification" data-etat="{{ lien.etat_de_verification }}">{{ lien.get_etat_de_verification_display }}</span>
+        {% if lien.verifie_par %}<br>
+        <span class="text-slate-500">par {{ lien.verifie_par }}
+            le {{ lien.verifie_le|date:"d/m/Y H:i" }}</span>
+        {% else %}
+        <span class="text-slate-500">— pas encore vérifié : utilisez
+        « Vérifier les citations »</span>
+        {% endif %}
+    </p>
+
+    {% if lien.etat_de_la_source != "presente" %}
+    <p class="explication" style="color:var(--faible)" data-testid="synthese-etat-source">
+        {% if lien.etat_de_la_source == "supprimee" %}La source de cette
+        citation a été supprimée depuis.{% else %}L'ancre de cette
+        citation s'est détachée : la source existe mais on ne sait plus
+        où elle pointe exactement.{% endif %}
+    </p>
+    {% endif %}
+
+    {# LE DEBAT JOINT : les commentaires de l'extraction (§ 7.3-7.4). #}
+    {% with commentaires=extraction.commentaires.all %}
+    {% if commentaires %}
+    <div class="debat" data-testid="synthese-debat">
+        <strong class="qui">Débat sur cette extraction
+            ({{ commentaires|length }})</strong>
+        <ul class="list-disc ml-4">
+            {% for commentaire in commentaires %}
+            <li>{% if commentaire.user %}{{ commentaire.user.username }} : {% endif %}
+                {{ commentaire.commentaire|truncatechars:200 }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    {# LE RETOUR A LA SOURCE : le passage exact dans la note. #}
+    {% if note_source %}
+    <a style="color:var(--info); font-size:.78rem"
+       href="/lire/{{ note_source.pk }}/?extraction={{ extraction.pk }}"
+       data-testid="synthese-lien-source">
+        Ouvrir la source : {{ note_source.title|default:"note sans titre"|truncatechars:60 }} →
+    </a>
+    {% endif %}
+
+    {% else %}
+    <p class="explication" style="color:var(--faible)" data-testid="synthese-source-supprimee">
+        La source de cette citation a été <strong>supprimée</strong> :
+        la citation est conservée, mais son extraction n'existe plus.
+    </p>
+    {% endif %}
+</div>

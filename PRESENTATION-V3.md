@@ -1,6 +1,7 @@
 # Hypostasia V3 — ce que devient le projet, et pourquoi
 
-**Date** : 8 août 2026.
+**Date** : 9 août 2026, au soir (première rédaction le 8 août ; mis à jour après
+les couches corpus A-H et synthèse A-F).
 **Lecteur visé** : quelqu'un qui connaît Hypostasia mais pas les décisions de
 conception de ces dernières semaines — un contributeur qui arrive, un partenaire,
 ou le développeur qui reprendra ce code dans six mois.
@@ -23,9 +24,11 @@ invérifiables.
 
 Hypostasia V2 est un outil « un dossier contient des pages » : on importe un
 document, on l'analyse, des extractions apparaissent dans la marge, on les
-commente. La synthèse y est une *version* du document — `synthetiser_page_task`
-(`front/tasks.py:810`) crée une nouvelle `Page` avec un `parent_page` et un
-numéro incrémenté, comme si résumer un débat revenait à le réécrire.
+commente. La synthèse y était une *version* du document — `synthetiser_page_task`
+créait une nouvelle `Page` avec un `parent_page` et un numéro incrémenté, comme
+si résumer un débat revenait à le réécrire. Ce n'est plus vrai depuis le 9 août :
+la tâche a été réécrite, la synthèse est une note typée du carnet, et
+`parent_page` n'a plus aucun écrivain en production (§ 6.2).
 
 Hypostasia V3 en fait une **plateforme de gestion de corpus qui produit des
 synthèses sourcées et contestables**. Trois déplacements :
@@ -71,14 +74,14 @@ Atomic, août 2026).
 ## 2. Les trois couches
 
 La V3 s'organise en trois couches, chacune consommant les garanties de celle du
-dessous. L'ordre de construction suit l'ordre de dépendance — c'est pourquoi la
-couche la plus basse est la seule déjà codée.
+dessous. L'ordre de construction suit l'ordre de dépendance, et les trois
+couches sont désormais codées à des degrés différents.
 
 | Couche | Objet | État |
 |---|---|---|
-| **Ancrage par élément** | où, exactement, dans quel texte | implémentée et migrée |
-| **Corpus** : base → carnet → note | qui range quoi, avec quel vocabulaire | spécifiée |
-| **Synthèse au niveau du carnet** | ce qu'on affirme, sur quelles preuves | spécifiée |
+| **Ancrage par élément** | où, exactement, dans quel texte | implémentée et migrée, **pas encore branchée** au parcours utilisateur |
+| **Corpus** : base → carnet → note | qui range quoi, avec quel vocabulaire | implémentée, migrée et testée, écrans compris |
+| **Synthèse au niveau du carnet** | ce qu'on affirme, sur quelles preuves | socle et vérification codés (modèles, citations, calculs, gardes, verbatim + juge NLI) ; interface à faire |
 
 ### 2.1 L'ancrage par élément — le socle
 
@@ -89,7 +92,7 @@ faussait toutes les ancres du dessous.
 
 Le moteur ELEMENT ancre dans l'**élément de document** : un paragraphe, un titre,
 un item de liste, un tableau, un tour de parole, chacun identifié par un UUID qui
-ne change jamais (`ElementDocument`, `core/models.py:1465`). Une extraction porte
+ne change jamais (`ElementDocument`, `core/models.py:1609`). Une extraction porte
 une ou plusieurs **portions**, chacune bornée à l'intérieur d'un élément
 (`AncrageExtraction`, `hypostasis_extractor/models.py:666`). La table de liaison
 n'est pas un luxe : mesuré sur les données du projet, une extraction d'une seule
@@ -115,25 +118,33 @@ Autour de ce modèle, une famille de services (`hypostasis_extractor/services/`)
 - `garde_edition.py` — refuse l'édition pendant qu'une analyse tourne, pour ne
   jamais écrire d'ancres calculées sur un texte qui n'existe plus.
 
-Côté affichage, `front/services/rendu_elements.py` remplace l'injection de
-balises par offsets : le texte de chaque élément est découpé en segments aux
-bornes des portions, ce qui rend enfin représentables les extractions en
-plusieurs portions et les chevauchements — 3 898 paires d'extractions se
-chevauchent en base, ce n'est pas un cas d'école.
+Côté affichage, `front/services/rendu_elements.py` est écrit et testé : il
+remplace l'injection de balises par offsets par un découpage du texte de chaque
+élément en segments aux bornes des portions, ce qui rend enfin représentables
+les extractions en plusieurs portions et les chevauchements — 3 898 paires
+d'extractions se chevauchent en base, ce n'est pas un cas d'école. **Mais aucun
+code de production ne l'appelle** : ni vue, ni template, ni tâche (vérifié par
+recherche exhaustive le 9 août — il n'apparaît que dans sa propre suite de tests
+et dans les commentaires de la maquette). Comme le pipeline d'analyse par
+élément, il attend le branchement (§ 6.1).
 
 ### 2.2 Le corpus — base → carnet → note
 
-Spécifiée (voir § 5), pas codée. Deux relations N-N portées par des tables de
-liaison (`AppartenancePageDossier`, `AppartenanceDossierBase`) qui portent
-elles-mêmes les catégories, l'épinglage et l'ordre manuel.
+**Implémentée** (voir § 5 pour le modèle, § 6.2 pour l'état exact). Deux
+relations N-N portées par des tables de liaison (`AppartenancePageDossier`,
+`AppartenanceDossierBase`) qui portent elles-mêmes les catégories, l'épinglage
+et l'ordre manuel — modèles, migrations, permissions, endpoints et écrans
+carnet / note / bases sont en place.
 
 ### 2.3 La synthèse au niveau du carnet
 
-Spécifiée (`SPEC-synthese-carnet.md`), pas codée. La synthèse devient une note
-typée du carnet (`type_de_note` : note / wiki / synthèse), avec un garde-fou
-mécanique : **une synthèse n'est jamais source d'une autre synthèse** — sans
-cette clause de filtre, le wiki finirait par se citer lui-même et la
-délibération d'origine disparaîtrait sous ses propres résumés.
+**Socle codé, interface à faire.** La synthèse est devenue une note typée du
+carnet (`type_de_note` : note / wiki / synthèse), avec un garde-fou mécanique :
+**une synthèse n'est jamais source d'une autre synthèse** — sans cette clause de
+filtre, le wiki finirait par se citer lui-même et la délibération d'origine
+disparaîtrait sous ses propres résumés. Le garde-fou est un champ, pas une
+propriété calculée, précisément pour être une clause `filter()` ; il est exercé
+par test et refusé à deux étages (la vue et, en profondeur, la tâche).
 
 ### 2.4 Pourquoi cet ordre
 
@@ -239,19 +250,35 @@ réindexation — défaut observé dans le code d'un moteur réel, où la
 déduplication par index détruisait en outre l'information de *quelle*
 affirmation citait quoi.
 
-Le lien persisté est `SourceLink` (`core/models.py:1320`) : quelle extraction
+Le lien persisté est `SourceLink` (`core/models.py:1439`) : quelle extraction
 (`extraction_source`), quelle portion exacte (`ancrage_source`), dans quel
-article, dans quelle section, avec quel état de vérification. La spec durcit le
-modèle : `PROTECT` au lieu de `SET_NULL` sur la source — supprimer une source
-citée ne doit jamais orphaniner une citation en silence.
+article, dans quelle section, avec quel état de vérification. Il est écrit
+depuis le 9 août par `indexer_les_citations()` : le markdown est la vérité, les
+liens n'en sont que l'index, reconstruit à chaque enregistrement à partir des
+marqueurs `[[ext:N]]`. Le durcissement voulu par la spec est en place, sous une
+forme plus fine qu'un `PROTECT` global : un signal `pre_delete` refuse la
+suppression d'une extraction citée par une synthèse **dirigée** (l'acte daté ne
+perd pas ses preuves) et bascule à l'état `SUPPRIMEE` les citations d'un simple
+wiki (vivant, le tour suivant corrige). Jamais d'orphelinage silencieux dans un
+cas comme dans l'autre.
 
 **Étage 4 — vérifier, en deux contrôles en cascade.**
 
 1. **Verbatim** : le texte cité existe-t-il littéralement dans la source ?
    Contrôle déterministe, sans modèle, coût nul.
 2. **Implication (NLI)** : la source soutient-elle l'affirmation ? Un modèle
-   léger de vérification (type MiniCheck dans l'état de l'art) suffit, avec
+   léger de vérification (type MiniCheck dans l'état de l'art) suffirait, avec
    droit de veto.
+
+   Le choix du juge a été tranché par le propriétaire le 9 août
+   (`SPEC-synthese-carnet.md` § 14, question n°3) : **ce sera le LLM déjà
+   configuré**, appelé **en lot** (une requête juge N paires) et **à la
+   demande** — un geste explicite de vérification, jamais automatique à la
+   production. Le calcul est celui d'un serveur de 8 Go partagé avec la
+   production : de l'ordre de 0,01 à 0,05 € par synthèse en lot, contre ~1 Go
+   de RAM permanente pour un modèle local de moindre qualité sur du français
+   délibératif. L'interface du service reste prévue pour brancher un modèle
+   local plus tard sans réécriture.
 
 L'ordre importe : le verbatim élimine à coût nul les cas où le modèle a déformé
 la citation ; le NLI, plus coûteux, ne traite que ce qui reste. C'est l'étage
@@ -309,9 +336,22 @@ côté. Or c'est calculable **sans aucun appel au modèle** :
 ```
 
 (`SPEC-synthese-carnet.md` § 8 ; pour une synthèse dirigée, le périmètre est
-figé à la production — `notes_du_perimetre` —, sans quoi la question « qu'a-t-on
-écarté en mars ? » recevrait une réponse recalculée aujourd'hui, c'est-à-dire
-une réécriture en douce.)
+figé à la production, sans quoi la question « qu'a-t-on écarté en mars ? »
+recevrait une réponse recalculée aujourd'hui, c'est-à-dire une réécriture en
+douce.)
+
+Le calcul est codé depuis le 9 août (`core/services/synthese.py`), et la
+relecture adverse l'a durci sur deux points qui méritent d'être dits. D'abord,
+le périmètre d'une dirigée est figé **deux fois** : les notes *et* les
+extractions effectivement proposées au modèle (`extractions_du_perimetre` +
+un drapeau, migration `core.0051`) — sans ce second figeage, une ré-analyse
+postérieure réécrivait « ce que la synthèse n'a pas repris » avec des
+extractions que l'acte daté n'avait jamais vues. Ensuite, les 292 synthèses
+historiques n'ont pas ce périmètre : plutôt que d'annoncer « tout a été
+écarté », le service **refuse explicitement** de répondre pour elles. Une
+réponse fausse à charge aurait été pire que pas de réponse. (Un drapeau levé
+sur un périmètre vide, lui, veut dire « rien n'avait été proposé » : écartées
+= ∅, et non « tout ».)
 
 C'est probablement la fonctionnalité la plus différenciante de la V3, pour deux
 raisons qui tiennent en une phrase chacune. **Elle ne coûte rien** : une
@@ -343,10 +383,18 @@ prétend être rigoureux.
 La **couverture** répond : quels éléments du document portent au moins une
 extraction, lesquels n'en portent aucune. C'est une jointure
 (`portions_d_extractions`, `hypostasis_extractor/models.py:706`), pas une
-estimation — aucun appel au modèle. À l'écran : un liseré élément par élément,
-et un chiffre global — *« 14 éléments sur 41 portent une extraction »*. Avant
-d'adopter une synthèse, savoir que l'analyse a lu un tiers du document ou sa
-totalité change tout.
+estimation — aucun appel au modèle. Le calcul est codé (phase D, même service
+que les écartées) ; l'écran, lui, reste à faire. À l'écran il montrera un
+liseré élément par élément et un chiffre global — *« 14 éléments sur 41 portent
+une extraction »*. Avant d'adopter une synthèse, savoir que l'analyse a lu un
+tiers du document ou sa totalité change tout.
+
+Deux honnêtetés à afficher avec le chiffre. La jointure ne compte ni les
+extractions masquées, ni les ancres détachées, ni les jobs inachevés — sans
+quoi la couverture se gonflerait de ce qui n'est plus une preuve. Et le
+dénominateur inclut les éléments non textuels (titres, tableaux) qui ne
+porteront jamais d'extraction : ce rapport n'est pas un pourcentage de lecture
+comparable d'un document à l'autre.
 
 Avec les écartées, la chaîne d'audit est complète : la couverture dit ce qui
 n'est **jamais entré** dans le périmètre ; l'écart dit ce que la synthèse a
@@ -407,6 +455,16 @@ d'opérations structurées — `NoChange`, `AppendToSection`, `ReplaceSection`,
 Bénéfices : les sections non touchées restent intactes au caractère près, le
 coût LLM se limite au diff, et chaque tour est inspectable.
 
+L'applieur existe (`core/services/section_ops.py`, 9 août) : fonction pure,
+schéma d'opérations contractualisé dans la spec, rejet **par opération** — une
+hallucination ne jette pas les faits des autres opérations —, et un contrôle
+optimiste de concurrence qui refuse visiblement une proposition périmée plutôt
+que d'écraser un article qui a bougé entre-temps. Les sources d'une opération
+ne sont pas un champ parallèle déclaré par le modèle : elles sont **dérivées**
+des marqueurs présents dans le contenu, parce que le markdown est la vérité.
+Ce qui manque est l'étage au-dessus : le prompt qui produit ces opérations et
+l'écran qui montre le diff (phases G à I).
+
 **Le cycle proposition → diff → acceptation.** La synthèse n'écrase jamais un
 contenu existant : elle propose un diff qu'un humain accepte. Avec une
 exigence ajoutée par la spec : le diff d'un `ReplaceSection` doit montrer
@@ -431,6 +489,14 @@ qualités. Trois corrections explicites :
 | Titre introuvable → `logger.warning`, **contenu jeté en silence** | rejet **visible**, contenu conservé et montré |
 | `after_heading` introuvable → **fallback en fin d'article** | rejet visible — insérer à un endroit que le modèle n'a pas choisi est pire qu'un rejet, parce que personne ne le voit |
 | Numérotation `[N]` **stockée** dans le markdown | jamais stockée : identifiants persistés, numéros attribués à l'affichage |
+
+Ces trois corrections sont codées et testées. La relecture adverse en a ajouté
+deux que personne n'avait vues, et qui relèvent de la même famille : le contenu
+d'une opération pouvait **contenir** une ligne de titre et fabriquer ainsi une
+section que l'humain n'avait pas approuvée — au titre dupliqué, donc ambiguë
+pour toujours ; et une insertion sous un titre déjà présent produisait la même
+corruption. Les deux sont désormais rejetées. Seule l'opération d'insertion
+crée une section.
 
 S'y ajoutent les défauts relevés dans le moteur de citations d'Atomic, qui ont
 directement façonné l'architecture du § 3 : grain limité au chunk (impossible
@@ -565,7 +631,11 @@ imposerait sa taxonomie à tous les suivants — exactement ce qu'un outil de
 communs ne doit pas faire. Techniquement, cela se traduit par des tables de
 liaison qui portent les catégories (`AppartenancePageDossier`,
 `AppartenanceDossierBase`), avec une validation applicative : une catégorie
-appliquée doit appartenir au carnet de l'appartenance.
+appliquée doit appartenir au carnet de l'appartenance. Elle est codée à deux
+étages — le formulaire, pour une erreur lisible, et un signal, pour qu'un
+`.add()` lancé depuis un shell soit refusé lui aussi. Sans ce filet, le
+vocabulaire d'un carnet fuirait dans un autre, c'est-à-dire exactement ce que
+la catégorie portée par la relation existe pour empêcher.
 
 Les catégories sont elles-mêmes groupées en **axes** (chez Praxis : jusqu'à
 trois listes de dix catégories par carnet) — classer par thème *et* par
@@ -624,11 +694,22 @@ sens : une bande « Dans N carnets » sur la note, montrant ses catégories dans
 chacun — c'est ce bloc qui rend le modèle compréhensible sans l'expliquer, on
 *voit* que les étiquettes diffèrent d'une ligne à l'autre.
 
+**Où en est ce principe.** Le bloc « Dans N carnets » existe et il est éditable
+(phase G) : chaque ligne montre un carnet, les catégories de la note *dans ce
+carnet-là*, et son nom rouvre la note dans ce contexte — la bascule est donc
+déjà là, sous une autre forme. Le reste ne l'est pas : l'arbre de navigation
+existe toujours et montre toujours des notes, et le fil d'Ariane à bascule
+`Base › Carnet ▾ › Note` n'est pas construit. Les écrans neufs (`/carnets/`,
+`/bases/`) cohabitent aujourd'hui avec l'ancienne navigation au lieu de la
+remplacer. C'est un chantier d'interface identifié, pas un principe abandonné.
+
 ---
 
 ## 6. Ce qui est déjà là, ce qui reste à faire
 
-État des lieux factuel, chaque affirmation vérifiée sur le dépôt le 8 août 2026.
+État des lieux factuel, chaque affirmation vérifiée sur le dépôt le 9 août 2026
+au soir. Les migrations appliquées sur la base de développement vont jusqu'à
+`core.0051`.
 
 ### 6.1 Implémenté et migré : le moteur d'ancrage par élément
 
@@ -657,33 +738,119 @@ documenté** — à remesurer avant de le citer. Ce qui est établi : aucune
 extraction ni aucun commentaire n'a été supprimé, et ce qu'on ne retrouve pas
 reste en base, détaché, pour qu'un humain tranche.
 
-**Nuance à connaître** : le pipeline d'analyse du moteur ELEMENT n'est encore
-appelé par aucune tâche Celery ni aucune vue (vérifié par recherche dans
-`front/` ; le `CHANGELOG.md` le dit explicitement). Il manque la tâche, le
-bouton, et le compteur de tokens. Le moteur est prêt ; il n'est pas branché au
-parcours utilisateur.
+**Nuance à connaître, et elle est importante** : le pipeline d'analyse du moteur
+ELEMENT n'est toujours appelé par aucune tâche Celery ni aucune vue, et le
+service de rendu par éléments (`front/services/rendu_elements.py`) n'est appelé
+par rien non plus — l'un comme l'autre n'existent que pour leurs propres tests
+(vérifié par recherche exhaustive le 9 août). Il manque la tâche, le bouton, le
+compteur de tokens, et le branchement de l'affichage. Le moteur est prêt ; il
+n'est pas branché au parcours utilisateur, et les phases H à K de la spec
+d'ancrage — celles qui le brancheraient — ne sont pas commencées.
 
-### 6.2 Spécifié, pas codé : les couches corpus et synthèse
+Conséquence directe à connaître avant de lire le § 3 : le seul chemin d'édition
+de texte réellement exposé aux utilisateurs aujourd'hui reste celui de l'ancien
+moteur (`editer_bloc`), et il n'est **pas** gardé. Le propriétaire l'a tranché
+le 9 août (`SPEC-synthese-carnet.md` § 14, question n°5) : au plus simple, on ne
+garde pas l'ancien chemin, et le gel effectif des sources citées sera livré avec
+le branchement du moteur élément. D'ici là, un passage cité par une synthèse
+adoptée reste techniquement modifiable par l'ancien chemin. C'est assumé, et
+c'est dit.
 
-Aucun des modèles des deux couches supérieures n'existe dans le code :
-`AppartenancePageDossier`, `AppartenanceDossierBase`, `TypeDeNote`, `Wiki`,
-`SyntheseDirigee`, `RegroupementRun`, `Opposition` sont absents de tout fichier
-Python (recherche exhaustive). `Page.dossier` est toujours une `ForeignKey`
-simple, et `synthetiser_page_task` (`front/tasks.py:810`) crée toujours des
-versions de page. Les specs donnent l'ordre d'implémentation ; leurs premières
-phases (modèles et calculs purs) sont testables sans interface.
+### 6.2 Codé : la couche corpus, et le socle de la couche synthèse
 
-### 6.3 `SourceLink` : un schéma qui attend son écrivain
+**La couche corpus est faite.** Les huit phases A à H ont été livrées les 8 et
+9 août, avec leurs relectures adverses et les trous de spec bouchés :
 
-`SourceLink` existe en base (`core/models.py:1320`, migrations `core.0026` puis
-`core.0036` qui lui a ajouté `ancrage_source`), avec tout ce qu'il faut pour
-pointer une extraction, une portion exacte, des commentaires. **Mais aucun code
-de production ne l'écrit ni ne le lit** : hors modèles et migrations, il
-n'apparaît que dans deux suites de tests (vérifié par recherche exhaustive).
-Sans ce lien peuplé, trois fonctionnalités du § 3 restent théoriques : le
-blocage d'édition d'une source citée, les écartées, et le retour à la source
-depuis une citation. C'est la phase B de `SPEC-synthese-carnet.md` § 13 — le
-préalable à tout le reste.
+- les six modèles (`BaseDeConnaissances`, `AppartenancePageDossier`,
+  `AppartenanceDossierBase`, `ListeDeCategories`, `CategorieDossier`,
+  `CategorieBase`), le champ `role_special` qui remplace le repérage des
+  carnets « magiques » par leur nom, et les migrations `core.0040` à `0045`
+  (dont deux migrations de données réversibles : 537 pages avec dossier →
+  537 appartenances, cohérence contrôlée) ;
+- la validation des catégories par la relation, à deux étages ;
+- les permissions dérivées des carnets — l'accès prend le carnet le plus
+  permissif, la propriété s'élargit à l'owner d'un carnet contenant la note —
+  et la bascule **en un seul lot** de tous les lecteurs de `Page.dossier` vers
+  la table de liaison ; une conversion progressive aurait laissé une note
+  ajoutée à un second carnet invisible dans ce carnet ;
+- les endpoints (carnet, rangement, catégorisation, épinglage, ordre manuel,
+  bases) et les écrans : carnet avec facettes, note avec son bloc « Dans N
+  carnets », liste et détail des bases ;
+- de l'ordre de 150 tests dédiés à cette couche, dont cinq scénarios de bout en
+  bout dans un vrai navigateur, et les 37 contrôles de l'étalon qui passent.
+
+Ce qui reste sur cette couche : la phase I (reprise du drag-drop et des derniers
+écrans multi-carnets) et la **migration 3**, le retrait de `Page.dossier`. La
+clé étrangère est toujours là, écrite par un seul service, et elle porte le
+« premier carnet » pendant la coexistence — son retrait attend la recette.
+
+**La couche synthèse est codée pour tout son socle hors interface**, phases A à
+F, chacune relue de façon adverse :
+
+- `type_de_note` et le garde-fou « une synthèse n'est jamais source » (A) ;
+- `SourceLink` complété et l'indexeur de citations (B, ci-dessous) ;
+- les deux genres au modèle — `Wiki` (périmètre par catégories, recalculé à
+  chaque appel) et `SyntheseDirigee` (périmètre de notes figé) —, migration
+  `core.0049`, plus `core.0050` qui a estampillé les 292 synthèses historiques
+  d'un enregistrement de synthèse dirigée (C) ;
+- les écartées et la couverture (D, § 3.4 et § 3.5) ;
+- la garde d'édition des sources citées (E, § 5 de la spec) ;
+- l'applieur d'opérations de section (F, § 4.2 ci-dessus).
+
+**Le point le plus visible pour un utilisateur** : `synthetiser_page_task` a été
+réécrite. La synthèse n'est plus une version du document mais une note typée du
+carnet ; `parent_page` n'a plus aucun écrivain en production, ce qui rend le
+versionnage de page **dormant** — le schéma reste, plus personne ne l'alimente.
+La tâche exige du modèle des marqueurs `[[ext:N]]` et une ligne de contrôle
+finale : sans elle, la génération est tenue pour tronquée et l'échec est
+bruyant, rien n'est enregistré. Une synthèse tronquée passée pour un succès
+serait pire qu'une erreur. Le HTML dérivé passe par une allowlist stricte
+(un `[texte](javascript:…)` traversait l'échappement et devenait un lien actif),
+et la page, ses liens de citation, ses appartenances et son acte daté naissent
+dans une seule transaction.
+
+Ce qui **n'est pas** fait sur cette couche : la vérification elle-même
+(phase G — verbatim, NLI en lot, les trois états, la provenance « débat »), **en
+cours d'implémentation** au moment où ces lignes sont écrites ; et toute
+l'interface — onglets Wikis et Synthèses du carnet, article, panneau de preuve
+(H), diff des opérations avec l'avant (I). Une synthèse produite aujourd'hui
+apparaît dans l'arbre latéral mais pas dans l'écran carnet, qui ne liste que les
+notes ordinaires ; c'est un séquencement assumé, l'inverse l'aurait rendue
+invisible partout.
+
+Enfin, `SPEC-selection-des-preuves.md` (§ 4.3 à 4.5 de ce document) n'est pas
+entamée : ni regroupement, ni passe transverse, ni tri par le débat, ni
+`RegroupementRun`, ni `Opposition`. C'est le prochain gros bloc après la
+vérification.
+
+**Un chantier décidé, pas encore ouvert : la bascule CSS.** Le propriétaire a
+tranché le 9 août — l'ancien CSS est à jeter, le design de la maquette fait foi,
+et la bascule se fait **à fonctionnalité constante**. Elle est positionnée juste
+avant la phase H de la spec synthèse, pour une raison de coût : cette phase bâtit
+trois écrans neufs qui n'existent que dans l'étalon, et les écrire sur l'ancien
+CSS reviendrait à les écrire deux fois. Le cahier des charges est dans
+`PLAN/bascule-css-cahier-des-charges.md` ; il est explicitement un document de
+travail à arbitrer, rien n'est engagé.
+
+### 6.3 `SourceLink` : le schéma a trouvé son écrivain
+
+`SourceLink` existait en base depuis les migrations `core.0026` puis `core.0036`
+(qui lui avait ajouté `ancrage_source`), mais **aucun code de production ne
+l'écrivait ni ne le lisait** — c'était le blocage central relevé par la première
+version de ce document. Il est levé depuis le 9 août.
+
+La migration `core.0048` lui a ajouté ce qui manquait : la section et le rang
+dans la section, l'état de vérification **par paire** (affirmation, source) — la
+leçon du résultat 2 du § 3.1 —, l'état de la source (présente, supprimée,
+détachée) et le type de lien « cite ». `indexer_les_citations()` l'écrit, la
+tâche de synthèse l'appelle avec un périmètre désormais **obligatoire** dans sa
+signature, et un marqueur inexistant ou hors périmètre est retiré du texte *et*
+signalé : jamais gardé en silence, jamais accepté en silence non plus. La dérive
+se propage — une ancre que la réconciliation, le masquage ou la réingestion fait
+passer à l'état détaché détache la citation qui la pointait.
+
+Restent théoriques, faute de la phase G et des écrans : les trois états affichés
+et le retour visuel à la source depuis une citation. Le lien, lui, est peuplé.
 
 ### 6.4 pgvector : pas installé, et pas nécessaire tout de suite
 
@@ -701,10 +868,10 @@ Quatre specs se complètent, et elles doivent être lues dans cet ordre :
 
 | Spec | Couche | Dans le dépôt |
 |---|---|---|
-| `SPEC-ancrage-par-element-v2.md` v2.0 | ancrage — élément, portion, réconciliation | oui, déposée le 8 août 2026 — **implémentée**, avec trois écarts documentés |
-| `SPEC-corpus-base-carnet-note.md` v1.1 | corpus — base, carnet, note, catégories | oui, déposée le 8 août 2026 |
-| `SPEC-synthese-carnet.md` v1.0 | synthèse — deux genres, sourcing, vérification | oui |
-| `SPEC-selection-des-preuves.md` v1.0 | sélection — regroupement, oppositions, audit | oui |
+| `SPEC-ancrage-par-element-v2.md` v2.0 | ancrage — élément, portion, réconciliation | oui, déposée le 8 août 2026 — **implémentée**, avec trois écarts documentés ; phases H-K (branchement) non commencées |
+| `SPEC-corpus-base-carnet-note.md` v1.1 | corpus — base, carnet, note, catégories | oui — **implémentée** (phases A-H), reste la phase I et la migration 3 |
+| `SPEC-synthese-carnet.md` v1.0 | synthèse — deux genres, sourcing, vérification | oui — **implémentée hors interface** (phases A-G), 16 addendums en tête de fichier ; H-I à faire |
+| `SPEC-selection-des-preuves.md` v1.0 | sélection — regroupement, oppositions, audit | oui — non entamée |
 
 Les quatre sont maintenant dans le dépôt. Celle d'ancrage y figure bien qu'elle
 soit déjà implémentée, et c'est délibéré : le code porte ce qui a été retenu,
@@ -714,16 +881,26 @@ première ligne (les contraintes sont devenues `DEFERRABLE`), `element_parent`
 a été retiré, et `EtatAncrage` réduit à deux valeurs. Ces écarts sont notés en
 tête du fichier et au `CHANGELOG.md`.
 
+La même discipline vaut pour la spec de synthèse, qui porte en tête **seize
+addendums** datés : ce sont les décisions prises pendant l'implémentation et les
+trous que les relectures ont révélés. On ne réécrit pas la spec pour lui donner
+raison après coup ; on écrit à la suite ce qu'on a découvert.
+
 | Chantier | État | Preuve |
 |---|---|---|
-| Moteur d'ancrage par élément | fait, migré, non branché à l'UI d'analyse | `hypostasis_extractor/services/`, `CHANGELOG.md` |
-| Rendu par éléments | fait | `front/services/rendu_elements.py` |
+| Moteur d'ancrage par élément | fait, migré, **non branché** à l'UI d'analyse (phases H-K non commencées) | `hypostasis_extractor/services/`, `CHANGELOG.md` |
+| Rendu par éléments | écrit et testé, **appelé nulle part** en production | `front/services/rendu_elements.py` |
 | Ingestion Docling | faite | `hypostasis_extractor/services/ingestion_docling.py` |
-| Couche corpus (N-N, catégories sur la relation) | spécifiée | aucun modèle dans le code |
-| Synthèse carnet (deux genres, `SourceLink` peuplé, vérification) | spécifiée | `SPEC-synthese-carnet.md` |
-| Sélection des preuves (regroupement, oppositions, tri par le débat) | spécifiée | `SPEC-selection-des-preuves.md` |
-| `SourceLink` | schéma seul, jamais écrit en production | `core/models.py:1320` |
+| Couche corpus (N-N, catégories sur la relation) | faite et testée, phases A-H ; reste la phase I et le retrait de `Page.dossier` | `core/services/corpus.py`, `front/views_corpus.py`, migrations `core.0040-0045` |
+| Synthèse carnet — socle (deux genres, `SourceLink` peuplé, écartées, couverture, gardes, applieur) | fait, phases A-F | `core/services/synthese.py`, `core/services/section_ops.py`, migrations `core.0046-0052` |
+| Synthèse carnet — vérification (verbatim, juge NLI en lot, provenance des verdicts) | fait (phase G), déclencheur UI à faire | `core/services/verification.py`, migration `core.0052` |
+| Synthèse carnet — interface (article, panneau de preuve, diff) | à faire (phases H-I) | `SPEC-synthese-carnet.md` § 13 |
+| Bascule CSS (design de la maquette, à feature constante) | décidée, cahier des charges rédigé, non engagée | `PLAN/bascule-css-cahier-des-charges.md` |
+| Sélection des preuves (regroupement, oppositions, tri par le débat) | spécifiée, non entamée | `SPEC-selection-des-preuves.md` |
+| `SourceLink` | schéma complet **et écrit en production** | `core/models.py:1439`, `core/services/synthese.py` |
+| Versionnage de page (`parent_page`) | dormant : schéma conservé, plus aucun écrivain | `front/tasks.py` |
 | Embeddings / pgvector | absents ; PHASE-33 planifiée | `docker-compose.yml:50`, `pyproject.toml` |
+| Backlog UX (P1 de l'audit du 8 août) | ouvert | `PLAN/audit-ux-ui-2026-08-08.md` |
 
 ---
 
@@ -782,15 +959,33 @@ coder »* (`SPEC-synthese-carnet.md`, en-tête). La maquette n'est pas une
 promesse d'interface ; c'est un banc de test du comportement, écrit avant le
 code qu'il testera.
 
+Le mécanisme a commencé à jouer son rôle. L'écran carnet du 8 août a été
+construit *contre* l'étalon, à partir d'un cahier des charges qui listait les
+écarts et sept arbitrages entre la spec et la maquette
+(`PLAN/corpus-phase-f-cahier-des-charges.md`) ; le filtre corpus « une synthèse
+n'est pas une source » est exactement l'invariant que l'étalon exerçait ; et
+cinq scénarios de bout en bout rejouent dans un vrai navigateur, sur le produit
+réel, ce que la maquette montrait. La décision de bascule CSS (§ 6.2) est la
+conséquence logique de cette autorité : si l'étalon fait foi sur le
+comportement, il n'y a pas de raison qu'un CSS que personne ne défend fasse foi
+sur la forme.
+
 ---
 
 ## Sources
 
-**Dans le dépôt** : `SPEC-synthese-carnet.md`, `SPEC-selection-des-preuves.md`,
-`PLAN/INSPIRATION_ATOMIC.md`, `PLAN/README.md`, `CHANGELOG.md`,
-`tmp/maquettes/` (dont `donnees.js`), `scripts/verifier_les_maquettes.py`,
-`core/models.py`, `hypostasis_extractor/models.py`,
-`hypostasis_extractor/services/`, `front/services/rendu_elements.py`,
+**Dans le dépôt** : `SPEC-synthese-carnet.md` (et ses seize addendums),
+`SPEC-corpus-base-carnet-note.md`, `SPEC-selection-des-preuves.md`,
+`SPEC-ancrage-par-element-v2.md`, `PLAN/INSPIRATION_ATOMIC.md`,
+`PLAN/README.md`, `PLAN/bascule-css-cahier-des-charges.md`,
+`PLAN/corpus-phase-f-cahier-des-charges.md`,
+`PLAN/audit-ux-ui-2026-08-08.md`, `CHANGELOG.md` (entrées des 5, 8 et 9 août
+2026), `tmp/maquettes/` (dont `donnees.js`),
+`scripts/verifier_les_maquettes.py`, `core/models.py`,
+`core/services/` (`corpus.py`, `synthese.py`, `section_ops.py`),
+`front/views_corpus.py`, `front/tasks.py`,
+`hypostasis_extractor/models.py`, `hypostasis_extractor/services/`,
+`front/services/rendu_elements.py`,
 `core/management/commands/basculer_vers_le_moteur_element.py`.
 
 **Notes de la mémoire Atomic (août 2026)** : « Sourcing et attribution dans les

@@ -8,7 +8,7 @@
          data-ctx-type="dossier"
          data-ctx-id="{{ dossier.pk }}"
          data-ctx-nom="{{ dossier.name }}"
-         data-ctx-pages="{{ dossier.pages.count }}"
+         data-ctx-pages="{{ dossier.appartenances_racines|length }}"
          data-ctx-visibilite="{{ dossier.visibilite }}"
          {% if user.is_authenticated and dossier.owner == user %}data-ctx-owner="true"{% endif %}>
         <svg class="tree-arrow w-3 h-3 text-slate-400 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -33,7 +33,7 @@
         {% if show_owner and dossier.owner %}
         <span class="text-[10px] text-slate-400 truncate max-w-[80px]" title="par {{ dossier.owner.username }}">{{ dossier.owner.username }}</span>
         {% endif %}
-        <span class="text-xs text-slate-400">{{ dossier.pages.count }}</span>
+        <span class="text-xs text-slate-400">{{ dossier.appartenances_racines|length }}</span>
         {# Bouton quitter le partage (si show_quitter) #}
         {# / Leave share button (if show_quitter) #}
         {% if show_quitter and user.is_authenticated %}
@@ -60,18 +60,22 @@
     <ul class="dossier-pages hidden ml-5 border-l border-slate-200 pl-2">
         {# Bouton aligner le dossier — visible si >= 2 pages #}
         {# / Align folder button — visible if >= 2 pages #}
-        {% if dossier.pages.count >= 2 %}
+        {% if dossier.appartenances_racines|length >= 2 %}
         <li class="py-1 px-1">
             <button class="btn-aligner-dossier inline-flex items-center gap-1.5 w-full px-2.5 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 hover:border-indigo-300 transition-colors"
-                    data-dossier-id="{{ dossier.pk }}" data-testid="btn-aligner-dossier" title="Comparer les {{ dossier.pages.count }} pages par hypostases">
+                    data-dossier-id="{{ dossier.pk }}" data-testid="btn-aligner-dossier" title="Comparer les {{ dossier.appartenances_racines|length }} pages par hypostases">
                 <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z"/>
                 </svg>
-                Aligner ({{ dossier.pages.count }} pages)
+                Aligner ({{ dossier.appartenances_racines|length }} pages)
             </button>
         </li>
         {% endif %}
-        {% for page in dossier.pages.all %}
+        {# La liste vient des appartenances prechargees (phase D corpus) : #}
+        {# une note dans deux carnets apparait sous les deux. #}
+        {# / The list comes from prefetched memberships. #}
+        {% for appartenance in dossier.appartenances_racines %}
+        {% with page=appartenance.page %}
         <li class="py-1 flex items-center gap-1"
             data-ctx-type="page"
             data-ctx-id="{{ page.pk }}"
@@ -91,6 +95,7 @@
                 {% if page.source_type == 'audio' %}<span class="text-slate-400 mr-0.5" title="Audio transcrit">🎙️</span>{% elif page.source_type == 'file' %}<span class="text-slate-400 mr-0.5" title="Fichier importe">📄</span>{% endif %}{{ page.title|default:page.domain|truncatechars:30 }}
             </a>
         </li>
+        {% endwith %}
         {% empty %}
         <li class="text-xs text-slate-400 py-0.5 italic">Vide</li>
         {% endfor %}

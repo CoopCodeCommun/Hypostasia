@@ -1,0 +1,464 @@
+{# LE DESIGN SYSTEM DE LA MAQUETTE, porte dans Django (9 aout 2026). #}
+{# LOCALISATION : front/templates/front/corpus/_style_maquette.html #}
+{# Source : tmp/maquettes/corpus.html (l'etalon). Scope .zone-corpus : #}
+{# cohabite avec l'ancien CSS du reste du site jusqu'a la bascule #}
+{# complete (PLAN/bascule-css-cahier-des-charges.md). Le panneau de #}
+{# preuve et le voile sont fixes (hors scope). Etats etendus vs etalon : #}
+{# source_debat et conteste (phase G) — l'etalon devra les apprendre. #}
+<style>
+/* Les tokens vivent dans front/static/front/css/maquette.css (source
+   unique, audit du 9 aout). / Tokens live in maquette.css only. */
+
+.zone-corpus {
+  font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+  color:var(--encre); background:var(--papier);
+  max-width:64rem; margin:0 auto; padding:1.2rem 1.5rem 5rem;
+  line-height:1.6;
+}
+.zone-corpus .mono, .zone-corpus button { font-family:ui-monospace,"SF Mono",Menlo,monospace; }
+
+.zone-corpus .entete-zone { margin-bottom:1.2rem; padding-bottom:.8rem; border-bottom:1px solid var(--filet); }
+.zone-corpus .entete-zone h1 { font-size:1.65rem; line-height:1.25; margin:0 0 .25rem; letter-spacing:-.015em; }
+.zone-corpus .entete-zone .meta {
+  font-size:.7rem; color:var(--encre-douce); font-family:ui-monospace,Menlo,monospace;
+}
+.zone-corpus .guide-redaction {
+  /* --filet-statut-commente : l'ambre pur ne fait que 2,12:1 sur le
+     papier clair, or ce filet est le seul signe que ce bloc est un
+     guide. / Pure amber is 2.12:1 here. */
+  border:1px solid var(--filet); border-left:3px solid var(--filet-statut-commente);
+  border-radius:0 5px 5px 0; background:var(--papier-panneau);
+  padding:.5rem .7rem; margin:.6rem 0 1rem; font-size:.82rem;
+}
+.zone-corpus .guide-redaction strong {
+  display:block; font-size:.62rem; font-family:ui-monospace,Menlo,monospace;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce);
+}
+
+.zone-corpus .onglets { display:flex; gap:.2rem; border-bottom:1px solid var(--filet); margin-bottom:1.2rem; flex-wrap:wrap; }
+.zone-corpus .onglets button {
+  border:none; background:none; cursor:pointer; color:var(--encre-douce);
+  padding:.45rem .7rem; font-family:ui-monospace,Menlo,monospace; font-size:.68rem;
+  border-bottom:2px solid transparent; margin-bottom:-1px;
+}
+.zone-corpus .onglets button[aria-selected="true"] {
+  /* --filet-statut-commente et non --statut-commente : l'ambre pur ne
+     fait que 2,20:1 sur le papier clair, or c'est ICI que se lit
+     l'onglet actif (WCAG 1.4.11). En sombre le token vaut l'ambre pur.
+     / Pure amber is 2.20:1 on light paper; the token darkens it. */
+  color:var(--encre); border-bottom-color:var(--filet-statut-commente); font-weight:700;
+}
+.zone-corpus .onglets .a-venir {
+  padding:.45rem .7rem; font-family:ui-monospace,Menlo,monospace;
+  font-size:.62rem; color:var(--encre-douce); opacity:.6;
+}
+
+.zone-corpus .facettes { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem; align-items:flex-start; }
+.zone-corpus .axe {
+  border:1px solid var(--filet); border-radius:5px; padding:.35rem .45rem;
+  background:var(--papier-panneau);
+}
+.zone-corpus .axe > .nom-axe {
+  display:block; font-family:ui-monospace,Menlo,monospace; font-size:.56rem;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce);
+  margin-bottom:.25rem; border:none; padding:0;
+}
+.zone-corpus .axe .categories { display:flex; flex-wrap:wrap; gap:.2rem; }
+.zone-corpus .puce-categorie {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; cursor:pointer;
+  display:inline-flex; align-items:center; gap:.25rem;
+  border:1px solid var(--teinte,var(--filet)); color:var(--encre);
+  border-radius:999px; padding:.12rem .5rem; background:var(--papier);
+}
+.zone-corpus .puce-categorie:has(:checked) {
+  /* Fond legerement teinte + texte encre : blanc-sur-Wong tombait a
+     1,32:1 (audit a11y B2). / Light tint + ink text when checked. */
+  background:color-mix(in srgb, var(--teinte,var(--encre-douce)) 18%, var(--papier));
+  color:var(--encre); border-color:var(--teinte,var(--encre-douce));
+  font-weight:700;
+}
+.zone-corpus .puce-categorie input { position:absolute; opacity:0; pointer-events:none; }
+.zone-corpus .puce-categorie:has(:focus-visible) {
+  outline:2px solid var(--info); outline-offset:2px;
+}
+.zone-corpus .puce-categorie .point {
+  display:inline-block; width:.55em; height:.55em; border-radius:50%;
+  background:var(--teinte,var(--encre-douce));
+}
+/* --papier et non #fff : en theme sombre le point doit suivre la
+   surface, pas rester blanc. / Follow the surface in dark mode. */
+.zone-corpus .puce-categorie:has(:checked) .point { background:var(--papier); }
+.zone-corpus .resume-filtres {
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem; color:var(--encre-douce);
+  margin-bottom:.6rem;
+}
+.zone-corpus .resume-filtres a { color:var(--info); }
+
+.zone-corpus .liste-notes { list-style:none; margin:0; padding:0; }
+.zone-corpus .ligne-note {
+  display:grid; grid-template-columns:auto 1fr auto; gap:.6rem; align-items:start;
+  padding:.55rem .5rem; border-bottom:1px solid var(--filet);
+}
+.zone-corpus .ligne-note:hover { background:var(--papier-creux); }
+.zone-corpus .ligne-note .rang {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; color:var(--encre-douce);
+  display:flex; flex-direction:column; align-items:center; gap:.1rem; padding-top:.15rem;
+  min-width:1.4rem;
+}
+.zone-corpus .ligne-note .titre-note { font-size:.95rem; line-height:1.4; color:var(--encre); text-decoration:none; }
+.zone-corpus .ligne-note .titre-note:hover { text-decoration:underline; }
+.zone-corpus .ligne-note .sous-note {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; color:var(--encre-douce);
+  margin-top:.15rem; display:flex; gap:.4rem; flex-wrap:wrap; align-items:center;
+}
+/* La provenance d'une note dans sa sous-ligne : la marque de source
+   (audio / web / fichier) et le nom de fichier, discrets mais lisibles.
+   / A note's provenance in its sub-line: source mark and file name. */
+.zone-corpus .marque-source { white-space:nowrap; }
+.zone-corpus .nom-de-fichier {
+  max-width:18rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--encre-douce);
+}
+.zone-corpus .ligne-note .etiquettes { display:flex; gap:.2rem; flex-wrap:wrap; margin-top:.25rem; }
+.zone-corpus .etiquette-categorie {
+  font-family:ui-monospace,Menlo,monospace; font-size:.56rem;
+  /* La teinte au CONTOUR seulement : en texte, la palette Wong tombe
+     a 1,29:1 sur papier (audit a11y B2). / Tint on the border only. */
+  border:1px solid var(--teinte,var(--filet)); color:var(--encre);
+  background:color-mix(in srgb, var(--teinte,var(--filet)) 10%, transparent);
+  border-radius:2px; padding:.04rem .3rem; white-space:nowrap;
+}
+.zone-corpus .boutons-ordre { display:flex; flex-direction:column; gap:.1rem; }
+.zone-corpus .boutons-ordre button {
+  border:1px solid var(--filet-controle); background:var(--papier); color:var(--encre-douce);
+  border-radius:3px; cursor:pointer; font-size:.6rem; line-height:1;
+  min-width:1.5rem; min-height:1.5rem; padding:.2rem .35rem;
+}
+.zone-corpus .boutons-ordre button:hover { border-color:var(--encre-douce); color:var(--encre); }
+.zone-corpus .epingle-marque { color:var(--statut-commente); }
+.zone-corpus .badge-type {
+  font-family:ui-monospace,Menlo,monospace; font-size:.53rem; text-transform:uppercase;
+  letter-spacing:.07em; border-radius:2px; padding:.05rem .3rem; white-space:nowrap;
+  border:1px solid currentColor;
+}
+.zone-corpus .badge-type[data-type="wiki"]     { color:var(--info); }
+.zone-corpus .badge-type[data-type="synthese"] { color:var(--cible); }
+
+.zone-corpus .article-synthese { max-width:44rem; }
+.zone-corpus .article-synthese h2 { font-size:1.25rem; margin:1.8rem 0 .5rem; letter-spacing:-.012em; }
+.zone-corpus .article-synthese h2:first-of-type { margin-top:.5rem; }
+.zone-corpus .article-synthese p { margin:0 0 .9rem; }
+.zone-corpus .entete-article {
+  border:1px solid var(--filet); border-radius:6px; padding:.7rem .8rem;
+  margin-bottom:1rem; background:var(--papier-panneau);
+  font-family:ui-monospace,Menlo,monospace; font-size:.64rem; line-height:1.6;
+}
+.zone-corpus .entete-article .ligne { display:flex; justify-content:space-between; gap:1rem; }
+.zone-corpus .entete-article .ligne span:first-child { color:var(--encre-douce); }
+.zone-corpus .bandeau-genre {
+  display:flex; align-items:center; gap:.4rem; margin-bottom:.5rem;
+  font-size:.6rem; text-transform:uppercase; letter-spacing:.08em;
+  font-family:ui-monospace,Menlo,monospace;
+}
+.zone-corpus .bandeau-genre[data-genre="wiki"]     { color:var(--info); }
+.zone-corpus .bandeau-genre[data-genre="synthese"] { color:var(--cible); }
+.zone-corpus .bandeau-genre .pastille-vivante {
+  width:.45rem; height:.45rem; border-radius:50%; background:currentColor;
+  animation:pulsation 2.4s ease-in-out infinite;
+}
+@keyframes pulsation { 50% { opacity:.3; } }
+@media (prefers-reduced-motion: reduce) {
+  .zone-corpus .bandeau-genre .pastille-vivante { animation:none; }
+  .panneau-preuve { transition:none; }
+}
+.zone-corpus .retour-liste {
+  border:1px solid var(--filet-controle); background:var(--papier); cursor:pointer;
+  border-radius:4px; padding:.25rem .6rem; font-size:.62rem;
+  color:var(--encre-douce); margin-bottom:.8rem;
+}
+.zone-corpus .retour-liste:hover { color:var(--encre); border-color:var(--encre-douce); }
+
+.zone-corpus .renvoi {
+  display:inline-block; font-family:ui-monospace,Menlo,monospace; font-size:.62rem;
+  vertical-align:super; line-height:1; cursor:pointer; border:none; background:none;
+  /* Cible elargie sans casser la ligne (audit a11y I5). */
+  padding:.3rem .25rem; margin:-.3rem 0; color:var(--info); text-decoration:none;
+}
+.zone-corpus .renvoi:hover, .zone-corpus .renvoi.est-active { text-decoration:underline; font-weight:700; }
+/* LE VERDICT D'UN PARAGRAPHE se lisait comme un trait de SEPARATION :
+   un filet pleine largeur sous le texte, pris pour une bordure
+   decorative (recette du 10 aout, F6). Dans ce design system, un etat
+   se porte a GAUCHE — c'est deja le cas du guide de redaction, des
+   operations de diff et des messages d'etat. On aligne le verdict sur
+   cette grammaire : le lecteur reconnait un etat sans l'apprendre.
+   / A bottom rule reads as a separator; in this design system a state
+   is carried on the LEFT. */
+.zone-corpus .affirmation {
+  border-left:3px solid transparent; padding-left:.7rem; margin-left:-.7rem;
+}
+.zone-corpus .affirmation[data-verification="verifie"]     { border-left-color:var(--verifie); }
+.zone-corpus .affirmation[data-verification="source_debat"]{ border-left-color:var(--source-debat); }
+.zone-corpus .affirmation[data-verification="faible"]      { border-left-color:var(--faible); }
+.zone-corpus .affirmation[data-verification="conteste"]    { border-left-color:var(--danger); }
+/* L'alpha de 70 % faisait tomber ce filet a 2,94:1, a 0,06 du seuil
+   de 1.4.11 (verification F4-F10). Un etat n'a pas a etre discret au
+   point de n'etre plus percu. / 70% alpha landed 0.06 under the bar. */
+.zone-corpus .affirmation[data-verification="non_verifie"] { border-left:3px dotted var(--encre-douce); }
+/* La legende dit desormais ce que la couleur qualifie. */
+.zone-corpus .legende-portee { color:var(--encre-douce); font-style:italic; }
+.zone-corpus .affirmation[data-verification="non_source"]  { border-left-color:var(--non-source);
+  background:color-mix(in srgb,var(--non-source) 5%,transparent); }
+
+.zone-corpus .legende-verification {
+  display:flex; gap:.8rem; flex-wrap:wrap; margin:.6rem 0 1rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem; color:var(--encre-douce);
+}
+.zone-corpus .legende-verification span { display:inline-flex; align-items:center; gap:.25rem; }
+.zone-corpus .legende-verification i { width:1.1rem; height:2px; display:inline-block; font-style:normal; }
+
+.zone-corpus .ecarte { margin-top:1.2rem; border:1px solid var(--filet); border-radius:6px; overflow:hidden; }
+.zone-corpus .ecarte > summary {
+  cursor:pointer; padding:.55rem .7rem; background:var(--papier-creux);
+  font-family:ui-monospace,Menlo,monospace; font-size:.65rem; color:var(--encre);
+  list-style:none; display:flex; align-items:center; gap:.4rem;
+}
+.zone-corpus .ecarte > summary::-webkit-details-marker { display:none; }
+.zone-corpus .ecarte > summary::before { content:"▸"; opacity:.5; }
+.zone-corpus .ecarte[open] > summary::before { content:"▾"; }
+.zone-corpus .ecarte .contenu-ecarte { padding:.6rem .7rem; }
+.zone-corpus .ecarte .explication { font-size:.8rem; color:var(--encre-douce); margin:.5rem 0 0; line-height:1.55; }
+
+.zone-corpus .carte-preuve, .panneau-preuve .carte-preuve {
+  border:1px solid var(--filet); border-radius:5px; padding:.5rem .6rem;
+  margin-bottom:.45rem; background:var(--papier);
+}
+.zone-corpus .citation-exacte, .panneau-preuve .citation-exacte {
+  font-style:italic; font-size:.85rem; line-height:1.5; margin:0 0 .4rem;
+  border-left:2px solid var(--filet); padding-left:.5rem;
+}
+.panneau-preuve .debat {
+  margin-top:.4rem; padding-top:.35rem; border-top:1px dashed var(--filet); font-size:.78rem;
+}
+.panneau-preuve .debat .qui { font-weight:700; font-size:.68rem; }
+
+.panneau-preuve {
+  position:fixed; top:0; right:0; bottom:0; width:var(--preuve); max-width:100vw; z-index:88;
+  background:var(--papier-panneau); border-left:1px solid var(--filet);
+  transform:translateX(100%); transition:transform .2s ease;
+  display:flex; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.14);
+  font-family:Georgia,serif; color:var(--encre);
+}
+.panneau-preuve { visibility:hidden; }
+.panneau-preuve.est-ouvert { transform:translateX(0); visibility:visible; }
+.panneau-preuve .entete {
+  padding:.6rem .7rem; border-bottom:1px solid var(--filet); display:flex;
+  align-items:center; gap:.5rem; font-family:ui-monospace,Menlo,monospace; font-size:.65rem;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce);
+}
+.panneau-preuve .entete button { margin-left:auto; border:1px solid var(--filet);
+  background:var(--papier); border-radius:3px; cursor:pointer; padding:.1rem .45rem; }
+.panneau-preuve .corps { flex:1; overflow-y:auto; padding:.7rem; font-size:.85rem; }
+.voile-preuve {
+  position:fixed; inset:0; background:rgba(0,0,0,.18); z-index:87; display:none;
+}
+.voile-preuve.est-visible { display:block; }
+
+.etat-verification {
+  display:inline-flex; align-items:center; gap:.3rem; border-radius:3px;
+  padding:.1rem .4rem; font-family:ui-monospace,Menlo,monospace; font-size:.58rem;
+  text-transform:uppercase; letter-spacing:.06em; border:1px solid currentColor;
+}
+.etat-verification[data-etat="verifie"]      { color:var(--verifie); }
+.etat-verification[data-etat="faible"]       { color:var(--faible); }
+.etat-verification[data-etat="non_source"]   { color:var(--non-source); }
+.etat-verification[data-etat="source_debat"] { color:var(--source-debat); }
+.etat-verification[data-etat="conteste"]     { color:var(--danger); }
+.etat-verification[data-etat="non_verifie"]  { color:var(--encre-douce); }
+
+.zone-corpus .diff-operations { margin-top:.6rem; }
+.zone-corpus .operation {
+  border:1px solid var(--filet); border-left-width:3px; border-radius:0 5px 5px 0;
+  padding:.5rem .6rem; margin-bottom:.45rem; background:var(--papier);
+}
+.zone-corpus .operation[data-op="append_to_section"] { border-left-color:var(--succes); }
+.zone-corpus .operation[data-op="replace_section"]  { border-left-color:var(--faible); }
+.zone-corpus .operation[data-op="insert_section"]   { border-left-color:var(--info); }
+.zone-corpus .operation[data-op="no_change"]        { border-left-color:var(--encre-douce); }
+.zone-corpus .operation .entete-op {
+  display:flex; align-items:center; gap:.4rem; margin-bottom:.3rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.58rem;
+  text-transform:uppercase; letter-spacing:.06em; color:var(--encre-douce);
+}
+.zone-corpus .operation .heading-op { color:var(--encre); text-transform:none; letter-spacing:0; font-weight:700; }
+.zone-corpus .operation .contenu-op { font-size:.85rem; line-height:1.55; white-space:pre-line; }
+.zone-corpus .operation .avant-op { background:color-mix(in srgb,var(--non-source) 6%,transparent); border-radius:3px; padding:.3rem .4rem; }
+.zone-corpus .operation .apres-op { background:color-mix(in srgb,var(--succes) 6%,transparent); border-radius:3px; padding:.3rem .4rem; }
+.zone-corpus .operation.rejetee { opacity:.62; }
+/* Le renvoi d'un diff : la syntaxe interne des marqueurs ne doit pas
+   sortir a l'ecran, ici comme ailleurs. / Internal marker syntax stays
+   internal. */
+.zone-corpus .renvoi-diff {
+  /* rem et non em : en em la pastille heritait du text-xs du diff et
+     tombait a 9,3px. / rem, or it inherits down to 9.3px. */
+  font-family:ui-monospace,Menlo,monospace; font-size:.7rem;
+  border:1px solid var(--filet-controle); border-radius:2px;
+  padding:.02rem .25rem; color:var(--encre-douce); white-space:nowrap;
+}
+.zone-corpus .alerte-sans-redaction {
+  display:block; margin-top:.3rem; font-size:.7rem; color:var(--encre);
+  background:color-mix(in srgb,var(--statut-commente) 14%,var(--papier));
+  border-left:3px solid var(--filet-statut-commente);
+  border-radius:0 3px 3px 0; padding:.25rem .4rem;
+}
+.zone-corpus .operation .motif-rejet {
+  margin-top:.35rem; font-family:ui-monospace,Menlo,monospace; font-size:.58rem; color:var(--danger);
+}
+
+.zone-corpus .avertissement {
+  border:1px solid var(--filet); border-left:3px solid var(--statut-commente);
+  border-radius:0 5px 5px 0; background:var(--papier-panneau);
+  padding:.5rem .7rem; margin:.6rem 0; font-size:.8rem; line-height:1.5;
+}
+.zone-corpus .champ-etiquette {
+  display:block; font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  text-transform:uppercase; letter-spacing:.06em; color:var(--encre-douce); margin:.5rem 0 .2rem;
+}
+.zone-corpus .champ-texte, .zone-corpus .champ-select {
+  /* --filet-controle : 3:1 exige par WCAG 1.4.11 (cf. maquette.css). */
+  width:100%; border:1px solid var(--filet-controle); border-radius:4px; background:var(--papier);
+  color:var(--encre); padding:.35rem .5rem; font-size:.85rem; font-family:inherit;
+}
+/* Un champ marque .mono reste en monospace : sans cette ligne, le
+   font-family:inherit ci-dessus l'emporte sur la regle .mono generale
+   (meme specificite, declaree plus haut) et un token hexadecimal
+   s'affichait en serif — 0/O et 1/l indistinguables (verification T6).
+   / .mono fields must stay monospace: `inherit` above wins otherwise. */
+.zone-corpus .champ-texte.mono, .zone-corpus .champ-select.mono {
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;
+}
+.zone-corpus .bouton-plat {
+  border:1px solid var(--filet-controle); background:var(--papier); color:var(--encre);
+  border-radius:4px; cursor:pointer; padding:.3rem .7rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.65rem;
+}
+.zone-corpus .bouton-plat:hover { border-color:var(--encre-douce); }
+.zone-corpus .bouton-plat.principal { background:var(--encre); color:var(--papier); border-color:var(--encre); }
+.zone-corpus .bouton-plat[disabled] { opacity:.45; cursor:not-allowed; }
+.zone-corpus .rangee-boutons { display:flex; gap:.5rem; margin-top:.6rem; flex-wrap:wrap; }
+/* ---- Ajouts du lot T5 : ce dont les trois ecrans portes (carnets,
+   bases, detail de base) ont besoin et que l'etalon ne nommait pas,
+   ou nommait hors du scope .zone-corpus. Aucun composant invente :
+   on etend .ligne-note et .bouton-plat. / T5 additions: extend the
+   existing components rather than introduce a parallel system. ---- */
+
+/* Lien de navigation entre ecrans (l'etalon n'a que .renvoi, qui est
+   un appel de note en exposant — pas la meme chose). */
+.zone-corpus .lien-navigation {
+  font-family:ui-monospace,Menlo,monospace; font-size:.65rem;
+  color:var(--info); text-decoration:none;
+  /* Cible elargie sans decaler la ligne (WCAG 2.5.8). */
+  display:inline-block; padding:.3rem .15rem; margin:-.3rem 0;
+}
+.zone-corpus .lien-navigation:hover { text-decoration:underline; }
+
+/* Etat vide : l'etalon veut qu'un vide EXPLIQUE la regle. Le titre est
+   centre, l'explication reste alignee a gauche — au-dela de deux
+   lignes, le texte centre se lit mal. */
+.zone-corpus .vide {
+  border:1px dashed var(--filet); border-radius:6px;
+  padding:1.4rem 1.2rem; color:var(--encre-douce); font-size:.88rem; line-height:1.6;
+}
+.zone-corpus .vide strong { display:block; text-align:center; color:var(--encre); margin-bottom:.5rem; }
+.zone-corpus .vide p { margin:0 0 .5rem; }
+.zone-corpus .vide p:last-child { margin-bottom:0; }
+
+/* Une ligne de formulaire : etiquette, champ, bouton, sur un rang. */
+.zone-corpus .rangee-champ {
+  display:flex; align-items:center; gap:.45rem; flex-wrap:wrap; margin:.8rem 0;
+}
+.zone-corpus .rangee-champ .champ-etiquette { margin:0; }
+.zone-corpus .rangee-champ .champ-texte,
+.zone-corpus .rangee-champ .champ-select { width:auto; min-width:12rem; font-size:.8rem; }
+
+/* Colonne d'actions d'une ligne (epingler, retirer). Classe distincte
+   de .boutons-ordre, dont la regle « .boutons-ordre button » ecraserait
+   .bouton-icone (verification T5). */
+.zone-corpus .groupe-actions { display:flex; flex-direction:column; gap:.15rem; }
+
+/* Bouton d'action a une icone (epingler, retirer). 1,6rem de cote pour
+   rester au-dessus de la cible minimale, contour au survol seulement. */
+.zone-corpus .bouton-icone {
+  border:1px solid transparent; background:none; cursor:pointer;
+  color:var(--encre-douce); border-radius:3px; font-size:.75rem; line-height:1;
+  min-width:1.6rem; min-height:1.6rem; padding:.2rem .3rem;
+}
+.zone-corpus .bouton-icone:hover { border-color:var(--filet-controle); background:var(--papier-creux); color:var(--encre); }
+.zone-corpus .bouton-icone[aria-pressed="true"] { color:var(--statut-commente); }
+/* Bordure en --danger PLEIN : le melange a 45% tombait a 2,72:1, sous
+   les 3:1 exiges d'un indicateur d'etat (verification T5). */
+.zone-corpus .bouton-icone.danger:hover { color:var(--danger); border-color:var(--danger); }
+
+/* Marque de visibilite (icone + mot) en tete de ligne : l'icone seule
+   ne dit rien a un lecteur d'ecran ni a qui ne connait pas le code. */
+.zone-corpus .marque-visibilite {
+  font-family:ui-monospace,Menlo,monospace; font-size:.55rem;
+  color:var(--encre-douce); display:flex; flex-direction:column;
+  align-items:center; gap:.05rem; min-width:2.2rem; padding-top:.15rem;
+}
+.zone-corpus .marque-visibilite .glyphe { font-size:.85rem; line-height:1; }
+
+/* ---- Ajouts du lot T6 : le gabarit « page nue » (connexion,
+   inscription, token, 403, invitation). Ces cinq pages sont autonomes
+   — elles ne passent pas par base.html — et la maquette n'en dessine
+   aucune (cahier des charges § 2.4, trou n°1). On ETEND le design
+   system au lieu d'inventer : .zone-corpus etroite + .surface-formulaire
+   + les .champ-* et .bouton-plat existants.
+   / T6: the five standalone pages get a narrow .zone-corpus and reuse
+   the existing field/button components. ---- */
+.zone-corpus.page-nue {
+  max-width:26rem; padding:3rem 1.2rem 4rem; min-height:100vh;
+}
+.zone-corpus.page-nue .marque {
+  display:block; text-align:center; font-family:ui-monospace,Menlo,monospace;
+  font-size:.72rem; text-transform:uppercase; letter-spacing:.16em;
+  color:var(--encre-douce); margin-bottom:1.6rem;
+}
+.zone-corpus.page-nue h1 { font-size:1.4rem; margin:0 0 .3rem; letter-spacing:-.012em; }
+.zone-corpus .surface-formulaire {
+  border:1px solid var(--filet); border-radius:8px; background:var(--papier-panneau);
+  padding:1.1rem 1.2rem; box-shadow:0 1px 6px rgba(0,0,0,.07);
+}
+.zone-corpus .bouton-plat.pleine-largeur { width:100%; padding:.5rem .7rem; }
+/* Message d'etat d'une page nue : le genre porte la couleur, jamais
+   la couleur seule — chaque message garde un mot qui le nomme. */
+.zone-corpus .message-etat {
+  border:1px solid var(--filet); border-left:3px solid var(--encre-douce);
+  border-radius:0 5px 5px 0; background:var(--papier-panneau);
+  padding:.5rem .7rem; margin-bottom:.9rem; font-size:.85rem; line-height:1.5;
+}
+.zone-corpus .message-etat[data-genre="erreur"] {
+  border-left-color:var(--danger);
+  background:color-mix(in srgb,var(--danger) 7%,var(--papier));
+}
+.zone-corpus .message-etat[data-genre="succes"] {
+  border-left-color:var(--succes);
+  background:color-mix(in srgb,var(--succes) 7%,var(--papier));
+}
+.zone-corpus .message-etat strong {
+  display:block; font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce);
+  margin-bottom:.15rem;
+}
+.zone-corpus .pied-page {
+  text-align:center; margin-top:1rem; font-family:ui-monospace,Menlo,monospace;
+  font-size:.65rem; color:var(--encre-douce);
+}
+.zone-corpus .pied-page a { color:var(--info); }
+
+.zone-corpus .surface-creation {
+  border:1px solid var(--filet); border-radius:6px; padding:.8rem .9rem;
+  background:var(--papier-panneau); margin-top:1rem;
+}
+.zone-corpus .surface-creation h3 { margin:0 0 .3rem; font-size:1rem; }
+.zone-corpus .note-explicative { font-size:.8rem; color:var(--encre-douce); margin:0 0 .5rem; line-height:1.5; }
+</style>

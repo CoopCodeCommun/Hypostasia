@@ -361,3 +361,47 @@ class ConversionDoclingReelleTest(TestCase):
             # Le contenu des cellules doit s'y retrouver.
             # / The cell content must be in there.
             self.assertIn("Principe", element.texte)
+
+
+class GardesFousDeConversionTest(TestCase):
+    """
+    La conversion est bornee (relecture BR-B, defaut n°1) : sur un
+    serveur 8 Go partage avec la production, un PDF-fleuve ou une bombe
+    de decompression ne doit pas pouvoir tout emporter.
+    / Conversion is bounded: a huge PDF must not take the host down.
+    """
+
+    def test_la_conversion_passe_des_limites_a_docling(self):
+        from unittest.mock import MagicMock, patch
+
+        from hypostasis_extractor.services.ingestion_docling import (
+            LIMITE_DE_PAGES_DOCLING,
+            LIMITE_DE_TAILLE_DOCLING,
+            convertir_un_fichier_avec_docling,
+        )
+
+        convertisseur = MagicMock()
+        with patch(
+            "docling.document_converter.DocumentConverter",
+            return_value=convertisseur,
+        ):
+            convertir_un_fichier_avec_docling("/tmp/exemple.pdf")
+
+        convertisseur.convert.assert_called_once_with(
+            "/tmp/exemple.pdf",
+            max_num_pages=LIMITE_DE_PAGES_DOCLING,
+            max_file_size=LIMITE_DE_TAILLE_DOCLING,
+        )
+
+    def test_les_limites_sont_raisonnables(self):
+        # Elles doivent exister et rester coherentes avec la limite
+        # d'upload (50 Mo, front/serializers.py).
+        # / Limits exist and stay consistent with the upload cap.
+        from hypostasis_extractor.services.ingestion_docling import (
+            LIMITE_DE_PAGES_DOCLING,
+            LIMITE_DE_TAILLE_DOCLING,
+        )
+
+        self.assertGreaterEqual(LIMITE_DE_PAGES_DOCLING, 50)
+        self.assertLessEqual(LIMITE_DE_PAGES_DOCLING, 1000)
+        self.assertEqual(LIMITE_DE_TAILLE_DOCLING, 50 * 1024 * 1024)

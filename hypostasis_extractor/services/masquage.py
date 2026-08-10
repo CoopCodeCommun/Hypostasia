@@ -39,7 +39,10 @@ from core.models import (
 
 from ..models import AncrageExtraction, EtatAncrage
 from ..signals import recalculer_etat_de_l_element
-from .garde_edition import verifier_qu_aucune_analyse_ne_tourne
+from .garde_edition import (
+    verifier_qu_aucune_analyse_ne_tourne,
+    verifier_qu_aucune_synthese_ne_cite,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +75,7 @@ def hash_du_texte_brut(texte):
 
 
 def masquer_un_element(element, justification="", utilisateur=None,
-                       verifier_les_jobs=True):
+                       verifier_les_jobs=True, verifier_les_citations=True):
     """
     Retire un element du contenu utile sans le supprimer.
     / Removes an element from the useful content without deleting it.
@@ -105,9 +108,24 @@ def masquer_un_element(element, justification="", utilisateur=None,
         verifie qu'aucune analyse ne tourne — la re-ingestion le fait une
         fois pour toute la page, plutot qu'une fois par element masque.
         / Set to False when the caller already checked, once for the page.
+    :param verifier_les_citations: idem pour la garde § 5 — la
+        re-ingestion l'a deja passee au niveau PAGE (sur-ensemble strict
+        de la garde element), inutile de la repayer par element.
+        / Same for the § 5 guard, already page-checked by re-ingestion.
     """
     if verifier_les_jobs:
         verifier_qu_aucune_analyse_ne_tourne(element.page)
+    # Un element deja masque est un no-op : inutile d'opposer la garde
+    # citation a un geste qui ne changera rien (relecture E, M9).
+    # / An already-hidden element is a no-op: no guard needed.
+    if element.masque:
+        logger.info("Element %s deja masque, rien a faire.", element.pk)
+        return 0
+    # Masquer un element cite par une synthese FIGEE ferait disparaitre
+    # sa preuve (SPEC-synthese § 5, phase E). / Hiding a frozen-cited
+    # element would vanish its evidence.
+    if verifier_les_citations:
+        verifier_qu_aucune_synthese_ne_cite(element)
 
     with transaction.atomic():
         element_verrouille = ElementDocument.objects.select_for_update().get(
@@ -189,6 +207,14 @@ def demasquer_un_element(element, justification="", utilisateur=None,
     """
     if verifier_les_jobs:
         verifier_qu_aucune_analyse_ne_tourne(element.page)
+    # PAS de garde citation ici (relecture E, I1) : le demasquage ne
+    # modifie aucun texte — il repasse des ancres de DETACHEE a ANCREE
+    # apres avoir verifie que le hash n'a pas bouge. Il rend la preuve
+    # PLUS fidele, jamais moins. Le bloquer enfermerait l'utilisateur :
+    # un element masque par erreur puis cite (le lien nait DETACHEE)
+    # ne serait plus jamais demasquable.
+    # / NO citation guard: unhiding restores anchors after a hash check,
+    # making the evidence MORE faithful; blocking it would lock users out.
 
     resultat = {"portions_rattachees": 0, "portions_laissees_detachees": 0}
 
@@ -343,5 +369,13 @@ def detacher_les_portions_de(element):
         AncrageExtraction.objects.filter(pk__in=portions_a_detacher).update(
             etat_ancrage=EtatAncrage.DETACHEE,
         )
+
+        # Une ancre detachee detache la citation qui la pointait — meme
+        # regle que la reconciliation (SPEC-synthese § 4.2, relecture B N6).
+        # Couvre le masquage ET la reingestion, qui passe par ici.
+        # / A detached anchor detaches its citation; covers masking AND
+        # re-ingestion.
+        from core.services.synthese import detacher_les_citations_des_portions
+        detacher_les_citations_des_portions(portions_a_detacher)
 
     return portions_a_detacher

@@ -346,3 +346,83 @@ class NotificationTest(BaseTacheTestCase):
             analyser_une_page_avec_le_moteur_element(self.job.pk)
 
         notification.assert_not_called()
+
+
+import shutil
+import tempfile
+
+from django.test import override_settings
+
+MEDIA_JETABLE_INGESTION = tempfile.mkdtemp(prefix="test-taches-ingestion-")
+
+
+@override_settings(MEDIA_ROOT=MEDIA_JETABLE_INGESTION)
+class IngestionResoutLeCheminTest(BaseTacheTestCase):
+    """
+    La tache d'ingestion resout le chemin depuis page.source_file
+    (relecture BR-B, defaut n°5 : la vue ne connait pas le stockage).
+    / The ingestion task resolves the path from page.source_file.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Media jetable : rien ne s'accumule hors du run.
+        # / Throwaway media dir, removed after the class runs.
+        cls.addClassCleanup(
+            shutil.rmtree, MEDIA_JETABLE_INGESTION, ignore_errors=True,
+        )
+
+    def test_l_ingestion_resout_le_chemin_depuis_source_file(self):
+        from django.core.files.base import ContentFile
+
+        from hypostasis_extractor.tasks_element import (
+            ingerer_un_fichier_avec_docling,
+        )
+
+        self.page_de_test.source_file.save(
+            "resolution.md", ContentFile(b"# Titre\n\nTexte."), save=True,
+        )
+
+        with patch(
+            "hypostasis_extractor.services.ingestion_docling"
+            ".ingerer_un_fichier",
+            return_value=[],
+        ) as ingestion:
+            resultat = ingerer_un_fichier_avec_docling(self.page_de_test.pk)
+
+        self.assertEqual(resultat, {"elements": 0})
+        ingestion.assert_called_once_with(
+            self.page_de_test, self.page_de_test.source_file.path,
+        )
+
+    def test_une_page_sans_fichier_source_est_signalee(self):
+        # Pas de chemin explicite ET pas de source_file : la tache le
+        # dit proprement au lieu de lever en plein worker.
+        # / No explicit path and no source file: clean error, no crash.
+        from hypostasis_extractor.tasks_element import (
+            ingerer_un_fichier_avec_docling,
+        )
+
+        resultat = ingerer_un_fichier_avec_docling(self.page_de_test.pk)
+
+        self.assertIn("erreur", resultat)
+
+
+class QueueDedieeDoclingTest(TestCase):
+    """
+    L'ingestion Docling part sur une file dediee a concurrence 1
+    (relecture BR-B, defaut n°1) : jamais deux conversions en meme
+    temps sur le serveur 8 Go partage avec la production.
+    / Docling ingestion goes to a dedicated concurrency-1 queue.
+    """
+
+    def test_l_ingestion_est_routee_vers_la_file_dediee(self):
+        from hypostasia.celery import celery_app
+
+        routes = celery_app.conf.task_routes or {}
+        route = routes.get(
+            "hypostasis_extractor.tasks_element.ingerer_un_fichier_avec_docling",
+        )
+        self.assertIsNotNone(route, "aucune route pour l'ingestion Docling")
+        self.assertEqual(route.get("queue"), "ingestion_docling")

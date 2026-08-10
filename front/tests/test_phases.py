@@ -240,8 +240,15 @@ class Phase02TailwindCSSTest(TestCase):
         """Le CSS compile contient des classes Tailwind utilisees dans les templates."""
         chemin_tw = STATIC_FRONT / "css" / "tailwind.css"
         contenu = chemin_tw.read_text(encoding="utf-8")
-        # Classes Tailwind utilisees dans base.html
-        # / Tailwind classes used in base.html
+        # Classes Tailwind utilisees dans base.html.
+        # NOTE (bascule CSS, lot T9) : ce test ne verifie QUE la
+        # compilation de Tailwind. Il ne dit RIEN de la couleur rendue :
+        # depuis la bascule, .bg-white est remappe sur var(--papier) par
+        # maquette.css (cf. test_bg_white_est_remappe_sur_le_papier
+        # ci-dessous). Les deux tests sont complementaires : celui-ci
+        # garde le compilateur honnete, l'autre garde la palette.
+        # / This only checks Tailwind compiles; the rendered color is
+        # asserted by the remap test below.
         classes_attendues = ["bg-white", "text-slate-800", "flex-1", "font-semibold"]
         for classe in classes_attendues:
             self.assertIn(
@@ -331,11 +338,71 @@ class Phase02PolicesLocalesTest(TestCase):
 
 
 class Phase02FontBodyTest(TestCase):
-    """Verifie que la police de base du body est B612 (pas Inter).
-    / Verify that the body base font is B612 (not Inter)."""
+    """La police du CORPS, apres la bascule CSS (lot T9, 9 aout 2026).
+
+    Ce test disait « le body est en B612 » en lisant hypostasia.css.
+    C'etait devenu un mensonge : hypostasia.css:144 declare toujours
+    B612, mais maquette.css est chargee APRES et remet le body en
+    Georgia (decision D1 : la maquette fait foi, Lora et B612 quittent
+    le corps de texte, les ilots .typo-* de provenance restent).
+    Le test verifie desormais le contrat REEL : c'est la couche
+    maquette qui decide, et elle decide Georgia.
+    / This used to assert B612 by reading the old sheet; maquette.css
+    now wins the cascade and sets Georgia.
+    """
+
+    def test_le_corps_est_en_georgia_dans_la_couche_maquette(self):
+        """maquette.css, chargee en dernier, met le body en Georgia."""
+        chemin_css = STATIC_FRONT / "css" / "maquette.css"
+        contenu = chemin_css.read_text(encoding="utf-8")
+        self.assertIn("Georgia", contenu, "Georgia absent de la couche maquette")
+        # La regle body doit bien porter la serif, pas seulement un
+        # commentaire qui en parle. / The body rule itself must set it.
+        regle_body = re.search(r"\nbody\s*\{[^}]*\}", contenu)
+        self.assertIsNotNone(regle_body, "Aucune regle body dans maquette.css")
+        self.assertIn("Georgia", regle_body.group(0), "Le body n'est pas en Georgia")
+
+    def test_la_couche_maquette_est_chargee_en_dernier(self):
+        """base.html charge maquette.css APRES hypostasia.css.
+
+        C'est ce qui rend le contrat ci-dessus vrai : inverser les deux
+        lignes rendrait le corps a B612 sans qu'aucun autre test ne
+        bronche. / Load order is the contract.
+        """
+        contenu = TEMPLATE_BASE.read_text(encoding="utf-8")
+        position_ancienne = contenu.find("front/css/hypostasia.css")
+        position_maquette = contenu.find("front/css/maquette.css")
+        self.assertGreater(position_ancienne, -1, "hypostasia.css n'est plus chargee")
+        self.assertGreater(position_maquette, -1, "maquette.css n'est pas chargee")
+        self.assertGreater(
+            position_maquette, position_ancienne,
+            "maquette.css doit etre chargee APRES hypostasia.css"
+        )
+
+    def test_bg_white_est_remappe_sur_le_papier(self):
+        """L'utilitaire .bg-white ne peint plus du blanc mais du papier.
+
+        Le body de base.html porte encore la classe Tailwind bg-white :
+        c'est le remappage qui lui donne sa couleur, pas la classe.
+        / The body still carries bg-white; the remap gives it its color.
+        """
+        contenu = (STATIC_FRONT / "css" / "maquette.css").read_text(encoding="utf-8")
+        self.assertRegex(
+            contenu,
+            r"\.bg-white\s*\{[^}]*var\(--papier\)",
+            ".bg-white n'est pas remappe sur var(--papier)"
+        )
 
     def test_body_utilise_b612(self):
-        """hypostasia.css declare B612 comme font-family du body."""
+        """L'ancienne declaration B612 survit dans hypostasia.css.
+
+        Elle est desormais BATTUE par la couche maquette (cf. ci-dessus)
+        et n'est conservee que parce qu'on ne reecrit pas l'ancienne
+        feuille — on la surcharge. Ce test garde trace de cet etat de
+        transition ; il tombera avec la feuille, au dernier lot.
+        / Kept as a transition marker: the old sheet is overridden,
+        not rewritten.
+        """
         chemin_css = STATIC_FRONT / "css" / "hypostasia.css"
         contenu = chemin_css.read_text(encoding="utf-8")
         self.assertIn("'B612'", contenu, "B612 absent du body font-family")
@@ -357,11 +424,74 @@ class Phase02FontBodyTest(TestCase):
             f"Inter encore reference dans hypostasia.css : {occurrences_inter}"
         )
 
-    def test_lecture_article_utilise_lora(self):
-        """La classe .lecture-article utilise Lora comme police de lecture."""
-        chemin_css = STATIC_FRONT / "css" / "hypostasia.css"
-        contenu = chemin_css.read_text(encoding="utf-8")
-        self.assertIn("'Lora'", contenu, "Lora absent de .lecture-article")
+    def test_lecture_article_est_en_georgia(self):
+        """Le corps de lecture est en Georgia, pas en Lora (decision D1).
+
+        hypostasia.css:178 met encore Lora sur .lecture-article ; la
+        couche maquette la surcharge en Georgia. Lora reste vivante
+        pour l'ilot de provenance .typo-citation (texte humain cite).
+        / Reading body is Georgia now; Lora survives only for cited
+        human text.
+        """
+        contenu = (STATIC_FRONT / "css" / "maquette.css").read_text(encoding="utf-8")
+        self.assertRegex(
+            contenu,
+            r"\.lecture-article[^{]*\{[^}]*Georgia",
+            ".lecture-article n'est pas passe en Georgia"
+        )
+        ancienne = (STATIC_FRONT / "css" / "hypostasia.css").read_text(encoding="utf-8")
+        self.assertIn("'Lora'", ancienne, "Lora a disparu de l'ilot .typo-citation")
+
+
+class AnnonceDesToastsTest(TestCase):
+    """Les toasts doivent etre annonces aux lecteurs d'ecran.
+
+    SweetAlert annonce ses MODALES (role=dialog + focus) mais pas ses
+    toasts : ni modaux ni focalises, ils vivent trois secondes en
+    silence. Le contrat, pose a la fin de la bascule CSS :
+    une region live PERSISTANTE dans base.html, remplie par un
+    annonces.js qui enveloppe Swal.fire une seule fois.
+    / SweetAlert never announces toasts; a persistent live region plus
+    a single wrapper does.
+    """
+
+    def test_region_live_persistante_dans_base(self):
+        """base.html porte #zone-annonces, live et polie."""
+        contenu = TEMPLATE_BASE.read_text(encoding="utf-8")
+        self.assertIn('id="zone-annonces"', contenu, "Region d'annonce absente")
+        self.assertRegex(
+            contenu,
+            r'id="zone-annonces"[^>]*aria-live="polite"',
+            "La region d'annonce n'est pas une region live polie"
+        )
+
+    def test_annonces_js_charge_apres_sweetalert(self):
+        """L'ordre compte : annonces.js enveloppe Swal, il le suit.
+
+        Charge avant, `window.Swal` n'existe pas encore et le script
+        renonce silencieusement. / Loaded first, Swal is not defined yet.
+        """
+        contenu = TEMPLATE_BASE.read_text(encoding="utf-8")
+        position_swal = contenu.find("sweetalert2-11.min.js")
+        position_annonces = contenu.find("front/js/annonces.js")
+        self.assertGreater(position_swal, -1, "SweetAlert n'est plus charge")
+        self.assertGreater(position_annonces, -1, "annonces.js n'est pas charge")
+        self.assertGreater(
+            position_annonces, position_swal,
+            "annonces.js doit etre charge APRES sweetalert2"
+        )
+
+    def test_seuls_les_toasts_sont_annonces(self):
+        """Les modales sont exclues : SweetAlert les annonce deja.
+
+        Les annoncer en plus ferait entendre le message deux fois.
+        / Modals are already announced; announcing them twice is worse.
+        """
+        chemin = STATIC_FRONT / "js" / "annonces.js"
+        self.assertTrue(chemin.exists(), "annonces.js manquant")
+        contenu = chemin.read_text(encoding="utf-8")
+        self.assertIn("options.toast === true", contenu,
+                      "Le filtre sur les toasts a disparu")
 
 
 class Phase02CollectstaticTest(TestCase):
@@ -896,6 +1026,11 @@ class Phase04SuppressionPageTest(TestCase):
             text_readability="test suppression",
             dossier=self.dossier,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, self.dossier, self.user_test)
 
     def test_supprimer_page_retourne_200(self):
         """POST /pages/{pk}/supprimer/ retourne 200 et supprime la page."""
@@ -1040,6 +1175,11 @@ class Phase04SuppressionExtractionManuelleTest(TestCase):
             text_readability="Texte de test pour extraction manuelle.",
             dossier=self.dossier,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, self.dossier, self.user_test)
         self.job_manuel = ExtractionJob.objects.create(
             page=self.page,
             name="Extractions manuelles",
@@ -1877,6 +2017,11 @@ class Phase10EndpointMasquerTest(TestCase):
             text_readability="Texte pour masquer.",
             dossier=dossier_test,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, dossier_test, self.user_test)
         self.job = ExtractionJob.objects.create(
             page=self.page,
             name="Extractions manuelles",
@@ -2013,6 +2158,11 @@ class Phase10EndpointRestaurerTest(TestCase):
             text_readability="Texte restaurer.",
             dossier=dossier_test,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, dossier_test, self.user_test)
         self.job = ExtractionJob.objects.create(
             page=self.page,
             name="Extractions manuelles",
@@ -2098,6 +2248,11 @@ class Phase10EndpointDrawerContenuTest(TestCase):
             text_readability="Alpha Beta Gamma Delta.",
             dossier=dossier_test,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, dossier_test, self.user_test)
         self.job = ExtractionJob.objects.create(
             page=self.page,
             name="Extractions manuelles",
@@ -2336,6 +2491,11 @@ class Phase10FiltrageMasqueeAnnotationTest(TestCase):
             text_readability="Alpha Beta.",
             dossier=dossier_test,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, dossier_test, self.user_test)
         self.job = ExtractionJob.objects.create(
             page=self.page,
             name="Job test",
@@ -3320,6 +3480,25 @@ class Phase18EndpointTableauTest(TestCase):
     / Verify GET /alignement/tableau/ endpoint (PHASE-18)."""
 
     def setUp(self):
+        # L'alignement CONTROLE desormais l'acces (correctif de securite
+        # du 9 aout 2026) : ses deux endpoints ne verifiaient RIEN, on
+        # pouvait aligner et exporter n'importe quel carnet ou n'importe
+        # quelles notes par leur identifiant. Ces tests-ci creent des
+        # pages sans carnet ET sans owner, et appelaient l'endpoint en
+        # ANONYME : ils passaient GRACE au trou. La regle du produit
+        # (_utilisateur_a_acces_page) rend ces pages « orphelines »
+        # lisibles par tout utilisateur AUTHENTIFIE — c'est deja ce que
+        # fait /lire/ pour elles. On se connecte donc, et ces tests
+        # redeviennent ce qu'ils sont : des tests du RENDU du tableau.
+        # / These tests passed because the endpoint checked nothing;
+        # ownerless, notebook-less pages are readable by any
+        # authenticated user, exactly as /lire/ already treats them.
+        from django.contrib.auth import get_user_model
+        utilisateur_lecteur = get_user_model().objects.create_user(
+            "lecteur_alignement_%s" % self.__class__.__name__.lower(),
+            "lecteur@exemple.test", "motdepasse123",
+        )
+        self.client.force_login(utilisateur_lecteur)
         from core.models import Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
 
@@ -3496,6 +3675,25 @@ class Phase18EndpointExportMarkdownTest(TestCase):
     / Verify GET /alignement/export_markdown/ endpoint (PHASE-18)."""
 
     def setUp(self):
+        # L'alignement CONTROLE desormais l'acces (correctif de securite
+        # du 9 aout 2026) : ses deux endpoints ne verifiaient RIEN, on
+        # pouvait aligner et exporter n'importe quel carnet ou n'importe
+        # quelles notes par leur identifiant. Ces tests-ci creent des
+        # pages sans carnet ET sans owner, et appelaient l'endpoint en
+        # ANONYME : ils passaient GRACE au trou. La regle du produit
+        # (_utilisateur_a_acces_page) rend ces pages « orphelines »
+        # lisibles par tout utilisateur AUTHENTIFIE — c'est deja ce que
+        # fait /lire/ pour elles. On se connecte donc, et ces tests
+        # redeviennent ce qu'ils sont : des tests du RENDU du tableau.
+        # / These tests passed because the endpoint checked nothing;
+        # ownerless, notebook-less pages are readable by any
+        # authenticated user, exactly as /lire/ already treats them.
+        from django.contrib.auth import get_user_model
+        utilisateur_lecteur = get_user_model().objects.create_user(
+            "lecteur_alignement_%s" % self.__class__.__name__.lower(),
+            "lecteur@exemple.test", "motdepasse123",
+        )
+        self.client.force_login(utilisateur_lecteur)
         from core.models import Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
 
@@ -3650,6 +3848,19 @@ class Phase18bDossierAlignementEndpointTest(TestCase):
     / Verify GET /alignement/tableau/?dossier_id=X endpoint."""
 
     def setUp(self):
+        # Meme raison que Phase18EndpointTableauTest : l'alignement
+        # controle desormais l'acces, et ce dossier est cree sans owner
+        # (donc « legacy », lisible par tout utilisateur AUTHENTIFIE,
+        # comme partout ailleurs dans le produit). L'appel anonyme
+        # passait GRACE au trou de securite corrige le 9 aout 2026.
+        # / Same reason: this ownerless folder is readable by any
+        # authenticated user; the anonymous call relied on the hole.
+        from django.contrib.auth import get_user_model
+        utilisateur_lecteur = get_user_model().objects.create_user(
+            "lecteur_alignement_dossier", "lecteur-d@exemple.test",
+            "motdepasse123",
+        )
+        self.client.force_login(utilisateur_lecteur)
         from core.models import Dossier, Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
 
@@ -3692,6 +3903,14 @@ class Phase18bDossierAlignementEndpointTest(TestCase):
 
         # Dossier vide / Empty folder
         self.dossier_vide = Dossier.objects.create(name="Dossier vide")
+
+        # Appartenances N-N alignees sur les FK (phase D corpus) :
+        # l'alignement lit la table de liaison.
+        # / N-N memberships aligned with the FKs (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        for page_du_dossier in (self.page_a, self.page_b, self.page_c):
+            ranger_une_note_dans_un_carnet(page_du_dossier, self.dossier_avec_pages)
+        ranger_une_note_dans_un_carnet(self.page_seule, self.dossier_une_page)
 
         # Jobs d'extraction / Extraction jobs
         job_a = ExtractionJob.objects.create(
@@ -3825,7 +4044,9 @@ class Phase18bArbreTemplateTest(TestCase):
 
     def test_bouton_aligner_conditionne_par_count(self):
         """Le bouton aligner n'apparait que si >= 2 pages."""
-        self.assertIn("dossier.pages.count >= 2", self.contenu_template)
+        # Phase D corpus : le template compte les appartenances prechargees.
+        # / Corpus phase D: the template counts prefetched memberships.
+        self.assertIn("dossier.appartenances_racines|length >= 2", self.contenu_template)
 
     def test_bouton_aligner_a_data_dossier_id(self):
         """Le bouton aligner porte le data-dossier-id."""
@@ -5961,6 +6182,11 @@ class Phase25cLecturePubliqueOKTest(TestCase):
             html_readability="<p>test</p>", text_readability="test",
             dossier=self.dossier, owner=self.owner,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, self.dossier, self.owner)
 
     def test_anonyme_lecture_publique(self):
         reponse = self.client.get(f"/lire/{self.page.pk}/")

@@ -1,0 +1,35 @@
+{# CE QUI N'A PAS ETE REPRIS (§ 8) — difference d'ensembles, calculee. #}
+{# LOCALISATION : front/templates/front/corpus/partials/ecartees.html #}
+{# Variables : article, ecartees, perimetre_inconnu #}
+<div data-testid="synthese-ecartees">
+    {% if perimetre_inconnu %}
+    <p class="text-sm text-slate-600">
+        Cette synthèse date d'avant le figeage du périmètre : ce que le
+        modèle a réellement vu n'est pas connu, et une liste calculée
+        aujourd'hui serait fausse. On préfère le dire que mentir.
+    </p>
+    {% elif ecartees %}
+    <p class="text-sm mb-1"><strong>{{ nombre_total_d_ecartees }}
+        extraction{{ nombre_total_d_ecartees|pluralize }}</strong> du périmètre
+        n'{{ nombre_total_d_ecartees|pluralize:"a,ont" }} pas été
+        citée{{ nombre_total_d_ecartees|pluralize }}{% if nombre_total_d_ecartees > 200 %}
+        — les 200 premières sont affichées{% endif %} :</p>
+    <ul class="text-sm divide-y divide-slate-100">
+        {% for extraction in ecartees %}
+        <li class="py-1" data-testid="synthese-ecartee">
+            « {{ extraction.extraction_text|truncatechars:160 }} »
+            <span class="text-xs text-slate-500">—
+                {{ extraction.job.page.title|default:"note"|truncatechars:40 }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-slate-600">Toutes les extractions du
+        périmètre sont citées.</p>
+    {% endif %}
+    <p class="text-xs text-slate-500 mt-2">
+        Ceci n'audite que les <strong>citations</strong> : une extraction
+        lue par le modèle et utilisée sans être citée passe au travers.
+        Borne inférieure de contrôle, pas garantie.
+    </p>
+</div>

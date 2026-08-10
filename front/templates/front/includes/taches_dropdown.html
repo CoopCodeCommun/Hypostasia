@@ -4,7 +4,7 @@
 
 <div id="taches-dropdown-content" class="taches-dropdown-content" data-testid="taches-dropdown">
     <div class="taches-dropdown-header">
-        <h3 class="text-sm font-semibold text-slate-700">Mes taches recentes</h3>
+        <h3 class="text-sm font-semibold text-slate-700">Mes tâches récentes</h3>
         <div class="taches-dropdown-actions">
             {# Bouton 'tout marquer lu' : passe notification_lue=True sur toutes les terminees #}
             {# / 'Mark all as read' button: sets notification_lue=True on all finished #}
@@ -51,25 +51,24 @@
             {% endif %}
 
             <div class="taches-dropdown-corps">
+                {# Le libelle vient de libelle_de_tache : les trois #}
+                {# actions d'un article (production, mise a jour, #}
+                {# verification) tombaient toutes dans « Analyse » et #}
+                {# donnaient des lignes indistinctes (recette, F8). #}
                 <div class="taches-dropdown-nom">
-                    {% if tache.type_tache == "synthese" %}
-                        Synth&egrave;se de &laquo; {{ tache.page.title|default:"Sans titre"|truncatechars:40 }} &raquo;
-                    {% elif tache.type_tache == "analyse" %}
-                        Analyse de &laquo; {{ tache.page.title|default:"Sans titre"|truncatechars:40 }} &raquo;
-                    {% elif tache.type_tache == "transcription" %}
-                        Transcription de &laquo; {{ tache.page.title|default:"Audio"|truncatechars:40 }} &raquo;
-                    {% endif %}
+                    {{ tache.libelle_de_tache|default:"Tâche" }} —
+                    &laquo; {{ tache.page.title|default:"Sans titre"|truncatechars:40 }} &raquo;
                 </div>
                 <div class="taches-dropdown-meta">
                     {% if tache.status == "completed" %}
-                        <span class="taches-meta-duree">Terminee</span>
+                        <span class="taches-meta-duree">Terminée</span>
                         <a href="/lire/{{ tache.page_resultat_id }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
                            hx-get="/lire/{{ tache.page_resultat_id }}/?marquer_lue={{ tache.pk }}&type={{ tache.type_tache }}"
                            hx-target="#zone-lecture"
                            hx-swap="innerHTML"
                            hx-push-url="/lire/{{ tache.page_resultat_id }}/"
                            class="taches-meta-lien" data-testid="taches-voir-resultat">
-                            Voir le resultat
+                            Voir le résultat
                         </a>
                     {% elif tache.status == "error" %}
                         <span class="taches-meta-erreur">Erreur</span>
@@ -79,7 +78,7 @@
                            hx-swap="innerHTML"
                            hx-push-url="/lire/{{ tache.page.pk }}/"
                            class="taches-meta-lien" data-testid="taches-voir-details">
-                            Voir details
+                            Voir détails
                         </a>
                     {% else %}
                         <span class="taches-meta-en-cours">En cours&hellip;</span>
@@ -90,7 +89,7 @@
         {% endfor %}
     </ul>
     {% else %}
-    <p class="taches-dropdown-vide">Aucune tache recente.</p>
+    <p class="taches-dropdown-vide">Aucune tâche récente.</p>
     {% endif %}
 </div>
 

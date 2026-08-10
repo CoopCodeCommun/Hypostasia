@@ -1,0 +1,57 @@
+{# LISTE DES CARNETS — phase F corpus, portee sur le design de la #}
+{# MAQUETTE le 9 aout 2026 (lot T5 de la bascule CSS). #}
+{# / NOTEBOOK LIST — corpus phase F, ported to the etalon design. #}
+{# LOCALISATION : front/templates/front/corpus/carnets_liste.html #}
+{# INCLUS dans #zone-lecture de base.html (branche carnets_liste_preloaded) #}
+{# ou renvoye seul en HTMX. Variables : carnets (annotes nombre_de_notes, #}
+{# nombre_d_axes). Compteurs DERIVES, jamais tapes (regle de l'etalon). #}
+{# Les data-testid sont inchanges : ce sont des contrats, pas du style. #}
+{% include "front/corpus/_style_maquette.html" %}
+<div class="zone-corpus" data-testid="corpus-carnets-liste">
+
+    <header class="entete-zone">
+        <h1>Carnets</h1>
+        <p class="meta">
+            {{ carnets|length }} carnet{{ carnets|length|pluralize }} visible{{ carnets|length|pluralize }}
+        </p>
+        <a href="/bases/" hx-get="/bases/" hx-target="#zone-lecture"
+           hx-swap="innerHTML" hx-push-url="true"
+           class="lien-navigation"
+           data-testid="corpus-lien-bases">→ Voir les bases de connaissances</a>
+    </header>
+
+    <ul class="liste-notes" aria-label="Liste des carnets">
+        {% for carnet in carnets %}
+        <li class="ligne-note" data-testid="corpus-carnet-item"
+            data-carnet-id="{{ carnet.pk }}">
+            {# La visibilite : icone ET mot. La couleur ni la forme ne #}
+            {# portent jamais seules l'information (§ 8.3). #}
+            <span class="marque-visibilite">
+                {% if carnet.visibilite == "public" %}<span class="glyphe" aria-hidden="true">🌐</span>public{% elif carnet.visibilite == "partage" %}<span class="glyphe" aria-hidden="true">👥</span>partagé{% else %}<span class="glyphe" aria-hidden="true">🔒</span>privé{% endif %}
+            </span>
+            <span>
+                <a href="/carnets/{{ carnet.pk }}/"
+                   hx-get="/carnets/{{ carnet.pk }}/"
+                   hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true"
+                   class="titre-note"
+                   data-testid="corpus-carnet-lien">{{ carnet.name }}</a>
+                {# Les compteurs a zero sont TUS (audit UX D7) : dire vingt fois #}
+                {# « 0 axes » n'informe personne. / Zero counters stay silent. #}
+                <span class="sous-note">
+                    <span>{{ carnet.nombre_de_notes }} note{{ carnet.nombre_de_notes|pluralize }}</span>
+                    {% if carnet.nombre_d_axes %}<span>· {{ carnet.nombre_d_axes }} axe{{ carnet.nombre_d_axes|pluralize }} de classement</span>{% endif %}
+                    {% if carnet.owner %}<span>· par {{ carnet.owner.username }}</span>{% endif %}
+                </span>
+            </span>
+        </li>
+        {% empty %}
+        <li class="vide" data-testid="corpus-carnets-vide">
+            <strong>Aucun carnet visible.</strong>
+            <p>Un carnet rassemble des notes et leur donne un ordre de
+            lecture ; c'est lui qui sert de corpus à une synthèse. Les
+            carnets des autres n'apparaissent ici que s'ils sont publics
+            ou partagés avec vous.</p>
+        </li>
+        {% endfor %}
+    </ul>
+</div>

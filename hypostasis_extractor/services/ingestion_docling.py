@@ -45,6 +45,50 @@ LABELS_SANS_CONTENU_UTILE = {
     "footnote",
 }
 
+# Les extensions que Docling sait convertir en structure (BR-B).
+# Le texte brut (.txt) n'en fait pas partie : il n'a pas de structure a
+# decouper, il reste sur l'ancien pipeline. Le .json de transcription a
+# son propre pipeline dans la vue d'import.
+# / Extensions Docling can convert into structure. Plain text has no
+# structure to split; transcription JSON has its own pipeline.
+EXTENSIONS_COUVERTES_PAR_DOCLING = {
+    ".pdf",
+    ".docx",
+    ".md",
+    ".pptx",
+    ".xlsx",
+}
+
+# Les gardes-fous de conversion (relecture BR-B) : le serveur a 8 Go,
+# partages avec la production. Un PDF-fleuve ou une bombe de
+# decompression (un .docx est un zip : la limite d'upload de 50 Mo porte
+# sur la taille COMPRESSEE) ne doivent pas pouvoir tout emporter.
+# Docling refuse au-dela et la tache finit en erreur propre.
+# / Conversion guards: page cap and file-size cap handed to Docling.
+LIMITE_DE_PAGES_DOCLING = 200
+LIMITE_DE_TAILLE_DOCLING = 50 * 1024 * 1024
+
+
+def fichier_couvert_par_docling(nom_fichier):
+    """
+    Dit si un fichier est d'un type que Docling sait convertir.
+    / Says whether a file is of a type Docling can convert.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    Sert a la vue d'import (BR-B) pour decider : type couvert -> lancer
+    `ingerer_un_fichier_avec_docling` en plus du pipeline synchrone ;
+    type non couvert -> repli sur l'ancien moteur, sans tache.
+    / Used by the import view to decide whether to launch ingestion.
+
+    :param nom_fichier: le nom du fichier importe (avec extension)
+    :return: True si Docling couvre ce type
+    """
+    import os
+
+    extension = os.path.splitext(nom_fichier or "")[1].lower()
+    return extension in EXTENSIONS_COUVERTES_PAR_DOCLING
+
 
 def convertir_un_fichier_avec_docling(chemin_du_fichier):
     """
@@ -67,7 +111,11 @@ def convertir_un_fichier_avec_docling(chemin_du_fichier):
 
     convertisseur = DocumentConverter()
     try:
-        resultat = convertisseur.convert(chemin_du_fichier)
+        resultat = convertisseur.convert(
+            chemin_du_fichier,
+            max_num_pages=LIMITE_DE_PAGES_DOCLING,
+            max_file_size=LIMITE_DE_TAILLE_DOCLING,
+        )
     except Exception as erreur:
         raise RuntimeError(
             f"Docling n'a pas pu convertir {chemin_du_fichier} : {erreur}"
@@ -281,6 +329,15 @@ def creer_les_elements_d_une_page(page, elements_bruts):
         "Page %s : %s element(s) cree(s) depuis Docling.",
         page.pk, len(elements_crees),
     )
+    # Le flag moteur est pose ICI, au seul endroit par lequel toute
+    # ingestion element passe (BR-A, decision D1) : une page qui a des
+    # elements EST une page ELEMENT, meme si l'ingestion echoue plus
+    # loin. / The engine flag is stamped at the single choke point.
+    from core.models import MoteurDePage
+    if page.moteur != MoteurDePage.ELEMENT:
+        page.moteur = MoteurDePage.ELEMENT
+        page.save(update_fields=["moteur"])
+
     return elements_crees
 
 

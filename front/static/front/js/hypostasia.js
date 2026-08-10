@@ -443,7 +443,11 @@ document.body.addEventListener('showToast', function(evenement) {
         icon: detail.icon || 'success',
         title: detail.message || 'OK',
         showConfirmButton: false,
-        timer: 2500,
+        // Duree ajustable par la vue : un message long (deux
+        // informations) a besoin de plus de temps de lecture — public
+        // FALC. Par defaut, 2,5 s comme avant.
+        // / View-adjustable duration; long messages need reading time.
+        timer: detail.timer || 2500,
         // Decalage vertical pour passer SOUS la navbar (h-12 = 3rem = 48px)
         // sinon le toast cache le bouton 'taches' dans la toolbar.
         // / Vertical offset to go BELOW the navbar (h-12 = 3rem = 48px)

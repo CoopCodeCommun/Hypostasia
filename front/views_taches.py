@@ -120,6 +120,15 @@ class TachesViewSet(viewsets.ViewSet):
         # (raw_result.est_synthese=True). On les distingue ici pour l'affichage.
         # / An ExtractionJob can be either an analysis or a synthesis
         # / (raw_result.est_synthese=True). We distinguish here for display.
+        # `type_tache` porte la LOGIQUE (marquage lu, cible du lien) et
+        # ne bouge pas ; `libelle_de_tache` porte l'AFFICHAGE. Sans lui,
+        # produire un wiki, proposer une mise a jour et verifier des
+        # citations donnaient trois lignes IDENTIQUES — « Analyse de
+        # "Wiki — …" » — parce que tout ce qui n'est pas une synthese
+        # tombait dans « analyse » (recette du 10 aout, F8).
+        # / type_tache drives logic and stays; libelle_de_tache is new
+        # and only drives display: three different actions used to read
+        # exactly the same.
         for extraction in extractions_recentes:
             raw = extraction.raw_result or {}
             if raw.get("est_synthese"):
@@ -127,12 +136,24 @@ class TachesViewSet(viewsets.ViewSet):
                 # Le lien "Voir le resultat" pointe vers la page V2/V3 creee
                 # / "View result" link points to the V2/V3 page created
                 extraction.page_resultat_id = raw.get("page_synthese_id") or extraction.page.pk
+                extraction.libelle_de_tache = "Synthèse"
             else:
                 extraction.type_tache = "analyse"
                 extraction.page_resultat_id = extraction.page.pk
+                if raw.get("est_verification"):
+                    extraction.libelle_de_tache = "Vérification"
+                elif raw.get("est_maj_wiki"):
+                    extraction.libelle_de_tache = "Mise à jour"
+                elif raw.get("est_wiki"):
+                    extraction.libelle_de_tache = "Wiki"
+                elif raw.get("est_synthese_carnet"):
+                    extraction.libelle_de_tache = "Synthèse dirigée"
+                else:
+                    extraction.libelle_de_tache = "Analyse"
         for transcription in transcriptions_recentes:
             transcription.type_tache = "transcription"
             transcription.page_resultat_id = transcription.page.pk
+            transcription.libelle_de_tache = "Transcription"
 
         # Fusionner et trier par date desc, garder 30
         # / Merge and sort by date desc, keep 30

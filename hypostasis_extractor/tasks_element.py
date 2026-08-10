@@ -227,7 +227,7 @@ def _prevenir_l_utilisateur(job_extraction, statut):
 
 
 @shared_task(bind=True)
-def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fichier):
+def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fichier=None):
     """
     Convertit un fichier en elements, via Docling.
     / Converts a file into elements, via Docling.
@@ -235,7 +235,10 @@ def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fich
     LOCALISATION : hypostasis_extractor/tasks_element.py
 
     :param identifiant_de_la_page: la cle primaire de la Page a peupler
-    :param chemin_du_fichier: le fichier source a convertir
+    :param chemin_du_fichier: le fichier source a convertir. Si None
+        (cas normal depuis la vue d'import, BR-B), la tache le resout
+        elle-meme depuis page.source_file — la vue n'a pas a connaitre
+        le stockage. / If None, resolved from page.source_file.
     :return: {"elements": int} ou un dict d'erreur
 
     POURQUOI C'EST UNE TACHE SEPAREE DE L'ANALYSE
@@ -262,6 +265,26 @@ def ingerer_un_fichier_avec_docling(self, identifiant_de_la_page, chemin_du_fich
             page.pk,
         )
         return {"erreur": "page deja ingeree"}
+
+    # Resoudre le chemin depuis la page si la vue ne l'a pas donne.
+    # `.path` peut lever avec un stockage non-fichier : on le dit
+    # proprement au lieu de faire planter le worker.
+    # / Resolve the path from the page; say it cleanly if impossible.
+    if chemin_du_fichier is None:
+        if not page.source_file:
+            logger.error(
+                "Page %s : pas de fichier source, ingestion impossible.",
+                page.pk,
+            )
+            return {"erreur": "page sans fichier source"}
+        try:
+            chemin_du_fichier = page.source_file.path
+        except Exception as erreur_de_stockage:
+            logger.error(
+                "Page %s : le stockage ne donne pas de chemin local (%s).",
+                page.pk, erreur_de_stockage,
+            )
+            return {"erreur": "fichier source sans chemin local"}
 
     try:
         elements = ingerer_un_fichier(page, chemin_du_fichier)

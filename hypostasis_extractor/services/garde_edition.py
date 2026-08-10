@@ -206,3 +206,134 @@ def une_analyse_tourne_sur_la_page(page, job_a_ignorer=None):
     except EditionBloqueePendantAnalyse:
         return True
     return False
+
+
+# =============================================================================
+# LE BLOCAGE SUR CITATION (SPEC-synthese § 5, phase E)
+# / Edit-blocking on citation (phase E).
+# =============================================================================
+
+
+class EditionBloqueeParUneSynthese(Exception):
+    """
+    Levee quand on tente de modifier un element dont une portion est
+    citee par une synthese FIGEE.
+    / Raised when editing an element cited by a frozen synthesis.
+
+    LOCALISATION : hypostasis_extractor/services/garde_edition.py
+
+    POURQUOI SEULEMENT LES SYNTHESES DIRIGEES
+
+    Une synthese dirigee est un ACTE DATE : un collectif l'a adoptee, et
+    peut s'y referer six mois plus tard. Si le texte cite bouge apres
+    coup, la preuve de l'acte change en silence. C'est le pire cas de
+    gouvernance.
+
+    Un wiki, lui, est VIVANT : ses citations bougent deja a chaque tour
+    de mise a jour, et s'il perd une source, la passe suivante le
+    corrige. Bloquer sur les wikis figerait le corpus sans rien proteger
+    — un carnet a cinq wikis gelerait la moitie de ses elements des la
+    premiere semaine.
+    / Wikis recompute; frozen syntheses cannot.
+
+    Le message NOMME ce qui bloque (§ 5.3) : un refus sans motif est un
+    bug d'interface. / The message names the blocker.
+    """
+
+    def __init__(self, element, citations):
+        self.element = element
+        self.citations = citations
+        premiere_citation = citations[0] if citations else None
+        nom_de_la_synthese = ""
+        if premiere_citation is not None:
+            article = premiere_citation.page_cible
+            nom_de_la_synthese = article.title or f"synthèse {article.pk}"
+            date_de_production = None
+            enregistrement = getattr(article, "synthese_dirigee", None)
+            if enregistrement is not None:
+                date_de_production = enregistrement.produite_le
+            if date_de_production is not None:
+                nom_de_la_synthese += (
+                    f" du {date_de_production:%d/%m/%Y}"
+                )
+        super().__init__(
+            f"Ce passage est cité par « {nom_de_la_synthese} », une "
+            f"synthèse adoptée qui ne peut plus changer. Pour corriger "
+            f"ce passage, retirez d'abord la citation ou produisez une "
+            f"nouvelle synthèse. / This passage is cited by a frozen "
+            f"synthesis; remove the citation or produce a new synthesis "
+            f"first."
+        )
+
+
+def verifier_qu_aucune_synthese_ne_cite(element):
+    """
+    Leve si une synthese DIRIGEE cite une extraction dont une portion
+    vit sur cet element. / Raises if a FROZEN synthesis cites an
+    extraction anchored on this element.
+
+    LOCALISATION : hypostasis_extractor/services/garde_edition.py
+
+    Meme patron que verifier_qu_aucune_analyse_ne_tourne(), appele aux
+    memes endroits : reconciliation, moteur_structure (scission et
+    fusion), masquage, reingestion.
+
+    ATTENTION AU M2M : une extraction peut porter des portions sur
+    PLUSIEURS elements. Citer cette extraction gele donc TOUS ses
+    elements, pas seulement celui qui porte le passage cite. C'est
+    inevitable — une preuve coupee en deux n'est plus une preuve.
+    / One citation freezes every element the extraction spans.
+
+    Seuls les liens type_lien=CITE comptent : les liens de provenance du
+    versionnage historique ne gelent rien.
+    / Only CITE links freeze anything.
+
+    :raises EditionBloqueeParUneSynthese: si une dirigee cite
+    """
+    from core.models import SourceLink, TypeDeNote, TypeLien
+
+    citations = list(
+        SourceLink.objects.filter(
+            extraction_source__ancrages__element=element,
+            type_lien=TypeLien.CITE,
+            page_cible__type_de_note=TypeDeNote.SYNTHESE,
+        ).select_related(
+            "page_cible__synthese_dirigee",
+        ).distinct()[:5]
+    )
+    if citations:
+        logger.info(
+            "Edition refusee sur l'element %s : cite par %s synthese(s) "
+            "dirigee(s).", element.pk, len(citations),
+        )
+        raise EditionBloqueeParUneSynthese(element, citations)
+
+
+def verifier_qu_aucune_synthese_ne_cite_la_page(page):
+    """
+    La meme garde, au niveau de la PAGE entiere — pour la reingestion,
+    qui remplace tous les elements d'un coup.
+    / The same guard at page level — for re-ingestion, which replaces
+    every element at once.
+
+    LOCALISATION : hypostasis_extractor/services/garde_edition.py
+
+    :raises EditionBloqueeParUneSynthese: si une dirigee cite
+    """
+    from core.models import SourceLink, TypeDeNote, TypeLien
+
+    citations = list(
+        SourceLink.objects.filter(
+            extraction_source__ancrages__element__page=page,
+            type_lien=TypeLien.CITE,
+            page_cible__type_de_note=TypeDeNote.SYNTHESE,
+        ).select_related(
+            "page_cible__synthese_dirigee",
+        ).distinct()[:5]
+    )
+    if citations:
+        logger.info(
+            "Reingestion refusee sur la page %s : cite(e) par %s "
+            "synthese(s) dirigee(s).", page.pk, len(citations),
+        )
+        raise EditionBloqueeParUneSynthese(None, citations)

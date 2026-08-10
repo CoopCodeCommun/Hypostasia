@@ -534,3 +534,42 @@ class TraductionDeLangExtractTest(TestCase):
         traduites = _traduire_les_extractions_de_langextract(resultat)
 
         self.assertEqual(traduites[0]["attributes"], {})
+
+
+class BattementDeCoeurTest(BaseAnalyseTestCase):
+    """
+    Le job bat le coeur entre les chunks (relecture BR-C, defaut n°1).
+    / The job heartbeats between chunks.
+
+    La vue tue tout job PROCESSING dont updated_at n'a pas bouge depuis
+    5 minutes. Le moteur ANCIEN rafraichit updated_at a chaque chunk ;
+    sans le meme battement, une longue analyse ELEMENT (25 chunks) se
+    faisait marquer « Timeout » en plein travail — puis relancer en
+    double. / Without a per-chunk heartbeat, long ELEMENT analyses get
+    falsely killed by the staleness check.
+    """
+
+    def test_le_job_bat_le_coeur_entre_les_chunks(self):
+        # Deux elements d'environ 1000 caracteres : le budget de chunk
+        # (1500) force DEUX chunks. / Two ~1000-char elements: 2 chunks.
+        self._ajouter_un_element("Une phrase utile pour le test. " * 33)
+        self._ajouter_un_element("Une autre phrase de contenu. " * 34)
+
+        horodatages_vus_par_le_llm = []
+
+        def faux_llm(texte_du_chunk, job):
+            job.refresh_from_db()
+            horodatages_vus_par_le_llm.append(job.updated_at)
+            return []
+
+        analyser_une_page_par_element(
+            self.page_de_test, self.job, appeler_le_llm=faux_llm,
+        )
+
+        self.assertEqual(len(horodatages_vus_par_le_llm), 2)
+        # Le deuxieme chunk voit un updated_at PLUS RECENT que le
+        # premier : le coeur a battu entre les deux.
+        # / The second chunk sees a fresher updated_at.
+        self.assertGreater(
+            horodatages_vus_par_le_llm[1], horodatages_vus_par_le_llm[0],
+        )

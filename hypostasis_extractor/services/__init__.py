@@ -202,6 +202,16 @@ def run_langextract_job(job, use_chunking: bool = False, max_workers: int = 1):
     start_time = time.time()
     
     try:
+        # Garde § 4.2, AVANT l'appel LLM (relecture E, B1) : si une
+        # synthese dirigee cite une extraction de ce job, la purge en
+        # aval serait refusee — autant refuser ICI, avant de payer des
+        # minutes d'appel modele pour un job qui echouera.
+        # / § 4.2 guard BEFORE the LLM call: refuse before paying.
+        from core.services.synthese import (
+            verifier_qu_aucune_dirigee_ne_cite_les_extractions,
+        )
+        verifier_qu_aucune_dirigee_ne_cite_les_extractions(job.entities.all())
+
         # Recupere le texte a analyser depuis la Page
         text_source = job.page.text_readability
         if not text_source:
@@ -238,7 +248,12 @@ def run_langextract_job(job, use_chunking: bool = False, max_workers: int = 1):
                      job.id, extract_params.get('model_id', '?'), len(text_source))
         result = lx.extract(**extract_params)
         
-        # Supprime les anciennes entites si re-extraction
+        # Supprime les anciennes entites si re-extraction. La garde
+        # § 4.2 a ete passee AVANT l'appel LLM (debut du try) ; on la
+        # repasse ici par defense en profondeur (une citation a pu
+        # naitre pendant l'appel). / Guard re-checked in depth: a
+        # citation may have appeared during the call.
+        verifier_qu_aucune_dirigee_ne_cite_les_extractions(job.entities.all())
         job.entities.all().delete()
         
         # Cree les entites extraites

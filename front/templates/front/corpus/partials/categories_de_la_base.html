@@ -1,0 +1,25 @@
+{# PARTIAL : AXES ET CATEGORIES D'UNE BASE — phase H, design maquette #}
+{# (lot T5 de la bascule CSS, 9 aout 2026). #}
+{# / PARTIAL: A BASE'S AXES AND CATEGORIES — phase H, etalon design. #}
+{# LOCALISATION : front/templates/front/corpus/partials/categories_de_la_base.html #}
+{# Rendu SEUL par HTMX (cible #corpus-base-axes) : il ne peut pas #}
+{# compter sur un .zone-corpus englobant apres un swap, d'ou la classe #}
+{# portee ici aussi. / Also swapped alone, hence its own scope class. #}
+<div class="zone-corpus" style="padding:0;max-width:none"
+     data-testid="corpus-base-categories" data-base-slug="{{ base.slug }}">
+    {% for axe in axes %}
+    <section class="axe" style="margin-bottom:.4rem;display:inline-block"
+             data-testid="corpus-base-axe" data-liste-id="{{ axe.pk }}">
+        <h3 class="nom-axe">{{ axe.nom }}</h3>
+        <ul class="categories" style="list-style:none;margin:0;padding:0"
+            aria-label="Catégories de l'axe {{ axe.nom }}">
+            {% for categorie in axe.categories_de_base.all %}
+            <li class="etiquette-categorie"
+                data-testid="corpus-base-categorie-pastille">{{ categorie.nom }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% empty %}
+    <p class="note-explicative" style="font-style:italic">Aucun axe de classement.</p>
+    {% endfor %}
+</div>

@@ -1,0 +1,96 @@
+{# ONGLET SYNTHESES DIRIGEES — design maquette (9 aout). #}
+{# LOCALISATION : front/templates/front/corpus/liste_syntheses.html #}
+{# Variables : carnet, syntheses (annotees .qualite), axes, #}
+{# nombre_de_notes_sources, peut_ecrire. #}
+<div data-testid="synthese-liste-syntheses">
+    <p class="note-explicative">
+        Une synthèse dirigée est un <strong>acte daté</strong> : figée à
+        sa production, jamais réécrite. C'est ce qu'un collectif adopte,
+        et ce qu'on peut lui opposer six mois plus tard.
+    </p>
+
+    <ul class="liste-notes">
+        {% for synthese in syntheses %}
+        <li class="ligne-note" data-testid="synthese-dirigee-ligne">
+            <span class="rang" role="img" aria-hidden="true">▤</span>
+            <span>
+                <a href="/syntheses/{{ synthese.page_id }}/"
+                   hx-get="/syntheses/{{ synthese.page_id }}/"
+                   hx-target="#corpus-panneau-onglet" hx-swap="innerHTML"
+                   {# hx-push-url : sans lui on lit l'article a l'adresse du #}
+                   {# carnet, F5 ramene a la liste des notes et le lien n'est pas #}
+                   {# partageable depuis l'endroit ou on lit (recette, F4). #}
+                   hx-push-url="/syntheses/{{ synthese.page_id }}/"
+                   class="titre-note">{{ synthese.page.title }}</a>
+                <span class="badge-type" data-type="synthese">synthèse</span>
+                <span class="sous-note">
+                    produite le {{ synthese.produite_le|date:"d/m/Y" }}{% if synthese.produite_par %}
+                    par {{ synthese.produite_par.username }}{% endif %} ·
+                    {{ synthese.notes_du_perimetre.count }} note{{ synthese.notes_du_perimetre.count|pluralize }} ·
+                    {{ synthese.qualite.sources }} source{{ synthese.qualite.sources|pluralize }}{% if synthese.qualite.ecartees is not None %} ·
+                    {{ synthese.qualite.ecartees }} écartée{{ synthese.qualite.ecartees|pluralize }}{% endif %}{% if synthese.qualite.verifiees or synthese.qualite.faibles %} ·
+                    {{ synthese.qualite.verifiees }} vérifiée{{ synthese.qualite.verifiees|pluralize }} ·
+                    <span style="color:var(--faible)">{{ synthese.qualite.faibles }} faible{{ synthese.qualite.faibles|pluralize }}</span>{% endif %}
+                </span>
+            </span>
+        </li>
+        {% empty %}
+        <li class="ligne-note" style="font-style:italic; color:var(--encre-douce)"
+            data-testid="synthese-dirigees-vide">
+            Aucune synthèse dirigée. Produisez-en une quand le carnet
+            est prêt à être résumé pour de bon.
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if peut_ecrire %}
+    <div class="surface-creation" data-testid="synthese-form-nouvelle-dirigee">
+        <h3>Nouvelle synthèse dirigée</h3>
+        <p class="note-explicative">
+            Une synthèse dirigée est un <strong>acte daté</strong> :
+            figée à sa production, jamais réécrite. Pour un texte qui
+            suit le carnet, créez plutôt un wiki.
+        </p>
+        <form hx-post="/carnets/{{ carnet.pk }}/syntheses/"
+              hx-target="#corpus-panneau-onglet" hx-swap="innerHTML">
+            <label class="champ-etiquette" for="synth-titre">Titre</label>
+            <input class="champ-texte" id="synth-titre" name="titre" required
+                   placeholder="Ex. : synthèse du conseil du 12 mars">
+            {% if axes %}
+            <label class="champ-etiquette" for="synth-categorie">Diriger par
+                (optionnel)</label>
+            <select class="champ-select" id="synth-categorie" name="categorie_id">
+                <option value="">Tout le carnet</option>
+                {% for axe in axes %}{% for categorie in axe.categories_de_dossier.all %}
+                <option value="{{ categorie.pk }}">{{ axe.nom }} : {{ categorie.nom }}</option>
+                {% endfor %}{% endfor %}
+            </select>
+            {% endif %}
+            <p class="resume-filtres" data-testid="synthese-portee" style="margin-top:.5rem">
+                Portée : {{ nombre_de_notes_sources }} note{{ nombre_de_notes_sources|pluralize }}
+            </p>
+            <div class="avertissement" data-testid="synthese-recap">
+                Les wikis et les synthèses du carnet sont <strong>exclus
+                du corpus source</strong> : sans cette règle, une
+                synthèse citerait la précédente et la délibération
+                disparaîtrait sous ses propres résumés. Le périmètre
+                sera figé au lancement — cette synthèse ne bougera
+                plus jamais.
+            </div>
+            {# Le moteur ne se choisit pas ici : l'ecran le NOMME, et #}
+            {# dit ou il se change (recette du 10 aout, F10). #}
+            {% if modele_de_redaction %}
+            <p class="note-explicative" data-testid="synthese-moteur-annonce">
+                Rédigé par <strong>{{ modele_de_redaction.name }}</strong>,
+                le modèle configuré pour tout le site. Un compte
+                administrateur peut en changer dans « Configurer les LLM ».
+            </p>
+            {% endif %}
+            <div class="rangee-boutons">
+                <button type="submit" class="bouton-plat principal"
+                        data-testid="synthese-btn-creer-dirigee">Produire la synthèse</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+</div>

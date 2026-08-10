@@ -112,13 +112,13 @@ class ExtractionJobViewSet(viewsets.ViewSet):
         
         jobs_list = jobs_query.order_by('-created_at')
         
-        # Si requete HTML, on rend le template
-        if request.accepted_renderer.format == 'html':
-            return render(request, 'hypostasis_extractor/job_list.html', {
-                'jobs': jobs_list
-            })
-        
-        # Sinon JSON
+        # Branche HTML retiree (bascule CSS, lot T10) : elle rendait
+        # job_list.html, qui etend "core/base.html" — template ABSENT du
+        # depot. Elle etait doublement morte : aucun renderer 'html'
+        # n'est configure (DRF s'en tient a JSON + BrowsableAPI), donc la
+        # condition n'a jamais pu etre vraie. Cette vue ne sert que du
+        # JSON. / Dead HTML branch removed: missing template, and no
+        # 'html' renderer is configured.
         serializer = ExtractionJobListSerializer(jobs_list, many=True)
         return Response(serializer.data)
     
@@ -134,14 +134,8 @@ class ExtractionJobViewSet(viewsets.ViewSet):
         # Precharge les entites pour optimisation
         job_with_entities = ExtractionJob.objects.prefetch_related('entities').get(pk=job.pk)
         
-        if request.accepted_renderer.format == 'html':
-            from core.models import HypostasisTag
-            return render(request, 'hypostasis_extractor/job_detail.html', {
-                'job': job_with_entities,
-                'page': job.page,
-                'all_hypostases': HypostasisTag.objects.all().order_by('name')
-            })
-        
+        # Branche HTML retiree (lot T10) : job_detail.html etendait un
+        # template inexistant. / Dead HTML branch removed.
         serializer = ExtractionJobDetailSerializer(job_with_entities)
         return Response(serializer.data)
     
@@ -335,11 +329,8 @@ class ExtractionExampleViewSet(viewsets.ViewSet):
         """
         examples_list = ExtractionExample.objects.filter(is_active=True).order_by('-created_at')
         
-        if request.accepted_renderer.format == 'html':
-            return render(request, 'hypostasis_extractor/example_list.html', {
-                'examples': examples_list
-            })
-        
+        # Branche HTML retiree (lot T10) : example_list.html etendait un
+        # template inexistant. / Dead HTML branch removed.
         serializer = ExtractionExampleSerializer(examples_list, many=True)
         return Response(serializer.data)
     

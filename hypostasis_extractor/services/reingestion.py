@@ -45,7 +45,10 @@ from django.db import transaction
 from core.models import ElementDocument, empreinte_du_texte
 
 from ..signals import recalculer_etat_de_l_element
-from .garde_edition import verifier_qu_aucune_analyse_ne_tourne
+from .garde_edition import (
+    verifier_qu_aucune_analyse_ne_tourne,
+    verifier_qu_aucune_synthese_ne_cite_la_page,
+)
 from .masquage import masquer_un_element
 
 logger = logging.getLogger(__name__)
@@ -116,6 +119,12 @@ def reconcilier_les_elements_par_empreinte(page, nouveaux_elements_bruts,
     # n'existent plus. On verifie UNE fois pour toute la page.
     # / Checked once for the whole page, not once per hidden element.
     verifier_qu_aucune_analyse_ne_tourne(page)
+    # Une page citee par une synthese FIGEE ne se reingere pas : tous
+    # ses elements seraient remplaces d'un coup (SPEC-synthese § 5,
+    # phase E). Les wikis, eux, laissent faire — leurs citations
+    # basculent DETACHEE (phase B) et le tour suivant corrige.
+    # / A frozen-cited page is never re-ingested; wikis allow it.
+    verifier_qu_aucune_synthese_ne_cite_la_page(page)
 
     with transaction.atomic():
         # Tous les elements de la page, masques compris (voir la limite 2
@@ -248,6 +257,10 @@ def reconcilier_les_elements_par_empreinte(page, nouveaux_elements_bruts,
                     ),
                     utilisateur=utilisateur,
                     verifier_les_jobs=False,
+                    # La garde § 5 a deja ete passee au niveau PAGE
+                    # (sur-ensemble strict) en tete de re-ingestion.
+                    # / § 5 already page-checked above.
+                    verifier_les_citations=False,
                 )
                 resultat["disparus"].append(ancien_element)
 

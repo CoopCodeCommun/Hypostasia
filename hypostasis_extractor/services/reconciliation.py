@@ -33,7 +33,10 @@ from core.models import ElementDocument, empreinte_du_texte
 
 from ..models import AncrageExtraction, EtatAncrage
 from ..signals import recalculer_etat_de_l_element
-from .garde_edition import verifier_qu_aucune_analyse_ne_tourne
+from .garde_edition import (
+    verifier_qu_aucune_analyse_ne_tourne,
+    verifier_qu_aucune_synthese_ne_cite,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +152,11 @@ def reconcilier_les_portions_de_l_element(element, nouveau_texte):
     # sous ses pieds produirait des ancres fausses, ou ferait tomber le
     # job entier. / An edit under a running analysis breaks the anchoring.
     verifier_qu_aucune_analyse_ne_tourne(element.page)
+    # Et une portion citee par une synthese FIGEE ne bouge pas : la
+    # preuve d'un acte adopte ne change pas en silence (SPEC-synthese
+    # § 5, phase E). Un wiki, lui, ne bloque rien.
+    # / An element cited by a FROZEN synthesis never moves.
+    verifier_qu_aucune_synthese_ne_cite(element)
 
     with transaction.atomic():
         # On relit l'element SOUS VERROU. Deux corrections simultanees sur
@@ -219,6 +227,17 @@ def reconcilier_les_portions_de_l_element(element, nouveau_texte):
         element_verrouille.save(
             update_fields=["texte", "empreinte_contenu", "updated_at"],
         )
+
+        # Une ancre detachee detache la citation qui la pointait : la
+        # source existe encore, mais on ne sait plus ou elle pointe
+        # (SPEC-synthese § 4.2, etat de derive). / A detached anchor
+        # detaches the citation that pointed at it.
+        if resultat["detachees"]:
+            from core.models import EtatDeLaSource, SourceLink, TypeLien
+            SourceLink.objects.filter(
+                ancrage_source_id__in=resultat["detachees"],
+                type_lien=TypeLien.CITE,
+            ).update(etat_de_la_source=EtatDeLaSource.DETACHEE)
 
         # ATTENTION : bulk_update NE DECLENCHE PAS les signaux post_save.
         # Sans cet appel explicite, un element dont toutes les portions

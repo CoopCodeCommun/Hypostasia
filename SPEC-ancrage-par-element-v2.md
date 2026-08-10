@@ -32,6 +32,126 @@ et `SPEC-selection-des-preuves.md` v1.0 (couches au-dessus)
 
 ---
 
+> **Addendum du 9 août 2026 — branchement BR-A (décisions D1-D2 du
+> cahier PLAN/branchement-moteur-ancrage-cahier-des-charges.md)** :
+>
+> 1. **Le flag moteur est un CHAMP explicite** (`Page.moteur`, choices
+>    ancien/element, défaut ancien, migration core.0053) — jamais le
+>    discriminant implicite `elements.exists()`, qui prendrait une
+>    ingestion ELEMENT échouée (zéro élément) pour une page ANCIEN. Le
+>    flag est posé au point de passage unique de l'ingestion
+>    (`creer_les_elements_d_une_page`).
+> 2. **L'existant reste intégralement ANCIEN** (§ 9.2 à la lettre) — y
+>    compris les **537 pages sur 541 du dev qui portent déjà des
+>    éléments DORMANTS** (ingérés par les phases de test du moteur, le
+>    flux réel ne les lit pas). Découverte du 9 août : la reconversion
+>    § 9.5 sera quasi gratuite pour elles (les éléments existent), mais
+>    elle reste une décision explicite par carnet, jamais un effet de
+>    migration.
+> 3. **Ordre de bascule des flux (D2)** : import FICHIER d'abord
+>    (BR-B), capture web ensuite, AUDIO en dernier — après la mesure de
+>    la frontière préférentielle (question ouverte n°1).
+
+---
+
+> **Addendum du 9 août 2026 — branchement BR-B (import de fichier)** :
+>
+> 1. **Types couverts** : `.pdf`, `.docx`, `.md`, `.pptx`, `.xlsx`
+>    (`fichier_couvert_par_docling`). Le `.txt` n'a pas de structure à
+>    découper : repli intégral sur l'ancien pipeline, toast honnête. Le
+>    `.json` de transcription garde son pipeline dédié.
+> 2. **Double écriture de transition** (précision au § 9) : pour un type
+>    couvert, le pipeline synchrone existant continue de remplir
+>    `html_readability` — l'affichage reste celui de l'ANCIEN moteur
+>    jusqu'à BR-D, où `lecture_principale` sera routée vers
+>    `rendu_elements`. La page devient `moteur=element` dès que la tâche
+>    `ingerer_un_fichier_avec_docling` aboutit (flag BR-A). Une
+>    ingestion qui échoue laisse donc une page ANCIEN parfaitement
+>    lisible : dégradation silencieuse assumée, tracée dans le journal
+>    Celery.
+> 3. Vérifié en réel le 9 août : page 674 (import `.md`), 4 éléments,
+>    ingestion par le vrai worker — première page ELEMENT née du flux
+>    réel en dev.
+
+---
+
+> **Addendum du 9 août 2026 — branchement BR-C (analyse)** :
+>
+> 1. **Routage** : la vue `analyser` crée toujours le même
+>    ExtractionJob ; seule la tâche lancée dépend de `page.moteur` —
+>    `analyser_une_page_avec_le_moteur_element` pour ELEMENT,
+>    `analyser_page_task` sinon. Même retour utilisateur : le moteur est
+>    un détail d'implémentation.
+> 2. **M6 tranché — coexistence des jobs** : la relance d'analyse ne
+>    purge PAS les jobs précédents (même sémantique que l'ancien
+>    moteur). La promesse § 4.2 de SPEC-synthese est tenue par les
+>    gardes existantes : le bloc `nettoyer_ia` de la vue refuse AVANT
+>    toute purge (et avant l'appel LLM) si une dirigée cite les
+>    extractions, et la ré-analyse d'un même job (chemin ELEMENT) porte
+>    sa propre garde § 4.2 avant sa purge interne.
+> 3. **Écarts § 4.2 assumés (pas corrigés)** pour le branchement
+>    initial : pas de compteur de tokens (le bilan compte chunks et
+>    extractions), boucle séquentielle sur les chunks (une VERTU sur un
+>    hôte 8 Go partagé — cohérente avec la file Docling à concurrence
+>    1), `suppress_parse_errors` au lieu de la récupération fine du
+>    JSON tronqué. À réévaluer quand le moteur ANCIEN sera retiré.
+> 4. Vérifié en réel le 9 août : job 938 sur la page 674 —
+>    `raw_result.moteur='element'`, 1 chunk, LLM réel, 2,9 s.
+>    La fenêtre « analyse ANCIEN sur page ELEMENT » (relecture BR-B,
+>    défaut n°4) s'est refermée AVANT toute analyse réelle : aucun job
+>    d'offsets n'existe sur une page ELEMENT.
+> 5. **Relecture BR-C appliquée** : battement de cœur par chunk dans
+>    l'analyse ELEMENT (le juge de blocage de la vue tolère désormais
+>    90 min pour un job PENDING en file, 5 min sans battement pour un
+>    PROCESSING) ; et `analyser_page_task` revalide `page.moteur` à
+>    l'exécution — un job lancé pendant une ingestion Docling est
+>    délégué au moteur ELEMENT au lieu d'écrire des offsets sans
+>    portions.
+
+---
+
+> **Addendum du 9 août 2026 — branchement BR-D (affichage)** :
+>
+> 1. **Le branchement de la lecture passe par un tag de template**
+>    (`front/templatetags/rendu_moteur.py`, `blocs_de_lecture_de`),
+>    appelé dans `lecture_principale.html` — le partial est rendu
+>    depuis plus de six contextes de vue, un tag couvre tout d'un coup
+>    (précédent : corpus_permissions). Partial dédié
+>    `_blocs_elements.html` : balise par label, listes regroupées,
+>    marques `mark.portion.hl-extraction` par portion (markup figé par
+>    test_rendu_elements, compatible avec les tokens de la maquette).
+> 2. **Repli sûr** : zéro bloc (page ANCIEN, ou ELEMENT à zéro élément
+>    après une ingestion échouée) → `html_annote`/`html_readability`
+>    comme avant. Jamais de page blanche.
+> 3. **Les éléments masqués ne sont pas rendus** dans la lecture ; les
+>    voir et les démasquer est l'affaire de BR-E (ElementViewSet).
+> 4. Vérification visuelle au navigateur réel (9 août, clair + sombre) :
+>    conforme, avec deux corrections nées du passage `span`→`mark` —
+>    reset des défauts navigateur de `<mark>` (texte MarkText,
+>    fond Mark fluo sur les statuts sans règle, dont `non_pertinent`)
+>    dans maquette.css. Écart de parti pris consigné : surlignage
+>    permanent (décision T7) là où l'étalon révèle au survol.
+
+---
+
+> **Addendum du 10 août 2026 — branchement BR-E (endpoints élément)** :
+>
+> 1. `ElementViewSet` vit dans `hypostasis_extractor/views_element.py`
+>    (§ 7 de la spec), enregistré sous `/elements/<pk>/…` dans
+>    front/urls.py. **Adressage par pk**, pas par identifiant_stable :
+>    le rendu BR-D expose `data-element-id={{ element.pk }}`, et
+>    l'identifiant stable reste l'affaire des ancres, pas des URL.
+> 2. La fusion est exposée comme `fusionner_avec_le_suivant` (une seule
+>    cible possible, l'élément d'ordre + 1) : l'UX la plus simple pour
+>    l'opération n°1 sur une diarisation, et l'adjacence est garantie
+>    par construction.
+> 3. Verrou § 7 posé dans la vue (`select_for_update` sur la ou les
+>    lignes AVANT le service) — le défaut de concurrence consigné le
+>    8 août est soldé. Les gardes des services remontent en 409 avec
+>    leur message FALC ; le journal des corrections de texte va dans
+>    PageEdit (type contenu), celui des opérations de structure reste
+>    dans ElementOperation (créé par les services).
+
 ## 0. Ce qui change par rapport à la v1, et pourquoi
 
 La v1 a été relue par un agent adverse (`RELECTURE-spec-ancrage.md`). Cinq défauts structurels rendaient la v1 non codable telle quelle. La v2 les corrige un par un.

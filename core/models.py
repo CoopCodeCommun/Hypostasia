@@ -3,6 +3,7 @@ import re
 import uuid
 
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
@@ -90,6 +91,16 @@ class Dossier(models.Model):
         default=VisibiliteDossier.PRIVE,
         help_text="Niveau de visibilite du dossier / Folder visibility level",
     )
+    # Guide de redaction affiche au contributeur AU MOMENT ou il
+    # contribue, pas range dans une page d'aide (modele Praxis,
+    # SPEC-corpus § 2 « Pris — un TextField sur le dossier »).
+    # / Writing guide shown at contribution time (Praxis model).
+    guide_de_redaction = models.TextField(
+        blank=True,
+        default="",
+        help_text="Conseils de redaction propres a ce carnet, montres "
+                  "aux contributeurs. Vide = pas de guide.",
+    )
     # Role technique du carnet, vide pour un carnet ordinaire.
     # Les flux « A ranger » et « Mes imports » filtrent sur ce champ,
     # plus jamais sur le nom (SPEC-corpus § 6.3).
@@ -131,6 +142,32 @@ class Dossier(models.Model):
         ]
 
 
+class MoteurDePage(models.TextChoices):
+    """
+    Le moteur d'ancrage d'une Page (SPEC-ancrage v2 § 9, branchement
+    BR-A). Les DEUX coexistent : les pages existantes restent ANCIEN et
+    fonctionnent a l'identique ; toute nouvelle page ingeree passe par
+    ELEMENT. Un CHAMP explicite, pas `elements.exists()` : une
+    ingestion ELEMENT echouee laisse zero element et serait prise pour
+    une page ANCIEN (decision D1, cahier du branchement, 9 aout).
+    / The page's anchoring engine; explicit field, never inferred.
+    """
+    ANCIEN = "ancien", "Ancien moteur (offsets)"
+    ELEMENT = "element", "Moteur par élément"
+
+
+class TypeDeNote(models.TextChoices):
+    """
+    Ce qu'une note EST. Ce n'est pas une etiquette d'affichage : le type
+    decide si la note peut servir de SOURCE a une synthese
+    (core/services/synthese.py, SPEC-synthese § 3.3).
+    / Not a display label: the type decides source eligibility.
+    """
+    NOTE = "note", "Note"
+    WIKI = "wiki", "Wiki"
+    SYNTHESE = "synthese", "Synthèse dirigée"
+
+
 class Page(models.Model):
     """Représente une page web capturée par l'extension.
 
@@ -165,6 +202,35 @@ class Page(models.Model):
         blank=True,
         related_name="pages",
         help_text="Dossier de classement (optionnel)",
+    )
+    # Le genre de la note. Un champ et non une propriete derivee : la
+    # regle « une synthese n'est jamais source » doit etre exprimable en
+    # une clause filter(), pas en boucle Python (SPEC-synthese § 2).
+    # / The note's kind, as a field: the exclusion rule must be a filter
+    # clause, never a Python loop.
+    # Le moteur d'ancrage de cette page (SPEC-ancrage v2 § 9). Ecrit a
+    # l'ingestion, jamais bascule en douce — la reconversion ANCIEN ->
+    # ELEMENT est une commande explicite du proprietaire (§ 9.5).
+    # / The anchoring engine, set at ingestion time, never silently
+    # switched.
+    moteur = models.CharField(
+        max_length=10,
+        choices=MoteurDePage.choices,
+        default=MoteurDePage.ANCIEN,
+        db_index=True,
+        help_text="Moteur d'ancrage : 'ancien' (offsets plats) ou "
+                  "'element' (ElementDocument + portions). Les deux "
+                  "coexistent, aucune migration de force.",
+    )
+    type_de_note = models.CharField(
+        max_length=10,
+        choices=TypeDeNote.choices,
+        default=TypeDeNote.NOTE,
+        db_index=True,
+        help_text="Ce que cette note est. Une synthese ou un wiki n'est "
+                  "JAMAIS source d'une autre synthese — voir "
+                  "core/services/synthese.py. / A synthesis is never a "
+                  "source for another synthesis.",
     )
     # Proprietaire de la page (null = legacy/donnees existantes)
     # / Page owner (null = legacy/existing data)
@@ -1370,6 +1436,40 @@ class TypeLien(models.TextChoices):
     MODIFIE = "modifie", "Modifié"
     NOUVEAU = "nouveau", "Nouveau"
     SUPPRIME = "supprime", "Supprimé"
+    # Une synthese ou un wiki CITE une extraction (SPEC-synthese § 4.5).
+    # / A synthesis or wiki CITES an extraction.
+    CITE = "cite", "Cite"
+
+
+class EtatDeLaSource(models.TextChoices):
+    """
+    Ce qu'est devenue la source d'une citation (SPEC-synthese § 4.2).
+    / What became of a citation source.
+    """
+    PRESENTE = "presente", "Présente"
+    SUPPRIMEE = "supprimee", "Source supprimée"
+    DETACHEE = "detachee", "Ancre détachée"
+
+
+class EtatDeVerification(models.TextChoices):
+    """
+    Le verdict du controle de fidelite, PAR PAIRE (affirmation, source) —
+    jamais par affirmation : en multi-source, une source peut etre bonne
+    et l'autre fausse (SPEC-synthese § 7).
+    / Grounding verdict, PER (claim, source) PAIR.
+    """
+    NON_VERIFIE = "non_verifie", "Non vérifié"
+    VERIFIE = "verifie", "Vérifié"
+    FAIBLE = "faible", "Faible"
+    NON_SOURCE = "non_source", "Non sourcé"
+    # Pose par un HUMAIN qui refuse le verdict automatique — jamais
+    # ecrase par une re-verification (§ 7.2 : l'etat est contestable).
+    # / Set by a HUMAN contesting the automatic verdict; never overwritten.
+    CONTESTE = "conteste", "Contesté"
+    # L'affirmation reprend fidelement un COMMENTAIRE du debat, pas le
+    # texte de l'extraction : provenance legitime, pas « faible »
+    # (§ 7.4). / The claim faithfully echoes a debate comment.
+    SOURCE_DEBAT = "source_debat", "Sourcé par le débat"
 
 
 class SourceLink(models.Model):
@@ -1428,6 +1528,45 @@ class SourceLink(models.Model):
         related_name="liens_de_provenance",
         help_text="La portion d'extraction precise qui a alimente ce passage "
                   "de synthese / The precise extraction portion that fed this passage",
+    )
+
+    # --- Champs de la couche synthese (SPEC-synthese § 4.3-4.5, phase B) ---
+    # page_cible EST l'article citant (on ne cree pas de champ "article").
+    # / page_cible IS the citing article.
+    section = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Titre exact de la section citante. Sert aux operations "
+                  "de mise a jour (§ 6) et a la navigation.",
+    )
+    ordre_dans_la_section = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Position de la citation dans sa section.",
+    )
+    etat_de_verification = models.CharField(
+        max_length=12, choices=EtatDeVerification.choices,
+        default=EtatDeVerification.NON_VERIFIE, db_index=True,
+        help_text="Verdict du controle de fidelite, par paire "
+                  "(affirmation, source).",
+    )
+    # § 7.2 : un etat sans provenance est un argument d'autorite
+    # automatise — le verdict porte QUI l'a pose (methode + modele +
+    # version, ou le nom de l'humain qui conteste) et QUAND.
+    # / § 7.2: the verdict carries its judge and date.
+    verifie_par = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Qui a pose le verdict : methode + modele + version "
+                  "(ex. « verbatim+nli-lot v1 — gpt-x ») ou l'humain "
+                  "qui conteste.",
+    )
+    verifie_le = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Quand le verdict a ete pose. NULL = jamais verifie.",
+    )
+    etat_de_la_source = models.CharField(
+        max_length=10, choices=EtatDeLaSource.choices,
+        default=EtatDeLaSource.PRESENTE, db_index=True,
+        help_text="Bascule par signal a la suppression de la source, ou "
+                  "par la reconciliation quand l'ancre se detache.",
     )
     type_lien = models.CharField(
         max_length=20, choices=TypeLien.choices,
@@ -2044,9 +2183,35 @@ class CategorieDossier(models.Model):
     nom = models.CharField(max_length=100)
     couleur = models.CharField(
         max_length=7, blank=True, default="",
+        # Hex strict : ce champ finit dans un style= inline — defense en
+        # profondeur avant son ouverture a l'UI (relecture F).
+        # / Strict hex: this lands in an inline style= attribute.
+        validators=[RegexValidator(
+            r"^#[0-9A-Fa-f]{6}$",
+            message="Couleur au format #RRGGBB / #RRGGBB hex color",
+        )],
         help_text="Hex optionnel, ex '#E69F00'. Vide = palette Wong par defaut.",
     )
     ordre = models.PositiveSmallIntegerField(default=0)
+
+    # Palette de Wong : 8 couleurs distinguables par les daltoniens.
+    # Utilisee quand une categorie n'a pas de couleur choisie.
+    # / Wong palette: 8 colorblind-safe colors, used as fallback.
+    PALETTE_WONG = (
+        "#E69F00", "#56B4E9", "#009E73", "#F0E442",
+        "#0072B2", "#D55E00", "#CC79A7", "#000000",
+    )
+
+    @property
+    def couleur_effective(self):
+        """
+        La couleur choisie, ou une couleur de la palette Wong derivee de
+        l'ordre — jamais de champ vide a l'affichage.
+        / The chosen color, or a Wong palette color derived from ordre.
+        """
+        if self.couleur:
+            return self.couleur
+        return self.PALETTE_WONG[self.ordre % len(self.PALETTE_WONG)]
 
     @property
     def dossier_id(self):
@@ -2099,3 +2264,144 @@ class CategorieBase(models.Model):
 
     def __str__(self):
         return self.nom
+
+
+# =============================================================================
+# LES DEUX GENRES DE SYNTHESE (SPEC-synthese § 3, phase C)
+# Le wiki est VIVANT : son perimetre (des categories) se recalcule.
+# La synthese dirigee est un ACTE DATE : son perimetre (des notes) est fige.
+# / The two synthesis kinds: living wiki vs dated frozen synthesis.
+# =============================================================================
+
+
+class Wiki(models.Model):
+    """
+    Un article de synthese VIVANT, sur un sujet, dans un carnet.
+    / A living synthesis article, on one subject, in one notebook.
+
+    LOCALISATION : core/models.py
+
+    Il n'a pas de version : il a un ETAT, et un compteur de tours de mise
+    a jour. Chaque tour applique des operations de section (§ 6), jamais
+    une reecriture. C'est ce qui permet de voir ce qui a change.
+    Un wiki ne s'adopte pas, il se suit.
+    / No versions: a state and an update-round counter.
+    """
+
+    page = models.OneToOneField(
+        "Page", on_delete=models.CASCADE, related_name="wiki",
+        help_text="La note qui porte l'article. type_de_note = WIKI.",
+    )
+    # CASCADE assume : un wiki sans carnet n'a pas de sens, son perimetre
+    # EST le carnet. La note qui porte l'article, elle, survit (c'est une
+    # Page ordinaire). / CASCADE: a wiki without its notebook is
+    # meaningless; the article's Page itself survives.
+    dossier = models.ForeignKey(
+        "Dossier", on_delete=models.CASCADE, related_name="wikis",
+        help_text="Le carnet dont il synthetise les notes.",
+    )
+    sujet = models.TextField(
+        help_text="Ce sur quoi porte l'article, en une phrase. C'est une "
+                  "CONSIGNE DE REDACTION, pas un filtre — le perimetre est "
+                  "defini par categories_du_perimetre (§ 3.1.1).",
+    )
+    # Le PERIMETRE d'un wiki est defini par des CATEGORIES, exactement
+    # comme celui d'une synthese dirigee. Sans ca, c'est le modele qui
+    # choisirait ses sources en ecrivant (§ 3.1.1).
+    # / Facets define the scope; the subject only guides the writing.
+    categories_du_perimetre = models.ManyToManyField(
+        "CategorieDossier", blank=True, related_name="wikis",
+        help_text="Les categories qui definissent le perimetre. Vide = tout "
+                  "le carnet. Les categories d'un meme axe se combinent en "
+                  "OU, les axes entre eux en ET (spec corpus § 8.2).",
+    )
+    tours_de_mise_a_jour = models.PositiveIntegerField(default=1)
+    derniere_mise_a_jour = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Wiki"
+        verbose_name_plural = "Wikis"
+
+    def __str__(self):
+        return f"Wiki « {self.sujet[:60]} » (carnet {self.dossier_id})"
+
+
+class SyntheseDirigee(models.Model):
+    """
+    Une synthese FIGEE, produite a une date, sur un perimetre explicite.
+    / A frozen synthesis, produced once, on an explicit scope.
+
+    LOCALISATION : core/models.py
+
+    Elle n'a pas de tours : elle a une date de production et un perimetre
+    qu'on ne peut plus changer. Si le carnet evolue, on en produit une
+    autre — on ne modifie pas celle-ci. C'est la condition pour qu'un
+    collectif puisse s'y referer six mois plus tard.
+    / No rounds: a production date and an immutable scope.
+    """
+
+    page = models.OneToOneField(
+        "Page", on_delete=models.CASCADE, related_name="synthese_dirigee",
+        help_text="La note qui porte la synthese. type_de_note = SYNTHESE.",
+    )
+    # SET_NULL et non CASCADE (ecart assume vs spec § 3.2, addendum n°5) :
+    # l'acte date et son perimetre fige SURVIVENT a la suppression du
+    # carnet — la preuve d'une adoption ne disparait pas avec le
+    # rangement. Nullable aussi pour la synthese commandee depuis une
+    # note hors carnet (le flux existant l'autorise).
+    # / SET_NULL, not CASCADE: the dated act survives notebook deletion.
+    dossier = models.ForeignKey(
+        "Dossier", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="syntheses_dirigees",
+        help_text="Le carnet sur lequel la synthese a ete produite. NULL "
+                  "si le carnet a ete supprime depuis, ou si la demande "
+                  "venait d'une note hors carnet.",
+    )
+    produite_le = models.DateTimeField(default=timezone.now)
+    produite_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="syntheses_produites",
+    )
+    # Le PERIMETRE est fige a la production : c'est ce qui permet de
+    # recalculer « ce qui n'a pas ete repris » (§ 8) des mois apres.
+    # / The scope is frozen; it is what makes § 8 reproducible.
+    notes_du_perimetre = models.ManyToManyField(
+        "Page", related_name="syntheses_qui_la_couvrent",
+        help_text="Les notes effectivement dans le perimetre au moment de "
+                  "la production. Fige, jamais recalcule.",
+    )
+    # Les EXTRACTIONS proposees au modele, figees aussi (relecture D,
+    # B2) : sans elles, une re-analyse posterieure changerait « ce qui
+    # n'a pas ete repris » — l'ensemble § 8 porterait sur des
+    # extractions que l'acte date n'a jamais vues.
+    # / The extractions offered to the model, frozen too: a later
+    # re-analysis must never rewrite the § 8 set.
+    extractions_du_perimetre = models.ManyToManyField(
+        "hypostasis_extractor.ExtractedEntity", blank=True,
+        related_name="syntheses_qui_les_ont_vues",
+        help_text="Les extractions effectivement proposees au modele a "
+                  "la production. Fige. Vide + flag a False = synthese "
+                  "historique (perimetre inconnu, recalcul dynamique).",
+    )
+    perimetre_d_extractions_fige = models.BooleanField(
+        default=False,
+        help_text="True des que la production a fige la liste "
+                  "d'extractions ci-dessus — meme vide (analyseur sans "
+                  "extractions). False = historique d'avant la phase D.",
+    )
+    axe_de_direction = models.ForeignKey(
+        "ListeDeCategories", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="syntheses_dirigees",
+        help_text="L'axe qui a dirige la synthese, s'il y en a un.",
+    )
+    categorie_de_direction = models.ForeignKey(
+        "CategorieDossier", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="syntheses_dirigees",
+    )
+
+    class Meta:
+        verbose_name = "Synthese dirigee"
+        verbose_name_plural = "Syntheses dirigees"
+
+    def __str__(self):
+        return f"Synthese dirigee du {self.produite_le:%d/%m/%Y} (page {self.page_id})"
