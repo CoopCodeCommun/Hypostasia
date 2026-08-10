@@ -1,0 +1,110 @@
+{# LE FIL D'ARIANE — design de la MAQUETTE (tmp/maquettes/corpus.html #}
+{# :530-541). LOCALISATION : front/templates/front/corpus/_fil_ariane.html #}
+{# Variables (helper contexte_du_fil_d_ariane, front/views_corpus.py) : #}
+{# fil_base?, fil_carnet, fil_note?, fil_carnets_bascule. #}
+{# #}
+{# POURQUOI UN FIL ET PAS UN ARBRE : le N-N a tue l'arbre. Une note #}
+{# rangee dans deux carnets n'a pas de parent unique, donc pas de #}
+{# place dans une arborescence. Le fil montre UN chemin parmi ceux qui #}
+{# existent, et son chevron permet d'en changer. #}
+{# / The N-N killed the tree: a note in two notebooks has no single #}
+{# parent. The breadcrumb shows one path; the chevron switches path. #}
+{% if fil_carnet %}
+<nav class="fil-ariane" aria-label="Fil d'Ariane" data-testid="fil-ariane">
+    {% if fil_base %}
+    <a href="/bases/{{ fil_base.slug }}/"
+       hx-get="/bases/{{ fil_base.slug }}/" hx-target="#zone-lecture"
+       hx-swap="innerHTML" hx-push-url="true"
+       class="lien" data-testid="fil-base">{{ fil_base.nom }}</a>
+    <span class="sep" aria-hidden="true">›</span>
+    {% endif %}
+
+    <span class="bascule-carnet">
+        {% if fil_carnets_bascule|length > 1 %}
+        {# aria-current seulement si le carnet EST la page courante : #}
+        {# sur une note ou un article, c'est la note qui l'est. #}
+        <button type="button" class="lien courant"
+                {% if not fil_note %}aria-current="page"{% endif %}
+                aria-haspopup="menu" aria-expanded="false"
+                aria-controls="menu-bascule-carnet"
+                data-testid="fil-carnet-bascule">{{ fil_carnet.name }} ▾</button>
+        <div class="menu-bascule" id="menu-bascule-carnet" role="menu"
+             data-testid="fil-menu-bascule">
+            {% for candidat in fil_carnets_bascule %}
+            {# Sur une note, basculer relit LA MEME note dans un autre #}
+            {# de ses carnets ; sur un carnet, on change de carnet. #}
+            <button type="button" role="menuitem"
+                    {% if candidat.pk == fil_carnet.pk %}aria-current="true"{% endif %}
+                    hx-get="{% if fil_note %}/lire/{{ fil_note.pk }}/?carnet={{ candidat.pk }}{% else %}/carnets/{{ candidat.pk }}/{% endif %}"
+                    hx-target="#zone-lecture" hx-swap="innerHTML"
+                    hx-push-url="true"
+                    data-testid="fil-bascule-item">{{ candidat.name }}{% if candidat.owner %} <span class="proprietaire-du-carnet">· {{ candidat.owner.username }}</span>{% endif %}</button>
+            {% endfor %}
+        </div>
+        {% else %}
+        <a href="/carnets/{{ fil_carnet.pk }}/"
+           hx-get="/carnets/{{ fil_carnet.pk }}/" hx-target="#zone-lecture"
+           hx-swap="innerHTML" hx-push-url="true"
+           {% if not fil_note %}aria-current="page"{% endif %}
+           class="lien courant" data-testid="fil-carnet">{{ fil_carnet.name }}</a>
+        {% endif %}
+    </span>
+
+    {% if fil_note %}
+    <span class="sep" aria-hidden="true">›</span>
+    <span class="courant" aria-current="page"
+          data-testid="fil-note">{{ fil_note.title|default:"Sans titre"|truncatechars:60 }}</span>
+    {% endif %}
+</nav>
+<script>
+/* Le menu de bascule : ouvrir, fermer au clic dehors et a Echap, avec
+   retour du focus. L'etalon n'a ni Echap ni retour du focus.
+   / Switcher menu: open, close on outside click and Escape, with focus
+   returned — the mockup has neither. */
+(function () {
+    var declencheur = document.querySelector('[data-testid="fil-carnet-bascule"]');
+    var menu = document.getElementById("menu-bascule-carnet");
+    if (!declencheur || !menu) { return; }
+
+    function fermer(rendreLeFocus) {
+        menu.classList.remove("est-visible");
+        declencheur.setAttribute("aria-expanded", "false");
+        if (rendreLeFocus) { declencheur.focus(); }
+    }
+    declencheur.addEventListener("click", function (evenement) {
+        evenement.stopPropagation();
+        var ouvert = menu.classList.toggle("est-visible");
+        declencheur.setAttribute("aria-expanded", ouvert ? "true" : "false");
+        if (ouvert) {
+            var premier = menu.querySelector("button");
+            if (premier) { premier.focus(); }
+        }
+    });
+    /* L'ecouteur « clic dehors » vit sur `document`, qui SURVIT aux
+       echanges HTMX — alors que ce fragment, lui, est reinjecte a
+       chaque navigation. Le brancher ici l'aurait empile a l'infini,
+       chaque exemplaire retenant un menu depuis longtemps detache. On
+       le pose UNE FOIS, et il relit le menu vivant a chaque clic.
+       / The document listener outlives HTMX swaps while this fragment
+       is re-injected: bind it once, and let it look up the live node. */
+    if (!window.__filArianeClicDehors) {
+        window.__filArianeClicDehors = true;
+        document.addEventListener("click", function (evenement) {
+            var menuVivant = document.getElementById("menu-bascule-carnet");
+            if (!menuVivant || !menuVivant.classList.contains("est-visible")) { return; }
+            if (menuVivant.contains(evenement.target)) { return; }
+            var bouton = document.querySelector('[data-testid="fil-carnet-bascule"]');
+            if (bouton && bouton.contains(evenement.target)) { return; }
+            menuVivant.classList.remove("est-visible");
+            if (bouton) { bouton.setAttribute("aria-expanded", "false"); }
+        });
+    }
+    menu.addEventListener("keydown", function (evenement) {
+        if (evenement.key === "Escape") { fermer(true); }
+    });
+    declencheur.addEventListener("keydown", function (evenement) {
+        if (evenement.key === "Escape") { fermer(true); }
+    });
+})();
+</script>
+{% endif %}

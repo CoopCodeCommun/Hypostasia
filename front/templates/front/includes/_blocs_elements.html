@@ -1,0 +1,46 @@
+{# ============================================================= #}
+{# LECTURE PAR ELEMENTS — pages au moteur ELEMENT (BR-D)          #}
+{# / Element-based reading — pages on the ELEMENT engine          #}
+{#                                                                #}
+{# LOCALISATION : front/templates/front/includes/_blocs_elements.html #}
+{#                                                                #}
+{# Recoit `blocs_de_lecture`, construit par                       #}
+{# front/services/rendu_elements.py:construire_les_blocs_de_lecture. #}
+{# Chaque bloc est soit une liste regroupee (est_une_liste, puces) #}
+{# soit un element simple (balise, html_du_texte, est_masque).     #}
+{# Le html_du_texte est deja echappe et marque par PORTION         #}
+{# (mark.portion.hl-extraction, markup fige par test_rendu_elements) #}
+{# — le |safe est donc legitime ici, et seulement ici.             #}
+{#                                                                #}
+{# Un element MASQUE (bruit : pied de page repete...) n'est pas    #}
+{# rendu : sa gestion (voir, demasquer) arrive avec BR-E.          #}
+{# / Masked elements are skipped; managing them comes with BR-E.   #}
+{# ============================================================= #}
+<div data-testid="blocs-elements">
+    {% for bloc in blocs_de_lecture %}
+        {% if bloc.est_une_liste %}
+            <ul>
+                {% for puce in bloc.puces %}
+                    {% if not puce.est_masque %}
+                        <li data-element-id="{{ puce.element.pk }}"
+                            data-testid="bloc-element-{{ puce.element.ordre }}">{{ puce.html_du_texte }}</li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        {% elif not bloc.est_masque %}
+            {% if bloc.balise == "h2" %}
+                <h2 data-element-id="{{ bloc.element.pk }}"
+                    data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h2>
+            {% elif bloc.balise == "h3" %}
+                <h3 data-element-id="{{ bloc.element.pk }}"
+                    data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h3>
+            {% elif bloc.balise == "pre" %}
+                <pre data-element-id="{{ bloc.element.pk }}"
+                     data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</pre>
+            {% else %}
+                <p data-element-id="{{ bloc.element.pk }}"
+                   data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</p>
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+</div>
