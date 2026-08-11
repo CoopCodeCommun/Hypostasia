@@ -31,12 +31,28 @@ supprimé** : ~1 100 lignes, le champ `Page.moteur`, sa migration.
 des modèles ML de plusieurs Go, et l'hôte n'a que 8 Go partagés avec la
 production — il est déjà tombé une fois pour cette raison (10 août).
 
-Tu es sur une machine capable. Trois objectifs, dans cet ordre :
+### ⚠️ ON REPART D'UNE BASE VIDE
 
-1. **Installer et éprouver Docling** sur des PDF réels.
-2. **Produire des fixtures étalons** versionnées, qui permettront de
-   travailler le visualiseur PDF sans Docling ensuite.
-3. **Écrire la spec du visualiseur PDF** (elle est incomplète), puis le
+La nouvelle machine de dev démarre avec une **base de données à zéro**.
+Les chiffres d'état donnés plus bas (213 pages, 983 commentaires…)
+décrivent l'ANCIENNE base de dev : ils servent à comprendre d'où l'on
+vient, **pas à être retrouvés**. Ce que tu dois pouvoir reconstruire,
+c'est un jeu de documents étalons — et c'est le premier objectif.
+
+**Le dossier `media/` n'existera pas** : il est dans le `.gitignore` et
+contenait des documents de production. N'y cherche rien.
+
+Tout part de **`sample/`**, versionné, qui contient les documents
+étalons choisis pour couvrir les quatre formes d'entrée du produit.
+
+Quatre objectifs, dans cet ordre :
+
+1. **Charger les documents de `sample/` en fixtures** — tous SAUF le PDF
+   et le docx (voir § 4). C'est ce qui redonne une base utilisable.
+2. **Installer et éprouver Docling** sur le PDF, en mesurant.
+3. **Produire les fixtures étalons PDF** (JSON + captures de pages), qui
+   permettront de travailler le visualiseur sans Docling ensuite.
+4. **Écrire la spec du visualiseur PDF** (elle est incomplète), puis le
    coder si le temps le permet.
 
 ### ⚠️ Ce qui N'A PAS besoin de toi — MESURÉ, pas supposé
@@ -106,7 +122,7 @@ seule boîte de coordonnées en base.
 
 ---
 
-## 3. Objectif 1 — Docling
+## 3. Objectif 2 — Docling et le PDF
 
 Le service existe déjà : `hypostasis_extractor/services/
 ingestion_docling.py`. Il expose `convertir_un_fichier_avec_docling`,
@@ -130,22 +146,92 @@ conversions à la fois.
    `convertToViewportRectangle` et `devicePixelRatio` — il faut savoir
    ce que Docling donne exactement pour écrire la conversion.
 
-**PDF disponibles dans le dépôt** (déjà là, aucun à fabriquer) :
+**Le PDF de travail est `sample/Etude_Epistemologique_IA.pdf`** — le
+seul versionné, donc le seul que tout le monde aura. Les autres PDF de
+l'ancienne machine vivaient dans `media/`, ignoré par git : ils ne
+seront pas là.
 
-```
-PLAN/References/exemple alignement.pdf
-media/sources/BULL_10-05-2026_WVLBsXG.pdf
-media/sources/Synthese_BULL2.pdf
-media/sources/resume_nouvelle_tentative_piPO40n.pdf
-"Sujets d'études/IA et Apprentissage/…carto.docx (1)-1.pdf"
-```
-
-Prends-en un **avec des tableaux** et un **avec des images** : ce sont
-les deux formes qui cassent les convertisseurs.
+Si tu as besoin d'éprouver des **tableaux** et des **images** (les deux
+formes qui cassent les convertisseurs) et que celui-ci n'en a pas,
+fabriques-en un et **verse-le dans `sample/`** : une fixture qui n'est
+pas versionnée n'existe pas.
 
 ---
 
-## 4. Objectif 2 — les fixtures étalons (le vrai livrable)
+## 4. Objectif 1 — la fixture de départ, depuis `sample/`
+
+C'est **le premier travail**, et il ne demande pas Docling pour les PDF :
+redonner à une base vide un corpus étalon qui exerce les quatre formes
+d'entrée du produit.
+
+### Ce que contient `sample/` (tout est versionné)
+
+| Fichier | Ce qu'il éprouve | Chemin d'ingestion | Docling |
+|---|---|---|---|
+| `capture-web-ostrom.html` | **web clipper** : capture RÉELLE exportée de l'ancienne base | `convertir_du_html_avec_docling` (U4) | oui, **léger** |
+| `PRESENTATION-V3.md` | **import de fichier** markdown, document long et réel | `ingerer_un_fichier_avec_docling` (BR-B) | oui, **léger** |
+| `fake_debat_ia_transcription.json` | **transcription diarisée** déjà faite, 12 tours, 3 locuteurs | `ingerer_une_transcription_diarisee` | **non** |
+| `audio-FR-2locuteur-palaiscesar-14s.mp3` | **chaîne audio complète** : Voxtral → transcription → tours de parole | `transcrire_audio_task` puis ingestion | **non** |
+| `Etude_Epistemologique_IA.pdf` | le PDF | — | **oui, LOURD** |
+
+### La règle, pour ce premier temps
+
+**On charge tout SAUF le `.pdf` et le `.docx`.** Docling n'a pas encore
+été éprouvé sur ces formats-là sur cette machine ; les charger dans une
+commande de fixtures, c'est reproduire l'incident du 10 août (une
+commande de fixtures appelant Docling en masse a fait tomber le
+serveur). Le PDF vient à l'objectif 2, seul, mesuré, une conversion à la
+fois.
+
+Le HTML et le markdown, eux, sont **mesurés sûrs** : 784 Mo au pic,
+3,5 s (voir § 1). Ils passent bien par Docling — et il ne faut pas les
+en sortir, c'est lui qui donne les labels.
+
+### ⚠️ CE QUI MANQUE ENCORE : UNE CAPTURE WEB RICHE
+
+`capture-web-ostrom.html` est une **vraie** capture, exportée de
+l'ancienne base — c'est sa valeur : elle porte ce que le clipper produit
+réellement. Mais elle est **structurellement pauvre**, et c'est mesuré :
+9 balises `<p>`, **aucun** titre, aucune liste, aucun tableau. Elle
+éprouve donc le CHEMIN d'ingestion web, pas la variété des labels : tout
+en ressortira en `text`.
+
+Il manque une capture d'un **vrai article** — avec intertitres, listes,
+tableau, figure. Le propriétaire peut en produire une en un clic avec
+l'extension ; c'est la première chose à demander. Sans elle, on ne peut
+pas prouver que le découpage web distingue un titre d'un paragraphe.
+
+**Ce qu'une bonne capture doit donner comme contrôle** : plusieurs
+labels distincts (`title`, `section_header`, `list_item`, `table`,
+`picture`, `code`, `caption`, `text`). Si une conversion rend trente
+blocs **tous** étiquetés `text`, quelque chose est cassé — c'est
+exactement ce que produisait l'ancien découpage par paragraphes, et ce
+que l'ancienne base traînait : 4 888 `text` pour 4 `title`.
+
+### La commande à écrire
+
+`manage.py charger_fixtures_sample`, sur le patron de
+`core/management/commands/enrichir_la_provenance_audio.py` :
+
+- commandes et arguments **en français**, `--a-blanc` obligatoire,
+  bilan chiffré à la fin ;
+- **idempotente** : relancée, elle ne double rien ;
+- elle range les notes dans un carnet de démonstration, pour que
+  l'écran `/carnets/<id>/` ne soit pas vide ;
+- elle **n'appelle jamais Docling sur un PDF**, et le dit si on lui en
+  donne un ;
+- l'audio en deux temps : le `.json` s'ingère directement ; le `.mp3`
+  exige un appel Voxtral (clé `MISTRAL_API_KEY`) — la commande doit
+  pouvoir le **sauter proprement** si la clé manque, en le disant.
+
+Après elle, la base doit permettre de voir, sans rien installer de
+plus : une gouttière de document écrit (46 px, labels réels), une
+gouttière audio (96 px, locuteurs colorés, minutages), le panneau
+intégré, le surlignage révélé au survol.
+
+---
+
+## 5. Objectif 3 — les fixtures étalons PDF (le vrai livrable)
 
 C'est ce qui a le plus de valeur : **une fois ces fixtures produites,
 tout le reste du travail PDF pourra se faire sans Docling**, donc sur
@@ -210,7 +296,7 @@ exactement ce qui a fait tomber le serveur le 10 août.
 
 ---
 
-## 5. Objectif 3 — la spec du visualiseur PDF
+## 6. Objectif 4 — la spec du visualiseur PDF
 
 `SPEC-ancrage-par-element-v2.md § 8.2` existe mais est **insuffisante
 pour coder** : elle donne un bon delta (trois corrections :
@@ -239,7 +325,7 @@ visualiseur n'est pas disponible. Ton travail est de le rendre vrai.
 
 ---
 
-## 6. Pièges d'environnement — le non-respect a déjà cassé des choses
+## 7. Pièges d'environnement — le non-respect a déjà cassé des choses
 
 | Piège | Conséquence vécue |
 |---|---|
@@ -266,7 +352,7 @@ docker exec hypostasia_dev_web supervisorctl restart daphne gunicorn
 
 ---
 
-## 7. La méthode attendue, non négociable
+## 8. La méthode attendue, non négociable
 
 - **TDD strict** : le test d'abord, on le regarde échouer, puis le code.
 - **Relecture adverse par un agent à chaque phase**, avec correctifs
@@ -282,7 +368,7 @@ docker exec hypostasia_dev_web supervisorctl restart daphne gunicorn
 
 ---
 
-## 8. État complet du produit
+## 9. État complet du produit
 
 ### Fait
 
@@ -315,7 +401,7 @@ docker exec hypostasia_dev_web supervisorctl restart daphne gunicorn
 
 ---
 
-## 9. Par quoi commencer, concrètement
+## 10. Par quoi commencer, concrètement
 
 1. Installer Docling, convertir **un seul** PDF, mesurer la RAM.
 2. Regarder si `provenance.boites` est rempli. **Si non, s'arrêter et le
