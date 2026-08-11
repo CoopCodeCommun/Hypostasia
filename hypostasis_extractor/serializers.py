@@ -254,6 +254,40 @@ class AnalyseurSyntaxiqueUpdateSerializer(serializers.Serializer):
         return sanitize_text(value)
 
 
+class AnalyseurUtilisabiliteSerializer(serializers.Serializer):
+    """
+    Expose l'etat d'utilisabilite d'un analyseur (lecture seule).
+    / Exposes an analyzer's usability state (read-only).
+
+    LOCALISATION : hypostasis_extractor/serializers.py
+
+    Ne valide aucun input et ne bloque aucune sauvegarde. Il calcule juste,
+    a partir des exemples deja en base, si l'analyseur est pret a etre utilise
+    pour une extraction, et la liste des problemes a corriger.
+    La regle metier vit dans services.verifier_utilisabilite_analyseur :
+    ce serializer ne fait que l'exposer pour l'interface.
+
+    / Read-only. Computes from the stored examples whether the analyzer is ready
+    / for extraction, plus the list of problems to fix. The business rule lives in
+    / services.verifier_utilisabilite_analyseur; this serializer only exposes it.
+    """
+    est_utilisable = serializers.BooleanField(read_only=True)
+    problemes = serializers.ListField(child=serializers.CharField(), read_only=True)
+
+    def to_representation(self, analyseur):
+        # On appelle la regle metier une seule fois, puis on renvoie le resultat.
+        # / Call the business rule once, then return the result.
+        from .services import verifier_utilisabilite_analyseur
+
+        analyseur_est_utilisable, liste_des_problemes = verifier_utilisabilite_analyseur(
+            analyseur
+        )
+        return {
+            "est_utilisable": analyseur_est_utilisable,
+            "problemes": liste_des_problemes,
+        }
+
+
 class PromptPieceCreateSerializer(serializers.Serializer):
     """Creation d'une piece de prompt / Create a prompt piece."""
     name = serializers.CharField(max_length=200)

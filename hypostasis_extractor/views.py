@@ -62,6 +62,7 @@ from .serializers import (
     RunExtractionSerializer,
     AnalyseurSyntaxiqueCreateSerializer,
     AnalyseurSyntaxiqueUpdateSerializer,
+    AnalyseurUtilisabiliteSerializer,
     PromptPieceCreateSerializer,
     PromptPieceUpdateSerializer,
     AnalyseurExampleCreateSerializer,
@@ -399,6 +400,31 @@ def _exiger_staff(request):
     return None
 
 
+def _attacher_utilisabilite(analyseur):
+    """
+    Attache l'etat d'utilisabilite a un analyseur pour le rendu du template.
+    / Attach usability state to an analyzer for template rendering.
+
+    LOCALISATION : hypostasis_extractor/views.py
+
+    On calcule l'etat via AnalyseurUtilisabiliteSerializer (qui appelle la regle
+    metier de services.py) et on pose deux attributs simples sur l'instance :
+    - est_utilisable (bool)
+    - problemes_utilisabilite (liste de messages)
+    Le template peut alors afficher un badge sans appeler de fonction.
+    Aucune ecriture en base, aucun blocage.
+    / Computes the state via the serializer and sets two plain attributes on the
+    / instance so the template can show a badge. No DB write, no blocking.
+
+    :param analyseur: instance AnalyseurSyntaxique
+    :return: la meme instance, enrichie des deux attributs
+    """
+    etat_utilisabilite = AnalyseurUtilisabiliteSerializer(analyseur).data
+    analyseur.est_utilisable = etat_utilisabilite["est_utilisable"]
+    analyseur.problemes_utilisabilite = etat_utilisabilite["problemes"]
+    return analyseur
+
+
 class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     """
     ViewSet pour gerer les analyseurs syntaxiques configurables.
@@ -425,11 +451,18 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         / Shows ALL analyzers (active and inactive). The is_active flag only
         / filters the drawer selector, not the configuration list.
         """
-        tous_les_analyseurs = AnalyseurSyntaxique.objects.all().order_by(
-            "-est_par_defaut", "type_analyseur", "name",
-        )
+        tous_les_analyseurs = AnalyseurSyntaxique.objects.all().prefetch_related(
+            "examples__extractions",
+        ).order_by("-est_par_defaut", "type_analyseur", "name")
+
+        # On attache l'etat d'utilisabilite a chaque analyseur pour le badge.
+        # / Attach usability state to each analyzer for the badge.
+        liste_analyseurs_avec_etat = []
+        for analyseur in tous_les_analyseurs:
+            liste_analyseurs_avec_etat.append(_attacher_utilisabilite(analyseur))
+
         contexte_configuration = {
-            'analyseurs': tous_les_analyseurs,
+            'analyseurs': liste_analyseurs_avec_etat,
         }
 
         # Requete HTMX → partial seulement
@@ -459,6 +492,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             ),
             pk=pk
         )
+
+        # Etat d'utilisabilite pour le bandeau d'avertissement de l'editeur.
+        # / Usability state for the editor warning banner.
+        _attacher_utilisabilite(analyseur)
 
         from core.models import AIModel
         # Tous les modeles IA actifs / All active AI models
@@ -494,6 +531,9 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         if serializer.is_valid():
             analyseur = AnalyseurSyntaxique.objects.create(**serializer.validated_data)
             logger.info("Analyseur cree: pk=%d name='%s'", analyseur.pk, analyseur.name)
+            # Nouvel analyseur = pas encore d'exemple → badge "non utilisable" coherent.
+            # / New analyzer = no example yet → consistent "not usable" badge.
+            _attacher_utilisabilite(analyseur)
             return render(request, 'hypostasis_extractor/includes/analyseur_item.html', {
                 'analyseur': analyseur
             }, status=status.HTTP_201_CREATED)

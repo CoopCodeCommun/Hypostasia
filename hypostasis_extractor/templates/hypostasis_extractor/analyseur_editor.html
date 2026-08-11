@@ -37,6 +37,29 @@
         </a>
     </div>
 
+    {# Bandeau d'utilisabilite : analyseur d'extraction sans exemple complet #}
+    {# / Usability banner: extraction analyzer without a complete example #}
+    {% if analyseur.type_analyseur == 'analyser' and not analyseur.est_utilisable %}
+        <div class="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3"
+             role="status" aria-live="polite" data-testid="bandeau-non-utilisable">
+            <span class="text-amber-600 text-lg leading-none" aria-hidden="true">⚠</span>
+            <div class="text-sm text-amber-800">
+                <p class="font-semibold">Analyseur non utilisable en l'état</p>
+                <p class="mt-0.5">
+                    Il ne sera pas proposé pour lancer une analyse tant qu'il n'a pas
+                    au moins un exemple complet (texte source + une extraction avec classe et texte).
+                </p>
+                {% if analyseur.problemes_utilisabilite %}
+                    <ul class="mt-1 list-disc list-inside">
+                        {% for probleme in analyseur.problemes_utilisabilite %}
+                            <li>{{ probleme }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+
     <!-- En-tete avec nom, description, type et options de contexte -->
     <!-- / Header with name, description, type and context options -->
     <div class="mb-6 bg-white rounded-lg shadow-sm border border-slate-200 p-4">

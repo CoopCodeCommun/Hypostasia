@@ -408,6 +408,36 @@ def _get_ia_active():
     return Configuration.get_solo().ai_active
 
 
+def _analyseurs_extraction_utilisables():
+    """
+    Liste des analyseurs d'extraction actifs ET utilisables, pour les selecteurs.
+    / Active and usable extraction analyzers, for the selectors.
+
+    LOCALISATION : front/views.py
+
+    Un analyseur d'extraction sans exemple few-shot complet ferait echouer
+    LangExtract : le LLM repondrait hors format et les extractions seraient
+    perdues (bug "exemples=0"). On ne supprime pas l'analyseur, on le retire
+    seulement des choix proposes pour lancer une analyse.
+    La regle metier vit dans services.verifier_utilisabilite_analyseur.
+    / A non-usable extraction analyzer is removed from the analysis choices only.
+
+    :return: liste d'instances AnalyseurSyntaxique (ordre : defaut puis nom)
+    """
+    from hypostasis_extractor.services import verifier_utilisabilite_analyseur
+
+    analyseurs_actifs = AnalyseurSyntaxique.objects.filter(
+        is_active=True, type_analyseur="analyser",
+    ).prefetch_related("examples__extractions").order_by("-est_par_defaut", "name")
+
+    liste_utilisables = []
+    for analyseur in analyseurs_actifs:
+        analyseur_est_utilisable, _problemes = verifier_utilisabilite_analyseur(analyseur)
+        if analyseur_est_utilisable:
+            liste_utilisables.append(analyseur)
+    return liste_utilisables
+
+
 def _diff_inline_mots(texte_ancien, texte_nouveau):
     """
     Compare deux textes mot par mot et retourne deux HTML :
@@ -804,7 +834,7 @@ class LectureViewSet(viewsets.ViewSet):
                 # / marquer_lue is not a valid integer, ignore silently
                 pass
 
-        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
+        analyseurs_actifs = _analyseurs_extraction_utilisables()
 
         # Verifier si un job est en cours pour cette page
         # Si oui, renvoyer le panneau d'analyse en cours avec les entites deja trouvees
@@ -1091,7 +1121,7 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Rendu du partial de lecture (meme logique que retrieve)
         # / Render reading partial (same logic as retrieve)
-        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
+        analyseurs_actifs = _analyseurs_extraction_utilisables()
         dernier_job_termine = ExtractionJob.objects.filter(
             page=page, status="completed",
         ).select_related("analyseur_version").order_by("-created_at").first()
@@ -1634,25 +1664,22 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Recupere l'analyseur depuis le query param, ou le premier actif par defaut
         # / Get analyzer from query param, or the first active one by default
+        # Analyseurs d'extraction utilisables : sert au selecteur ET au choix par defaut.
+        # Un analyseur sans exemple est exclu (il ferait echouer LangExtract).
+        # / Usable extraction analyzers: used for the selector AND the default choice.
+        tous_les_analyseurs_actifs = _analyseurs_extraction_utilisables()
+
         analyseur_id = request.GET.get("analyseur_id")
         if analyseur_id:
             analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
         else:
-            analyseur = AnalyseurSyntaxique.objects.filter(
-                is_active=True, type_analyseur="analyser",
-            ).first()
+            analyseur = tous_les_analyseurs_actifs[0] if tous_les_analyseurs_actifs else None
             if not analyseur:
                 reponse = HttpResponse(status=400)
                 reponse["HX-Trigger"] = json.dumps({
-                    "showToast": {"message": "Aucun analyseur actif. Configurez-en un dans /api/analyseurs/.", "icon": "error"},
+                    "showToast": {"message": "Aucun analyseur actif utilisable. Ajoutez un exemple dans /api/analyseurs/.", "icon": "error"},
                 })
                 return reponse
-
-        # Tous les analyseurs actifs de type "analyser" pour le selecteur
-        # / All active analyzers of type "analyser" for the selector
-        tous_les_analyseurs_actifs = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="analyser",
-        ).order_by("name")
 
         # Recupere le modele IA actif depuis la configuration singleton
         # / Get active AI model from singleton configuration
@@ -1874,12 +1901,13 @@ class LectureViewSet(viewsets.ViewSet):
         # / If analyseur_id is not provided, use the first active analyzer of type "analyser"
         donnees_requete = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
         if not donnees_requete.get("analyseur_id"):
-            analyseur_par_defaut = AnalyseurSyntaxique.objects.filter(
-                is_active=True, type_analyseur="analyser",
-            ).first()
+            # Choix par defaut = premier analyseur d'extraction UTILISABLE.
+            # / Default choice = first USABLE extraction analyzer.
+            analyseurs_utilisables = _analyseurs_extraction_utilisables()
+            analyseur_par_defaut = analyseurs_utilisables[0] if analyseurs_utilisables else None
             if not analyseur_par_defaut:
                 return render(request, "front/includes/extraction_results.html", {
-                    "error_message": "Aucun analyseur actif trouvé. Configurez un analyseur via /api/analyseurs/.",
+                    "error_message": "Aucun analyseur actif utilisable. Ajoutez un exemple à un analyseur via /api/analyseurs/.",
                 })
             donnees_requete["analyseur_id"] = analyseur_par_defaut.pk
 
@@ -3271,7 +3299,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         Re-rend le panneau d'analyse + OOB swap du readability-content annote.
         Re-renders analysis panel + OOB swap of annotated readability-content.
         """
-        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
+        analyseurs_actifs = _analyseurs_extraction_utilisables()
 
         # Toutes les entites de tous les jobs completed de la page
         # / All entities from all completed jobs for the page
@@ -3340,7 +3368,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         / Used when main target is #readability-content (e.g. hide/restore
         / called from drawer JS via htmx.ajax).
         """
-        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
+        analyseurs_actifs = _analyseurs_extraction_utilisables()
 
         # Toutes les entites de tous les jobs completed de la page
         # / All entities from all completed jobs for the page
@@ -3877,15 +3905,14 @@ class ExtractionViewSet(viewsets.ViewSet):
             })
             return reponse
 
-        # Recuperer le premier analyseur actif de type "analyser"
-        # / Get the first active analyzer of type "analyser"
-        analyseur = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="analyser",
-        ).first()
+        # Recuperer le premier analyseur d'extraction UTILISABLE
+        # / Get the first USABLE extraction analyzer
+        analyseurs_utilisables = _analyseurs_extraction_utilisables()
+        analyseur = analyseurs_utilisables[0] if analyseurs_utilisables else None
         if not analyseur:
             reponse = HttpResponse(status=400)
             reponse["HX-Trigger"] = json.dumps({
-                "showToast": {"message": "Aucun analyseur actif.", "icon": "error"},
+                "showToast": {"message": "Aucun analyseur actif utilisable. Ajoutez un exemple dans /api/analyseurs/.", "icon": "error"},
             })
             return reponse
 
@@ -4437,7 +4464,7 @@ class ImportViewSet(viewsets.ViewSet):
 
         # Rendu du partial de lecture + OOB arbre et panneau (meme pattern que document)
         # / Render reading partial + OOB tree and panel (same pattern as document)
-        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
+        analyseurs_actifs = _analyseurs_extraction_utilisables()
         ia_active = _get_ia_active()
         contexte_partage = {
             "page": page_importee,
@@ -4678,7 +4705,7 @@ class ImportViewSet(viewsets.ViewSet):
 
         # Rendu du partial de lecture + OOB arbre et panneau
         # / Render reading partial + OOB tree and panel
-        analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True, type_analyseur="analyser")
+        analyseurs_actifs = _analyseurs_extraction_utilisables()
         ia_active = _get_ia_active()
         contexte_partage = {
             "page": page_importee,

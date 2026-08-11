@@ -14,6 +14,16 @@
                 {% elif analyseur.type_analyseur == 'synthetiser' %}bg-violet-500
                 {% else %}bg-green-400{% endif %}"></span>
             <span class="text-sm text-slate-800 truncate">{{ analyseur.name }}</span>
+            {# Badge "incomplet" : analyseur d'extraction sans exemple complet #}
+            {# / "incomplete" badge: extraction analyzer without a complete example #}
+            {% if analyseur.type_analyseur == 'analyser' and not analyseur.est_utilisable %}
+                <span class="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold px-2 py-0.5"
+                      data-testid="badge-non-utilisable-{{ analyseur.id }}"
+                      title="{{ analyseur.problemes_utilisabilite|join:' ' }} Non proposé pour lancer une analyse."
+                      aria-label="Analyseur non utilisable : {{ analyseur.problemes_utilisabilite|join:' ' }}">
+                    <span aria-hidden="true">⚠</span> Incomplet
+                </span>
+            {% endif %}
         </div>
     </td>
     {# Type / Type #}

@@ -168,6 +168,85 @@ def _construire_exemples_langextract(analyseur, exclude_example_pk=None):
     return liste_exemples_langextract
 
 
+def verifier_utilisabilite_analyseur(analyseur):
+    """
+    Verifie qu'un analyseur d'extraction est exploitable par LangExtract.
+    / Check that an extraction analyzer is usable by LangExtract.
+
+    LOCALISATION : hypostasis_extractor/services.py
+
+    Un analyseur d'extraction sert a montrer au LLM ce qu'il doit extraire.
+    Pour cela, il a besoin d'au moins un exemple complet : un texte source
+    rempli ET au moins une extraction avec une classe et un texte remplis.
+    Sans cet exemple, LangExtract n'envoie aucun cadre au LLM. Le LLM invente
+    alors son propre format de reponse et les extractions sont perdues
+    (c'est le bug "exemples=0" vu dans les logs).
+
+    Cette fonction ne modifie rien et ne bloque rien. Elle dit juste si
+    l'analyseur est pret a etre utilise, et pourquoi il ne l'est pas.
+
+    Les analyseurs de synthese ne s'appuient pas sur des exemples few-shot :
+    ils sont toujours consideres utilisables ici (leur propre blocage est
+    gere dans la vue de synthese via inclure_extractions / inclure_texte_original).
+
+    / An extraction analyzer teaches the LLM what to extract. It needs at least
+    / one complete example: a filled source text AND at least one extraction with
+    / a filled class and text. Without it LangExtract sends no frame to the LLM,
+    / which invents its own format and extractions are lost. Read-only diagnostic,
+    / never blocks. Synthesis analyzers don't rely on examples and are always
+    / considered usable here.
+
+    :param analyseur: instance AnalyseurSyntaxique
+    :return: tuple (utilisable: bool, problemes: list[str])
+    """
+    from .models import AnalyseurSyntaxique
+
+    # Le critere few-shot ne concerne que les analyseurs d'extraction.
+    # / The few-shot rule only applies to extraction analyzers.
+    if analyseur.type_analyseur != AnalyseurSyntaxique.TypeAnalyseur.ANALYSER:
+        return True, []
+
+    # On parcourt les exemples (le prefetch est reutilise s'il a ete fait par l'appelant).
+    # / Iterate over examples (reuses caller's prefetch if any).
+    exemples_de_l_analyseur = analyseur.examples.all()
+
+    if not exemples_de_l_analyseur:
+        return False, ["L'analyseur n'a aucun exemple few-shot."]
+
+    # On cherche un seul exemple complet : texte source + une extraction remplie.
+    # / Look for a single complete example: source text + one filled extraction.
+    au_moins_un_exemple_avec_texte = False
+    au_moins_un_exemple_complet = False
+
+    for exemple in exemples_de_l_analyseur:
+        texte_source_present = bool((exemple.example_text or "").strip())
+        if not texte_source_present:
+            continue
+        au_moins_un_exemple_avec_texte = True
+
+        for extraction in exemple.extractions.all():
+            classe_presente = bool((extraction.extraction_class or "").strip())
+            texte_present = bool((extraction.extraction_text or "").strip())
+            if classe_presente and texte_present:
+                au_moins_un_exemple_complet = True
+                break
+
+        if au_moins_un_exemple_complet:
+            break
+
+    # On construit les messages d'explication selon ce qui manque.
+    # / Build explanation messages depending on what is missing.
+    problemes = []
+    if not au_moins_un_exemple_avec_texte:
+        problemes.append("Aucun exemple n'a de texte source.")
+    elif not au_moins_un_exemple_complet:
+        problemes.append(
+            "Aucun exemple ne contient d'extraction exploitable (classe + texte)."
+        )
+
+    return au_moins_un_exemple_complet, problemes
+
+
 def _check_ia_active():
     """
     Verifie que l'IA est activee dans la configuration singleton.
