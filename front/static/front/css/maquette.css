@@ -1,0 +1,1803 @@
+/* =========================================================================
+   LA COUCHE MAQUETTE GLOBALE — v2 (9 aout 2026, apres l'audit des 3 agents)
+   LOCALISATION : front/static/front/css/maquette.css
+   Chargee EN DERNIER (base.html). SOURCE UNIQUE des tokens (le :root de
+   _style_maquette.html a ete retire — audit statique I1). Elle REMAPPE
+   les ~50 tokens de hypostasia.css vers la palette papier (I2) au lieu
+   d'empiler des selecteurs, repare le chrome (menus deroulants, focus
+   barre sombre), re-teinte les fonds semantiques DANS leur teinte (I3),
+   habille l'accueil, la lecture (Georgia — decision D1 : Lora quitte le
+   corps de texte, la maquette fait foi), et redonne leurs couleurs aux
+   surlignages d'extraction (statuts riches restes en base).
+   / v2 after the three audit reports: token source of truth + remap,
+   chrome fixes, semantic tints, homepage, reading body, extraction marks.
+   ========================================================================= */
+
+:root {
+  /* --- Les tokens de l'etalon (source unique). --- */
+  --papier:#fdfcfa; --papier-creux:#f5f3ef; --papier-panneau:#faf8f4;
+  --encre:#1c1b19; --encre-douce:#6b6862; --filet:#e4e0d8;
+  --barre:#1c1b19; --barre-texte:#fdfcfa;
+  --statut-nouveau:#999999; --statut-commente:#E69F00;
+  --revelation:#f0ede6;
+  --cible:#7C5CBF; --danger:#b91c1c; --succes:#047857; --info:#4338ca;
+  --verifie:#047857; --faible:#b45309; --non-source:#b91c1c;
+  --source-debat:#0e7490; --preuve:26rem;
+  /* AJOUT au vocabulaire de l'etalon (ecart assume, verification T5) :
+     l'etalon dessine ses champs et ses boutons avec --filet, qui tombe
+     a 1,28:1 sur le papier — or WCAG 1.4.11 demande 3:1 pour le
+     contour d'un controle quand c'est son seul indice visuel. Ce filet
+     RENFORCE est reserve aux controles : 3,27:1, sans alourdir les
+     separateurs decoratifs qui, eux, restent en --filet.
+     / Control borders need 3:1; the etalon's --filet gives 1.28:1. */
+  --filet-controle: color-mix(in srgb, var(--encre-douce) 70%, var(--filet));
+
+  /* --- REMAPPAGE des tokens de hypostasia.css (audit I2) : toutes les
+     surfaces/bordures/textes composant l'ancien chrome suivent la
+     palette papier d'un coup. --- */
+  --surface-primary: var(--papier);
+  --surface-secondary: var(--papier-creux);
+  --surface-tertiary: var(--papier-creux);
+  --text-primary: var(--encre);
+  --text-secondary: var(--encre-douce);
+  --text-tertiary: var(--encre-douce);
+  --border-default: var(--filet);
+  --border-strong: var(--filet);
+  /* Le halo d'ancre (flash au clic depuis le drawer) passe du bleu
+     Tailwind a l'ambre de l'etalon (audit I8). Format RGB attendu. */
+  --ancre-color: 230, 159, 0;
+}
+
+/* =========================================================================
+   LOT T7 — LE THEME SOMBRE
+   Mecanisme a TROIS etats, celui de l'etalon (corpus.html:71-82) :
+     :root                              -> clair, valeurs par defaut
+     @media (prefers-color-scheme:dark) -> suit le systeme, SAUF si
+       l'utilisateur a explicitement demande le clair
+     :root[data-theme="dark"]           -> sombre force
+   L'etalon bascule les 8 tokens de surface et LAISSE ses accents tels
+   quels ; verification faite, ses accents sont alors ILLISIBLES :
+   --info tombe a 2,26:1 sur le papier sombre, --cible a 3,51:1,
+   --faible a 3,50:1. La doctrine du chantier est de faire mieux que
+   l'etalon en accessibilite : les accents basculent donc aussi, vers
+   les memes teintes eclaircies (ratios recalcules en commentaire).
+   / Three-state theme. The etalon keeps its accents in dark mode and
+   they fall under 3:1; here they lighten too.
+   ========================================================================= */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    /* Les 8 surfaces de l'etalon, a l'identique. */
+    --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+    --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a;
+    --revelation:#26242c; --barre:#0d0c10;
+    /* Les accents, eclaircis (l'etalon ne le fait pas). */
+    --info:#a5b4fc;        /*  8,9:1 */
+    --danger:#fca5a5;      /*  9,4:1 */
+    --succes:#6ee7b7;      /* 11,7:1 */
+    --cible:#c4b5fd;       /* 10,0:1 */
+    --faible:#fbbf24;      /* 10,6:1 */
+    --verifie:#6ee7b7; --non-source:#fca5a5; --source-debat:#67e8f9;
+    --statut-nouveau:#8a8a8a;
+    /* Le contour des controles : sur fond sombre, c'est l'inverse — il
+       faut ECLAIRCIR le filet pour tenir les 3:1. */
+    --filet-controle: color-mix(in srgb, var(--encre-douce) 75%, var(--filet));
+    /* Les 8 familles d'hypostases sont employees EN TEXTE : leurs
+       valeurs claires tombent toutes sous 3:1 sur fond sombre. */
+    --hypostase-epistemique-text:#a5b4fc; --hypostase-empirique-text:#6ee7b7;
+    --hypostase-speculatif-text:#fbbf24;  --hypostase-structurel-text:#cbd5e1;
+    --hypostase-normatif-text:#d8b4fe;    --hypostase-problematique-text:#fca5a5;
+    --hypostase-mode-text:#67e8f9;        --hypostase-objet-text:#cbd5e1;
+    --ancre-color: 230, 159, 0;
+    /* Les deux tokens de STATUT en texte (hypostasia.css:38-42), cites
+       en style= inline par l'accueil : leurs valeurs claires tombent a
+       2,31:1 et 3,48:1 sur fond sombre (verification T7).
+       / The two textual status tokens do not survive a dark background. */
+    --statut-nouveau-text:#c0bcb4; --statut-commente-text:#fbbf24;
+    --statut-nouveau-bg:#26242c; --statut-commente-bg:#2a2416;
+  }
+}
+:root[data-theme="dark"] {
+  --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+  --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a;
+  --revelation:#26242c; --barre:#0d0c10;
+  --info:#a5b4fc; --danger:#fca5a5; --succes:#6ee7b7; --cible:#c4b5fd;
+  --faible:#fbbf24;
+  --verifie:#6ee7b7; --non-source:#fca5a5; --source-debat:#67e8f9;
+  --statut-nouveau:#8a8a8a;
+  --filet-controle: color-mix(in srgb, var(--encre-douce) 75%, var(--filet));
+  --hypostase-epistemique-text:#a5b4fc; --hypostase-empirique-text:#6ee7b7;
+  --hypostase-speculatif-text:#fbbf24;  --hypostase-structurel-text:#cbd5e1;
+  --hypostase-normatif-text:#d8b4fe;    --hypostase-problematique-text:#fca5a5;
+  --hypostase-mode-text:#67e8f9;        --hypostase-objet-text:#cbd5e1;
+  --ancre-color: 230, 159, 0;
+  --statut-nouveau-text:#c0bcb4; --statut-commente-text:#fbbf24;
+  --statut-nouveau-bg:#26242c; --statut-commente-bg:#2a2416;
+}
+
+/* En sombre, les fonds pleins des anciens boutons (.bg-blue-600 &c.,
+   remappes sur --encre) auraient du texte blanc sur une surface
+   presque blanche : on les repasse en --info, dont le texte reste
+   lisible. / Solid dark-ink buttons would go white-on-white. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bg-blue-600,
+  :root:not([data-theme="light"]) .bg-blue-700,
+  :root:not([data-theme="light"]) .bg-blue-500,
+  :root:not([data-theme="light"]) .bg-indigo-600,
+  :root:not([data-theme="light"]) .bg-indigo-700 {
+    background-color: var(--info) !important;
+    color: var(--papier) !important;
+  }
+}
+:root[data-theme="dark"] .bg-blue-600, :root[data-theme="dark"] .bg-blue-700,
+:root[data-theme="dark"] .bg-blue-500, :root[data-theme="dark"] .bg-indigo-600,
+:root[data-theme="dark"] .bg-indigo-700 {
+  background-color: var(--info) !important;
+  color: var(--papier) !important;
+}
+/* Idem pour le bouton principal du design system, qui est « encre sur
+   papier » : en sombre il devient papier-sur-encre, donc invisible. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .zone-corpus .bouton-plat.principal {
+    background:var(--info); color:var(--papier); border-color:var(--info);
+  }
+}
+:root[data-theme="dark"] .zone-corpus .bouton-plat.principal {
+  background:var(--info); color:var(--papier); border-color:var(--info);
+}
+
+/* Les ombres portees sont noires : sur un fond sombre elles ne separent
+   plus rien, et le bord d'un tiroir devient imperceptible (verification
+   T7). En sombre, c'est le FILET qui porte la separation.
+   / Black shadows vanish on dark surfaces; the border takes over. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #arbre-overlay,
+  :root:not([data-theme="light"]) #drawer-overlay,
+  :root:not([data-theme="light"]) #bottom-sheet {
+    box-shadow: 0 0 0 1px var(--filet-controle), 0 10px 40px rgba(0, 0, 0, .55) !important;
+  }
+  :root:not([data-theme="light"]) .surface-formulaire,
+  :root:not([data-theme="light"]) .zone-corpus .surface-formulaire {
+    box-shadow: none;
+  }
+}
+:root[data-theme="dark"] #arbre-overlay, :root[data-theme="dark"] #drawer-overlay,
+:root[data-theme="dark"] #bottom-sheet {
+  box-shadow: 0 0 0 1px var(--filet-controle), 0 10px 40px rgba(0, 0, 0, .55) !important;
+}
+:root[data-theme="dark"] .zone-corpus .surface-formulaire { box-shadow: none; }
+
+/* Le bouton de bascule du theme, dans la barre sombre. */
+#bascule-theme {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .7rem; line-height: 1;
+  background: transparent; border: 1px solid transparent;
+  border-radius: 4px; cursor: pointer;
+  /* Cible tactile : 24px de cote au minimum (WCAG 2.5.8). */
+  min-width: 1.6rem; min-height: 1.6rem; padding: .3rem .45rem;
+  color: color-mix(in srgb, var(--barre-texte) 78%, transparent);
+}
+#bascule-theme:hover { background: rgba(255, 255, 255, .12); color: var(--barre-texte); }
+/* Sur mobile la barre est deja pleine et ce bouton mangeait la largeur
+   du titre du document, jusqu'a le faire disparaitre (test
+   test_10_mobile). Le titre est plus utile ici : la bascule reste
+   accessible depuis la page de reglages et les pages nues.
+   / On mobile the toggle squeezed the document title out of the bar. */
+@media (max-width: 640px) {
+  nav.h-12 #bascule-theme { display: none; }
+}
+/* Hors de la barre (pages nues), il vit sur du papier. */
+.zone-corpus #bascule-theme { color: var(--encre-douce); border-color: var(--filet-controle); }
+/* Au survol le fond passe a --revelation : le filet de controle y
+   tombe a 2,87:1, on prend l'encre douce (5,2:1). */
+.zone-corpus #bascule-theme:hover {
+  background: var(--revelation); color: var(--encre); border-color: var(--encre-douce);
+}
+
+/* ---- Le socle : Georgia sur papier, partout. ---- */
+body {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  background: var(--papier);
+  color: var(--encre);
+}
+h1, h2, h3, h4 { letter-spacing: -.012em; }
+code, pre, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+/* Le corps de lecture aussi (agent visuel n°3 — D1 tranchee : la
+   maquette fait foi, Lora quitte le corps ; les ilots .typo-* de
+   provenance restent). / Reading body in Georgia too. */
+.lecture-article, #readability-content {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif !important;
+  color: var(--encre) !important;
+}
+
+/* ---- Re-teinte des utilitaires Tailwind. ---- */
+.bg-white { background-color: var(--papier) !important; }
+.bg-slate-50, .bg-slate-100, .bg-gray-50, .bg-gray-100 { background-color: var(--papier-creux) !important; }
+.border-slate-100, .border-slate-200, .border-gray-200 { border-color: var(--filet) !important; }
+/* -300 habille des CONTROLES (selects, champs) : filet renforce, 3:1
+   (verification T7). / -300 dresses controls: reinforced border. */
+.border-slate-300, .border-slate-400 { border-color: var(--filet-controle) !important; }
+.text-slate-400, .text-slate-500, .text-gray-400, .text-gray-500 { color: var(--encre-douce) !important; }
+.text-slate-600, .text-slate-700, .text-slate-800, .text-slate-900 { color: var(--encre) !important; }
+.text-blue-600, .text-blue-700, .text-blue-800 { color: var(--info) !important; }
+.bg-blue-600, .bg-blue-700, .bg-blue-500, .bg-indigo-600, .bg-indigo-700 { background-color: var(--encre) !important; }
+.hover\:bg-blue-600:hover, .hover\:bg-blue-700:hover, .hover\:bg-indigo-700:hover { background-color: var(--encre-douce) !important; }
+.hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover, .hover\:bg-gray-50:hover { background-color: var(--revelation) !important; }
+.hover\:bg-slate-200:hover { background-color: var(--revelation) !important; }
+.hover\:text-blue-600:hover, .hover\:text-blue-800:hover { color: var(--info) !important; }
+.text-indigo-600 { color: var(--info) !important; }
+
+/* ---- REMAPPAGE DES PALETTES TAILWIND bleu/indigo (lot T4).
+   Meme doctrine que le remappage des tokens de hypostasia.css : on
+   change la SOURCE plutot que d'empiler un selecteur par utilitaire.
+   Une seule redefinition couvre d'un coup toutes les variantes que la
+   liste ci-dessus ne pouvait pas atteindre — hover:, prose-a:,
+   prose-blockquote:, border-l-, etc. Les regles :root de tailwind.css
+   ne sont pas modifiees : elles sont surchargees ici, feuille chargee
+   en dernier. / Remap Tailwind's blue/indigo scales at the source, so
+   every variant (hover:, prose-*:, border-*) follows at once. ---- */
+:root {
+  --color-blue-50:   color-mix(in srgb, var(--info) 8%, var(--papier));
+  --color-blue-200:  color-mix(in srgb, var(--info) 35%, var(--filet));
+  --color-blue-300:  color-mix(in srgb, var(--info) 45%, var(--filet));
+  --color-blue-400:  color-mix(in srgb, var(--info) 60%, var(--filet));
+  --color-blue-500:  var(--info);
+  --color-blue-600:  var(--info);
+  --color-blue-700:  var(--info);
+  --color-indigo-50:  color-mix(in srgb, var(--info) 8%, var(--papier));
+  --color-indigo-100: color-mix(in srgb, var(--info) 14%, var(--papier));
+  --color-indigo-200: color-mix(in srgb, var(--info) 35%, var(--filet));
+  --color-indigo-400: var(--info);
+  --color-indigo-500: var(--info);
+  --color-indigo-600: var(--info);
+  --color-indigo-700: var(--info);
+}
+
+/* ---- LOT T10 — LE RESTE DES ECHELLES TAILWIND, remappe a la source.
+   Les ecrans staff de hypostasis_extractor (configuration LLM, editeur
+   d'analyseur, versions, exemples, tests) sont ecrits ENTIEREMENT en
+   utilitaires : 300 occurrences sur 18 fichiers. Les enumerer classe
+   par classe aurait double la taille de cette feuille sans jamais
+   couvrir les variantes (`hover:`, `peer-checked:`, `focus:`,
+   `border-l-`). On remappe donc les echelles elles-memes, comme pour
+   le bleu et l'indigo.
+   Le NIVEAU porte le role : 50-100 = fond, 200-300 = filet, 400+ =
+   teinte pleine. Les ambres partent sur --faible et non sur
+   --statut-commente : en texte, l'ambre pur ne fait que 2,2:1.
+   / The staff screens are pure utility classes; remap the scales
+   themselves rather than enumerate. Level carries the role. ---- */
+:root {
+  /* Gris de structure. */
+  --color-slate-50:  var(--papier-creux);  --color-gray-50:  var(--papier-creux);
+  --color-slate-100: var(--papier-creux);  --color-gray-100: var(--papier-creux);
+  --color-slate-200: var(--filet);         --color-gray-200: var(--filet);
+  --color-slate-300: var(--filet-controle);--color-gray-300: var(--filet-controle);
+  --color-slate-400: var(--encre-douce);   --color-gray-400: var(--encre-douce);
+  --color-slate-500: var(--encre-douce);   --color-gray-500: var(--encre-douce);
+  --color-slate-600: var(--encre);         --color-gray-600: var(--encre);
+  --color-slate-700: var(--encre);         --color-gray-700: var(--encre);
+  --color-slate-800: var(--encre);         --color-gray-800: var(--encre);
+  --color-slate-900: var(--encre);         --color-gray-900: var(--encre);
+
+  /* Vert = succes / etat calcule favorable. */
+  --color-green-50:  color-mix(in srgb, var(--succes) 8%, var(--papier));
+  --color-emerald-50:color-mix(in srgb, var(--succes) 8%, var(--papier));
+  --color-green-100: color-mix(in srgb, var(--succes) 14%, var(--papier));
+  --color-emerald-100:color-mix(in srgb, var(--succes) 14%, var(--papier));
+  --color-green-200: color-mix(in srgb, var(--succes) 35%, var(--filet));
+  --color-emerald-200:color-mix(in srgb, var(--succes) 35%, var(--filet));
+  --color-green-300: color-mix(in srgb, var(--succes) 45%, var(--filet));
+  --color-emerald-300:color-mix(in srgb, var(--succes) 45%, var(--filet));
+  --color-green-400: var(--succes);  --color-emerald-400: var(--succes);
+  --color-green-500: var(--succes);  --color-emerald-500: var(--succes);
+  --color-green-600: var(--succes);  --color-emerald-600: var(--succes);
+  --color-green-700: var(--succes);  --color-emerald-700: var(--succes);
+  --color-green-800: var(--succes);  --color-emerald-800: var(--succes);
+
+  /* Rouge = danger / etat calcule defavorable. */
+  --color-red-50:  color-mix(in srgb, var(--danger) 10%, var(--papier));
+  --color-rose-50: color-mix(in srgb, var(--danger) 10%, var(--papier));
+  --color-red-100: color-mix(in srgb, var(--danger) 16%, var(--papier));
+  --color-red-200: color-mix(in srgb, var(--danger) 40%, var(--filet));
+  --color-rose-200:color-mix(in srgb, var(--danger) 40%, var(--filet));
+  --color-red-300: color-mix(in srgb, var(--danger) 50%, var(--filet));
+  --color-red-400: var(--danger);  --color-red-500: var(--danger);
+  --color-red-600: var(--danger);  --color-red-700: var(--danger);
+  --color-red-800: var(--danger);  --color-red-900: var(--danger);
+
+  /* Ambres = etat intermediaire. En TEXTE, --faible (4,9:1) et non
+     --statut-commente (2,2:1) ; en filet, l'ambre garde sa place. */
+  --color-amber-50:  color-mix(in srgb, var(--statut-commente) 12%, var(--papier));
+  --color-yellow-50: color-mix(in srgb, var(--statut-commente) 12%, var(--papier));
+  --color-orange-50: color-mix(in srgb, var(--statut-commente) 12%, var(--papier));
+  --color-amber-100: color-mix(in srgb, var(--statut-commente) 18%, var(--papier));
+  --color-amber-200: color-mix(in srgb, var(--statut-commente) 55%, var(--filet));
+  --color-yellow-200:color-mix(in srgb, var(--statut-commente) 55%, var(--filet));
+  --color-amber-300: color-mix(in srgb, var(--statut-commente) 65%, var(--filet));
+  --color-amber-400: var(--faible);  --color-amber-500: var(--faible);
+  --color-amber-600: var(--faible);  --color-amber-700: var(--faible);
+  --color-amber-800: var(--faible);  --color-orange-500: var(--faible);
+  --color-orange-600: var(--faible); --color-yellow-600: var(--faible);
+  --color-yellow-700: var(--faible); --color-yellow-800: var(--faible);
+  --color-amber-900: var(--faible);  --color-orange-800: var(--faible);
+
+  /* Violet = la « cible » de l'etalon. Il servait en pastille de type
+     d'analyseur et etait reste au violet Tailwind brut. */
+  --color-violet-50:  color-mix(in srgb, var(--cible) 8%, var(--papier));
+  --color-purple-50:  color-mix(in srgb, var(--cible) 8%, var(--papier));
+  --color-violet-100: color-mix(in srgb, var(--cible) 14%, var(--papier));
+  --color-violet-200: color-mix(in srgb, var(--cible) 35%, var(--filet));
+  --color-violet-300: color-mix(in srgb, var(--cible) 45%, var(--filet));
+  --color-violet-400: var(--cible); --color-violet-500: var(--cible);
+  --color-violet-600: var(--cible); --color-violet-700: var(--cible);
+  --color-violet-900: var(--cible); --color-purple-500: var(--cible);
+  --color-purple-600: var(--cible); --color-purple-700: var(--cible);
+}
+
+/* ---- Les corrections que le seul remappage d'echelle ne pouvait pas
+   faire (verification T10). ---- */
+
+/* Un fond SEMANTIQUE PLEIN porte du texte papier, pas du blanc : en
+   theme sombre ces fonds s'eclaircissent et le blanc y tombe a 1,52:1
+   (badge « IA active »). --papier suit le theme, lui. / A filled
+   semantic background carries paper-colored text, not white. */
+.bg-emerald-600, .bg-emerald-500, .bg-green-600, .bg-green-500,
+.bg-red-600, .bg-red-500, .bg-amber-500, .bg-amber-400,
+.bg-violet-500, .bg-violet-600 {
+  color: var(--papier) !important;
+}
+
+/* `.text-slate-300` sert de TEXTE (numeros d'ordre a 9px), alors que
+   le niveau 300 de l'echelle est reserve aux filets de controle : en
+   texte il tombait a 3,02:1. La classe explicite prend l'encre douce,
+   l'echelle garde son role de bordure. / Level 300 is a control
+   border; as text it needs the soft ink. */
+.text-slate-300, .text-gray-300 { color: var(--encre-douce) !important; }
+
+/* Les ecrans staff dessinent leurs CHAMPS avec `border-slate-200`,
+   un filet decoratif a 1,19:1 — 241 champs concernes. On ne peut pas
+   remonter l'echelle entiere (elle habille aussi de vrais
+   separateurs) : on cible les elements de formulaire.
+   / Staff screens draw controls with a decorative border; target the
+   form elements themselves. */
+input.border-slate-200, select.border-slate-200, textarea.border-slate-200,
+input.border-slate-100, select.border-slate-100, textarea.border-slate-100,
+input.border-gray-200, select.border-gray-200, textarea.border-gray-200 {
+  border-color: var(--filet-controle) !important;
+}
+
+/* `focus:outline-none` (0,2,0) battait le focus visible global
+   (0,1,0) : sur les ecrans staff, un champ focalise au clavier ne
+   montrait plus rien des que son `ring` etait absent. Le focus est un
+   invariant d'accessibilite (WCAG 2.4.7), il passe en !important.
+   / focus:outline-none was beating the global focus ring. */
+:focus-visible { outline: 2px solid var(--info) !important; outline-offset: 1px; }
+nav.h-12 :focus-visible { outline-color: var(--barre-texte) !important; }
+
+/* Les quatre INTERRUPTEURS de l'editeur sont un `input` visuellement
+   masque (`sr-only` + `clip-path: inset(50%)`, boite de 1x1px) suivi
+   d'un rail et d'une pastille en `div`. L'anneau de focus s'appliquait
+   donc a un element decoupe : au clavier, RIEN ne montrait quel
+   interrupteur avait le focus (verification T10). On reporte l'anneau
+   sur le rail, qui est le frere suivant.
+   / The toggles hide their input; move the focus ring to the rail. */
+.toggle-contexte:focus-visible + div {
+  outline: 2px solid var(--info) !important;
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+/* La pastille de marge « nouveau » etait cerclee de --statut-nouveau
+   (#999999) : 2,78:1 sur le papier clair, sous les 3:1 d'un indicateur
+   d'etat. Le meme token qui a corrige les soulignements convient ici —
+   la FORME (cercle creux vs triangle plein) reste le porteur
+   daltonien-safe de l'information. / The dot's ring was under 3:1 in
+   light mode; the shape keeps carrying the meaning. */
+.indicateur-statut[data-statut="nouveau"] {
+  border-color: var(--filet-statut-nouveau) !important;
+}
+
+/* Les ecrans staff denses : sous 640px, les rangees de controles
+   (piece de prompt, attribut) poussaient leurs boutons HORS du
+   viewport, sans defilement pour les rattraper — un « Sauver »
+   inatteignable au doigt (verification T10). / Dense staff rows
+   pushed their buttons off-screen on mobile. */
+@media (max-width: 640px) {
+  #analyseur-editor .flex.items-center.gap-2,
+  #analyseur-editor .flex.items-center.gap-3 { flex-wrap: wrap; }
+}
+
+/* Les deux ecrans de versions n'avaient aucun conteneur : ils
+   commencaient au bord gauche de la fenetre quand la liste et
+   l'editeur sont centres. / The two version screens had no container. */
+#versions-list, #versions-diff {
+  max-width: 64rem; margin: 0 auto;
+}
+
+/* ---- Les fonds SEMANTIQUES gardent leur sens, dans la palette
+   (audit I3) : teintes franches, bordures assorties. ---- */
+.bg-amber-50, .bg-amber-50\/30 { background-color: color-mix(in srgb, var(--statut-commente) 12%, var(--papier)) !important; }
+.border-amber-200, .border-amber-300 { border-color: color-mix(in srgb, var(--statut-commente) 55%, var(--filet)) !important; }
+.bg-emerald-50 { background-color: color-mix(in srgb, var(--succes) 10%, var(--papier)) !important; }
+.border-emerald-200 { border-color: color-mix(in srgb, var(--succes) 40%, var(--filet)) !important; }
+.bg-sky-50, .bg-blue-50 { background-color: color-mix(in srgb, var(--info) 8%, var(--papier)) !important; }
+.border-sky-200, .border-blue-200 { border-color: color-mix(in srgb, var(--info) 35%, var(--filet)) !important; }
+.bg-rose-50, .bg-red-50 { background-color: color-mix(in srgb, var(--danger) 10%, var(--papier)) !important; }
+.border-rose-200, .border-red-200 { border-color: color-mix(in srgb, var(--danger) 40%, var(--filet)) !important; }
+
+/* ---- La barre du haut : sombre, monospace. Les regles ne descendent
+   QUE sur les enfants de la barre elle-meme — jamais dans les menus
+   deroulants qui, eux, sont des panneaux papier (audits B1/B2/B3). ---- */
+nav.h-12 {
+  background: var(--barre) !important;
+  border-bottom: none !important;
+  color: var(--barre-texte);
+  font-family: ui-monospace, Menlo, monospace;
+}
+nav.h-12 > a, nav.h-12 > button, nav.h-12 > label, nav.h-12 > span,
+nav.h-12 > div > button, nav.h-12 > div > a {
+  color: color-mix(in srgb, var(--barre-texte) 78%, transparent) !important;
+}
+nav.h-12 > a:hover, nav.h-12 > button:hover, nav.h-12 > label:hover,
+nav.h-12 > div > button:hover {
+  color: var(--barre-texte) !important;
+  background: rgba(255, 255, 255, .12) !important;
+}
+nav.h-12 [data-testid="lien-accueil"] {
+  color: var(--barre-texte) !important;
+  font-weight: 700; letter-spacing: .04em;
+}
+#titre-toolbar { color: color-mix(in srgb, var(--barre-texte) 60%, transparent) !important; }
+nav.h-12 .bg-slate-200 { background-color: rgba(255, 255, 255, .25) !important; }
+.btn-toolbar {
+  font-family: ui-monospace, Menlo, monospace;
+  color: color-mix(in srgb, var(--barre-texte) 78%, transparent);
+  background: transparent; border: none;
+}
+.btn-toolbar:hover { background: rgba(255, 255, 255, .12); color: var(--barre-texte); }
+nav.h-12 .btn-toolbar-actif {
+  background: rgba(255, 255, 255, .16) !important;
+  color: var(--barre-texte) !important;
+}
+/* Le compteur du bouton taches : blanc sur le vert Tailwind en dur
+   (hypostasia.css:1936) donnait 3,30:1 pour un texte de 11px.
+   ATTENTION — c'est ici qu'on retombe dans le piege deja rencontre au
+   lot T10 : un fond semantique PLEIN ne peut pas porter du `white`.
+   En theme sombre, --succes/--info/--danger sont des pastels clairs
+   (ils y servent de TEXTE sur fond sombre) : le blanc figé de
+   hypostasia.css:1920 y tombait a 1,52:1 — pire qu'avant le correctif.
+   --papier, lui, suit le theme : quasi blanc en clair, sombre en
+   sombre. / A filled semantic background cannot carry hard-coded
+   white: in dark mode these tokens are light. --papier follows. */
+/* Le fond PAR DEFAUT du badge (hypostasia.css:1901, #94a3b8 avec du
+   blanc) restait le dernier `white` fige du composant : 2,56:1. Il ne
+   s'affiche jamais en pratique — un badge sans tache n'est pas peint —
+   mais un rescape de remap finit toujours par ressortir un jour.
+   / The default state was the last hard-coded white here. */
+.badge-taches { background: var(--encre-douce) !important; }
+.badge-taches,
+.btn-taches-succes .badge-taches,
+.btn-taches-en_cours .badge-taches,
+.btn-taches-erreur .badge-taches { color: var(--papier) !important; }
+.btn-taches-succes .badge-taches { background: var(--succes) !important; }
+.btn-taches-en_cours .badge-taches { background: var(--info) !important; }
+.btn-taches-erreur .badge-taches { background: var(--danger) !important; }
+
+/* Les 4 etats du bouton taches, lisibles sur la barre (audit a11y I1). */
+nav.h-12 .btn-taches-neutre { color: color-mix(in srgb, var(--barre-texte) 70%, transparent) !important; }
+nav.h-12 .btn-taches-en_cours { color: #9ec5ff !important; }
+nav.h-12 .btn-taches-succes { color: #7fd9b9 !important; }
+nav.h-12 .btn-taches-erreur { color: #ffa4a2 !important; }
+/* Le bouton du menu utilisateur : son libelle est un <span> a quatre
+   niveaux sous nav.h-12, donc hors de portee des selecteurs « enfant
+   direct » ci-dessus — il heritait du remappage .text-slate-600 ->
+   encre et devenait NOIR SUR NOIR (verification T4 : 1:1). Meme
+   histoire pour l'avatar (.bg-blue-100 n'est pas compile par Tailwind :
+   aucun fond) et pour le lien Connexion de l'anonyme (--info sur la
+   barre : 2,17:1). / User-menu label, avatar and login link were
+   invisible or under 3:1 on the dark bar. */
+nav.h-12 #btn-user-menu > span,
+nav.h-12 [data-testid="btn-login"] {
+  color: color-mix(in srgb, var(--barre-texte) 78%, transparent) !important;
+}
+nav.h-12 #btn-user-menu:hover > span,
+nav.h-12 [data-testid="btn-login"]:hover { color: var(--barre-texte) !important; }
+nav.h-12 #btn-user-menu > span.rounded-full {
+  background: rgba(255, 255, 255, .16) !important;
+  color: var(--barre-texte) !important;
+}
+nav.h-12 #btn-user-menu:hover { background: rgba(255, 255, 255, .12) !important; }
+
+/* Les MENUS DEROULANTS de la barre sont des panneaux papier : texte
+   encre, jamais la couleur de la barre (audits B1/B2). */
+#user-menu-dropdown, .taches-dropdown-wrapper, #arbre-ctx-menu {
+  background: var(--papier) !important;
+  border-color: var(--filet) !important;
+  font-family: ui-monospace, Menlo, monospace;
+}
+#user-menu-dropdown a, #user-menu-dropdown button,
+.taches-dropdown-wrapper a, .taches-dropdown-wrapper button,
+.taches-dropdown-wrapper span, .taches-dropdown-wrapper h3 {
+  color: var(--encre) !important;
+}
+#user-menu-dropdown a:hover, #user-menu-dropdown button:hover,
+.taches-dropdown-wrapper a:hover, .taches-dropdown-wrapper button:hover {
+  background: var(--revelation) !important;
+  color: var(--encre) !important;
+}
+.taches-dropdown-wrapper .taches-meta-lien { color: var(--info) !important; }
+
+/* ---- L'arbre lateral et les drawers : papier panneau, filets,
+   metadonnees en monospace comme l'etalon (agent visuel n°9). ---- */
+#arbre-overlay, #drawer-overlay {
+  background: var(--papier-panneau) !important;
+  border-right: 1px solid var(--filet);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, .14) !important;
+  font-family: ui-monospace, Menlo, monospace;
+}
+#drawer-overlay { border-right: none; border-left: 1px solid var(--filet); }
+#arbre-overlay .arbre-footer-btn, #arbre-overlay .btn-aligner-dossier {
+  background: var(--papier) !important;
+  color: var(--encre-douce) !important;
+  /* Leur bordure est leur seul contour : 3:1 (verification T7). */
+  border-color: var(--filet-controle) !important;
+}
+#arbre-overlay .arbre-footer-btn:hover, #arbre-overlay .btn-aligner-dossier:hover {
+  background: var(--revelation) !important;
+  color: var(--encre) !important;
+}
+#arbre-overlay .arbre-item-actif {
+  background: var(--revelation) !important;
+  border-color: var(--statut-commente) !important;
+}
+#drawer-overlay .drawer-carte-compacte { border-radius: 4px; }
+#drawer-overlay .drawer-carte-compacte.drawer-carte-active {
+  background: var(--revelation) !important;
+  border-color: var(--statut-commente) !important;
+}
+
+/* ---- L'ACCUEIL (onboarding) : le premier ecran d'un visiteur ne
+   reste pas a l'ancien design (agent visuel n°1-2). ---- */
+.onboarding-section, .onboarding-etape {
+  background: var(--papier-panneau) !important;
+  border-color: var(--filet) !important;
+}
+.onboarding-section h2, .onboarding-section h3 { color: var(--encre) !important; }
+.onboarding-section p, .onboarding-section-desc, .onboarding-statut-desc,
+.onboarding-section-desc strong {
+  color: var(--encre-douce) !important;
+}
+.onboarding-etape-num {
+  background: color-mix(in srgb, var(--statut-commente) 15%, var(--papier)) !important;
+  color: var(--encre) !important;
+}
+.onboarding-btn-import, .btn-synthese {
+  background: var(--encre) !important;
+  color: var(--papier) !important;
+  border-color: var(--encre) !important;
+}
+/* La couche v2 ne visait que .onboarding-section : le titre, le
+   sous-titre, les etapes et les raccourcis vivent AILLEURS dans l'arbre
+   et gardaient leurs couleurs Tailwind en dur — invisible des que le
+   fond passe au sombre (1,02:1, verification T7). On couvre les vrais
+   selecteurs. / The v2 layer only targeted .onboarding-section; the
+   header, steps and shortcuts kept hard-coded Tailwind colors. */
+.onboarding-titre, .onboarding-etape-titre, .onboarding-section-titre {
+  color: var(--encre) !important;
+}
+.onboarding-sous-titre, .onboarding-sous-titre strong,
+.onboarding-etape-desc, .onboarding-raccourci, .onboarding-raccourci span,
+.onboarding-statut-desc {
+  color: var(--encre-douce) !important;
+}
+.onboarding-contenu { background: var(--papier) !important; }
+/* Le seul ilot reste blanc de toute la campagne : une couleur locale en
+   dur, hors de portee des utilitaires re-teintes. */
+.onboarding-statut {
+  background: var(--papier-panneau) !important;
+  color: var(--encre) !important;
+}
+.aide-kbd {
+  background: var(--papier-creux) !important;
+  /* La regle qui donnait son cadre a la touche vit dans aide_desktop,
+     non inclus sur l'accueil : sans largeur, la pastille restait une
+     lettre nue (verification T7). */
+  border: 1px solid var(--filet-controle) !important;
+  border-radius: 3px; padding: .05rem .3rem;
+  color: var(--encre) !important;
+  font-family: ui-monospace, Menlo, monospace;
+}
+/* Les 4 pastilles numerotees portent leur couleur en style= inline :
+   le style local gagne, on force. */
+.onboarding-etape-num[style] {
+  background: color-mix(in srgb, var(--statut-commente) 15%, var(--papier)) !important;
+  color: var(--encre) !important;
+}
+.onglet-accueil { color: var(--encre-douce) !important; font-family: ui-monospace, Menlo, monospace; }
+.onglet-accueil.active {
+  color: var(--encre) !important;
+  /* Meme dette que l'onglet du corpus : ambre pur = 2,20:1 en clair. */
+  border-color: var(--filet-statut-commente) !important;
+}
+
+/* ---- Les soulignements de STATUT : ce sont des indicateurs d'etat,
+   donc soumis aux 3:1 de WCAG 1.4.11. Ceux de hypostasia.css:237-244
+   sont ecrits en rgba() a alpha fixe et tombent a 1,09:1 en clair,
+   1,37:1 en sombre (verification T7) — aucun remappage de token ne
+   pouvait les atteindre. L'ambre pur lui-meme ne fait que 2,2:1 sur le
+   papier clair : en clair il est FONCE de 30 % d'encre, en sombre il
+   reste tel quel (7,9:1). Le fond, lui, garde sa teinte legere.
+   / Status underlines are state indicators: 3:1 required. The old
+   rgba() values could not be reached by a token remap. ---- */
+:root {
+  --filet-statut-nouveau: var(--encre-douce);
+  --filet-statut-commente: color-mix(in srgb, var(--statut-commente) 70%, var(--encre));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --filet-statut-commente: var(--statut-commente); }
+}
+:root[data-theme="dark"] { --filet-statut-commente: var(--statut-commente); }
+
+/* Les <mark> du rendu par elements (BR-D, verif visuelle du 9 aout) :
+   sans ces deux lignes, les DEFAUTS NAVIGATEUR de <mark> s'appliquent —
+   texte MarkText (noir dur : 1,28:1 en sombre) et fond Mark (jaune
+   fluo) pour tout statut sans regle, dont non_pertinent (4 182
+   extractions en base). Specificite (0,1,1) calculee pour PERDRE
+   contre les fonds par statut (0,2,0) ci-dessous : le reset ne les
+   ecrase pas. / <mark> UA defaults reset: MarkText black text and
+   fluo-yellow Mark background; specificity chosen to lose against the
+   per-status backgrounds below. */
+mark.hl-extraction {
+  background: none;
+  color: inherit;
+  padding: .04em 0;
+}
+
+.hl-extraction[data-statut="nouveau"] {
+  background-color: color-mix(in srgb, var(--encre-douce) 8%, transparent);
+  border-bottom-color: var(--filet-statut-nouveau);
+}
+.hl-extraction[data-statut="commente"] {
+  background-color: color-mix(in srgb, var(--statut-commente) 14%, transparent);
+  border-bottom-color: var(--filet-statut-commente);
+}
+/* L'onglet actif du corpus a la meme dette, mais sa regle vit dans
+   _style_maquette.html — un <style> inline, donc plus tard dans le
+   document qu'une feuille liee : a specificite egale il gagnerait
+   toujours. Le token y est applique a la source. */
+
+/* ---- Les surlignages d'extraction : les statuts RICHES restes en
+   base (controverse/consensuel/discutable) reprennent des couleurs —
+   la couche etait morte pour eux (agent visuel n°4). ---- */
+.hl-extraction[data-statut="consensuel"] {
+  background: color-mix(in srgb, var(--succes) 14%, transparent);
+  border-bottom-color: var(--succes);
+}
+.hl-extraction[data-statut="controverse"] {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-bottom-color: var(--danger);
+}
+.hl-extraction[data-statut="discutable"], .hl-extraction[data-statut="discute"] {
+  background: color-mix(in srgb, var(--statut-commente) 16%, transparent);
+  /* Ambre pur sur son propre fond teinte : 1,77:1, le soulignement le
+     plus faible du produit (verification T7). Le token le fonce en
+     clair et le laisse pur en sombre. */
+  border-bottom-color: var(--filet-statut-commente);
+}
+
+/* =========================================================================
+   LOT T4 — L'ECRAN DE LECTURE
+   Le corps est deja en Georgia/encre (D1). Restaient : les liens et les
+   pastilles de marge encore bleus, les legendes et le chrome de la page
+   en B612 la ou l'etalon veut du monospace, et la cible tactile des
+   pastilles. Aucun markup touche : mark.portion est fige par
+   front/tests/test_rendu_elements.py.
+   / Reading screen: links and margin dots off blue, mono chrome, dot
+   hit area. CSS only — the mark.portion markup is frozen by tests.
+   ========================================================================= */
+
+/* Liens du corps : --info, souligne franc (l'etalon souligne ses
+   renvois : corpus.html:283). Bat .lecture-article a de hypostasia.css
+   (meme specificite, feuille chargee apres) et les .prose-a de
+   Tailwind (:where() ne compte pas). */
+.lecture-article a, #readability-content a {
+  color: var(--info);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--info) 45%, transparent);
+  text-underline-offset: 3px;
+}
+.lecture-article a:hover, #readability-content a:hover {
+  color: var(--info);
+  text-decoration-color: var(--info);
+}
+/* Citation en bloc : filet --info a gauche, creux papier (etalon
+   corpus.html:176). La COULEUR DU TEXTE doit y etre reprise : sans
+   elle, la citation garde le gris de Tailwind Typography et tombe a
+   1,07:1 sur le creux sombre — un bloc vide avec une barre bleue
+   (verification finale T4). / The text color must be restated, or the
+   quote keeps Tailwind's grey and is invisible in dark mode. */
+.lecture-article blockquote, #readability-content blockquote {
+  border-left-color: var(--info);
+  background: var(--papier-creux);
+  border-radius: 0 4px 4px 0;
+  color: var(--encre);
+}
+
+/* Meme cause pour tout le reste de Tailwind Typography : ses couleurs
+   vivent dans des variables `--tw-prose-*` en oklch, qu'aucun de nos
+   selecteurs ne touche. On les REMAPPE a la source, comme les echelles
+   de couleur plus haut — une ligne par role plutot qu'une regle par
+   element. / Remap the Typography plugin's own variables at the source. */
+.prose, .lecture-article, #readability-content {
+  --tw-prose-body: var(--encre);
+  --tw-prose-headings: var(--encre);
+  --tw-prose-lead: var(--encre-douce);
+  --tw-prose-links: var(--info);
+  --tw-prose-bold: var(--encre);
+  --tw-prose-counters: var(--encre-douce);
+  --tw-prose-bullets: var(--filet-controle);
+  --tw-prose-hr: var(--filet);
+  --tw-prose-quotes: var(--encre);
+  --tw-prose-quote-borders: var(--info);
+  --tw-prose-captions: var(--encre-douce);
+  --tw-prose-code: var(--encre);
+  --tw-prose-pre-code: var(--encre);
+  --tw-prose-pre-bg: var(--papier-creux);
+  --tw-prose-th-borders: var(--filet-controle);
+  --tw-prose-td-borders: var(--filet);
+}
+/* Legendes, en-tetes de tableau, code : le chrome du contenu passe en
+   monospace comme l'etalon, le corps reste serif. */
+.lecture-article figcaption, #readability-content figcaption {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--encre-douce);
+}
+.lecture-article th, #readability-content th {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  background: var(--papier-creux);
+  color: var(--encre);
+}
+
+/* Le chrome de la page de lecture (source, exporter, historique,
+   pilules de version) : monospace dense de l'etalon. Le corps de la
+   note n'est pas concerne — #readability-content n'est pas cible. */
+.lecture-zone-conteneur > div a, .lecture-zone-conteneur > div button,
+.lecture-zone-conteneur > div span, #switcher-versions a,
+#switcher-versions span {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.lecture-zone-conteneur > div a, .lecture-zone-conteneur > div button {
+  letter-spacing: .03em;
+}
+#switcher-versions a[id^="pill-version-"]:hover {
+  background: var(--revelation) !important;
+  color: var(--encre) !important;
+}
+[data-testid="btn-comparer-versions"]:hover {
+  background: color-mix(in srgb, var(--statut-commente) 18%, var(--papier)) !important;
+  color: var(--encre) !important;
+}
+
+.indicateur-statut[data-statut="nouveau"] { border-color: var(--statut-nouveau); }
+
+/* Les ANIMATIONS de flash etaient en bleu/indigo Tailwind ecrits en dur
+   dans des @keyframes — un remappage de token ne pouvait pas les
+   atteindre (verification Playwright T4 : flash bleu a chaque clic sur
+   un passage annote). On REDEFINIT les keyframes du meme nom ici :
+   la derniere definition gagne, hypostasia.css n'est pas touchee.
+   / Flash keyframes had hard-coded Tailwind blues; same-name keyframes
+   redefined here win, without editing the old sheet. */
+@keyframes hl-pulse {
+  0%   { background-color: color-mix(in srgb, var(--statut-commente) 25%, transparent); }
+  70%  { background-color: color-mix(in srgb, var(--statut-commente) 10%, transparent); }
+  100% { background-color: transparent; }
+}
+@keyframes bloc-flash-pulse {
+  0%   { box-shadow: 0 0 0 3px color-mix(in srgb, var(--statut-commente) 50%, transparent); }
+  50%  { box-shadow: 0 0 0 3px color-mix(in srgb, var(--statut-commente) 20%, transparent); }
+  100% { box-shadow: none; }
+}
+/* Meme famille : le passage isole par le bottom sheet (hypostasia.css
+   :1538) etait indigo. */
+body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
+  background-color: color-mix(in srgb, var(--statut-commente) 18%, transparent) !important;
+  border-bottom: 2px solid var(--statut-commente) !important;
+}
+
+/* =========================================================================
+   LOT T8 — LES OVERLAYS
+   Modale d'alignement, toasts WebSocket, contenu du drawer d'analyses,
+   bottom sheet. Tous portaient des `white` et des couleurs Tailwind
+   ecrites en dur, invisibles au remappage de tokens — et fatals en
+   theme sombre. On surcharge ici, hypostasia.css reste intacte.
+   / Overlays: hard-coded whites and Tailwind colors, fatal in dark
+   mode. Overridden here; the old sheet is left untouched.
+   ========================================================================= */
+
+/* ---- La modale d'alignement (hypostasia.css:1031-1210) : cinq fonds
+   blancs, dont trois sticky, plus deux cellules colorees et un onglet
+   actif bleu. ---- */
+/* ATTENTION aux noms : `.tableau-alignement` est la classe de
+   l'ETALON (tmp/maquettes/corpus.html:408). Le gabarit Django, lui,
+   emploie `.alignement-table` et des cellules `.alignement-th-page`
+   (sticky haut), `.alignement-th-corner` (coin) et
+   `.alignement-td-hypostase` (colonne sticky gauche), dont le
+   `background: white` est ecrit en dur dans hypostasia.css:1068,1088,
+   1101. Viser les classes de la maquette ne matchait RIEN : 35 fonds
+   blancs survivaient, jusqu'a 1,45:1 en sombre (verification T8).
+   / The mockup's class names are not the app's; target the real ones. */
+.alignement-modale, .alignement-header, .alignement-footer,
+.alignement-table thead th, .alignement-table tbody th,
+.alignement-th-page, .alignement-th-corner, .alignement-td-hypostase {
+  background: var(--papier) !important;
+  color: var(--encre);
+}
+.alignement-modale { border: 1px solid var(--filet); }
+.alignement-table th, .alignement-table td,
+.alignement-th-page, .alignement-th-corner, .alignement-td-hypostase {
+  border-color: var(--filet) !important;
+}
+.alignement-th-page, .alignement-th-corner {
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--encre-douce) !important;
+}
+/* Les deux provenances typographiques (hypostasia.css:74-75) n'etaient
+   remappees nulle part : 2,40:1 en sombre pour tout .typo-machine. */
+:root { --typo-machine-color: var(--encre-douce); --typo-citation-color: var(--encre); }
+/* Les deux cellules de difference : le sens (retire / ajoute) est porte
+   par la teinte ET par le filet gauche, jamais par la teinte seule. */
+.alignement-cell-supprime {
+  background: color-mix(in srgb, var(--danger) 10%, var(--papier)) !important;
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--filet)) !important;
+}
+.alignement-cell-ajoute {
+  background: color-mix(in srgb, var(--succes) 10%, var(--papier)) !important;
+  border-color: color-mix(in srgb, var(--succes) 40%, var(--filet)) !important;
+}
+.onglet-comparaison {
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--encre-douce);
+  background: var(--papier-creux);
+  border-color: var(--filet-controle);
+}
+.onglet-comparaison:hover { color: var(--encre); background: var(--revelation); }
+.onglet-comparaison.active {
+  color: var(--encre) !important;
+  background: var(--papier) !important;
+  border-color: var(--filet-statut-commente) !important;
+  font-weight: 700;
+}
+.alignement-backdrop, #alignement-modale-backdrop { background: rgba(0, 0, 0, .45) !important; }
+
+/* ---- Les TOASTS. Constat du lot T8, a verser au lot T9 : les 150
+   lignes de `.ws-toast*` (hypostasia.css:1668-1810) sont du CSS MORT —
+   aucune occurrence de `ws-toast` dans un .js, un .html ou un .py du
+   depot. Les deux systemes de toasts annonces par le cahier des
+   charges (§ 1.6 b) n'en font plus qu'un : SweetAlert2. C'est donc lui
+   qu'on habille. / The `.ws-toast` block is dead CSS; only SweetAlert
+   remains. ---- */
+.swal2-popup {
+  background: var(--papier) !important;
+  color: var(--encre) !important;
+  border: 1px solid var(--filet);
+  border-radius: 6px;
+  font-family: ui-monospace, Menlo, monospace;
+}
+.swal2-title, .swal2-html-container { color: var(--encre) !important; }
+.swal2-toast { box-shadow: 0 4px 18px rgba(0, 0, 0, .18) !important; }
+.swal2-actions .swal2-confirm {
+  background: var(--encre) !important; color: var(--papier) !important;
+  border-radius: 4px !important;
+}
+.swal2-actions .swal2-cancel {
+  background: var(--papier) !important; color: var(--encre) !important;
+  border: 1px solid var(--filet-controle) !important; border-radius: 4px !important;
+}
+.swal2-actions .swal2-deny {
+  background: var(--danger) !important; color: var(--papier) !important;
+  border-radius: 4px !important;
+}
+.swal2-container.swal2-backdrop-show { background: rgba(0, 0, 0, .45) !important; }
+/* En sombre, le bouton principal « encre sur papier » s'inverse. */
+:root[data-theme="dark"] .swal2-actions .swal2-confirm {
+  background: var(--info) !important; color: var(--papier) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .swal2-actions .swal2-confirm {
+    background: var(--info) !important; color: var(--papier) !important;
+  }
+}
+
+/* ---- Le contenu du drawer d'analyses : les badges d'hypostase.
+   ECART ASSUME (cahier des charges § 2.5, E2) : l'etalon les veut en
+   CONTOUR (« trois badges cote a cote ne doivent pas peser plus que la
+   phrase qu'ils qualifient »), le produit les remplit depuis
+   hypostasia.css:47-70. Le remplissage est conserve — il est cite en
+   style= inline dans _card_body.html, hors de portee — mais les fonds
+   pastel sont RAMENES a la palette : teinte de la famille a 14 % du
+   papier, texte en teinte de famille (elle-meme basculee en sombre).
+   / Family badges keep their fill (inline style), but the pastel
+   backgrounds are re-derived from the family tint. ---- */
+:root {
+  /* Quatre familles etaient DEJA limites sur du papier nu (objet 4,64,
+     speculatif 4,92) : sur un fond derive de leur propre teinte elles
+     passaient sous 4,5:1 (verification T8). On les fonce d'un cran —
+     le gain vaut partout ou ces tokens servent de texte, pas seulement
+     dans les badges. / Four family tints were already borderline. */
+  --hypostase-objet-text:#4b5563;      /* etait #64748b */
+  --hypostase-speculatif-text:#92400e;  /* etait #b45309 */
+  --hypostase-mode-text:#155e75;        /* etait #0e7490 */
+  --hypostase-empirique-text:#065f46;   /* etait #047857 */
+
+  --hypostase-epistemique-bg: color-mix(in srgb, var(--hypostase-epistemique-text) 14%, var(--papier));
+  --hypostase-empirique-bg: color-mix(in srgb, var(--hypostase-empirique-text) 14%, var(--papier));
+  --hypostase-speculatif-bg: color-mix(in srgb, var(--hypostase-speculatif-text) 14%, var(--papier));
+  --hypostase-structurel-bg: color-mix(in srgb, var(--hypostase-structurel-text) 14%, var(--papier));
+  --hypostase-normatif-bg: color-mix(in srgb, var(--hypostase-normatif-text) 14%, var(--papier));
+  --hypostase-problematique-bg: color-mix(in srgb, var(--hypostase-problematique-text) 14%, var(--papier));
+  --hypostase-mode-bg: color-mix(in srgb, var(--hypostase-mode-text) 14%, var(--papier));
+  --hypostase-objet-bg: color-mix(in srgb, var(--hypostase-objet-text) 14%, var(--papier));
+}
+/* En sombre, un texte clair sur un fond a 14 % de lui-meme reste
+   lisible ; c'est la meme formule, les tokens *-text ayant bascule. */
+
+/* ---- Le bottom sheet et sa poignee. ---- */
+#bottom-sheet-backdrop, #drawer-backdrop, #arbre-backdrop {
+  background: rgba(0, 0, 0, .45) !important;
+}
+#bottom-sheet .poignee, .bottom-sheet-poignee {
+  background: var(--filet-controle) !important;
+}
+#bottom-sheet-contenu { color: var(--encre); }
+
+/* =========================================================================
+   LE FIL D'ARIANE (lot « architecture de page »)
+   Source : tmp/maquettes/corpus.html:134-163 et :530-541.
+   Il vit HORS de .zone-corpus — il coiffe l'ecran, il n'en fait pas
+   partie — donc ses regles sont ici et non dans le design system scope.
+   Il est colle sous la barre : le conteneur defilant est #zone-lecture,
+   pas la fenetre, donc `top:0` s'y refere.
+   ATTENTION (commentaire explicite de l'etalon) : overflow doit rester
+   VISIBLE, sinon le menu de bascule est invisible.
+   / The breadcrumb sits above the zone, not inside it. It sticks to the
+   top of #zone-lecture, the real scrolling container. Overflow must
+   stay visible or the switcher menu is clipped.
+   ========================================================================= */
+.fil-ariane {
+  position: sticky; top: 0; z-index: 66;
+  display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
+  min-height: 2rem; margin: -2rem -2rem 1rem; padding: .35rem 1.5rem;
+  background: var(--papier-creux); border-bottom: 1px solid var(--filet);
+  font-family: ui-monospace, Menlo, monospace; font-size: .65rem;
+  color: var(--encre-douce);
+  overflow: visible;
+}
+.fil-ariane a, .fil-ariane .lien {
+  color: inherit; text-decoration: none; cursor: pointer; background: none;
+  border: none; font: inherit; border-radius: 3px;
+  /* Cible elargie sans decaler la ligne (WCAG 2.5.8). */
+  padding: .3rem .25rem; margin: -.3rem 0;
+}
+.fil-ariane a:hover, .fil-ariane .lien:hover {
+  color: var(--encre); background: var(--papier); text-decoration: underline;
+}
+.fil-ariane .courant { color: var(--encre); font-weight: 600; }
+/* Le chevron etait a 2,01:1 (opacite .5). Il est aria-hidden, donc
+   invisible aux lecteurs d'ecran, mais il structure la lecture a l'oeil :
+   on le laisse discret sans le rendre illisible.
+   / The separator was at 2.01:1; discreet is not the same as unreadable. */
+.fil-ariane .sep { opacity: .75; }
+.bascule-carnet { position: relative; }
+.menu-bascule {
+  position: absolute; top: calc(100% + .25rem); left: 0; z-index: 95;
+  min-width: 15rem; max-height: 60vh; overflow-y: auto;
+  background: var(--papier); border: 1px solid var(--filet); border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .16); padding: .3rem; display: none;
+}
+.menu-bascule.est-visible { display: block; }
+.menu-bascule button {
+  display: flex; width: 100%; align-items: center; gap: .4rem; text-align: left;
+  background: none; border: none; padding: .35rem .45rem; border-radius: 4px;
+  cursor: pointer; font-family: ui-monospace, Menlo, monospace; font-size: .65rem;
+  color: var(--encre);
+}
+.menu-bascule button:hover { background: var(--papier-creux); }
+/* Quatre carnets s'appellent « Mes imports » : le proprietaire les
+   separe, a l'oeil comme au lecteur d'ecran.
+   / Four notebooks share a name; the owner tells them apart. */
+.menu-bascule .proprietaire-du-carnet { color: var(--encre-douce); font-size: .58rem; }
+/* Le carnet courant n'est pas signale par la seule graisse : une
+   marque le nomme aussi. / Not by weight alone: a mark names it. */
+.menu-bascule button[aria-current="true"] { font-weight: 700; }
+.menu-bascule button[aria-current="true"]::after {
+  content: "· courant"; margin-left: auto; font-weight: 400;
+  color: var(--encre-douce); font-size: .58rem;
+}
+/* Dans la zone de lecture, le padding du conteneur est p-8 (2rem) :
+   les marges negatives ci-dessus le compensent pour que le fil aille
+   d'un bord a l'autre. Sur mobile ce padding tombe a 1rem. */
+@media (max-width: 640px) {
+  .fil-ariane { margin: -1rem -1rem 1rem; padding: .35rem 1rem; }
+}
+/* LE FIL DOIT COLLER AU HAUT DE LA ZONE. #zone-lecture porte `p-8` :
+   un element sticky se cale sur la boite de CONTENU, donc le fil se
+   figeait 32px plus bas et laissait defiler du texte dans la bande
+   au-dessus de lui (verification : navTop 80 contre zoneTop 48).
+   On retire ce padding haut UNIQUEMENT quand un fil est present, et le
+   fil rend l'espace par sa marge basse. Sans :has(), on retombe sur
+   l'ancien comportement — imparfait, jamais casse.
+   / A sticky element sticks to the content box: the container's top
+   padding pushed the breadcrumb 32px down. Drop it only when a
+   breadcrumb is there. */
+@supports selector(:has(*)) {
+  #zone-lecture:has(> .fil-ariane) { padding-top: 0; }
+  #zone-lecture:has(> .fil-ariane) > .fil-ariane {
+    margin-top: 0; margin-bottom: 1.5rem;
+  }
+}
+
+/* Un tableau large (transcription audio, donnees) faisait deborder la
+   zone de lecture a 390px : il defile DANS sa boite plutot que de
+   pousser la page. Constat de la verification « architecture de page »,
+   defaut pre-existant. / Wide tables scroll inside their own box. */
+#readability-content table, .lecture-article table {
+  display: block; max-width: 100%; overflow-x: auto;
+}
+#zone-lecture .pilules-locuteurs, #zone-lecture #filtre-locuteurs {
+  display: flex; flex-wrap: wrap; max-width: 100%;
+}
+/* Le vrai coupable du debordement a 390px n'etait pas le tableau mais
+   le formulaire « + Ajouter a… » du bloc carnets d'une note : un flex
+   sans wrap dont le <select> porte les noms de tous les carnets
+   disponibles (« … — PUBLIC : la note y sera visible par tous »).
+   Il poussait #zone-lecture a 558px de large.
+   / The overflow came from the "add to notebook" form: a nowrap flex
+   whose select holds every notebook name. */
+[data-testid="corpus-bloc-ajouter-form"],
+[data-testid="corpus-base-ajouter-form"] { flex-wrap: wrap; }
+[data-testid="corpus-bloc-ajouter-select"],
+[data-testid="corpus-base-ajouter-select"] { max-width: 100%; }
+@media (max-width: 640px) {
+  #zone-lecture form.flex { flex-wrap: wrap; }
+  #zone-lecture select { max-width: 100%; }
+}
+
+/* ---- Divers chrome. ---- */
+#zone-lecture { background: var(--papier); }
+#bottom-sheet { background: var(--papier-panneau) !important; }
+/* Son bouton de fermeture etait a 4,49:1 — sous le seuil d'un cheveu
+   (verification T4). --encre-douce le porte a 5,2:1. */
+.btn-fermer-bottom-sheet { color: var(--encre-douce) !important; }
+input, select, textarea {
+  font-family: inherit;
+  background: var(--papier);
+  border-color: var(--filet-controle);
+  color: var(--encre);
+}
+::selection { background: color-mix(in srgb, var(--statut-commente) 30%, transparent); }
+
+/* ---- Le LIEN D'EVITEMENT : hors de l'ecran tant qu'il n'a pas le
+   focus, puis pose par-dessus la barre. Il n'est jamais display:none —
+   un lien masque ainsi n'est pas focusable, donc inutile.
+   / Skip link: off-screen until focused, never display:none. ---- */
+.lien-evitement {
+  position: fixed; top: 0; left: 0; z-index: 200;
+  transform: translateY(-120%);
+  background: var(--papier); color: var(--encre);
+  border: 1px solid var(--filet-controle); border-radius: 0 0 4px 0;
+  padding: .5rem .9rem; text-decoration: none;
+  font-family: ui-monospace, Menlo, monospace; font-size: .7rem;
+}
+.lien-evitement:focus { transform: translateY(0); }
+
+/* ---- :has() n'existe pas avant Safari 15.4 / Firefox 121. La puce de
+   filtre cochee y perdrait TOUTE marque visible : on lui redonne le
+   contour natif de la case. / Fallback for engines without :has(). ---- */
+@supports not selector(:has(*)) {
+  .zone-corpus .puce-categorie input {
+    position: static; opacity: 1; pointer-events: auto;
+    accent-color: var(--encre);
+  }
+  .zone-corpus .puce-categorie .point { display: none; }
+}
+
+/* ---- Focus visible : info sur papier, PAPIER sur la barre sombre
+   (audit a11y B3 : 2,18:1 -> 16,79:1). ---- */
+:focus-visible { outline: 2px solid var(--info); outline-offset: 1px; }
+nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
+
+/* ---- Mouvements : neutralises pour qui le demande (audit a11y I3 —
+   46 transitions de hypostasia.css comprises). ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* =========================================================================
+   U1 — LE MODE STRUCTURE : boutons d'operations d'element
+   Les groupes .actions-element (dans chaque bloc) et les placeholders
+   .element-masque sont RENDUS pour qui peut ecrire, mais INVISIBLES tant
+   que #zone-lecture ne porte pas .mode-structure (bouton a bascule).
+   display:none les retire aussi de l'arbre d'accessibilite : un lecteur
+   d'ecran ne traverse pas trente boutons au fil du texte en mode lecture.
+   / U1 structure mode: per-block action buttons and masked-element
+   placeholders, hidden (display:none, out of the a11y tree too) until
+   #zone-lecture carries .mode-structure.
+   ========================================================================= */
+
+.actions-element { display: none; }
+#zone-lecture.mode-structure .actions-element {
+  display: inline-flex; gap: .3rem; flex-wrap: wrap;
+  margin-left: .5rem; vertical-align: middle;
+}
+/* Les boutons : petits, monospace, neutres — la grammaire des controles
+   discrets de l'etalon (.bouton-icone). Le filet de contour est
+   --filet-controle : le --filet nu fait 1,28:1 la ou WCAG 1.4.11 veut
+   3:1 (lecon T5). Taille de police FIXE : le groupe vit aussi dans des
+   h2/h3. / Small mono neutral buttons; --filet-controle for 3:1. */
+.actions-element button {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .68rem; line-height: 1; font-weight: 400;
+  color: var(--encre-douce); background: var(--papier);
+  border: 1px solid var(--filet-controle); border-radius: 4px;
+  /* min-height 24px : cible WCAG 2.5.8 (les ~22 px mesures en
+     verification U1 passaient dessous). / 24px target size. */
+  padding: .32rem .55rem; min-height: 24px; cursor: pointer;
+}
+.actions-element button:hover {
+  color: var(--encre); background: var(--papier-creux);
+}
+.actions-element button.danger:hover {
+  color: var(--danger); border-color: var(--danger);
+}
+
+/* Le placeholder d'un element masque : visible en mode structure
+   seulement, en retrait assume — filet pointille, encre douce (4,6:1
+   sur papier clair), JAMAIS un fond semantique plein sous du texte
+   fige. / Masked-element placeholder, structure mode only. */
+.element-masque { display: none; }
+#zone-lecture.mode-structure .element-masque {
+  display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
+  border: 1px dashed var(--filet-controle); border-radius: 5px;
+  background: var(--papier-creux); color: var(--encre-douce);
+  padding: .45rem .7rem; margin: .6rem 0; font-size: .85rem;
+  list-style: none;
+}
+.element-masque .etiquette {
+  font-family: ui-monospace, Menlo, monospace; font-size: .62rem;
+  text-transform: uppercase; letter-spacing: .07em;
+}
+.element-masque .extrait { font-style: italic; }
+.element-masque button {
+  font-family: ui-monospace, Menlo, monospace; font-size: .68rem;
+  color: var(--encre); background: var(--papier);
+  border: 1px solid var(--filet-controle); border-radius: 4px;
+  padding: .28rem .5rem; cursor: pointer;
+}
+.element-masque button:hover { background: var(--papier-creux); }
+
+/* Le dialogue des formulaires d'element (corriger, couper en deux).
+   <dialog> natif : voile, focus et Echap viennent du navigateur ; ici,
+   seulement l'habillage aux tokens du theme. / Element form dialog:
+   native <dialog>, theme tokens only. */
+.dialogue-element {
+  /* margin:auto — le preflight Tailwind (*{margin:0}) ecrase le
+     centrage NATIF de <dialog> : sans cette ligne il se colle en haut
+     a gauche (verification navigateur U1, defaut D1). Bordure en
+     --filet-controle + ombre : en sombre, --filet contre la page
+     voilee faisait 1,53:1 — la surface du modal ne se detachait pas
+     (defaut D2). / margin:auto restores native centering against the
+     Tailwind preflight; controle-grade border + shadow so the modal
+     separates from the dimmed page in dark mode. */
+  margin: auto;
+  border: 1px solid var(--filet-controle); border-radius: 8px;
+  background: var(--papier); color: var(--encre);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .35);
+  padding: 1.1rem 1.3rem; max-width: 34rem; width: calc(100% - 2rem);
+}
+.dialogue-element::backdrop { background: rgba(0, 0, 0, .45); }
+/* La zone d'erreur du dialogue : la grammaire des etats de ce design
+   system — un filet GAUCHE danger, jamais un fond semantique plein
+   sous du texte fige (defaut D3 de la verification U1).
+   / The dialog's error zone follows the left-rule state grammar. */
+.dialogue-element .erreur-du-dialogue {
+  border-left: 3px solid var(--danger);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border-radius: 0 5px 5px 0;
+  padding: .45rem .7rem; margin: .5rem 0 0;
+  font-size: .85rem;
+}
+.dialogue-element h2 {
+  font-size: 1.05rem; font-weight: 600; margin: 0 0 .8rem;
+}
+.dialogue-element label { font-size: .85rem; }
+.dialogue-element textarea {
+  width: 100%; margin: .4rem 0; padding: .5rem .6rem;
+  font-family: Georgia, serif; font-size: .95rem; line-height: 1.5;
+  color: var(--encre); background: var(--papier-panneau);
+  border: 1px solid var(--filet-controle); border-radius: 5px;
+}
+.dialogue-element .aide {
+  font-size: .78rem; color: var(--encre-douce); margin: .2rem 0 .6rem;
+}
+.dialogue-element .pied-du-dialogue {
+  display: flex; justify-content: flex-end; gap: .5rem; margin-top: .6rem;
+}
+.dialogue-element .bouton-du-dialogue {
+  font-family: ui-monospace, Menlo, monospace; font-size: .75rem;
+  color: var(--encre); background: var(--papier);
+  border: 1px solid var(--filet-controle); border-radius: 5px;
+  padding: .4rem .8rem; cursor: pointer;
+}
+.dialogue-element .bouton-du-dialogue:hover { background: var(--papier-creux); }
+/* Le bouton principal : encre sur papier INVERSES — le couple le plus
+   contraste du systeme, dans les deux themes (jamais de white fige,
+   lecon T10/F4-F10). / Primary: inverted ink/paper, never fixed white. */
+.dialogue-element .bouton-du-dialogue.principal {
+  background: var(--encre); color: var(--papier); border-color: var(--encre);
+}
+
+/* Relecture U1 (defaut H3) : l'include des boutons vit aussi dans des
+   <pre> ou white-space:pre rend chaque retour a la ligne VISIBLE — les
+   blancs internes au groupe redeviennent ordinaires ici.
+   / Inside <pre>, internal whitespace must collapse again. */
+.actions-element { white-space: normal; }
+
+/* La puce d'etat de l'ingestion (U2) : discrete en marche normale,
+   grammaire du filet GAUCHE danger en echec. Le voyant est decoratif
+   (aria-hidden), l'etat est dans le TEXTE. / Ingestion status chip. */
+.etat-ingestion {
+  display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
+  font-family: ui-monospace, Menlo, monospace; font-size: .78rem;
+  color: var(--encre-douce); background: var(--papier-panneau);
+  border: 1px solid var(--filet); border-radius: 5px;
+  padding: .45rem .7rem; margin: 0 0 1rem;
+}
+.etat-ingestion .voyant {
+  width: .5rem; height: .5rem; border-radius: 50%;
+  background: var(--encre-douce); align-self: center;
+  animation: voyant-ingestion 1.6s ease-in-out infinite;
+}
+@keyframes voyant-ingestion {
+  0%, 100% { opacity: .35; } 50% { opacity: 1; }
+}
+.etat-ingestion.echec {
+  border-left: 3px solid var(--danger); border-radius: 0 5px 5px 0;
+  color: var(--encre);
+}
+.etat-ingestion.echec .voyant { background: var(--danger); animation: none; }
+.etat-ingestion .detail { font-style: italic; color: var(--encre-douce); }
+.etat-ingestion button {
+  font-family: ui-monospace, Menlo, monospace; font-size: .7rem;
+  color: var(--encre); background: var(--papier);
+  border: 1px solid var(--filet-controle); border-radius: 4px;
+  padding: .32rem .55rem; min-height: 24px; cursor: pointer;
+}
+.etat-ingestion button:hover { background: var(--papier-creux); }
+
+/* ------------------------------------------------------------------ */
+/* AVERTISSEMENT DE PLAFOND — le nom et la forme sont ceux de          */
+/* l'etalon (maquette.html § 8, `.avertissement-plafond`).             */
+/*                                                                      */
+/* Il avait d'abord ete recree sous un autre nom et un autre style :    */
+/* la maquette PREVOYAIT deja ce cas, et deux vocabulaires pour la      */
+/* meme chose est exactement l'ecart qu'on cherche a supprimer.         */
+/*                                                                      */
+/* Ce qu'on ne reprend PAS de l'etalon, c'est son TEXTE : il affiche    */
+/* « 623 marques : au-dela de 400, le texte est rendu nu               */
+/* (rendu_elements.py:215) ». C'est un message de diagnostic pour qui   */
+/* developpe la maquette, pas une phrase adressee a un lecteur.        */
+/* / Same name and shape as the mock; not its developer-facing text.   */
+.avertissement-plafond {
+  margin: .4rem 0 .6rem;
+  font-family: ui-monospace, Menlo, monospace; font-size: .68rem;
+  color: var(--encre); border-left: 2px solid var(--danger);
+  padding-left: .5rem;
+}
+
+/* Etiquette « ancre detachee » sur une carte du panneau (10 aout).    */
+/* Reprise de l'etalon (maquette.html l. 1671-1682) : petite capitale  */
+/* monospace, discrete mais lisible. Elle doit se voir sans crier :    */
+/* c'est un etat a trancher, pas une erreur.                           */
+/* / A state to be resolved, not an error to shout about.              */
+.carte-ancre-detachee {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .55rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--encre-douce); margin-bottom: .3rem;
+}
+
+/* Ancre estompee par le filtre par contributeur (recablage du 10 aout). */
+/* Le filtre estompait les pastilles en marge ; celles-ci ayant disparu  */
+/* avec l'ancien moteur, il ne trouvait plus un noeud et etait INERTE.   */
+/* Il agit maintenant sur l'ancre inline elle-meme. On BAISSE l'ancre    */
+/* hors filtre au lieu de rehausser celles qui restent : le texte garde  */
+/* son contraste de lecture, seul le surlignage s'efface.                */
+/* / Dim the anchor, never the text: reading contrast is preserved.      */
+#readability-content .hl-extraction.ancre-hors-filtre {
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+}
+
+/* ================================================================== */
+/* LA GOUTTIERE (etalon maquette.html § .bloc, § 7)                   */
+/*                                                                     */
+/* Chaque bloc de lecture est une grille « gouttiere | corps », avec   */
+/* un filet d'etat vertical entre les deux. La gouttiere porte le      */
+/* reperage du passage.                                                */
+/*                                                                     */
+/* CE QUI SE VOIT, ET CE QUI NE SE VOIT PAS                            */
+/* Un lecteur n'a rien a faire de « SECTION_HEADER #6 » ni d'une       */
+/* empreinte : label, numero et empreinte ne paraissent qu'en mode     */
+/* structure. Le COMPTEUR D'IDEES, lui, s'adresse au lecteur — il      */
+/* reste visible, c'est le seul habitant permanent de la gouttiere.    */
+/* / Only the idea count speaks to a reader; the rest is diagnostics.  */
+/* ================================================================== */
+#readability-content {
+  --gouttiere: 46px;
+  /* LA GOUTTIERE S'AJOUTE A LA LARGEUR DE LECTURE, elle ne s'y prend
+     pas. Sans cette compensation, poser la grille retire 70px a la
+     colonne de texte (mesure au navigateur : 648 -> 578px) : on aurait
+     paye la gouttiere en confort de lecture, ce que l'etalon ne fait
+     pas — il donne 672px au corps au meme viewport.
+     / The gutter adds to the reading width instead of eating it. */
+  max-width: calc(100% + var(--gouttiere) + 3rem);
+  /* La compensation ne peut pas depasser la place REELLEMENT libre a
+     gauche, sinon elle pousse le texte hors de l'ecran. Mesure : la
+     marge disponible n'atteint 70px qu'a ~845px de viewport, et 120px
+     (gouttiere audio) qu'a ~945px — entre 769px et ces seuils, la
+     lecture etait rognee. `min()` sur la moitie de la marge du
+     conteneur borne le debordement au lieu de le supposer.
+     / Clamp the pull to the space that actually exists. */
+  /* Ce sont les marges NEGATIVES qui elargissent la boite, pas le
+     max-width : en flux normal, un bloc prend la largeur de son parent
+     moins ses marges, et `max-width` ne fait qu'autoriser sans pousser.
+     A gauche on rend la place prise par la gouttiere ; a droite on
+     rejoint les 672px de corps de l'etalon.
+     / Negative margins widen the box; max-width alone would not. */
+  margin-left: min(0px, calc(-1 * (var(--gouttiere) + 1.5rem)));
+  margin-right: -1.5rem;
+}
+#readability-content.mode-structure,
+#zone-lecture.mode-structure #readability-content {
+  --gouttiere: 124px;
+}
+
+/* UN AUDIO A UNE GOUTTIERE PLUS LARGE (etalon l. 77-78).
+   Elle porte davantage : le nom du locuteur et le minutage du tour de
+   parole, la ou un document ecrit n'a qu'un label et un numero. 96px
+   en lecture, 150px en mode structure — les memes valeurs que
+   l'etalon, qui les a calees sur « Marie-Christine 00:14:32 ».
+   / An audio gutter carries a speaker and a timecode: it is wider. */
+#readability-content:has([data-media="audio"]),
+#readability-content [data-testid="blocs-elements"][data-media="audio"] {
+  --gouttiere: 96px;
+}
+#zone-lecture.mode-structure
+  #readability-content:has([data-media="audio"]),
+#zone-lecture.mode-structure
+  #readability-content [data-testid="blocs-elements"][data-media="audio"] {
+  --gouttiere: 150px;
+}
+
+/* Repli pour les navigateurs sans `:has()` — la variable est alors
+   posee par l'attribut du conteneur de blocs, qui suffit.
+   / Fallback: the blocks container carries the attribute too. */
+@supports not selector(:has(*)) {
+  #readability-content [data-testid="blocs-elements"][data-media="audio"] {
+    --gouttiere: 96px;
+  }
+}
+
+#readability-content .bloc {
+  display: grid;
+  grid-template-columns: var(--gouttiere) 1fr;
+  gap: 0 1.5rem;
+  position: relative;
+}
+
+#readability-content .gouttiere {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .62rem; line-height: 1.45;
+  color: var(--encre-douce); text-align: right;
+  padding-top: .5rem;
+  display: flex; flex-direction: column; align-items: flex-end; gap: .2rem;
+  user-select: none;
+}
+
+/* Diagnostic : reserve au mode structure. / Debug only. */
+#readability-content .etiquette-label,
+#readability-content .numero-element,
+#readability-content .empreinte { display: none; }
+#zone-lecture.mode-structure #readability-content .etiquette-label,
+#zone-lecture.mode-structure #readability-content .numero-element,
+#zone-lecture.mode-structure #readability-content .empreinte {
+  display: inline-block;
+}
+#readability-content .etiquette-label {
+  font-size: .53rem; text-transform: uppercase; letter-spacing: .07em;
+  padding: .04rem .28rem;
+  border: 1px solid var(--filet); border-radius: 2px;
+}
+#readability-content .numero-element,
+#readability-content .empreinte { opacity: .55; }
+
+/* Le filet d'etat : ambre des qu'une idee du passage est commentee.  */
+/* La COULEUR ne porte pas seule l'information — le compteur d'idees  */
+/* et le surlignage disent la meme chose autrement (daltonien-safe).  */
+/* / Colour never carries the meaning alone.                          */
+#readability-content .filet-etat {
+  position: absolute;
+  left: calc(var(--gouttiere) + .55rem);
+  top: .5rem; bottom: .1rem;
+  width: 2px; border-radius: 1px;
+  background: transparent;
+}
+#readability-content .bloc[data-etat="debattu"] .filet-etat {
+  background: var(--filet-statut-commente);
+}
+#zone-lecture.mode-structure #readability-content .filet-etat {
+  background: var(--filet);
+}
+#zone-lecture.mode-structure
+  #readability-content .bloc[data-etat="debattu"] .filet-etat {
+  background: var(--filet-statut-commente);
+}
+
+/* Le compteur d'idees. Cible tactile de 24px (WCAG 2.5.8) : l'etalon */
+/* s'en tient a 1,05rem, trop petit pour un doigt.                    */
+/* / 24px touch target; the mock's 1.05rem is too small for a finger. */
+#readability-content .compteur-idees {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; height: 24px; padding: 0 .3rem;
+  border: 1px solid var(--filet-controle); border-radius: 999px;
+  font-size: .62rem; font-family: ui-monospace, Menlo, monospace;
+  background: none; color: var(--encre); cursor: pointer;
+  transition: border-color .12s, color .12s;
+}
+/* Au survol, seul le CONTOUR prend la teinte d'etat : le texte, lui,
+   garde l'encre pleine. Mesure : `--filet-statut-commente` en TEXTE
+   tombe a 3,82:1 sur le papier clair, sous les 4,5:1 exiges. Un
+   contour n'a besoin que de 3:1 (WCAG 1.4.11), il passe.
+   / On hover only the border takes the state colour; text stays ink. */
+#readability-content .compteur-idees:hover {
+  border-color: var(--filet-statut-commente);
+  color: var(--encre);
+}
+#readability-content .compteur-idees:focus-visible {
+  outline: 2px solid var(--encre); outline-offset: 2px;
+}
+
+/* Sous 768px la gouttiere mange la largeur de lecture : elle passe   */
+/* au-dessus du bloc, en ligne. / Below 768px the gutter goes inline. */
+@media (max-width: 960px) {
+  /* ON ANNULE LA COMPENSATION DE GOUTTIERE.
+     Elle deborde le conteneur vers la gauche pour rendre au texte la
+     place que la grille lui prend. En mobile il n'y a plus de colonne
+     de gouttiere — elle passe au-dessus du bloc — donc plus rien a
+     compenser : la laisser rognait la lecture de 54px hors ecran,
+     lettres coupees et aucun scroll pour aller les chercher.
+
+     LE SEUIL EST A 960px, PAS 768. Entre les deux, la marge du
+     conteneur ne suffit pas encore a absorber la compensation (70px
+     pour un document, 120px pour un audio dont la gouttiere est plus
+     large) : la bande 769-945px etait rognee elle aussi.
+     / 960px, not 768: the margin only covers the pull past ~945px. */
+  #readability-content { max-width: 100%; margin-left: 0; margin-right: 0; }
+  #readability-content .bloc { grid-template-columns: 1fr; gap: 0; }
+  #readability-content .gouttiere {
+    flex-direction: row; align-items: center; justify-content: flex-end;
+    gap: .4rem; padding-top: .2rem;
+  }
+  #readability-content .filet-etat { left: -.6rem; }
+}
+
+/* ================================================================== */
+/* TYPOGRAPHIE DE LECTURE — alignee sur l'etalon (maquette.html § 5-7)*/
+/*                                                                     */
+/* Mesure de l'ecart avant alignement : l'application lisait en 18px / */
+/* interligne 1,85 (Tailwind `prose-lg`) contre 17px / 1,7 pour        */
+/* l'etalon, avec des marges de paragraphe de 20px la ou l'etalon en   */
+/* met ZERO.                                                           */
+/*                                                                     */
+/* LE POINT QUI CHANGE TOUT : QUI PORTE L'ESPACEMENT                   */
+/* Dans l'etalon, `.corps > * { margin: 0 }` — un paragraphe n'a pas   */
+/* de marge. C'est le BLOC qui espace, et sa valeur depend du label :  */
+/* un titre respire plus qu'une puce. L'espacement devient donc une    */
+/* propriete de la STRUCTURE du document, pas de la balise rendue —    */
+/* ce qui est exactement ce que le moteur ELEMENT sait dire.           */
+/* / The block spaces, not the paragraph: spacing follows structure.   */
+/* ================================================================== */
+#readability-content {
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+#readability-content .bloc {
+  scroll-margin-top: 7rem;
+  margin-bottom: 1.15rem;
+}
+#readability-content .bloc[data-label="title"] { margin-bottom: 1.6rem; }
+#readability-content .bloc[data-label="section_header"] {
+  margin-top: 2.6rem; margin-bottom: 1rem;
+}
+#readability-content .bloc[data-label="list_item"] { margin-bottom: .15rem; }
+#readability-content .bloc[data-label="picture"] { margin: 2rem 0; }
+#readability-content .bloc[data-label="table"] { margin: 1.8rem 0; }
+
+/* Le corps ne porte AUCUNE marge : elle appartient au bloc. */
+/* / The body carries no margin; the block owns it. */
+#readability-content .corps > * { margin: 0; }
+#readability-content .corps h2 {
+  font-size: 1.42rem; line-height: 1.3; letter-spacing: -.012em;
+}
+#readability-content .corps h3 {
+  font-size: 1.1rem; line-height: 1.35; letter-spacing: -.008em;
+}
+#readability-content .corps ul { margin: 0; padding-left: 1.15rem; }
+#readability-content .corps li { margin: 0; }
+
+/* Numero de page et bouton « voir la source » (etalon § 7).          */
+/* Le bouton se revele au survol du bloc : en lecture il ne doit pas  */
+/* encombrer la gouttiere, mais rester a portee. En mode structure il */
+/* prend son libelle complet, la gouttiere y est assez large.         */
+/* / Revealed on block hover; full label in structure mode.           */
+/* PAS D'OPACITE SUR UN TEXTE QU'ON DOIT LIRE.
+   `--encre-douce` a .75 tombe a ~3,4:1 sur le papier, sous les 4,5:1
+   d'un texte de 10px. L'etalon met .75 parce que sa gouttiere est un
+   decor ; ici le numero de page se lit. Pleine encre douce : 5,4:1.
+   / Opacity dropped this to 3.4:1; it is text, not decoration. */
+#readability-content .numero-page {
+  font-variant-numeric: tabular-nums;
+}
+#readability-content .bouton-voir-source {
+  border: none; background: none; padding: 0; cursor: pointer;
+  font-size: .62rem; color: var(--encre-douce);
+  opacity: 0; transition: opacity .12s ease; white-space: nowrap;
+  min-height: 24px;
+}
+#readability-content .bouton-voir-source .libelle-source { display: none; }
+#readability-content .bloc:hover .bouton-voir-source,
+#readability-content .bouton-voir-source:focus-visible { opacity: 1; }
+#readability-content .bouton-voir-source:focus-visible {
+  outline: 2px solid var(--encre); outline-offset: 2px;
+}
+#zone-lecture.mode-structure #readability-content .bouton-voir-source {
+  opacity: 1; font-size: .58rem;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+#zone-lecture.mode-structure
+  #readability-content .bouton-voir-source .libelle-source { display: inline; }
+#zone-lecture.mode-structure
+  #readability-content .bouton-voir-source .icone-source { display: none; }
+
+/* Glissiere d'un AUDIO : le locuteur, puis le minutage (etalon § 7).  */
+/* Le locuteur porte une pastille de couleur — la meme d'un bloc a     */
+/* l'autre pour une meme voix — parce que suivre un debat, c'est       */
+/* d'abord suivre qui parle. La couleur ne porte pas l'information     */
+/* seule : le NOM est ecrit a cote.                                    */
+/* / Colour never carries it alone: the name is written beside it.     */
+#readability-content .etiquette-locuteur {
+  color: var(--encre); font-weight: 600;
+  display: inline-flex; align-items: center; gap: .28rem;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#readability-content .etiquette-locuteur::before {
+  content: ""; display: inline-block; flex: none;
+  width: .46rem; height: .46rem; border-radius: 50%;
+  background: var(--couleur-locuteur, var(--encre-douce));
+}
+#readability-content .ligne-minutage {
+  display: flex; align-items: center; gap: .28rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+/* EDITEUR EN PLACE (etalon § 11)                                      */
+/*                                                                     */
+/* Le corps du bloc s'efface, le champ prend sa place — meme largeur,  */
+/* meme typographie, meme interligne. Corriger ne doit pas donner      */
+/* l'impression de changer d'endroit : c'est le meme texte, ecrit      */
+/* autrement. Le contour ambre est le seul signal qu'on edite.         */
+/* / The body gives way to the field: same width, same type, same      */
+/* place. Correcting is not going somewhere else.                      */
+/* ------------------------------------------------------------------ */
+#readability-content .editeur { display: none; }
+#readability-content .bloc.est-en-edition .corps > :not(.editeur) {
+  display: none;
+}
+#readability-content .bloc.est-en-edition .editeur { display: block; }
+#readability-content .editeur textarea {
+  width: 100%; font: inherit; line-height: 1.7;
+  color: var(--encre); background: var(--papier);
+  /* Le token FILET, pas l'ambre brut : celui-ci fait 2,2:1 sur le
+     papier clair, sous les 3:1 d'un contour de controle (1.4.11).
+     C'est la convention de ce fichier depuis le lot T10.
+     / The filet token: raw amber is 2.2:1 on light paper. */
+  border: 1px solid var(--filet-statut-commente); border-radius: 4px;
+  padding: .5rem .6rem; resize: vertical; min-height: 4.5rem;
+}
+#readability-content .editeur-barre {
+  display: flex; align-items: center; gap: .45rem; margin-top: .45rem;
+  font-family: ui-monospace, Menlo, monospace; font-size: .64rem;
+  flex-wrap: wrap;
+}
+#readability-content .editeur-aide {
+  margin-left: auto; color: var(--encre-douce);
+}
+/* L'etiquette du champ est lue par les lecteurs d'ecran, pas montree : */
+/* le contexte visuel (le bloc s'efface, le champ apparait a sa place)  */
+/* dit deja ce qu'on edite. / Read aloud, not shown: context says it.   */
+#readability-content .editeur .etiquette-invisible {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+#readability-content .erreur-de-l-editeur {
+  margin: .4rem 0 0; padding-left: .5rem;
+  border-left: 3px solid var(--danger);
+  color: var(--encre); font-size: .78rem;
+}
+
+/* ================================================================== */
+/* LE SURLIGNAGE SE REVELE, IL NE S'IMPOSE PAS (etalon § 9)           */
+/*                                                                     */
+/* L'etalon le dit dans son propre commentaire : « Au repos le texte  */
+/* est nu. Il se revele au survol du bloc, et s'allume au choix        */
+/* explicite. » Trois niveaux, donc, et l'application n'en avait       */
+/* qu'un : tout surligne, tout le temps.                               */
+/*                                                                     */
+/* CE QUE CE CHANGEMENT DIT DU PRODUIT                                 */
+/* Un texte entierement surligne n'est plus un texte : c'est une       */
+/* liste de citations. Le parti pris de la maquette est l'inverse —    */
+/* on lit d'abord, on voit les idees quand on s'approche, on en        */
+/* choisit une quand on la veut. Le document reste le sujet.           */
+/* / Bare at rest, revealed on block hover, lit on explicit choice.    */
+/* ================================================================== */
+
+/* 1. AU REPOS : nu. Le statut ne pose qu'une VARIABLE, aucun fond.   */
+#readability-content mark.hl-extraction {
+  background: none;
+  border-bottom: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: .04em 0;
+  transition: background-color .14s ease, box-shadow .14s ease;
+}
+#readability-content .hl-extraction[data-statut="nouveau"] {
+  --couleur-statut: var(--filet-statut-nouveau);
+}
+#readability-content .hl-extraction[data-statut="commente"],
+#readability-content .hl-extraction[data-statut="discutable"],
+#readability-content .hl-extraction[data-statut="discute"] {
+  --couleur-statut: var(--filet-statut-commente);
+}
+#readability-content .hl-extraction[data-statut="consensuel"] {
+  --couleur-statut: var(--succes);
+}
+#readability-content .hl-extraction[data-statut="controverse"] {
+  --couleur-statut: var(--danger);
+}
+
+/* 2. AU SURVOL DU BLOC : les idees de CE passage se revelent, dans un */
+/*    gris neutre — on montre OU elles sont, pas encore lesquelles.    */
+#readability-content .bloc:hover mark.hl-extraction {
+  background-color: var(--revelation);
+}
+
+/* 3. AU SURVOL DE L'ANCRE puis AU CHOIX : la teinte du statut, puis   */
+/*    le liseré. Le liseré porte l'etat sans la couleur seule.         */
+/* La regle du BLOC survole (1,3,1) l'emporterait sur `mark:hover`
+   (1,2,1) : mesure au navigateur, l'ancre survolee restait grise. On
+   remet le survol de l'ancre au-dessus en le qualifiant du bloc.
+   / Measured: the block rule outranked the anchor's own hover. */
+#readability-content .bloc:hover mark.hl-extraction:hover,
+#readability-content mark.hl-extraction:hover {
+  background-color: color-mix(
+    in srgb, var(--couleur-statut, var(--encre-douce)) 14%, transparent
+  );
+}
+#readability-content .bloc:hover mark.hl-extraction.ancre-active,
+#readability-content mark.hl-extraction.ancre-active {
+  background-color: color-mix(
+    in srgb, var(--couleur-statut, var(--encre-douce)) 22%, transparent
+  );
+  box-shadow: inset 0 -2px 0 0 var(--couleur-statut, var(--encre-douce));
+}
+#readability-content mark.hl-extraction:focus-visible {
+  outline: 2px solid var(--encre); outline-offset: 2px;
+}
+
+/* Les marques IMBRIQUEES gardent leurs liserés lisibles l'un sous     */
+/* l'autre — sinon deux idees sur le meme passage n'en font qu'une.    */
+#readability-content mark.hl-extraction[data-superposition="2"] {
+  padding-bottom: .14em;
+}
+#readability-content mark.hl-extraction[data-superposition="3"],
+#readability-content mark.hl-extraction[data-superposition="4"] {
+  padding-bottom: .24em;
+}
+
+/* CLAVIER ET TACTILE : sans survol, la revelation n'arriverait        */
+/* jamais. Un bloc qui contient le focus se revele comme au survol.    */
+/* / Without hover there is no reveal: focus does it too.              */
+#readability-content .bloc:focus-within mark.hl-extraction {
+  background-color: var(--revelation);
+}
+@media (hover: none) {
+  #readability-content mark.hl-extraction {
+    background-color: var(--revelation);
+  }
+}
+
+/* ================================================================== */
+/* LE PANNEAU S'INTEGRE A LA PAGE SUR GRAND ECRAN (etalon § 13)       */
+/*                                                                     */
+/* L'etalon a DEUX panneaux selon la place disponible :                */
+/*   · au-dela de 1400px, il est `sticky` — dans la page, a droite du  */
+/*     texte, SANS voile : on lit et on consulte en meme temps ;       */
+/*   · en dessous, il glisse par-dessus, avec son voile.               */
+/*                                                                     */
+/* L'application n'avait que le second, a toutes les largeurs : sur un */
+/* grand ecran, consulter une idee cachait le passage dont elle vient  */
+/* — exactement ce qu'un panneau de preuve ne doit pas faire.          */
+/*                                                                     */
+/* POURQUOI EN CSS PLUTOT QU'EN DEPLACANT LE PANNEAU DANS LE FLUX      */
+/* Le rendre `sticky` demanderait de le sortir de `base.html` pour le  */
+/* mettre a cote de la zone de lecture — donc de toucher au gabarit    */
+/* global, au piegeage de focus et au JS qui l'ouvre. Le laisser fixe  */
+/* et RENDRE SA PLACE au texte donne le meme resultat a l'oeil, sans   */
+/* rien casser. Un panneau fixe ne defile pas : c'est precisement ce   */
+/* que `sticky` fait chez l'etalon.                                    */
+/* / Same result to the eye, without touching the global template.     */
+/*                                                                     */
+/* MOBILE INCHANGE : sous 1400px, tout reste comme avant — drawer      */
+/* glissant, et la feuille du bas sur telephone. Ce qui marche ne      */
+/* change pas. / Below 1400px nothing changes.                         */
+/* ================================================================== */
+@media (min-width: 1400px) {
+  /* Pas de voile : le texte reste lisible et cliquable a gauche. */
+  #drawer-backdrop { display: none !important; }
+
+  /* Le panneau garde sa largeur mais cesse d'etre un intrus : la zone
+     de lecture lui cede la place au lieu de passer dessous. */
+  body.panneau-integre #zone-lecture {
+    padding-right: calc(min(36rem, 100vw) + 2rem);
+    transition: padding-right .22s ease;
+  }
+  #zone-lecture { transition: padding-right .22s ease; }
+
+  /* Le panneau integre n'a plus l'ombre portee d'un objet flottant :
+     il fait partie de la page, un filet suffit a l'en separer.
+     / Integrated, not floating: a rule replaces the drop shadow. */
+  body.panneau-integre #drawer-overlay {
+    box-shadow: none;
+    border-left: 1px solid var(--filet);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* LA CARTE DU PANNEAU : SOBRE PAR DEFAUT (etalon § 14)                */
+/*                                                                     */
+/* La citation ne s'affiche QUE sur la carte choisie. Une liste ou     */
+/* chaque carte deroule son extrait n'est plus une liste : c'est un    */
+/* mur de texte qui redit ce que la page dit deja a cote. L'etalon     */
+/* garde le titre et le statut, et ouvre la citation au clic.          */
+/* / The quote opens on the chosen card; a wall of quotes is not a     */
+/* list. */
+#drawer-contenu .drawer-carte-compacte .typo-citation {
+  display: none;
+}
+#drawer-contenu .drawer-carte-compacte.drawer-carte-active .typo-citation {
+  display: block;
+}

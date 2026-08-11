@@ -399,9 +399,39 @@ document.body.addEventListener('fermerDrawer', function() {
 // / Other errors (500, 404, etc.) show a generic SweetAlert
 document.body.addEventListener('htmx:responseError', function(evenement) {
     var codeHttp = evenement.detail.xhr.status;
-    // Ignorer les 403 d'auth — gerees par HX-Trigger authRequise
-    // / Skip auth 403s — handled by HX-Trigger authRequise
-    if (codeHttp === 403) return;
+    // 403 : gere par authRequise ou par un toast FALC quand la vue en
+    // envoie un. Un 403 NU (DRF, session expiree — relecture U1,
+    // defaut M5) n'a AUCUN des deux : sans ce repli, le clic echouait
+    // en silence total. / A bare 403 (expired session) used to fail
+    // silently; offer the login prompt.
+    if (codeHttp === 403) {
+        var enTete403 = evenement.detail.xhr.getResponseHeader('HX-Trigger') || '';
+        if (enTete403.indexOf('authRequise') === -1
+                && enTete403.indexOf('showToast') === -1) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Connexion requise',
+                text: 'Votre session a expiré. Connectez-vous pour continuer.',
+                confirmButtonText: 'Se connecter',
+                showCancelButton: true,
+                cancelButtonText: 'Annuler',
+                confirmButtonColor: '#2563eb',
+            }).then(function (resultat) {
+                if (resultat.isConfirmed) {
+                    window.location.href = '/auth/login/';
+                }
+            });
+        }
+        return;
+    }
+    // Une reponse d'erreur qui porte deja son toast FALC (HX-Trigger
+    // showToast — les 409/400 des operations d'element, U1) n'a pas
+    // besoin d'un second SweetAlert generique par-dessus : le toast
+    // dit mieux, en francais simple, ce qui s'est passe.
+    // / An error that carries its own FALC toast doesn't need the
+    // generic SweetAlert on top.
+    var enTeteTrigger = evenement.detail.xhr.getResponseHeader('HX-Trigger') || '';
+    if (enTeteTrigger.indexOf('showToast') !== -1) return;
     var texteErreur = evenement.detail.xhr.responseText || 'Erreur inconnue';
     Swal.fire({
         icon: 'error',
@@ -443,7 +473,11 @@ document.body.addEventListener('showToast', function(evenement) {
         icon: detail.icon || 'success',
         title: detail.message || 'OK',
         showConfirmButton: false,
-        timer: 2500,
+        // Duree ajustable par la vue : un message long (deux
+        // informations) a besoin de plus de temps de lecture — public
+        // FALC. Par defaut, 2,5 s comme avant.
+        // / View-adjustable duration; long messages need reading time.
+        timer: detail.timer || 2500,
         // Decalage vertical pour passer SOUS la navbar (h-12 = 3rem = 48px)
         // sinon le toast cache le bouton 'taches' dans la toolbar.
         // / Vertical offset to go BELOW the navbar (h-12 = 3rem = 48px)
@@ -451,6 +485,33 @@ document.body.addEventListener('showToast', function(evenement) {
         customClass: { popup: 'toast-sous-navbar' },
     });
 });
+
+// --- Mode structure (U1) : les boutons d'operations d'element ---
+/**
+ * Bascule le mode structure de la lecture
+ * / Toggles the reading zone's structure mode
+ *
+ * LOCALISATION : front/static/front/js/hypostasia.js
+ *
+ * Appelee par le bouton #bouton-mode-structure
+ * (front/templates/front/includes/lecture_principale.html).
+ *
+ * La classe est posee sur #zone-lecture et PAS sur le partial de
+ * lecture : lectureReload (ci-dessous) ne remplace que l'innerHTML de
+ * #zone-lecture, donc le mode survit au rechargement qui suit chaque
+ * operation (corriger, couper, recoller, masquer). Le CSS
+ * (#zone-lecture.mode-structure, maquette.css) revele alors les
+ * groupes .actions-element et les placeholders .element-masque.
+ * / The class lives on #zone-lecture so it survives lectureReload.
+ *
+ * @param {HTMLElement} bouton - le bouton a bascule (aria-pressed)
+ */
+function basculerModeStructure(bouton) {
+    var zone = document.getElementById('zone-lecture');
+    if (!zone) return;
+    var actif = zone.classList.toggle('mode-structure');
+    bouton.setAttribute('aria-pressed', actif ? 'true' : 'false');
+}
 
 // --- Rechargement de la zone de lecture via HX-Trigger lectureReload ---
 // Les vues envoient HX-Trigger: {"lectureReload": {"page_id": "42"}}
@@ -489,10 +550,23 @@ document.body.addEventListener('lectureReload', function(evenement) {
         zoneLecture.innerHTML = doc.body.firstElementChild.innerHTML;
         htmx.process(zoneLecture);
 
-        // Reconstruire les pastilles marginales apres le remplacement du contenu
-        // / Rebuild margin pastilles after content replacement
-        if (typeof construirePastillesMarginales === 'function') {
-            construirePastillesMarginales();
+        // U1 : la classe mode-structure survit sur #zone-lecture, mais
+        // le bouton a bascule est re-rendu a neuf (aria-pressed=false).
+        // Un script inline injecte par innerHTML ne s'execute JAMAIS
+        // (relecture U1, defaut M1) : la resynchronisation vit donc
+        // ICI. Et si le remplacement a emporte le dialogue modal, le
+        // focus est tombe sur body — on le rend au bouton (defaut M9).
+        // / Re-sync the toggle's aria-pressed after the reload (inline
+        // scripts injected via innerHTML never run) and restore focus.
+        var boutonModeStructure = document.getElementById('bouton-mode-structure');
+        if (boutonModeStructure) {
+            var modeStructureActif = zoneLecture.classList.contains('mode-structure');
+            boutonModeStructure.setAttribute(
+                'aria-pressed', modeStructureActif ? 'true' : 'false'
+            );
+            if (modeStructureActif && document.activeElement === document.body) {
+                boutonModeStructure.focus();
+            }
         }
     });
 });
@@ -757,16 +831,7 @@ function scrollToCarteDepuisBloc(extractionId) {
         return;
     }
 
-    // Fallback : declencher le clic pastille (qui ouvrira aussi le drawer)
-    // / Fallback: trigger dot click (which will also open the drawer)
-    var pastille = document.querySelector('.pastille-extraction[data-extraction-id="' + extractionId + '"]');
-    if (pastille) {
-        pastille.click();
-        return;
-    }
-
-    // Fallback : panneau droit (si pas de pastille)
-    // / Fallback: right panel (if no dot)
+    // Fallback : panneau droit / Fallback: right panel
     ouvrirPanneauDroit();
 
     // Nettoyer les cartes en flash precedentes / Clean previous flashing cards
@@ -959,7 +1024,7 @@ function sauvegarderBlocEditionOuvert() {
 }
 
 // --- Double-clic pour editer un bloc de transcription ---
-// Le simple clic reste libre pour la selection de texte et les pastilles.
+// Le simple clic reste libre pour la selection de texte.
 // Le double-clic ouvre l'edition inline du bloc.
 // / Double-click to edit a transcription block —
 // Single click stays free for text selection and extraction dots.
@@ -1139,31 +1204,26 @@ document.addEventListener('click', function(evenement) {
     var zoneLecture = document.getElementById('zone-lecture');
     if (!zoneLecture) return;
 
-    // Charger la page puis attendre que marginalia.js ait injecte les spans
-    // / Load the page then wait for marginalia.js to inject the spans
+    // Charger la page, puis attendre que le serveur ait rendu ses blocs
+    // / Load the page, then wait for the server-rendered blocks
     htmx.ajax('GET', '/lire/' + pageId + '/', {target: '#zone-lecture', swap: 'innerHTML', pushUrl: true});
 
-    // Polling : attendre que le span ou la pastille apparaisse (marginalia.js les cree apres le swap)
-    // / Polling: wait for the span or dot to appear (marginalia.js creates them after swap)
+    // Polling : attendre que l'ancre apparaisse dans le DOM apres le swap
+    // / Polling: wait for the anchor to appear after the swap
     _attendreEtNaviguer(extractionId, 0);
 });
 
 /**
- * Attend que le span hl-extraction ou la pastille apparaisse dans le DOM, puis navigue.
+ * Attend que l'ancre inline apparaisse dans le DOM, puis navigue.
  * Retry toutes les 200ms, max 15 tentatives (3 secondes).
- * / Waits for the hl-extraction span or dot to appear in the DOM, then navigates.
- * / Retries every 200ms, max 15 attempts (3 seconds).
+ * / Waits for the inline anchor to appear in the DOM, then navigates.
  */
 function _attendreEtNaviguer(extractionId, tentative) {
     var maxTentatives = 15;
     var spanTrouve = document.querySelector(
         '#readability-content .hl-extraction[data-extraction-id="' + extractionId + '"]'
     );
-    var pastilleTrouvee = document.querySelector(
-        '.pastille-extraction[data-extraction-id="' + extractionId + '"]'
-    );
-
-    if (spanTrouve || pastilleTrouvee) {
+    if (spanTrouve) {
         _naviguerVersExtraction(extractionId);
         return;
     }
@@ -1197,17 +1257,6 @@ function _naviguerVersExtraction(extractionId) {
         void spanExtraction.offsetWidth;
         spanExtraction.classList.add('ancre-active');
         spanExtraction.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    // 2. Ouvrir la carte inline via la pastille (si elle existe)
-    // / 2. Open the inline card via the dot (if it exists)
-    var pastille = document.querySelector('.pastille-extraction[data-extraction-id="' + extractionId + '"]');
-    if (pastille) {
-        // Delai pour laisser le scroll se terminer avant d'ouvrir la carte
-        // / Delay to let scroll finish before opening the card
-        setTimeout(function() {
-            pastille.click();
-        }, 500);
     }
 }
 

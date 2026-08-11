@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hypostasia — lecture, panneau et lecteur audio</title>
+<style>
+/* =========================================================================
+   MAQUETTE 2 — l'application en situation
+   LOCALISATION : tmp/maquettes/rendu-application.html
+
+   Reprend fidelement les cartes d'extraction reelles
+   (hypostasis_extractor/templates/.../\_card_body.html) :
+   indicateur de statut, badges d'hypostases, resume machine PUIS citation
+   source entre crochets, mots-cles, commentaires inline.
+
+   Tout est simule : aucune requete, aucune dependance reseau.
+   ========================================================================= */
+
+:root {
+  --papier:        #fdfcfa;
+  --papier-creux:  #f5f3ef;
+  --papier-panneau:#faf8f4;
+  --encre:         #1c1b19;
+  --encre-douce:   #6b6862;
+  --filet:         #e4e0d8;
+
+  --statut-nouveau:  #999999;
+  --statut-commente: #E69F00;
+  --revelation:      #f0ede6;
+
+  /* Les 8 familles d'hypostases, reprises de hypostasia.css */
+  --hypostase-epistemique-bg:#e0e7ff; --hypostase-epistemique-text:#4338ca;
+  --hypostase-empirique-bg:#d1fae5;   --hypostase-empirique-text:#047857;
+  --hypostase-speculatif-bg:#fef3c7;  --hypostase-speculatif-text:#b45309;
+  --hypostase-structurel-bg:#e2e8f0;  --hypostase-structurel-text:#475569;
+  --hypostase-normatif-bg:#ede9fe;    --hypostase-normatif-text:#6d28d9;
+  --hypostase-problematique-bg:#fee2e2; --hypostase-problematique-text:#b91c1c;
+  --hypostase-mode-bg:#cffafe;        --hypostase-mode-text:#0e7490;
+  --hypostase-objet-bg:#f1f5f9;       --hypostase-objet-text:#64748b;
+
+  --gouttiere:   92px;
+  --panneau:     25rem;
+  --barre-audio: 68px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+    --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a;
+    --revelation:#26242c;
+  }
+}
+/* Sombre force : les memes tokens, mais qui l'emportent sur le systeme.
+   Forced dark: same tokens, winning over the system preference. */
+:root[data-theme="dark"] {
+    --papier:#16151a; --papier-creux:#1e1d23; --papier-panneau:#1a191f;
+    --encre:#eceae4; --encre-douce:#9b968d; --filet:#33313a;
+    --revelation:#26242c;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--papier); color: var(--encre);
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  line-height: 1.68;
+}
+.mono { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace; }
+
+/* ---- Bandeau de demonstration (n'existe pas dans l'application) ---- */
+.bandeau-demo {
+  position: sticky; top: 0; z-index: 60;
+  display: flex; align-items: center; gap: .9rem; flex-wrap: wrap;
+  padding: .55rem 1rem; background: var(--encre); color: var(--papier);
+  font-family: ui-monospace, Menlo, monospace; font-size: .72rem;
+}
+.bandeau-demo button {
+  font: inherit; cursor: pointer; background: transparent; color: var(--papier);
+  border: 1px solid rgba(255,255,255,.35); border-radius: 3px; padding: .2rem .6rem;
+}
+.bandeau-demo button[aria-pressed="true"] { background: var(--papier); color: var(--encre); }
+.bandeau-demo .indice { opacity: .6; }
+
+/* ================= DISPOSITION ================= */
+.application { display: grid; grid-template-columns: 1fr var(--panneau); }
+.colonne-lecture { padding: 2.25rem 2rem calc(var(--barre-audio) + 3rem); min-width: 0; }
+.entete-page { margin-bottom: 2rem; padding-left: calc(var(--gouttiere) + 1.25rem); }
+.entete-page h1 { font-size: 1.6rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+.entete-page .meta { font-size: .74rem; color: var(--encre-douce); }
+
+/* ---- Le bloc ---- */
+.bloc {
+  display: grid; grid-template-columns: var(--gouttiere) 1fr;
+  gap: 0 1.25rem; margin-bottom: 1.5rem; position: relative;
+  scroll-margin-top: 5rem; border-radius: 3px;
+}
+.gouttiere {
+  font-family: ui-monospace, Menlo, monospace; font-size: .66rem; line-height: 1.4;
+  color: var(--encre-douce); text-align: right; padding-top: .3rem;
+  display: flex; flex-direction: column; align-items: flex-end; gap: .2rem;
+  user-select: none;
+}
+.filet-etat {
+  position: absolute; left: calc(var(--gouttiere) + .45rem);
+  top: .4rem; bottom: .1rem; width: 2px; border-radius: 1px; background: transparent;
+}
+.bloc[data-etat="analyse"] .filet-etat { background: var(--filet); }
+.bloc[data-etat="debattu"] .filet-etat { background: var(--statut-commente); }
+.bloc[data-etat="masque"]  .filet-etat {
+  background: repeating-linear-gradient(to bottom, var(--encre-douce) 0 3px, transparent 3px 7px);
+}
+.bloc[data-etat="masque"] .corps {
+  opacity: .45; text-decoration: line-through; text-decoration-color: var(--encre-douce);
+}
+.etiquette-locuteur { color: var(--encre); font-weight: 600; }
+.etiquette-locuteur::before {
+  content: ""; display: inline-block; width: .5rem; height: .5rem; border-radius: 50%;
+  margin-right: .3rem; background: var(--couleur-locuteur, var(--encre-douce));
+}
+/* Le compteur mene aux idees du bloc ; il les allume toutes et amene
+   la premiere carte. C'est la seule affordance qui dit « il y a a lire ici »
+   quand rien n'est survole. */
+.compteur-idees {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.1rem; height: 1.1rem; padding: 0 .28rem;
+  border: 1px solid var(--filet); border-radius: 999px; font-size: .6rem;
+  font-family: inherit; background: none; color: inherit; cursor: pointer;
+  transition: border-color .12s ease, color .12s ease;
+}
+.compteur-idees:hover { border-color: var(--statut-commente); color: var(--statut-commente); }
+.compteur-idees:focus-visible, .bouton-ecouter:focus-visible { outline: 2px solid var(--encre); outline-offset: 2px; }
+/* Le double-clic servant a editer, l'ecoute a son propre bouton.
+   Double-click edits, so listening gets its own button. */
+.bouton-ecouter {
+  border: none; background: none; padding: 0; cursor: pointer;
+  color: var(--encre-douce); font-size: .7rem; line-height: 1;
+  opacity: 0; transition: opacity .12s ease, color .12s ease;
+}
+.bloc:hover .bouton-ecouter, .bouton-ecouter:focus-visible { opacity: 1; }
+.bouton-ecouter:hover { color: var(--encre); }
+.bloc.bloc-en-lecture .bouton-ecouter { opacity: 1; color: var(--statut-commente); }
+.ligne-gouttiere { display: flex; align-items: center; gap: .3rem; }
+.corps p { margin: 0; }
+.bloc.bloc-en-lecture { background: color-mix(in srgb, var(--statut-commente) 8%, transparent); }
+.bloc.bloc-en-lecture .filet-etat { background: var(--statut-commente); }
+
+/* ---- LE SURLIGNAGE NE S'AFFICHE PLUS EN PERMANENCE ----
+   Au repos, le texte est nu : rien ne le hachure, on lit.
+   Il se revele quand on survole le bloc (decouverte), et s'allume
+   franchement quand une idee est choisie (dans le texte ou au panneau). */
+mark.portion {
+  background: none; color: inherit; cursor: pointer;
+  border-radius: 2px; padding: .04em 0;
+  transition: background-color .14s ease, box-shadow .14s ease;
+}
+/* Revelation douce au survol du bloc : on voit qu'il y a quelque chose,
+   sans que ca crie. / A soft reveal on block hover. */
+.bloc:hover mark.portion { background-color: var(--revelation); }
+/* Choix explicite : la couleur du statut. */
+mark.portion.est-active {
+  background-color: color-mix(in srgb, var(--couleur-statut) 20%, transparent);
+  box-shadow: inset 0 -2px 0 0 var(--couleur-statut);
+}
+mark.portion[data-statut="nouveau"]  { --couleur-statut: var(--statut-nouveau); }
+mark.portion[data-statut="commente"] { --couleur-statut: var(--statut-commente); }
+mark.portion:hover { background-color: color-mix(in srgb, var(--couleur-statut) 14%, transparent); }
+mark.portion:focus-visible { outline: 2px solid var(--encre); outline-offset: 2px; }
+
+/* ---- L'EDITEUR DE TEXTE, EN PLACE ---- */
+/* Pas de fond au survol du paragraphe : il prenait toute la ligne et
+   noyait la revelation des portions, qui est le seul signal utile. */
+.corps p.texte-editable { cursor: text; }
+.editeur { display: none; }
+.bloc.est-en-edition .corps p.texte-editable { display: none; }
+.bloc.est-en-edition .editeur { display: block; }
+.editeur textarea {
+  width: 100%; font: inherit; line-height: 1.68; color: var(--encre);
+  background: var(--papier); border: 1px solid var(--statut-commente);
+  border-radius: 3px; padding: .5rem .6rem; resize: vertical; min-height: 4.5rem;
+}
+.editeur-barre {
+  display: flex; align-items: center; gap: .5rem; margin-top: .45rem;
+  font-family: ui-monospace, Menlo, monospace; font-size: .68rem;
+}
+.editeur-barre button {
+  font: inherit; cursor: pointer; border-radius: 3px; padding: .25rem .7rem;
+  border: 1px solid var(--filet); background: var(--papier); color: var(--encre);
+}
+.editeur-barre button.principal { background: var(--encre); color: var(--papier); border-color: var(--encre); }
+.editeur-avertissement {
+  margin-left: auto; color: var(--statut-commente); display: none;
+}
+.bloc[data-etat="debattu"] .editeur-avertissement { display: inline; }
+
+/* ================= LE PANNEAU ================= */
+.panneau {
+  border-left: 1px solid var(--filet); background: var(--papier-panneau);
+  padding: 1.4rem 1.05rem calc(var(--barre-audio) + 2rem);
+  position: sticky; top: 2.9rem; align-self: start;
+  max-height: calc(100vh - 2.9rem); overflow-y: auto;
+}
+.entete-panneau { display: flex; align-items: baseline; justify-content: space-between; }
+.entete-panneau h2 {
+  font-family: ui-monospace, Menlo, monospace; font-size: .68rem;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--encre-douce);
+  margin: 0; font-weight: 600;
+}
+.filtres {
+  display: flex; gap: .3rem; flex-wrap: wrap; margin: .7rem 0 1rem;
+  padding-bottom: .8rem; border-bottom: 1px solid var(--filet);
+}
+.filtre {
+  font-family: ui-monospace, Menlo, monospace; font-size: .63rem;
+  padding: .18rem .5rem; border-radius: 999px; border: 1px solid var(--filet);
+  background: transparent; color: var(--encre-douce); cursor: pointer;
+}
+.filtre[aria-pressed="true"] { background: var(--encre); color: var(--papier); border-color: var(--encre); }
+
+/* ---- La carte, fidele au gabarit reel ---- */
+.carte {
+  border: 1px solid var(--filet); border-radius: 6px; background: var(--papier);
+  padding: .65rem .75rem; margin-bottom: .55rem; cursor: pointer;
+  scroll-margin-top: 1rem; transition: box-shadow .12s ease, border-color .12s ease;
+}
+.carte:hover { box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+.carte.est-active { border-color: var(--statut-commente); box-shadow: 0 0 0 2px color-mix(in srgb, var(--statut-commente) 20%, transparent); }
+.carte[data-statut="detachee"] { border-style: dashed; opacity: .8; }
+
+.carte-entete { display: flex; align-items: center; gap: .4rem; margin-bottom: .45rem; }
+/* Cercle vide pour « nouveau », triangle plein pour « commente » —
+   la forme distingue autant que la couleur. */
+.indicateur-statut { width: .82rem; height: .82rem; flex: none; }
+.indicateur-statut[data-statut="nouveau"] { border: 2px solid var(--statut-nouveau); border-radius: 50%; }
+.indicateur-statut[data-statut="commente"] {
+  background: var(--statut-commente); clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+.badges { display: flex; flex-wrap: wrap; gap: .2rem; min-width: 0; }
+ /* Sobre : la famille se lit a la couleur du trait et du texte, pas a une
+    pastille pleine. Trois badges cote a cote ne doivent pas peser plus que
+    la phrase qu'ils qualifient.
+    Sober: the family reads in the stroke color, not a filled pill. */
+.badge-hypostase {
+  font-family: ui-monospace, Menlo, monospace; font-size: .58rem;
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: .08rem .34rem; border-radius: 2px; white-space: nowrap;
+  background: none; border: 1px solid currentColor; opacity: .85;
+}
+.compteur-commentaires {
+  margin-left: auto; flex: none; font-family: ui-monospace, Menlo, monospace;
+  font-size: .62rem; color: var(--statut-commente);
+}
+/* Resume machine — B612 Mono dans l'application */
+.typo-machine {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .78rem; line-height: 1.5; color: var(--encre-douce); margin: 0 0 .3rem;
+}
+/* Citation source — repliee par defaut : au repos on ne lit que la
+   reformulation, la phrase d'origine est deja dans le document a gauche.
+   Elle se deplie quand la carte est choisie.
+   The source sentence unfolds only when the card is selected. */
+.typo-citation {
+  font-family: Georgia, "Iowan Old Style", serif; font-style: italic;
+  font-size: .88rem; line-height: 1.5; color: var(--encre); margin: 0;
+  display: none;
+}
+.carte.est-active .typo-citation { display: block; margin-top: .35rem; }
+.mots-cles { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .4rem; }
+.mot-cle {
+  font-family: ui-monospace, Menlo, monospace; font-size: .58rem;
+  color: var(--encre-douce); background: var(--papier-creux);
+  padding: .05rem .3rem; border-radius: 2px;
+}
+.commentaire {
+  margin-top: .5rem; padding: .4rem .55rem;
+  background: var(--papier-creux); border-left: 2px solid var(--filet); border-radius: 3px;
+}
+.commentaire .qui { font-weight: 700; font-size: .72rem; display: block; margin-bottom: .1rem; }
+.commentaire .quoi { font-size: .82rem; margin: 0; line-height: 1.45; }
+.bouton-commenter {
+  margin-top: .5rem; font-family: ui-monospace, Menlo, monospace; font-size: .64rem;
+  background: none; border: none; padding: 0; cursor: pointer; color: var(--encre-douce);
+}
+.bouton-commenter:hover { color: var(--statut-commente); }
+.badge-detache {
+  font-family: ui-monospace, Menlo, monospace; font-size: .56rem;
+  text-transform: uppercase; letter-spacing: .06em; padding: .1rem .35rem;
+  border: 1px solid var(--encre-douce); border-radius: 2px; color: var(--encre-douce);
+}
+
+/* ================= LECTEUR AUDIO ================= */
+.lecteur {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; height: var(--barre-audio);
+  display: flex; align-items: center; gap: 1rem; padding: 0 1.1rem;
+  background: var(--papier); border-top: 1px solid var(--filet);
+  box-shadow: 0 -2px 12px rgba(0,0,0,.05);
+}
+.bouton-lecture {
+  flex: none; width: 38px; height: 38px; border-radius: 50%;
+  border: none; background: var(--encre); color: var(--papier);
+  cursor: pointer; display: grid; place-items: center; font-size: .8rem;
+}
+.piste { flex: 1; min-width: 0; }
+.piste-entete {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: ui-monospace, Menlo, monospace; font-size: .64rem;
+  color: var(--encre-douce); margin-bottom: .3rem;
+}
+.locuteur-en-cours { color: var(--encre); font-weight: 600; }
+.rail { position: relative; height: 20px; cursor: pointer; display: flex; align-items: center; gap: 2px; }
+.segment-parole {
+  height: 6px; border-radius: 2px; flex: var(--duree, 1);
+  background: color-mix(in srgb, var(--couleur-locuteur) 35%, transparent);
+  transition: height .12s ease;
+}
+.segment-parole.segment-en-cours { height: 12px; background: var(--couleur-locuteur); }
+.segment-parole.a-des-idees { box-shadow: inset 0 -2px 0 0 var(--encre); }
+.tete-de-lecture { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--encre); pointer-events: none; }
+.suivre-lecture {
+  flex: none; font-family: ui-monospace, Menlo, monospace; font-size: .62rem;
+  display: inline-flex; align-items: center; gap: .35rem; color: var(--encre-douce); cursor: pointer;
+}
+
+/* ================= MOBILE ================= */
+.poignee-mobile { display: none; }
+body[data-vue="mobile"] .application { grid-template-columns: 1fr; }
+body[data-vue="mobile"] .colonne-lecture { padding: 1.2rem .9rem calc(var(--barre-audio) + 6rem); }
+body[data-vue="mobile"] .entete-page { padding-left: 0; }
+body[data-vue="mobile"] .bloc { grid-template-columns: 1fr; gap: .25rem; padding-left: .7rem; }
+body[data-vue="mobile"] .gouttiere { flex-direction: row; align-items: center; text-align: left; gap: .5rem; padding-top: 0; }
+body[data-vue="mobile"] .filet-etat { left: 0; }
+body[data-vue="mobile"] .panneau {
+  position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 55;
+  border-left: none; border-top: 1px solid var(--filet); border-radius: 12px 12px 0 0;
+  height: 72vh; max-height: 72vh;
+  transform: translateY(calc(100% - 3.2rem - var(--barre-audio)));
+  transition: transform .22s ease; box-shadow: 0 -3px 18px rgba(0,0,0,.12); padding-bottom: 2rem;
+}
+body[data-vue="mobile"] .panneau.est-ouverte    { transform: translateY(0); }
+body[data-vue="mobile"] .panneau.est-entrouverte { transform: translateY(58%); }
+body[data-vue="mobile"] .poignee-mobile {
+  display: flex; align-items: center; justify-content: center;
+  margin: -1.4rem -1.05rem .7rem; padding: .7rem; border-bottom: 1px solid var(--filet);
+  cursor: pointer; font-family: ui-monospace, Menlo, monospace;
+  font-size: .68rem; color: var(--encre-douce);
+}
+@media (max-width: 62rem) { .application { grid-template-columns: 1fr; } .panneau { position: static; max-height: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body data-vue="bureau">
+
+<div class="bandeau-demo">
+  <strong>MAQUETTE</strong>
+  <button id="vue-bureau" aria-pressed="true">bureau</button>
+  <button id="vue-mobile" aria-pressed="false">mobile</button>
+  <button id="bascule-theme" aria-label="Changer de thème">○ clair</button>
+  <span class="indice">Survolez un paragraphe : ses passages se révèlent · cliquez une carte ou un passage · double-clic sur un texte pour l'éditer</span>
+</div>
+
+<div class="application">
+  <main class="colonne-lecture">
+    <header class="entete-page">
+      <h1>Conseil du 12 mars — enregistrement</h1>
+      <div class="meta mono">transcription diarisée · 16 tours de parole · 10 idées extraites</div>
+    </header>
+    <div id="document"></div>
+  </main>
+
+  <aside class="panneau" id="panneau">
+    <div class="poignee-mobile" id="poignee">9 idées · 4 commentées</div>
+    <div class="entete-panneau">
+      <h2>Idées extraites</h2>
+      <span class="mono" style="font-size:.62rem;color:var(--encre-douce)">9</span>
+    </div>
+    <div class="filtres">
+      <button class="filtre" aria-pressed="true">toutes</button>
+      <button class="filtre" aria-pressed="false">commentées 4</button>
+      <button class="filtre" aria-pressed="false">détachées 1</button>
+    </div>
+    <div id="liste-cartes"></div>
+  </aside>
+</div>
+
+<div class="lecteur">
+  <button class="bouton-lecture" id="bouton-lecture" aria-label="Lire l'enregistrement">▶</button>
+  <div class="piste">
+    <div class="piste-entete">
+      <span><span class="locuteur-en-cours" id="locuteur-en-cours">—</span> · <span id="numero-tour">tour 1 sur 16</span></span>
+      <span id="minutage">00:00 / 00:00</span>
+    </div>
+    <div class="rail" id="rail"><div class="tete-de-lecture" id="tete" style="left:0"></div></div>
+  </div>
+  <label class="suivre-lecture"><input type="checkbox" id="suivre" checked> suivre la lecture</label>
+</div>
+
+<script>
+/* =========================================================================
+   LES DONNEES — une discussion assez longue pour tester le defilement
+   ========================================================================= */
+var LOCUTEURS = {
+  Marie:  '#2f7d5d', Jonas: '#b8453a', Amina: '#c47f2a',
+  Pierre: '#4338ca', Sonia: '#0e7490',
+};
+
+var TOURS = [
+  {qui:'Marie',  duree:14, texte:"Je pense qu'on va beaucoup trop vite sur ce dossier, et je voudrais qu'on prenne le temps de l'expliquer aux équipes avant de trancher."},
+  {qui:'Jonas',  duree:13, texte:"On a déjà repoussé deux fois cette décision, à un moment il faut trancher, sinon on ne fera jamais rien."},
+  {qui:'Marie',  duree:16, texte:"Trancher oui, mais pas sans avoir consulté les personnes qui vont vivre avec cette décision au quotidien."},
+  {qui:'Amina',  duree:19, texte:"Je rejoins ce que dit Marie. On est en train de décider pour des gens qui ne sont pas dans la pièce, et qui n'ont même pas été prévenus qu'on en parlait aujourd'hui."},
+  {qui:'Jonas',  duree:11, texte:"D'accord, je l'entends. Mais alors on se donne une date ferme, sinon on repousse encore de six mois."},
+  {qui:'Pierre', duree:6,  texte:"Est-ce qu'on a une idée du budget que ça représente ?"},
+  {qui:'Sonia',  duree:17, texte:"Sur le budget, on est à quatre pour cent d'augmentation, essentiellement le coût de l'énergie et l'embauche au secrétariat."},
+  {qui:'Pierre', duree:12, texte:"Quatre pour cent, c'est en dessous de l'inflation. On ne peut pas dire qu'on dérape."},
+  {qui:'Marie',  duree:15, texte:"Le sujet n'est pas le montant, c'est la manière dont on décide. Dix mille euros engagés sans que personne ne l'ait vu passer, c'est ça qui pose problème."},
+  {qui:'Jonas',  duree:14, texte:"Alors on fixe un seuil. Au-delà de dix mille euros, ça passe en assemblée générale, point."},
+  {qui:'Sonia',  duree:18, texte:"Attention, si on fixe un seuil en euros sans le réévaluer, dans cinq ans l'inflation l'aura vidé de son sens. Il faut prévoir la révision dès maintenant."},
+  {qui:'Amina',  duree:6,  texte:"Bruit de chaise, inaudible pendant quelques secondes.", masque:true},
+  {qui:'Amina',  duree:16, texte:"Je propose qu'on écrive noir sur blanc que le seuil est revu chaque année en même temps que le budget."},
+  {qui:'Pierre', duree:17, texte:"On peut faire les deux : on repousse d'une semaine, on invite les personnes concernées, et on décide la semaine prochaine quoi qu'il arrive."},
+  {qui:'Marie',  duree:9,  texte:"Ça me va. Je me charge de les contacter demain matin."},
+  {qui:'Amina',  duree:12, texte:"Et on leur envoie le document en amont, pas la veille au soir comme la dernière fois."},
+];
+
+/* Les idees, telles que la carte reelle les affiche :
+   hypostases (badges), resume machine, citation source, mots-cles. */
+var IDEES = [
+  {id:1, tour:0, cite:"je voudrais qu'on prenne le temps de l'expliquer aux équipes", statut:'nouveau', hypostases:[['methode','normatif']],
+   resume:"Le temps d'explication aux équipes est posé comme préalable à la décision.",
+   motscles:['pédagogie','préalable']},
+  {id:2, tour:1, cite:"On a déjà repoussé deux fois cette décision, à un moment il faut trancher", statut:'commente', hypostases:[['probleme','problematique']],
+   resume:"L'ajournement répété est présenté comme un coût en soi.",
+   motscles:['temporalité','décision'],
+   commentaires:[{qui:'Amina', quoi:"Deux reports, c'est factuel. Mais ça n'oblige pas à décider mal."},
+                 {qui:'Marie', quoi:"Je note qu'on n'a jamais dit pourquoi on avait reporté."}]},
+  {id:3, tour:2, cite:"Trancher oui, mais pas sans avoir consulté les personnes qui vont vivre avec cette décision", statut:'commente', hypostases:[['principe','normatif'],['methode','structurel']],
+   resume:"La consultation des personnes concernées est érigée en condition de légitimité.",
+   motscles:['consultation','légitimité'],
+   commentaires:[{qui:'Pierre', quoi:"C'est le principe 3 d'Ostrom, mot pour mot."}]},
+  {id:4, tour:3, cite:"On est en train de décider pour des gens qui ne sont pas dans la pièce", statut:'commente', hypostases:[['probleme','problematique'],['phenomene','empirique']],
+   resume:"L'absence des personnes concernées est décrite comme un vice de procédure.",
+   motscles:['absence','procédure'],
+   commentaires:[{qui:'Jonas', quoi:"D'accord sur le constat, pas sur la conclusion."},
+                 {qui:'Sonia', quoi:"On pourrait les inviter en visio, ça lève l'objection."},
+                 {qui:'Marie', quoi:"La visio ne remplace pas le fait de les prévenir à l'avance."}]},
+  {id:5, tour:6, cite:"quatre pour cent d'augmentation, essentiellement le coût de l'énergie et l'embauche au secrétariat", statut:'nouveau', hypostases:[['phenomene','empirique']],
+   resume:"La hausse budgétaire est rapportée à deux causes identifiées.",
+   motscles:['budget','énergie']},
+  {id:6, tour:8, cite:"Le sujet n'est pas le montant, c'est la manière dont on décide", statut:'nouveau', hypostases:[['axiome','epistemique'],['principe','normatif']],
+   resume:"Le débat est déplacé du montant vers la procédure de décision.",
+   motscles:['gouvernance','recadrage']},
+  /* Deuxieme idee sur le MEME tour de parole : le cas reel qu'on doit tenir.
+     Le decoupage LangExtract coupe le texte envoye, pas les idees rendues.
+     A second idea on the same turn — chunking splits input, not output. */
+  {id:10, tour:8, cite:"Dix mille euros engagés sans que personne ne l'ait vu passer", statut:'commente', hypostases:[['phenomene','empirique']],
+   resume:"Un engagement de dix mille euros a été pris hors du regard collectif.",
+   motscles:['montant','opacité'],
+   commentaires:[{qui:'Pierre', quoi:"Le montant est exact, je l'ai vérifié au compte 606."}]},
+  {id:7, tour:9, cite:"Au-delà de dix mille euros, ça passe en assemblée générale", statut:'nouveau', hypostases:[['methode','structurel']],
+   resume:"Un seuil chiffré est proposé comme règle de passage en assemblée.",
+   motscles:['seuil','assemblée']},
+  {id:8, tour:10, cite:"si on fixe un seuil en euros sans le réévaluer, dans cinq ans l'inflation l'aura vidé de son sens", statut:'commente', hypostases:[['conjecture','speculatif'],['probleme','problematique']],
+   resume:"L'érosion du seuil par l'inflation est anticipée comme une faille de la règle.",
+   motscles:['inflation','révision'],
+   commentaires:[{qui:'Pierre', quoi:"Bonne objection. On indexe, ou on révise à la main ?"}]},
+  {id:9, tour:13, cite:"on repousse d'une semaine, on invite les personnes concernées, et on décide la semaine prochaine", statut:'nouveau', hypostases:[['methode','structurel'],['mode','mode']],
+   resume:"Une sortie de conflit est proposée : report court plus invitation.",
+   motscles:['compromis','calendrier']},
+];
+
+var IDEE_DETACHEE = {
+  hypostases:[['principe','normatif']],
+  resume:"Le seuil de dix mille euros doit être réévalué chaque année.",
+  citation:"le seuil est revu chaque année en même temps que le budget",
+  motif:"passage introuvable depuis l'édition du 4 mars",
+};
+
+/* =========================================================================
+   CONSTRUCTION DU DOCUMENT
+   ========================================================================= */
+function echapper(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+var conteneurDocument = document.getElementById('document');
+var instantDeDebut = 0;
+
+TOURS.forEach(function (tour, numero) {
+  var ideesDuTour = IDEES.filter(function (i) { return i.tour === numero; });
+  var etat = tour.masque ? 'masque' : (ideesDuTour.length
+    ? (ideesDuTour.some(function (i) { return i.statut === 'commente'; }) ? 'debattu' : 'analyse')
+    : 'libre');
+
+  /* Le texte, decoupe autour des passages extraits. */
+  /* Les bornes viennent du TEXTE cite, pas d'un comptage a la main :
+     une citation coupee en plein mot serait la premiere chose qu'on
+     verrait, et ce ne serait pas une faute du moteur. */
+  ideesDuTour.forEach(function (idee) {
+    idee.debut = tour.texte.indexOf(idee.cite);
+    idee.fin = idee.debut + idee.cite.length;
+    if (idee.debut === -1) { console.error('citation introuvable :', idee.cite); }
+  });
+
+  var html = '', curseur = 0;
+  ideesDuTour.sort(function (a, b) { return a.debut - b.debut; }).forEach(function (idee) {
+    html += echapper(tour.texte.slice(curseur, idee.debut));
+    html += '<mark class="portion" data-idee="' + idee.id + '" data-statut="' + idee.statut +
+            '" tabindex="0">' + echapper(tour.texte.slice(idee.debut, idee.fin)) + '</mark>';
+    curseur = idee.fin;
+  });
+  html += echapper(tour.texte.slice(curseur));
+
+  var minutes = String(Math.floor(instantDeDebut / 60)).padStart(2, '0');
+  var secondes = String(instantDeDebut % 60).padStart(2, '0');
+
+  var bloc = document.createElement('div');
+  bloc.className = 'bloc';
+  bloc.dataset.etat = etat;
+  bloc.dataset.bloc = numero;
+  bloc.dataset.debut = instantDeDebut;
+  bloc.dataset.fin = instantDeDebut + tour.duree;
+  bloc.innerHTML =
+    '<div class="gouttiere">' +
+      (tour.masque ? '<span class="mono">masqué</span>' :
+        '<span class="etiquette-locuteur" style="--couleur-locuteur:' + LOCUTEURS[tour.qui] + '">' + tour.qui + '</span>' +
+        '<span class="ligne-gouttiere">' +
+          '<button class="bouton-ecouter" title="Écouter à partir d\'ici" aria-label="Écouter à partir d\'ici">▶</button>' +
+          '<span>' + minutes + ':' + secondes + '</span>' +
+        '</span>' +
+        (ideesDuTour.length
+          ? '<button class="compteur-idees" title="' + ideesDuTour.length +
+            (ideesDuTour.length > 1 ? ' idées extraites de ce passage' : ' idée extraite de ce passage') +
+            '">' + ideesDuTour.length + '</button>'
+          : '')) +
+    '</div>' +
+    '<div class="filet-etat"></div>' +
+    '<div class="corps">' +
+      '<p class="texte-editable">' + html + '</p>' +
+      '<div class="editeur">' +
+        '<textarea>' + tour.texte + '</textarea>' +
+        '<div class="editeur-barre">' +
+          '<button class="principal">Enregistrer</button>' +
+          '<button class="annuler">Annuler</button>' +
+          '<span class="editeur-avertissement">⚠ ce passage est débattu — une justification sera demandée</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  conteneurDocument.appendChild(bloc);
+  instantDeDebut += tour.duree;
+});
+
+var DUREE_TOTALE = instantDeDebut;
+
+/* =========================================================================
+   CONSTRUCTION DES CARTES — fideles au gabarit reel
+   ========================================================================= */
+var listeCartes = document.getElementById('liste-cartes');
+
+function htmlDesBadges(hypostases) {
+  return hypostases.map(function (h) {
+    return '<span class="badge-hypostase" style="color:var(--hypostase-' + h[1] +
+           '-text)" title="' + h[0] + '">' + h[0] + '</span>';
+  }).join('');
+}
+
+IDEES.forEach(function (idee) {
+  var tour = TOURS[idee.tour];
+  var citation = tour.texte.slice(idee.debut, idee.fin);
+  var commentaires = idee.commentaires || [];
+
+  var carte = document.createElement('article');
+  carte.className = 'carte';
+  carte.dataset.idee = idee.id;
+  carte.dataset.statut = idee.statut;
+  carte.tabIndex = 0;
+  carte.innerHTML =
+    '<div class="carte-entete">' +
+      '<span class="indicateur-statut" data-statut="' + idee.statut + '" title="' +
+        (idee.statut === 'commente' ? 'Commenté' : 'Nouveau') + '"></span>' +
+      '<div class="badges">' + htmlDesBadges(idee.hypostases) + '</div>' +
+      (commentaires.length ? '<span class="compteur-commentaires">' + commentaires.length + ' 💬</span>' : '') +
+    '</div>' +
+    '<p class="typo-machine">' + echapper(idee.resume) + '</p>' +
+    '<p class="typo-citation">[' + echapper(citation) + ']</p>' +
+    '<div class="mots-cles">' + idee.motscles.map(function (m) {
+      return '<span class="mot-cle">#' + m + '</span>'; }).join('') + '</div>' +
+    commentaires.map(function (c) {
+      return '<div class="commentaire"><span class="qui">' + c.qui +
+             '</span><p class="quoi">' + echapper(c.quoi) + '</p></div>'; }).join('') +
+    '<button class="bouton-commenter">Commenter</button>';
+  listeCartes.appendChild(carte);
+});
+
+/* La carte detachee : pas de citation cliquable, un motif et une action. */
+var carteDetachee = document.createElement('article');
+carteDetachee.className = 'carte';
+carteDetachee.dataset.statut = 'detachee';
+carteDetachee.innerHTML =
+  '<div class="carte-entete">' +
+    '<span class="indicateur-statut" data-statut="nouveau"></span>' +
+    '<div class="badges">' + htmlDesBadges(IDEE_DETACHEE.hypostases) + '</div>' +
+    '<span class="badge-detache" style="margin-left:auto">détachée</span>' +
+  '</div>' +
+  '<p class="typo-machine">' + echapper(IDEE_DETACHEE.resume) + '</p>' +
+  '<p class="typo-citation">[' + echapper(IDEE_DETACHEE.citation) + ']</p>' +
+  '<div class="mots-cles"><span class="mot-cle mono">' + IDEE_DETACHEE.motif + '</span></div>' +
+  '<button class="bouton-commenter">Replacer dans le texte</button>';
+listeCartes.appendChild(carteDetachee);
+
+/* =========================================================================
+   NAVIGATION CROISEE
+   ========================================================================= */
+var panneau = document.getElementById('panneau');
+
+function toutEteindre() {
+  document.querySelectorAll('mark.portion.est-active, .carte.est-active')
+    .forEach(function (n) { n.classList.remove('est-active'); });
+}
+
+function ouvrirLaFeuilleSiMobile() {
+  if (document.body.dataset.vue !== 'mobile') return;
+  panneau.classList.remove('est-ouverte');
+  panneau.classList.add('est-entrouverte');
+  var active = panneau.querySelector('.carte.est-active');
+  if (active) active.scrollIntoView({ block: 'start' });
+}
+
+/* Allume toutes les idees d'un bloc d'un coup, et amene la premiere carte.
+   Lights every idea of a block at once. */
+function allumerLesIdeesDuBloc(bloc) {
+  toutEteindre();
+  var marques = bloc.querySelectorAll('mark.portion');
+  if (!marques.length) return;
+  marques.forEach(function (m) {
+    m.classList.add('est-active');
+    var carte = document.querySelector('.carte[data-idee="' + m.dataset.idee + '"]');
+    if (carte) carte.classList.add('est-active');
+  });
+  var premiere = document.querySelector('.carte[data-idee="' + marques[0].dataset.idee + '"]');
+  if (premiere) premiere.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  ouvrirLaFeuilleSiMobile();
+}
+
+function allumerIdee(idee, origine) {
+  toutEteindre();
+  var marques = document.querySelectorAll('mark.portion[data-idee="' + idee + '"]');
+  marques.forEach(function (m) { m.classList.add('est-active'); });
+  var carte = document.querySelector('.carte[data-idee="' + idee + '"]');
+  if (carte) carte.classList.add('est-active');
+
+  if (origine === 'texte' && carte) {
+    carte.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    ouvrirLaFeuilleSiMobile();
+  }
+  if (origine === 'panneau' && marques.length) {
+    marques[0].closest('.bloc').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+conteneurDocument.addEventListener('click', function (e) {
+  var compteur = e.target.closest('.compteur-idees');
+  if (compteur) { allumerLesIdeesDuBloc(compteur.closest('.bloc')); return; }
+
+  var ecouter = e.target.closest('.bouton-ecouter');
+  if (ecouter) { ecouterDepuis(ecouter.closest('.bloc')); return; }
+
+  var marque = e.target.closest('mark.portion');
+  if (marque) { e.stopPropagation(); allumerIdee(marque.dataset.idee, 'texte'); }
+});
+listeCartes.addEventListener('click', function (e) {
+  if (e.target.closest('.bouton-commenter')) return;
+  var carte = e.target.closest('.carte');
+  if (carte && carte.dataset.idee) allumerIdee(carte.dataset.idee, 'panneau');
+});
+
+/* =========================================================================
+   L'EDITEUR — double-clic sur le texte
+   ========================================================================= */
+conteneurDocument.addEventListener('dblclick', function (e) {
+  var bloc = e.target.closest('.bloc');
+  if (!bloc || bloc.dataset.etat === 'masque') return;
+  bloc.classList.add('est-en-edition');
+  var zone = bloc.querySelector('textarea');
+  zone.focus();
+  zone.setSelectionRange(zone.value.length, zone.value.length);
+});
+conteneurDocument.addEventListener('click', function (e) {
+  var bouton = e.target.closest('.editeur-barre button');
+  if (!bouton) return;
+  var bloc = bouton.closest('.bloc');
+  if (bouton.classList.contains('principal')) {
+    /* Simule ce que fera la reconciliation : le texte change, et les
+       ancres sont repositionnees — ou detachees si on ne les retrouve pas. */
+    var nouveauTexte = bloc.querySelector('textarea').value;
+    bloc.querySelector('p.texte-editable').textContent = nouveauTexte;
+  }
+  bloc.classList.remove('est-en-edition');
+});
+
+/* =========================================================================
+   LECTEUR AUDIO
+   ========================================================================= */
+var rail = document.getElementById('rail');
+var teteDeLecture = document.getElementById('tete');
+TOURS.forEach(function (tour, numero) {
+  var segment = document.createElement('div');
+  segment.className = 'segment-parole' +
+    (IDEES.some(function (i) { return i.tour === numero; }) ? ' a-des-idees' : '');
+  segment.style.setProperty('--duree', tour.duree);
+  segment.style.setProperty('--couleur-locuteur', tour.masque ? '#b9b5ad' : LOCUTEURS[tour.qui]);
+  segment.dataset.bloc = numero;
+  rail.insertBefore(segment, teteDeLecture);
+});
+
+var instant = 0, enLecture = false, minuterie = null;
+var blocs = Array.prototype.slice.call(document.querySelectorAll('.bloc'));
+var segments = Array.prototype.slice.call(document.querySelectorAll('.segment-parole'));
+
+function formater(s) {
+  return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+}
+
+function rafraichir() {
+  teteDeLecture.style.left = (instant / DUREE_TOTALE * 100) + '%';
+  document.getElementById('minutage').textContent = formater(instant) + ' / ' + formater(DUREE_TOTALE);
+
+  var courant = blocs.find(function (b) { return instant >= +b.dataset.debut && instant < +b.dataset.fin; });
+  blocs.forEach(function (b) { b.classList.toggle('bloc-en-lecture', b === courant); });
+  segments.forEach(function (s) {
+    s.classList.toggle('segment-en-cours', courant && s.dataset.bloc === courant.dataset.bloc);
+  });
+  if (courant) {
+    var nom = courant.querySelector('.etiquette-locuteur');
+    document.getElementById('locuteur-en-cours').textContent = nom ? nom.textContent : '—';
+    document.getElementById('numero-tour').textContent =
+      'tour ' + (+courant.dataset.bloc + 1) + ' sur ' + TOURS.length;
+    if (document.getElementById('suivre').checked && enLecture) {
+      courant.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+}
+
+document.getElementById('bouton-lecture').addEventListener('click', function () {
+  enLecture = !enLecture;
+  this.textContent = enLecture ? '❚❚' : '▶';
+  if (enLecture) {
+    minuterie = setInterval(function () {
+      instant += 1; if (instant >= DUREE_TOTALE) instant = 0; rafraichir();
+    }, 240);
+  } else { clearInterval(minuterie); }
+});
+rail.addEventListener('click', function (e) {
+  var boite = this.getBoundingClientRect();
+  instant = Math.round((e.clientX - boite.left) / boite.width * DUREE_TOTALE);
+  rafraichir();
+});
+
+/* Le bouton ▶ de la gouttiere : place la tete de lecture au debut du
+   bloc et lance la lecture si elle etait a l'arret.
+   Seeks to the block and starts playing. */
+function ecouterDepuis(bloc) {
+  instant = +bloc.dataset.debut;
+  rafraichir();
+  if (!enLecture) document.getElementById('bouton-lecture').click();
+}
+
+rafraichir();
+
+/* ================= BASCULE BUREAU / MOBILE ================= */
+document.getElementById('poignee').addEventListener('click', function () {
+  var entrouverte = panneau.classList.contains('est-entrouverte');
+  panneau.classList.remove('est-entrouverte');
+  if (entrouverte) panneau.classList.add('est-ouverte');
+  else panneau.classList.toggle('est-ouverte');
+});
+document.getElementById('vue-bureau').addEventListener('click', function () {
+  document.body.dataset.vue = 'bureau';
+  this.setAttribute('aria-pressed', 'true');
+  document.getElementById('vue-mobile').setAttribute('aria-pressed', 'false');
+  panneau.classList.remove('est-ouverte', 'est-entrouverte');
+});
+document.getElementById('vue-mobile').addEventListener('click', function () {
+  document.body.dataset.vue = 'mobile';
+  this.setAttribute('aria-pressed', 'true');
+  document.getElementById('vue-bureau').setAttribute('aria-pressed', 'false');
+});
+document.querySelectorAll('.filtre').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.querySelectorAll('.filtre').forEach(function (a) {
+      a.setAttribute('aria-pressed', String(a === b));
+    });
+  });
+});
+</script>
+<script>
+/* =========================================================================
+   CLAIR / SOMBRE
+   Trois etats : « systeme » (aucun attribut, prefers-color-scheme decide),
+   « clair » et « sombre » forces. L'attribut se pose sur <html> pour que
+   les deux blocs de tokens sachent qui l'emporte.
+   Three states: system, forced light, forced dark. / <html data-theme>.
+   ========================================================================= */
+(function () {
+  var racine = document.documentElement;
+  var bouton = document.getElementById('bascule-theme');
+  /* Le clair est le DEPART, pas le systeme : la maquette doit s'ouvrir
+     sur le meme rendu pour tout le monde. / Light first, for everyone. */
+  var ETATS = [
+    { valeur: 'light',  libelle: '\u25CB clair' },
+    { valeur: 'dark',   libelle: '\u25CF sombre' },
+    { valeur: '',       libelle: '\u25D1 système' }
+  ];
+  var indice = 0;
+  function appliquer() {
+    var etat = ETATS[indice];
+    if (etat.valeur) { racine.dataset.theme = etat.valeur; }
+    else { delete racine.dataset.theme; }
+    bouton.textContent = etat.libelle;
+    bouton.title = 'Thème : ' + etat.libelle.slice(2) + ' — cliquer pour changer';
+  }
+  bouton.addEventListener('click', function () {
+    indice = (indice + 1) % ETATS.length;
+    appliquer();
+  });
+  appliquer();
+})();
+</script>
+</body>
+</html>

@@ -159,3 +159,27 @@ def entrainer_analyseur_task(self, test_run_id):
         test_run.save(update_fields=[
             "status", "error_message", "processing_time_seconds",
         ])
+
+
+# =============================================================================
+# ENREGISTREMENT DES TACHES DU MOTEUR ELEMENT
+# / Registering the ELEMENT engine's tasks
+#
+# celery_app.autodiscover_tasks() ne charge QUE le module <app>/tasks.py de
+# chaque application installee. Les taches du moteur ELEMENT vivent dans
+# tasks_element.py, un fichier separe pour ne pas melanger les deux moteurs
+# (voir l'en-tete de ce fichier-la).
+#
+# Sans cet import, un worker qui demarre ne les connait pas : un appel
+# .delay() partirait dans la file, le worker repondrait « Received
+# unregistered task », le message serait jete, et le job resterait en
+# PENDING pour toujours — bloquant au passage l'edition de sa page
+# pendant 90 minutes via la garde d'edition. Verifie empiriquement.
+# / autodiscover only loads <app>/tasks.py; without this import the worker
+# would silently drop the task and leave the job PENDING forever.
+#
+# L'import est en FIN de fichier pour que les taches de ce module soient
+# deja definies : tasks_element importe des services qui, eux, importent
+# des modeles — un import en tete creerait un cycle.
+# / Imported last to avoid an import cycle through the services.
+from . import tasks_element  # noqa: E402,F401

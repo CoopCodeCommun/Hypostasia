@@ -1,0 +1,116 @@
+{# PARTIAL : LE BLOC « DANS N CARNETS » D'UNE NOTE — phase G #}
+{# / PARTIAL: A NOTE'S "IN N NOTEBOOKS" BLOCK — phase G #}
+{# LOCALISATION : front/templates/front/corpus/partials/carnets_de_la_note.html #}
+{# Variables : note, lignes [{appartenance, peut_editer}], #}
+{# carnets_disponibles. Charge par GET /notes/{id}/carnets/bloc/, cible #}
+{# des reponses des actions de rangement. C'est la traduction visuelle du #}
+{# modele (spec § 8.1) : chaque ligne montre un carnet ET les categories #}
+{# de la note dans CE carnet-la — on VOIT que les etiquettes different. #}
+<div data-testid="corpus-bloc-carnets" data-page-id="{{ note.pk }}"
+     id="corpus-bloc-carnets-{{ note.pk }}">
+    <p class="text-sm font-medium mb-1">
+        Dans {{ lignes|length }} carnet{{ lignes|length|pluralize }} :
+    </p>
+    <ul class="space-y-1" aria-label="Carnets contenant cette note">
+        {% for ligne in lignes %}
+        {% with appartenance=ligne.appartenance %}
+        <li class="text-sm border border-slate-200 rounded px-2 py-1"
+            data-testid="corpus-bloc-carnet-ligne"
+            data-carnet-id="{{ appartenance.dossier.pk }}">
+            <span class="flex items-center gap-2">
+                {% if appartenance.epinglee %}<span role="img" aria-label="Épinglée">📌</span>{% endif %}
+                {# Visibilite par ligne : une ligne publique = la note est #}
+                {# publique (§ 5.2) — l'information de gouvernance centrale. #}
+                {# / Per-row visibility: a public row = the note is public. #}
+                {% if appartenance.dossier.visibilite == "public" %}<span role="img" aria-label="Carnet public" title="Public : la note y est visible par tous">🌐</span>{% elif appartenance.dossier.visibilite == "partage" %}<span role="img" aria-label="Carnet partagé" title="Partagé">👥</span>{% else %}<span role="img" aria-label="Carnet privé" title="Privé">🔒</span>{% endif %}
+                {# Le lien OUVRE LE CARNET (pas la note dans le carnet) : #}
+                {# la vraie bascule de contexte de l'etalon vit dans le fil #}
+                {# d'Ariane, encore « cible » (maquette.html:912-931). #}
+                {# / The link opens the NOTEBOOK; the etalon's context #}
+                {# switch lives in the breadcrumb, still a target. #}
+                <a href="/carnets/{{ appartenance.dossier.pk }}/"
+                   hx-get="/carnets/{{ appartenance.dossier.pk }}/"
+                   hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true"
+                   class="flex-1 text-blue-700 hover:underline"
+                   data-testid="corpus-bloc-carnet-lien">{{ appartenance.dossier.name }}</a>
+                <span role="group" aria-label="Catégories dans ce carnet">
+                    {% for categorie in appartenance.categories.all %}
+                    <span class="inline-flex items-center gap-1 text-xs bg-slate-100 border border-slate-300 rounded px-1.5"
+                          data-testid="corpus-bloc-categorie"><span role="img" aria-hidden="true" style="display:inline-block;width:.6em;height:.6em;border-radius:50%;background:{{ categorie.couleur_effective }}"></span>{{ categorie.nom }}</span>
+                    {% endfor %}
+                </span>
+                {% if ligne.peut_editer %}
+                <button type="button" class="text-slate-400 hover:text-slate-700 px-1"
+                        aria-label="Épingler dans ce carnet"
+                        aria-pressed="{{ appartenance.epinglee|yesno:'true,false' }}"
+                        title="{% if appartenance.epinglee %}Désépingler{% else %}Épingler{% endif %}"
+                        data-testid="corpus-bloc-epingler"
+                        hx-post="/notes/{{ note.pk }}/carnets/{{ appartenance.dossier.pk }}/epingler/"
+                        hx-target="#corpus-bloc-carnets-{{ note.pk }}" hx-swap="outerHTML">📌</button>
+                <button type="button" class="text-slate-400 hover:text-red-600 px-1"
+                        aria-label="Retirer de ce carnet" title="Retirer de ce carnet"
+                        data-testid="corpus-bloc-retirer"
+                        hx-delete="/notes/{{ note.pk }}/carnets/{{ appartenance.dossier.pk }}/"
+                        hx-target="#corpus-bloc-carnets-{{ note.pk }}" hx-swap="outerHTML"
+                        {% if lignes|length == 1 %}
+                        hx-confirm="C'est le DERNIER carnet de cette note : retirée, elle ne sera plus visible que par son propriétaire. Retirer quand même ? (La note n'est jamais supprimée.)"
+                        {% else %}
+                        hx-confirm="Retirer cette note du carnet « {{ appartenance.dossier.name }} » ? (La note n'est jamais supprimée, elle reste dans ses autres carnets.)"
+                        {% endif %}>✕</button>
+                {% endif %}
+            </span>
+            {# Edition des categories de CETTE relation : le crayon ouvre #}
+            {# les axes de CE carnet. / Per-relation category editing. #}
+            {% if ligne.peut_editer and appartenance.dossier.listes_de_categories.all %}
+            <details class="mt-1">
+                <summary class="text-xs text-slate-500 cursor-pointer"
+                         data-testid="corpus-bloc-crayon">✎ Modifier les catégories dans ce carnet</summary>
+                <form hx-post="/notes/{{ note.pk }}/carnets/{{ appartenance.dossier.pk }}/categories/"
+                      hx-target="#corpus-bloc-carnets-{{ note.pk }}" hx-swap="outerHTML"
+                      class="pl-3 pt-1">
+                    {% for axe in appartenance.dossier.listes_de_categories.all %}
+                    <fieldset class="mb-1">
+                        <legend class="text-xs font-semibold">{{ axe.nom }}</legend>
+                        {% for categorie in axe.categories_de_dossier.all %}
+                        <label class="inline-flex items-center gap-1 text-xs border border-slate-300 rounded-full px-1.5 mr-1 cursor-pointer has-[:checked]:bg-slate-200">
+                            <input type="checkbox" name="categorie_ids" value="{{ categorie.pk }}"
+                                   {% if categorie in appartenance.categories.all %}checked{% endif %}
+                                   data-testid="corpus-bloc-case-categorie">
+                            {{ categorie.nom }}
+                        </label>
+                        {% endfor %}
+                    </fieldset>
+                    {% endfor %}
+                    <button type="submit" class="text-xs border rounded px-2"
+                            data-testid="corpus-bloc-enregistrer-categories">Enregistrer</button>
+                </form>
+            </details>
+            {% endif %}
+        </li>
+        {% endwith %}
+        {% empty %}
+        <li class="text-sm text-slate-500 italic">Dans aucun carnet.</li>
+        {% endfor %}
+    </ul>
+
+    {# AJOUTER A UN CARNET. L'avertissement « carnet public » est dit AU #}
+    {# MOMENT DU GESTE (§ 7.3) : les options publiques le portent en clair. #}
+    {# / ADD TO A NOTEBOOK; public ones carry the warning inline. #}
+    {% if carnets_disponibles %}
+    <form class="mt-2 flex items-center gap-2"
+          hx-post="/notes/{{ note.pk }}/carnets/"
+          hx-target="#corpus-bloc-carnets-{{ note.pk }}" hx-swap="outerHTML"
+          data-testid="corpus-bloc-ajouter-form">
+        <label class="text-sm" for="ajout-carnet-{{ note.pk }}">+ Ajouter à…</label>
+        <select name="carnet_id" id="ajout-carnet-{{ note.pk }}"
+                class="text-sm border border-slate-300 rounded px-1 py-0.5"
+                data-testid="corpus-bloc-ajouter-select">
+            {% for carnet in carnets_disponibles %}
+            <option value="{{ carnet.pk }}">{{ carnet.name }}{% if carnet.visibilite == "public" %} — PUBLIC : la note y sera visible par tous{% endif %}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="text-sm border rounded px-2"
+                data-testid="corpus-bloc-ajouter-bouton">Ajouter</button>
+    </form>
+    {% endif %}
+</div>

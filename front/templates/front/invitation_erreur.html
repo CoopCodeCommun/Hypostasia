@@ -1,7 +1,8 @@
-{# Page d'erreur pour les invitations invalides/expirees (PHASE-25d) #}
-{# / Error page for invalid/expired invitations (PHASE-25d) #}
-{# LOCALISATION : front/templates/front/invitation_erreur.html #}
 {% load static %}
+{# Page d'erreur pour les invitations invalides/expirees (PHASE-25d), #}
+{# portee sur le design de la MAQUETTE le 9 aout 2026 (lot T6). #}
+{# / Error page for invalid/expired invitations, etalon design. #}
+{# LOCALISATION : front/templates/front/invitation_erreur.html #}
 <!DOCTYPE html>
 <html lang="fr" class="h-full">
 <head>
@@ -9,23 +10,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invitation — Hypostasia</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
+    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=22">
+    {# Le theme 3 etats, applique AVANT le premier rendu (lot T7). #}
+    <script src="{% static 'front/js/theme.js' %}?v=1"></script>
 </head>
-<body class="h-full bg-slate-50 flex items-center justify-center px-4">
-    <div class="w-full max-w-sm text-center">
-        <div class="mb-6">
-            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">Hypostasia</h1>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6" role="alert">
-            <svg class="w-12 h-12 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/>
-            </svg>
-            <p class="text-sm text-slate-700 mb-4" data-testid="invitation-erreur-message">{{ message_erreur }}</p>
-            <a href="/"
-               data-testid="invitation-erreur-lien-retour"
-               class="inline-block w-full px-4 py-2.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
-                Retour a l'accueil
-            </a>
-        </div>
+<body>
+{% include "front/corpus/_style_maquette.html" %}
+<main class="zone-corpus page-nue">
+    <span class="marque">Hypostasia</span>
+
+    <h1>Invitation inutilisable</h1>
+
+    <div class="message-etat" data-genre="erreur" role="alert">
+        <strong>Motif</strong>
+        <p style="margin:0" data-testid="invitation-erreur-message">{{ message_erreur }}</p>
     </div>
+
+    <p class="note-explicative">
+        Une invitation ne sert qu'une fois et expire ; demandez-en une
+        nouvelle à la personne qui partage le dossier.
+    </p>
+
+    <div class="rangee-boutons">
+        <a href="/" data-testid="invitation-erreur-lien-retour"
+           class="bouton-plat principal pleine-largeur"
+           style="display:inline-block;text-align:center;text-decoration:none">Retour à l'accueil</a>
+    </div>
+    {# Bascule de theme (lot T7) : un visiteur anonyme doit pouvoir
+       changer de theme, il n'a pas acces a la page de reglages.
+       / Anonymous visitors need the toggle too. #}
+    <p class="pied-page" style="margin-top:.6rem">
+        <button type="button" id="bascule-theme" data-testid="bascule-theme"
+                aria-label="Changer de thème">◑</button>
+    </p>
+</main>
 </body>
 </html>

@@ -641,6 +641,30 @@ Le UX (pastilles, drawer, dashboard) traite les deux types de manière transpare
 
 ## 5. Sourçage `[N]` des synthèses délibératives
 
+> ⚠️ **CORRIGÉ PAR `SPEC-synthese-carnet.md` § 4.4 et § 4.5 (8 août 2026)**
+>
+> Trois prescriptions de cette section sont **abandonnées** :
+>
+> 1. **Le champ `SourceLink.citation_index`** (numéro `[N]` stocké, avec sa migration).
+>    → Le numéro n'est JAMAIS persisté : il est attribué à l'affichage, par ordre
+>    d'apparition. Un index stocké est instable entre deux ingestions ou deux tours
+>    de wiki — une citation `[3]` mémorisée pointerait ensuite vers autre chose.
+>    Ce qui est stocké dans le markdown est un **marqueur d'identifiant**,
+>    `[[ext:<id>]]`, et les `SourceLink` en sont l'index, reconstruit à chaque
+>    enregistrement.
+>
+> 2. **Les citations hallucinées ignorées avec un simple warning.**
+>    → Un marqueur pointant une extraction hors du périmètre est **signalé à
+>    l'humain** ; le lien n'est pas créé et le marqueur est retiré du texte.
+>    Jamais en silence.
+>
+> 3. **`type_lien = "cite"`** n'existe pas dans `TypeLien` (`core/models.py:1310`,
+>    qui ne connaît que identique / modifie / nouveau / supprime).
+>    → La valeur est à **ajouter** à l'énumération avant toute écriture.
+>
+> Voir aussi l'avertissement du § 7, qui corrige l'applier d'opérations de section.
+> Le reste de cette section (structure du pipeline, appel LLM) reste valide.
+
 ### Pattern Atomic réutilisé tel quel
 
 Quand on génère une synthèse délibérative (PHASE-28-light), on numérote les sources
@@ -1173,6 +1197,31 @@ Voir squelette PHASE-35 dans l'Annexe A.
 ---
 
 ## 7. Update incrémental des synthèses (section_ops)
+
+> ⚠️ **CORRIGÉ PAR `SPEC-synthese-carnet.md` § 6 (8 août 2026)**
+>
+> Deux comportements décrits ci-dessous sont **abandonnés** :
+>
+> 1. `AppendToSection` / `ReplaceSection` avec un `heading` introuvable :
+>    ce document prescrit un `logger.warning` et **jette le contenu en silence**.
+>    → Remplacé par un **rejet visible**, contenu conservé et montré à l'humain.
+>    Jeter du contenu sans trace est une perte de données.
+>
+> 2. `InsertSection` avec un `after_heading` introuvable :
+>    ce document prescrit un **fallback en fin d'article**.
+>    → Remplacé par un **rejet visible**. Un titre absent est une hallucination
+>    du modèle, pas une approximation de placement ; insérer à un endroit qu'il
+>    n'a pas choisi est pire qu'un rejet, parce que personne ne le voit.
+>
+> Le contrôle mécanique est par ailleurs **étendu aux sources** : une opération
+> de contenu dont `sources` est vide, ou dont une source est hors du périmètre,
+> est rejetée de la même façon.
+>
+> Enfin, la numérotation `[N]` **n'est pas stockée** dans le markdown : elle est
+> attribuée à l'affichage depuis des identifiants d'extraction. Un index stocké
+> est instable entre deux ingestions.
+>
+> Le reste de cette section (schéma des opérations, prompt, applier) reste valide.
 
 ### Pattern Atomic
 

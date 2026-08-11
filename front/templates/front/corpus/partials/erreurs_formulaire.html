@@ -1,0 +1,19 @@
+{# PARTIAL : ERREURS DE FORMULAIRE — phase E corpus, design maquette #}
+{# (lot T5 de la bascule CSS, 9 aout 2026). #}
+{# / PARTIAL: FORM ERRORS — corpus phase E, etalon design. #}
+{# LOCALISATION : front/templates/front/corpus/partials/erreurs_formulaire.html #}
+{# Variables : erreurs (serializer.errors). Rendu seul en HTMX : il #}
+{# porte ses propres couleurs en tokens plutot qu'un utilitaire rouge. #}
+<div role="alert" data-testid="corpus-erreurs"
+     style="border:1px solid color-mix(in srgb,var(--danger) 40%,var(--filet));
+            background:color-mix(in srgb,var(--danger) 8%,var(--papier));
+            color:var(--encre); border-radius:5px; padding:.5rem .7rem;
+            margin:.5rem 0; font-size:.82rem; line-height:1.5;">
+    <ul style="margin:0;padding-left:1.1rem">
+        {% for champ, messages in erreurs.items %}
+        <li><strong>{{ champ }}</strong> :
+            {% for message in messages %}{{ message }}{% if not forloop.last %} · {% endif %}{% endfor %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>

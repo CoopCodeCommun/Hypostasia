@@ -618,3 +618,149 @@ class AnalyseurVersion(models.Model):
 
     def __str__(self):
         return f"{self.analyseur.name} v{self.version_number}"
+
+
+# =============================================================================
+# ANCRAGE PAR ELEMENT — la table de liaison M2M (SPEC v2, phase A)
+# / Element-based anchoring — the M2M link table (SPEC v2, phase A)
+#
+# LOCALISATION : hypostasis_extractor/models.py
+#
+# Les anciens champs ExtractedEntity.start_char / end_char restent en place
+# et continuent de fonctionner. Rien n'est migre de force (SPEC v2 section 9).
+# / The old start_char / end_char fields stay in place and keep working.
+# =============================================================================
+
+
+class EtatAncrage(models.TextChoices):
+    """
+    Est-ce qu'on retrouve encore, ELEMENT PAR ELEMENT, le passage source
+    d'une portion d'extraction ?
+    / Can we still locate, per element, the source passage of a portion?
+
+    LOCALISATION : hypostasis_extractor/models.py
+
+    DEUX ETATS, PAS TROIS
+
+    Une premiere version distinguait EXACTE (position calculee au premier
+    ancrage) et RETROUVEE (repositionnee apres une edition). Cette
+    distinction ne changeait RIEN : ni le regime d'edition (SPEC section
+    3), ni l'affichage, ni le calcul de l'etat de l'element. Seule
+    comptait la difference avec DETACHEE.
+
+    Deux etats qui se comportent pareil, c'est une occasion de se tromper
+    sans contrepartie. On les a fusionnes en ANCREE. L'histoire fine —
+    quelle portion a bouge, quand, a cause de quelle edition — vit dans
+    ElementOperation et PageEdit, qui sont faits pour ca.
+    / Two states that behave identically are a trap with no upside.
+
+    L'etat DETACHEE s'appelait ORPHELINE dans une premiere version. On l'a
+    renomme parce que le mot "orpheline" designe deja une PAGE sans dossier
+    ailleurs dans le code. Deux sens pour un meme mot, c'est un piege.
+    / Renamed from ORPHELINE: that word already means "page without folder".
+    """
+    ANCREE = "ancree", "Ancrée — le passage source est localisé"
+    DETACHEE = "detachee", "Détachée — le passage source a changé"
+
+
+class AncrageExtraction(models.Model):
+    """
+    Une PORTION d'une extraction, dans UN element.
+    / One PORTION of an extraction, within ONE element.
+
+    LOCALISATION : hypostasis_extractor/models.py
+
+    Pourquoi une table de liaison, et pas une simple ForeignKey ?
+    Parce qu'une extraction deborde souvent d'un seul element. Exemple
+    mesure : une extraction d'une seule phrase enjambe deja deux elements
+    dans 7,5 % des cas ; une extraction de deux phrases, dans 76 % des cas.
+    Une ForeignKey unique ne saurait pas dire ou est le reste.
+    / A single ForeignKey could not express an extraction spanning elements.
+
+    COMMENT LIRE UNE ANCRE :
+    - Une extraction qui tient dans un seul element a UNE ligne ici.
+    - Une extraction qui traverse trois elements a TROIS lignes,
+      ordre_dans_extraction 0, 1, 2.
+    - Mises bout a bout, ces portions redonnent le texte extrait, SAUF les
+      separateurs de jonction (les sauts de ligne entre deux elements), qui
+      n'appartiennent a aucune portion.
+
+    C'est pour cette raison que le surlignage produit N balises <mark> et
+    non une seule qui traverserait deux paragraphes : le modele de donnees
+    suit exactement ce que le rendu HTML doit de toute facon faire.
+    / The data model mirrors what the HTML rendering must do anyway.
+    """
+    extraction = models.ForeignKey(
+        ExtractedEntity,
+        on_delete=models.CASCADE,
+        related_name="ancrages",
+        help_text="Extraction dont ceci est une portion / Extraction this is a portion of",
+    )
+    element = models.ForeignKey(
+        "core.ElementDocument",
+        # PROTECT : on ne supprime jamais un element qui porte une portion.
+        # Le moteur de structure doit d'abord redistribuer les portions,
+        # ensuite seulement l'element d'origine peut disparaitre.
+        # / PROTECT: an element carrying a portion is never deleted directly.
+        on_delete=models.PROTECT,
+        related_name="portions_d_extractions",
+        help_text="Element qui porte cette portion / Element carrying this portion",
+    )
+    ordre_dans_extraction = models.PositiveSmallIntegerField(
+        help_text="0 pour la premiere portion (la plus a gauche dans le "
+                  "document), 1 pour la suivante, etc.",
+    )
+    debut_dans_element = models.PositiveIntegerField(
+        help_text="Position de debut DANS LE TEXTE DE L'ELEMENT, jamais dans "
+                  "le texte global de la page / Start position within the ELEMENT text",
+    )
+    fin_dans_element = models.PositiveIntegerField(
+        help_text="Position de fin DANS LE TEXTE DE L'ELEMENT / End position within the ELEMENT text",
+    )
+    etat_ancrage = models.CharField(
+        max_length=16,
+        choices=EtatAncrage.choices,
+        default=EtatAncrage.ANCREE,
+        help_text="Resultat du dernier calcul de position / Result of the last positioning pass",
+    )
+
+    class Meta:
+        ordering = ["extraction", "ordre_dans_extraction"]
+        verbose_name = "Ancrage d'extraction"
+        verbose_name_plural = "Ancrages d'extraction"
+        constraints = [
+            # DEFERRABLE, pour la meme raison que sur ElementDocument :
+            # quand une scission coupe une portion en deux, il faut
+            # decaler de +1 le numero de toutes les portions suivantes de
+            # la meme extraction. Un decalage ligne a ligne fait
+            # forcement se telescoper deux numeros en chemin.
+            # / Deferred for the same reason: shifting portion numbers by
+            # +1 necessarily collides mid-way.
+            models.UniqueConstraint(
+                fields=["extraction", "ordre_dans_extraction"],
+                name="unicite_ordre_dans_l_extraction",
+                deferrable=models.Deferrable.DEFERRED,
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"AncrageExtraction #{self.pk} — extraction {self.extraction_id} "
+            f"portion {self.ordre_dans_extraction} — element {self.element_id}"
+        )
+
+    def texte_de_la_portion(self) -> str:
+        """
+        Relit le texte de cette portion depuis l'element, a la demande.
+        / Reads this portion's text from the element, on demand.
+
+        LOCALISATION : hypostasis_extractor/models.py
+
+        On ne stocke PAS le texte de la portion. On le relit a chaque fois
+        depuis l'element. Ainsi, si l'element est corrige, on ne garde pas
+        une vieille copie du texte qui dirait le contraire de l'original.
+        / The portion text is never stored, always re-read from the element.
+
+        :return: Le texte de la portion / The portion text
+        """
+        return self.element.texte[self.debut_dans_element:self.fin_dans_element]

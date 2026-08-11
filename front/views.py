@@ -7,18 +7,24 @@ import os
 from datetime import datetime, timedelta
 
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Case, Count, Prefetch, Value, When
 from django.utils import timezone
 from django.utils.html import escape, strip_tags
 from django.db.models import Q
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render, get_object_or_404
 from django.template.loader import render_to_string
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, Configuration, Dossier, DossierPartage, GroupeUtilisateurs, Invitation, Page, PageEdit, Question, ReponseQuestion, TranscriptionConfig, VisibiliteDossier
+from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, EtatIngestion, GroupeUtilisateurs, Invitation, Page, PageEdit, Question, ReponseQuestion, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, VisibiliteDossier
+from core.services.corpus import (
+    deplacer_une_note_vers_un_carnet,
+    ranger_une_note_dans_un_carnet,
+    retirer_une_note_d_un_carnet,
+)
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
     ExampleExtraction, ExtractionAttribute,
@@ -41,7 +47,6 @@ from .serializers import (
     SupprimerBlocSerializer, SynthetiserSerializer,
     est_fichier_audio, est_fichier_json,
 )
-from .utils import annoter_html_avec_barres
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +78,67 @@ def _exiger_authentification(request):
         })
         return reponse
     return redirect("/auth/login/")
+
+
+def _refuser_si_une_analyse_tourne(request, page):
+    """
+    Refuse une edition tant qu'une analyse tourne sur la page.
+    Retourne None si OK, ou une HttpResponse 409 avec un toast si bloque.
+    / Refuses an edit while an analysis runs. Returns None or a 409.
+
+    LOCALISATION : front/views.py
+
+    POURQUOI CE REFUS EXISTE
+
+    Une analyse lit le texte de la page, l'envoie au LLM, attend, puis
+    ecrit ses extractions avec des positions calculees sur CE texte. Entre
+    les deux, il peut s'ecouler plusieurs minutes.
+
+    Si le texte change pendant ce temps, les positions ecrites a la fin ne
+    designent plus le bon passage. Pire, la transcription ecrase purement
+    et simplement le texte a sa fin : l'edition de l'utilisateur
+    disparaitrait sans un mot.
+    / An edit mid-analysis yields wrong positions, or is silently erased.
+
+    On refuse donc l'edition, avec un message qui dit clairement que c'est
+    passager. 409 Conflict et non 403 : ce n'est pas un droit qui manque,
+    c'est un moment mal choisi.
+    / 409, not 403: it is not a missing right, it is bad timing.
+
+    :param request: la requete Django
+    :param page: la Page qu'on veut editer
+    :return: None si l'edition peut passer, une HttpResponse sinon
+    """
+    from hypostasis_extractor.services.garde_edition import (
+        une_analyse_tourne_sur_la_page,
+    )
+
+    if not une_analyse_tourne_sur_la_page(page):
+        return None
+
+    logger.info(
+        "Edition refusee sur la page %s : une analyse est en cours.", page.pk,
+    )
+
+    if request.headers.get("HX-Request"):
+        reponse = HttpResponse(status=409)
+        reponse["HX-Trigger"] = json.dumps({
+            "toast": {
+                "items": [{
+                    "level_tag": "warning",
+                    "text": (
+                        "Une analyse est en cours sur cette page. "
+                        "Réessayez dans un instant."
+                    ),
+                }],
+            },
+        })
+        return reponse
+
+    return HttpResponse(
+        "Une analyse est en cours sur cette page. Reessayez dans un instant.",
+        status=409,
+    )
 
 
 def _utilisateur_a_acces_dossier(utilisateur, dossier):
@@ -183,18 +249,150 @@ def _utilisateur_peut_ecrire_dossier(utilisateur, dossier):
     return False
 
 
-def _est_proprietaire_dossier(utilisateur, page):
+# ---------------------------------------------------------------------------
+# PERMISSIONS DE LA COUCHE CORPUS (SPEC-corpus § 5.2)
+# L'acces a une note se derive de SES CARNETS — le plus permissif gagne.
+# La propriete s'elargit (owner de la note OU owner d'un carnet), elle ne
+# se deplace pas. Ces quatre fonctions (un helper + trois regles)
+# remplaceront les lecteurs de page.dossier en phase D.
+# / CORPUS LAYER PERMISSIONS: access derives from the note's notebooks —
+# most permissive wins. Ownership widens, never moves.
+# ---------------------------------------------------------------------------
+
+
+def _dossiers_contenant_la_page(page, dossiers_precharges=None):
     """
-    Verifie si l'utilisateur est le proprietaire du dossier contenant la page.
-    / Checks if the user is the owner of the folder containing the page.
+    Les carnets contenant une note, en reutilisant le prefetch si
+    l'appelant l'a fait.
+    / The notebooks containing a note, reusing the caller's prefetch.
+
+    LOCALISATION : front/views.py
+
+    Toute vue qui LISTE des notes doit passer dossiers_precharges (issus
+    d'un prefetch_related) : sans cela, chaque note de la liste coute une
+    requete — le N+1 classique (spec § 5.3).
+    / List views must pass dossiers_precharges from a prefetch_related.
+    """
+    if dossiers_precharges is not None:
+        return list(dossiers_precharges)
+    return list(
+        Dossier.objects.filter(appartenances_pages__page=page).distinct()
+    )
+
+
+def _utilisateur_a_acces_page(utilisateur, page, dossiers_precharges=None):
+    """
+    Un utilisateur accede a une note s'il accede a AU MOINS UN carnet qui
+    la contient.
+    / A user can access a note if they can access AT LEAST ONE notebook
+    containing it.
+
+    LOCALISATION : front/views.py
+
+    C'est la regle la plus permissive, et c'est voulu : ranger une note
+    dans un carnet public LA REND PUBLIQUE. L'interface doit le dire au
+    moment du rangement (spec § 7.3), pas apres.
+
+    CAS LEGACY PRESERVE : une note sans aucun carnet et sans owner est
+    accessible a TOUT UTILISATEUR AUTHENTIFIE — c'est le comportement
+    actuel (spec § 5.2, correction n°6 : la v1.0 rendait ces notes
+    invisibles pour tous).
+    / Legacy case preserved: ownerless, notebook-less notes stay readable
+    by any authenticated user.
+    """
+    if utilisateur and utilisateur.is_authenticated and utilisateur.is_superuser:
+        return True
+
+    dossiers_contenant_la_note = _dossiers_contenant_la_page(
+        page, dossiers_precharges
+    )
+
+    for dossier in dossiers_contenant_la_note:
+        if _utilisateur_a_acces_dossier(utilisateur, dossier):
+            return True
+
+    if dossiers_contenant_la_note:
+        return False
+
+    # Aucun carnet : on retombe exactement sur le comportement actuel.
+    # / No notebook: fall back to exactly the current behaviour.
+    if page.owner_id is None:
+        return bool(utilisateur and utilisateur.is_authenticated)
+    return _est_proprietaire_page(utilisateur, page)
+
+
+def _utilisateur_peut_ecrire_page(utilisateur, page, dossiers_precharges=None):
+    """
+    Ecrire sur une note exige le droit d'ecriture sur AU MOINS UN carnet
+    qui la contient.
+    / Writing to a note requires write access to AT LEAST ONE notebook
+    containing it.
 
     LOCALISATION : front/views.py
     """
     if not utilisateur or not utilisateur.is_authenticated:
         return False
-    if not page.dossier:
+
+    # PAS de bypass superuser ici : le code prescrit (spec § 5.2) n'en a
+    # pas, et _utilisateur_peut_ecrire_dossier n'en a pas non plus. Seule
+    # la LECTURE a un bypass superuser. En ajouter un ici serait un
+    # changement de gouvernance jamais discute (relecture C).
+    # / NO superuser bypass on write: neither the spec nor the existing
+    # folder-level function has one. Only READ has it.
+    dossiers_contenant_la_note = _dossiers_contenant_la_page(
+        page, dossiers_precharges
+    )
+
+    for dossier in dossiers_contenant_la_note:
+        if _utilisateur_peut_ecrire_dossier(utilisateur, dossier):
+            return True
+
+    if dossiers_contenant_la_note:
         return False
-    return page.dossier.owner == utilisateur
+
+    # Aucun carnet : preservation du comportement actuel (decision phase D).
+    # Les vues d'aujourd'hui ne verifient l'ecriture que si page.dossier
+    # existe — une orpheline owner=None est donc inscriptible par tout
+    # authentifie, exactement comme la lecture legacy (§ 5.2) et comme
+    # _utilisateur_peut_ecrire_dossier sur un dossier owner=None.
+    # / No notebook: current behaviour preserved — ownerless orphans stay
+    # writable by any authenticated user, mirroring the legacy read rule.
+    if page.owner_id is None:
+        return True
+    return _est_proprietaire_page(utilisateur, page)
+
+
+def _est_proprietaire_page(utilisateur, page):
+    """
+    Remplace _est_proprietaire_dossier(utilisateur, page).
+    / Replaces _est_proprietaire_dossier(utilisateur, page).
+
+    LOCALISATION : front/views.py
+
+    ON ELARGIT, ON NE DEPLACE PAS (spec § 5.2, correction n°5). La v1.0
+    faisait primer page.owner seul. Consequence non vue a l'epoque :
+    l'extension renseigne TOUJOURS page.owner = request.user
+    (core/views.py:229). Donc pour toute page capturee par un eleve, le
+    prof proprietaire du carnet de classe PERDAIT la moderation. Ce
+    n'etait pas une preservation du comportement, c'etait un basculement
+    de gouvernance non discute.
+
+    Regle retenue : proprietaire de la note OU proprietaire d'un carnet
+    qui la contient. Le titulaire actuel garde ses droits, l'auteur en
+    gagne.
+    / Rule: note owner OR owner of a containing notebook. The current
+    holder keeps their rights, the author gains theirs.
+    """
+    if not utilisateur or not utilisateur.is_authenticated:
+        return False
+
+    if page.owner_id == utilisateur.pk:
+        return True
+
+    return Dossier.objects.filter(
+        appartenances_pages__page=page,
+        owner=utilisateur,
+    ).exists()
 
 
 def _peut_supprimer_extraction(utilisateur, entite):
@@ -216,13 +414,14 @@ def _peut_supprimer_extraction(utilisateur, entite):
         return False
     if CommentaireExtraction.objects.filter(entity=entite).exists():
         return False
-    # Owner du dossier → peut supprimer toute extraction
-    # / Folder owner → can delete any extraction
-    if _est_proprietaire_dossier(utilisateur, entite.job.page):
+    # Proprietaire de la note (owner OU owner d'un carnet la contenant,
+    # phase D) → peut supprimer toute extraction
+    # / Note owner (or containing-notebook owner) → can delete any extraction
+    if _est_proprietaire_page(utilisateur, entite.job.page):
         return True
     # Contributeur → peut supprimer uniquement ses propres extractions manuelles
     # / Contributor → can only delete their own manual extractions
-    if entite.cree_par == utilisateur and _utilisateur_peut_ecrire_dossier(utilisateur, entite.job.page.dossier):
+    if entite.cree_par == utilisateur and _utilisateur_peut_ecrire_page(utilisateur, entite.job.page):
         return True
     return False
 
@@ -252,31 +451,24 @@ def _reponse_acces_refuse(request):
 
 def _verifier_acces_page(request, page):
     """
-    Verifie l'acces en lecture a une page via son dossier.
+    Verifie l'acces en lecture a une note via SES CARNETS (phase D).
     Retourne None si OK, ou HttpResponse 403 si acces refuse.
-    Page sans dossier : accessible uniquement par son owner.
-    / Checks read access to a page via its folder.
+    / Checks read access to a note via ITS NOTEBOOKS (phase D).
     Returns None if OK, or HttpResponse 403 if access denied.
-    Page without folder: accessible only by its owner.
 
     LOCALISATION : front/views.py
 
+    La regle vit dans _utilisateur_a_acces_page (SPEC-corpus § 5.2) :
+    acces si acces a au moins un carnet contenant la note ; sans carnet,
+    comportement legacy preserve (owner=None → tout authentifie, sinon
+    proprietaire).
+    / The rule lives in _utilisateur_a_acces_page.
+
     DEPENDENCIES :
-    - _utilisateur_a_acces_dossier() pour la verification du dossier
+    - _utilisateur_a_acces_page() pour la regle d'acces
     - _reponse_acces_refuse() pour la reponse 403
     """
-    if page.dossier:
-        if _utilisateur_a_acces_dossier(request.user, page.dossier):
-            return None
-        return _reponse_acces_refuse(request)
-
-    # Page sans dossier → accessible par son owner ou legacy (owner=None)
-    # / Page without folder → accessible by owner or legacy (owner=None)
-    if page.owner is None:
-        if request.user.is_authenticated:
-            return None
-        return _reponse_acces_refuse(request)
-    if request.user.is_authenticated and page.owner == request.user:
+    if _utilisateur_a_acces_page(request.user, page):
         return None
     return _reponse_acces_refuse(request)
 
@@ -290,8 +482,13 @@ def _obtenir_ou_creer_dossier_imports(utilisateur):
 
     LOCALISATION : front/views.py
     """
+    # Retrouve par le ROLE technique, plus par le nom : un carnet renomme
+    # reste retrouve (SPEC-corpus § 6.3).
+    # / Found by technical ROLE, no longer by name.
     dossier_imports, _cree = Dossier.objects.get_or_create(
-        name="Mes imports", owner=utilisateur,
+        role_special=RoleSpecialDossier.MES_IMPORTS,
+        owner=utilisateur,
+        defaults={"name": "Mes imports"},
     )
     return dossier_imports
 
@@ -305,11 +502,18 @@ def _render_arbre(request):
     3 sections: My folders, Shared with me, Public folders.
     Anonymous: only public folders.
     """
-    # Exclure les restitutions de l'arbre (ne montrer que les pages racines)
-    # / Exclude restitutions from tree (only show root pages)
+    # L'arbre lit la TABLE DE LIAISON, plus la FK (phase D corpus) : une
+    # note rangee dans deux carnets apparait dans les deux. On precharge
+    # les appartenances (pages racines seulement, pas les restitutions)
+    # dans un attribut dedie — zero requete par dossier au rendu.
+    # / The tree reads the LINK TABLE, no longer the FK: prefetched
+    # memberships (root pages only), zero per-folder query at render.
     pages_racines_seulement = Prefetch(
-        "pages",
-        queryset=Page.objects.filter(parent_page__isnull=True),
+        "appartenances_pages",
+        queryset=AppartenancePageDossier.objects.filter(
+            page__parent_page__isnull=True,
+        ).select_related("page"),
+        to_attr="appartenances_racines",
     )
 
     if request.user.is_authenticated:
@@ -362,17 +566,23 @@ def _render_arbre(request):
             visibilite=VisibiliteDossier.PUBLIC,
         )
 
-    # Calculer le total de pages par section pour affichage dans les headers
-    # / Calculate total pages per section for display in headers
-    total_pages_mes_dossiers = 0
-    for dossier_comptage in mes_dossiers:
-        total_pages_mes_dossiers += dossier_comptage.pages.count()
-    total_pages_partages = 0
-    for dossier_comptage in dossiers_partages:
-        total_pages_partages += dossier_comptage.pages.count()
-    total_pages_publics = 0
-    for dossier_comptage in dossiers_publics:
-        total_pages_publics += dossier_comptage.pages.count()
+    # Calculer le total de notes par section pour les en-tetes, a partir
+    # des appartenances PRECHARGEES (relecture D) : meme source que les
+    # compteurs des noeuds — coherent, racines seulement, zero requete.
+    # / Section totals from the PREFETCHED memberships: same source as
+    # the node counters — coherent, roots only, zero query.
+    total_pages_mes_dossiers = sum(
+        len(dossier_comptage.appartenances_racines)
+        for dossier_comptage in mes_dossiers
+    )
+    total_pages_partages = sum(
+        len(dossier_comptage.appartenances_racines)
+        for dossier_comptage in dossiers_partages
+    )
+    total_pages_publics = sum(
+        len(dossier_comptage.appartenances_racines)
+        for dossier_comptage in dossiers_publics
+    )
 
     return render(request, "front/includes/arbre_dossiers.html", {
         "mes_dossiers": mes_dossiers,
@@ -592,31 +802,49 @@ def _diff_paragraphes(texte_ancien, texte_nouveau):
 # / Maximum inactivity delay for a job before considering it stalled.
 # / If updated_at hasn't changed for this delay, the job is marked as error.
 DELAI_MAX_INACTIVITE_JOB = timedelta(minutes=5)
+# Un job PENDING attend son tour en file : avec un seul worker et une
+# analyse devant lui, 10 minutes d'attente sont NORMALES. Le tuer a 5
+# minutes annulait un job parfaitement sain (relecture BR-C, defaut
+# n°1). 90 minutes = le plafond de la garde d'edition
+# (garde_edition.DELAI_AVANT_DE_CONSIDERER_UN_JOB_MORT).
+# / A PENDING job is queueing; killing it at 5 min cancelled healthy
+# jobs. 90 min aligns with the edit guard's ceiling.
+DELAI_MAX_ATTENTE_EN_FILE = timedelta(minutes=90)
 
 
 def _verifier_et_nettoyer_job_bloque(job_en_cours):
     """
-    Verifie si un job en cours est bloque (pas de progression depuis DELAI_MAX_INACTIVITE_JOB).
-    Si bloque → marque le job en erreur et retourne True.
-    Si actif → retourne False.
-    / Checks if an in-progress job is stalled (no progress for DELAI_MAX_INACTIVITE_JOB).
-    / If stalled → marks the job as error and returns True.
-    / If active → returns False.
+    Verifie si un job en cours est bloque, et le marque en erreur si oui.
+    / Checks whether an in-progress job is stalled; marks it as error.
 
     LOCALISATION : front/views.py
+
+    Deux delais, pas un :
+    - PROCESSING : les DEUX moteurs battent le coeur a chaque chunk
+      (front/tasks.py pour l'ANCIEN, analyse_par_element.py pour
+      ELEMENT). 5 minutes sans battement = vraiment mort.
+    - PENDING : le job attend en file, personne ne touche updated_at.
+      On ne le declare mort qu'au plafond de la garde d'edition (90 min).
+    / Two delays: PROCESSING heartbeats each chunk (5 min = dead);
+    PENDING is queueing (only dead past the 90 min ceiling).
     """
     if not job_en_cours:
         return True
 
+    if job_en_cours.status == "pending":
+        delai_tolere = DELAI_MAX_ATTENTE_EN_FILE
+    else:
+        delai_tolere = DELAI_MAX_INACTIVITE_JOB
+
     inactivite_du_job = timezone.now() - job_en_cours.updated_at
-    if inactivite_du_job > DELAI_MAX_INACTIVITE_JOB:
+    if inactivite_du_job > delai_tolere:
         logger.warning(
-            "_verifier_et_nettoyer_job_bloque: job pk=%s inactif depuis %s — timeout",
-            job_en_cours.pk, inactivite_du_job,
+            "_verifier_et_nettoyer_job_bloque: job pk=%s (%s) inactif depuis %s — timeout",
+            job_en_cours.pk, job_en_cours.status, inactivite_du_job,
         )
         job_en_cours.status = "error"
         job_en_cours.error_message = (
-            f"Timeout : l'analyse est bloquée depuis {DELAI_MAX_INACTIVITE_JOB.total_seconds() // 60:.0f} "
+            f"Timeout : l'analyse est bloquée depuis {delai_tolere.total_seconds() // 60:.0f} "
             "minutes sans progression. Vérifiez que le worker Celery tourne."
         )
         job_en_cours.save(update_fields=["status", "error_message"])
@@ -635,6 +863,60 @@ def _entites_deja_creees_pour_job(job):
     return ExtractedEntity.objects.filter(
         job=job,
     ).select_related("job").order_by("start_char")
+
+
+def _trier_les_entites_par_ancre(entites):
+    """
+    Trie des extractions dans l'ORDRE DU DOCUMENT d'une page ELEMENT.
+    / Sorts extractions in document order for an ELEMENT page.
+
+    LOCALISATION : front/views.py
+
+    Sur une page ELEMENT, start_char est un offset DE CHUNK : trier
+    dessus entrelace les extractions des differents chunks (reste § 5
+    du cahier de branchement, solde en U3). La place d'une extraction
+    dans le document, c'est sa PREMIERE portion d'ancrage :
+    (ordre de l'element, debut dans l'element).
+
+    Les extractions SANS portion utilisable (detachees, ou vieux job a
+    offsets sur une page reconvertie) n'ont pas de place sure : elles
+    ferment la marche, dans leur ordre start_char — plutot en queue
+    qu'intercalees au hasard.
+    / Anchored extractions sort by (element order, offset); un-anchored
+    ones go last rather than interleaving randomly.
+
+    :param entites: queryset ou liste d'ExtractedEntity
+    :return: liste triee
+    """
+    from hypostasis_extractor.models import AncrageExtraction, EtatAncrage
+
+    entites = list(entites)
+    if not entites:
+        return entites
+
+    ancres = AncrageExtraction.objects.filter(
+        extraction__in=entites,
+    ).exclude(
+        etat_ancrage=EtatAncrage.DETACHEE,
+    ).values_list("extraction_id", "element__ordre", "debut_dans_element")
+
+    ancre_minimale_par_extraction = {}
+    for extraction_id, ordre_de_l_element, debut in ancres:
+        cle_de_tri = (ordre_de_l_element, debut)
+        ancre_connue = ancre_minimale_par_extraction.get(extraction_id)
+        if ancre_connue is None or cle_de_tri < ancre_connue:
+            ancre_minimale_par_extraction[extraction_id] = cle_de_tri
+
+    # Apres tout le document : aucun element n'atteint cet ordre.
+    # / Past the whole document: no element ever reaches this order.
+    place_des_sans_ancre = (10 ** 9, 10 ** 9)
+
+    entites.sort(key=lambda entite: (
+        ancre_minimale_par_extraction.get(entite.pk, place_des_sans_ancre),
+        entite.start_char or 0,
+        entite.pk,
+    ))
+    return entites
 
 
 def _calculer_consensus(page):
@@ -810,6 +1092,25 @@ class LectureViewSet(viewsets.ViewSet):
         if refus_acces:
             return refus_acces
 
+        # Un article de la couche synthese (wiki ou synthese NOUVELLE,
+        # sans versionnage) ne se lit JAMAIS ici : l'ecran lecture le
+        # montrerait NU — sans bandeau de genre, sans renvois, sans
+        # verdicts (confrontation maquette, fuite n°12). Les syntheses
+        # HISTORIQUES (parent_page) gardent l'ecran lecture et son
+        # switcher de versions. / A synthesis-layer article never
+        # renders bare: redirect to its article screen.
+        if page.parent_page_id is None and page.type_de_note != TypeDeNote.NOTE:
+            from django.shortcuts import redirect
+
+            from core.models import Wiki as ModeleWiki
+            enregistrement_de_wiki = ModeleWiki.objects.filter(
+                page=page,
+            ).only("pk").first()
+            if page.type_de_note == TypeDeNote.WIKI and enregistrement_de_wiki:
+                return redirect(f"/wikis/{enregistrement_de_wiki.pk}/")
+            if page.type_de_note == TypeDeNote.SYNTHESE:
+                return redirect(f"/syntheses/{page.pk}/")
+
         # Marquage 'notification lue' si parametres presents (refonte A.6)
         # Le lien dropdown passe ?marquer_lue=X&type=analyse|synthese|transcription
         # ("analyse" et "synthese" pointent tous deux sur ExtractionJob)
@@ -878,7 +1179,6 @@ class LectureViewSet(viewsets.ViewSet):
         # / If a job exists, retrieve entities from ALL completed jobs
         # / (not just the last one) to be consistent with the E drawer.
         entites_existantes = None
-        html_annote = None
         ids_entites_commentees = set()
         if dernier_job_termine:
             tous_les_jobs_de_la_page = ExtractionJob.objects.filter(
@@ -889,12 +1189,6 @@ class LectureViewSet(viewsets.ViewSet):
             )
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 toutes_entites_non_masquees
-            )
-            # Annoter le HTML avec des ancres pour le scroll-to-extraction
-            # / Annotate HTML with anchors for scroll-to-extraction
-            html_annote = annoter_html_avec_barres(
-                page.html_readability, page.text_readability,
-                entites_existantes, ids_entites_commentees,
             )
 
         # Recupere toutes les versions de cette page (racine + restitutions)
@@ -920,10 +1214,9 @@ class LectureViewSet(viewsets.ViewSet):
         # / est_proprietaire conditions display of owner-only buttons.
         ia_active = _get_ia_active()
         est_requete_htmx = bool(request.headers.get('HX-Request'))
-        est_proprietaire = _est_proprietaire_dossier(request.user, page)
+        est_proprietaire = _est_proprietaire_page(request.user, page)
         contexte_partage = {
             "page": page,
-            "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": dernier_job_termine,
             "entities": entites_existantes,
@@ -935,6 +1228,15 @@ class LectureViewSet(viewsets.ViewSet):
             "est_requete_htmx": est_requete_htmx,
             "est_proprietaire": est_proprietaire,
         }
+        # Le fil d'Ariane « Base > Carnet > Note » : le carnet de
+        # contexte est celui demande par la bascule (?carnet=N) s'il
+        # contient vraiment la note, sinon le premier carnet accessible
+        # qui la contient. / Breadcrumb context, honouring ?carnet=N.
+        from front.views_corpus import contexte_du_fil_d_ariane
+        contexte_partage.update(contexte_du_fil_d_ariane(
+            request, note=page_racine or page,
+            carnet_demande=request.GET.get("carnet"),
+        ))
 
         if request.headers.get('HX-Request'):
             # 1. Partial principal : contenu de lecture
@@ -966,19 +1268,17 @@ class LectureViewSet(viewsets.ViewSet):
         # On passe aussi le job, les entites et le HTML annote
         # Determiner si l'utilisateur est proprietaire du dossier pour les controles UI
         # / Determine if user is the folder owner for UI controls
-        est_proprietaire = _est_proprietaire_dossier(request.user, page)
+        est_proprietaire = _est_proprietaire_page(request.user, page)
 
+        # Le contexte du fil d'Ariane est deja dans contexte_partage :
+        # on le REUTILISE au lieu de le recalculer, sinon l'acces direct
+        # (F5, lien externe) afficherait la page SANS fil alors que la
+        # meme page en HTMX l'aurait — un ecran qui change selon le
+        # chemin d'arrivee. / Reuse the shared context: a direct hit must
+        # not render a different page than the HTMX one.
         return render(request, "front/base.html", {
+            **contexte_partage,
             "page_preloaded": page,
-            "html_annote": html_annote,
-            "analyseurs_actifs": analyseurs_actifs,
-            "job": dernier_job_termine,
-            "entities": entites_existantes,
-            "ia_active": ia_active,
-            "versions": toutes_les_versions,
-            "page_racine": page_racine,
-            "html_filtre_locuteurs": html_filtre_locuteurs,
-            "html_timeline": html_timeline,
             "est_proprietaire": est_proprietaire,
         })
 
@@ -995,15 +1295,6 @@ class LectureViewSet(viewsets.ViewSet):
         # / Retrieve entities already created by the Celery callback
         entites_deja_creees = _entites_deja_creees_pour_job(job_en_cours)
 
-        # Annoter le texte avec les entites deja trouvees (annotations partielles)
-        # / Annotate text with already found entities (partial annotations)
-        html_annote = None
-        if entites_deja_creees.exists():
-            html_annote = annoter_html_avec_barres(
-                page.html_readability or '',
-                page.text_readability or '',
-                list(entites_deja_creees),
-            )
 
         # Versions de la page / Page versions
         toutes_les_versions = page.toutes_les_versions
@@ -1023,7 +1314,6 @@ class LectureViewSet(viewsets.ViewSet):
 
         contexte_lecture = {
             "page": page,
-            "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": None,
             "entities": None,
@@ -1061,10 +1351,9 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Acces direct (F5) → page complete
         # / Direct access (F5) → full page
-        est_proprietaire = _est_proprietaire_dossier(request.user, page)
+        est_proprietaire = _est_proprietaire_page(request.user, page)
         return render(request, "front/base.html", {
             "page_preloaded": page,
-            "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": None,
             "entities": None,
@@ -1090,6 +1379,11 @@ class LectureViewSet(viewsets.ViewSet):
         if refus:
             return refus
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde d'ECRITURE (famille du 10 aout) : tout compte connecte
+        # pouvait renommer n'importe quelle note. / Write guard.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
 
         # Validation via serializer DRF
         # / Validation via DRF serializer
@@ -1127,7 +1421,6 @@ class LectureViewSet(viewsets.ViewSet):
         ).select_related("analyseur_version").order_by("-created_at").first()
 
         entites_existantes = None
-        html_annote = None
         ids_entites_commentees = set()
         if dernier_job_termine:
             # Entites de TOUS les jobs termines (coherent avec le drawer E)
@@ -1137,15 +1430,10 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 toutes_entites
             )
-            html_annote = annoter_html_avec_barres(
-                page.html_readability, page.text_readability,
-                entites_existantes, ids_entites_commentees,
-            )
 
         toutes_les_versions = page.toutes_les_versions
         contexte_partage = {
             "page": page,
-            "html_annote": html_annote,
             "analyseurs_actifs": analyseurs_actifs,
             "job": dernier_job_termine,
             "entities": entites_existantes,
@@ -1214,7 +1502,7 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Acces direct (F5) → page complete
         # / Direct access (F5) → full page
-        est_proprietaire = _est_proprietaire_dossier(request.user, page)
+        est_proprietaire = _est_proprietaire_page(request.user, page)
         return render(request, "front/base.html", {
             "historique_preloaded": True,
             "page_preloaded": page,
@@ -1251,7 +1539,7 @@ class LectureViewSet(viewsets.ViewSet):
             return reponse_refus
 
         # Verifier ownership du dossier / Check folder ownership
-        if not _est_proprietaire_dossier(request.user, version_a_supprimer):
+        if not _est_proprietaire_page(request.user, version_a_supprimer):
             return _reponse_acces_refuse(request)
 
         # Garde-fou : ne pas supprimer si des extractions de cette version ont
@@ -1394,7 +1682,7 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Acces direct (F5) → page complete
         # / Direct access (F5) → full page
-        est_proprietaire = _est_proprietaire_dossier(request.user, page_gauche)
+        est_proprietaire = _est_proprietaire_page(request.user, page_gauche)
         return render(request, "front/base.html", {
             "diff_preloaded": True,
             "page_gauche": page_gauche,
@@ -1479,6 +1767,14 @@ class LectureViewSet(viewsets.ViewSet):
         """
         page = get_object_or_404(Page, pk=pk)
 
+        # Garde de lecture (famille du 10 aout) : ce telechargement
+        # rendait la source ORIGINALE de n'importe quelle note, sans
+        # etre connecte. / Read guard: this leaked any note's original
+        # source, unauthenticated.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
+
         if page.source_type == "audio":
             if page.source_file:
                 # Renvoyer le fichier audio original
@@ -1532,6 +1828,14 @@ class LectureViewSet(viewsets.ViewSet):
         / Exports a page's content as JSON or Markdown.
         """
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde de lecture (famille du 10 aout) : l'export rendait le
+        # texte INTEGRAL de n'importe quelle note, sans etre connecte.
+        # / Read guard: the export leaked any note's full text.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
+
         format_export = request.query_params.get("type_export", "markdown")
 
         if page.source_type == "audio":
@@ -1613,6 +1917,194 @@ class LectureViewSet(viewsets.ViewSet):
             "raccourcis": liste_raccourcis,
         })
 
+    @action(detail=True, methods=["GET"], url_path="etat_ingestion")
+    def etat_ingestion(self, request, pk=None):
+        """
+        La sonde d'etat du decoupage en elements (U2).
+        / The element-ingestion status probe.
+
+        LOCALISATION : front/views.py — LectureViewSet
+
+        FLUX (patron du retour de production F1/F2) :
+        1. La puce d'etat rendue dans la lecture s'interroge ici toutes
+           les 5 s tant que l'ingestion est active (en_attente ou
+           en_cours), avec un compteur ?essai=N.
+        2. Reussite -> reponse vide + HX-Trigger lectureReload : la
+           lecture se recharge et passe aux blocs ELEMENT.
+        3. Echec -> la puce d'echec, avec le bouton de relance.
+        4. Plafond d'essais atteint (worker mort ?) -> une puce SANS
+           interrogation, avec un bouton « Verifier a nouveau ».
+        """
+        page = get_object_or_404(Page, pk=pk)
+        # Meme regle que la lecture, doctrine du 404.
+        # / Same access rule as reading, 404 doctrine.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
+
+        try:
+            numero_d_essai = int(request.query_params.get("essai", "0"))
+        except (TypeError, ValueError):
+            numero_d_essai = 0
+
+        if page.ingestion_etat == EtatIngestion.REUSSIE:
+            reponse = HttpResponse("")
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Découpage en éléments terminé.",
+                    "icon": "success",
+                },
+                "lectureReload": {"page_id": str(page.pk)},
+            })
+            return reponse
+
+        # ~5 minutes a 5 s par essai : au-dela, un worker mort ne doit
+        # pas faire interroger le serveur pour toujours (garde-fou F1).
+        # / Capped polling: a dead worker becomes a message.
+        plafond_atteint = numero_d_essai >= 60
+
+        return render(request, "front/includes/_etat_ingestion.html", {
+            "page": page,
+            "numero_d_essai": numero_d_essai,
+            "plafond_atteint": plafond_atteint,
+            "peut_ecrire": _utilisateur_peut_ecrire_page(request.user, page),
+        })
+
+    @action(detail=True, methods=["POST"], url_path="relancer_ingestion")
+    def relancer_ingestion(self, request, pk=None):
+        """
+        Relance le decoupage en elements d'une page (U2).
+        / Relaunches the element ingestion for a page.
+
+        LOCALISATION : front/views.py — LectureViewSet
+
+        GARDES, dans l'ordre :
+        1. Droit d'ECRITURE (meme regle que les operations d'element).
+        2. Pas de relance pendant une ingestion active (409 FALC).
+        3. Pas de relance d'une page qui a deja ses elements (409) —
+           la re-ingestion qui preserve les ancres est un autre flux.
+        4. Type de fichier couvert par Docling (409 sinon).
+        """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
+
+        page = get_object_or_404(Page, pk=pk)
+
+        # Doctrine du 404 (relecture U2, defaut M1) : un tiers SANS
+        # acces lecture ne doit pas distinguer une note interdite d'une
+        # note absente — sinon ce POST enumere les pk des notes privees.
+        # Le lecteur-non-ecrivain, lui, sait deja que la note existe
+        # (il la lit) : 403 franc. / 404 for no-access; 403 for a
+        # reader who cannot write.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            reponse = HttpResponse(status=403)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Vous n'avez pas le droit de modifier "
+                               "cette note.",
+                    "icon": "warning",
+                },
+            })
+            return reponse
+
+        def _refus_falc(message):
+            reponse_de_refus = HttpResponse(status=409)
+            reponse_de_refus["HX-Trigger"] = json.dumps({
+                "showToast": {"message": message, "icon": "warning"},
+            })
+            return reponse_de_refus
+
+        # Un etat actif FANTOME (relecture U2, defaut H2) : un worker
+        # docling tue en pleine conversion (serveur 8 Go, concurrence 1)
+        # laisse en_cours pour toujours. Au-dela de DELAI_INGESTION_
+        # FANTOME_MIN sans mise a jour, on autorise la relance : le
+        # message « attendez » deviendrait un mensonge. / A dead worker
+        # leaves an active state forever; past a delay, allow relaunch.
+        DELAI_INGESTION_FANTOME_MIN = 15
+        ingestion_active = page.ingestion_etat in (
+            EtatIngestion.EN_ATTENTE, EtatIngestion.EN_COURS,
+        )
+        if ingestion_active:
+            derniere_maj = page.ingestion_maj_le
+            fantome = (
+                derniere_maj is not None
+                and (timezone.now() - derniere_maj)
+                > timedelta(minutes=DELAI_INGESTION_FANTOME_MIN)
+            )
+            if not fantome:
+                return _refus_falc(
+                    "Un découpage est déjà en cours pour cette note. "
+                    "Attendez qu'il se termine.",
+                )
+
+        if page.elements.exists():
+            return _refus_falc(
+                "Cette note a déjà ses éléments : il n'y a rien à "
+                "relancer.",
+            )
+
+        # Le fichier source doit exister ET etre d'un type couvert
+        # (relecture U2, defaut M2) : original_filename peut manquer sur
+        # de vieilles pages — on se rabat sur le nom du fichier stocke.
+        # / The source file must exist and be a covered type; fall back
+        # on the stored file name.
+        if not page.source_file:
+            return _refus_falc(
+                "Le fichier d'origine n'est plus disponible : le "
+                "découpage est impossible. La note reste lisible.",
+            )
+        from hypostasis_extractor.services.ingestion_docling import (
+            fichier_couvert_par_docling,
+        )
+        nom_du_fichier = page.original_filename or page.source_file.name or ""
+        if not fichier_couvert_par_docling(nom_du_fichier):
+            return _refus_falc(
+                "Ce type de fichier ne se découpe pas en éléments. "
+                "La note reste lisible telle quelle.",
+            )
+
+        from hypostasis_extractor.tasks_element import (
+            ingerer_un_fichier_avec_docling,
+        )
+        try:
+            ingerer_un_fichier_avec_docling.delay(page.pk)
+        except Exception as erreur_de_broker:
+            logger.error(
+                "relance ingestion: NON lancee pour la page pk=%s (%s)",
+                page.pk, erreur_de_broker,
+            )
+            reponse = HttpResponse(status=503)
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": "Le découpage n'a pas pu être relancé "
+                               "(service indisponible). Réessayez dans "
+                               "un instant.",
+                    "icon": "error",
+                },
+            })
+            return reponse
+
+        Page.objects.filter(pk=page.pk).update(
+            ingestion_etat=EtatIngestion.EN_ATTENTE, ingestion_detail="",
+            ingestion_maj_le=timezone.now(),
+        )
+
+        reponse = render(request, "front/includes/_etat_ingestion.html", {
+            "page": Page.objects.get(pk=page.pk),
+            "numero_d_essai": 0,
+            "plafond_atteint": False,
+            "peut_ecrire": True,
+        })
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {
+                "message": "Découpage en éléments relancé.",
+                "icon": "success",
+            },
+        })
+        return reponse
+
     @action(detail=True, methods=["GET"], url_path="previsualiser_analyse")
     def previsualiser_analyse(self, request, pk=None):
         """
@@ -1625,6 +2117,14 @@ class LectureViewSet(viewsets.ViewSet):
         / If the last job errored → shows the error with option to re-launch.
         """
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde de lecture (famille du 10 aout) : le prompt complet
+        # rendu ici contient TOUT le texte de la note — c'etait la
+        # fuite la plus grave de la famille. / Read guard: the full
+        # prompt embeds the whole note text.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
 
         # Acces direct (F5) → rediriger vers la page de lecture
         # Cette vue ne sert que comme partial HTMX, pas en acces direct
@@ -1750,9 +2250,33 @@ class LectureViewSet(viewsets.ViewSet):
         # / This is exactly what the LLM receives on top of each chunk's text.
         prompt_overhead_reel = generateur_prompt.render(question="")
 
-        # Texte source de la page (sera envoye au LLM, reparti en chunks)
-        # / Source text from the page (will be sent to the LLM, split in chunks)
-        texte_source_page = page.text_readability or ""
+        # Texte source de la page (sera envoye au LLM, reparti en chunks).
+        # U3 (reste § 5 du cahier) : pour une page ELEMENT, on rejoue le
+        # VRAI decoupage (construire_les_chunks sur ses elements
+        # visibles) : le decoupage arithmetique de text_readability
+        # donnait un nombre de chunks approximatif, donc un overhead de
+        # prompt sous- ou sur-compte. Une page sans element retombe sur
+        # ce calcul approche, plus bas.
+        # / Replay the real chunking for the estimate; a block-less page
+        # falls back to the arithmetic split below.
+        chunks_reels_de_la_page = None
+        elements_visibles_de_la_page = list(
+            page.elements.filter(masque=False).order_by("ordre"),
+        )
+        if elements_visibles_de_la_page:
+            from hypostasis_extractor.services.chunking import (
+                construire_les_chunks,
+            )
+            chunks_reels_de_la_page = construire_les_chunks(
+                elements_visibles_de_la_page,
+            )
+
+        if chunks_reels_de_la_page:
+            texte_source_page = "\n\n".join(
+                chunk["texte"] for chunk in chunks_reels_de_la_page
+            )
+        else:
+            texte_source_page = page.text_readability or ""
 
         # Prompt complet pour l'affichage (overhead + texte source)
         # / Full prompt for display (overhead + source text)
@@ -1773,12 +2297,16 @@ class LectureViewSet(viewsets.ViewSet):
         tokens_overhead_par_chunk = len(encodeur_tokens.encode(prompt_overhead_reel))
         tokens_texte_source = len(encodeur_tokens.encode(texte_source_page))
 
-        # Nombre de chunks estimes (langextract coupe aux frontieres de phrases,
-        # mais on approxime avec un decoupage brut par taille de buffer)
-        # / Estimated chunk count (langextract cuts at sentence boundaries,
-        # / but we approximate with raw buffer size division)
-        taille_max_chunk = 1500
-        nombre_chunks_estime = max(1, math.ceil(len(texte_source_page) / taille_max_chunk))
+        # Nombre de chunks : le VRAI compte pour une page ELEMENT (U3),
+        # l'approximation par taille de buffer pour l'ANCIEN moteur.
+        # / Real count for ELEMENT pages, arithmetic for OLD ones.
+        if chunks_reels_de_la_page:
+            nombre_chunks_estime = max(1, len(chunks_reels_de_la_page))
+        else:
+            taille_max_chunk = 1500
+            nombre_chunks_estime = max(
+                1, math.ceil(len(texte_source_page) / taille_max_chunk),
+            )
 
         # Total input = overhead repete N fois + texte source (reparti sur les chunks)
         # / Total input = overhead repeated N times + source text (spread across chunks)
@@ -1870,7 +2398,7 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Verifier les droits d'ecriture sur le dossier de la page
         # / Check write permissions on the page's folder
-        if page.dossier and not _utilisateur_peut_ecrire_dossier(request.user, page.dossier):
+        if not _utilisateur_peut_ecrire_page(request.user, page):
             return _reponse_acces_refuse(request)
 
         # Guard anti-doublon : verifier s'il y a deja un job en cours pour cette page
@@ -1949,6 +2477,30 @@ class LectureViewSet(viewsets.ViewSet):
             ).exclude(
                 commentaires__isnull=False,
             )
+            # Garde § 4.2 AVANT la purge (relecture E, B2) : citee par
+            # une synthese adoptee, une extraction ne s'evapore pas —
+            # refus FALC, jamais un 500 au milieu du delete.
+            # / § 4.2 guard before the purge: clean refusal, never a 500.
+            from core.services.synthese import (
+                SuppressionRefuseeSourceCitee,
+                verifier_qu_aucune_dirigee_ne_cite_les_extractions,
+            )
+            try:
+                verifier_qu_aucune_dirigee_ne_cite_les_extractions(
+                    entites_ia_a_supprimer,
+                )
+            except SuppressionRefuseeSourceCitee:
+                reponse_refus = HttpResponse(status=409)
+                reponse_refus["HX-Trigger"] = json.dumps({"showToast": {
+                    "message": (
+                        "Des extractions de cette page sont citées par "
+                        "une synthèse adoptée : le nettoyage est refusé. "
+                        "Relancez l'analyse sans « nettoyer », ou retirez "
+                        "d'abord les citations."
+                    ),
+                    "icon": "warning",
+                }})
+                return reponse_refus
             nombre_supprimees = entites_ia_a_supprimer.count()
             entites_ia_a_supprimer.delete()
             if nombre_supprimees:
@@ -1979,10 +2531,15 @@ class LectureViewSet(viewsets.ViewSet):
             },
         )
 
-        # Lancer la tache Celery en arriere-plan
-        # / Launch the Celery task in background
-        from front.tasks import analyser_page_task
-        analyser_page_task.delay(job_extraction.pk)
+        # Lancer la tache Celery en arriere-plan. Il n'y a plus qu'un
+        # moteur : l'analyse par elements. Le routage par `Page.moteur`
+        # (BR-C) a disparu avec l'ancien — une page depourvue d'elements
+        # ne produira simplement aucune ancre, ce que le job dira.
+        # / One engine left: the routing by Page.moteur is gone.
+        from hypostasis_extractor.tasks_element import (
+            analyser_une_page_avec_le_moteur_element,
+        )
+        analyser_une_page_avec_le_moteur_element.delay(job_extraction.pk)
 
         logger.info(
             "analyser: job pk=%s cree pour page=%s analyseur=%s — tache Celery lancee",
@@ -2017,6 +2574,12 @@ class LectureViewSet(viewsets.ViewSet):
         / If a synthesis job is running \u2192 returns the polling partial.
         """
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde de lecture (famille du 10 aout) : le prompt de synthese
+        # contient le texte et les extractions. / Read guard.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
 
         # Acces direct (F5) \u2192 rediriger vers la lecture / Direct access (F5) \u2192 redirect
         if not request.headers.get("HX-Request"):
@@ -2214,8 +2777,57 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Verifier les droits d'ecriture sur le dossier de la page
         # / Check write permissions on the page's folder
-        if page.dossier and not _utilisateur_peut_ecrire_dossier(request.user, page.dossier):
+        if not _utilisateur_peut_ecrire_page(request.user, page):
             return _reponse_acces_refuse(request)
+
+        # Garde § 3.3 : on ne synthetise JAMAIS une synthese ni un wiki —
+        # ses citations citeraient les extractions d'une autre synthese,
+        # et au troisieme tour l'article se citerait lui-meme.
+        # / § 3.3 guard: never synthesize a synthesis or a wiki.
+        if page.type_de_note != TypeDeNote.NOTE:
+            reponse_erreur = HttpResponse(status=400)
+            reponse_erreur["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": (
+                        "Cette page est déjà une synthèse : on ne "
+                        "synthétise pas une synthèse. Ouvrez une note "
+                        "ordinaire pour lancer une synthèse."
+                    ),
+                    "icon": "warning",
+                },
+            })
+            return reponse_erreur
+
+        # Le carnet d'origine de la demande (SPEC-synthese phase C) : la
+        # synthese sera rangee dans CE carnet. Il faut y avoir l'ECRITURE
+        # — sinon n'importe qui rangerait sa synthese chez autrui.
+        # / The requesting notebook: write access required.
+        carnet_d_origine = None
+        identifiant_carnet_demande = serializer_synthese.validated_data.get(
+            "dossier_id"
+        )
+        if identifiant_carnet_demande:
+            carnet_d_origine = Dossier.objects.filter(
+                pk=identifiant_carnet_demande,
+            ).first()
+            bool_carnet_refuse = (
+                carnet_d_origine is None
+                or not _utilisateur_peut_ecrire_dossier(
+                    request.user, carnet_d_origine,
+                )
+            )
+            if bool_carnet_refuse:
+                reponse_erreur = HttpResponse(status=400)
+                reponse_erreur["HX-Trigger"] = json.dumps({
+                    "showToast": {
+                        "message": (
+                            "Ce carnet n'existe pas ou vous ne pouvez pas "
+                            "y écrire. La synthèse n'a pas été lancée."
+                        ),
+                        "icon": "warning",
+                    },
+                })
+                return reponse_erreur
 
         # Guard anti-doublon : verifier s'il y a deja une synthese en cours
         # / Anti-duplicate guard: check if a synthesis is already running
@@ -2313,16 +2925,24 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Creer le job d'extraction en status PENDING
         # / Create extraction job in PENDING status
+        # Le demandeur et le carnet d'origine accompagnent le job : la
+        # tache en fera le produite_par et le rangement de la synthese.
+        # / The requester and origin notebook travel with the job.
+        contenu_raw_result = {
+            "analyseur_id": analyseur_synthese.pk,
+            "est_synthese": True,
+            "demandeur_id": request.user.pk,
+        }
+        if carnet_d_origine is not None:
+            contenu_raw_result["dossier_id"] = carnet_d_origine.pk
+
         job_synthese = ExtractionJob.objects.create(
             page=page,
             ai_model=modele_ia_actif,
             name="Synthèse délibérative",
             prompt_description=prompt_snapshot,
             status="pending",
-            raw_result={
-                "analyseur_id": analyseur_synthese.pk,
-                "est_synthese": True,
-            },
+            raw_result=contenu_raw_result,
         )
 
         # Lancer la tache Celery en arriere-plan
@@ -2359,6 +2979,12 @@ class LectureViewSet(viewsets.ViewSet):
         / Returns the modal partial for renaming a speaker.
         """
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde de lecture (famille du 10 aout). / Read guard.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
+
         ancien_nom = request.query_params.get("speaker", "")
         index_bloc = request.query_params.get("block_index", "0")
 
@@ -2380,6 +3006,21 @@ class LectureViewSet(viewsets.ViewSet):
         from .services.transcription_audio import construire_html_diarise
 
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde d'ECRITURE (famille du 10 aout) : reecrire la
+        # transcription d'autrui etait possible pour tout compte
+        # connecte. / Write guard: any account could rewrite anyone's
+        # transcription.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
+
+        # Une analyse en cours lit ce texte et ecrira ses
+        # positions dessus : le changer maintenant les rendrait
+        # fausses, ou ferait ecraser cette edition a la fin du job.
+        # / An edit mid-analysis yields wrong positions.
+        refus_analyse = _refuser_si_une_analyse_tourne(request, page)
+        if refus_analyse:
+            return refus_analyse
 
         # Valider les donnees du formulaire / Validate form data
         serializer_renommage = RenommerLocuteurSerializer(data=request.data)
@@ -2507,6 +3148,13 @@ class LectureViewSet(viewsets.ViewSet):
         from .services.transcription_audio import COULEURS_LOCUTEURS, _formater_timestamp
 
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde de lecture (famille du 10 aout) : le formulaire rend le
+        # texte d'un bloc de transcription. / Read guard.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
+
         index_bloc = int(request.query_params.get("block_index", "0"))
 
         # Extraire le texte et les metadonnees du bloc cible depuis transcription_raw
@@ -2582,6 +3230,21 @@ class LectureViewSet(viewsets.ViewSet):
         from .services.transcription_audio import construire_html_diarise
 
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde d'ECRITURE (famille du 10 aout) : reecrire la
+        # transcription d'autrui etait possible pour tout compte
+        # connecte. / Write guard: any account could rewrite anyone's
+        # transcription.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
+
+        # Une analyse en cours lit ce texte et ecrira ses
+        # positions dessus : le changer maintenant les rendrait
+        # fausses, ou ferait ecraser cette edition a la fin du job.
+        # / An edit mid-analysis yields wrong positions.
+        refus_analyse = _refuser_si_une_analyse_tourne(request, page)
+        if refus_analyse:
+            return refus_analyse
 
         # Valider les donnees du formulaire / Validate form data
         serializer_edition = EditerBlocSerializer(data=request.data)
@@ -2688,7 +3351,6 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Re-annoter le HTML avec les barres d'extraction si un job existe
         # / Re-annotate HTML with extraction bars if a job exists
-        html_annote = None
         dernier_job_termine = ExtractionJob.objects.filter(
             page=page, status="completed",
         ).select_related("analyseur_version").order_by("-created_at").first()
@@ -2699,17 +3361,12 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             )
-            html_annote = annoter_html_avec_barres(
-                page.html_readability, page.text_readability,
-                entites_existantes, ids_entites_commentees,
-            )
 
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
 
         return render(request, "front/includes/lecture_principale.html", {
             "page": page,
-            "html_annote": html_annote,
             "versions": toutes_les_versions,
             "page_racine": page_racine,
         })
@@ -2726,6 +3383,21 @@ class LectureViewSet(viewsets.ViewSet):
         from .services.transcription_audio import construire_html_diarise
 
         page = get_object_or_404(Page, pk=pk)
+
+        # Garde d'ECRITURE (famille du 10 aout) : reecrire la
+        # transcription d'autrui etait possible pour tout compte
+        # connecte. / Write guard: any account could rewrite anyone's
+        # transcription.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
+
+        # Une analyse en cours lit ce texte et ecrira ses
+        # positions dessus : le changer maintenant les rendrait
+        # fausses, ou ferait ecraser cette edition a la fin du job.
+        # / An edit mid-analysis yields wrong positions.
+        refus_analyse = _refuser_si_une_analyse_tourne(request, page)
+        if refus_analyse:
+            return refus_analyse
 
         # Valider les donnees / Validate data
         serializer_suppression = SupprimerBlocSerializer(data=request.data)
@@ -2775,7 +3447,6 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Re-annoter le HTML avec les barres d'extraction si un job existe
         # / Re-annotate HTML with extraction bars if a job exists
-        html_annote = None
         dernier_job_termine = ExtractionJob.objects.filter(
             page=page, status="completed",
         ).select_related("analyseur_version").order_by("-created_at").first()
@@ -2786,17 +3457,12 @@ class LectureViewSet(viewsets.ViewSet):
             entites_existantes, ids_entites_commentees = _annoter_entites_avec_commentaires(
                 ExtractedEntity.objects.filter(job__in=tous_les_jobs_page, masquee=False)
             )
-            html_annote = annoter_html_avec_barres(
-                page.html_readability, page.text_readability,
-                entites_existantes, ids_entites_commentees,
-            )
 
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
 
         return render(request, "front/includes/lecture_principale.html", {
             "page": page,
-            "html_annote": html_annote,
             "versions": toutes_les_versions,
             "page_racine": page_racine,
         })
@@ -2872,17 +3538,51 @@ class DossierViewSet(viewsets.ViewSet):
         if dossier_a_supprimer.owner and dossier_a_supprimer.owner != request.user:
             return _reponse_acces_refuse(request)
 
-        nombre_pages_dans_dossier = Page.objects.filter(
-            dossier=dossier_a_supprimer, parent_page__isnull=True,
-        ).count()
+        # Comptes pour un message honnete (relecture D) : les notes aussi
+        # rangees ailleurs RESTENT dans leurs autres carnets ; seules les
+        # mono-carnet deviennent orphelines.
+        # / Honest counts: multi-notebook notes stay in their other
+        # notebooks; only single-notebook ones become orphans.
+        notes_du_carnet = Page.objects.filter(
+            appartenances_dossiers__dossier=dossier_a_supprimer,
+            parent_page__isnull=True,
+        ).distinct()
+        nombre_notes_dans_le_carnet = notes_du_carnet.count()
+        nombre_notes_gardant_un_carnet = notes_du_carnet.filter(
+            appartenances_dossiers__dossier__isnull=False,
+        ).exclude(
+            appartenances_dossiers__dossier=dossier_a_supprimer,
+        ).distinct().count()
+        nombre_notes_devenant_orphelines = (
+            nombre_notes_dans_le_carnet - nombre_notes_gardant_un_carnet
+        )
 
         nom_dossier = dossier_a_supprimer.name
+        # La reaffectation des FK est faite par le signal pre_delete
+        # (core/signals.py), dans la transaction du delete — elle couvre
+        # aussi l'admin et le shell.
+        # / FK reassignment happens in the pre_delete signal, inside the
+        # delete transaction — it also covers admin and shell deletes.
         dossier_a_supprimer.delete()
 
-        # Message adapte selon que le dossier contenait des pages ou non
-        # / Message adapted depending on whether folder contained pages or not
-        if nombre_pages_dans_dossier > 0:
-            message_toast = f"Dossier \u00ab {nom_dossier} \u00bb supprim\u00e9 — {nombre_pages_dans_dossier} page(s) reclassee(s) en orphelines"
+        # Message adapte au sort reel des notes / Message adapted to what
+        # actually happens to the notes
+        if nombre_notes_devenant_orphelines > 0 and nombre_notes_gardant_un_carnet > 0:
+            message_toast = (
+                f"Dossier \u00ab {nom_dossier} \u00bb supprim\u00e9 — "
+                f"{nombre_notes_devenant_orphelines} note(s) devenue(s) orpheline(s), "
+                f"{nombre_notes_gardant_un_carnet} restee(s) dans leurs autres carnets"
+            )
+        elif nombre_notes_devenant_orphelines > 0:
+            message_toast = (
+                f"Dossier \u00ab {nom_dossier} \u00bb supprim\u00e9 — "
+                f"{nombre_notes_devenant_orphelines} note(s) devenue(s) orpheline(s)"
+            )
+        elif nombre_notes_gardant_un_carnet > 0:
+            message_toast = (
+                f"Dossier \u00ab {nom_dossier} \u00bb supprim\u00e9 — "
+                f"{nombre_notes_gardant_un_carnet} note(s) restee(s) dans leurs autres carnets"
+            )
         else:
             message_toast = f"Dossier \u00ab {nom_dossier} \u00bb supprim\u00e9"
 
@@ -2938,6 +3638,14 @@ class DossierViewSet(viewsets.ViewSet):
             return refus
 
         dossier_cible = get_object_or_404(Dossier, pk=pk)
+
+        # Garde OWNER (famille du 10 aout) : lire les partages fuyait
+        # les emails des invitations, et le POST permettait d'ajouter
+        # ou retirer des partages sur le dossier d'autrui. Meme regle
+        # que renommer/detruire/inviter. / Owner guard: reading leaked
+        # invitation emails; POST could edit anyone's shares.
+        if dossier_cible.owner != request.user:
+            return _reponse_acces_refuse(request)
 
         if request.method == "POST":
             # Detecter si c'est un retrait (retirer_user_id / retirer_groupe_id) ou un ajout
@@ -3214,11 +3922,28 @@ class PageViewSet(viewsets.ViewSet):
         page_a_supprimer = get_object_or_404(Page, pk=pk)
 
         # Verifier ownership du dossier / Check folder ownership
-        if not _est_proprietaire_dossier(request.user, page_a_supprimer):
+        if not _est_proprietaire_page(request.user, page_a_supprimer):
             return _reponse_acces_refuse(request)
 
         titre_page = page_a_supprimer.title or "Sans titre"
-        page_a_supprimer.delete()
+        # La cascade supprime toutes les extractions de la page : si une
+        # synthese dirigee en cite une, refus PROPRE (§ 4.2) — la preuve
+        # d'un acte adopte ne s'evapore pas avec sa source.
+        # / The cascade would delete cited extractions: clean refusal.
+        from core.services.synthese import SuppressionRefuseeSourceCitee
+        try:
+            with transaction.atomic():
+                page_a_supprimer.delete()
+        except SuppressionRefuseeSourceCitee:
+            reponse_refus = _render_arbre(request)
+            reponse_refus["HX-Trigger"] = json.dumps({"showToast": {
+                "message": f"« {titre_page} » est citée par une synthèse "
+                           "adoptée : elle ne peut pas être supprimée. "
+                           "Retirez d'abord les citations ou produisez "
+                           "une nouvelle synthèse.",
+                "icon": "warning",
+            }})
+            return reponse_refus
 
         reponse = _render_arbre(request)
         reponse["HX-Trigger"] = json.dumps({
@@ -3252,8 +3977,18 @@ class PageViewSet(viewsets.ViewSet):
         if not est_owner_source and not est_owner_destination:
             return _reponse_acces_refuse(request)
 
-        page.dossier = dossier_destination
-        page.save(update_fields=["dossier"])
+        # Rangement via le service : FK et table de liaison restent
+        # synchrones (SPEC-corpus § 4.3, phase D). Destination None =
+        # sortir du carnet courant sans entrer nulle part.
+        # / Through the service so FK and link table stay in sync.
+        # None destination = leave the current notebook.
+        if dossier_destination is None:
+            if page.dossier:
+                retirer_une_note_d_un_carnet(page, page.dossier)
+        else:
+            deplacer_une_note_vers_un_carnet(
+                page, dossier_destination, request.user
+            )
 
         return _render_arbre(request)
 
@@ -3294,6 +4029,51 @@ class ExtractionViewSet(viewsets.ViewSet):
         )
         return job_manuel
 
+    def _contenu_de_lecture(self, request, page):
+        """
+        Rend le contenu de `#readability-content` pour un swap OOB.
+        / Renders the content of `#readability-content` for an OOB swap.
+
+        LOCALISATION : front/views.py
+
+        POURQUOI CETTE AIDE EXISTE
+
+        Cinq actions du panneau remplacent TOUT le contenu de la zone de
+        lecture par un swap « out of band ». Elles le construisaient avec
+        l'ANCIEN moteur — le HTML readability annote. Sur une page
+        ELEMENT, la lecture est faite de BLOCS : le swap les ecrasait,
+        et le lecteur perdait ses blocs, ses boutons d'operations et ses
+        ancres apres avoir simplement cree une extraction a la main.
+
+        Ces vues ne consultaient pas `Page.moteur` — elles ont ete
+        ecrites avant lui. Le rendu passe desormais par le meme service
+        que la lecture, donc par la meme verite.
+        / These views predate Page.moteur and wiped the ELEMENT blocks.
+
+        Une page sans bloc (ingestion echouee) retombe sur son
+        `html_readability`, exactement comme le fait le gabarit de
+        lecture. / A block-less page falls back to its readability HTML.
+        """
+        from front.services.rendu_elements import (
+            construire_les_blocs_de_lecture,
+        )
+        from front.templatetags.corpus_permissions import est_modifiable_par
+
+        blocs_de_lecture = construire_les_blocs_de_lecture(page)
+        if not blocs_de_lecture:
+            return page.html_readability or ""
+
+        return render_to_string(
+            "front/includes/_blocs_elements.html",
+            {
+                "blocs_de_lecture": blocs_de_lecture,
+                "la_note_est_modifiable": est_modifiable_par(
+                    page, request.user,
+                ),
+            },
+            request=request,
+        )
+
     def _render_panneau_complet_avec_oob(self, request, page):
         """
         Re-rend le panneau d'analyse + OOB swap du readability-content annote.
@@ -3323,12 +4103,6 @@ class ExtractionViewSet(viewsets.ViewSet):
             masquee=True,
         ).count()
 
-        # Annoter le HTML / Annotate HTML
-        html_annote = annoter_html_avec_barres(
-            page.html_readability, page.text_readability,
-            entites_visibles, ids_entites_commentees,
-        )
-
         # Dernier job pour le contexte du panneau / Latest job for panel context
         dernier_job = tous_les_jobs_termines.order_by("-created_at").first()
 
@@ -3345,11 +4119,11 @@ class ExtractionViewSet(viewsets.ViewSet):
             request=request,
         )
 
-        # OOB swap pour le contenu de lecture annote
-        # / OOB swap for annotated reading content
+        # OOB swap du contenu de lecture, rendu par le moteur de la page
+        # / OOB swap of the reading content, rendered by the page's engine
         html_readability_oob = (
             '<article id="readability-content" hx-swap-oob="innerHTML:#readability-content">'
-            + (html_annote or page.html_readability)
+            + self._contenu_de_lecture(request, page)
             + '</article>'
         )
 
@@ -3392,18 +4166,12 @@ class ExtractionViewSet(viewsets.ViewSet):
             masquee=True,
         ).count()
 
-        # Annoter le HTML / Annotate HTML
-        html_annote = annoter_html_avec_barres(
-            page.html_readability, page.text_readability,
-            entites_visibles, ids_entites_commentees,
-        )
-
         # Dernier job pour le contexte du panneau / Latest job for panel context
         dernier_job = tous_les_jobs_termines.order_by("-created_at").first()
 
-        # Contenu principal : readability annote
-        # / Main content: annotated readability
-        html_readability_principal = html_annote or page.html_readability
+        # Contenu principal, rendu par le moteur de la page
+        # / Main content, rendered by the page's engine
+        html_readability_principal = self._contenu_de_lecture(request, page)
 
         # OOB swap pour le panneau d'extractions
         # / OOB swap for extraction panel
@@ -3440,6 +4208,12 @@ class ExtractionViewSet(viewsets.ViewSet):
         if not page_id:
             return HttpResponse("page_id requis.", status=400)
         page = get_object_or_404(Page, pk=page_id)
+        # Garde de lecture (famille du 10 aout) : ce panneau rend
+        # TOUTES les extractions de la page. / Read guard: this panel
+        # renders every extraction of the page.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
         html_complet = self._render_panneau_complet_avec_oob(request, page)
         return HttpResponse(html_complet)
 
@@ -3466,6 +4240,11 @@ class ExtractionViewSet(viewsets.ViewSet):
             return HttpResponse("Aucune page selectionnee.", status=400)
 
         page = get_object_or_404(Page, pk=validated_page_id)
+
+        # Garde de lecture (famille du 10 aout). / Read guard.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
 
         # Calculer start_char dans text_readability cote serveur
         # / Compute start_char in text_readability server-side
@@ -3525,6 +4304,13 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         donnees = serializer.validated_data
         page = get_object_or_404(Page, pk=donnees["page_id"])
+
+        # Garde d'ECRITURE (famille du 10 aout) : tout compte connecte
+        # pouvait creer une extraction sur n'importe quelle note.
+        # / Write guard.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
+
         job_manuel = self._get_or_create_job_manuel(page)
 
         # Lire les paires cle/valeur dynamiques depuis le formulaire
@@ -3574,13 +4360,21 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         entite = get_object_or_404(ExtractedEntity, pk=identifiant_entite)
 
+        # La regle du produit (SPEC-corpus § 5.2), doctrine du 404 :
+        # une extraction d'une note interdite est INTROUVABLE, au meme
+        # octet qu'une extraction absente (correctif du 10 aout — cette
+        # action ne verifiait rien). / Product access rule, 404
+        # doctrine: forbidden is byte-identical to missing.
+        if not _utilisateur_a_acces_page(request.user, entite.job.page):
+            raise Http404("No ExtractedEntity matches the given query.")
+
         # Compter les commentaires pour cette entite
         # / Count comments for this entity
         nombre_commentaires = CommentaireExtraction.objects.filter(entity=entite).count()
 
         # Determiner si l'utilisateur est proprietaire du dossier
         # / Determine if user is the folder owner
-        est_proprietaire = _est_proprietaire_dossier(request.user, entite.job.page)
+        est_proprietaire = _est_proprietaire_page(request.user, entite.job.page)
 
         return render(request, "front/includes/bottom_sheet_extraction.html", {
             "entity": entite,
@@ -3612,6 +4406,13 @@ class ExtractionViewSet(viewsets.ViewSet):
         donnees = serializer.validated_data
         entite = get_object_or_404(ExtractedEntity, pk=donnees["entity_id"])
 
+        # Garde d'ACCES (famille du 10 aout) : le debat est ouvert a
+        # qui peut LIRE la note — pas au reste du monde. / Access
+        # guard: the debate is open to whoever can read the note.
+        refus = _verifier_acces_page(request, entite.job.page)
+        if refus:
+            return refus
+
         # Creer le commentaire (le signal Django met statut_debat a "commente")
         # / Create the comment (Django signal sets statut_debat to "commente")
         CommentaireExtraction.objects.create(
@@ -3624,7 +4425,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / Refresh entity from DB to get statut_debat synchronized by signal
         entite.refresh_from_db()
 
-        est_proprietaire = _est_proprietaire_dossier(request.user, entite.job.page)
+        est_proprietaire = _est_proprietaire_page(request.user, entite.job.page)
 
         return render(request, "hypostasis_extractor/includes/_extraction_content.html", {
             "entity": entite,
@@ -3653,7 +4454,22 @@ class ExtractionViewSet(viewsets.ViewSet):
             return _reponse_acces_refuse(request)
 
         page_id_pour_reload = entite_a_supprimer.job.page_id
-        entite_a_supprimer.delete()
+        # Une extraction citee par une synthese dirigee ne se supprime
+        # pas : message FALC, jamais un 500 (§ 4.2, § 5.3).
+        # / Cited by a frozen synthesis: clean message, never a 500.
+        from core.services.synthese import SuppressionRefuseeSourceCitee
+        try:
+            with transaction.atomic():
+                entite_a_supprimer.delete()
+        except SuppressionRefuseeSourceCitee:
+            reponse_refus = HttpResponse("<span></span>", status=409)
+            reponse_refus["HX-Trigger"] = json.dumps({"showToast": {
+                "message": "Cette extraction est citée par une synthèse "
+                           "adoptée : retirez d'abord la citation ou "
+                           "produisez une nouvelle synthèse.",
+                "icon": "warning",
+            }})
+            return reponse_refus
 
         # Meme pattern que masquer() : reponse minimale + triggers pour recharger
         # les zones concernees (drawer + lecture) sans detruire les cartes ouvertes.
@@ -3683,6 +4499,12 @@ class ExtractionViewSet(viewsets.ViewSet):
             return HttpResponse("page_id requis.", status=400)
 
         page = get_object_or_404(Page, pk=page_id)
+
+        # Garde PROPRIETAIRE (famille du 10 aout) : une suppression en
+        # masse est destructrice — meme regle que masquer/restaurer.
+        # / Owner guard: mass deletion, same rule as hide/restore.
+        if not _est_proprietaire_page(request.user, page):
+            return _reponse_acces_refuse(request)
 
         # Supprimer les entites IA sans commentaires (pas les jobs entiers pour garder celles avec commentaires)
         # / Delete AI entities without comments (not entire jobs, to keep commented ones)
@@ -3732,6 +4554,14 @@ class ExtractionViewSet(viewsets.ViewSet):
             return HttpResponse("page_id requis.", status=400)
 
         page = get_object_or_404(Page, pk=page_id)
+
+        # Doctrine du 404 (correctif du 10 aout) : une note interdite
+        # est introuvable — pas d'oracle d'existence par ce formulaire.
+        # / 404 doctrine: forbidden note is indistinguishable from
+        # missing.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
+
         tous_les_analyseurs_actifs = AnalyseurSyntaxique.objects.filter(is_active=True)
 
         return render(request, "front/includes/modale_promouvoir_entrainement.html", {
@@ -3763,6 +4593,14 @@ class ExtractionViewSet(viewsets.ViewSet):
         analyseur_id = serializer.validated_data["analyseur_id"]
 
         page = get_object_or_404(Page, pk=page_id)
+
+        # Garde PROPRIETAIRE (famille du 10 aout) : promouvoir copie le
+        # texte de la note ET ses extractions dans un exemple
+        # d'entrainement global. / Owner guard: promotion copies the
+        # note's text into a global training example.
+        if not _est_proprietaire_page(request.user, page):
+            return _reponse_acces_refuse(request)
+
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=analyseur_id)
 
         # Recupere toutes les entites IA de la page (jobs completed avec ai_model)
@@ -3891,6 +4729,12 @@ class ExtractionViewSet(viewsets.ViewSet):
             return reponse
 
         page = get_object_or_404(Page, pk=identifiant_page)
+
+        # Garde d'ECRITURE (famille du 10 aout) : une analyse LIT la
+        # note et COUTE de l'argent — jamais pour un tiers sans droit.
+        # / Write guard: an analysis reads the note and costs money.
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            return _reponse_acces_refuse(request)
 
         # Verifier que l'IA est activee et qu'un modele est configure
         # / Check that AI is enabled and a model is configured
@@ -4034,7 +4878,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         # Verification ownership : seul le proprietaire du dossier peut masquer
         # / Ownership check: only the folder owner can hide
         page_de_lentite = entite_a_masquer.job.page
-        if not _est_proprietaire_dossier(request.user, page_de_lentite):
+        if not _est_proprietaire_page(request.user, page_de_lentite):
             return HttpResponse("Non autorise.", status=403)
 
         # Garde : ne pas masquer une entite qui a des commentaires
@@ -4086,7 +4930,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         # Verification ownership : seul le proprietaire du dossier peut restaurer
         # / Ownership check: only the folder owner can restore
         page_de_lentite = entite_a_restaurer.job.page
-        if not _est_proprietaire_dossier(request.user, page_de_lentite):
+        if not _est_proprietaire_page(request.user, page_de_lentite):
             return HttpResponse("Non autorise.", status=403)
 
         # Demarquer comme masquee (le statut_debat est gere par signal)
@@ -4121,6 +4965,11 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         page = get_object_or_404(Page, pk=identifiant_page)
 
+        # Doctrine du 404 (correctif du 10 aout) : les stats de debat
+        # d'une note interdite sont introuvables. / 404 doctrine.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
+
         # Calculer l'etat du consensus via le helper / Compute consensus state via helper
         donnees_consensus = _calculer_consensus(page)
 
@@ -4152,6 +5001,16 @@ class ExtractionViewSet(viewsets.ViewSet):
             return HttpResponse("page_id requis.", status=400)
 
         page = get_object_or_404(Page, pk=identifiant_page)
+
+        # La regle du produit (SPEC-corpus § 5.2), doctrine du 404
+        # (correctif du 10 aout) : ce drawer rendait le TEXTE de toutes
+        # les extractions de N'IMPORTE QUELLE page, sans etre connecte.
+        # Une note interdite est desormais INTROUVABLE, au meme octet
+        # qu'une note absente — pas d'oracle d'existence.
+        # / This drawer leaked every extraction's text for any page,
+        # unauthenticated. Forbidden is now byte-identical to missing.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
 
         # Refonte A.6 : plus de drawer "analyse en cours" specifique. Si un job
         # tourne, on nettoie quand meme les jobs bloques (pour que les vues
@@ -4278,13 +5137,38 @@ class ExtractionViewSet(viewsets.ViewSet):
         if parametre_tri == "activite":
             toutes_les_entites = toutes_les_entites.order_by("-created_at")
         else:
-            toutes_les_entites = toutes_les_entites.order_by("start_char")
+            # U3 : `start_char` est un offset de CHUNK, pas une position
+            # dans la page — le tri « position » suit donc l'ANCRE
+            # (ordre de l'element, puis debut dans l'element).
+            # / Sort by anchor: start_char is a chunk offset.
+            toutes_les_entites = _trier_les_entites_par_ancre(
+                toutes_les_entites,
+            )
+
+        # QUELLES IDEES NE SONT MONTREES NULLE PART DANS LE TEXTE.
+        #
+        # Une idee se montre par ses portions ancrees. Celle qui n'en a
+        # aucune — detachee par la reconversion du 10 aout, ou jamais
+        # alignee par l'ancien moteur — n'apparait QUE dans ce panneau. Le dire est la condition pour qu'un humain
+        # puisse la replacer : sans etiquette, elle est indiscernable de
+        # celles qui sont bien posees, et la promesse « un humain
+        # tranchera » ne veut rien dire.
+        # / Which ideas are shown nowhere in the text.
+        from hypostasis_extractor.models import AncrageExtraction, EtatAncrage
+
+        identifiants_ancres = set(
+            AncrageExtraction.objects.filter(
+                extraction__job__page=page,
+                etat_ancrage=EtatAncrage.ANCREE,
+            ).values_list("extraction_id", flat=True)
+        )
 
         # Separer visibles et masquees (non_pertinent) pour le template
         # / Separate visible and hidden (non_pertinent) for the template
         entites_visibles = []
         entites_masquees = []
         for entite in toutes_les_entites:
+            entite.est_detachee = entite.pk not in identifiants_ancres
             if entite.masquee:
                 entites_masquees.append(entite)
             else:
@@ -4302,7 +5186,7 @@ class ExtractionViewSet(viewsets.ViewSet):
 
         # Determiner si l'utilisateur est proprietaire du dossier
         # / Determine if user is the folder owner
-        est_proprietaire = _est_proprietaire_dossier(request.user, page)
+        est_proprietaire = _est_proprietaire_page(request.user, page)
 
         # Recuperer le dernier job termine pour le bandeau resume du drawer
         # / Get the last completed job for the drawer summary banner
@@ -4456,6 +5340,13 @@ class ImportViewSet(viewsets.ViewSet):
             source_file=contenu_fichier_source,
             owner=request.user,
         )
+        # Appartenance N-N alignee sur la FK (SPEC-corpus § 4.3, phase D).
+        # Un dossier_id perime (carnet supprime entre-temps) laisse la
+        # page orpheline, comme avant la phase D — jamais de 500.
+        # / N-N membership aligned with the FK; a stale dossier_id
+        # leaves the page orphaned, as before phase D — never a 500.
+        if dossier_assigne is not None:
+            ranger_une_note_dans_un_carnet(page_importee, dossier_assigne, request.user)
 
         logger.info(
             "import JSON: page pk=%s creee depuis '%s' (%d segments)",
@@ -4468,7 +5359,6 @@ class ImportViewSet(viewsets.ViewSet):
         ia_active = _get_ia_active()
         contexte_partage = {
             "page": page_importee,
-            "html_annote": None,
             "analyseurs_actifs": analyseurs_actifs,
             "job": None,
             "entities": None,
@@ -4574,6 +5464,13 @@ class ImportViewSet(viewsets.ViewSet):
             source_file=fichier_uploade,
             owner=request.user,
         )
+        # Appartenance N-N alignee sur la FK (SPEC-corpus § 4.3, phase D).
+        # Un dossier_id perime (carnet supprime entre-temps) laisse la
+        # page orpheline, comme avant la phase D — jamais de 500.
+        # / N-N membership aligned with the FK; a stale dossier_id
+        # leaves the page orphaned, as before phase D — never a 500.
+        if dossier_assigne is not None:
+            ranger_une_note_dans_un_carnet(page_audio, dossier_assigne, request.user)
 
         # Recuperer la config de transcription active (ou None pour mock)
         # / Get active transcription config (or None for mock)
@@ -4697,11 +5594,69 @@ class ImportViewSet(viewsets.ViewSet):
             source_file=fichier_uploade,
             owner=request.user,
         )
+        # Appartenance N-N alignee sur la FK (SPEC-corpus § 4.3, phase D).
+        # Un dossier_id perime (carnet supprime entre-temps) laisse la
+        # page orpheline, comme avant la phase D — jamais de 500.
+        # / N-N membership aligned with the FK; a stale dossier_id
+        # leaves the page orphaned, as before phase D — never a 500.
+        if dossier_assigne is not None:
+            ranger_une_note_dans_un_carnet(page_importee, dossier_assigne, request.user)
 
         logger.info(
             "import fichier: page pk=%s creee depuis '%s' (%d chars HTML)",
             page_importee.pk, nom_fichier, len(html_readability),
         )
+
+        # BR-B (SPEC-ancrage § 9, double moteur) : si Docling couvre ce
+        # type, lancer AUSSI le decoupage en elements, en arriere-plan.
+        # Le pipeline synchrone ci-dessus garde l'affichage de l'ANCIEN
+        # moteur fonctionnel (html_readability) jusqu'a BR-D. Le flag
+        # ELEMENT sera pose par la tache elle-meme (BR-A). Type non
+        # couvert (.txt) : la page reste ANCIEN, comme avant.
+        # / Covered type: also launch element ingestion in background.
+        # The sync pipeline keeps old-engine display working until BR-D.
+        from hypostasis_extractor.services.ingestion_docling import (
+            fichier_couvert_par_docling,
+        )
+        ingestion_docling_lancee = False
+        if fichier_couvert_par_docling(nom_fichier):
+            from hypostasis_extractor.tasks_element import (
+                ingerer_un_fichier_avec_docling,
+            )
+            # On ne passe QUE la cle primaire : la tache resout le chemin
+            # depuis page.source_file (elle connait le stockage, pas la
+            # vue). Et si le broker est tombe, l'import reste un succes :
+            # la page est deja creee et lisible par l'ancien moteur —
+            # c'est le contrat du double moteur (relecture BR-B).
+            # / Only the pk is passed; a dead broker must not turn a
+            # successful import into a 500.
+            try:
+                ingerer_un_fichier_avec_docling.delay(page_importee.pk)
+                ingestion_docling_lancee = True
+                # U2 : l'etat est VISIBLE dans la lecture des maintenant
+                # (puce d'attente). Update CONDITIONNEL sur l'etat vide
+                # (relecture U2, defaut H1) : un worker eclair peut
+                # avoir deja pose en_cours/echouee AVANT cette ligne —
+                # on ne l'ecrase pas, la tache fait foi.
+                # / Conditional on the empty state: a fast worker may
+                # already have written; the task's write wins.
+                Page.objects.filter(
+                    pk=page_importee.pk, ingestion_etat="",
+                ).update(
+                    ingestion_etat=EtatIngestion.EN_ATTENTE,
+                    ingestion_detail="", ingestion_maj_le=timezone.now(),
+                )
+                logger.info(
+                    "import fichier: ingestion Docling lancee pour la page pk=%s",
+                    page_importee.pk,
+                )
+            except Exception as erreur_de_broker:
+                logger.error(
+                    "import fichier: ingestion Docling NON lancee pour la "
+                    "page pk=%s (broker indisponible ? %s) — la page reste "
+                    "sur l'ancien moteur",
+                    page_importee.pk, erreur_de_broker,
+                )
 
         # Rendu du partial de lecture + OOB arbre et panneau
         # / Render reading partial + OOB tree and panel
@@ -4709,7 +5664,6 @@ class ImportViewSet(viewsets.ViewSet):
         ia_active = _get_ia_active()
         contexte_partage = {
             "page": page_importee,
-            "html_annote": None,
             "analyseurs_actifs": analyseurs_actifs,
             "job": None,
             "entities": None,
@@ -4753,8 +5707,20 @@ class ImportViewSet(viewsets.ViewSet):
         # / Tells the front the URL to push in browser history. Import goes
         # / via XMLHttpRequest, so the JS reads this header and pushState manually.
         reponse["X-Hypostasia-Page-Url"] = f"/lire/{page_importee.pk}/"
+        # Le toast dit honnetement ce qui se passe : avec Docling, le
+        # decoupage en elements tourne encore en arriere-plan.
+        # / Honest toast: with Docling, element ingestion is still running.
+        if ingestion_docling_lancee:
+            # Message double -> temps de lecture allonge (public FALC).
+            # / Two-part message gets a longer display time.
+            contenu_du_toast = {
+                "message": "Fichier import\u00e9 \u2014 d\u00e9coupage en \u00e9l\u00e9ments lanc\u00e9",
+                "timer": 4500,
+            }
+        else:
+            contenu_du_toast = {"message": "Fichier import\u00e9"}
         reponse["HX-Trigger"] = json.dumps({
-            "showToast": {"message": "Fichier import\u00e9"},
+            "showToast": contenu_du_toast,
         })
         return reponse
 
@@ -4917,6 +5883,13 @@ class ImportViewSet(viewsets.ViewSet):
             source_file=fichier_django_source,
             owner=request.user,
         )
+        # Appartenance N-N alignee sur la FK (SPEC-corpus § 4.3, phase D).
+        # Un dossier_id perime (carnet supprime entre-temps) laisse la
+        # page orpheline, comme avant la phase D — jamais de 500.
+        # / N-N membership aligned with the FK; a stale dossier_id
+        # leaves the page orphaned, as before phase D — never a 500.
+        if dossier_assigne is not None:
+            ranger_une_note_dans_un_carnet(page_audio, dossier_assigne, request.user)
         fichier_audio_pour_source.close()
 
         # Recuperer la config de transcription active (ou None pour mock)
@@ -5003,6 +5976,13 @@ class QuestionnaireViewSet(viewsets.ViewSet):
             return HttpResponse("page_id requis.", status=400)
 
         page = get_object_or_404(Page, pk=page_id)
+
+        # Garde de lecture, doctrine du 404 (famille du 10 aout) : les
+        # questions et reponses d'une note interdite sont introuvables,
+        # au meme octet qu'une note absente. / Read guard, 404 doctrine.
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404("No Page matches the given query.")
+
         return self._render_questionnaire(request, page)
 
     @action(detail=False, methods=["POST"], url_path="poser_question")
@@ -5024,6 +6004,12 @@ class QuestionnaireViewSet(viewsets.ViewSet):
 
         donnees = serializer.validated_data
         page = get_object_or_404(Page, pk=donnees["page_id"])
+
+        # Garde d'ACCES (famille du 10 aout) : questionner exige de
+        # pouvoir lire la note. / Access guard: asking requires reading.
+        refus = _verifier_acces_page(request, page)
+        if refus:
+            return refus
 
         # Creer la question / Create the question
         Question.objects.create(
@@ -5057,6 +6043,12 @@ class QuestionnaireViewSet(viewsets.ViewSet):
 
         donnees = serializer.validated_data
         question = get_object_or_404(Question, pk=donnees["question_id"])
+
+        # Garde d'ACCES (famille du 10 aout) : repondre exige de
+        # pouvoir lire la note de la question. / Access guard.
+        refus = _verifier_acces_page(request, question.page)
+        if refus:
+            return refus
 
         # Creer la reponse / Create the answer
         ReponseQuestion.objects.create(

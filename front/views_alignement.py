@@ -286,7 +286,33 @@ class AlignementViewSet(viewsets.ViewSet):
         Retourne (pages_selectionnees, avertissement, erreur_http).
         / Retrieve pages to compare from page_ids or dossier_id.
         / Returns (selected_pages, warning, http_error).
+
+        LOCALISATION : front/views_alignement.py
+
+        CONTROLE D'ACCES (correctif du 9 aout 2026). Cette methode ne
+        verifiait RIEN : `?dossier_id=N` alignait n'importe quel carnet,
+        et `?page_ids=1,2` n'importe quelles notes, par leur simple
+        identifiant. Le tableau produit affiche le texte des extractions
+        et les resumes : c'etait une fuite directe du contenu prive
+        d'autrui, aggravee par `export_markdown` qui en fait un fichier.
+        La regle appliquee est celle du reste du produit
+        (`_utilisateur_a_acces_page` : on accede a une note si on accede
+        a AU MOINS UN carnet qui la contient), et le filtrage se fait
+        SILENCIEUSEMENT — une page inaccessible est retiree de la liste
+        exactement comme une page inexistante, sans message qui
+        distinguerait les deux cas. Dire « acces refuse » aurait confirme
+        l'existence de la note : c'est la doctrine du 404 plutot que du
+        403 deja retenue pour les bases privees (phase H corpus).
+        / This method checked nothing: any notebook or note could be
+        aligned by id, leaking private extraction text (and exporting
+        it). Access is now filtered SILENTLY: an inaccessible page is
+        dropped like a missing one, so the answer never confirms that a
+        note exists.
         """
+        from front.views import (
+            _utilisateur_a_acces_dossier,
+            _utilisateur_a_acces_page,
+        )
         parametre_dossier = request.query_params.get("dossier_id", "")
         parametre_ids = request.query_params.get("page_ids", "")
         avertissement = None
@@ -310,8 +336,23 @@ class AlignementViewSet(viewsets.ViewSet):
                     status=404,
                 )
 
+            # Un carnet auquel on n'a pas acces repond comme un carnet
+            # qui n'existe pas : le message ne doit pas trahir la
+            # difference. / An inaccessible notebook answers exactly like
+            # a missing one.
+            if not _utilisateur_a_acces_dossier(request.user, dossier):
+                return None, None, HttpResponse(
+                    '<p class="text-red-600 text-sm p-4">Dossier introuvable.</p>',
+                    status=404,
+                )
+
+            # L'alignement lit la table de liaison (phase D corpus) : une
+            # note rangee dans ce carnet en second y participe aussi.
+            # / Alignment reads the link table: multi-notebook notes join.
             toutes_les_pages_du_dossier = list(
-                Page.objects.filter(dossier=dossier).order_by("id")
+                Page.objects.filter(
+                    appartenances_dossiers__dossier=dossier
+                ).distinct().order_by("id")
             )
 
             if len(toutes_les_pages_du_dossier) < 2:
@@ -357,16 +398,26 @@ class AlignementViewSet(viewsets.ViewSet):
                     status=400,
                 )
 
+            # prefetch des appartenances : _utilisateur_a_acces_page
+            # remonte les carnets de chaque note, et sans cela ce serait
+            # deux requetes par page. / Prefetch: the access rule walks
+            # each note's notebooks.
             pages_par_id = {
                 page.id: page
                 for page in Page.objects.filter(id__in=liste_ids)
+                .prefetch_related("appartenances_dossiers__dossier")
             }
             pages_selectionnees = [
                 pages_par_id[identifiant]
                 for identifiant in liste_ids
                 if identifiant in pages_par_id
+                and _utilisateur_a_acces_page(request.user, pages_par_id[identifiant])
             ]
 
+            # Le message ne fait AUCUNE difference entre « n'existe
+            # pas » et « ne vous est pas accessible » : la distinction
+            # serait un oracle.
+            # / The message never separates "missing" from "forbidden".
             if len(pages_selectionnees) < 2:
                 return None, None, HttpResponse(
                     '<p class="text-red-600 text-sm p-4">Certaines pages n\'existent pas ou plus.</p>',

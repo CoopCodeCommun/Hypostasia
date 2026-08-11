@@ -1,0 +1,90 @@
+{# LE DIFF DES OPERATIONS (§ 6.4, phase I) — l'humain accepte UNE PAR #}
+{# UNE ; le replace montre l'AVANT ; les rejets mecaniques sont deja la. #}
+{# LOCALISATION : front/templates/front/corpus/partials/diff_operations.html #}
+{# Variables : wiki, job, bilan (passage a blanc), updated_at_de_l_article #}
+{% load lisibilite_diff %}
+<div class="diff-operations" data-testid="synthese-diff-operations">
+    <h3 style="margin:0 0 .3rem; font-size:1rem">Mise à jour proposée —
+        opérations à accepter une par une</h3>
+    <p class="note-explicative">
+        Le modèle ne réécrit pas l'article : il propose. Une opération
+        au titre introuvable ou citant hors du périmètre est déjà
+        rejetée mécaniquement ci-dessous.
+    </p>
+
+    {# La cible etait #corpus-panneau-onglet, qui n'existe QUE dans #}
+    {# l'onglet du carnet : depuis /wikis/{id}/ (lien partage, F5), #}
+    {# « Appliquer » ne faisait RIEN (recette du 10 aout, F3). On vise #}
+    {# l'article lui-meme, present dans les deux contextes, et la #}
+    {# reponse EST l'article : outerHTML le remplace en place. #}
+    {# / The old target only existed inside the notebook tab. #}
+    <form hx-post="/wikis/{{ wiki.pk }}/appliquer/"
+          hx-target="closest [data-testid='synthese-article']"
+          hx-swap="outerHTML"
+          data-testid="synthese-form-appliquer">
+        <input type="hidden" name="job_id" value="{{ job.pk }}">
+
+        {% for appliquee in bilan.operations_appliquees %}
+        <fieldset class="operation" data-op="{{ appliquee.operation.type }}"
+                  data-testid="synthese-operation-acceptable">
+            <label class="flex items-start gap-2 text-sm cursor-pointer">
+                <input type="checkbox" name="indice"
+                       value="{{ appliquee.indice }}" checked
+                       data-testid="synthese-operation-case">
+                <span>
+                    {# Le type s'affichait tel quel — « append_to_section » #}
+                    {# — au moment ou l'on demande d'accepter (F5). #}
+                    <strong>{{ appliquee.operation.type|nom_d_operation }}</strong>
+                    {% if appliquee.operation.section %}— section
+                    « {{ appliquee.operation.section }} »{% endif %}
+                    {% if appliquee.operation.titre %}— nouvelle section
+                    « {{ appliquee.operation.titre }} » après
+                    « {{ appliquee.operation.apres }} »{% endif %}
+                    {% if appliquee.ancien_contenu %}
+                    <span class="block text-xs mt-1 text-slate-500">Avant :</span>
+                    <span class="block text-xs avant-op" data-testid="synthese-diff-avant">{{ appliquee.ancien_contenu|truncatechars:400|marqueurs_en_renvois }}</span>
+                    {% endif %}
+                    {% if appliquee.operation.contenu %}
+                    <span class="block text-xs mt-1 text-slate-500">
+                        {% if appliquee.ancien_contenu %}Après :{% else %}Contenu :{% endif %}</span>
+                    <span class="contenu-op apres-op">{{ appliquee.operation.contenu|marqueurs_en_renvois }}</span>
+                    {# Une operation sans une phrase ajouterait un #}
+                    {# paragraphe fait d'un seul renvoi : on le DIT #}
+                    {# plutot que de laisser accepter a l'aveugle. #}
+                    {% if appliquee.operation.contenu|est_sans_redaction %}
+                    <span class="alerte-sans-redaction" data-testid="synthese-op-sans-redaction">
+                        ⚠ Cette opération n'ajoute aucune phrase, seulement
+                        un renvoi : l'article y gagnerait un paragraphe vide.
+                    </span>
+                    {% endif %}
+                    {% endif %}
+                </span>
+            </label>
+        </fieldset>
+        {% endfor %}
+
+        {% for rejet in bilan.operations_rejetees %}
+        <div class="operation rejetee" data-op="{{ rejet.operation.type }}"
+             data-testid="synthese-operation-rejetee">
+            <span class="motif-rejet">{{ rejet.operation.type|nom_d_operation }} —
+                rejetée : {{ rejet.motif }}</span>
+            {% if rejet.operation.contenu %}
+            <span class="contenu-op">{{ rejet.operation.contenu|marqueurs_en_renvois }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        {% if bilan.operations_appliquees %}
+        <input type="hidden" name="indices" value=""
+               data-testid="synthese-indices-caches">
+        <button type="submit"
+                class="bouton-plat principal"
+                onclick="this.form.elements['indices'].value = Array.from(this.form.querySelectorAll('input[name=indice]:checked')).map(function(c){return c.value}).join(',')"
+                data-testid="synthese-btn-appliquer">
+            Appliquer les opérations cochées</button>
+        {% else %}
+        <p class="text-sm text-slate-600">Aucune opération applicable
+            dans cette proposition.</p>
+        {% endif %}
+    </form>
+</div>

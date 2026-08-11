@@ -240,8 +240,15 @@ class Phase02TailwindCSSTest(TestCase):
         """Le CSS compile contient des classes Tailwind utilisees dans les templates."""
         chemin_tw = STATIC_FRONT / "css" / "tailwind.css"
         contenu = chemin_tw.read_text(encoding="utf-8")
-        # Classes Tailwind utilisees dans base.html
-        # / Tailwind classes used in base.html
+        # Classes Tailwind utilisees dans base.html.
+        # NOTE (bascule CSS, lot T9) : ce test ne verifie QUE la
+        # compilation de Tailwind. Il ne dit RIEN de la couleur rendue :
+        # depuis la bascule, .bg-white est remappe sur var(--papier) par
+        # maquette.css (cf. test_bg_white_est_remappe_sur_le_papier
+        # ci-dessous). Les deux tests sont complementaires : celui-ci
+        # garde le compilateur honnete, l'autre garde la palette.
+        # / This only checks Tailwind compiles; the rendered color is
+        # asserted by the remap test below.
         classes_attendues = ["bg-white", "text-slate-800", "flex-1", "font-semibold"]
         for classe in classes_attendues:
             self.assertIn(
@@ -331,11 +338,71 @@ class Phase02PolicesLocalesTest(TestCase):
 
 
 class Phase02FontBodyTest(TestCase):
-    """Verifie que la police de base du body est B612 (pas Inter).
-    / Verify that the body base font is B612 (not Inter)."""
+    """La police du CORPS, apres la bascule CSS (lot T9, 9 aout 2026).
+
+    Ce test disait « le body est en B612 » en lisant hypostasia.css.
+    C'etait devenu un mensonge : hypostasia.css:144 declare toujours
+    B612, mais maquette.css est chargee APRES et remet le body en
+    Georgia (decision D1 : la maquette fait foi, Lora et B612 quittent
+    le corps de texte, les ilots .typo-* de provenance restent).
+    Le test verifie desormais le contrat REEL : c'est la couche
+    maquette qui decide, et elle decide Georgia.
+    / This used to assert B612 by reading the old sheet; maquette.css
+    now wins the cascade and sets Georgia.
+    """
+
+    def test_le_corps_est_en_georgia_dans_la_couche_maquette(self):
+        """maquette.css, chargee en dernier, met le body en Georgia."""
+        chemin_css = STATIC_FRONT / "css" / "maquette.css"
+        contenu = chemin_css.read_text(encoding="utf-8")
+        self.assertIn("Georgia", contenu, "Georgia absent de la couche maquette")
+        # La regle body doit bien porter la serif, pas seulement un
+        # commentaire qui en parle. / The body rule itself must set it.
+        regle_body = re.search(r"\nbody\s*\{[^}]*\}", contenu)
+        self.assertIsNotNone(regle_body, "Aucune regle body dans maquette.css")
+        self.assertIn("Georgia", regle_body.group(0), "Le body n'est pas en Georgia")
+
+    def test_la_couche_maquette_est_chargee_en_dernier(self):
+        """base.html charge maquette.css APRES hypostasia.css.
+
+        C'est ce qui rend le contrat ci-dessus vrai : inverser les deux
+        lignes rendrait le corps a B612 sans qu'aucun autre test ne
+        bronche. / Load order is the contract.
+        """
+        contenu = TEMPLATE_BASE.read_text(encoding="utf-8")
+        position_ancienne = contenu.find("front/css/hypostasia.css")
+        position_maquette = contenu.find("front/css/maquette.css")
+        self.assertGreater(position_ancienne, -1, "hypostasia.css n'est plus chargee")
+        self.assertGreater(position_maquette, -1, "maquette.css n'est pas chargee")
+        self.assertGreater(
+            position_maquette, position_ancienne,
+            "maquette.css doit etre chargee APRES hypostasia.css"
+        )
+
+    def test_bg_white_est_remappe_sur_le_papier(self):
+        """L'utilitaire .bg-white ne peint plus du blanc mais du papier.
+
+        Le body de base.html porte encore la classe Tailwind bg-white :
+        c'est le remappage qui lui donne sa couleur, pas la classe.
+        / The body still carries bg-white; the remap gives it its color.
+        """
+        contenu = (STATIC_FRONT / "css" / "maquette.css").read_text(encoding="utf-8")
+        self.assertRegex(
+            contenu,
+            r"\.bg-white\s*\{[^}]*var\(--papier\)",
+            ".bg-white n'est pas remappe sur var(--papier)"
+        )
 
     def test_body_utilise_b612(self):
-        """hypostasia.css declare B612 comme font-family du body."""
+        """L'ancienne declaration B612 survit dans hypostasia.css.
+
+        Elle est desormais BATTUE par la couche maquette (cf. ci-dessus)
+        et n'est conservee que parce qu'on ne reecrit pas l'ancienne
+        feuille — on la surcharge. Ce test garde trace de cet etat de
+        transition ; il tombera avec la feuille, au dernier lot.
+        / Kept as a transition marker: the old sheet is overridden,
+        not rewritten.
+        """
         chemin_css = STATIC_FRONT / "css" / "hypostasia.css"
         contenu = chemin_css.read_text(encoding="utf-8")
         self.assertIn("'B612'", contenu, "B612 absent du body font-family")
@@ -357,11 +424,74 @@ class Phase02FontBodyTest(TestCase):
             f"Inter encore reference dans hypostasia.css : {occurrences_inter}"
         )
 
-    def test_lecture_article_utilise_lora(self):
-        """La classe .lecture-article utilise Lora comme police de lecture."""
-        chemin_css = STATIC_FRONT / "css" / "hypostasia.css"
-        contenu = chemin_css.read_text(encoding="utf-8")
-        self.assertIn("'Lora'", contenu, "Lora absent de .lecture-article")
+    def test_lecture_article_est_en_georgia(self):
+        """Le corps de lecture est en Georgia, pas en Lora (decision D1).
+
+        hypostasia.css:178 met encore Lora sur .lecture-article ; la
+        couche maquette la surcharge en Georgia. Lora reste vivante
+        pour l'ilot de provenance .typo-citation (texte humain cite).
+        / Reading body is Georgia now; Lora survives only for cited
+        human text.
+        """
+        contenu = (STATIC_FRONT / "css" / "maquette.css").read_text(encoding="utf-8")
+        self.assertRegex(
+            contenu,
+            r"\.lecture-article[^{]*\{[^}]*Georgia",
+            ".lecture-article n'est pas passe en Georgia"
+        )
+        ancienne = (STATIC_FRONT / "css" / "hypostasia.css").read_text(encoding="utf-8")
+        self.assertIn("'Lora'", ancienne, "Lora a disparu de l'ilot .typo-citation")
+
+
+class AnnonceDesToastsTest(TestCase):
+    """Les toasts doivent etre annonces aux lecteurs d'ecran.
+
+    SweetAlert annonce ses MODALES (role=dialog + focus) mais pas ses
+    toasts : ni modaux ni focalises, ils vivent trois secondes en
+    silence. Le contrat, pose a la fin de la bascule CSS :
+    une region live PERSISTANTE dans base.html, remplie par un
+    annonces.js qui enveloppe Swal.fire une seule fois.
+    / SweetAlert never announces toasts; a persistent live region plus
+    a single wrapper does.
+    """
+
+    def test_region_live_persistante_dans_base(self):
+        """base.html porte #zone-annonces, live et polie."""
+        contenu = TEMPLATE_BASE.read_text(encoding="utf-8")
+        self.assertIn('id="zone-annonces"', contenu, "Region d'annonce absente")
+        self.assertRegex(
+            contenu,
+            r'id="zone-annonces"[^>]*aria-live="polite"',
+            "La region d'annonce n'est pas une region live polie"
+        )
+
+    def test_annonces_js_charge_apres_sweetalert(self):
+        """L'ordre compte : annonces.js enveloppe Swal, il le suit.
+
+        Charge avant, `window.Swal` n'existe pas encore et le script
+        renonce silencieusement. / Loaded first, Swal is not defined yet.
+        """
+        contenu = TEMPLATE_BASE.read_text(encoding="utf-8")
+        position_swal = contenu.find("sweetalert2-11.min.js")
+        position_annonces = contenu.find("front/js/annonces.js")
+        self.assertGreater(position_swal, -1, "SweetAlert n'est plus charge")
+        self.assertGreater(position_annonces, -1, "annonces.js n'est pas charge")
+        self.assertGreater(
+            position_annonces, position_swal,
+            "annonces.js doit etre charge APRES sweetalert2"
+        )
+
+    def test_seuls_les_toasts_sont_annonces(self):
+        """Les modales sont exclues : SweetAlert les annonce deja.
+
+        Les annoncer en plus ferait entendre le message deux fois.
+        / Modals are already announced; announcing them twice is worse.
+        """
+        chemin = STATIC_FRONT / "js" / "annonces.js"
+        self.assertTrue(chemin.exists(), "annonces.js manquant")
+        contenu = chemin.read_text(encoding="utf-8")
+        self.assertIn("options.toast === true", contenu,
+                      "Le filtre sur les toasts a disparu")
 
 
 class Phase02CollectstaticTest(TestCase):
@@ -690,121 +820,6 @@ class Phase03JobStockeAnalyseurIdTest(TestCase):
         )
 
 
-class Phase03AnalyserPageTaskUtiliseFonctionCommuneTest(TestCase):
-    """Verifie que analyser_page_task charge les exemples depuis l'analyseur
-    via _construire_exemples_langextract (pas depuis raw_result serialise).
-    / Verify that analyser_page_task loads examples from the analyzer
-    via _construire_exemples_langextract (not from serialized raw_result)."""
-
-    def test_task_charge_analyseur_depuis_raw_result(self):
-        """analyser_page_task utilise analyseur_id de raw_result pour charger les exemples."""
-        from unittest.mock import patch, MagicMock
-        from core.models import AIModel, Page, Provider
-        from hypostasis_extractor.models import (
-            AnalyseurSyntaxique, ExtractionJob,
-        )
-
-        # Setup / Mise en place
-        page = Page.objects.create(
-            url="https://example.com/task-test",
-            html_original="<html>Test</html>",
-            html_readability="<article>Test task</article>",
-            text_readability="Contenu de test pour la tache Celery.",
-        )
-        modele_ia = AIModel.objects.create(
-            name="Mock Task",
-            provider=Provider.MOCK,
-            model_name="gemini-2.5-flash",
-        )
-        analyseur = AnalyseurSyntaxique.objects.create(
-            name="Analyseur pour tache",
-        )
-        job = ExtractionJob.objects.create(
-            page=page,
-            ai_model=modele_ia,
-            name="Job test task",
-            prompt_description="Extraire les entites",
-            status="pending",
-            raw_result={"analyseur_id": analyseur.pk},
-        )
-
-        # Mock lx.extract pour ne pas appeler le LLM
-        # / Mock lx.extract to avoid calling the LLM
-        mock_resultat = MagicMock()
-        mock_resultat.extractions = []
-
-        with patch("langextract.extract", return_value=mock_resultat) as mock_extract, \
-             patch(
-                 "hypostasis_extractor.services._construire_exemples_langextract",
-                 wraps=None,
-             ) as mock_construire:
-            # Configurer le mock pour retourner une liste vide
-            # / Configure mock to return empty list
-            mock_construire.return_value = []
-
-            from front.tasks import analyser_page_task
-            analyser_page_task(job.pk)
-
-            # Verifier que _construire_exemples_langextract a ete appele avec le bon analyseur
-            # / Verify _construire_exemples_langextract was called with the correct analyzer
-            mock_construire.assert_called_once()
-            appel_args = mock_construire.call_args
-            analyseur_passe = appel_args[0][0]
-            self.assertEqual(analyseur_passe.pk, analyseur.pk)
-
-    def test_task_sans_analyseur_id_retourne_liste_vide(self):
-        """Sans analyseur_id dans raw_result, _construire_exemples_langextract n'est pas appele.
-        / Without analyseur_id in raw_result, _construire_exemples_langextract is not called."""
-        from unittest.mock import patch, MagicMock
-        from core.models import AIModel, Page, Provider
-        from hypostasis_extractor.models import ExtractionJob
-
-        page = Page.objects.create(
-            url="https://example.com/task-no-analyseur",
-            html_original="<html>Test</html>",
-            html_readability="<article>Test</article>",
-            text_readability="Contenu sans analyseur.",
-        )
-        modele_ia = AIModel.objects.create(
-            name="Mock No Analyseur",
-            provider=Provider.MOCK,
-            model_name="gemini-2.5-flash",
-        )
-        job = ExtractionJob.objects.create(
-            page=page,
-            ai_model=modele_ia,
-            name="Job sans analyseur",
-            prompt_description="Extraire",
-            status="pending",
-            raw_result={},
-        )
-
-        # Patch _construire_exemples_langextract a la source pour verifier
-        # qu'il n'est PAS appele quand analyseur_id est absent du raw_result.
-        # On patche aussi _creer_annotateur_avec_progression pour eviter
-        # l'appel reel au LLM.
-        # / Patch _construire_exemples at source to verify it's NOT called when
-        # / analyseur_id is absent. Also patch the annotator factory to avoid real LLM calls.
-        mock_resultat = MagicMock()
-        mock_resultat.extractions = []
-
-        mock_annotateur = MagicMock()
-        mock_annotateur.annotate.return_value = mock_resultat
-
-        with patch(
-            "hypostasis_extractor.services._construire_exemples_langextract"
-        ) as mock_construire, patch(
-            "front.tasks._creer_annotateur_avec_progression",
-            return_value=mock_annotateur,
-        ):
-            from front.tasks import analyser_page_task
-            analyser_page_task(job.pk)
-
-            # Sans analyseur_id, _construire_exemples ne doit pas etre appele
-            # / Without analyseur_id, _construire_exemples must not be called
-            mock_construire.assert_not_called()
-
-
 class Phase03GrepRunLangextractJobTest(TestCase):
     """Verifie que run_langextract_job n'est pas appele depuis front/.
     / Verify that run_langextract_job is not called from front/."""
@@ -835,8 +850,22 @@ class Phase03GrepRunLangextractJobTest(TestCase):
             f"run_langextract_job encore reference dans front/ : {occurrences}",
         )
 
-    def test_analyser_page_task_est_seul_point_entree_celery_extraction(self):
-        """analyser_page_task est le seul @shared_task qui fait de l'extraction LangExtract."""
+    def test_plus_aucune_tache_de_front_ne_fait_d_extraction(self):
+        """
+        L'extraction LangExtract a quitte `front/tasks.py`.
+
+        Ce test verifiait que `analyser_page_task` en etait le SEUL
+        point d'entree. Cette tache portait l'ancien moteur (ancrage par
+        offsets) et a ete supprimee avec lui : l'extraction vit
+        desormais dans `hypostasis_extractor/tasks_element.py`, qui
+        ancre des portions dans des elements.
+
+        L'invariant garde son sens, retourne : aucune tache de
+        `front/tasks.py` ne doit refaire d'extraction — sinon deux
+        moteurs coexisteraient a nouveau, ce que la decision du 10 aout
+        a precisement voulu finir.
+        / The invariant, inverted: no extraction task may come back here.
+        """
         import ast
 
         chemin_tasks = BASE_DIR / "front" / "tasks.py"
@@ -864,10 +893,10 @@ class Phase03GrepRunLangextractJobTest(TestCase):
                             taches_avec_langextract.append(noeud.name)
 
         self.assertEqual(
-            taches_avec_langextract,
-            ["analyser_page_task"],
-            f"Taches Celery faisant de l'extraction : {taches_avec_langextract} "
-            f"(attendu : ['analyser_page_task'] uniquement)",
+            taches_avec_langextract, [],
+            f"Taches Celery faisant de l'extraction dans front/tasks.py : "
+            f"{taches_avec_langextract}. L'extraction appartient au moteur "
+            f"ELEMENT (hypostasis_extractor/tasks_element.py).",
         )
 
 
@@ -896,6 +925,11 @@ class Phase04SuppressionPageTest(TestCase):
             text_readability="test suppression",
             dossier=self.dossier,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, self.dossier, self.user_test)
 
     def test_supprimer_page_retourne_200(self):
         """POST /pages/{pk}/supprimer/ retourne 200 et supprime la page."""
@@ -1040,6 +1074,11 @@ class Phase04SuppressionExtractionManuelleTest(TestCase):
             text_readability="Texte de test pour extraction manuelle.",
             dossier=self.dossier,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, self.dossier, self.user_test)
         self.job_manuel = ExtractionJob.objects.create(
             page=self.page,
             name="Extractions manuelles",
@@ -1579,13 +1618,28 @@ class Phase09FichiersStatiquesTest(TestCase):
     # / CSS: dots and inline card present, left icons removed
     # -------------------------------------------------------------------------
 
-    def test_css_contient_pastilles_marge(self):
-        """hypostasia.css contient la classe .pastilles-marge."""
-        self.assertIn(".pastilles-marge", self.contenu_css)
+    def test_le_css_des_pastilles_de_marge_a_disparu(self):
+        """
+        Garde anti-retour : plus une regle pour les pastilles en marge.
 
-    def test_css_contient_pastille_extraction(self):
-        """hypostasia.css contient la classe .pastille-extraction."""
-        self.assertIn(".pastille-extraction", self.contenu_css)
+        Elles appartenaient a l'ancien moteur ; la maquette n'en a jamais
+        eu (les ancres sont le surlignage inline). Le JS qui les
+        fabriquait a ete supprime — laisser leur CSS aurait entretenu
+        l'illusion qu'elles existent encore.
+
+        ATTENTION en relisant ce nettoyage : plusieurs regles etaient
+        PARTAGEES avec `.indicateur-statut`, bien vivant dans
+        `_card_body.html`. Seul le selecteur mort a ete retire de
+        celles-la, jamais la regle entiere.
+        / Anti-return guard; shared rules kept for .indicateur-statut.
+        """
+        self.assertNotIn(".pastille-extraction", self.contenu_css)
+        self.assertNotIn(".pastilles-marge", self.contenu_css)
+
+    def test_l_indicateur_de_statut_des_cartes_est_intact(self):
+        """La contre-epreuve : ce qui partageait ces regles vit encore."""
+        self.assertIn('.indicateur-statut[data-statut="nouveau"]', self.contenu_css)
+        self.assertIn('.indicateur-statut[data-statut="commente"]', self.contenu_css)
 
     def test_css_ne_contient_plus_icones_before(self):
         """hypostasia.css ne contient plus de .hl-extraction::before (icones marge gauche supprimees)."""
@@ -1616,9 +1670,29 @@ class Phase09MarginaliaJSContenuTest(TestCase):
         """marginalia.js contient la section COMMUNICATION stack-ccc."""
         self.assertIn("COMMUNICATION", self.contenu_js)
 
-    def test_fonction_construire_pastilles(self):
-        """marginalia.js exporte construirePastillesMarginales()."""
-        self.assertIn("function construirePastillesMarginales()", self.contenu_js)
+    def test_plus_aucune_fabrique_de_pastilles_marginales(self):
+        """
+        Les pastilles en marge ont DISPARU du produit — garde anti-retour.
+
+        La maquette n'en a jamais eu : les ancres sont le surlignage
+        inline `mark.portion.hl-extraction` et l'interaction est un clic
+        sur l'ancre. `construirePastillesMarginales` avait ete neutralisee
+        le 10 aout (elle ne faisait plus que nettoyer d'eventuels
+        residus), puis supprimee avec la mort de l'ancien moteur : plus
+        rien, ni serveur ni JS, ne produit une seule pastille.
+        / Margin dots are gone; nothing produces one any more.
+        """
+        self.assertNotIn("construirePastillesMarginales", self.contenu_js)
+        self.assertNotIn("pastilles-marge", self.contenu_js)
+
+    def test_aucun_autre_script_n_appelle_la_fabrique_de_pastilles(self):
+        """Supprimer la fonction sans ses appelants laisserait un ReferenceError."""
+        for nom in ("hypostasia.js", "drawer_vue_liste.js"):
+            contenu = (STATIC_FRONT / "js" / nom).read_text(encoding="utf-8")
+            self.assertNotIn(
+                "construirePastillesMarginales", contenu,
+                f"{nom} appelle encore la fabrique de pastilles",
+            )
 
     def test_mapping_couleurs_statut(self):
         """marginalia.js contient le mapping COULEURS_STATUT binaire (A.8)."""
@@ -1630,9 +1704,32 @@ class Phase09MarginaliaJSContenuTest(TestCase):
         """marginalia.js ecoute htmx:afterSwap pour reconstruire les pastilles."""
         self.assertIn("htmx:afterSwap", self.contenu_js)
 
-    def test_dom_content_loaded(self):
-        """marginalia.js construit les pastilles au DOMContentLoaded."""
-        self.assertIn("DOMContentLoaded", self.contenu_js)
+    def test_le_clic_sur_une_ancre_est_ecoute_sans_attendre_le_chargement(self):
+        """
+        Le handler est pose sur `document`, pas dans un DOMContentLoaded.
+
+        Ce test exigeait un `DOMContentLoaded` — il n'existait que pour
+        construire les pastilles en marge au chargement. Les pastilles
+        supprimees, l'ecouteur l'a ete aussi. Le clic sur une ancre
+        inline, lui, est delegue a `document` : il fonctionne quel que
+        soit le moment ou le fragment arrive (swap HTMX compris), ce
+        qu'un DOMContentLoaded ne garantirait justement pas.
+        / Delegated on `document`, so HTMX-injected anchors work too.
+        """
+        self.assertIn("document.addEventListener('click'", self.contenu_js)
+        self.assertIn(
+            "#readability-content .hl-extraction[data-extraction-id]",
+            self.contenu_js,
+        )
+
+    def test_le_filtre_par_contributeur_agit_sur_les_ancres_inline(self):
+        """
+        Il estompait des pastilles en marge : plus aucune n'existe, donc
+        il ne trouvait plus un seul noeud et etait INERTE sans le dire.
+        / It dimmed margin dots that no longer exist: silently inert.
+        """
+        self.assertIn("ancre-hors-filtre", self.contenu_js)
+        self.assertNotIn("pastille-hors-filtre", self.contenu_js)
 
 
 class Phase09HypostasiaJSAdaptationsTest(TestCase):
@@ -1649,118 +1746,17 @@ class Phase09HypostasiaJSAdaptationsTest(TestCase):
         # / The old handler used "clicRelatifX" to detect left margin clicks
         self.assertNotIn("clicRelatifX", self.contenu_js)
 
-    def test_scroll_carte_cherche_pastille(self):
-        """scrollToCarteDepuisBloc declenche un clic pastille si pas de carte inline."""
-        self.assertIn(".pastille-extraction[data-extraction-id=", self.contenu_js)
+    def test_scroll_carte_passe_par_le_panneau_et_non_par_une_pastille(self):
+        """
+        `scrollToCarteDepuisBloc` ouvre le panneau sur la bonne carte.
 
-
-class Phase09AnnotationDataStatutTest(TestCase):
-    """Verifie que annoter_html_avec_barres ajoute data-statut aux spans.
-    / Verify that annoter_html_avec_barres adds data-statut to spans."""
-
-    def test_span_contient_data_statut_par_defaut(self):
-        """Un span annote contient data-statut='nouveau' par defaut (PHASE-26c)."""
-        from front.utils import annoter_html_avec_barres
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-        from core.models import Page
-
-        # Creer une page avec du texte simple
-        # / Create a page with simple text
-        page_test = Page.objects.create(
-            title="Test data-statut",
-            html_original="<html><body>Hello world</body></html>",
-            html_readability="<p>Hello world</p>",
-            text_readability="Hello world",
-        )
-        job_test = ExtractionJob.objects.create(
-            page=page_test, name="Test", status="completed",
-        )
-        entite_test = ExtractedEntity.objects.create(
-            job=job_test,
-            extraction_class="concept",
-            extraction_text="Hello",
-            start_char=0,
-            end_char=5,
-        )
-
-        html_annote = annoter_html_avec_barres(
-            page_test.html_readability,
-            page_test.text_readability,
-            [entite_test],
-        )
-        self.assertIn('data-statut="nouveau"', html_annote)
-        self.assertIn('data-extraction-id=', html_annote)
-
-    def test_span_contient_data_statut_consensuel(self):
-        """Un span annote avec statut_debat='consensuel' a data-statut='consensuel'."""
-        from front.utils import annoter_html_avec_barres
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-        from core.models import Page
-
-        page_test = Page.objects.create(
-            title="Test consensuel",
-            html_original="<html><body>Bonjour monde</body></html>",
-            html_readability="<p>Bonjour monde</p>",
-            text_readability="Bonjour monde",
-        )
-        job_test = ExtractionJob.objects.create(
-            page=page_test, name="Test", status="completed",
-        )
-        entite_consensuelle = ExtractedEntity.objects.create(
-            job=job_test,
-            extraction_class="these",
-            extraction_text="Bonjour",
-            start_char=0,
-            end_char=7,
-            statut_debat="consensuel",
-        )
-
-        html_annote = annoter_html_avec_barres(
-            page_test.html_readability,
-            page_test.text_readability,
-            [entite_consensuelle],
-        )
-        self.assertIn('data-statut="consensuel"', html_annote)
-
-    def test_span_contient_data_statut_controverse(self):
-        """Un span annote avec statut_debat='controverse' a data-statut='controverse'."""
-        from front.utils import annoter_html_avec_barres
-        from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
-        from core.models import Page
-
-        page_test = Page.objects.create(
-            title="Test controverse",
-            html_original="<html><body>Debat anime</body></html>",
-            html_readability="<p>Debat anime</p>",
-            text_readability="Debat anime",
-        )
-        job_test = ExtractionJob.objects.create(
-            page=page_test, name="Test", status="completed",
-        )
-        entite_controversee = ExtractedEntity.objects.create(
-            job=job_test,
-            extraction_class="argument",
-            extraction_text="Debat",
-            start_char=0,
-            end_char=5,
-            statut_debat="controverse",
-        )
-
-        html_annote = annoter_html_avec_barres(
-            page_test.html_readability,
-            page_test.text_readability,
-            [entite_controversee],
-        )
-        self.assertIn('data-statut="controverse"', html_annote)
-
-
-
-
-
-# =============================================================================
-# PHASE-10 — Drawer vue liste des extractions
-# / PHASE-10 — Drawer extraction list view
-# =============================================================================
+        Son repli cliquait une pastille en marge. Celles-ci sont mortes
+        avec l'ancien moteur : le repli ne trouvait plus rien et le
+        chemin restant est le seul vrai.
+        / Its fallback clicked a margin dot; those are gone.
+        """
+        self.assertNotIn(".pastille-extraction", self.contenu_js)
+        self.assertIn("ouvrirDrawerEtScrollerVersCarte", self.contenu_js)
 
 
 class Phase10TemplateDrawerExisteTest(TestCase):
@@ -1849,9 +1845,26 @@ class Phase10BaseHtmlDrawerTest(TestCase):
         self.assertIn('36rem', self.contenu_base)
 
     def test_drawer_z_index_superieur_backdrop(self):
-        """Le drawer (z-50) a un z-index superieur au backdrop (z-40)."""
-        self.assertIn('z-40', self.contenu_base)  # backdrop
-        self.assertIn('z-50', self.contenu_base)  # drawer
+        """
+        Le drawer passe AU-DESSUS de son voile, et les deux au-dessus du
+        fil d'Ariane. / The drawer sits above its backdrop, both above
+        the breadcrumb.
+
+        Ce test cherchait les classes Tailwind `z-40`/`z-50`. Elles ont
+        disparu le 10 aout, quand les z-index sont passes en STYLE INLINE
+        — le build Tailwind est FIGE, et le fil d'Ariane a un z-index de
+        66 qu'aucune classe standard ne depasse (`z-[70]` n'aurait rien
+        produit). Le test est reste sur l'ancienne ecriture et affirmait
+        donc une propriete que le fichier ne portait plus.
+        / The classes were replaced by inline z-index on 10 August.
+        """
+        self.assertIn(
+            'id="drawer-backdrop"', self.contenu_base,
+        )
+        voile = self.contenu_base.split('id="drawer-backdrop"')[1][:200]
+        panneau = self.contenu_base.split('id="drawer-overlay"')[1][:300]
+        self.assertIn("z-index: 68;", voile)
+        self.assertIn("z-index: 70;", panneau)
 
 
 class Phase10EndpointMasquerTest(TestCase):
@@ -1877,6 +1890,11 @@ class Phase10EndpointMasquerTest(TestCase):
             text_readability="Texte pour masquer.",
             dossier=dossier_test,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, dossier_test, self.user_test)
         self.job = ExtractionJob.objects.create(
             page=self.page,
             name="Extractions manuelles",
@@ -2013,6 +2031,11 @@ class Phase10EndpointRestaurerTest(TestCase):
             text_readability="Texte restaurer.",
             dossier=dossier_test,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, dossier_test, self.user_test)
         self.job = ExtractionJob.objects.create(
             page=self.page,
             name="Extractions manuelles",
@@ -2098,6 +2121,11 @@ class Phase10EndpointDrawerContenuTest(TestCase):
             text_readability="Alpha Beta Gamma Delta.",
             dossier=dossier_test,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, dossier_test, self.user_test)
         self.job = ExtractionJob.objects.create(
             page=self.page,
             name="Extractions manuelles",
@@ -2258,8 +2286,16 @@ class Phase10DrawerContenuTriTest(TestCase):
     / Verify drawer sort options (position, activite, statut) (PHASE-10)."""
 
     def setUp(self):
+        from django.contrib.auth.models import User
         from core.models import Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
+
+        # Le drawer verifie l'acces a la page (securite du 10 aout).
+        # / The drawer now checks page access.
+        self.utilisateur = User.objects.create_user(
+            username="tri_drawer", password="test1234",
+        )
+        self.client.force_login(self.utilisateur)
 
         self.page = Page.objects.create(
             title="Page tri test",
@@ -2336,6 +2372,11 @@ class Phase10FiltrageMasqueeAnnotationTest(TestCase):
             text_readability="Alpha Beta.",
             dossier=dossier_test,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, dossier_test, self.user_test)
         self.job = ExtractionJob.objects.create(
             page=self.page,
             name="Job test",
@@ -3320,6 +3361,25 @@ class Phase18EndpointTableauTest(TestCase):
     / Verify GET /alignement/tableau/ endpoint (PHASE-18)."""
 
     def setUp(self):
+        # L'alignement CONTROLE desormais l'acces (correctif de securite
+        # du 9 aout 2026) : ses deux endpoints ne verifiaient RIEN, on
+        # pouvait aligner et exporter n'importe quel carnet ou n'importe
+        # quelles notes par leur identifiant. Ces tests-ci creent des
+        # pages sans carnet ET sans owner, et appelaient l'endpoint en
+        # ANONYME : ils passaient GRACE au trou. La regle du produit
+        # (_utilisateur_a_acces_page) rend ces pages « orphelines »
+        # lisibles par tout utilisateur AUTHENTIFIE — c'est deja ce que
+        # fait /lire/ pour elles. On se connecte donc, et ces tests
+        # redeviennent ce qu'ils sont : des tests du RENDU du tableau.
+        # / These tests passed because the endpoint checked nothing;
+        # ownerless, notebook-less pages are readable by any
+        # authenticated user, exactly as /lire/ already treats them.
+        from django.contrib.auth import get_user_model
+        utilisateur_lecteur = get_user_model().objects.create_user(
+            "lecteur_alignement_%s" % self.__class__.__name__.lower(),
+            "lecteur@exemple.test", "motdepasse123",
+        )
+        self.client.force_login(utilisateur_lecteur)
         from core.models import Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
 
@@ -3496,6 +3556,25 @@ class Phase18EndpointExportMarkdownTest(TestCase):
     / Verify GET /alignement/export_markdown/ endpoint (PHASE-18)."""
 
     def setUp(self):
+        # L'alignement CONTROLE desormais l'acces (correctif de securite
+        # du 9 aout 2026) : ses deux endpoints ne verifiaient RIEN, on
+        # pouvait aligner et exporter n'importe quel carnet ou n'importe
+        # quelles notes par leur identifiant. Ces tests-ci creent des
+        # pages sans carnet ET sans owner, et appelaient l'endpoint en
+        # ANONYME : ils passaient GRACE au trou. La regle du produit
+        # (_utilisateur_a_acces_page) rend ces pages « orphelines »
+        # lisibles par tout utilisateur AUTHENTIFIE — c'est deja ce que
+        # fait /lire/ pour elles. On se connecte donc, et ces tests
+        # redeviennent ce qu'ils sont : des tests du RENDU du tableau.
+        # / These tests passed because the endpoint checked nothing;
+        # ownerless, notebook-less pages are readable by any
+        # authenticated user, exactly as /lire/ already treats them.
+        from django.contrib.auth import get_user_model
+        utilisateur_lecteur = get_user_model().objects.create_user(
+            "lecteur_alignement_%s" % self.__class__.__name__.lower(),
+            "lecteur@exemple.test", "motdepasse123",
+        )
+        self.client.force_login(utilisateur_lecteur)
         from core.models import Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
 
@@ -3650,6 +3729,19 @@ class Phase18bDossierAlignementEndpointTest(TestCase):
     / Verify GET /alignement/tableau/?dossier_id=X endpoint."""
 
     def setUp(self):
+        # Meme raison que Phase18EndpointTableauTest : l'alignement
+        # controle desormais l'acces, et ce dossier est cree sans owner
+        # (donc « legacy », lisible par tout utilisateur AUTHENTIFIE,
+        # comme partout ailleurs dans le produit). L'appel anonyme
+        # passait GRACE au trou de securite corrige le 9 aout 2026.
+        # / Same reason: this ownerless folder is readable by any
+        # authenticated user; the anonymous call relied on the hole.
+        from django.contrib.auth import get_user_model
+        utilisateur_lecteur = get_user_model().objects.create_user(
+            "lecteur_alignement_dossier", "lecteur-d@exemple.test",
+            "motdepasse123",
+        )
+        self.client.force_login(utilisateur_lecteur)
         from core.models import Dossier, Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
 
@@ -3692,6 +3784,14 @@ class Phase18bDossierAlignementEndpointTest(TestCase):
 
         # Dossier vide / Empty folder
         self.dossier_vide = Dossier.objects.create(name="Dossier vide")
+
+        # Appartenances N-N alignees sur les FK (phase D corpus) :
+        # l'alignement lit la table de liaison.
+        # / N-N memberships aligned with the FKs (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        for page_du_dossier in (self.page_a, self.page_b, self.page_c):
+            ranger_une_note_dans_un_carnet(page_du_dossier, self.dossier_avec_pages)
+        ranger_une_note_dans_un_carnet(self.page_seule, self.dossier_une_page)
 
         # Jobs d'extraction / Extraction jobs
         job_a = ExtractionJob.objects.create(
@@ -3825,7 +3925,9 @@ class Phase18bArbreTemplateTest(TestCase):
 
     def test_bouton_aligner_conditionne_par_count(self):
         """Le bouton aligner n'apparait que si >= 2 pages."""
-        self.assertIn("dossier.pages.count >= 2", self.contenu_template)
+        # Phase D corpus : le template compte les appartenances prechargees.
+        # / Corpus phase D: the template counts prefetched memberships.
+        self.assertIn("dossier.appartenances_racines|length >= 2", self.contenu_template)
 
     def test_bouton_aligner_a_data_dossier_id(self):
         """Le bouton aligner porte le data-dossier-id."""
@@ -4010,6 +4112,11 @@ class DrawerAmelioreEndpointTest(TestCase):
             html_readability="<p>Test content</p>",
             text_readability="Test content.",
         )
+        # Le drawer verifie desormais l'acces a la page (securite du 10
+        # aout : cet endpoint rendait le texte de toute page en anonyme).
+        # La page n'a ni owner ni carnet -> lisible par tout authentifie.
+        # / The drawer now checks page access; log in.
+        self.client.force_login(self.user_alice)
 
         self.job_test = ExtractionJob.objects.create(
             page=self.page_test, name="Job test", status="completed", ai_model=None,
@@ -4223,9 +4330,15 @@ class Phase21CSSMobileTest(TestCase):
         """La classe .bottom-sheet-contenu est definie."""
         self.assertIn(".bottom-sheet-contenu {", self.contenu_css)
 
-    def test_pastilles_cachees_mobile(self):
-        """Les pastilles de marge sont cachees en mobile."""
-        self.assertIn(".pastilles-marge { display: none", self.contenu_css)
+    def test_le_surlignage_porte_les_ancres_sur_mobile(self):
+        """
+        Il n'y a plus de pastille a cacher sur mobile : la regle
+        `.pastilles-marge { display: none }` est partie avec elles. Ce
+        qui compte est que l'ancre reste tapable.
+        / No dots left to hide; what matters is the anchor stays tappable.
+        """
+        self.assertNotIn(".pastilles-marge", self.contenu_css)
+        self.assertIn(".hl-extraction[data-extraction-id]", self.contenu_css)
 
     def test_arbre_plein_ecran_mobile(self):
         """L'arbre prend 100vw sur mobile."""
@@ -4264,8 +4377,16 @@ class Phase21EndpointCarteMobileTest(TestCase):
     / Verify carte_mobile endpoint."""
 
     def setUp(self):
+        from django.contrib.auth.models import User
         from core.models import Page
         from hypostasis_extractor.models import ExtractionJob, ExtractedEntity
+
+        # La carte mobile verifie l'acces a la page (securite du 10 aout).
+        # / The mobile card now checks page access.
+        self.utilisateur = User.objects.create_user(
+            username="mobile_carte", password="test1234",
+        )
+        self.client.force_login(self.utilisateur)
 
         self.page = Page.objects.create(
             title="Page mobile test",
@@ -4543,12 +4664,23 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
     """Teste l'endpoint previsualiser_analyse via RequestFactory."""
 
     def setUp(self):
+        from django.contrib.auth.models import User
         from core.models import Page, AIModel, Configuration
         from hypostasis_extractor.models import (
             AnalyseurSyntaxique, PromptPiece, AnalyseurExample,
             ExampleExtraction, ExtractionAttribute,
         )
         self.factory = RequestFactory()
+
+        # previsualiser_analyse verifie desormais l'acces a la page
+        # (securite du 10 aout : le prompt complet contient tout le
+        # texte). RequestFactory ne pose pas request.user : on le fait
+        # nous-memes, comme le ferait le middleware. La page n'a ni
+        # owner ni carnet -> lisible par tout authentifie.
+        # / previsualiser_analyse now checks page access; set request.user.
+        self.utilisateur = User.objects.create_user(
+            username="previsu_user", password="test1234",
+        )
 
         # Creer une page avec du contenu
         # / Create a page with content
@@ -4618,6 +4750,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         self.assertEqual(reponse.status_code, 200)
@@ -4630,6 +4763,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             {"analyseur_id": self.analyseur.pk},
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         self.assertEqual(reponse.status_code, 200)
@@ -4641,6 +4775,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -4653,6 +4788,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -4668,6 +4804,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -4685,6 +4822,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -4699,6 +4837,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -4711,6 +4850,7 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             f"/lire/{self.page_test.pk}/previsualiser_analyse/",
             HTTP_HX_REQUEST="true",
         )
+        requete.user = self.utilisateur
         vue = LectureViewSet()
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
@@ -5961,6 +6101,11 @@ class Phase25cLecturePubliqueOKTest(TestCase):
             html_readability="<p>test</p>", text_readability="test",
             dossier=self.dossier, owner=self.owner,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) :
+        # les permissions se derivent des carnets, plus de la FK seule.
+        # / N-N membership aligned with the FK (corpus phase D).
+        from core.services.corpus import ranger_une_note_dans_un_carnet
+        ranger_une_note_dans_un_carnet(self.page, self.dossier, self.owner)
 
     def test_anonyme_lecture_publique(self):
         reponse = self.client.get(f"/lire/{self.page.pk}/")

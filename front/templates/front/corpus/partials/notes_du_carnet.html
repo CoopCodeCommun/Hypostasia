@@ -1,0 +1,85 @@
+{# PARTIAL : LES NOTES D'UN CARNET (filtrees) — design maquette (9 aout). #}
+{# LOCALISATION : front/templates/front/corpus/partials/notes_du_carnet.html #}
+{# Variables : carnet, appartenances (annotees), nombre_total, #}
+{# phrase_des_filtres, peut_ecrire, categories_choisies. #}
+
+{% if message_d_ordre %}
+<p class="resume-filtres" role="status" data-testid="corpus-message-ordre">{{ message_d_ordre }}</p>
+{% endif %}
+{% if phrase_des_filtres %}
+<p class="resume-filtres" role="status" data-testid="corpus-resume-filtres">
+    {{ appartenances|length }} sur {{ nombre_total }} note{{ nombre_total|pluralize }} —
+    {{ phrase_des_filtres }}
+    <a href="/carnets/{{ carnet.pk }}/"
+       hx-get="/carnets/{{ carnet.pk }}/"
+       hx-target="#zone-lecture" hx-swap="innerHTML"
+       hx-push-url="true"
+       data-testid="corpus-filtre-vider">Tout afficher</a>
+</p>
+{% endif %}
+
+<ul class="liste-notes" aria-label="Notes du carnet" data-testid="corpus-notes-liste">
+    {% for appartenance in appartenances %}
+    <li class="ligne-note" data-testid="corpus-note-item"
+        data-page-id="{{ appartenance.page.pk }}">
+        {# RANG : epingle, ou position AFFICHEE (etalon:1161-1162). #}
+        <span class="rang" data-testid="corpus-note-rang">
+            {% if appartenance.epinglee %}<span class="epingle-marque" role="img" aria-label="Épinglée">📌</span>{% else %}{{ forloop.counter }}{% endif %}
+        </span>
+        <span>
+            <a href="/lire/{{ appartenance.page.pk }}/"
+               hx-get="/lire/{{ appartenance.page.pk }}/"
+               hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true"
+               class="titre-note"
+               data-testid="corpus-note-lien">
+                {{ appartenance.page.title|default:appartenance.page.url }}
+            </a>
+            {# SOUS-NOTE : la provenance avant les compteurs — savoir #}
+            {# d'ou vient une note aide plus que de savoir combien elle #}
+            {# porte d'extractions. Tout vient du select_related('page') #}
+            {# et des annotations deja calculees : AUCUNE requete de #}
+            {# plus (verrou N+1 § 5.3). La duree et les locuteurs d'un #}
+            {# audio ne sont pas dans le modele Page — ils sont derives #}
+            {# de la transcription — donc absents ici, faute de pouvoir #}
+            {# les lire sans requete lourde. #}
+            {# / Provenance first, then counters. Everything comes from #}
+            {# the existing select_related and annotations: no extra #}
+            {# query. Audio duration and speakers are not on Page. #}
+            <span class="sous-note">
+                {% if appartenance.page.source_type == "audio" %}<span class="marque-source" data-testid="corpus-note-source"><span aria-hidden="true">🎧</span> audio</span>{% elif appartenance.page.source_type == "web" %}<span class="marque-source" data-testid="corpus-note-source"><span aria-hidden="true">🌐</span> web</span>{% elif appartenance.page.original_filename %}<span class="marque-source" data-testid="corpus-note-source"><span aria-hidden="true">📄</span> fichier</span>{% endif %}
+                {% if appartenance.page.original_filename %}<span class="nom-de-fichier" title="{{ appartenance.page.original_filename }}" data-testid="corpus-note-fichier">{{ appartenance.page.original_filename|truncatechars:34 }}</span>{% endif %}
+                <span>{{ appartenance.nombre_d_extractions }} extraction{{ appartenance.nombre_d_extractions|pluralize }}</span>
+                {% if appartenance.nombre_de_carnets > 1 %}<span data-testid="corpus-note-multi-carnets">· dans {{ appartenance.nombre_de_carnets }} carnets</span>{% endif %}
+            </span>
+            <span class="etiquettes" role="group" aria-label="Catégories">
+                {% for categorie in appartenance.categories.all %}
+                <span class="etiquette-categorie" style="--teinte:{{ categorie.couleur_effective }}"
+                      data-testid="corpus-note-categorie">{{ categorie.nom }}</span>
+                {% endfor %}
+            </span>
+        </span>
+        {# ORDRE NARRATIF au clavier (§ 8.3). #}
+        {% if peut_ecrire %}
+        <span class="boutons-ordre" role="group" aria-label="Déplacer la note">
+            <button type="button"
+                    data-testid="corpus-note-monter"
+                    aria-label="Monter cette note"
+                    hx-post="/carnets/{{ carnet.pk }}/reordonner/"
+                    hx-vals='{"deplacer": "{{ appartenance.page.pk }}", "direction": "monter"{% if categories_choisies %}, "categorie": "{{ categories_choisies|join:"," }}"{% endif %}}'
+                    hx-target="#corpus-notes" hx-swap="innerHTML">▲</button>
+            <button type="button"
+                    data-testid="corpus-note-descendre"
+                    aria-label="Descendre cette note"
+                    hx-post="/carnets/{{ carnet.pk }}/reordonner/"
+                    hx-vals='{"deplacer": "{{ appartenance.page.pk }}", "direction": "descendre"{% if categories_choisies %}, "categorie": "{{ categories_choisies|join:"," }}"{% endif %}}'
+                    hx-target="#corpus-notes" hx-swap="innerHTML">▼</button>
+        </span>
+        {% endif %}
+    </li>
+    {% empty %}
+    <li class="ligne-note" style="font-style:italic; color:var(--encre-douce)"
+        data-testid="corpus-notes-vide">
+        Aucune note ne correspond aux filtres.
+    </li>
+    {% endfor %}
+</ul>

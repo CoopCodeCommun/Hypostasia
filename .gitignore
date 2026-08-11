@@ -28,7 +28,36 @@ tailwindcss
 /db/
 /.local/
 /.cache/
-/logs/core.log
-/logs/django.log
-/logs/extractor.log
-/logs/runserver.log
+# Les journaux, y compris leurs rotations (core.log.1, .2, .3...).
+# Les quatre lignes nominatives ne couvraient pas les fichiers tournes.
+# / Logs, including their rotations; the four named lines missed those.
+/logs/*
+!/logs/init
+
+# Donnees utilisateur : PDF, audio, transcriptions. Contient des verbatims
+# nominatifs — n'a rien a faire dans un depot.
+# / User data, including named transcripts. Never in the repository.
+/media/
+
+# Profil NSS d'un navigateur local (certificats, cles).
+# / Local browser NSS profile.
+/.pki/
+
+# Le bac a sable des sessions de travail : captures de verification,
+# scripts jetables, sorties JSON. Une seule campagne y depose des
+# dizaines de PNG — 30 Mo au 10 aout 2026.
+# ATTENTION : tmp/ n'est PAS que du brouillon. Il abrite l'ETALON DE
+# DESIGN (tmp/maquettes/), qui est l'autorite du chantier CSS et que
+# scripts/verifier_les_maquettes.py controle, plus des archives et des
+# captures de documentation. Ces repertoires-la sont RE-INCLUS : sans
+# cela, un nouveau fichier d'etalon serait ignore en silence — les
+# fichiers deja suivis, eux, le resteraient, et le piege ne se verrait
+# que le jour ou quelqu'un ajoute une maquette.
+# / tmp/ is a scratch area BUT holds the design reference; those
+# directories are re-included, or a new reference file would be
+# silently ignored.
+/tmp/*
+!/tmp/maquettes/
+!/tmp/maquettes-archive/
+!/tmp/captures/
+!/tmp/docling_essai/

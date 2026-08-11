@@ -4,15 +4,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hypostasia — Bibliothèque</title>
+    {# Le titre de l'onglet suivait l'ecran : il disait « Bibliotheque » #}
+    {# partout, y compris sur un article ou un carnet (recette, F9). Un #}
+    {# onglet parmi dix, un signet, un historique : c'est souvent le #}
+    {# SEUL nom qu'on voit d'une page. #}
+    {# / The tab title never changed; it is often the only name a page #}
+    {# gets in a tab bar, a bookmark or a history entry. #}
+    <title>{% if article %}{{ article.title|truncatechars:60 }} — Hypostasia{% elif page_preloaded %}{{ page_preloaded.title|default:"Sans titre"|truncatechars:60 }} — Hypostasia{% elif carnet %}{{ carnet.name|truncatechars:60 }} — Hypostasia{% elif base %}{{ base.nom|truncatechars:60 }} — Hypostasia{% elif carnets_liste_preloaded %}Carnets — Hypostasia{% elif bases_liste_preloaded %}Bases de connaissances — Hypostasia{% else %}Hypostasia — Bibliothèque{% endif %}</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
-    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=34">
+    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=35">
+    {# La couche maquette globale (9 aout 2026) : le design de l'etalon #}
+    {# applique au chrome — chargee EN DERNIER, elle re-teinte le reste. #}
+    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=37">
+    {# Le theme 3 etats, applique AVANT le premier rendu (lot T7) : #}
+    {# charge plus bas, la page clignoterait du clair vers le sombre. #}
+    {# / Three-state theme, applied before first paint. #}
+    <script src="{% static 'front/js/theme.js' %}?v=1"></script>
     <script src="{% static 'front/vendor/htmx-2.0.4.min.js' %}"></script>
     <script src="{% static 'front/vendor/sweetalert2-11.min.js' %}"></script>
+    {# Les toasts SweetAlert n'etaient annonces par AUCUN lecteur #}
+    {# d'ecran : ni modaux ni focalises, ils vivaient trois secondes #}
+    {# en silence. Charge APRES SweetAlert (il l'enveloppe) et AVANT #}
+    {# les scripts qui l'appellent. / Announce SweetAlert toasts. #}
+    <script src="{% static 'front/js/annonces.js' %}?v=1"></script>
 </head>
 <body class="h-full bg-white text-slate-800"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
       data-user-authenticated="{{ user.is_authenticated|yesno:'1,0' }}">
+
+    {# LIEN D'EVITEMENT : premier element focusable du document. La #}
+    {# barre compte une quinzaine de controles avant le contenu ; sans #}
+    {# lui, une navigation au clavier les traverse a chaque page. #}
+    {# / SKIP LINK: first focusable element, before ~15 toolbar controls. #}
+    <a href="#zone-lecture" class="lien-evitement" data-testid="lien-evitement">Aller au contenu</a>
+
+    {# REGION D'ANNONCE, persistante : une region live creee en meme #}
+    {# temps que son contenu n'est pas annoncee de facon fiable, elle #}
+    {# doit exister des le rendu. C'est annonces.js qui la remplit. #}
+    {# / Persistent live region: created with the page, not with the #}
+    {# message it announces. #}
+    <div id="zone-annonces" class="sr-only" role="status"
+         aria-live="polite" aria-atomic="true" data-testid="zone-annonces"></div>
 
     <!-- Toolbar principale (PHASE-08) -->
     <!-- / Main toolbar (PHASE-08) -->
@@ -34,6 +66,17 @@
                hx-push-url="/"
                class="titre-app-desktop font-semibold text-lg tracking-tight shrink-0 hover:text-blue-600 transition-colors no-underline text-slate-800"
                data-testid="lien-accueil">Hypostasia</a>
+            {# Navigation corpus (phase H, audit UX P1) : une fonctionnalite #}
+            {# sans point d'entree n'existe pas pour l'utilisateur. #}
+            {# / Corpus nav: a feature with no entry point does not exist. #}
+            <a href="/carnets/" hx-get="/carnets/" hx-target="#zone-lecture"
+               hx-swap="innerHTML" hx-push-url="true"
+               class="text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
+               data-testid="lien-nav-carnets">Carnets</a>
+            <a href="/bases/" hx-get="/bases/" hx-target="#zone-lecture"
+               hx-swap="innerHTML" hx-push-url="true"
+               class="text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
+               data-testid="lien-nav-bases">Bases</a>
             <span id="titre-toolbar" class="text-sm text-slate-400 truncate" data-testid="titre-toolbar">{% if page_preloaded %}{{ page_preloaded.title|default:"Sans titre" }}{% endif %}</span>
         </div>
         <!-- Droite : boutons d'action (ne se compresse jamais) + separateur + import + config -->
@@ -140,11 +183,19 @@
                 </div>
             </div>
             {% endif %}
+            {# Bascule de theme, 3 etats (lot T7) : ○ clair / ● sombre / #}
+            {# ◑ systeme. Le libelle et le titre sont ecrits par #}
+            {# theme.js — le glyphe seul ne dit rien. #}
+            {# / Three-state theme toggle; label written by theme.js. #}
+            <button type="button" id="bascule-theme" data-testid="bascule-theme"
+                    aria-label="Changer de thème">◑</button>
             <!-- Menu utilisateur (PHASE-25) -->
             <!-- / User menu (PHASE-25) -->
             {% if user.is_authenticated %}
             <div class="relative" id="user-menu-container">
                 <button id="btn-user-menu" data-testid="btn-user-menu"
+                        aria-expanded="false" aria-haspopup="menu"
+                        aria-controls="user-menu-dropdown"
                         class="flex items-center gap-1 px-1.5 py-1 text-slate-500 hover:text-blue-600 rounded hover:bg-slate-100"
                         onclick="document.getElementById('user-menu-dropdown').classList.toggle('hidden')">
                     <span class="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
@@ -176,11 +227,17 @@
 
     <!-- Backdrop overlay arbre (PHASE-08) -->
     <!-- / Tree overlay backdrop (PHASE-08) -->
-    <div id="arbre-backdrop" class="fixed inset-0 bg-black/40 z-40 hidden opacity-0"></div>
+    {# z-index en inline : le build Tailwind est fige et ne genere PAS les #}
+    {# classes arbitraires z-[..], et l'echelle standard plafonne a z-50 < #}
+    {# le fil d'Ariane (66). Le voile et le panneau doivent passer AU-DESSUS #}
+    {# du fil, sinon sa bande haute reste cliquable/illisible (conformite #}
+    {# maquette, agent du 10 aout). / Inline z-index: the frozen Tailwind #}
+    {# build has no arbitrary z-[..] and caps at z-50, below the breadcrumb. #}
+    <div id="arbre-backdrop" class="fixed inset-0 bg-black/40 hidden opacity-0" style="z-index: 68;"></div>
 
     <!-- Overlay arbre lateral (PHASE-08) -->
     <!-- / Side tree overlay (PHASE-08) -->
-    <aside id="arbre-overlay" class="fixed top-0 left-0 bottom-0 z-50 bg-white shadow-xl -translate-x-full pointer-events-none flex flex-col" style="width: 20rem;" aria-label="Navigation bibliothèque" data-testid="arbre-overlay">
+    <aside id="arbre-overlay" class="fixed top-0 left-0 bottom-0 bg-white shadow-xl -translate-x-full pointer-events-none flex flex-col" style="width: 20rem; z-index: 70;" aria-label="Navigation bibliothèque" data-testid="arbre-overlay">
         <!-- Header overlay -->
         <div class="h-12 border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
             <span class="font-semibold text-sm text-slate-700">Bibliothèque</span>
@@ -201,7 +258,9 @@
         </div>
         <!-- Menu contextuel arbre — dans l'overlay pour rester au-dessus du backdrop (PHASE-25) -->
         <!-- / Tree context menu — inside overlay to stay above backdrop (PHASE-25) -->
-        <div id="arbre-ctx-menu" class="hidden fixed bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px] z-[100] text-sm" data-testid="arbre-ctx-menu" role="menu" aria-label="Actions"></div>
+        {# z-index inline (build Tailwind fige, z-[100] inerte) : le menu #}
+        {# contextuel doit dominer le contenu de l'overlay (70). #}
+        <div id="arbre-ctx-menu" class="hidden fixed bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px] text-sm" style="z-index: 100;" data-testid="arbre-ctx-menu" role="menu" aria-label="Actions"></div>
         <!-- Footer overlay : actions rapides -->
         <!-- / Overlay footer: quick actions -->
         <div class="arbre-footer">
@@ -226,11 +285,11 @@
 
     <!-- Backdrop overlay drawer (PHASE-10) -->
     <!-- / Drawer overlay backdrop (PHASE-10) -->
-    <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 z-40 hidden opacity-0"></div>
+    <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 hidden opacity-0" style="z-index: 68;"></div>
 
     <!-- Overlay drawer vue liste (PHASE-10) -->
     <!-- / Drawer list view overlay (PHASE-10) -->
-    <aside id="drawer-overlay" class="fixed top-0 right-0 bottom-0 z-50 bg-white shadow-xl translate-x-full pointer-events-none flex flex-col" style="width: min(36rem, 100vw);" aria-label="Analyses" data-testid="drawer-overlay">
+    <aside id="drawer-overlay" class="fixed top-0 right-0 bottom-0 bg-white shadow-xl translate-x-full pointer-events-none flex flex-col" style="width: min(36rem, 100vw); z-index: 70;" aria-label="Analyses" data-testid="drawer-overlay">
         <!-- Header drawer -->
         <div class="h-12 border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
             <div class="flex items-center gap-2">
@@ -294,6 +353,16 @@
                 </div>
             {% elif analyseur_preloaded %}
                 {% include "hypostasis_extractor/analyseur_editor.html" with analyseur=analyseur_preloaded %}
+            {% elif article_preloaded %}
+                {% include "front/corpus/article.html" %}
+            {% elif carnet_preloaded %}
+                {% include "front/corpus/carnet_detail.html" %}
+            {% elif carnets_liste_preloaded %}
+                {% include "front/corpus/carnets_liste.html" %}
+            {% elif base_preloaded %}
+                {% include "front/corpus/base_detail.html" %}
+            {% elif bases_liste_preloaded %}
+                {% include "front/corpus/bases_liste.html" %}
             {% elif page_preloaded %}
                 {% include "front/includes/lecture_principale.html" with page=page_preloaded %}
             {% else %}
@@ -323,11 +392,11 @@
     {% include "front/includes/selection_menu.html" %}
 
 
-    <script src="{% static 'front/js/hypostasia.js' %}?v=36"></script>
-    <script src="{% static 'front/js/marginalia.js' %}?v=21"></script>
+    <script src="{% static 'front/js/hypostasia.js' %}?v=37"></script>
+    <script src="{% static 'front/js/marginalia.js' %}?v=27"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
     <script src="{% static 'front/js/arbre_overlay.js' %}?v=23"></script>
-    <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=23"></script>
+    <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=13"></script>
     <script src="{% static 'front/js/dashboard_consensus.js' %}?v=18"></script>
     <script src="{% static 'front/js/transcription_rythme.js' %}?v=15"></script>
     <script src="{% static 'front/js/alignement.js' %}?v=19"></script>
@@ -336,7 +405,7 @@
 
     <!-- Fermeture du dropdown menu utilisateur au clic exterieur (PHASE-25) -->
     <!-- / Close user menu dropdown on outside click (PHASE-25) -->
-    <script src="{% static 'front/js/user_menu.js' %}?v=25"></script>
+    <script src="{% static 'front/js/user_menu.js' %}?v=26"></script>
 
 
 </body>

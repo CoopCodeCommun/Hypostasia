@@ -1,0 +1,68 @@
+{% comment %}
+=================================================================
+ACTIONS D'UN ELEMENT — les boutons du mode structure (U1)
+/ One element's actions — the structure-mode buttons (U1)
+
+LOCALISATION : front/templates/front/includes/_actions_element.html
+
+Inclus par _blocs_elements.html, A L'INTERIEUR de chaque bloc
+(h2/h3/p/pre/li : des boutons sont du contenu de phrase, le HTML
+reste valide — un <div> apres un <li> ne le serait pas). Rendu
+SEULEMENT si l'utilisateur peut ecrire (le template appelant
+verifie) ; INVISIBLE hors mode structure (CSS :
+#zone-lecture.mode-structure, voir maquette.css).
+
+CE FICHIER NE DOIT EMETTRE AUCUN BLANC HORS DU <span> : il est
+inclus dans des <pre> ou chaque retour a la ligne s'AFFICHE
+(relecture U1, defaut H3). D'ou ce commentaire unique, le {% with %}
+colle a l'ouverture du span, et le {% endwith %} colle a sa
+fermeture. Les retours a la ligne INTERNES au span sont neutralises
+par white-space:normal sur .actions-element.
+/ This include must not emit whitespace outside the <span>: it is
+rendered inside <pre> blocks where every newline shows.
+
+FLUX :
+- corriger : GET l'editeur -> injecte DANS LE CORPS du bloc, qui
+  bascule en edition (etalon § 11 : on corrige dans le document) ;
+- couper : GET le formulaire -> #zone-dialogue-element, en <dialog>
+  modal — on y vise un point de coupe, le texte doit etre montre en
+  entier et sans surlignage qui gene la visee ;
+- recoller / masquer : POST direct avec confirmation HTMX ;
+  la reponse 200 porte lectureReload -> la lecture se recharge.
+- hx-disabled-elt="this" : un double-clic n'envoie pas deux fois
+  (relecture U1, defaut M4).
+/ correct & split fetch a server-rendered form; merge & hide post
+directly; success reloads the reading zone; buttons self-disable.
+=================================================================
+{% endcomment %}{% with element=bloc.element %}<span class="actions-element" role="group"
+      aria-label="Modifier le passage {{ element.ordre }}"
+      data-testid="actions-element-{{ element.ordre }}">
+    <button type="button"
+            hx-get="/elements/{{ element.pk }}/formulaire_correction/"
+            hx-target="#corps-{{ element.pk }}" hx-swap="beforeend"
+            hx-disabled-elt="this"
+            data-testid="btn-element-corriger"
+            title="Corriger le texte de ce passage">corriger</button>
+    <button type="button"
+            hx-get="/elements/{{ element.pk }}/formulaire_scission/"
+            hx-target="#zone-dialogue-element" hx-swap="innerHTML"
+            hx-disabled-elt="this"
+            data-testid="btn-element-scinder"
+            title="Couper ce passage en deux passages">couper en deux</button>
+    {% if bloc.fusion_possible %}<button type="button"
+            hx-post="/elements/{{ element.pk }}/fusionner_avec_le_suivant/"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-swap="none"
+            hx-disabled-elt="this"
+            hx-confirm="Recoller ce passage avec celui qui le suit ? Les deux deviendront un seul passage."
+            data-testid="btn-element-fusionner"
+            title="Recoller ce passage avec le suivant">recoller avec le suivant</button>{% endif %}
+    <button type="button"
+            hx-post="/elements/{{ element.pk }}/masquer/"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-swap="none"
+            hx-disabled-elt="this"
+            hx-confirm="Masquer ce passage ? Il ne sera plus affiché ni analysé. Vous pourrez le rétablir depuis la liste des passages masqués."
+            class="danger" data-testid="btn-element-masquer"
+            title="Masquer ce passage (réversible)">masquer</button>
+</span>{% endwith %}

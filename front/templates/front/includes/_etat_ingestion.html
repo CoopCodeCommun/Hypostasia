@@ -1,0 +1,58 @@
+{# ============================================================= #}
+{# PUCE D'ETAT DE L'INGESTION — le decoupage en elements (U2)     #}
+{# / Ingestion status chip — the element splitting (U2)           #}
+{#                                                                #}
+{# LOCALISATION : front/templates/front/includes/_etat_ingestion.html #}
+{#                                                                #}
+{# Rendu par lecture_principale.html (premiere fois) puis par la  #}
+{# sonde GET /lire/<pk>/etat_ingestion/ (patron du retour de      #}
+{# production F1/F2) : tant que l'ingestion est ACTIVE, la puce   #}
+{# s'interroge elle-meme toutes les 5 s avec un compteur d'essais ;#}
+{# au plafond (~5 min), elle s'arrete et propose « Verifier a     #}
+{# nouveau » — un worker mort devient un message, pas un poll     #}
+{# infini. Un echec montre le detail FALC et le bouton de relance.#}
+{# La reussite ne rend RIEN ici : la sonde repond alors vide avec #}
+{# lectureReload, et la lecture passe aux blocs.                  #}
+{#                                                                #}
+{# Variables : page, numero_d_essai, plafond_atteint, peut_ecrire.#}
+{# Rendu seulement pour qui peut ecrire (l'appelant et la vue     #}
+{# verifient). / Rendered for writers only; success renders       #}
+{# nothing — the probe answers empty plus lectureReload.          #}
+{# ============================================================= #}
+{% if peut_ecrire %}
+{% if page.ingestion_etat == "en_attente" or page.ingestion_etat == "en_cours" %}
+<div class="etat-ingestion" data-testid="etat-ingestion"
+     {% if not plafond_atteint %}
+     hx-get="/lire/{{ page.pk }}/etat_ingestion/?essai={{ numero_d_essai|add:1 }}"
+     hx-trigger="load delay:5s" hx-swap="outerHTML"
+     {% endif %}>
+    <span class="voyant" aria-hidden="true"></span>
+    {% if page.ingestion_etat == "en_attente" %}
+    Découpage en éléments en attente…
+    {% else %}
+    Découpage en éléments en cours…
+    {% endif %}
+    {% if plafond_atteint %}
+    <span class="detail">C'est plus long que prévu.</span>
+    <button type="button"
+            hx-get="/lire/{{ page.pk }}/etat_ingestion/?essai=0"
+            hx-target="closest .etat-ingestion" hx-swap="outerHTML"
+            data-testid="btn-verifier-ingestion">Vérifier à nouveau</button>
+    {% endif %}
+</div>
+{% elif page.ingestion_etat == "echouee" %}
+<div class="etat-ingestion echec" data-testid="etat-ingestion" role="status">
+    <span class="voyant" aria-hidden="true"></span>
+    Le découpage en éléments a échoué.
+    {% if page.ingestion_detail %}
+    <span class="detail">{{ page.ingestion_detail }}</span>
+    {% endif %}
+    <button type="button"
+            hx-post="/lire/{{ page.pk }}/relancer_ingestion/"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+            hx-target="closest .etat-ingestion" hx-swap="outerHTML"
+            hx-disabled-elt="this"
+            data-testid="btn-relancer-ingestion">Relancer le découpage</button>
+</div>
+{% endif %}
+{% endif %}

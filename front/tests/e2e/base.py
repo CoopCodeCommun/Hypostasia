@@ -102,6 +102,12 @@ class PlaywrightLiveTestCase(StaticLiveServerTestCase):
             owner=owner,
             dossier=dossier,
         )
+        # Appartenance N-N alignee sur la FK (phase D corpus) : l'arbre,
+        # l'alignement et les permissions lisent la table de liaison.
+        # / N-N membership aligned with the FK (corpus phase D).
+        if dossier is not None:
+            from core.services.corpus import ranger_une_note_dans_un_carnet
+            ranger_une_note_dans_un_carnet(page_demo, dossier, owner)
         return page_demo
 
     def creer_dossier_demo(self, nom="Dossier test", owner=None):

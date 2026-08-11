@@ -8,7 +8,7 @@ Les LLM retournent des cles variantes (Resume, résumé, resume, Hypostases, hyp
 Ce module normalise UNE FOIS au stockage vers 4 cles canoniques :
     resume, hypostases, statut, mots_cles
 
-Appele avant ExtractedEntity.objects.create() dans analyser_page_task().
+Appele avant ExtractedEntity.objects.create() a l'analyse.
 """
 import difflib
 import logging

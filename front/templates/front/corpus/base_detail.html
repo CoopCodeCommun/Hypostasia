@@ -1,0 +1,151 @@
+{# DETAIL D'UNE BASE DE CONNAISSANCES — phase H corpus, porte sur le #}
+{# design de la MAQUETTE le 9 aout 2026 (lot T5 de la bascule CSS). #}
+{# / KNOWLEDGE BASE DETAIL — corpus phase H, ported to the etalon. #}
+{# LOCALISATION : front/templates/front/corpus/base_detail.html #}
+{# Variables : base, lignes (appartenances carnet-base visibles), axes, #}
+{# peut_ecrire. Chaque ligne montre un carnet ET les categories du carnet #}
+{# dans CETTE base — meme patron que la note, un cran au-dessus (§ 3.2). #}
+{# Les data-testid sont inchanges : ce sont des contrats, pas du style. #}
+{% include "front/corpus/_style_maquette.html" %}
+<div class="zone-corpus" data-testid="corpus-base-detail"
+     data-base-slug="{{ base.slug }}">
+
+    <header class="entete-zone">
+        <a href="/bases/" hx-get="/bases/" hx-target="#zone-lecture"
+           hx-swap="innerHTML" hx-push-url="true"
+           class="lien-navigation">← Toutes les bases</a>
+        <h1>{{ base.nom }}</h1>
+        <p class="meta">
+            {{ lignes|length }} carnet{{ lignes|length|pluralize }}
+            · {{ axes|length }} axe{{ axes|length|pluralize }} de classement
+            · {{ base.get_visibilite_display }}
+        </p>
+        {% if base.description %}
+        <p class="note-explicative">{{ base.description }}</p>
+        {% endif %}
+    </header>
+
+    <ul class="liste-notes" aria-label="Carnets de la base">
+        {% for appartenance in lignes %}
+        <li class="ligne-note" data-testid="corpus-base-carnet-ligne"
+            data-carnet-id="{{ appartenance.dossier.pk }}">
+            {# Icone ET mot : l'emoji seul ne dit rien de fiable. #}
+            <span class="marque-visibilite">
+                {% if appartenance.dossier.visibilite == "public" %}<span class="glyphe" aria-hidden="true">🌐</span>public{% elif appartenance.dossier.visibilite == "partage" %}<span class="glyphe" aria-hidden="true">👥</span>partagé{% else %}<span class="glyphe" aria-hidden="true">🔒</span>privé{% endif %}
+            </span>
+            <span>
+                <a href="/carnets/{{ appartenance.dossier.pk }}/"
+                   hx-get="/carnets/{{ appartenance.dossier.pk }}/"
+                   hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true"
+                   class="titre-note"
+                   data-testid="corpus-base-carnet-lien">{{ appartenance.dossier.name }}</a>
+                {% if appartenance.epingle %}
+                <span class="sous-note"><span class="epingle-marque" role="img" aria-label="Épinglé dans cette base">📌</span> épinglé</span>
+                {% endif %}
+                <span class="etiquettes" role="group" aria-label="Catégories dans cette base">
+                    {% for categorie in appartenance.categories.all %}
+                    <span class="etiquette-categorie"
+                          data-testid="corpus-base-categorie">{{ categorie.nom }}</span>
+                    {% endfor %}
+                </span>
+                {% if peut_ecrire and axes %}
+                <details class="ecarte" style="margin-top:.4rem">
+                    <summary data-testid="corpus-base-crayon">✎ Catégories de « {{ appartenance.dossier.name }} » dans cette base</summary>
+                    <div class="contenu-ecarte">
+                        <form hx-post="/bases/{{ base.slug }}/carnets/{{ appartenance.dossier.pk }}/categories/"
+                              hx-target="#zone-lecture" hx-swap="innerHTML">
+                            {% for axe in axes %}
+                            <fieldset class="axe" style="margin-bottom:.4rem">
+                                <legend class="nom-axe">{{ axe.nom }}</legend>
+                                <span class="categories">
+                                {% for categorie in axe.categories_de_base.all %}
+                                <label class="puce-categorie">
+                                    <input type="checkbox" name="categorie_ids" value="{{ categorie.pk }}"
+                                           {% if categorie in appartenance.categories.all %}checked{% endif %}>
+                                    <span class="point" role="img" aria-hidden="true"></span>
+                                    {{ categorie.nom }}
+                                </label>
+                                {% endfor %}
+                                </span>
+                            </fieldset>
+                            {% endfor %}
+                            <button type="submit" class="bouton-plat">Enregistrer</button>
+                        </form>
+                    </div>
+                </details>
+                {% endif %}
+            </span>
+            {% if peut_ecrire %}
+            {# .groupe-actions et NON .boutons-ordre : ce dernier habille les #}
+            {# fleches de reordonnancement et ecraserait .bouton-icone. #}
+            <span class="groupe-actions" role="group" aria-label="Actions sur ce carnet">
+                <button type="button" class="bouton-icone"
+                        aria-label="Épingler dans cette base"
+                        aria-pressed="{{ appartenance.epingle|yesno:'true,false' }}"
+                        title="{% if appartenance.epingle %}Désépingler{% else %}Épingler{% endif %}"
+                        data-testid="corpus-base-epingler"
+                        hx-post="/bases/{{ base.slug }}/carnets/{{ appartenance.dossier.pk }}/epingler/"
+                        hx-target="#zone-lecture" hx-swap="innerHTML">📌</button>
+                <button type="button" class="bouton-icone danger"
+                        aria-label="Retirer de cette base" title="Retirer de cette base"
+                        data-testid="corpus-base-retirer"
+                        hx-post="/bases/{{ base.slug }}/carnets/{{ appartenance.dossier.pk }}/retirer/"
+                        hx-target="#zone-lecture" hx-swap="innerHTML"
+                        hx-confirm="Retirer « {{ appartenance.dossier.name }} » de cette base ? (Le carnet n'est jamais supprimé.)">✕</button>
+            </span>
+            {% endif %}
+        </li>
+        {% empty %}
+        <li class="vide" data-testid="corpus-base-vide">
+            <strong>Aucun carnet visible dans cette base.</strong>
+            <p>Une base ne contient pas de notes : elle rassemble des
+            carnets, et les classe avec ses propres axes. Ajoutez-y un
+            carnet ci-dessous — il gardera son ordre et ses catégories
+            propres, et pourra appartenir à d'autres bases.</p>
+        </li>
+        {% endfor %}
+    </ul>
+
+    {# AJOUTER UN CARNET (owner de la base seulement) — relecture H, B4 : #}
+    {# les endpoints existaient sans aucun formulaire pour les declencher. #}
+    {# Cible #zone-lecture : la reponse est le detail ENTIER (jamais #}
+    {# d'imbrication du detail dans lui-meme). / ADD A NOTEBOOK; targets #}
+    {# #zone-lecture because the response is the whole detail. #}
+    {% if peut_ecrire and carnets_disponibles %}
+    <form class="rangee-champ"
+          hx-post="/bases/{{ base.slug }}/carnets/"
+          hx-target="#zone-lecture" hx-swap="innerHTML"
+          data-testid="corpus-base-ajouter-form">
+        <label class="champ-etiquette" for="ajout-carnet-base-{{ base.pk }}">+ Ajouter un carnet…</label>
+        <select name="carnet_id" id="ajout-carnet-base-{{ base.pk }}"
+                class="champ-select"
+                data-testid="corpus-base-ajouter-select">
+            {% for carnet in carnets_disponibles %}
+            <option value="{{ carnet.pk }}">{{ carnet.name }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="bouton-plat"
+                data-testid="corpus-base-ajouter-bouton">Ajouter</button>
+    </form>
+    {% endif %}
+
+    {# Les axes de la base / The base's axes #}
+    <div id="corpus-base-axes" style="margin-top:1rem">
+        {% include "front/corpus/partials/categories_de_la_base.html" %}
+    </div>
+
+    {# CREER UN AXE (owner seulement) / CREATE AN AXIS (owner only) #}
+    {% if peut_ecrire %}
+    <form class="rangee-champ"
+          hx-post="/bases/{{ base.slug }}/categories/"
+          hx-target="#corpus-base-axes" hx-swap="innerHTML"
+          data-testid="corpus-base-creer-axe-form">
+        <input type="hidden" name="action" value="creer_liste">
+        <label class="champ-etiquette" for="axe-base-{{ base.pk }}">+ Axe de classement</label>
+        <input type="text" name="nom" id="axe-base-{{ base.pk }}" maxlength="100"
+               class="champ-texte"
+               data-testid="corpus-base-creer-axe-nom">
+        <button type="submit" class="bouton-plat">Créer</button>
+    </form>
+    {% endif %}
+</div>

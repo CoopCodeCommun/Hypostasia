@@ -138,6 +138,17 @@
          data-testid="drawer-carte"
          style="border-left: 3px solid var(--statut-{{ entity.statut_debat }}-accent);">
         <div class="px-3 py-2">
+            {% if entity.est_detachee %}
+            {# Cette idee n'est montree NULLE PART dans le texte : ses      #}
+            {# ancres ont ete detachees, ou elle n'en a jamais eu. Sans     #}
+            {# cette etiquette elle est indiscernable des idees bien        #}
+            {# posees, et personne ne peut savoir laquelle replacer.        #}
+            {# Etalon : maquette.html l. 1671-1682.                         #}
+            {# / Shown nowhere in the text; say so, or no one can fix it.   #}
+            <div class="carte-ancre-detachee" data-testid="carte-ancre-detachee">
+                ancre détachée &mdash; aucun passage, à replacer
+            </div>
+            {% endif %}
             {% with attr_0=entity_attrs.0 attr_1=entity_attrs.1 attr_2=entity_attrs.2 attr_3=entity_attrs.3 %}
                 {% include "hypostasis_extractor/includes/_card_body.html" with mode="drawer" %}
             {% endwith %}

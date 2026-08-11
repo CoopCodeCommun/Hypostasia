@@ -96,7 +96,7 @@ def creer_fixtures_synthese():
         extraction_text="L'IA est une revolution.",
         start_char=0,
         end_char=24,
-        statut_debat="consensuel",
+        statut_debat="commente",
     )
 
     entite_controversee = ExtractedEntity.objects.create(
@@ -105,16 +105,21 @@ def creer_fixtures_synthese():
         extraction_text="Les communs sont une alternative.",
         start_char=25,
         end_char=57,
-        statut_debat="controverse",
+        statut_debat="nouveau",
     )
 
+    # « Non pertinent » n'existe plus comme statut : la migration
+    # extractor 0029 l'a fusionne dans masquee=True. Le fixture reflete
+    # la realite post-migration. / non_pertinent merged into masquee.
     entite_non_pertinente = ExtractedEntity.objects.create(
         job=job_analyse,
         extraction_class="indice",
         extraction_text="Bruit de fond non pertinent.",
         start_char=58,
         end_char=85,
-        statut_debat="non_pertinent",
+    )
+    ExtractedEntity.objects.filter(pk=entite_non_pertinente.pk).update(
+        masquee=True,
     )
 
     entite_masquee = ExtractedEntity.objects.create(
@@ -352,14 +357,26 @@ class SynthetiserActionTest(TestCase):
 
 class SynthetiserTaskTest(TestCase):
     """Tests pour synthetiser_page_task() avec LLM mocke.
-    / Tests for synthetiser_page_task() with mocked LLM."""
+    / Tests for synthetiser_page_task() with mocked LLM.
+
+    SPEC-synthese phase C : la reponse mockee DOIT finir par la ligne
+    CITATIONS_USED (contrat anti-troncature), et la synthese est une
+    note typee — plus une version. Les tests du versionnage sont
+    remplaces par leurs inverses ; le contrat complet est exerce dans
+    front/tests/test_synthese_phase_c.py.
+    / Mocks must honor the CITATIONS_USED contract; version tests are
+    replaced by their phase C inverses.
+    """
 
     def setUp(self):
         self.fixtures = creer_fixtures_synthese()
 
-    @patch("core.llm_providers.appeler_llm", return_value="Paragraphe 1.\n\nParagraphe 2.")
-    def test_task_cree_page_enfant(self, mock_llm):
-        """La tache cree une Page enfant avec le texte synthetise."""
+    @patch(
+        "core.llm_providers.appeler_llm",
+        return_value="Paragraphe 1.\n\nParagraphe 2.\n\nCITATIONS_USED: aucune",
+    )
+    def test_task_cree_note_typee(self, mock_llm):
+        """La tache cree une note typee SYNTHESE avec le texte produit."""
         job_synthese = ExtractionJob.objects.create(
             page=self.fixtures["page_source"],
             ai_model=self.fixtures["modele_ia"],
@@ -384,10 +401,14 @@ class SynthetiserTaskTest(TestCase):
         page_synthese = Page.objects.get(pk=page_synthese_id)
         self.assertIn("Paragraphe 1.", page_synthese.text_readability)
         self.assertIn("Paragraphe 2.", page_synthese.text_readability)
+        self.assertEqual(page_synthese.type_de_note, "synthese")
 
-    @patch("core.llm_providers.appeler_llm", return_value="Synthese test.")
-    def test_task_parent_page_est_racine(self, mock_llm):
-        """La page enfant a pour parent_page la page racine."""
+    @patch(
+        "core.llm_providers.appeler_llm",
+        return_value="Synthese test.\n\nCITATIONS_USED: aucune",
+    )
+    def test_task_la_synthese_n_est_plus_une_version(self, mock_llm):
+        """Phase C : plus de parent_page, plus de numero incremente."""
         job_synthese = ExtractionJob.objects.create(
             page=self.fixtures["page_source"],
             ai_model=self.fixtures["modele_ia"],
@@ -405,29 +426,8 @@ class SynthetiserTaskTest(TestCase):
 
         job_synthese.refresh_from_db()
         page_synthese = Page.objects.get(pk=job_synthese.raw_result["page_synthese_id"])
-        self.assertEqual(page_synthese.parent_page, self.fixtures["page_source"].page_racine)
-
-    @patch("core.llm_providers.appeler_llm", return_value="V2 synthese.")
-    def test_task_version_number_incrementee(self, mock_llm):
-        """Le version_number est incremente correctement."""
-        job_synthese = ExtractionJob.objects.create(
-            page=self.fixtures["page_source"],
-            ai_model=self.fixtures["modele_ia"],
-            name="Synthese deliberative",
-            prompt_description="test",
-            status="pending",
-            raw_result={
-                "analyseur_id": self.fixtures["analyseur"].pk,
-                "est_synthese": True,
-            },
-        )
-
-        from front.tasks import synthetiser_page_task
-        synthetiser_page_task(job_synthese.pk)
-
-        job_synthese.refresh_from_db()
-        page_synthese = Page.objects.get(pk=job_synthese.raw_result["page_synthese_id"])
-        self.assertEqual(page_synthese.version_number, 2)
+        self.assertIsNone(page_synthese.parent_page)
+        self.assertEqual(page_synthese.version_number, 1)
 
     @patch("core.llm_providers.appeler_llm", side_effect=Exception("LLM error"))
     def test_task_erreur_marque_job_error(self, mock_llm):
@@ -451,7 +451,13 @@ class SynthetiserTaskTest(TestCase):
         self.assertEqual(job_synthese.status, "error")
         self.assertIn("LLM error", job_synthese.error_message)
 
-    @patch("core.llm_providers.appeler_llm", return_value="Premier.\n\nDeuxieme <script>alert('xss')</script>.")
+    @patch(
+        "core.llm_providers.appeler_llm",
+        return_value=(
+            "Premier.\n\nDeuxieme <script>alert('xss')</script>.\n\n"
+            "CITATIONS_USED: aucune"
+        ),
+    )
     def test_task_html_echappe_xss(self, mock_llm):
         """Le HTML genere echappe les balises dangereuses (XSS)."""
         job_synthese = ExtractionJob.objects.create(
@@ -477,7 +483,10 @@ class SynthetiserTaskTest(TestCase):
         self.assertNotIn("<script>", page_synthese.html_readability)
         self.assertIn("&lt;script&gt;", page_synthese.html_readability)
 
-    @patch("core.llm_providers.appeler_llm", return_value="Synthese.")
+    @patch(
+        "core.llm_providers.appeler_llm",
+        return_value="Synthese.\n\nCITATIONS_USED: aucune",
+    )
     def test_task_version_label_correcte(self, mock_llm):
         """La page creee a le version_label = nom de l'analyseur (PHASE-29).
         Permet de distinguer V2-Mathemagique de V3-Charte si analyseurs differents.

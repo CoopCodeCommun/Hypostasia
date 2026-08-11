@@ -23,11 +23,37 @@ class E2ECharteVisuelleTest(PlaywrightLiveTestCase):
             owner=self.utilisateur_test,
         )
 
-    def test_police_b612_chargee(self):
-        """La police B612 est chargee dans le document."""
+    def test_police_b612_declaree(self):
+        """B612 reste DECLAREE, meme si le corps ne l'emploie plus.
+
+        Depuis la bascule CSS (decision D1), le corps de texte est en
+        Georgia : B612 ne sert plus qu'aux ilots de provenance
+        (.typo-hypostase), absents d'une page sans extraction. Le
+        navigateur ne charge une police que si un element l'emploie —
+        `document.fonts.check()` renvoyait donc `false` sans qu'aucune
+        police ait disparu. On verifie la DECLARATION, comme pour
+        Srisakdi.
+        / Since the CSS switch the body is Georgia; B612 only dresses
+        provenance islands, so it is not loaded on a page without any.
+        We assert the @font-face declaration instead.
+        """
         self.naviguer_vers(f"/lire/{self.page_test.pk}/")
-        b612_charge = self.page.evaluate("document.fonts.check('16px B612')")
-        self.assertTrue(b612_charge, "La police B612 n'est pas chargee")
+        b612_declaree = self.page.evaluate(
+            "Array.from(document.fonts.values()).some(f => f.family === 'B612')"
+        )
+        self.assertTrue(b612_declaree, "La police B612 n'est plus declaree")
+
+    def test_corps_de_lecture_en_georgia(self):
+        """Le corps d'une note est en Georgia (decision D1 de la bascule).
+
+        C'est le NOUVEAU contrat : la maquette fait foi, Lora et B612
+        quittent le corps de texte. / The new contract.
+        """
+        self.naviguer_vers(f"/lire/{self.page_test.pk}/")
+        police = self.page.evaluate(
+            "getComputedStyle(document.getElementById('readability-content')).fontFamily"
+        )
+        self.assertIn("Georgia", police, f"Le corps n'est pas en Georgia : {police}")
 
     def test_police_b612_mono_chargee(self):
         """La police B612 Mono est chargee dans le document."""
@@ -39,11 +65,18 @@ class E2ECharteVisuelleTest(PlaywrightLiveTestCase):
         )
         self.assertTrue(b612_mono_charge, "La police B612 Mono n'est pas chargee")
 
-    def test_police_lora_chargee(self):
-        """La police Lora est chargee dans le document."""
+    def test_police_lora_declaree(self):
+        """Lora reste DECLAREE : elle habille encore .typo-citation.
+
+        Meme raison que pour B612 : elle a quitte le corps de lecture
+        (decision D1) et n'est plus chargee sur une page qui ne cite
+        personne. / Same reason as B612: it left the reading body.
+        """
         self.naviguer_vers(f"/lire/{self.page_test.pk}/")
-        lora_charge = self.page.evaluate("document.fonts.check('16px Lora')")
-        self.assertTrue(lora_charge, "La police Lora n'est pas chargee")
+        lora_declaree = self.page.evaluate(
+            "Array.from(document.fonts.values()).some(f => f.family === 'Lora')"
+        )
+        self.assertTrue(lora_declaree, "La police Lora n'est plus declaree")
 
     def test_police_srisakdi_declaree(self):
         """La police Srisakdi est declaree dans les @font-face du document."""

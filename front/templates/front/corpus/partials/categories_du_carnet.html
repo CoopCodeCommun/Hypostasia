@@ -1,0 +1,26 @@
+{# PARTIAL : AXES ET CATEGORIES D'UN CARNET — phase E #}
+{# / PARTIAL: A NOTEBOOK'S AXES AND CATEGORIES — phase E #}
+{# LOCALISATION : front/templates/front/corpus/partials/categories_du_carnet.html #}
+{# Variables : carnet, axes (listes avec categories prechargees). #}
+<div data-testid="corpus-categories" data-carnet-id="{{ carnet.pk }}">
+    {% for axe in axes %}
+    <section class="mb-3" data-testid="corpus-axe" data-liste-id="{{ axe.pk }}">
+        <h3 class="text-sm font-semibold">{{ axe.nom }}</h3>
+        <ul class="flex flex-wrap gap-1" aria-label="Catégories de l'axe {{ axe.nom }}">
+            {% for categorie in axe.categories_de_dossier.all %}
+            <li class="text-xs bg-slate-100 border border-slate-300 rounded px-1.5"
+                data-testid="corpus-categorie-pastille">{{ categorie.nom }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% empty %}
+    <p class="text-sm text-slate-500 italic">Aucun axe de classement.</p>
+    {% endfor %}
+    {# Praxis documente 3 listes par carnet : on avertit au-dela, sans bloquer #}
+    {# (spec § 3.3). / Warn above 3 axes, never block. #}
+    {% if axes|length > 3 %}
+    <p class="text-xs text-amber-700" role="status" data-testid="corpus-avertissement-axes">
+        Plus de 3 axes : le classement devient difficile à lire.
+    </p>
+    {% endif %}
+</div>

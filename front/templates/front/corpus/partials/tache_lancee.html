@@ -1,0 +1,9 @@
+{# TACHE LANCEE — retour immediat d'un geste asynchrone. #}
+{# LOCALISATION : front/templates/front/corpus/partials/tache_lancee.html #}
+{# Variables : message, hx_get?, recharger? #}
+<div class="text-sm bg-sky-50 border border-sky-200 rounded p-2"
+     data-testid="synthese-tache-lancee"
+     {% if hx_get %}hx-get="{{ hx_get }}" hx-trigger="load delay:3s"
+     hx-swap="outerHTML"{% endif %}>
+    {{ message }}
+</div>

@@ -389,12 +389,26 @@ class DossierRenommerSerializer(serializers.Serializer):
 
 class SynthetiserSerializer(serializers.Serializer):
     """
-    Serializer vide pour l'action synthetiser (detail=True, le pk vient de l'URL).
-    Convention du projet : chaque action POST a un serializer.
-    / Empty serializer for the synthetiser action (detail=True, pk comes from URL).
-    Project convention: every POST action has a serializer.
+    Serializer de l'action synthetiser (detail=True, le pk vient de l'URL).
+    / Serializer for the synthetiser action (pk comes from the URL).
+
+    LOCALISATION : front/serializers.py
+
+    SPEC-synthese phase C : la demande peut porter le CARNET D'ORIGINE —
+    la synthese produite sera rangee dans ce carnet-la. Optionnel : sans
+    lui, la tache range la synthese dans les carnets de la note source.
+    Le controle d'ECRITURE sur ce carnet est fait par la vue (le
+    serializer valide la forme, la vue valide le droit).
+    / Optional origin notebook; the view checks write access.
     """
-    pass
+    dossier_id = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        error_messages={
+            "invalid": "Identifiant de carnet invalide / Invalid notebook id",
+            "min_value": "Identifiant de carnet invalide / Invalid notebook id",
+        },
+    )
 
 
 # =============================================================================
@@ -529,3 +543,67 @@ class InviterEmailSerializer(serializers.Serializer):
     )
 
 
+
+
+# --- COUCHE CORPUS, PHASE E / CORPUS LAYER, PHASE E ---
+
+class AjouterAUnCarnetSerializer(serializers.Serializer):
+    """
+    Valide l'ajout d'une note a un carnet (POST /notes/{id}/carnets/).
+    / Validates adding a note to a notebook.
+
+    LOCALISATION : front/serializers.py
+    """
+    carnet_id = serializers.IntegerField(
+        error_messages={
+            "required": "carnet_id est obligatoire / carnet_id is required",
+        },
+    )
+
+
+class ReordonnerLeCarnetSerializer(serializers.Serializer):
+    """
+    Valide le nouvel ordre manuel des notes d'un carnet
+    (POST /carnets/{id}/reordonner/). L'ordre de la liste EST l'ordre
+    voulu : la premiere note recoit ordre_manuel=1, la suivante 2, etc.
+    / Validates the new manual order; list order IS the wanted order.
+
+    LOCALISATION : front/serializers.py
+    """
+    page_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_empty=False,
+        max_length=500,
+        error_messages={
+            "required": "page_ids est obligatoire / page_ids is required",
+        },
+    )
+
+
+class GererCategoriesSerializer(serializers.Serializer):
+    """
+    Valide la creation d'un axe ou d'une categorie dans un carnet
+    (POST /carnets/{id}/categories/).
+    / Validates creating an axis or a category in a notebook.
+
+    LOCALISATION : front/serializers.py
+    """
+    ACTIONS = ("creer_liste", "creer_categorie")
+
+    action = serializers.ChoiceField(choices=ACTIONS)
+    nom = serializers.CharField(max_length=100)
+    liste_id = serializers.IntegerField(required=False)
+
+    def validate(self, donnees_validees):
+        action_demandee = donnees_validees["action"]
+        if action_demandee == "creer_categorie" and "liste_id" not in donnees_validees:
+            raise serializers.ValidationError(
+                "liste_id est obligatoire pour creer une categorie / "
+                "liste_id is required to create a category"
+            )
+        donnees_validees["nom"] = donnees_validees["nom"].strip()
+        if not donnees_validees["nom"]:
+            raise serializers.ValidationError(
+                "Le nom ne peut pas etre vide / Name cannot be empty"
+            )
+        return donnees_validees

@@ -1,5 +1,12 @@
+import hashlib
+import re
+import uuid
+
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 from solo.models import SingletonModel
 
 # Create your models here.
@@ -38,8 +45,29 @@ class VisibiliteDossier(models.TextChoices):
     PUBLIC = "public", "Public"
 
 
+class RoleSpecialDossier(models.TextChoices):
+    """
+    Role technique d'un carnet « magique », independant de son nom.
+    / Technical role of a "magic" notebook, independent of its name.
+
+    Avant ce champ, « A ranger » et « Mes imports » etaient retrouves par
+    get_or_create(name=...) : un utilisateur qui renommait son carnet
+    cassait ces flux (SPEC-corpus § 6.3).
+    / Before this field, these notebooks were found by name; renaming
+    them broke the flows.
+    """
+    A_RANGER = "a_ranger", "À ranger"
+    MES_IMPORTS = "mes_imports", "Mes imports"
+
+
 class Dossier(models.Model):
-    """Dossier de classement pour organiser les pages."""
+    """Dossier de classement pour organiser les pages.
+
+    A l'ecran, un Dossier s'appelle un « carnet » (SPEC-corpus § 3.0 :
+    le renommage du modele est abandonne, seul le mot affiche change).
+    / On screen, a Dossier is called a "carnet" (notebook); the model
+    rename was abandoned, only the displayed word changes.
+    """
 
     name = models.CharField(max_length=200, help_text="Nom du dossier")
     # Proprietaire du dossier (null = legacy/donnees existantes)
@@ -63,6 +91,29 @@ class Dossier(models.Model):
         default=VisibiliteDossier.PRIVE,
         help_text="Niveau de visibilite du dossier / Folder visibility level",
     )
+    # Guide de redaction affiche au contributeur AU MOMENT ou il
+    # contribue, pas range dans une page d'aide (modele Praxis,
+    # SPEC-corpus § 2 « Pris — un TextField sur le dossier »).
+    # / Writing guide shown at contribution time (Praxis model).
+    guide_de_redaction = models.TextField(
+        blank=True,
+        default="",
+        help_text="Conseils de redaction propres a ce carnet, montres "
+                  "aux contributeurs. Vide = pas de guide.",
+    )
+    # Role technique du carnet, vide pour un carnet ordinaire.
+    # Les flux « A ranger » et « Mes imports » filtrent sur ce champ,
+    # plus jamais sur le nom (SPEC-corpus § 6.3).
+    # / Technical role, empty for an ordinary notebook. Flows filter on
+    # this field, never on the name anymore.
+    role_special = models.CharField(
+        max_length=20,
+        choices=RoleSpecialDossier.choices,
+        blank=True,
+        default="",
+        help_text="Role technique ('a_ranger', 'mes_imports') ou vide. "
+                  "Un seul carnet par role et par proprietaire.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -70,6 +121,52 @@ class Dossier(models.Model):
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            # Un proprietaire n'a qu'UN carnet « A ranger » et UN
+            # « Mes imports ». Les carnets ordinaires (role vide) ne sont
+            # pas limites.
+            # / One "A ranger" and one "Mes imports" per owner; ordinary
+            # notebooks are unlimited.
+            models.UniqueConstraint(
+                fields=["owner", "role_special"],
+                condition=~models.Q(role_special=""),
+                # Sans nulls_distinct=False, Postgres considere chaque
+                # owner NULL comme distinct : un nombre illimite de
+                # fourre-tout sans proprietaire pourrait exister (retour
+                # de relecture).
+                # / Without nulls_distinct=False, Postgres treats each
+                # NULL owner as distinct.
+                nulls_distinct=False,
+                name="unicite_role_special_par_proprietaire",
+            ),
+        ]
+
+
+class EtatIngestion(models.TextChoices):
+    """
+    Ou en est le DECOUPAGE EN ELEMENTS d'une page (U2, dette § 5 du
+    cahier de branchement : l'echec etait silencieux). L'etat vide
+    (defaut) = aucune ingestion demandee — les pages nees avant U2, les
+    .txt, les captures web. La tache ecrit en_cours/reussie/echouee ;
+    la vue d'import et la relance ecrivent en_attente.
+    / Where the element ingestion stands; empty = never requested.
+    """
+    EN_ATTENTE = "en_attente", "Découpage en attente"
+    EN_COURS = "en_cours", "Découpage en cours"
+    REUSSIE = "reussie", "Découpage réussi"
+    ECHOUEE = "echouee", "Découpage échoué"
+
+
+class TypeDeNote(models.TextChoices):
+    """
+    Ce qu'une note EST. Ce n'est pas une etiquette d'affichage : le type
+    decide si la note peut servir de SOURCE a une synthese
+    (core/services/synthese.py, SPEC-synthese § 3.3).
+    / Not a display label: the type decides source eligibility.
+    """
+    NOTE = "note", "Note"
+    WIKI = "wiki", "Wiki"
+    SYNTHESE = "synthese", "Synthèse dirigée"
 
 
 class Page(models.Model):
@@ -106,6 +203,45 @@ class Page(models.Model):
         blank=True,
         related_name="pages",
         help_text="Dossier de classement (optionnel)",
+    )
+    # Le genre de la note. Un champ et non une propriete derivee : la
+    # regle « une synthese n'est jamais source » doit etre exprimable en
+    # une clause filter(), pas en boucle Python (SPEC-synthese § 2).
+    # / The note's kind, as a field: the exclusion rule must be a filter
+    # clause, never a Python loop.
+    ingestion_etat = models.CharField(
+        max_length=12,
+        choices=EtatIngestion.choices,
+        default="",
+        blank=True,
+        help_text="Etat du decoupage en elements (U2). Vide = jamais "
+                  "demande. Ecrit par la vue d'import (en_attente) et "
+                  "par la tache Docling (en_cours/reussie/echouee).",
+    )
+    ingestion_detail = models.TextField(
+        blank=True,
+        default="",
+        help_text="Message FALC montre a l'utilisateur quand le "
+                  "decoupage a echoue. / Plain-words failure message.",
+    )
+    ingestion_maj_le = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Quand ingestion_etat a change pour la derniere fois "
+                  "(U2). Sert a detecter un etat actif FANTOME : un "
+                  "worker tue laisse 'en_cours' pour toujours ; au-dela "
+                  "d'un delai la relance est de nouveau permise. / When "
+                  "the state last changed; used to break a stale active "
+                  "state left by a dead worker.",
+    )
+    type_de_note = models.CharField(
+        max_length=10,
+        choices=TypeDeNote.choices,
+        default=TypeDeNote.NOTE,
+        db_index=True,
+        help_text="Ce que cette note est. Une synthese ou un wiki n'est "
+                  "JAMAIS source d'une autre synthese — voir "
+                  "core/services/synthese.py. / A synthesis is never a "
+                  "source for another synthesis.",
     )
     # Proprietaire de la page (null = legacy/donnees existantes)
     # / Page owner (null = legacy/existing data)
@@ -1311,6 +1447,40 @@ class TypeLien(models.TextChoices):
     MODIFIE = "modifie", "Modifié"
     NOUVEAU = "nouveau", "Nouveau"
     SUPPRIME = "supprime", "Supprimé"
+    # Une synthese ou un wiki CITE une extraction (SPEC-synthese § 4.5).
+    # / A synthesis or wiki CITES an extraction.
+    CITE = "cite", "Cite"
+
+
+class EtatDeLaSource(models.TextChoices):
+    """
+    Ce qu'est devenue la source d'une citation (SPEC-synthese § 4.2).
+    / What became of a citation source.
+    """
+    PRESENTE = "presente", "Présente"
+    SUPPRIMEE = "supprimee", "Source supprimée"
+    DETACHEE = "detachee", "Ancre détachée"
+
+
+class EtatDeVerification(models.TextChoices):
+    """
+    Le verdict du controle de fidelite, PAR PAIRE (affirmation, source) —
+    jamais par affirmation : en multi-source, une source peut etre bonne
+    et l'autre fausse (SPEC-synthese § 7).
+    / Grounding verdict, PER (claim, source) PAIR.
+    """
+    NON_VERIFIE = "non_verifie", "Non vérifié"
+    VERIFIE = "verifie", "Vérifié"
+    FAIBLE = "faible", "Faible"
+    NON_SOURCE = "non_source", "Non sourcé"
+    # Pose par un HUMAIN qui refuse le verdict automatique — jamais
+    # ecrase par une re-verification (§ 7.2 : l'etat est contestable).
+    # / Set by a HUMAN contesting the automatic verdict; never overwritten.
+    CONTESTE = "conteste", "Contesté"
+    # L'affirmation reprend fidelement un COMMENTAIRE du debat, pas le
+    # texte de l'extraction : provenance legitime, pas « faible »
+    # (§ 7.4). / The claim faithfully echoes a debate comment.
+    SOURCE_DEBAT = "source_debat", "Sourcé par le débat"
 
 
 class SourceLink(models.Model):
@@ -1354,6 +1524,61 @@ class SourceLink(models.Model):
         related_name="source_links",
         help_text="Commentaires a l'origine du passage / Comments that originated the passage",
     )
+    # Ancrage par element (moteur ELEMENT) — SPEC v2 section 2.4.
+    # extraction_source repond a "QUELLE extraction a alimente ce passage ?".
+    # ancrage_source repond a "DANS QUEL ELEMENT, et a quel endroit exact ?".
+    # Les deux cohabitent : le premier donne l'extraction entiere, le second
+    # la portion precise dans un element.
+    # Les anciens champs start_char_source / end_char_source restent en place
+    # et ne sont pas touches (section 9 : les deux moteurs coexistent).
+    # / ancrage_source points to the precise portion within one element.
+    ancrage_source = models.ForeignKey(
+        "hypostasis_extractor.AncrageExtraction",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="liens_de_provenance",
+        help_text="La portion d'extraction precise qui a alimente ce passage "
+                  "de synthese / The precise extraction portion that fed this passage",
+    )
+
+    # --- Champs de la couche synthese (SPEC-synthese § 4.3-4.5, phase B) ---
+    # page_cible EST l'article citant (on ne cree pas de champ "article").
+    # / page_cible IS the citing article.
+    section = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Titre exact de la section citante. Sert aux operations "
+                  "de mise a jour (§ 6) et a la navigation.",
+    )
+    ordre_dans_la_section = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Position de la citation dans sa section.",
+    )
+    etat_de_verification = models.CharField(
+        max_length=12, choices=EtatDeVerification.choices,
+        default=EtatDeVerification.NON_VERIFIE, db_index=True,
+        help_text="Verdict du controle de fidelite, par paire "
+                  "(affirmation, source).",
+    )
+    # § 7.2 : un etat sans provenance est un argument d'autorite
+    # automatise — le verdict porte QUI l'a pose (methode + modele +
+    # version, ou le nom de l'humain qui conteste) et QUAND.
+    # / § 7.2: the verdict carries its judge and date.
+    verifie_par = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Qui a pose le verdict : methode + modele + version "
+                  "(ex. « verbatim+nli-lot v1 — gpt-x ») ou l'humain "
+                  "qui conteste.",
+    )
+    verifie_le = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Quand le verdict a ete pose. NULL = jamais verifie.",
+    )
+    etat_de_la_source = models.CharField(
+        max_length=10, choices=EtatDeLaSource.choices,
+        default=EtatDeLaSource.PRESENTE, db_index=True,
+        help_text="Bascule par signal a la suppression de la source, ou "
+                  "par la reconciliation quand l'ancre se detache.",
+    )
     type_lien = models.CharField(
         max_length=20, choices=TypeLien.choices,
         help_text="Type de lien de provenance / Provenance link type",
@@ -1370,3 +1595,824 @@ class SourceLink(models.Model):
 
     def __str__(self):
         return f"SourceLink #{self.pk} — {self.get_type_lien_display()} — {self.page_cible}"
+
+
+# =============================================================================
+# ANCRAGE PAR ELEMENT — moteur ELEMENT (SPEC v2, phase A)
+# / Element-based anchoring — ELEMENT engine (SPEC v2, phase A)
+#
+# LOCALISATION : core/models.py
+#
+# Ces modeles vivent A COTE de l'ancien moteur (ExtractedEntity.start_char /
+# end_char), ils ne le remplacent pas. Les deux moteurs coexistent : aucune
+# donnee existante n'est convertie, aucun ancien champ n'est retire (SPEC v2
+# section 9).
+# / These models live NEXT TO the old engine, they do not replace it.
+# =============================================================================
+
+
+def empreinte_du_texte(texte: str) -> str:
+    """
+    Calcule l'empreinte d'un texte, pour reconnaitre un element inchange.
+    / Computes a text fingerprint, to recognize an unchanged element.
+
+    LOCALISATION : core/models.py
+
+    On veut qu'un texte qui n'a change QUE par des espaces ou par la casse
+    donne la meme empreinte. Sinon, une re-ingestion croirait que l'element
+    est nouveau alors qu'il dit la meme chose.
+
+    ETAPES :
+    1. On met tout en minuscules.
+    2. On ecrase les suites d'espaces en un seul espace.
+    3. On enleve les espaces au debut et a la fin.
+    4. On calcule le SHA256 du resultat.
+
+    Utilise par le moteur d'ajout par re-ingestion (SPEC v2 section 5.3),
+    qui n'est pas encore ecrit. Le champ ElementDocument.empreinte_contenu
+    est rempli des maintenant pour que ce moteur trouve la donnee prete.
+
+    :param texte: Le texte de l'element / The element text
+    :return: Une empreinte SHA256 en hexadecimal (64 caracteres)
+    """
+    # Etape 1 et 2 : minuscules, puis espaces ecrases en un seul
+    # / Step 1 and 2: lowercase, then whitespace collapsed to a single space
+    texte_en_minuscules = texte.lower()
+    texte_aux_espaces_ecrases = re.sub(r"\s+", " ", texte_en_minuscules)
+
+    # Etape 3 : on enleve les espaces au debut et a la fin
+    # / Step 3: strip leading and trailing spaces
+    texte_normalise = texte_aux_espaces_ecrases.strip()
+
+    # Etape 4 : SHA256 du texte normalise
+    # / Step 4: SHA256 of the normalized text
+    return hashlib.sha256(texte_normalise.encode("utf-8")).hexdigest()
+
+
+class EtatElement(models.TextChoices):
+    """
+    Le regime d'edition d'un element depend de ce qui s'y est attache.
+    / Editing regime of an element depends on what is attached to it.
+
+    LOCALISATION : core/models.py
+
+    Cet etat n'est JAMAIS saisi a la main. Il est recalcule par le signal
+    recalculer_etat_de_l_element (hypostasis_extractor/signals.py).
+
+    Il n'y a PAS d'etat SCELLE : le scellement a ete abandonne (YAGNI).
+    / There is no SCELLE state: sealing was dropped (YAGNI).
+    """
+    LIBRE = "libre", "Libre — aucune extraction"
+    ANALYSE = "analyse", "Analysé — extractions sans commentaire"
+    DEBATTU = "debattu", "Débattu — des commentaires sont attachés"
+
+
+class ElementDocument(models.Model):
+    """
+    Un element adressable du document : un paragraphe, un titre, un item de
+    liste, un tableau, ou un tour de parole dans une transcription.
+    / An addressable element of the document.
+
+    LOCALISATION : core/models.py
+
+    C'est l'unite d'ancrage. Avec le moteur ELEMENT, une extraction ne pointe
+    plus dans le texte global de la page. Elle pointe vers un ou plusieurs
+    ElementDocument, via la table de liaison AncrageExtraction
+    (hypostasis_extractor/models.py).
+
+    Pourquoi identifiant_stable et pas le self_ref de Docling ("#/texts/4") ?
+    Parce que le self_ref est un numero de position. Si on coupe un element
+    en deux, toutes les positions suivantes glissent, et les ancres pointent
+    au mauvais endroit. identifiant_stable, lui, ne bouge jamais.
+    / identifiant_stable never moves, unlike Docling's positional self_ref.
+    """
+
+    page = models.ForeignKey(
+        Page,
+        on_delete=models.CASCADE,
+        related_name="elements",
+        verbose_name="Page qui contient cet element",
+        help_text="Page a laquelle cet element appartient / Page this element belongs to",
+    )
+
+    identifiant_stable = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+        help_text="Notre identifiant. Ne change jamais, meme apres scission "
+                  "ou fusion — c'est ce a quoi toute ancre se refere.",
+    )
+
+    reference_docling = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Le self_ref d'origine, ex '#/texts/4'. Indicatif seulement, "
+                  "jamais utilise comme cle.",
+    )
+
+    ordre = models.PositiveIntegerField(
+        help_text="Position dans le document, 0, 1, 2, 3... Renumerote "
+                  "librement a chaque scission/fusion/ajout : rien d'autre "
+                  "ne depend de sa valeur numerique que le tri.",
+    )
+
+    label = models.CharField(
+        max_length=32,
+        help_text="Label Docling : text, section_header, title, list_item, "
+                  "table, formula, code...",
+    )
+
+    texte = models.TextField(
+        help_text="Le texte de cet element. C'est ici qu'on ancre.",
+    )
+
+    empreinte_contenu = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text="SHA256 du texte normalise (espaces ecrases, minuscules). "
+                  "Utilise par le moteur d'ajout par re-ingestion pour "
+                  "reconnaitre un element inchange.",
+    )
+
+    chemin_de_section = models.JSONField(
+        default=list,
+        help_text="Titres parents au moment de l'ingestion, ex "
+                  "['Introduction', '1) Le calcul des IA']. Instantane, "
+                  "pas re-derive automatiquement apres une scission de titre.",
+    )
+
+    provenance = models.JSONField(
+        default=dict,
+        help_text="Provenance physique, selon la source. "
+                  "PDF -> {page_no, boites: [{l,t,r,b,coord_origin}, ...]} "
+                  "(LISTE de boites : un paragraphe a cheval sur deux pages "
+                  "ou deux colonnes produit plusieurs entrees). "
+                  "audio -> {start_time, end_time, voice}. "
+                  "md/html/txt -> {}",
+    )
+
+    etat = models.CharField(
+        max_length=16,
+        choices=EtatElement.choices,
+        default=EtatElement.LIBRE,
+        help_text="Recalcule par signal. Ne jamais assigner a la main.",
+    )
+
+    masque = models.BooleanField(
+        default=False,
+        help_text="Element retire du contenu utile sans etre supprime. "
+                  "Cas reel : la transcription audio invente un segment "
+                  "(bruit, musique, doublon). Reversible, trace dans "
+                  "ElementOperation.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["page", "ordre"]
+        verbose_name = "Element de document"
+        verbose_name_plural = "Elements de document"
+        constraints = [
+            # DEFERRABLE : la contrainte est verifiee a la FIN de la
+            # transaction, pas a chaque ligne ecrite.
+            #
+            # Sans ca, le moteur de structure serait incodable. Scinder un
+            # element, c'est creer deux morceaux qui prennent sa place :
+            # le premier morceau reclame l'ordre de l'element d'origine,
+            # qui existe encore a cet instant. Fusionner ou renumeroter
+            # pose le meme probleme — decaler tous les ordres de +1 fait
+            # forcement se telescoper deux lignes en cours de route.
+            #
+            # Differer la verification laisse la transaction passer par des
+            # etats temporairement incoherents, mais garantit qu'a la fin,
+            # deux elements d'une meme page n'ont jamais le meme ordre.
+            # / Deferred: checked at COMMIT, so the structure engine can
+            # pass through temporarily inconsistent states.
+            models.UniqueConstraint(
+                fields=["page", "ordre"],
+                name="unicite_ordre_dans_la_page",
+                deferrable=models.Deferrable.DEFERRED,
+            ),
+        ]
+
+    def __str__(self):
+        debut_du_texte = self.texte[:40]
+        return f"ElementDocument #{self.pk} — {self.label} — {debut_du_texte}"
+
+
+class TypeOperationElement(models.TextChoices):
+    """
+    Les operations de STRUCTURE possibles sur un element.
+    / The possible STRUCTURE operations on an element.
+
+    LOCALISATION : core/models.py
+
+    A ne pas confondre avec TypeEdit, qui couvre les corrections de TEXTE
+    (titre, contenu, bloc de transcription, locuteur). Les deux journaux
+    sont separes et se lisent ensemble dans l'historique de la page.
+    / Not to be confused with TypeEdit, which covers TEXT corrections.
+    """
+    SCISSION = "scission", "Élément scindé"
+    FUSION = "fusion", "Éléments fusionnés"
+    MASQUAGE = "masquage", "Élément masqué"
+    DEMASQUAGE = "demasquage", "Élément démasqué"
+
+
+class ElementOperation(models.Model):
+    """
+    Historique des operations de structure sur les elements.
+    / History of structural operations on elements.
+
+    LOCALISATION : core/models.py
+
+    Pourquoi un modele separe de PageEdit ? Parce que TypeEdit ne connait
+    que des corrections de texte (TITRE, CONTENU, BLOC_TRANSCRIPTION,
+    LOCUTEUR). Il n'a ni SCISSION, ni FUSION, ni MASQUAGE. Detourner
+    PageEdit obligerait a ajouter des types qui n'ont rien a y faire.
+    / TypeEdit only knows text corrections, not structural operations.
+
+    POURQUOI LE JOURNAL EST RATTACHE A LA PAGE, ET PAS SEULEMENT A L'ELEMENT
+
+    Une scission et une fusion SUPPRIMENT toujours leurs elements sources.
+    Si le journal ne tenait qu'a l'element, la premiere operation suivante
+    effacerait en cascade l'histoire de la precedente : scinder puis
+    refusionner ne laisserait aucune trace de la scission. Le journal
+    serait decoratif — et l'invariant « rien ne disparait en silence »
+    serait faux la ou il compte le plus.
+
+    Le journal tient donc a la PAGE, qui, elle, ne disparait pas au fil
+    des operations. La reference a l'element devient indicative : elle
+    passe a NULL quand l'element est supprime, et identifiant_stable_element
+    garde de quoi le reconnaitre.
+    / The journal hangs off the Page, which survives; the element FK is
+    indicative and nulls out.
+    """
+    page = models.ForeignKey(
+        Page,
+        on_delete=models.CASCADE,
+        related_name="operations_sur_elements",
+        help_text="Page ou l'operation a eu lieu / Page where the operation happened",
+    )
+    element = models.ForeignKey(
+        ElementDocument,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="operations",
+        help_text="Element concerne, s'il existe encore / Element affected, if it still exists",
+    )
+    identifiant_stable_element = models.UUIDField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="L'identifiant de l'element au moment de l'operation. "
+                  "Survit a sa suppression / The element's id at operation time",
+    )
+    donnees = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Contexte de l'operation : position de coupe, elements "
+                  "sources, etc. Meme role que PageEdit.donnees_avant "
+                  "/ Operation context: cut position, source elements...",
+    )
+    type_operation = models.CharField(
+        max_length=16,
+        choices=TypeOperationElement.choices,
+        help_text="Type d'operation de structure / Structural operation type",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="operations_sur_elements",
+        help_text="Utilisateur ayant fait l'operation / User who performed the operation",
+    )
+    justification = models.TextField(
+        blank=True,
+        help_text="Pourquoi cette operation a ete faite / Why this operation was performed",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        verbose_name = "Operation sur un element"
+        verbose_name_plural = "Operations sur les elements"
+
+    def __str__(self):
+        return (
+            f"ElementOperation #{self.pk} — "
+            f"{self.get_type_operation_display()} — page {self.page_id}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# COUCHE CORPUS — base de connaissances, carnet, note
+# (SPEC-corpus-base-carnet-note.md v1.1, § 3)
+# / CORPUS LAYER — knowledge base, notebook, note
+#
+# Le modele a trois niveaux de Praxis : une note (Page) vit dans plusieurs
+# carnets (Dossier), un carnet vit dans plusieurs bases. Les deux relations
+# N-N sont portees par des tables de liaison qui portent ELLES-MEMES les
+# categories : le classement d'une note est propre a chaque carnet.
+# / Praxis' three-level model: N-N relations carried by link tables which
+# themselves carry the categories.
+# ---------------------------------------------------------------------------
+
+
+class BaseDeConnaissances(models.Model):
+    """
+    Un ensemble de carnets, porte par un collectif.
+    / A set of notebooks, held by a collective.
+
+    LOCALISATION : core/models.py
+
+    Exemples reels attendus :
+      - un reseau regional de tiers-lieux : ses carnets thematiques de veille
+      - un lycee : ses carnets par classe, par projet, par instance
+
+    Ce niveau est FACULTATIF. Un carnet peut exister sans base, directement
+    au niveau plateforme — c'est le cas dans Praxis pour les carnets de
+    veille collective ouverte. On ne force personne a creer une base pour
+    ouvrir un carnet.
+    / This level is OPTIONAL: a notebook can live without any base.
+    """
+
+    nom = models.CharField(
+        max_length=200,
+        help_text="Nom de la base de connaissances / Knowledge base name",
+    )
+    slug = models.SlugField(
+        max_length=220,
+        unique=True,
+        help_text="Identifiant d'URL, ex 'reseau-tiers-lieux-occitanie'.",
+    )
+    description = models.TextField(blank=True, default="")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="bases_possedees",
+    )
+    visibilite = models.CharField(
+        max_length=10,
+        choices=VisibiliteDossier.choices,   # PRIVE / PARTAGE / PUBLIC, existant
+        default=VisibiliteDossier.PRIVE,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["nom"]
+        verbose_name = "Base de connaissances"
+        verbose_name_plural = "Bases de connaissances"
+
+    def __str__(self):
+        return self.nom
+
+
+class AppartenancePageDossier(models.Model):
+    """
+    Rattachement d'une note a un carnet, avec les categories propres A CE
+    CARNET, l'epinglage et l'ordre manuel.
+    / Membership of a note in a notebook, with categories specific TO THIS
+    NOTEBOOK, pinning and manual ordering.
+
+    LOCALISATION : core/models.py
+
+    C'EST LA PIECE CENTRALE DE LA SPEC CORPUS.
+
+    Une meme note rattachee a deux carnets a DEUX lignes ici, avec des
+    categories differentes dans chacune. Exemple observe sur Praxis : la
+    note "Appel a projets APCHQ 2026" appartient a deux carnets et porte
+    des categories distinctes dans chacun.
+
+    La categorie n'est donc PAS un attribut de la note. C'est un attribut
+    de la RELATION note-carnet. Si on mettait les categories sur la Page,
+    le premier collectif a classer imposerait son vocabulaire a tous les
+    suivants — exactement ce qu'on veut eviter.
+    / The category is an attribute of the note-notebook RELATION, never
+    of the note itself.
+    """
+
+    page = models.ForeignKey(
+        "Page",
+        on_delete=models.CASCADE,
+        related_name="appartenances_dossiers",
+    )
+    dossier = models.ForeignKey(
+        "Dossier",
+        on_delete=models.CASCADE,
+        related_name="appartenances_pages",
+    )
+    categories = models.ManyToManyField(
+        "CategorieDossier",
+        blank=True,
+        related_name="appartenances",
+        help_text="Categories de CE carnet appliquees a CETTE note. "
+                  "Validation applicative (phase B) : chaque categorie doit "
+                  "venir du meme carnet que cette appartenance.",
+    )
+    integree_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="integrations_de_notes",
+    )
+
+    # PAS auto_now_add : la migration de donnees (SPEC-corpus § 4.2) doit
+    # pouvoir ecrire page.created_at ici. auto_now_add ecrase toute valeur
+    # assignee, y compris via bulk_create et les modeles historiques.
+    # / NOT auto_now_add: the data migration must be able to write
+    # page.created_at here.
+    integree_le = models.DateTimeField(default=timezone.now)
+
+    epinglee = models.BooleanField(
+        default=False,
+        help_text="Remonte en tete du carnet, avant le tri normal",
+    )
+    ordre_manuel = models.PositiveIntegerField(
+        default=0,
+        help_text="Ordre de curation. 0 = pas d'ordre impose, on retombe "
+                  "sur le tri chronologique. Sert a donner un ordre "
+                  "NARRATIF : les temps d'une deliberation.",
+    )
+
+    class Meta:
+        ordering = ["dossier", "-epinglee", "ordre_manuel", "-integree_le"]
+        verbose_name = "Appartenance note-carnet"
+        verbose_name_plural = "Appartenances note-carnet"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["page", "dossier"],
+                name="unicite_page_dans_un_dossier",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Page {self.page_id} dans dossier {self.dossier_id}"
+
+
+class AppartenanceDossierBase(models.Model):
+    """
+    Rattachement d'un carnet a une base, avec les categories propres A
+    CETTE BASE. Meme patron, un cran au-dessus.
+    / Membership of a notebook in a knowledge base. Same pattern, one
+    level up.
+
+    LOCALISATION : core/models.py
+    """
+
+    dossier = models.ForeignKey(
+        "Dossier", on_delete=models.CASCADE, related_name="appartenances_bases",
+    )
+    base = models.ForeignKey(
+        "BaseDeConnaissances", on_delete=models.CASCADE,
+        related_name="appartenances_dossiers",
+    )
+    categories = models.ManyToManyField(
+        "CategorieBase", blank=True, related_name="appartenances",
+    )
+    integre_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="integrations_de_carnets",
+    )
+    integre_le = models.DateTimeField(default=timezone.now)
+    epingle = models.BooleanField(default=False)
+    ordre_manuel = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["base", "-epingle", "ordre_manuel", "-integre_le"]
+        verbose_name = "Appartenance carnet-base"
+        verbose_name_plural = "Appartenances carnet-base"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["dossier", "base"],
+                name="unicite_dossier_dans_une_base",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Dossier {self.dossier_id} dans base {self.base_id}"
+
+
+class ListeDeCategories(models.Model):
+    """
+    Un axe de classement dans un carnet ou une base.
+    / A classification axis within a notebook or a knowledge base.
+
+    LOCALISATION : core/models.py
+
+    Exemple pour un carnet de veille financement :
+      liste "Type"       -> Appel a projets, Subvention, Prix
+      liste "Echeance"   -> Ce mois-ci, Ce trimestre, Passe
+      liste "Territoire" -> Regional, National, Europeen
+
+    DEPLACER UNE LISTE EST INTERDIT : son contenant (carnet ou base) est
+    fixe a la creation. Changer le contenant rendrait incoherentes toutes
+    les categorisations deja posees avec ses categories. clean() le refuse ;
+    pour deplacer un axe, on en cree un nouveau dans le carnet cible.
+    / Moving a list is forbidden: its container is fixed at creation.
+    """
+
+    nom = models.CharField(max_length=100)
+
+    # Une liste appartient SOIT a un carnet, SOIT a une base. Jamais aux deux.
+    # / A list belongs EITHER to a notebook OR to a base. Never both.
+    dossier = models.ForeignKey(
+        "Dossier", on_delete=models.CASCADE,
+        null=True, blank=True, related_name="listes_de_categories",
+    )
+    base = models.ForeignKey(
+        "BaseDeConnaissances", on_delete=models.CASCADE,
+        null=True, blank=True, related_name="listes_de_categories",
+    )
+
+    ordre = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["dossier", "base", "ordre", "nom"]
+        verbose_name = "Liste de categories"
+        verbose_name_plural = "Listes de categories"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(dossier__isnull=False, base__isnull=True)
+                    | models.Q(dossier__isnull=True, base__isnull=False)
+                ),
+                name="liste_appartient_a_un_seul_contenant",
+            ),
+        ]
+
+    def __str__(self):
+        return self.nom
+
+    def clean(self):
+        """
+        Refuse le deplacement d'une liste vers un autre contenant.
+        / Refuses moving a list to another container.
+
+        On compare avec l'etat en base : si la liste existe deja et que son
+        carnet ou sa base change, on refuse. L'interface n'offre pas cette
+        operation ; ce clean() est le filet de securite.
+        / Compared against the DB state; the UI does not offer the move.
+        """
+        if self.pk is None:
+            return
+
+        etat_en_base = ListeDeCategories.objects.get(pk=self.pk)
+        contenant_change = (
+            etat_en_base.dossier_id != self.dossier_id
+            or etat_en_base.base_id != self.base_id
+        )
+        if contenant_change:
+            raise ValidationError(
+                "Le contenant d'une liste de catégories est fixé à sa "
+                "création. Pour déplacer un axe, créez-en un nouveau dans "
+                "le carnet cible. / A category list's container is fixed "
+                "at creation."
+            )
+
+
+class CategorieDossier(models.Model):
+    """
+    Une categorie applicable aux notes d'un carnet.
+    / A category applicable to the notes of one notebook.
+
+    LOCALISATION : core/models.py
+
+    PAS DE CHAMP dossier ICI (SPEC-corpus § 3.3, correction n°4) : le
+    denormaliser pouvait diverger de liste.dossier apres un deplacement de
+    liste. Le carnet se lit via self.liste.dossier. Une jointure de plus,
+    a l'echelle d'un proto, contre une classe entiere de bugs en moins.
+    / No denormalized dossier field: read the notebook via the list.
+    """
+    liste = models.ForeignKey(
+        ListeDeCategories, on_delete=models.CASCADE,
+        related_name="categories_de_dossier",
+    )
+    nom = models.CharField(max_length=100)
+    couleur = models.CharField(
+        max_length=7, blank=True, default="",
+        # Hex strict : ce champ finit dans un style= inline — defense en
+        # profondeur avant son ouverture a l'UI (relecture F).
+        # / Strict hex: this lands in an inline style= attribute.
+        validators=[RegexValidator(
+            r"^#[0-9A-Fa-f]{6}$",
+            message="Couleur au format #RRGGBB / #RRGGBB hex color",
+        )],
+        help_text="Hex optionnel, ex '#E69F00'. Vide = palette Wong par defaut.",
+    )
+    ordre = models.PositiveSmallIntegerField(default=0)
+
+    # Palette de Wong : 8 couleurs distinguables par les daltoniens.
+    # Utilisee quand une categorie n'a pas de couleur choisie.
+    # / Wong palette: 8 colorblind-safe colors, used as fallback.
+    PALETTE_WONG = (
+        "#E69F00", "#56B4E9", "#009E73", "#F0E442",
+        "#0072B2", "#D55E00", "#CC79A7", "#000000",
+    )
+
+    @property
+    def couleur_effective(self):
+        """
+        La couleur choisie, ou une couleur de la palette Wong derivee de
+        l'ordre — jamais de champ vide a l'affichage.
+        / The chosen color, or a Wong palette color derived from ordre.
+        """
+        if self.couleur:
+            return self.couleur
+        return self.PALETTE_WONG[self.ordre % len(self.PALETTE_WONG)]
+
+    @property
+    def dossier_id(self):
+        """Le carnet de cette categorie, via sa liste. / This category's notebook."""
+        return self.liste.dossier_id
+
+    class Meta:
+        ordering = ["liste", "ordre", "nom"]
+        verbose_name = "Categorie de carnet"
+        verbose_name_plural = "Categories de carnet"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["liste", "nom"], name="unicite_nom_dans_la_liste",
+            ),
+        ]
+
+    def __str__(self):
+        return self.nom
+
+
+class CategorieBase(models.Model):
+    """
+    Une categorie applicable aux carnets d'une base. Meme patron.
+    / A category applicable to the notebooks of one base. Same pattern.
+
+    LOCALISATION : core/models.py
+    """
+    liste = models.ForeignKey(
+        ListeDeCategories, on_delete=models.CASCADE,
+        related_name="categories_de_base",
+    )
+    nom = models.CharField(max_length=100)
+    couleur = models.CharField(max_length=7, blank=True, default="")
+    ordre = models.PositiveSmallIntegerField(default=0)
+
+    @property
+    def base_id(self):
+        """La base de cette categorie, via sa liste. / This category's base."""
+        return self.liste.base_id
+
+    class Meta:
+        ordering = ["liste", "ordre", "nom"]
+        verbose_name = "Categorie de base"
+        verbose_name_plural = "Categories de base"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["liste", "nom"], name="unicite_nom_dans_la_liste_de_base",
+            ),
+        ]
+
+    def __str__(self):
+        return self.nom
+
+
+# =============================================================================
+# LES DEUX GENRES DE SYNTHESE (SPEC-synthese § 3, phase C)
+# Le wiki est VIVANT : son perimetre (des categories) se recalcule.
+# La synthese dirigee est un ACTE DATE : son perimetre (des notes) est fige.
+# / The two synthesis kinds: living wiki vs dated frozen synthesis.
+# =============================================================================
+
+
+class Wiki(models.Model):
+    """
+    Un article de synthese VIVANT, sur un sujet, dans un carnet.
+    / A living synthesis article, on one subject, in one notebook.
+
+    LOCALISATION : core/models.py
+
+    Il n'a pas de version : il a un ETAT, et un compteur de tours de mise
+    a jour. Chaque tour applique des operations de section (§ 6), jamais
+    une reecriture. C'est ce qui permet de voir ce qui a change.
+    Un wiki ne s'adopte pas, il se suit.
+    / No versions: a state and an update-round counter.
+    """
+
+    page = models.OneToOneField(
+        "Page", on_delete=models.CASCADE, related_name="wiki",
+        help_text="La note qui porte l'article. type_de_note = WIKI.",
+    )
+    # CASCADE assume : un wiki sans carnet n'a pas de sens, son perimetre
+    # EST le carnet. La note qui porte l'article, elle, survit (c'est une
+    # Page ordinaire). / CASCADE: a wiki without its notebook is
+    # meaningless; the article's Page itself survives.
+    dossier = models.ForeignKey(
+        "Dossier", on_delete=models.CASCADE, related_name="wikis",
+        help_text="Le carnet dont il synthetise les notes.",
+    )
+    sujet = models.TextField(
+        help_text="Ce sur quoi porte l'article, en une phrase. C'est une "
+                  "CONSIGNE DE REDACTION, pas un filtre — le perimetre est "
+                  "defini par categories_du_perimetre (§ 3.1.1).",
+    )
+    # Le PERIMETRE d'un wiki est defini par des CATEGORIES, exactement
+    # comme celui d'une synthese dirigee. Sans ca, c'est le modele qui
+    # choisirait ses sources en ecrivant (§ 3.1.1).
+    # / Facets define the scope; the subject only guides the writing.
+    categories_du_perimetre = models.ManyToManyField(
+        "CategorieDossier", blank=True, related_name="wikis",
+        help_text="Les categories qui definissent le perimetre. Vide = tout "
+                  "le carnet. Les categories d'un meme axe se combinent en "
+                  "OU, les axes entre eux en ET (spec corpus § 8.2).",
+    )
+    tours_de_mise_a_jour = models.PositiveIntegerField(default=1)
+    derniere_mise_a_jour = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Wiki"
+        verbose_name_plural = "Wikis"
+
+    def __str__(self):
+        return f"Wiki « {self.sujet[:60]} » (carnet {self.dossier_id})"
+
+
+class SyntheseDirigee(models.Model):
+    """
+    Une synthese FIGEE, produite a une date, sur un perimetre explicite.
+    / A frozen synthesis, produced once, on an explicit scope.
+
+    LOCALISATION : core/models.py
+
+    Elle n'a pas de tours : elle a une date de production et un perimetre
+    qu'on ne peut plus changer. Si le carnet evolue, on en produit une
+    autre — on ne modifie pas celle-ci. C'est la condition pour qu'un
+    collectif puisse s'y referer six mois plus tard.
+    / No rounds: a production date and an immutable scope.
+    """
+
+    page = models.OneToOneField(
+        "Page", on_delete=models.CASCADE, related_name="synthese_dirigee",
+        help_text="La note qui porte la synthese. type_de_note = SYNTHESE.",
+    )
+    # SET_NULL et non CASCADE (ecart assume vs spec § 3.2, addendum n°5) :
+    # l'acte date et son perimetre fige SURVIVENT a la suppression du
+    # carnet — la preuve d'une adoption ne disparait pas avec le
+    # rangement. Nullable aussi pour la synthese commandee depuis une
+    # note hors carnet (le flux existant l'autorise).
+    # / SET_NULL, not CASCADE: the dated act survives notebook deletion.
+    dossier = models.ForeignKey(
+        "Dossier", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="syntheses_dirigees",
+        help_text="Le carnet sur lequel la synthese a ete produite. NULL "
+                  "si le carnet a ete supprime depuis, ou si la demande "
+                  "venait d'une note hors carnet.",
+    )
+    produite_le = models.DateTimeField(default=timezone.now)
+    produite_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="syntheses_produites",
+    )
+    # Le PERIMETRE est fige a la production : c'est ce qui permet de
+    # recalculer « ce qui n'a pas ete repris » (§ 8) des mois apres.
+    # / The scope is frozen; it is what makes § 8 reproducible.
+    notes_du_perimetre = models.ManyToManyField(
+        "Page", related_name="syntheses_qui_la_couvrent",
+        help_text="Les notes effectivement dans le perimetre au moment de "
+                  "la production. Fige, jamais recalcule.",
+    )
+    # Les EXTRACTIONS proposees au modele, figees aussi (relecture D,
+    # B2) : sans elles, une re-analyse posterieure changerait « ce qui
+    # n'a pas ete repris » — l'ensemble § 8 porterait sur des
+    # extractions que l'acte date n'a jamais vues.
+    # / The extractions offered to the model, frozen too: a later
+    # re-analysis must never rewrite the § 8 set.
+    extractions_du_perimetre = models.ManyToManyField(
+        "hypostasis_extractor.ExtractedEntity", blank=True,
+        related_name="syntheses_qui_les_ont_vues",
+        help_text="Les extractions effectivement proposees au modele a "
+                  "la production. Fige. Vide + flag a False = synthese "
+                  "historique (perimetre inconnu, recalcul dynamique).",
+    )
+    perimetre_d_extractions_fige = models.BooleanField(
+        default=False,
+        help_text="True des que la production a fige la liste "
+                  "d'extractions ci-dessus — meme vide (analyseur sans "
+                  "extractions). False = historique d'avant la phase D.",
+    )
+    axe_de_direction = models.ForeignKey(
+        "ListeDeCategories", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="syntheses_dirigees",
+        help_text="L'axe qui a dirige la synthese, s'il y en a un.",
+    )
+    categorie_de_direction = models.ForeignKey(
+        "CategorieDossier", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="syntheses_dirigees",
+    )
+
+    class Meta:
+        verbose_name = "Synthese dirigee"
+        verbose_name_plural = "Syntheses dirigees"
+
+    def __str__(self):
+        return f"Synthese dirigee du {self.produite_le:%d/%m/%Y} (page {self.page_id})"

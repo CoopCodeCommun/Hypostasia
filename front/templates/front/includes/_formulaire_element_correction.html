@@ -1,0 +1,62 @@
+{# ============================================================= #}
+{# FORMULAIRE — CORRIGER LE TEXTE D'UN PASSAGE (U1)               #}
+{# / Form — correct one element's text                            #}
+{#                                                                #}
+{# LOCALISATION : front/templates/front/includes/                 #}
+{#                _formulaire_element_correction.html             #}
+{#                                                                #}
+{# Rendu par ElementViewSet.formulaire_correction, injecte dans   #}
+{# #zone-dialogue-element (lecture_principale.html). Le <dialog>  #}
+{# natif donne le piegeage de focus, le voile et Echap.           #}
+{#                                                                #}
+{# Le retour a la ligne LITTERAL apres l'ouverture du textarea    #}
+{# est VOLONTAIRE (relecture U1, defaut H1) : le parseur HTML     #}
+{# avale toujours le premier — sans lui, un texte commencant par  #}
+{# \n perdrait ce caractere et la correction « identique »        #}
+{# declencherait une reconciliation.                              #}
+{# / The literal newline after <textarea> is deliberate: the      #}
+{# parser always eats one.                                        #}
+{#                                                                #}
+{# FLUX DE L'ENVOI : POST /elements/<pk>/corriger/ (hx-swap none) #}
+{# -> 200 + HX-Trigger lectureReload : la lecture se recharge et  #}
+{# emporte ce dialogue avec elle. Un 409/400 porte son toast FALC #}
+{# — repris par la zone role="alert" DU dialogue, car le modal    #}
+{# est en top layer au-dessus du toast (defaut M2).               #}
+{# ============================================================= #}
+<dialog class="dialogue-element" id="dialogue-element-ouvert"
+        aria-labelledby="titre-dialogue-element"
+        data-testid="dialogue-element-correction">
+    <h2 id="titre-dialogue-element">Corriger ce passage</h2>
+    <form hx-post="/elements/{{ element.pk }}/corriger/"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          hx-swap="none"
+          hx-disabled-elt="find button[type='submit']"
+          hx-on::response-error="var entete = event.detail.xhr.getResponseHeader('HX-Trigger'); var message = 'Une erreur est survenue. Réessayez.'; try { message = JSON.parse(entete).showToast.message; } catch (e) {} var zone = this.querySelector('.erreur-du-dialogue'); zone.textContent = message; zone.hidden = false;">
+        <label for="texte-element-corrige">Le texte du passage :</label>
+        <textarea id="texte-element-corrige" name="texte" rows="6"
+                  required
+                  data-testid="champ-texte-correction">
+{{ element.texte }}</textarea>
+        <p class="aide">Les passages surlignés suivront le texte corrigé
+            quand ils s'y retrouvent.</p>
+        <p class="erreur-du-dialogue" role="alert" hidden
+           data-testid="erreur-dialogue-element"></p>
+        <div class="pied-du-dialogue">
+            <button type="button" class="bouton-du-dialogue"
+                    onclick="this.closest('dialog').close()"
+                    data-testid="btn-annuler-dialogue">Annuler</button>
+            <button type="submit" class="bouton-du-dialogue principal"
+                    data-testid="btn-envoyer-correction">Enregistrer la correction</button>
+        </div>
+    </form>
+</dialog>
+<script>
+/* Ouvre le dialogue en MODAL des son injection.
+   / Opens the dialog as a modal right after injection. */
+(function () {
+    var dialogue = document.getElementById('dialogue-element-ouvert');
+    if (dialogue && !dialogue.open) {
+        dialogue.showModal();
+    }
+})();
+</script>

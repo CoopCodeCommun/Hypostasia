@@ -1,0 +1,81 @@
+{# ONGLET WIKIS D'UN CARNET — design maquette (9 aout). #}
+{# LOCALISATION : front/templates/front/corpus/liste_wikis.html #}
+{# Variables : carnet, wikis (annotes .qualite), nombre_de_notes_sources, #}
+{# peut_ecrire. #}
+<div data-testid="synthese-liste-wikis">
+    <p class="note-explicative">
+        Un wiki est <strong>thématique et vivant</strong> : il agrège les
+        extractions du carnet et se met à jour par opérations de section.
+        Il ne s'adopte pas, il se suit.
+    </p>
+
+    <ul class="liste-notes">
+        {% for wiki in wikis %}
+        <li class="ligne-note" data-testid="synthese-wiki-ligne">
+            <span class="rang" role="img" aria-hidden="true">✦</span>
+            <span>
+                <a href="/wikis/{{ wiki.pk }}/"
+                   hx-get="/wikis/{{ wiki.pk }}/"
+                   hx-target="#corpus-panneau-onglet" hx-swap="innerHTML"
+                   {# hx-push-url : sans lui on lit l'article a l'adresse du #}
+                   {# carnet, F5 ramene a la liste des notes et le lien n'est pas #}
+                   {# partageable depuis l'endroit ou on lit (recette, F4). #}
+                   hx-push-url="/wikis/{{ wiki.pk }}/"
+                   class="titre-note">{{ wiki.sujet }}</a>
+                <span class="badge-type" data-type="wiki">wiki</span>
+                <span class="sous-note">
+                    tour {{ wiki.tours_de_mise_a_jour }} ·
+                    mis à jour le {{ wiki.derniere_mise_a_jour|date:"d/m/Y" }} ·
+                    {{ wiki.qualite.sources }} source{{ wiki.qualite.sources|pluralize }}{% if wiki.qualite.ecartees is not None %} ·
+                    {{ wiki.qualite.ecartees }} écartée{{ wiki.qualite.ecartees|pluralize }}{% endif %}{% if wiki.qualite.verifiees or wiki.qualite.faibles %} ·
+                    {{ wiki.qualite.verifiees }} vérifiée{{ wiki.qualite.verifiees|pluralize }} ·
+                    <span style="color:var(--faible)">{{ wiki.qualite.faibles }} faible{{ wiki.qualite.faibles|pluralize }}</span>{% endif %}
+                </span>
+            </span>
+        </li>
+        {% empty %}
+        <li class="ligne-note" style="font-style:italic; color:var(--encre-douce)"
+            data-testid="synthese-wikis-vide">
+            Aucun wiki dans ce carnet. Un wiki suit un sujet à travers
+            les notes — créez le premier ci-dessous.
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% if peut_ecrire %}
+    <div class="surface-creation" data-testid="synthese-form-nouveau-wiki">
+        <h3>Nouveau wiki</h3>
+        <p class="note-explicative">
+            Un wiki est <strong>thématique et vivant</strong>. Le sujet
+            est une consigne de rédaction, pas un filtre : le périmètre
+            reste les notes du carnet.
+        </p>
+        <form hx-post="/carnets/{{ carnet.pk }}/wikis/"
+              hx-target="#corpus-panneau-onglet" hx-swap="innerHTML">
+            <label class="champ-etiquette" for="wiki-sujet">Sujet</label>
+            <input class="champ-texte" id="wiki-sujet" name="sujet" required
+                   placeholder="Ex. : le seuil de passage en assemblée">
+            {# Le moteur ne se choisit pas ici : l'ecran le NOMME, et #}
+            {# dit ou il se change (recette du 10 aout, F10). #}
+            {% if modele_de_redaction %}
+            <p class="note-explicative" data-testid="synthese-moteur-annonce">
+                Rédigé par <strong>{{ modele_de_redaction.name }}</strong>,
+                le modèle configuré pour tout le site. Un compte
+                administrateur peut en changer dans « Configurer les LLM ».
+            </p>
+            {% endif %}
+            <div class="avertissement" data-testid="synthese-recap-wiki">
+                Périmètre : les {{ nombre_de_notes_sources }} note{{ nombre_de_notes_sources|pluralize }}
+                du carnet — les wikis et synthèses existants sont
+                <strong>exclus du corpus source</strong> : sans cette
+                règle, un wiki finirait par se citer lui-même. Le
+                périmètre se recalcule à chaque tour.
+            </div>
+            <div class="rangee-boutons">
+                <button type="submit" class="bouton-plat principal"
+                        data-testid="synthese-btn-creer-wiki">Créer le wiki</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+</div>

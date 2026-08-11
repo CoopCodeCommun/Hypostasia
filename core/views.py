@@ -10,7 +10,11 @@ from rest_framework.authentication import SessionAuthentication, TokenAuthentica
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Dossier, DossierPartage, Page
+from .models import Dossier, DossierPartage, Page, RoleSpecialDossier
+from .services.corpus import (
+    deplacer_une_note_vers_un_carnet,
+    ranger_une_note_dans_un_carnet,
+)
 from .serializers import ClasserDepuisExtensionSerializer, PageCreateSerializer, PageListSerializer
 
 logger = logging.getLogger("core")
@@ -168,11 +172,14 @@ class PageViewSet(viewsets.ViewSet):
         # / Determine dedup scope: owner folders + shared folders
         ids_dossiers = _ids_dossiers_accessibles(request.user)
 
-        # Pages accessibles = dans les dossiers de l'user + pages sans dossier de l'user
-        # / Accessible pages = in user's folders + user's pages without folder
+        # Pages accessibles = rangees dans les carnets de l'user (table de
+        # liaison, phase D corpus) + pages sans carnet de l'user
+        # / Accessible pages = filed in the user's notebooks (link table)
+        # + the user's notebook-less pages
         pages_accessibles = Page.objects.filter(
-            Q(dossier_id__in=ids_dossiers) | Q(dossier__isnull=True, owner=request.user)
-        )
+            Q(appartenances_dossiers__dossier_id__in=ids_dossiers)
+            | Q(appartenances_dossiers__isnull=True, owner=request.user)
+        ).distinct()
 
         # Verifier le doublon par URL normalisee dans le perimetre de l'user
         # / Check for duplicate by normalized URL within user's scope
@@ -223,11 +230,16 @@ class PageViewSet(viewsets.ViewSet):
         # / Extract optional dossier_id from submitted data
         dossier_id_soumis = donnees_soumises.get("dossier_id")
 
-        # Creer la page avec l'owner et le dossier
-        # / Create page with owner and folder
-        page_creee = serializer.save(
-            owner=request.user,
-            dossier=_resoudre_dossier(request.user, dossier_id_soumis),
+        # Creer la page avec l'owner, puis la ranger via le service :
+        # il pose la FK (premier carnet) ET l'appartenance N-N d'un coup
+        # (SPEC-corpus § 4.3, phase D).
+        # / Create the page, then file it through the service: it sets
+        # the FK (first notebook) AND the N-N membership at once.
+        page_creee = serializer.save(owner=request.user)
+        ranger_une_note_dans_un_carnet(
+            page_creee,
+            _resoudre_dossier(request.user, dossier_id_soumis),
+            request.user,
         )
         logger.info(
             "PageViewSet.create: Page %d creee — url=%s owner=%s dossier=%s",
@@ -236,6 +248,33 @@ class PageViewSet(viewsets.ViewSet):
             request.user.username,
             page_creee.dossier,
         )
+
+        # U4 (decision D2, ordre 2) : une capture web nourrit AUSSI le
+        # moteur ELEMENT — meme patron que l'import fichier (BR-B). Le
+        # pipeline synchrone ci-dessus a rempli html_readability :
+        # l'affichage reste ANCIEN (double ecriture) jusqu'a ce que les
+        # elements existent. La page devient ELEMENT quand la tache
+        # aboutit ; un echec laisse une page ANCIEN lisible. Broker en
+        # panne : la creation reste un succes, sans fausse promesse.
+        # / Web capture also feeds the ELEMENT engine, same pattern as
+        # file import; a dead broker must not turn a successful capture
+        # into a 500.
+        if (page_creee.html_original or "").strip():
+            from hypostasis_extractor.tasks_element import (
+                ingerer_une_capture_web_avec_docling,
+            )
+            try:
+                ingerer_une_capture_web_avec_docling.delay(page_creee.pk)
+                Page.objects.filter(
+                    pk=page_creee.pk, ingestion_etat="",
+                ).update(ingestion_etat="en_attente")
+            except Exception as erreur_de_broker:
+                logger.error(
+                    "PageViewSet.create: ingestion web NON lancee pour la "
+                    "page %d (broker indisponible ? %s) — la page reste "
+                    "sur l'ancien moteur",
+                    page_creee.pk, erreur_de_broker,
+                )
 
         return Response(
             PageListSerializer(page_creee).data,
@@ -374,8 +413,13 @@ class PageViewSet(viewsets.ViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        page_a_classer.dossier = dossier_cible
-        page_a_classer.save(update_fields=["dossier"])
+        # Deplacement via le service : sort du carnet designe par la FK
+        # (« A ranger » dans le flux nominal), entre dans la cible, et
+        # maintient la table de liaison (SPEC-corpus § 4.3, phase D).
+        # / Move through the service: FK and link table stay in sync.
+        deplacer_une_note_vers_un_carnet(
+            page_a_classer, dossier_cible, request.user
+        )
         logger.info(
             "PageViewSet.classer_depuis_extension: Page %d deplacee dans dossier '%s' (user=%s)",
             page_a_classer.pk,
@@ -411,11 +455,15 @@ def _resoudre_dossier(utilisateur, dossier_id_soumis):
         except Dossier.DoesNotExist:
             pass
 
-    # Fallback : dossier "A ranger" de l'utilisateur
-    # / Fallback: user's "A ranger" folder
+    # Fallback : le fourre-tout de l'utilisateur, retrouve par son ROLE
+    # technique et plus par son nom — un carnet renomme reste retrouve
+    # (SPEC-corpus § 6.3). Le nom n'est qu'une valeur d'affichage initiale.
+    # / Fallback: the user's inbox, found by its technical ROLE, no longer
+    # by name — a renamed notebook is still found.
     dossier_a_ranger, _cree = Dossier.objects.get_or_create(
-        name="A ranger",
+        role_special=RoleSpecialDossier.A_RANGER,
         owner=utilisateur,
+        defaults={"name": "A ranger"},
     )
     return dossier_a_ranger
 

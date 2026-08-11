@@ -1,6 +1,8 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from .models import Page, TextBlock
+from .models import CategorieDossier, Page, TextBlock
+from .services.corpus import valider_les_categories_d_une_appartenance
 
 
 # --- BLOCS DE TEXTE / TEXT BLOCKS ---
@@ -67,7 +69,7 @@ class PageCreateSerializer(serializers.ModelSerializer):
         import hashlib
         import logging
 
-        from front.utils import extraire_texte_depuis_html
+        from front.services.texte_depuis_html import extraire_texte_depuis_html
 
         logger = logging.getLogger("core")
 
@@ -180,3 +182,76 @@ class AnalysisItemSerializer(serializers.Serializer):
                 f"Mode invalide: '{value}'. Doit etre parmi {modes_autorises}"
             )
         return value
+
+
+# --- COUCHE CORPUS / CORPUS LAYER ---
+
+class CategoriserUneNoteSerializer(serializers.Serializer):
+    """
+    Valide les categories a appliquer a UNE appartenance note-carnet.
+    / Validates the categories to apply to ONE note-notebook membership.
+
+    LOCALISATION : core/serializers.py
+
+    Contexte requis : {"appartenance": AppartenancePageDossier}.
+    La regle de fond (chaque categorie vient du carnet de l'appartenance)
+    vit dans core/services/corpus.py — le serializer la traduit en erreur
+    de formulaire, le signal m2m_changed (core/signals.py) la garantit en
+    dernier filet.
+    / Context requires the membership. The core rule lives in
+    core/services/corpus.py; the m2m signal is the last safety net.
+    """
+
+    categorie_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_empty=True,
+        max_length=100,
+        help_text="Les categories de CE carnet a appliquer a CETTE note. "
+                  "Liste vide = tout decocher. Les doublons sont absorbes.",
+    )
+
+    def validate_categorie_ids(self, identifiants_soumis):
+        appartenance = self.context.get("appartenance")
+        if appartenance is None:
+            raise AssertionError(
+                "CategoriserUneNoteSerializer exige le contexte "
+                "{'appartenance': AppartenancePageDossier} / requires the "
+                "'appartenance' context key"
+            )
+
+        # Reinitialise a chaque validation : jamais d'etat perime si
+        # l'instance etait revalidee. / Reset on every validation run.
+        self._categories_validees = []
+
+        categories_trouvees = list(
+            CategorieDossier.objects.select_related("liste").filter(
+                pk__in=identifiants_soumis
+            )
+        )
+        identifiants_introuvables = set(identifiants_soumis) - {
+            categorie.pk for categorie in categories_trouvees
+        }
+        if identifiants_introuvables:
+            raise serializers.ValidationError(
+                f"Catégories introuvables : {sorted(identifiants_introuvables)}"
+                f" / Categories not found: {sorted(identifiants_introuvables)}"
+            )
+
+        try:
+            valider_les_categories_d_une_appartenance(
+                appartenance, categories_trouvees
+            )
+        except DjangoValidationError as erreur:
+            raise serializers.ValidationError(erreur.messages)
+
+        # On expose les objets valides pour que la vue n'ait pas a les
+        # recharger. / Expose the validated objects so the view does not
+        # reload them.
+        self._categories_validees = categories_trouvees
+        return identifiants_soumis
+
+    def validate(self, donnees_validees):
+        donnees_validees["categories_a_appliquer"] = getattr(
+            self, "_categories_validees", []
+        )
+        return donnees_validees

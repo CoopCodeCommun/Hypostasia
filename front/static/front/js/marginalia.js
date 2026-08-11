@@ -4,21 +4,23 @@
 //
 // LOCALISATION : front/static/front/js/marginalia.js
 //
-// Ce fichier gere les pastilles colorees en marge droite du texte.
-// Chaque pastille represente une extraction. Sa couleur reflete le statut binaire
-// (nouveau / commente). Un clic sur une pastille (ou sur un span surligne)
+// Ce fichier gere l'interaction avec les ANCRES INLINE du texte
+// (`mark.portion.hl-extraction`) : clic pour ouvrir le panneau sur la
+// bonne carte, et estompage par contributeur.
+//
+// Son nom est un vestige : il gerait des pastilles en marge droite,
+// supprimees avec l'ancien moteur (la maquette n'en a jamais eu).
+// Un clic sur une ancre
 // ouvre le drawer Analyses et scrolle vers la carte concernee a l'interieur
 // du drawer (refonte drawer-only — plus de carte inline sous le paragraphe).
 // / On click: open drawer + scroll to corresponding card (no inline card).
 //
 // COMMUNICATION :
-// Recoit : htmx:afterSwap sur #zone-lecture -> reconstruit les pastilles
-// Recoit : HX-Trigger contributeurFiltreChange -> filtre pastilles (PHASE-26a-bis)
+// Recoit : HX-Trigger contributeurFiltreChange -> estompe les ancres
 //          avec mode_filtre 'inclure'|'exclure' pour inverser le dimming (PHASE-26a UX)
 // Appelle : window.drawerVueListe.ouvrir() pour ouvrir le drawer
-// Exporte : window.marginalia = { construirePastillesMarginales,
-//           getContributeurFiltre, resetContributeurFiltre }
-// Exporte : window.construirePastillesMarginales (alias global, utilise par drawer_vue_liste.js)
+// Exporte : window.marginalia = { getContributeurFiltre,
+//           resetContributeurFiltre, ouvrirDrawerEtScrollerVersCarte }
 // ==========================================================================
 (function() {
     'use strict';
@@ -31,69 +33,6 @@
         commente: '#E69F00',
     };
 
-    // === Construction des pastilles en marge droite ===
-    // Scanne les spans hl-extraction, groupe par bloc parent, cree les pastilles
-    // / Scan hl-extraction spans, group by parent block, create dots
-    function construirePastillesMarginales() {
-        // Nettoyer les pastilles existantes / Clean existing dots
-        document.querySelectorAll('.pastilles-marge').forEach(function(el) {
-            el.remove();
-        });
-
-        var tousLesSpans = document.querySelectorAll('#readability-content .hl-extraction[data-statut]');
-        if (!tousLesSpans.length) return;
-
-        // Grouper les spans par element bloc parent
-        // / Group spans by parent block element
-        var spansParBloc = new Map();
-        tousLesSpans.forEach(function(span) {
-            var blocParent = span.closest('p, div, blockquote, li, h1, h2, h3, h4, h5, h6');
-            if (!blocParent) return;
-
-            // Exclure le conteneur #readability-content lui-meme (c'est un div)
-            // / Exclude the #readability-content container itself (it's a div)
-            if (blocParent.id === 'readability-content') return;
-
-            if (!spansParBloc.has(blocParent)) {
-                spansParBloc.set(blocParent, []);
-            }
-            spansParBloc.get(blocParent).push(span);
-        });
-
-        // Pour chaque bloc parent, creer un conteneur de pastilles
-        // / For each parent block, create a dot container
-        spansParBloc.forEach(function(spans, blocParent) {
-            var conteneurPastilles = document.createElement('div');
-            conteneurPastilles.className = 'pastilles-marge';
-
-            // Position verticale alignee avec le premier span du bloc
-            // / Vertical position aligned with the first span in the block
-            var rectBloc = blocParent.getBoundingClientRect();
-            var rectPremierSpan = spans[0].getBoundingClientRect();
-            var decalageHaut = rectPremierSpan.top - rectBloc.top;
-            conteneurPastilles.style.top = decalageHaut + 'px';
-
-            spans.forEach(function(span) {
-                var extractionId = span.dataset.extractionId;
-                var statut = span.dataset.statut || 'nouveau';
-                var couleur = COULEURS_STATUT[statut] || COULEURS_STATUT.nouveau;
-
-                var pastille = document.createElement('button');
-                pastille.className = 'pastille-extraction';
-                pastille.dataset.extractionId = extractionId;
-                pastille.dataset.statut = statut;
-                pastille.style.backgroundColor = couleur;
-                pastille.title = 'Extraction #' + extractionId + ' — ' + statut;
-                pastille.setAttribute('aria-label', 'Voir extraction ' + extractionId);
-
-                conteneurPastilles.appendChild(pastille);
-            });
-
-            blocParent.appendChild(conteneurPastilles);
-        });
-    }
-
-
     // Ouvre le drawer + scrolle vers la carte de l'extraction donnee
     // Refonte A.8 drawer-only : plus de carte inline sous le paragraphe.
     // / Open drawer + scroll to the card for the given extraction.
@@ -104,20 +43,11 @@
         document.querySelectorAll('.hl-extraction.ancre-active').forEach(function(el) {
             el.classList.remove('ancre-active');
         });
-        document.querySelectorAll('.pastille-extraction.pastille-active').forEach(function(el) {
-            el.classList.remove('pastille-active');
-        });
         var spanCorrespondant = document.querySelector(
             '#readability-content .hl-extraction[data-extraction-id="' + extractionId + '"]'
         );
         if (spanCorrespondant) {
             spanCorrespondant.classList.add('ancre-active');
-        }
-        var pastilleCorrespondante = document.querySelector(
-            '.pastille-extraction[data-extraction-id="' + extractionId + '"]'
-        );
-        if (pastilleCorrespondante) {
-            pastilleCorrespondante.classList.add('pastille-active');
         }
 
         // Ouvrir le drawer s'il est ferme (le drawer rechargera son contenu via chargerContenu)
@@ -163,17 +93,28 @@
     }
 
 
-    // --- Clic sur une pastille : ouvre le drawer + scroll vers la carte ---
-    // / Click on a dot: open drawer + scroll to card
+    // --- Clic sur une ANCRE (surlignage inline) : ouvre le drawer + scroll ---
+    // CONFORMITE MAQUETTE (10 aout) : l'interaction se fait desormais au clic
+    // sur l'ancre inline `mark.hl-extraction` elle-meme (equivalent de
+    // allumerIdee dans maquette.html), plus sur une pastille en marge.
+    // sans effet nuisible. / Interaction now happens on a click on the
+    // inline highlight itself, matching the mock.
     document.addEventListener('click', function(evenement) {
-        var pastille = evenement.target.closest('.pastille-extraction');
-        if (!pastille) return;
-        // Ne pas traiter les pilules contributeur (elles ont aussi pastille-extraction ?)
-        // / Don't treat contributor pills (just in case)
-        if (pastille.classList.contains('pilule-contributeur')) return;
+        var ancre = evenement.target.closest(
+            '#readability-content .hl-extraction[data-extraction-id]'
+        );
+        if (!ancre) return;
+        // Ne pas traiter les pilules contributeur / Skip contributor pills
+        if (ancre.classList.contains('pilule-contributeur')) return;
 
-        var extractionId = pastille.dataset.extractionId;
+        var extractionId = ancre.dataset.extractionId;
         if (!extractionId) return;
+
+        // Ne pas voler une SELECTION de texte en cours : si l'utilisateur
+        // vient de surligner du texte (drag), on le laisse tranquille.
+        // / Don't steal an in-progress text selection.
+        var selection = window.getSelection && window.getSelection();
+        if (selection && selection.toString().length > 0) return;
 
         // Si mobile, ouvrir le bottom sheet (PHASE-21)
         // / If mobile, open bottom sheet (PHASE-21)
@@ -183,26 +124,6 @@
         }
 
         ouvrirDrawerEtScrollerVersCarte(extractionId);
-    });
-
-
-    // --- Recalcul automatique apres swap HTMX ---
-    // / Automatic recalculation after HTMX swap
-    document.body.addEventListener('htmx:afterSwap', function(evenement) {
-        // Reconstruire si le swap touche la zone de lecture
-        // / Rebuild if swap touches the reading zone
-        var cible = evenement.detail.target;
-        if (cible && (cible.id === 'zone-lecture' || cible.closest('#zone-lecture'))) {
-            construirePastillesMarginales();
-        }
-    });
-
-
-    // --- Initialisation au chargement de la page ---
-    // / Initialization on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        construirePastillesMarginales();
-
     });
 
 
@@ -219,19 +140,23 @@
         return contributeursFiltresActuels;
     }
 
-    // Reset le filtre contributeurs (retire les classes de dimming)
+    // Reset le filtre contributeurs (retire les classes d'estompage)
     // / Reset contributor filter (remove dimming classes)
     function resetContributeurFiltre() {
         contributeursFiltresActuels = [];
-        document.querySelectorAll('.pastille-extraction.pastille-hors-filtre').forEach(function(pastille) {
-            pastille.classList.remove('pastille-hors-filtre');
-        });
+        document.querySelectorAll('.hl-extraction.ancre-hors-filtre').forEach(
+            function (ancre) { ancre.classList.remove('ancre-hors-filtre'); }
+        );
     }
 
-    // Applique le filtre multi-contributeurs sur les pastilles
-    // Supporte le mode exclure : inverse le dimming (PHASE-26a UX)
-    // / Apply multi-contributor filter on pastilles
-    // / Supports exclude mode: inverts dimming (PHASE-26a UX)
+    // Applique le filtre multi-contributeurs sur les ANCRES INLINE.
+    //
+    // Il estompait les pastilles en marge (PHASE-26a-bis). Celles-ci
+    // ayant disparu avec l'ancien moteur, la fonction ne trouvait plus
+    // un seul noeud : le filtre etait devenu INERTE, sans que rien ne le
+    // dise. Il agit desormais sur `mark.hl-extraction`, la seule ancre
+    // qui existe. Mode exclure : le dimming s'inverse.
+    // / Rewired onto the inline anchors; the dots it dimmed are gone.
     function appliquerFiltreContributeurs(listeContributeursIds, idsEntites, modeFiltre) {
         contributeursFiltresActuels = listeContributeursIds;
 
@@ -245,16 +170,18 @@
         var setIdsEntites = new Set(idsEntites.map(String));
         var estModeExclure = (modeFiltre === 'exclure');
 
-        document.querySelectorAll('.pastille-extraction').forEach(function(pastille) {
-            var extractionId = pastille.dataset.extractionId;
-            // En mode exclure, inverser la logique : dimmer les entites des contributeurs
-            // / In exclude mode, invert logic: dim the contributor's entities
+        document.querySelectorAll(
+            '#readability-content .hl-extraction[data-extraction-id]'
+        ).forEach(function (ancre) {
+            var extractionId = ancre.dataset.extractionId;
+            // En mode exclure, inverser la logique : estomper les entites
+            // des contributeurs. / Exclude mode inverts the logic.
             var dansFiltre = setIdsEntites.has(extractionId);
-            var doitDimmer = estModeExclure ? dansFiltre : !dansFiltre;
-            if (doitDimmer) {
-                pastille.classList.add('pastille-hors-filtre');
+            var doitEstomper = estModeExclure ? dansFiltre : !dansFiltre;
+            if (doitEstomper) {
+                ancre.classList.add('ancre-hors-filtre');
             } else {
-                pastille.classList.remove('pastille-hors-filtre');
+                ancre.classList.remove('ancre-hors-filtre');
             }
         });
     }
@@ -272,10 +199,107 @@
     });
 
 
+    // --- Le COMPTEUR D'IDEES de la gouttiere (etalon, l. 1884) ---
+    //
+    // Un clic allume TOUTES les ancres du passage — pas une seule — et
+    // ouvre le panneau sur la premiere carte. C'est la reponse a « que
+    // dit-on de ce paragraphe ? », une question que le surlignage seul
+    // ne permet pas de poser : il faut cliquer chaque ancre une par une.
+    // / Lights every anchor of the block and opens the panel on the
+    // first card: "what is said about this paragraph?".
+    document.addEventListener('click', function (evenement) {
+        var compteur = evenement.target.closest('.compteur-idees');
+        if (!compteur) return;
+        evenement.preventDefault();
+
+        var bloc = compteur.closest('.bloc');
+        if (!bloc) return;
+
+        var ancresDuBloc = bloc.querySelectorAll(
+            '.hl-extraction[data-extraction-id]'
+        );
+        if (!ancresDuBloc.length) return;
+        var premiereIdee = ancresDuBloc[0].dataset.extractionId;
+
+        if (window.innerWidth <= 768) {
+            if (window.bottomSheet) window.bottomSheet.ouvrir(premiereIdee);
+            return;
+        }
+
+        // OUVRIR D'ABORD, ALLUMER ENSUITE.
+        //
+        // `ouvrirDrawerEtScrollerVersCarte` commence par ETEINDRE toutes
+        // les ancres actives pour n'allumer que la sienne. Allumer avant
+        // de l'appeler revenait donc a s'annuler soi-meme : mesure au
+        // navigateur, 1 ancre allumee sur 97. L'ordre n'est pas un
+        // detail, c'est la fonctionnalite.
+        // / It clears every active anchor first: light them AFTER.
+        ouvrirDrawerEtScrollerVersCarte(premiereIdee);
+        ancresDuBloc.forEach(function (ancre) {
+            ancre.classList.add('ancre-active');
+        });
+    });
+
+
+    // --- « Voir la source » : dire ce qu'on ne sait pas encore faire ---
+    //
+    // L'etalon ouvrirait le document source a la bonne page, boite
+    // surlignee — chez lui c'est un mock qui affiche un toast, le
+    // visualiseur PDF n'existe pas plus que chez nous (SPEC-ancrage
+    // § 8.2 est incomplete : elle donne le delta, pas le socle).
+    // On tient le meme discours : le bouton existe la ou la donnee
+    // existe, et il dit honnetement ou en est le produit.
+    // / The mock toasts too: the PDF viewer exists in neither.
+    document.addEventListener('click', function (evenement) {
+        var bouton = evenement.target.closest('.bouton-voir-source');
+        if (!bouton) return;
+        evenement.preventDefault();
+        var page = bouton.dataset.pageSource;
+        document.body.dispatchEvent(new CustomEvent('showToast', {
+            detail: {
+                message: 'Ce passage vient de la page ' + page +
+                         ' du document source. Le visualiseur PDF ' +
+                         "n'est pas encore disponible.",
+            },
+        }));
+    });
+
+
+    // --- Annuler une correction en place (etalon § 11) ---
+    //
+    // Refermer, c'est retirer l'editeur et rendre le corps : pas de
+    // rechargement, rien a redemander au serveur. Le bouton est pose
+    // par un fragment HTMX, donc l'ecouteur vit sur `document` — un
+    // ecouteur pose sur le fragment lui-meme s'empilerait a chaque
+    // ouverture (piege connu de ce depot).
+    // / Delegated on document: a per-fragment listener would stack up.
+    document.addEventListener('click', function (evenement) {
+        var bouton = evenement.target.closest('.annuler-edition');
+        if (!bouton) return;
+        evenement.preventDefault();
+        var bloc = bouton.closest('.bloc');
+        if (!bloc) return;
+        bloc.classList.remove('est-en-edition');
+        var editeur = bloc.querySelector('.editeur');
+        if (editeur) editeur.remove();
+    });
+
+    // Echap ferme l'editeur, comme il fermait le dialogue. Ce qui
+    // s'ouvre doit se fermer par la meme touche, quelle que soit sa
+    // forme. / Escape closes it, as it closed the modal.
+    document.addEventListener('keydown', function (evenement) {
+        if (evenement.key !== 'Escape') return;
+        var bloc = document.querySelector('.bloc.est-en-edition');
+        if (!bloc) return;
+        bloc.classList.remove('est-en-edition');
+        var editeur = bloc.querySelector('.editeur');
+        if (editeur) editeur.remove();
+    });
+
+
     // Expose l'API publique
     // / Expose public API
     window.marginalia = {
-        construirePastillesMarginales: construirePastillesMarginales,
         getContributeurFiltre: getContributeurFiltre,
         resetContributeurFiltre: resetContributeurFiltre,
         ouvrirDrawerEtScrollerVersCarte: ouvrirDrawerEtScrollerVersCarte,
@@ -299,9 +323,5 @@
         ouvrirDrawerEtScrollerVersCarte(extractionId);
     });
 
-
-    // Alias global pour compatibilite (utilise par drawer_vue_liste.js l86)
-    // / Global alias for compatibility (used by drawer_vue_liste.js l86)
-    window.construirePastillesMarginales = construirePastillesMarginales;
 
 })();

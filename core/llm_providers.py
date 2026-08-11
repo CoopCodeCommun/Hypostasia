@@ -7,9 +7,9 @@ Single entry point: appeler_llm(modele_ia, message_complet) -> str
 LOCALISATION : core/llm_providers.py
 
 Ce module ne gere PAS l'extraction structuree (LangExtract).
-Pour l'extraction, voir hypostasis_extractor/services.py (resolve_model_params).
+Pour l'extraction, voir hypostasis_extractor/services/__init__.py (resolve_model_params).
 / This module does NOT handle structured extraction (LangExtract).
-For extraction, see hypostasis_extractor/services.py (resolve_model_params).
+For extraction, see hypostasis_extractor/services/__init__.py (resolve_model_params).
 
 DEPENDENCIES :
 - google.generativeai (SDK Google Gemini)
