@@ -1,0 +1,84 @@
+{# ============================================================= #}
+{# EDITEUR EN PLACE — corriger un passage SANS quitter le texte   #}
+{# / In-place editor — correct a passage without leaving the text #}
+{#                                                                #}
+{# LOCALISATION : front/templates/front/includes/                 #}
+{#                _editeur_en_place.html                          #}
+{#                                                                #}
+{# C'est la forme de l'ETALON (maquette.html § 11) : le corps du  #}
+{# bloc s'efface, un textarea prend sa place a la meme largeur et #}
+{# avec la meme typographie, une barre d'actions dessous.         #}
+{#                                                                #}
+{# POURQUOI PAS LE <dialog> LIVRE EN U1                           #}
+{# Un modal arrache le passage a son contexte : on corrige une    #}
+{# phrase sans voir celles qui l'entourent, alors que c'est       #}
+{# justement ce qui dit si la correction est juste. L'etalon      #}
+{# corrige DANS le document. Le dialogue reste pour la SCISSION,  #}
+{# ou l'on choisit un point de coupe et ou le texte doit etre     #}
+{# montre en entier, sans surlignage qui gene la visee.           #}
+{# / A modal tears the passage from the context that judges it.   #}
+{#                                                                #}
+{# Le retour a la ligne LITTERAL apres l'ouverture du textarea    #}
+{# est VOLONTAIRE (relecture U1, defaut H1) : le parseur HTML     #}
+{# avale toujours le premier — sans lui, un texte commencant par  #}
+{# \n perdrait ce caractere et la correction « identique »        #}
+{# declencherait une reconciliation.                              #}
+{# / The literal newline is deliberate: the parser eats one.      #}
+{# ============================================================= #}
+<div class="editeur" data-testid="editeur-en-place-{{ element.pk }}">
+    <form hx-post="/elements/{{ element.pk }}/corriger/"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          hx-swap="none"
+          hx-disabled-elt="find button[type='submit']"
+          hx-on::response-error="var entete = event.detail.xhr.getResponseHeader('HX-Trigger'); var message = 'Une erreur est survenue. Réessayez.'; try { message = JSON.parse(entete).showToast.message; } catch (e) {} var zone = this.querySelector('.erreur-de-l-editeur'); zone.textContent = message; zone.hidden = false;">
+        <label class="etiquette-invisible" for="texte-en-place-{{ element.pk }}">
+            Le texte du passage
+        </label>
+        <textarea id="texte-en-place-{{ element.pk }}" name="texte" rows="4"
+                  required
+                  data-testid="champ-texte-correction">
+{{ element.texte }}</textarea>
+        <p class="erreur-de-l-editeur" role="alert" hidden
+           data-testid="erreur-editeur-en-place"></p>
+        <div class="editeur-barre">
+            <button type="submit" class="bouton-plat principal valider-edition"
+                    data-testid="btn-envoyer-correction">Valider</button>
+            <button type="button" class="bouton-plat annuler-edition"
+                    data-testid="btn-annuler-edition">Annuler</button>
+            <span class="editeur-aide">Les passages surlignés suivront le
+                texte corrigé quand ils s'y retrouvent.</span>
+        </div>
+    </form>
+</div>
+<script>
+/* Bascule le bloc en edition et donne le focus au texte.
+   Un script injecte par innerHTML ne s'execute pas : HTMX, lui, evalue
+   les <script> des fragments qu'il insere (relecture U1, defaut n°7).
+   / HTMX evaluates scripts in inserted fragments; innerHTML does not. */
+(function () {
+    var editeur = document.querySelector(
+        '[data-testid="editeur-en-place-{{ element.pk }}"]'
+    );
+    if (!editeur) return;
+    var bloc = editeur.closest('.bloc');
+    if (!bloc) return;
+
+    /* Un seul bloc en edition a la fois : deux textareas ouverts sur le
+       meme document, c'est deux verites concurrentes.
+       / One editor at a time: two would be two competing truths. */
+    document.querySelectorAll('.bloc.est-en-edition').forEach(function (autre) {
+        if (autre !== bloc) {
+            autre.classList.remove('est-en-edition');
+            var reste = autre.querySelector('.editeur');
+            if (reste) reste.remove();
+        }
+    });
+
+    bloc.classList.add('est-en-edition');
+    var champ = editeur.querySelector('textarea');
+    if (champ) {
+        champ.focus();
+        champ.setSelectionRange(champ.value.length, champ.value.length);
+    }
+})();
+</script>
