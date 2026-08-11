@@ -23,7 +23,9 @@ from core.models import (
     empreinte_du_texte)
 from hypostasis_extractor.models import (
     AncrageExtraction,
+    AnalyseurExample,
     AnalyseurSyntaxique,
+    ExampleExtraction,
     ExtractedEntity,
     ExtractionJob,
     PromptPiece,
@@ -190,6 +192,22 @@ class EstimationDuDrawerTest(BaseRestesTest):
         PromptPiece.objects.create(
             analyseur=analyseur, name="i", role="instruction",
             content="Analyse.", order=0,
+        )
+        # UN ANALYSEUR SANS EXEMPLE FEW-SHOT N'EST PAS PROPOSE.
+        #
+        # `_analyseurs_extraction_utilisables()` ecarte les analyseurs
+        # d'extraction sans exemple complet — ils feraient repondre le
+        # LLM hors format. Sans exemple ici, la vue ne trouve aucun
+        # analyseur et rend 400 : on ne testerait plus l'estimation,
+        # seulement l'absence d'analyseur.
+        # / No few-shot example → the analyzer is filtered out and the
+        # view answers 400, testing nothing about chunk estimation.
+        exemple = AnalyseurExample.objects.create(
+            analyseur=analyseur, name="e", example_text="Texte.", order=0,
+        )
+        ExampleExtraction.objects.create(
+            example=exemple, extraction_class="idee",
+            extraction_text="Texte.", order=0,
         )
         return analyseur
 

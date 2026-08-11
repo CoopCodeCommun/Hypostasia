@@ -1,0 +1,67 @@
+<!--
+  FIXTURE — capture web REELLE.
+  Source : https://badgeonslanormandie.fr/le-projet-badgeons-la-normandie/
+  Recuperee le 11 aout 2026, puis extraite comme le fait le web clipper :
+  on jette nav/header/footer/aside/script/form, on garde le conteneur
+  d'article le plus dense, et on aplatit les balises non porteuses de
+  sens en ne conservant que h1-h5, p, listes, tableaux, figures, liens.
+  81 804 octets de page -> 6 641 de contenu.
+
+  POURQUOI CELLE-CI PLUTOT QU'UNE AUTRE
+  Les trois pages « Wikipedia » de l'ancienne base n'etaient PAS des
+  captures : elles sont ecrites en dur dans charger_fixtures_demo.py, et
+  ne contiennent que des <p>. Elles n'eprouvaient donc aucun label.
+  Celle-ci porte 4 intertitres, 5 listes, des figures : elle exerce
+  vraiment le decoupage.
+
+  CE QUE DOCLING EN TIRE (mesure du 11 aout, petite machine) :
+      54 elements — section_header 4 · list_item 5 · picture 1 · text 44
+
+  DEUX DEFAUTS REELS QU'ELLE REVELE, et c'est sa valeur :
+
+  1. Le `picture` rend un PLACEHOLDER technique dans le TEXTE de
+     l'element : « Image not available. Please use PdfPipelineOptions… ».
+     Un message destine au developpeur atterrit dans le document que
+     l'utilisateur lit. A traiter : soit l'element picture ne porte pas
+     de texte, soit on le filtre a l'extraction.
+
+  2. Les <strong> FRAGMENTENT le texte : « Le badge permet de » et
+     « reconnaitre » deviennent deux elements distincts la ou il y a une
+     seule phrase. Un ancrage pose sur cette phrase se retrouverait
+     coupe en deux portions sans raison.
+
+  / Real capture; its value is the two genuine defects it reveals.
+-->
+<p>Badgeons la Normandie est la branche normande d’un mouvement global en faveur de l’accès pour tous à la reconnaissance des apprentissages,  incarné aujourd’hui dans la sphère francophone par l’association <a href="https://reconnaitre.openrecognition.org"><strong>Reconnaître – Open Recognition Alliance.</strong></a> Concrètement, il s’agit d’un réseau d’organisations et d’individus qui <strong>explorent le potentiel des badges numériques ouverts</strong> pour construire un écosystème facilitant la reconnaissance et la valorisation des personnes et des compétences dans le cadre de la formation tout au long de la vie.</p>
+<p>Ce mouvement a été initié par la <a href="https://openbadgefactory.com/c/earnablebadge/OFA3HPaACPa4/apply"><strong>déclaration de Bologne pour une architecture ouverte de reconnaissance des apprentissages tout au long de la vie</strong></a>, soutenue par un ensemble d’experts, d’organisations et d’individus du monde de l’éducation, de l’entreprise et du monde social et humanitaire.</p>
+<p>BADGEONS LA NORMANDIE <strong>est ouvert à l’ensemble des individus, établissements, associations ou organisations des secteurs de l’éducation et de la formation, de l’insertion sociale et de l’emploi sur le territoire normand</strong> souhaitant nous rejoindre pour expérimenter les badges numériques au service de la construction d’un <strong>territoire apprenant</strong> : développer, reconnaître, valoriser et connecter les talents des normands.</p>
+<figure><img alt="" src="https://badgeonslanormandie.fr/wp-content/uploads/2022/02/petitlogo-1-300x300.png"/></figure>
+<p>Les partenaires ont identifié quatre axes autour desquels ils veulent collaborer,</p>
+<ul><li><strong>Autour de la personne </strong>: ancrochage et réussite scolaire, estime de soi et capacité d’agir ;</li><li><strong>Autour de l’emploi </strong>: employabilité et mobilité professionnelle ;</li><li><strong>Autour du territoire </strong>: identification et valorisation des bonnes pratiques et des initiatives dans les territoires ;</li><li><strong>Autour du numérique </strong>: inclusion numérique (l’insertion ou adaptation sociale et professionnelle en mobilisant le numérique).</li></ul>
+<p>et défini les buts de leur projet commun :</p>
+<ul><li>Faciliter la reconnaissance et la valorisation des personnes, de leurs engagements, de leurs compétences et des apprentissages formels et informels</li><li>Préparer les apprenants à la formation tout au long de la vie</li><li>Identifier les compétences émergentes, les connecter avec le marché de l’emploi</li><li>Mettre en œuvre des outils numériques pour favoriser la capacité d’agir en toute autonomie des apprenants.</li></ul>
+<h2>Que sont les badges numériques ouverts ?</h2>
+<p>En 2011, la fondation Mozilla et la fondation MacArthur créent les badges numériques ouverts (Open Badges) pour combler un manque dans les outils de reconnaissance des apprentissages informels.</p>
+<p>Un Badge Numérique Ouvert c’est une image dans laquelle sont enregistrées les informations (métadonnées) suivantes :</p>
+<ul><li>récepteur : à qui le badge a-t-il été remis</li><li>émetteur : qui a émis le badge</li><li>critères : qu’est-ce que le badge démontre/indique</li><li>preuves : les éléments produits par le récepteur qui satisfont les critères</li></ul>
+<p>L’infrastructure du badge garantit que son contenu ne peut être falsifié; l’identité de son récepteur est cachée (cryptée), ce qui peut se révéler utile pour des CV anonymes…</p>
+<figure><a href="https://badgeonslanormandie.fr/wp-content/uploads/2017/08/badge_definition1.png"><img alt="" src="https://badgeonslanormandie.fr/wp-content/uploads/2017/08/badge_definition1-300x213.png"/></a></figure>
+<p>Le badge permet de <strong>reconnaître </strong>des apprentissages, des compétences, des participations, des réalisations, des rôles ou des personnes. La reconnaissance peut être formelle (certification ou accréditation) ou informelle (endossement) et une collection de badges permet à une personne de bâtir des profils, à une institution d’établir des parcours d’apprentissage et à un territoire d’établir une cartographie des talents qui le composent.</p>
+<p>Les badges permettent aussi de connecter de nombreuses informations, par exemple une compétence avec des personnes, des ressources pédagogiques, des connaissances, des lieux, etc.</p>
+<p>C’est un objet technique simple qui peut être facilement mis en œuvre au niveau individuel, d’un enseignant, d’un parcours de formation, d’un établissement, d’un <strong>réseau de personnes</strong> ou<strong> d’un territoire</strong>.</p>
+<p>Soutenu depuis 2011 par la Badge Alliance (ensemble d’organisations, d’individus et d’experts internationaux) le standard des Open Badges est désormais développé par<strong> IMS Global</strong>, un consortium international composé de plus de 160 organisations contributrices. Ceci nous offre une <strong>garantie de pérennité et d’interopérabilité</strong>.</p>
+<figure>
+https://www.imsglobal.org/article/ims-global-mozilla-foundation-and-lrng-announce-next-steps-accelerate-evolution-open-badges.
+</figure>
+<h2>Qui sont les membres actuels ?</h2>
+<p>Au 1er mars 2022, il y a X membres actifs :</p>
+
+<p>Cliquez sur les punaises pour plus de détails.</p>
+<h2>Comment ?</h2>
+<p>Les actions actuellement engagées au sein du réseau :</p>
+<ul><li><strong>Communiquer et développer une culture permanente ouverte et partagée </strong>sur les badges numériques ouverts ;</li><li><strong>Identifier </strong>les apprentissages informels qui peuvent faire l’objet d’un badge au sein des établissements d’enseignement agricole</li><li>Construire une <strong>méthodologie partagée de</strong> conception de badges (construction de l’écosystème du badge) ;</li><li>Mettre en œuvre <strong>une plateforme de valorisation de badges</strong> utilisable par tous les partenaires (Expérimentation Open Badge Passport) ;</li><li><strong>Former </strong>les utilisateurs à l’utilisation des badges ;</li><li>Concevoir des <strong>parcours d’apprentissages</strong> (learning pathways/playlists) illustrés par des badges ;</li><li>Réfléchir ensemble au <strong>développement de services </strong>autour des badges</li><li>Produire une <strong>démarche documentée</strong> et transférable à d’autres territoires et secteurs d’activité.</li></ul>
+<h2>Le comité de pilotage</h2>
+<p>Le comité de pilotage est <strong>actuellement </strong>composé d’un·e représentant·e de chaque organisation membre. Il se réunit deux fois par an.</p>
+<ul><li>Les animateurs du réseau sont François Millet du Dôme et Eden Jean-Marie du CIBC</li></ul>
+
+<!-- .sidebar .widget-area -->
