@@ -199,7 +199,7 @@ def verifier_utilisabilite_analyseur(analyseur):
     :param analyseur: instance AnalyseurSyntaxique
     :return: tuple (utilisable: bool, problemes: list[str])
     """
-    from .models import AnalyseurSyntaxique
+    from ..models import AnalyseurSyntaxique
 
     # Le critere few-shot ne concerne que les analyseurs d'extraction.
     # / The few-shot rule only applies to extraction analyzers.

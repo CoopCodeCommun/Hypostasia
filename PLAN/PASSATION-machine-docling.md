@@ -122,7 +122,118 @@ seule boîte de coordonnées en base.
 
 ---
 
-## 3. Objectif 2 — Docling et le PDF
+## 3. Objectif 1 — la fixture de départ, depuis `sample/`
+
+C'est **le premier travail**, et il ne demande pas Docling pour les PDF :
+redonner à une base vide un corpus étalon qui exerce les quatre formes
+d'entrée du produit.
+
+### Ce que contient `sample/` (tout est versionné)
+
+| Fichier | Ce qu'il éprouve | Chemin d'ingestion | Docling |
+|---|---|---|---|
+| `capture-web-badgeons-la-normandie.html` | **web clipper** : capture RÉELLE d'un article en ligne | `convertir_du_html_avec_docling` (U4) | oui, **léger** |
+| `PRESENTATION-V3.md` | **import de fichier** markdown, document long et réel | `ingerer_un_fichier_avec_docling` (BR-B) | oui, **léger** |
+| `fake_debat_ia_transcription.json` | **transcription diarisée** déjà faite, 12 tours, 3 locuteurs | `ingerer_une_transcription_diarisee` | **non** |
+| `audio-FR-2locuteur-palaiscesar-14s.mp3` | **chaîne audio complète** : Voxtral → transcription → tours de parole | `transcrire_audio_task` puis ingestion | **non** |
+| `Etude_Epistemologique_IA.pdf` | le PDF | — | **oui, LOURD** |
+
+### La règle, pour ce premier temps
+
+**On charge tout SAUF le `.pdf` et le `.docx`.** Docling n'a pas encore
+été éprouvé sur ces formats-là sur cette machine ; les charger dans une
+commande de fixtures, c'est reproduire l'incident du 10 août (une
+commande de fixtures appelant Docling en masse a fait tomber le
+serveur). Le PDF vient à l'objectif 2, seul, mesuré, une conversion à la
+fois.
+
+Le HTML et le markdown, eux, sont **mesurés sûrs** : 784 Mo au pic,
+3,5 s (voir § 1). Ils passent bien par Docling — et il ne faut pas les
+en sortir, c'est lui qui donne les labels.
+
+### La capture web, et les deux défauts qu'elle révèle
+
+`capture-web-badgeons-la-normandie.html` est une capture **réelle**
+(article en ligne, récupéré et extrait comme le fait le clipper : on
+jette nav/header/footer/script, on garde le conteneur d'article le plus
+dense, on aplatit le reste). 81 804 octets de page → 6 641 de contenu.
+
+⚠️ Ne cherche pas de capture dans l'ancienne base : les trois pages
+« Wikipedia » qu'elle contenait n'en étaient pas. Elles sont écrites en
+dur dans `charger_fixtures_demo.py` et ne portent que des `<p>` — elles
+n'éprouvaient aucun label.
+
+**CONTRÔLE ATTENDU** (mesuré le 11 août, après les deux correctifs
+ci-dessous) :
+
+```
+28 éléments — section_header 4 · list_item 5 · text 19
+```
+
+Si tu obtiens **54 éléments**, dont un `picture`, c'est que tu tournes
+sur une version d'`extraire_les_elements_bruts` antérieure aux
+correctifs. Si tu obtiens cinquante blocs **tous** étiquetés `text`,
+quelque chose est cassé plus gravement : c'est ce que produisait
+l'ancien découpage par paragraphes, et ce que l'ancienne base traînait
+(4 888 `text` pour 4 `title`).
+
+### Deux défauts que cette fixture a révélés — CORRIGÉS le 11 août
+
+Ils touchaient **tous** les imports (markdown, docx, HTML), pas
+seulement cette capture. Ils sont réglés ; c'est écrit ici pour que tu
+ne les réintroduises pas.
+
+1. **Une image n'est pas un tableau.** Ni l'une ni l'autre n'a de
+   `.text`, mais le code tombait pour les deux sur
+   `export_to_markdown` — qui rend pour une image « `Image not
+   available. Please use PdfPipelineOptions…` ». Ce message destiné au
+   développeur devenait un bloc de lecture. Désormais une image porte
+   sa **légende** si elle en a une (texte d'auteur, citable), et ne
+   produit **aucun bloc** sinon. La sérialisation markdown reste pour
+   les tableaux : c'est ce pour quoi elle a été écrite.
+
+2. **Un gras ne coupe pas une phrase.** Docling range les fragments
+   d'une même ligne dans un groupe `GroupLabel.INLINE` : un `<strong>`
+   au milieu d'un paragraphe produisait deux éléments. « Le badge permet
+   de » et « reconnaître » étaient deux blocs là où l'auteur a écrit une
+   phrase — une idée ancrée dessus aurait été coupée en deux portions,
+   et la gouttière aurait annoncé deux passages. On recolle donc **dans**
+   un groupe inline, jamais entre deux, **jamais** une liste ni un titre
+   (`list` et `section` sont de la structure, `inline` de la mise en
+   forme).
+
+   ⚠️ Piège rencontré : un titre porte la **même** marque de groupe que
+   le paragraphe qui le suit. Sans une condition sur le label du
+   précédent, le texte se recollait DANS le titre.
+
+Ces correctifs ne changent pas les documents **déjà** en base : ils ne
+valent que pour les prochaines ingestions — ce qui tombe bien, la
+nouvelle machine part d'une base vide.
+
+### La commande à écrire
+
+`manage.py charger_fixtures_sample`, sur le patron de
+`core/management/commands/enrichir_la_provenance_audio.py` :
+
+- commandes et arguments **en français**, `--a-blanc` obligatoire,
+  bilan chiffré à la fin ;
+- **idempotente** : relancée, elle ne double rien ;
+- elle range les notes dans un carnet de démonstration, pour que
+  l'écran `/carnets/<id>/` ne soit pas vide ;
+- elle **n'appelle jamais Docling sur un PDF**, et le dit si on lui en
+  donne un ;
+- l'audio en deux temps : le `.json` s'ingère directement ; le `.mp3`
+  exige un appel Voxtral (clé `MISTRAL_API_KEY`) — la commande doit
+  pouvoir le **sauter proprement** si la clé manque, en le disant.
+
+Après elle, la base doit permettre de voir, sans rien installer de
+plus : une gouttière de document écrit (46 px, labels réels), une
+gouttière audio (96 px, locuteurs colorés, minutages), le panneau
+intégré, le surlignage révélé au survol.
+
+---
+
+## 4. Objectif 2 — Docling et le PDF
 
 Le service existe déjà : `hypostasis_extractor/services/
 ingestion_docling.py`. Il expose `convertir_un_fichier_avec_docling`,
@@ -155,79 +266,6 @@ Si tu as besoin d'éprouver des **tableaux** et des **images** (les deux
 formes qui cassent les convertisseurs) et que celui-ci n'en a pas,
 fabriques-en un et **verse-le dans `sample/`** : une fixture qui n'est
 pas versionnée n'existe pas.
-
----
-
-## 4. Objectif 1 — la fixture de départ, depuis `sample/`
-
-C'est **le premier travail**, et il ne demande pas Docling pour les PDF :
-redonner à une base vide un corpus étalon qui exerce les quatre formes
-d'entrée du produit.
-
-### Ce que contient `sample/` (tout est versionné)
-
-| Fichier | Ce qu'il éprouve | Chemin d'ingestion | Docling |
-|---|---|---|---|
-| `capture-web-ostrom.html` | **web clipper** : capture RÉELLE exportée de l'ancienne base | `convertir_du_html_avec_docling` (U4) | oui, **léger** |
-| `PRESENTATION-V3.md` | **import de fichier** markdown, document long et réel | `ingerer_un_fichier_avec_docling` (BR-B) | oui, **léger** |
-| `fake_debat_ia_transcription.json` | **transcription diarisée** déjà faite, 12 tours, 3 locuteurs | `ingerer_une_transcription_diarisee` | **non** |
-| `audio-FR-2locuteur-palaiscesar-14s.mp3` | **chaîne audio complète** : Voxtral → transcription → tours de parole | `transcrire_audio_task` puis ingestion | **non** |
-| `Etude_Epistemologique_IA.pdf` | le PDF | — | **oui, LOURD** |
-
-### La règle, pour ce premier temps
-
-**On charge tout SAUF le `.pdf` et le `.docx`.** Docling n'a pas encore
-été éprouvé sur ces formats-là sur cette machine ; les charger dans une
-commande de fixtures, c'est reproduire l'incident du 10 août (une
-commande de fixtures appelant Docling en masse a fait tomber le
-serveur). Le PDF vient à l'objectif 2, seul, mesuré, une conversion à la
-fois.
-
-Le HTML et le markdown, eux, sont **mesurés sûrs** : 784 Mo au pic,
-3,5 s (voir § 1). Ils passent bien par Docling — et il ne faut pas les
-en sortir, c'est lui qui donne les labels.
-
-### ⚠️ CE QUI MANQUE ENCORE : UNE CAPTURE WEB RICHE
-
-`capture-web-ostrom.html` est une **vraie** capture, exportée de
-l'ancienne base — c'est sa valeur : elle porte ce que le clipper produit
-réellement. Mais elle est **structurellement pauvre**, et c'est mesuré :
-9 balises `<p>`, **aucun** titre, aucune liste, aucun tableau. Elle
-éprouve donc le CHEMIN d'ingestion web, pas la variété des labels : tout
-en ressortira en `text`.
-
-Il manque une capture d'un **vrai article** — avec intertitres, listes,
-tableau, figure. Le propriétaire peut en produire une en un clic avec
-l'extension ; c'est la première chose à demander. Sans elle, on ne peut
-pas prouver que le découpage web distingue un titre d'un paragraphe.
-
-**Ce qu'une bonne capture doit donner comme contrôle** : plusieurs
-labels distincts (`title`, `section_header`, `list_item`, `table`,
-`picture`, `code`, `caption`, `text`). Si une conversion rend trente
-blocs **tous** étiquetés `text`, quelque chose est cassé — c'est
-exactement ce que produisait l'ancien découpage par paragraphes, et ce
-que l'ancienne base traînait : 4 888 `text` pour 4 `title`.
-
-### La commande à écrire
-
-`manage.py charger_fixtures_sample`, sur le patron de
-`core/management/commands/enrichir_la_provenance_audio.py` :
-
-- commandes et arguments **en français**, `--a-blanc` obligatoire,
-  bilan chiffré à la fin ;
-- **idempotente** : relancée, elle ne double rien ;
-- elle range les notes dans un carnet de démonstration, pour que
-  l'écran `/carnets/<id>/` ne soit pas vide ;
-- elle **n'appelle jamais Docling sur un PDF**, et le dit si on lui en
-  donne un ;
-- l'audio en deux temps : le `.json` s'ingère directement ; le `.mp3`
-  exige un appel Voxtral (clé `MISTRAL_API_KEY`) — la commande doit
-  pouvoir le **sauter proprement** si la clé manque, en le disant.
-
-Après elle, la base doit permettre de voir, sans rien installer de
-plus : une gouttière de document écrit (46 px, labels réels), une
-gouttière audio (96 px, locuteurs colorés, minutages), le panneau
-intégré, le surlignage révélé au survol.
 
 ---
 
@@ -403,12 +441,31 @@ docker exec hypostasia_dev_web supervisorctl restart daphne gunicorn
 
 ## 10. Par quoi commencer, concrètement
 
-1. Installer Docling, convertir **un seul** PDF, mesurer la RAM.
-2. Regarder si `provenance.boites` est rempli. **Si non, s'arrêter et le
-   dire** : tout le chantier PDF en dépend.
-3. Produire les 4 fixtures JSON + les PNG de pages.
-4. Écrire `manage.py charger_fixtures_pdf` (sans Docling).
-5. Vérifier que la gouttière affiche « p. N » et le bouton « voir la
-   source » sur une page ingérée — le code existe déjà et attend ces
-   données.
-6. Alors seulement, écrire la spec du visualiseur.
+**D'abord rendre la base utilisable — sans toucher au PDF.**
+
+1. Écrire `manage.py charger_fixtures_sample` et charger `sample/`
+   SAUF le `.pdf` : la capture web, le markdown, la transcription JSON,
+   et le `.mp3` si la clé Voxtral est là.
+2. Contrôler la capture web : **28 éléments**, `section_header` 4,
+   `list_item` 5, `text` 19. Un autre compte veut dire que quelque
+   chose a bougé dans l'extraction.
+3. Regarder l'écran de lecture : gouttière de 46 px sur le markdown,
+   de 96 px avec locuteurs et minutages sur l'audio. Si c'est le cas,
+   la base est saine et tout le reste peut se travailler.
+
+**Ensuite seulement, le PDF.**
+
+4. Installer Docling, convertir **un seul** PDF (`sample/
+   Etude_Epistemologique_IA.pdf`), mesurer la RAM au pic et la durée.
+5. Regarder si `provenance.boites` est rempli. **Si non, s'arrêter et
+   le dire** : tout le chantier du visualiseur en dépend, et personne
+   n'a encore vérifié ce point.
+6. Produire les fixtures JSON + les PNG de pages, et
+   `manage.py charger_fixtures_pdf` (sans Docling) pour les rejouer.
+7. Vérifier que la gouttière affiche « p. N » et le bouton « voir la
+   source » — **le code existe déjà et n'attend que la donnée**.
+8. Alors seulement, écrire la spec du visualiseur.
+
+Et à chaque étape : TDD, relecture adverse par un agent, vérification au
+navigateur avec contrastes calculés. C'est ce qui a rattrapé, sur les
+sessions précédentes, ce que la relecture seule laissait passer.

@@ -215,7 +215,7 @@ def extraire_les_elements_bruts(document_docling):
                 pile_des_titres, texte, label,
             )
 
-        elements_bruts.append({
+        element_brut = {
             "texte": texte,
             "label": label,
             "reference_docling": str(
@@ -223,7 +223,44 @@ def extraire_les_elements_bruts(document_docling):
             ),
             "chemin_de_section": list(pile_des_titres),
             "provenance": _provenance_de_l_element(element_docling),
-        })
+        }
+
+        # UN GRAS NE COUPE PAS UNE PHRASE.
+        #
+        # Docling range les fragments d'une meme ligne dans un GROUPE
+        # INLINE : un `<strong>` au milieu d'un paragraphe produit deux
+        # items `text` de meme parent. Les garder separes couperait une
+        # idee ancree sur cette phrase en deux portions sans raison, et
+        # la gouttiere annoncerait deux passages la ou l'auteur en a
+        # ecrit un. On recolle DANS un groupe, jamais entre deux — et
+        # jamais un titre ni une puce, qui sont de la structure, pas de
+        # la mise en forme.
+        # / Inline groups are formatting; rejoin them, never lists.
+        groupe = _groupe_inline_de_l_element(element_docling, document_docling)
+        if (
+            groupe is not None
+            and label == "text"
+            and elements_bruts
+            and elements_bruts[-1].get("_groupe_inline") == groupe
+            # Le precedent doit etre du TEXTE lui aussi : un titre porte
+            # la meme marque de groupe que le paragraphe qui le suit, et
+            # sans cette condition le texte se recollait DANS le titre.
+            # / A heading shares the group mark; never merge into it.
+            and elements_bruts[-1].get("label") == "text"
+        ):
+            elements_bruts[-1]["texte"] = (
+                elements_bruts[-1]["texte"].rstrip() + " " + texte.lstrip()
+            )
+            continue
+
+        element_brut["_groupe_inline"] = groupe
+        elements_bruts.append(element_brut)
+
+    # La marque de regroupement est un outil de travail, pas une donnee
+    # du document : elle ne sort pas d'ici.
+    # / The grouping mark is scaffolding; it does not leave this function.
+    for element_brut in elements_bruts:
+        element_brut.pop("_groupe_inline", None)
 
     logger.info(
         "Docling : %s element(s) retenu(s) sur le document.",
@@ -232,14 +269,65 @@ def extraire_les_elements_bruts(document_docling):
     return elements_bruts
 
 
+def _groupe_inline_de_l_element(element_docling, document_docling):
+    """
+    Rend la reference du groupe INLINE d'un element, s'il en a un.
+    / Returns the element's inline-group reference, if any.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    Docling distingue trois sortes de groupes : `inline` (une ligne
+    coupee par une balise de mise en forme), `list` (une liste) et
+    `section`. Seul le premier est de la MISE EN FORME — les deux
+    autres sont de la structure, et leurs elements doivent le rester.
+    / Only `inline` is formatting; `list` and `section` are structure.
+    """
+    parent = getattr(element_docling, "parent", None)
+    reference = getattr(parent, "cref", None) if parent is not None else None
+    if not reference:
+        return None
+
+    # Le document de test expose directement la question ; le vrai
+    # document Docling demande de retrouver le groupe par sa reference.
+    # / The fake document answers directly; the real one needs a lookup.
+    repondre = getattr(document_docling, "groupe_est_inline", None)
+    if repondre is not None:
+        return reference if repondre(reference) else None
+
+    for groupe in getattr(document_docling, "groups", None) or []:
+        if str(getattr(groupe, "self_ref", "")) != reference:
+            continue
+        label = str(getattr(groupe, "label", "") or "")
+        return reference if label.endswith("inline") else None
+    return None
+
+
 def _texte_de_l_element(element_docling, document_docling):
     """
     Rend le texte d'un element Docling, tableaux compris.
     / Returns a Docling element's text, tables included.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    UNE IMAGE N'EST PAS UN TABLEAU.
+
+    Ni l'une ni l'autre n'a de `.text`, mais seul le tableau gagne a
+    etre serialise en markdown. Pour une image, `export_to_markdown`
+    rend un message destine au developpeur — « Image not available.
+    Please use `PdfPipelineOptions`… » — qui atterrissait tel quel dans
+    le document que l'utilisateur lit (constate sur la capture
+    `sample/capture-web-badgeons-la-normandie.html`).
+
+    Une image porte donc sa LEGENDE si elle en a une (c'est du texte
+    d'auteur, citable), et rien sinon.
+    / An image is not a table: its markdown is a developer message.
     """
     texte = getattr(element_docling, "text", "") or ""
     if texte.strip():
         return texte
+
+    if str(getattr(element_docling, "label", "")).endswith("picture"):
+        return _legende_de_l_image(element_docling, document_docling)
 
     # Un tableau n'a pas de .text : on le serialise.
     # / A table has no .text: serialize it.
@@ -261,6 +349,31 @@ def _texte_de_l_element(element_docling, document_docling):
             logger.warning("Tableau non serialisable, ignore : %s", erreur)
             return ""
 
+    return ""
+
+
+def _legende_de_l_image(element_docling, document_docling):
+    """
+    Rend la legende d'une image, ou une chaine vide.
+    / Returns an image's caption, or an empty string.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    Une image sans legende ne donne AUCUN bloc : un bloc qui n'affiche
+    rien encombre la lecture et fausse le compte de la gouttiere.
+    / No caption, no block.
+    """
+    for legende in getattr(element_docling, "captions", None) or []:
+        resoudre = getattr(legende, "resolve", None)
+        objet = legende
+        if resoudre is not None:
+            try:
+                objet = resoudre(document_docling) or legende
+            except Exception:  # noqa: BLE001 — une legende n'est pas critique
+                objet = legende
+        texte = (getattr(objet, "text", "") or "").strip()
+        if texte:
+            return texte
     return ""
 
 

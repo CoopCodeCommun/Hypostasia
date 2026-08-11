@@ -405,3 +405,187 @@ class GardesFousDeConversionTest(TestCase):
         self.assertGreaterEqual(LIMITE_DE_PAGES_DOCLING, 50)
         self.assertLessEqual(LIMITE_DE_PAGES_DOCLING, 1000)
         self.assertEqual(LIMITE_DE_TAILLE_DOCLING, 50 * 1024 * 1024)
+
+
+class UnParagrapheNEstPasCoupeParUnGrasTest(TestCase):
+    """
+    Un `<strong>` au milieu d'une phrase ne doit pas la couper en deux.
+    / A `<strong>` mid-sentence must not split it in two.
+
+    LOCALISATION : hypostasis_extractor/tests/test_ingestion_docling.py
+
+    Docling range les fragments d'une meme ligne dans un GROUPE INLINE :
+    « Le badge permet de » et « reconnaitre » sortent comme deux items
+    `text` de parent `#/groups/11`, label `GroupLabel.INLINE`.
+
+    Les garder separes a un cout REEL, mesure sur la capture
+    `sample/capture-web-badgeons-la-normandie.html` : une idee ancree sur
+    cette phrase serait coupee en deux portions sans raison, et le
+    compteur de la gouttiere annoncerait deux passages la ou l'auteur en
+    a ecrit un seul. Le decoupage doit suivre le SENS du document, pas
+    sa mise en forme.
+    / Inline groups are formatting, not structure: rejoin them.
+    """
+
+    def test_les_fragments_d_un_groupe_inline_sont_recolles(self):
+        document = _DocumentFeint([
+            _ItemFeint("text", "Le badge permet de", parent="#/groups/11"),
+            _ItemFeint("text", "reconnaître", parent="#/groups/11"),
+            _ItemFeint("text", "des apprentissages.", parent="#/groups/11"),
+        ], groupes_inline={"#/groups/11"})
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 1)
+        self.assertEqual(
+            elements[0]["texte"], "Le badge permet de reconnaître des apprentissages.",
+        )
+
+    def test_deux_groupes_inline_restent_deux_elements(self):
+        # Recoller DANS un groupe, jamais ENTRE deux : ce sont deux
+        # phrases distinctes. / Join within a group, never across.
+        document = _DocumentFeint([
+            _ItemFeint("text", "Première phrase", parent="#/groups/11"),
+            _ItemFeint("text", "en gras.", parent="#/groups/11"),
+            _ItemFeint("text", "Seconde phrase", parent="#/groups/12"),
+            _ItemFeint("text", "aussi.", parent="#/groups/12"),
+        ], groupes_inline={"#/groups/11", "#/groups/12"})
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 2)
+        self.assertEqual(elements[0]["texte"], "Première phrase en gras.")
+        self.assertEqual(elements[1]["texte"], "Seconde phrase aussi.")
+
+    def test_un_groupe_de_liste_n_est_PAS_recolle(self):
+        # Les puces d'une liste partagent aussi un parent, mais ce sont
+        # des elements a part entiere — chacune a sa gouttiere et peut
+        # porter sa propre idee. / List items are structure, not
+        # formatting: never merge them.
+        document = _DocumentFeint([
+            _ItemFeint("list_item", "récepteur : à qui", parent="#/groups/3"),
+            _ItemFeint("list_item", "émetteur : qui a émis", parent="#/groups/3"),
+        ], groupes_inline=set())
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 2)
+
+    def test_un_titre_ne_se_recolle_a_rien(self):
+        document = _DocumentFeint([
+            _ItemFeint("section_header", "Que sont les badges ?", parent="#/groups/11"),
+            _ItemFeint("text", "En 2011,", parent="#/groups/11"),
+            _ItemFeint("text", "la fondation Mozilla.", parent="#/groups/11"),
+        ], groupes_inline={"#/groups/11"})
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 2)
+        self.assertEqual(elements[0]["label"], "section_header")
+        self.assertEqual(elements[1]["texte"], "En 2011, la fondation Mozilla.")
+
+
+class UneImageNAmenePasDeMessageTechniqueTest(TestCase):
+    """
+    Le placeholder de Docling ne doit jamais atterrir dans le document.
+    / Docling's placeholder must never reach the document.
+
+    LOCALISATION : hypostasis_extractor/tests/test_ingestion_docling.py
+
+    Une image n'a pas de `.text`. Le code tombait alors sur
+    `export_to_markdown`, prevu pour les TABLEAUX, qui rend pour une
+    image : « Image not available. Please use PdfPipelineOptions… ».
+
+    Mesure sur `sample/capture-web-badgeons-la-normandie.html` : ce
+    message destine au developpeur devenait un bloc de lecture, au
+    milieu du texte que l'utilisateur lit.
+    / A developer-facing message became a reading block.
+    """
+
+    def test_une_image_sans_legende_ne_produit_aucun_bloc(self):
+        document = _DocumentFeint([
+            _ItemFeint("text", "Avant l'image."),
+            _ItemFeint("picture", None, markdown="<!-- 🖼️❌ Image not available. "
+                                                 "Please use `PdfPipelineOptions`… -->"),
+            _ItemFeint("text", "Après l'image."),
+        ])
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 2)
+        for element in elements:
+            self.assertNotIn("Image not available", element["texte"])
+            self.assertNotIn("PdfPipelineOptions", element["texte"])
+
+    def test_une_image_LEGENDEE_garde_sa_legende(self):
+        # La legende, elle, est du texte d'auteur : elle reste, et elle
+        # est citable. / A caption is authored text: it stays.
+        document = _DocumentFeint([
+            _ItemFeint("picture", None, markdown="<!-- Image not available -->",
+                       legende="Courbe de participation, 2019-2026."),
+        ])
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 1)
+        self.assertEqual(elements[0]["texte"], "Courbe de participation, 2019-2026.")
+        self.assertEqual(elements[0]["label"], "picture")
+
+    def test_un_tableau_est_toujours_serialise(self):
+        # La serialisation markdown reste NECESSAIRE pour les tableaux :
+        # eux n'ont pas de `.text` non plus, et leur contenu compte.
+        # / Tables still need it: that is what it was written for.
+        document = _DocumentFeint([
+            _ItemFeint("table", None, markdown="| Projet | Durée |\n|---|---|\n| A | 9 ans |"),
+        ])
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 1)
+        self.assertIn("Projet", elements[0]["texte"])
+
+
+class _ItemFeint:
+    """Un item Docling minimal. / A minimal Docling item."""
+
+    _compteur = 0
+
+    def __init__(self, label, texte, parent=None, markdown=None, legende=None):
+        _ItemFeint._compteur += 1
+        self.label = label
+        self.text = texte
+        self.self_ref = f"#/texts/{_ItemFeint._compteur}"
+        self.parent = _RefFeinte(parent) if parent else None
+        self.captions = [_LegendeFeinte(legende)] if legende else []
+        self._markdown = markdown
+
+    def export_to_markdown(self, doc=None):
+        if self._markdown is None:
+            raise AttributeError("pas de markdown")
+        return self._markdown
+
+
+class _RefFeinte:
+    def __init__(self, cref):
+        self.cref = cref
+
+
+class _LegendeFeinte:
+    def __init__(self, texte):
+        self.text = texte
+
+    def resolve(self, doc=None):
+        return self
+
+
+class _DocumentFeint:
+    def __init__(self, items, groupes_inline=frozenset()):
+        self._items = items
+        self._groupes_inline = groupes_inline
+
+    def iterate_items(self):
+        for item in self._items:
+            yield item, 1
+
+    def groupe_est_inline(self, cref):
+        return cref in self._groupes_inline
