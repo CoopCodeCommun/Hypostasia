@@ -282,12 +282,44 @@ class RelanceManuelleTest(BaseIngestionUITest):
         ".ingerer_un_fichier_avec_docling.delay"
     )
     def test_pas_de_relance_pendant_une_ingestion_active(self, delay_mock):
+        # Correction 2 (revue de cloture du 11 aout) : une ingestion
+        # active GENUINEMENT recente (horodatee) reste bloquee — la
+        # date est ce qui distingue "en cours" de "fantome" desormais,
+        # `_creer_une_page` ne pose plus de date par defaut.
+        # / A genuinely active (dated, recent) ingestion still blocks —
+        # the timestamp is what now distinguishes "active" from "ghost".
+        from django.utils import timezone
+
         page = self._creer_une_page(
             "relance-active", etat=EtatIngestion.EN_COURS,
+        )
+        Page.objects.filter(pk=page.pk).update(
+            ingestion_maj_le=timezone.now(),
         )
         reponse = self.client.post(f"/lire/{page.pk}/relancer_ingestion/")
         self.assertEqual(reponse.status_code, 409)
         delay_mock.assert_not_called()
+
+    @mock.patch(
+        "hypostasis_extractor.tasks_element"
+        ".ingerer_un_fichier_avec_docling.delay"
+    )
+    def test_une_ingestion_active_sans_date_se_relance(self, delay_mock):
+        # Correction 2 (revue de cloture du 11 aout) : une page active
+        # SANS ingestion_maj_le (le bug corrige de core/views.py, plus
+        # jamais produit desormais) est traitee comme un fantome, EXACTEMENT
+        # comme le compteur du badge (front/views_taches.py) — sinon elle
+        # est invisible au badge ET bloquee ici : une impasse pour
+        # l'utilisateur, pire que le defaut d'origine.
+        # / A dateless active page is now a ghost here too, matching the
+        # badge's convention — otherwise it is invisible to the badge AND
+        # blocked here: a dead end, worse than the original defect.
+        page = self._creer_une_page(
+            "relance-sans-date", etat=EtatIngestion.EN_COURS,
+        )
+        reponse = self.client.post(f"/lire/{page.pk}/relancer_ingestion/")
+        self.assertEqual(reponse.status_code, 200)
+        delay_mock.assert_called_once_with(page.pk)
 
     @mock.patch(
         "hypostasis_extractor.tasks_element"

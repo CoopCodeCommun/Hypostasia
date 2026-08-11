@@ -22,6 +22,7 @@ from core.models import (
     AIModel,
     Configuration,
     ElementDocument,
+    EtatIngestion,
     Page,
     empreinte_du_texte,
 )
@@ -407,6 +408,168 @@ class IngestionResoutLeCheminTest(BaseTacheTestCase):
         resultat = ingerer_un_fichier_avec_docling(self.page_de_test.pk)
 
         self.assertIn("erreur", resultat)
+
+    def test_une_relance_reussie_reamorce_le_drapeau_de_notification(self):
+        # Une relance (page deja lue, notification acquittee) doit
+        # remettre ingestion_notification_lue a False des que le
+        # nouveau cycle demarre (en_cours) : sinon la fin du nouveau
+        # cycle n'allume jamais le badge (revue adverse, tache 8).
+        # / A relaunch must rearm the read flag when the new cycle
+        # starts, or its completion never re-lights the badge.
+        from django.core.files.base import ContentFile
+
+        from hypostasis_extractor.tasks_element import (
+            ingerer_un_fichier_avec_docling,
+        )
+
+        self.page_de_test.source_file.save(
+            "relance.md", ContentFile(b"# Titre\n\nTexte."), save=True,
+        )
+        self.page_de_test.ingestion_notification_lue = True
+        self.page_de_test.save(update_fields=["ingestion_notification_lue"])
+
+        with patch(
+            "hypostasis_extractor.services.ingestion_docling"
+            ".ingerer_un_fichier",
+            return_value=[],
+        ):
+            ingerer_un_fichier_avec_docling(self.page_de_test.pk)
+
+        self.page_de_test.refresh_from_db()
+        self.assertFalse(self.page_de_test.ingestion_notification_lue)
+
+    def test_une_relance_reamorce_aussi_le_drapeau_par_destinataire(self):
+        # Correction 1 (revue de cloture du 11 aout) : le drapeau lu est
+        # maintenant PAR DESTINATAIRE (NotificationTacheLue). Le meme
+        # besoin de reamorcage s'applique : si le proprietaire ET le
+        # proprietaire du carnet ont tous les deux marque l'ingestion
+        # lue avant la relance, les DEUX doivent revoir la notification
+        # a la fin du nouveau cycle — sinon elle ne s'allume plus jamais
+        # pour personne.
+        # / The per-recipient flag needs the same rearming: every
+        # recipient who had marked the ingestion read must see the
+        # notification again once the new cycle completes.
+        from django.core.files.base import ContentFile
+
+        from core.models import NotificationTacheLue
+        from hypostasis_extractor.tasks_element import (
+            ingerer_un_fichier_avec_docling,
+        )
+
+        self.page_de_test.source_file.save(
+            "relance.md", ContentFile(b"# Titre\n\nTexte."), save=True,
+        )
+        autre_destinataire = get_user_model().objects.create_user(
+            username="autre_destinataire_relance", password="x",
+        )
+        NotificationTacheLue.objects.create(
+            utilisateur=self.utilisateur_de_test, type_tache="ingestion",
+            tache_id=self.page_de_test.pk,
+        )
+        NotificationTacheLue.objects.create(
+            utilisateur=autre_destinataire, type_tache="ingestion",
+            tache_id=self.page_de_test.pk,
+        )
+
+        with patch(
+            "hypostasis_extractor.services.ingestion_docling"
+            ".ingerer_un_fichier",
+            return_value=[],
+        ):
+            ingerer_un_fichier_avec_docling(self.page_de_test.pk)
+
+        self.assertFalse(
+            NotificationTacheLue.objects.filter(
+                type_tache="ingestion", tache_id=self.page_de_test.pk,
+            ).exists()
+        )
+
+
+class IngestionDejaFaiteParUneExecutionConcurrenteTest(BaseTacheTestCase):
+    """
+    Defaut observe en production (11 aout 2026) : deux executions
+    concurrentes de la meme tache d'ingestion. La perdante franchit la
+    garde d'entree avant que la gagnante n'ait fini d'ecrire, puis
+    trouve la place prise a l'arrivee (le service audio le dit dans son
+    retour, le service Docling le dit par une ValueError). Ce n'est pas
+    un echec : le travail est fait. Les trois taches doivent le dire en
+    posant REUSSIE, pas ECHOUEE.
+    / A losing concurrent run must be marked REUSSIE, not ECHOUEE — the
+    work is done, even though this execution's own write was refused.
+    """
+
+    def test_le_service_audio_page_deja_ingeree_reste_reussie(self):
+        from hypostasis_extractor.tasks_element import (
+            ingerer_une_transcription_diarisee_en_elements,
+        )
+
+        with patch(
+            "hypostasis_extractor.services.ingestion_audio."
+            "ingerer_une_transcription_diarisee",
+            return_value={"erreur": "page deja ingeree"},
+        ), patch("front.tasks.notifier_tache_terminee") as notification:
+            resultat = ingerer_une_transcription_diarisee_en_elements(
+                self.page_de_test.pk,
+            )
+
+        self.page_de_test.refresh_from_db()
+        self.assertEqual(resultat, {"erreur": "page deja ingeree"})
+        self.assertEqual(
+            self.page_de_test.ingestion_etat, EtatIngestion.REUSSIE,
+        )
+        self.assertEqual(notification.call_args.kwargs["status"], "completed")
+
+    def test_le_fichier_docling_deja_ingere_par_ailleurs_reste_reussi(self):
+        from hypostasis_extractor.tasks_element import (
+            ingerer_un_fichier_avec_docling,
+        )
+
+        def simuler_la_course(page, chemin_du_fichier):
+            # Une autre execution a fini la conversion la premiere.
+            # / A concurrent run finished the conversion first.
+            self._ajouter_un_element("Cree par l'autre execution.")
+            raise ValueError(f"La page {page.pk} a deja des elements.")
+
+        with patch(
+            "hypostasis_extractor.services.ingestion_docling"
+            ".ingerer_un_fichier",
+            side_effect=simuler_la_course,
+        ), patch("front.tasks.notifier_tache_terminee") as notification:
+            resultat = ingerer_un_fichier_avec_docling(
+                self.page_de_test.pk, chemin_du_fichier="/tmp/inexistant.pdf",
+            )
+
+        self.page_de_test.refresh_from_db()
+        self.assertEqual(resultat, {"erreur": "page deja ingeree"})
+        self.assertEqual(
+            self.page_de_test.ingestion_etat, EtatIngestion.REUSSIE,
+        )
+        self.assertEqual(notification.call_args.kwargs["status"], "completed")
+
+    def test_la_capture_web_deja_ingeree_par_ailleurs_reste_reussie(self):
+        from hypostasis_extractor.tasks_element import (
+            ingerer_une_capture_web_avec_docling,
+        )
+
+        def simuler_la_course(page):
+            self._ajouter_un_element("Cree par l'autre execution.")
+            raise ValueError(f"La page {page.pk} a deja des elements.")
+
+        with patch(
+            "hypostasis_extractor.services.ingestion_docling"
+            ".ingerer_une_capture_web",
+            side_effect=simuler_la_course,
+        ), patch("front.tasks.notifier_tache_terminee") as notification:
+            resultat = ingerer_une_capture_web_avec_docling(
+                self.page_de_test.pk,
+            )
+
+        self.page_de_test.refresh_from_db()
+        self.assertEqual(resultat, {"erreur": "page deja ingeree"})
+        self.assertEqual(
+            self.page_de_test.ingestion_etat, EtatIngestion.REUSSIE,
+        )
+        self.assertEqual(notification.call_args.kwargs["status"], "completed")
 
 
 class QueueDedieeDoclingTest(TestCase):

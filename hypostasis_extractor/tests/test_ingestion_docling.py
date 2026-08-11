@@ -15,6 +15,7 @@ construction des elements — est teste avec un document simule.
 / Docling conversion is slow; those tests are tagged and opt-in.
 """
 
+import enum
 import os
 
 from django.test import TestCase, tag
@@ -53,6 +54,20 @@ class FausseProvenance:
     def __init__(self, page_no, boite):
         self.page_no = page_no
         self.bbox = boite
+
+
+class CoordOriginFeinte(enum.Enum):
+    """
+    Imite l'enumeration CoordOrigin de docling-core.
+    / Mimics docling-core's CoordOrigin enum.
+
+    str() d'un membre d'enumeration rend "CoordOriginFeinte.BOTTOMLEFT" —
+    le prefixe de classe compris. C'est exactement le defaut reproduit
+    ici : Docling rend un membre, pas une chaine.
+    / str() on a member includes the class prefix; that is the bug.
+    """
+
+    BOTTOMLEFT = "BOTTOMLEFT"
 
 
 class FauxDocumentDocling:
@@ -218,6 +233,30 @@ class ProvenancePhysiqueTest(TestCase):
         self.assertEqual(len(boites), 2)
         self.assertEqual(boites[0]["page_no"], 3)
         self.assertEqual(boites[1]["page_no"], 4)
+
+    def test_le_coord_origin_est_reduit_a_sa_valeur(self):
+        """
+        Docling rend un MEMBRE d'enumeration pour coord_origin, pas une
+        chaine. str() dessus produit "CoordOriginFeinte.BOTTOMLEFT" — le
+        prefixe de classe compris — inexploitable par un visualiseur PDF.
+        C'est `.value` qu'il faut : "BOTTOMLEFT".
+        / str() on the enum member leaks the class prefix; take `.value`.
+        """
+        boite = FausseBoite(10, 700, 500, 650)
+        boite.coord_origin = CoordOriginFeinte.BOTTOMLEFT
+        document = FauxDocumentDocling([
+            FauxElementDocling(
+                "Un paragraphe", "text",
+                provenances=[FausseProvenance(1, boite)],
+            ),
+        ])
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(
+            elements[0]["provenance"]["boites"][0]["coord_origin"],
+            "BOTTOMLEFT",
+        )
 
 
 class CreationDesElementsTest(TestCase):

@@ -69,6 +69,16 @@ class CaptureWebRouteVersDoclingTest(TestCase):
         delay_mock.assert_called_once_with(page.pk,
         )
         self.assertEqual(page.ingestion_etat, EtatIngestion.EN_ATTENTE)
+        # Defaut 3 (revue de cloture du 11 aout) : les deux autres
+        # endroits qui posent l'etat en_attente ecrivent aussi
+        # ingestion_maj_le (front/views.py:2103 et 5657). Sans cet
+        # horodatage, la detection du fantome (defaut 2) ne peut jamais
+        # se declencher pour une capture web, et order_by("-ingestion_maj_le")
+        # la classe en tete (NULL en premier sous PostgreSQL).
+        # / The other two call sites that set en_attente also stamp
+        # ingestion_maj_le; without it, ghost detection can never fire
+        # for a web capture, and the dropdown's ordering misplaces it.
+        self.assertIsNotNone(page.ingestion_maj_le)
 
     @mock.patch(
         "hypostasis_extractor.tasks_element"

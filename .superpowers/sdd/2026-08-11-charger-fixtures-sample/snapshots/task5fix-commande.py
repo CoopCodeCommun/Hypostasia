@@ -1,0 +1,868 @@
+"""
+Charge les documents etalons de sample/ dans une base vide.
+/ Loads the reference documents from sample/ into an empty database.
+
+LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+POURQUOI CETTE COMMANDE
+
+Une base neuve n'a ni utilisateur, ni carnet, ni note : il n'y a rien a
+regarder, donc rien a developper. `sample/` porte les documents etalons
+choisis pour couvrir les quatre formes d'entree du produit — capture
+web, fichier ecrit, transcription deja faite, audio brut. Cette commande
+les transforme en base utilisable.
+
+CE QU'ELLE NE FAIT PAS
+
+Elle n'appelle JAMAIS Docling sur un PDF ni sur un docx. Une commande de
+fixtures qui convertit des PDF en masse a fait tomber le serveur le
+10 aout 2026. Le PDF a son propre chemin, mesure, une conversion a la
+fois.
+/ It never runs Docling on a PDF: mass conversion took the server down.
+
+LANCER LA COMMANDE
+
+    docker exec -w /app hypostasia_web uv run python manage.py \\
+        charger_fixtures_sample --a-blanc
+    docker exec -w /app hypostasia_web uv run python manage.py \\
+        charger_fixtures_sample
+"""
+
+import hashlib
+import os
+from pathlib import Path
+
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
+from django.core.management.base import BaseCommand
+
+from core.models import Dossier, Page, TranscriptionConfig, VisibiliteDossier
+from core.services.corpus import ranger_une_note_dans_un_carnet
+
+User = get_user_model()
+
+NOM_DU_CARNET = "Documents étalons"
+
+REPERTOIRE_SAMPLE = Path(settings.BASE_DIR) / "sample"
+
+FICHIER_DE_LA_CAPTURE = "capture-web-badgeons-la-normandie.html"
+FICHIER_DU_MARKDOWN = "PRESENTATION-V3.md"
+FICHIER_DE_LA_TRANSCRIPTION = "fake_debat_ia_transcription.json"
+FICHIER_DU_MP3 = "audio-FR-2locuteur-palaiscesar-14s.mp3"
+
+# Les formats que cette commande ne convertit jamais elle-meme : Docling
+# les mesure a 2 a 3,4 Gio et 80 a 164 s selon la taille (mesure du
+# 11 aout 2026, voir tmp/benchmark-docling-2026-08-11.md). Ils ont leur
+# propre chemin, une conversion a la fois. / Formats this command never
+# converts itself: measured at 2-3.4 GiB and 80-164s, see the benchmark
+# file above. They have their own path, one conversion at a time.
+EXTENSIONS_REFUSEES = {".pdf", ".docx"}
+
+# Les quatre documents etalons, par nom de fichier, dans l'ordre de
+# chargement. `--fichier` restreint a un sous-ensemble de cette table.
+# / The four reference documents, in loading order.
+DOCUMENTS_ETALONS = [
+    FICHIER_DE_LA_CAPTURE,
+    FICHIER_DU_MARKDOWN,
+    FICHIER_DE_LA_TRANSCRIPTION,
+    FICHIER_DU_MP3,
+]
+
+# L'article d'origine. Sans url, l'idempotence de la capture porterait
+# sur un champ vide et deux captures se confondraient.
+# / Without a url, the capture's idempotency key would be empty.
+URL_DE_LA_CAPTURE = "https://badgeons-la-normandie.fr/"
+
+# Memes identifiants que charger_fixtures_demo : un seul mot de passe a
+# retenir, quel que soit l'ordre dans lequel les deux commandes tournent.
+# / Same credentials as charger_fixtures_demo: one password to remember.
+UTILISATEUR_PAR_DEFAUT = {
+    "username": "jonas",
+    "email": "jonas@demo.hypostasia.org",
+    "password": "admin1234",
+}
+
+
+class Command(BaseCommand):
+    help = (
+        "Charge les documents etalons de sample/ (capture web, markdown, "
+        "transcription JSON, audio) dans un carnet de demonstration. "
+        "N'appelle jamais Docling sur un PDF ou un docx."
+    )
+
+    def add_arguments(self, analyseur_d_arguments):
+        analyseur_d_arguments.add_argument(
+            "--a-blanc", action="store_true",
+            help="Affiche ce qui serait fait, sans rien ecrire.",
+        )
+        analyseur_d_arguments.add_argument(
+            "--sans-mp3", action="store_true",
+            help="Saute la transcription Voxtral du fichier audio.",
+        )
+        analyseur_d_arguments.add_argument(
+            "--fichier", action="append", default=None, dest="fichiers",
+            help=(
+                "Ne charger que ce fichier de sample/, au lieu des quatre. "
+                "Repetable."
+            ),
+        )
+        analyseur_d_arguments.add_argument(
+            "--reset", action="store_true",
+            help=(
+                "Supprime le carnet etalon et ses notes propres avant de "
+                "recharger. Refuse si une note porte des ancres."
+            ),
+        )
+
+    def handle(self, *args, **options):
+        self.a_blanc = options["a_blanc"]
+        self.sans_mp3 = options["sans_mp3"]
+        # Resolu AVANT toute ecriture et toute conversion : un --fichier
+        # pointant un PDF doit rendre la main immediatement, pas apres
+        # avoir lance Docling. / Resolved before any write or conversion.
+        self.fichiers_demandes = self._resoudre_les_fichiers_demandes(
+            options["fichiers"],
+        )
+
+        if self.a_blanc:
+            self.stdout.write(self.style.WARNING(
+                "MODE A BLANC — rien ne sera ecrit.",
+            ))
+
+        proprietaire = self._proprietaire()
+
+        if options["reset"]:
+            self._reinitialiser(proprietaire)
+
+        carnet_des_etalons = self._creer_le_carnet(proprietaire)
+        self._creer_la_config_de_transcription()
+
+        self._charger_les_documents(proprietaire, carnet_des_etalons)
+
+        if self.a_blanc:
+            self.stdout.write(self.style.WARNING(
+                "\nRien n'a ete ecrit : relancer sans --a-blanc pour agir.",
+            ))
+
+    def _resoudre_les_fichiers_demandes(self, fichiers_de_l_option):
+        """
+        Rend la liste des fichiers a charger, en refusant les formats lourds.
+        / Returns the files to load, refusing the heavy formats.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        POURQUOI REFUSER PLUTOT QU'IGNORER
+
+        Le PDF et le docx n'ont pas ete eprouves par Docling sur cette
+        machine. Une commande de fixtures qui convertit des PDF en masse a
+        fait tomber le serveur le 10 aout 2026 : 2 031 Mio et 98 s pour
+        trois pages. Les laisser passer en silence rejouerait l'incident ;
+        les refuser en le disant oriente vers le chemin prevu pour eux.
+        / Refusing loudly beats ignoring silently: mass PDF conversion
+        took the server down.
+        """
+        from django.core.management.base import CommandError
+
+        if not fichiers_de_l_option:
+            return list(DOCUMENTS_ETALONS)
+
+        fichiers_retenus = []
+        for chemin_demande in fichiers_de_l_option:
+            nom_du_fichier = os.path.basename(chemin_demande)
+            extension = os.path.splitext(nom_du_fichier)[1].lower()
+
+            if extension in EXTENSIONS_REFUSEES:
+                raise CommandError(
+                    f"« {nom_du_fichier} » est un {extension} : cette "
+                    f"commande ne lance jamais Docling sur ce format. Une "
+                    f"conversion de PDF coûte de 2 à 3,4 Gio et de 80 à "
+                    f"164 s selon la taille (mesure du 11 août 2026, voir "
+                    f"tmp/benchmark-docling-2026-08-11.md) ; une commande "
+                    f"de fixtures qui en enchaîne a fait tomber le serveur "
+                    f"le 10 août. Le PDF et le docx ont un chemin "
+                    f"d'ingestion dédié, mesuré, une conversion à la "
+                    f"fois — la commande qui rejouera ces fixtures déjà "
+                    f"converties sans Docling est prévue mais n'existe "
+                    f"pas encore dans ce dépôt.",
+                )
+
+            if nom_du_fichier not in DOCUMENTS_ETALONS:
+                raise CommandError(
+                    f"« {nom_du_fichier} » n'est pas un document étalon. "
+                    f"Attendus : {', '.join(DOCUMENTS_ETALONS)}.",
+                )
+
+            fichiers_retenus.append(nom_du_fichier)
+
+        return fichiers_retenus
+
+    def _proprietaire(self):
+        """
+        Rend le proprietaire des notes etalons, en le creant s'il le faut.
+        / Returns the reference notes' owner, creating one if needed.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        Une base neuve n'a AUCUN utilisateur. `charger_fixtures_llm_reel`
+        leve une CommandError dans ce cas — c'est precisement le cas que
+        cette commande doit savoir traiter.
+        / A fresh database has no user at all; this must not be fatal.
+        """
+        proprietaire_existant = User.objects.filter(
+            is_superuser=True,
+        ).order_by("pk").first()
+        if proprietaire_existant is None:
+            proprietaire_existant = User.objects.order_by("pk").first()
+
+        if proprietaire_existant is not None:
+            self.stdout.write(
+                f"Propriétaire        : {proprietaire_existant.username} (réutilisé)",
+            )
+            return proprietaire_existant
+
+        self.stdout.write(
+            f"Propriétaire        : {UTILISATEUR_PAR_DEFAUT['username']} (créé)",
+        )
+        if self.a_blanc:
+            return None
+
+        proprietaire_cree = User.objects.create_user(
+            username=UTILISATEUR_PAR_DEFAUT["username"],
+            email=UTILISATEUR_PAR_DEFAUT["email"],
+            is_staff=True,
+        )
+        proprietaire_cree.set_password(UTILISATEUR_PAR_DEFAUT["password"])
+        proprietaire_cree.save()
+        return proprietaire_cree
+
+    def _creer_le_carnet(self, proprietaire):
+        """
+        Rend le carnet des documents etalons, en le creant s'il le faut.
+        / Returns the reference notebook, creating it if needed.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+        """
+        if self.a_blanc:
+            self.stdout.write(f"Carnet              : {NOM_DU_CARNET} (serait créé)")
+            return None
+
+        carnet, a_ete_cree = Dossier.objects.get_or_create(
+            name=NOM_DU_CARNET, owner=proprietaire,
+            defaults={"visibilite": VisibiliteDossier.PUBLIC},
+        )
+        self.stdout.write(
+            f"Carnet              : {NOM_DU_CARNET} — pk={carnet.pk} "
+            f"({'créé' if a_ete_cree else 'réutilisé'})",
+        )
+        return carnet
+
+    def _creer_la_config_de_transcription(self):
+        """
+        Cree la configuration Voxtral, si la cle API est presente.
+        / Creates the Voxtral configuration, if the API key is present.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        SANS CETTE CONFIG, LA TRANSCRIPTION EST MOCKEE EN SILENCE.
+
+        front/tasks.py:633 teste `config.provider == "voxtral"` et retombe
+        sinon sur `transcrire_audio_mock`. Sur une base neuve il n'existe
+        aucune config : le mp3 produirait un faux verbatim que rien ne
+        distinguerait d'une vraie transcription.
+        / Without this config the transcription is silently mocked.
+
+        Cle absente : on ne cree RIEN. Une config qui echouera au premier
+        appel est pire que pas de config — elle donne l'illusion que la
+        chaine est branchee. / An about-to-fail config is worse than none.
+        """
+        if not os.environ.get("MISTRAL_API_KEY"):
+            self.stdout.write(
+                "Transcription       : pas de MISTRAL_API_KEY — config non créée",
+            )
+            return None
+
+        if self.a_blanc:
+            self.stdout.write("Transcription       : Voxtral Mini (serait créée)")
+            return None
+
+        config, a_ete_creee = TranscriptionConfig.objects.get_or_create(
+            name="Voxtral Mini",
+            defaults={
+                "model_choice": "voxtral-mini-latest",
+                "is_active": True,
+                "diarization_enabled": True,
+                "language": "",
+            },
+        )
+        self.stdout.write(
+            f"Transcription       : {config.name} "
+            f"({'créée' if a_ete_creee else 'réutilisée'})",
+        )
+        return config
+
+    def _reinitialiser(self, proprietaire):
+        """
+        Supprime le carnet etalon et les notes qui n'appartiennent qu'a lui.
+        / Deletes the reference notebook and the notes filed only in it.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        POURQUOI CETTE OPTION EXISTE
+
+        L'idempotence saute ce qui est deja la — y compris l'appel Voxtral,
+        qu'on veut precisement pouvoir rejouer a chaque chargement. `--reset`
+        est la seule facon de tout refaire.
+        / Idempotency skips the Voxtral call we want to replay.
+
+        LE GARDE-FOU N'EST PAS FACULTATIF
+
+        `AncrageExtraction.element` est en PROTECT : supprimer une page qui
+        porte des ancres leve ProtectedError. On ne se contente pas de
+        laisser l'exception sortir — on VERIFIE D'ABORD, et on refuse tout
+        en bloc. Une suppression partielle laisserait le carnet a moitie
+        vide, dans un etat que personne n'a voulu.
+        / Check first and refuse wholesale: a partial delete is worse.
+        """
+        from django.core.management.base import CommandError
+
+        from hypostasis_extractor.models import AncrageExtraction
+
+        carnet_existant = Dossier.objects.filter(
+            name=NOM_DU_CARNET, owner=proprietaire,
+        ).first()
+        if carnet_existant is None:
+            self.stdout.write("Réinitialisation    : aucun carnet à supprimer")
+            return None
+
+        # Les notes rangees UNIQUEMENT dans ce carnet sont a nous. Une note
+        # rangee ailleurs aussi appartient a ce quelqu'un d'autre.
+        # / Only notes filed solely here are ours to remove.
+        notes_a_supprimer = []
+        for page in Page.objects.filter(
+            appartenances_dossiers__dossier=carnet_existant,
+        ).distinct():
+            rangee_ailleurs = page.appartenances_dossiers.exclude(
+                dossier=carnet_existant,
+            ).exists()
+            if not rangee_ailleurs:
+                notes_a_supprimer.append(page)
+
+        # VERIFIER AVANT DE SUPPRIMER.
+        notes_avec_ancres = []
+        for page in notes_a_supprimer:
+            nombre_d_ancres = AncrageExtraction.objects.filter(
+                element__page=page,
+            ).count()
+            if nombre_d_ancres:
+                notes_avec_ancres.append((page, nombre_d_ancres))
+
+        if notes_avec_ancres:
+            detail = " ; ".join(
+                f"« {page.title} » ({nombre} ancre(s))"
+                for page, nombre in notes_avec_ancres
+            )
+            raise CommandError(
+                f"--reset refusé : {detail}. Ces notes portent des "
+                f"extractions ancrées, et une ancre est une preuve. Rien "
+                f"n'a été supprimé. Retirer les portions d'abord, ou "
+                f"recharger dans une base neuve.",
+            )
+
+        if self.a_blanc:
+            self.stdout.write(
+                f"Réinitialisation    : {len(notes_a_supprimer)} note(s) "
+                f"seraient supprimées",
+            )
+            return None
+
+        for page in notes_a_supprimer:
+            page.delete()
+        carnet_existant.delete()
+
+        self.stdout.write(
+            f"Réinitialisation    : {len(notes_a_supprimer)} note(s) "
+            f"supprimée(s), carnet supprimé",
+        )
+        return None
+
+    def _note_deja_presente(self, carnet_des_etalons, nom_du_fichier):
+        """
+        Dit si une note issue de ce fichier est deja dans le carnet.
+        / Says whether a note from this file is already in the notebook.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        On regarde AVANT de convertir. Le service porte bien un garde-fou
+        — `creer_les_elements_d_une_page` leve si la page a deja des
+        elements — mais il arrive APRES la conversion Docling. S'y fier
+        ferait payer 98 s pour un PDF de 3 pages, et rien produire.
+        / The service's guard comes after conversion; this one comes before.
+        """
+        if carnet_des_etalons is None:
+            return False
+        return Page.objects.filter(
+            appartenances_dossiers__dossier=carnet_des_etalons,
+            original_filename=nom_du_fichier,
+        ).exists()
+
+    def _charger_les_documents(self, proprietaire, carnet_des_etalons):
+        """
+        Charge les documents etalons, un par forme d'entree.
+        / Loads the reference documents, one per input form.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+        """
+        self._charger_la_capture_web(proprietaire, carnet_des_etalons)
+        self._charger_le_markdown(proprietaire, carnet_des_etalons)
+        self._charger_la_transcription_json(proprietaire, carnet_des_etalons)
+        self._charger_le_mp3(proprietaire, carnet_des_etalons)
+
+    def _charger_la_capture_web(self, proprietaire, carnet_des_etalons):
+        """
+        Cree la note issue de la capture web, et l'ingere.
+        / Creates the note from the web capture, and ingests it.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        C'est la SEULE fixture qui eprouve les labels de structure d'un
+        HTML reel : section_header, list_item, text. Les pages « Wikipedia »
+        de charger_fixtures_demo n'ont que des <p> et sortent toutes en
+        `text`. / The only fixture exercising real HTML structure labels.
+
+        C'EST AUSSI LA SEULE DES QUATRE A VERIFIER UNE CONTRAINTE GLOBALE
+        AVANT DE CREER.
+
+        Elle est la seule des quatre fixtures a porter une `url` : le
+        markdown, la transcription JSON et le mp3 la creent a `None`. Or
+        `unique_url_si_presente` (core/models.py:321-325) est une
+        contrainte GLOBALE sur `url`, non scopee par carnet ni par
+        proprietaire — sa condition `url__isnull=False` exempte les trois
+        autres, qui n'ont donc pas besoin de ce garde. Ne pas « harmoniser »
+        les quatre methodes par symetrie : les trois autres n'ont rien a
+        verifier.
+        / Only this one carries a `url`; the other three create it as
+        None and are exempted by the constraint's `url__isnull=False`
+        condition. Do not "harmonize" the four loaders by apparent
+        symmetry — the other three have nothing to check.
+
+        Ce garde s'applique a CHAQUE execution, pas seulement apres un
+        --reset : c'est une consequence de la contrainte globale, pas une
+        specificite du reset. --reset est simplement le chemin qui le
+        rend visible en pratique (une page « rangee ailleurs » survit au
+        reset, puis le carnet recree tente de la re-creer).
+        / This guard runs on every execution, not only after --reset —
+        --reset is merely the path that makes the collision reachable.
+        """
+        # Garde : --fichier peut avoir exclu ce document.
+        # / Guard: --fichier may have excluded this document.
+        if FICHIER_DE_LA_CAPTURE not in self.fichiers_demandes:
+            return None
+
+        if self._note_deja_presente(carnet_des_etalons, FICHIER_DE_LA_CAPTURE):
+            self.stdout.write("Capture web         : déjà présente — sautée")
+            return None
+
+        if self.a_blanc:
+            self.stdout.write("Capture web         : serait chargée")
+            return None
+
+        # `url` est unique en base (contrainte unique_url_si_presente,
+        # non scopee par carnet). --reset peut avoir garde cette page
+        # ailleurs (rangee aussi dans un autre carnet, donc pas a nous
+        # de la supprimer) : on la range ici plutot que d'en tenter un
+        # doublon que la contrainte refuserait. / `url` is globally
+        # unique. --reset may have kept this page elsewhere (also filed
+        # in another notebook, so not ours to delete): file it here
+        # instead of attempting a duplicate the DB constraint rejects.
+        #
+        # SCOPE SUR proprietaire : sans ce filtre, la commande peut
+        # trouver la page d'un AUTRE utilisateur et la ranger dans notre
+        # carnet « Documents etalons » — une fuite de perimetre. On ne
+        # touche jamais a une note qui n'est pas a `proprietaire`.
+        # / Scoped to `proprietaire`: without it, a page belonging to a
+        # DIFFERENT user could get filed into our notebook — a scope
+        # leak. We never touch a note that is not the owner's.
+        page_deja_ailleurs = Page.objects.filter(
+            url=URL_DE_LA_CAPTURE, owner=proprietaire,
+        ).first()
+        if page_deja_ailleurs is not None:
+            ranger_une_note_dans_un_carnet(
+                page_deja_ailleurs, carnet_des_etalons, proprietaire,
+            )
+            self.stdout.write(
+                "Capture web         : déjà présente ailleurs — rangée ici",
+            )
+            return page_deja_ailleurs
+
+        # La page peut exister chez QUELQU'UN D'AUTRE : la contrainte
+        # d'unicite empecherait quand meme la creation. On le dit
+        # clairement et on passe, plutot que de laisser l'IntegrityError
+        # remonter en trace de pile. / The page may belong to someone
+        # else: the unique constraint would still block creation. Say so
+        # plainly and move on, instead of surfacing a raw IntegrityError.
+        if Page.objects.filter(url=URL_DE_LA_CAPTURE).exclude(
+            owner=proprietaire,
+        ).exists():
+            self.stdout.write(self.style.WARNING(
+                "Capture web         : une autre note porte déjà cette "
+                "url — capture web non chargée",
+            ))
+            return None
+
+        html_capture = (REPERTOIRE_SAMPLE / FICHIER_DE_LA_CAPTURE).read_text(
+            encoding="utf-8",
+        )
+
+        page_de_la_capture = Page.objects.create(
+            source_type="web",
+            original_filename=FICHIER_DE_LA_CAPTURE,
+            url=URL_DE_LA_CAPTURE,
+            title="Badgeons la Normandie",
+            html_original=html_capture,
+            html_readability=html_capture,
+            text_readability="",
+            content_hash=hashlib.sha256(
+                html_capture.encode("utf-8"),
+            ).hexdigest(),
+            status="completed",
+            owner=proprietaire,
+            dossier=carnet_des_etalons,
+        )
+        ranger_une_note_dans_un_carnet(
+            page_de_la_capture, carnet_des_etalons, proprietaire,
+        )
+
+        nombre_d_elements = self._ingerer_la_capture(page_de_la_capture)
+        self.stdout.write(
+            f"Capture web         : {nombre_d_elements} élément(s)",
+        )
+        return page_de_la_capture
+
+    def _ingerer_la_capture(self, page_de_la_capture):
+        """
+        Lance l'ingestion de la capture, en synchrone.
+        / Runs the capture's ingestion, synchronously.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        ON PASSE PAR LA TACHE, PAS PAR LE SERVICE.
+
+        Le service nu cree les elements et s'arrete la. C'est la tache qui
+        ecrit `Page.ingestion_etat` (en_cours -> reussie/echouee) et qui
+        attrape l'echec avec un message lisible. L'ecran de lecture affiche
+        cet etat : une page ingeree par le service nu ment sur son statut.
+        `.apply()` l'execute ici meme, sans worker.
+        / The task writes ingestion_etat; the bare service does not.
+        """
+        from hypostasis_extractor.tasks_element import (
+            ingerer_une_capture_web_avec_docling,
+        )
+
+        resultat = ingerer_une_capture_web_avec_docling.apply(
+            args=[page_de_la_capture.pk],
+        )
+        return self._elements_du_resultat(resultat)
+
+    def _elements_du_resultat(self, resultat_de_la_tache):
+        """
+        Lit le nombre d'elements d'un resultat de tache, sans mentir.
+        / Reads a task result's element count, without lying.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        Les taches rendent {"elements": N} ou {"erreur": "..."} — jamais
+        une exception pour un cas normal. Un mock de test rend un Mock :
+        on ne compte alors rien plutot que d'inventer un chiffre.
+        / Never invent a count: a mocked task has none to give.
+        """
+        valeur = getattr(resultat_de_la_tache, "result", None)
+        if not isinstance(valeur, dict):
+            return "?"
+        if "erreur" in valeur:
+            self.stdout.write(self.style.WARNING(
+                f"    ingestion en échec : {valeur['erreur']}",
+            ))
+            return 0
+        return valeur.get("elements", 0)
+
+    def _charger_le_markdown(self, proprietaire, carnet_des_etalons):
+        """
+        Cree la note issue du markdown, et l'ingere.
+        / Creates the note from the markdown file, and ingests it.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        Le markdown passe bien par Docling, mais sans OCR ni modele de
+        layout : ceux-la ne se chargent que pour les PDF et les images.
+        C'est pourquoi cette fixture-ci est sure, la ou le PDF ne l'est pas.
+        / Markdown goes through Docling without OCR or layout models.
+        """
+        # Garde : --fichier peut avoir exclu ce document.
+        # / Guard: --fichier may have excluded this document.
+        if FICHIER_DU_MARKDOWN not in self.fichiers_demandes:
+            return None
+
+        if self._note_deja_presente(carnet_des_etalons, FICHIER_DU_MARKDOWN):
+            self.stdout.write("Markdown            : déjà présent — sauté")
+            return None
+
+        if self.a_blanc:
+            self.stdout.write("Markdown            : serait chargé")
+            return None
+
+        chemin_du_markdown = REPERTOIRE_SAMPLE / FICHIER_DU_MARKDOWN
+        contenu_du_markdown = chemin_du_markdown.read_text(encoding="utf-8")
+
+        page_du_markdown = Page.objects.create(
+            source_type="file",
+            original_filename=FICHIER_DU_MARKDOWN,
+            url=None,
+            title="Présentation Hypostasia V3",
+            html_original="",
+            html_readability="",
+            text_readability=contenu_du_markdown,
+            content_hash=hashlib.sha256(
+                contenu_du_markdown.encode("utf-8"),
+            ).hexdigest(),
+            status="completed",
+            owner=proprietaire,
+            dossier=carnet_des_etalons,
+            source_file=ContentFile(
+                contenu_du_markdown.encode("utf-8"),
+                name=FICHIER_DU_MARKDOWN,
+            ),
+        )
+        ranger_une_note_dans_un_carnet(
+            page_du_markdown, carnet_des_etalons, proprietaire,
+        )
+
+        from hypostasis_extractor.tasks_element import (
+            ingerer_un_fichier_avec_docling,
+        )
+
+        # On ne passe QUE la cle primaire : la tache resout le chemin
+        # depuis page.source_file, comme le fait la vue d'import.
+        # / Only the pk: the task resolves the path from source_file.
+        resultat = ingerer_un_fichier_avec_docling.apply(
+            args=[page_du_markdown.pk],
+        )
+        self.stdout.write(
+            f"Markdown            : {self._elements_du_resultat(resultat)} élément(s)",
+        )
+        return page_du_markdown
+
+    def _charger_la_transcription_json(self, proprietaire, carnet_des_etalons):
+        """
+        Cree la note issue de la transcription deja faite, et l'ingere.
+        / Creates the note from the ready-made transcript, and ingests it.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        DOCLING N'INTERVIENT PAS : une transcription diarisee est deja
+        structuree. `ingerer_une_transcription_diarisee` la decoupe en
+        tours de parole sans charger le moindre modele.
+        / Docling plays no part: a diarised transcript is already structured.
+
+        ATTENTION — la vue d'import, elle, N'APPELLE PAS cette ingestion
+        (front/views.py:5326) : une note importee par cette porte reste
+        sans element, donc sans gouttiere et sans ancrage possible. C'est
+        un trou de l'application, releve le 11 aout 2026. La commande
+        appelle l'ingestion explicitement.
+        / The import view never triggers this ingestion; we do it here.
+        """
+        import json
+
+        # Garde : --fichier peut avoir exclu ce document.
+        # / Guard: --fichier may have excluded this document.
+        if FICHIER_DE_LA_TRANSCRIPTION not in self.fichiers_demandes:
+            return None
+
+        if self._note_deja_presente(
+            carnet_des_etalons, FICHIER_DE_LA_TRANSCRIPTION,
+        ):
+            self.stdout.write("Transcription JSON  : déjà présente — sautée")
+            return None
+
+        if self.a_blanc:
+            self.stdout.write("Transcription JSON  : serait chargée")
+            return None
+
+        from front.services.transcription_audio import construire_html_diarise
+
+        chemin_du_json = REPERTOIRE_SAMPLE / FICHIER_DE_LA_TRANSCRIPTION
+        contenu_brut = chemin_du_json.read_text(encoding="utf-8")
+        donnees_de_la_transcription = json.loads(contenu_brut)
+
+        html_diarise, texte_brut = construire_html_diarise(
+            donnees_de_la_transcription,
+        )
+
+        page_du_json = Page.objects.create(
+            source_type="audio",
+            original_filename=FICHIER_DE_LA_TRANSCRIPTION,
+            url=None,
+            title="Débat IA — transcription",
+            html_original="",
+            html_readability=html_diarise,
+            text_readability=texte_brut,
+            content_hash=hashlib.sha256(
+                texte_brut.encode("utf-8"),
+            ).hexdigest(),
+            transcription_raw=donnees_de_la_transcription,
+            status="completed",
+            owner=proprietaire,
+            dossier=carnet_des_etalons,
+            source_file=ContentFile(
+                contenu_brut.encode("utf-8"),
+                name=FICHIER_DE_LA_TRANSCRIPTION,
+            ),
+        )
+        ranger_une_note_dans_un_carnet(
+            page_du_json, carnet_des_etalons, proprietaire,
+        )
+
+        from hypostasis_extractor.tasks_element import (
+            ingerer_une_transcription_diarisee_en_elements,
+        )
+
+        resultat = ingerer_une_transcription_diarisee_en_elements.apply(
+            args=[page_du_json.pk],
+        )
+        self.stdout.write(
+            f"Transcription JSON  : {self._elements_du_resultat(resultat)} "
+            f"tour(s) de parole",
+        )
+        return page_du_json
+
+    def _charger_le_mp3(self, proprietaire, carnet_des_etalons):
+        """
+        Cree la note audio et lance la vraie transcription Voxtral.
+        / Creates the audio note and runs the real Voxtral transcription.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        C'est la seule fixture qui eprouve la chaine COMPLETE : mp3 ->
+        Voxtral -> tours de parole -> elements. Un appel reseau reel, donc
+        aussi un test de bout en bout a chaque chargement.
+        / The only fixture exercising the full chain, network call included.
+
+        La tache enchaine elle-meme l'ingestion en elements, mais par
+        `.delay()` : sans worker, elle partirait dans le broker et ne se
+        ferait jamais. On la rejoue donc ici, en synchrone, si la page
+        n'a pas d'element. / The task chains via .delay(); we redo it sync.
+        """
+        # Garde : --fichier peut avoir exclu ce document.
+        # / Guard: --fichier may have excluded this document.
+        if FICHIER_DU_MP3 not in self.fichiers_demandes:
+            return None
+
+        if self.sans_mp3:
+            self.stdout.write("Audio mp3           : sauté (--sans-mp3)")
+            return None
+
+        if not os.environ.get("MISTRAL_API_KEY"):
+            self.stdout.write(self.style.WARNING(
+                "Audio mp3           : sauté — pas de MISTRAL_API_KEY. "
+                "La transcription serait mockée, pas réelle.",
+            ))
+            return None
+
+        if self._note_deja_presente(carnet_des_etalons, FICHIER_DU_MP3):
+            self.stdout.write("Audio mp3           : déjà présent — sauté")
+            return None
+
+        if self.a_blanc:
+            self.stdout.write("Audio mp3           : serait transcrit (Voxtral)")
+            return None
+
+        from core.models import (
+            PageStatus,
+            TranscriptionConfig,
+            TranscriptionJob,
+            TranscriptionJobStatus,
+        )
+
+        chemin_du_mp3 = REPERTOIRE_SAMPLE / FICHIER_DU_MP3
+        octets_du_mp3 = chemin_du_mp3.read_bytes()
+
+        page_du_mp3 = Page.objects.create(
+            source_type="audio",
+            original_filename=FICHIER_DU_MP3,
+            url=None,
+            title="Palais César — deux locuteurs",
+            html_original="",
+            html_readability="",
+            text_readability="",
+            content_hash="",
+            status="processing",
+            owner=proprietaire,
+            dossier=carnet_des_etalons,
+            source_file=ContentFile(octets_du_mp3, name=FICHIER_DU_MP3),
+        )
+        ranger_une_note_dans_un_carnet(
+            page_du_mp3, carnet_des_etalons, proprietaire,
+        )
+
+        config_active = TranscriptionConfig.objects.filter(
+            is_active=True,
+        ).first()
+        job_de_transcription = TranscriptionJob.objects.create(
+            page=page_du_mp3,
+            transcription_config=config_active,
+            audio_filename=FICHIER_DU_MP3,
+            status="pending",
+        )
+
+        from front.tasks import transcrire_audio_task
+
+        transcrire_audio_task.apply(args=[
+            job_de_transcription.pk,
+            page_du_mp3.source_file.path,
+            config_active.max_speakers if config_active else 5,
+            config_active.language if config_active else "fr",
+        ])
+
+        page_du_mp3.refresh_from_db()
+        job_de_transcription.refresh_from_db()
+
+        # `transcrire_audio_task` attrape ses propres exceptions et pose
+        # page.status/job.status = ERROR en silence (front/tasks.py
+        # ~711-726), sans jamais relever d'exception ici. Sans ce
+        # controle, le bilan afficherait "0 tour(s) de parole" —
+        # indiscernable d'une transcription reussie qui n'aurait rien
+        # trouve a dire. / The task silently marks page/job as ERROR on
+        # failure; without this check the report would lie by omission.
+        transcription_en_echec = (
+            page_du_mp3.status == PageStatus.ERROR
+            or job_de_transcription.status == TranscriptionJobStatus.ERROR
+        )
+        if transcription_en_echec:
+            message_d_erreur = (
+                job_de_transcription.error_message
+                or page_du_mp3.error_message
+                or "raison inconnue"
+            )
+            self.stdout.write(self.style.WARNING(
+                f"Audio mp3 (Voxtral) : ÉCHEC de la transcription — "
+                f"{message_d_erreur}",
+            ))
+            return page_du_mp3
+
+        # La tache enchaine l'ingestion par `.delay()`. Sans worker, elle
+        # n'a pas eu lieu : on la rejoue ici, en synchrone.
+        # / The task chained via .delay(); without a worker, redo it here.
+        if not page_du_mp3.elements.exists() and page_du_mp3.transcription_raw:
+            from hypostasis_extractor.tasks_element import (
+                ingerer_une_transcription_diarisee_en_elements,
+            )
+
+            ingerer_une_transcription_diarisee_en_elements.apply(
+                args=[page_du_mp3.pk],
+            )
+
+        self.stdout.write(
+            f"Audio mp3 (Voxtral) : {page_du_mp3.elements.count()} "
+            f"tour(s) de parole",
+        )
+        return page_du_mp3

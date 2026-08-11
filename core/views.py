@@ -3,6 +3,7 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from django.db.models import Q
 from django.shortcuts import render
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import permissions, status, viewsets
@@ -10,7 +11,7 @@ from rest_framework.authentication import SessionAuthentication, TokenAuthentica
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Dossier, DossierPartage, Page, RoleSpecialDossier
+from .models import Dossier, DossierPartage, EtatIngestion, Page, RoleSpecialDossier
 from .services.corpus import (
     deplacer_une_note_vers_un_carnet,
     ranger_une_note_dans_un_carnet,
@@ -265,9 +266,23 @@ class PageViewSet(viewsets.ViewSet):
             )
             try:
                 ingerer_une_capture_web_avec_docling.delay(page_creee.pk)
+                # Meme patron que l'import fichier et la relance
+                # (front/views.py:2103 et 5657) : constante EtatIngestion
+                # (pas de chaine brute) + horodatage pose. Sans
+                # ingestion_maj_le, la detection du fantome (U2) ne peut
+                # jamais se declencher pour une capture web, et le tri
+                # "-ingestion_maj_le" du dropdown la classerait en tete
+                # (NULL en premier sous PostgreSQL).
+                # / Same pattern as file import and relaunch: use the
+                # enum, not a raw string, and stamp ingestion_maj_le —
+                # otherwise ghost detection can never fire for a web
+                # capture, and the dropdown's ordering misplaces it.
                 Page.objects.filter(
                     pk=page_creee.pk, ingestion_etat="",
-                ).update(ingestion_etat="en_attente")
+                ).update(
+                    ingestion_etat=EtatIngestion.EN_ATTENTE,
+                    ingestion_maj_le=timezone.now(),
+                )
             except Exception as erreur_de_broker:
                 logger.error(
                     "PageViewSet.create: ingestion web NON lancee pour la "

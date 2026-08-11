@@ -701,12 +701,28 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
 
         # Notifier le navigateur que la tache est terminee (succes)
         # / Notify the browser that the task is complete (success)
-        notifier_tache_terminee(
-            user_pk=page_associee.owner.pk if page_associee.owner else None,
-            tache_id=job_transcription.pk,
-            tache_type="transcription",
-            status="completed",
-        )
+        for pk_destinataire in _destinataires_de_notification(page_associee):
+            if pk_destinataire is None:
+                continue
+            try:
+                notifier_tache_terminee(
+                    user_pk=pk_destinataire,
+                    tache_id=job_transcription.pk,
+                    tache_type="transcription",
+                    status="completed",
+                )
+            except Exception as erreur_notification:
+                # Une notification qui echoue ne doit pas faire echouer
+                # une transcription qui, elle, a reussi : sinon ce
+                # `except` serait rattrape par celui de la tache et
+                # ecraserait le statut COMPLETED deja sauvegarde par
+                # ERROR. / A failed notification must not fail a
+                # transcription that succeeded.
+                logger.warning(
+                    "Job %s : notification de transcription non "
+                    "transmise (%s).",
+                    job_transcription.pk, erreur_notification,
+                )
 
     except Exception as erreur_transcription:
         # En cas d'erreur, marquer le job et la page en erreur
@@ -732,12 +748,24 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
 
         # Notifier le navigateur que la tache est terminee (erreur)
         # / Notify the browser that the task is complete (error)
-        notifier_tache_terminee(
-            user_pk=page_associee.owner.pk if page_associee.owner else None,
-            tache_id=job_transcription.pk,
-            tache_type="transcription",
-            status="error",
-        )
+        for pk_destinataire in _destinataires_de_notification(page_associee):
+            if pk_destinataire is None:
+                continue
+            try:
+                notifier_tache_terminee(
+                    user_pk=pk_destinataire,
+                    tache_id=job_transcription.pk,
+                    tache_type="transcription",
+                    status="error",
+                )
+            except Exception as erreur_notification:
+                # Meme principe : une notification en echec ne doit pas
+                # remonter et perturber le traitement de l'erreur deja
+                # en cours. / Same principle, on the error path.
+                logger.warning(
+                    "Job %s : notification d'erreur non transmise (%s).",
+                    job_transcription.pk, erreur_notification,
+                )
 
     finally:
         # Supprimer le fichier audio temporaire (qu'il y ait eu erreur ou non)

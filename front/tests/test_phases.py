@@ -7129,10 +7129,15 @@ class Phase26iTachesViewSetTest(TestCase):
         self.assertNotContains(reponse, "Page autre")
 
     def test_marquer_lue_passe_le_flag_a_true(self):
-        """marquer_lue passe notification_lue a True.
-        / marquer_lue sets notification_lue to True."""
+        """marquer_lue cree la ligne NotificationTacheLue du destinataire.
+        Correction 1 (revue de cloture du 11 aout) : le drapeau est
+        desormais par destinataire (NotificationTacheLue), plus le
+        booleen partage ExtractionJob.notification_lue — mort pour
+        cette decision.
+        / marquer_lue now creates a per-recipient NotificationTacheLue
+        row instead of writing the dead shared boolean."""
         from hypostasis_extractor.models import ExtractionJob
-        from core.models import AIModel
+        from core.models import AIModel, NotificationTacheLue
         modele = AIModel.objects.create(name="Mock5", model_choice="mock_default", is_active=True)
         job = ExtractionJob.objects.create(
             page=self.page, ai_model=modele, name="T5",
@@ -7140,8 +7145,11 @@ class Phase26iTachesViewSetTest(TestCase):
         )
         reponse = self.client.post(f"/taches/{job.pk}/marquer-lue/?type=extraction")
         self.assertEqual(reponse.status_code, 204)
-        job.refresh_from_db()
-        self.assertTrue(job.notification_lue)
+        self.assertTrue(
+            NotificationTacheLue.objects.filter(
+                utilisateur=self.user, type_tache="extraction", tache_id=job.pk,
+            ).exists()
+        )
 
     def test_marquer_lue_seulement_owner(self):
         """marquer_lue refuse 404 si pas owner.

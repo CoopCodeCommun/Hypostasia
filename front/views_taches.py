@@ -2,18 +2,45 @@
 ViewSet pour le bouton 'taches en cours' dans la toolbar (refonte A.6).
 - bouton() : renvoie l'etat actuel du bouton (compteurs + couleur)
 - dropdown() : renvoie la liste des 10 dernieres taches + OOB swap du bouton
-- marquer_lue() : passe notification_lue=True sur un job
+- marquer_lue() : cree une ligne NotificationTacheLue pour ce destinataire (correction 1, 11 aout)
 / ViewSet for the 'tasks in progress' button in the toolbar (A.6 refactor).
 
 LOCALISATION : front/views_taches.py
 """
-from django.http import HttpResponse
+from datetime import timedelta
+
+from django.db.models import F
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 
-from core.models import TranscriptionJob
+from core.models import EtatIngestion, NotificationTacheLue, Page, TranscriptionJob, TypeDeTache
 from hypostasis_extractor.models import ExtractionJob
+
+from .views import (
+    DELAI_INGESTION_FANTOME_MIN,
+    _est_proprietaire_page,
+    _filtre_proprietaire_page,
+    _marquer_tache_lue_pour,
+    _type_tache_stocke,
+)
+
+
+def _ids_taches_lues_par(utilisateur, type_tache_stocke):
+    """
+    QuerySet des tache_id que `utilisateur` a deja marques lus pour ce
+    type — utilise en anti-jointure (exclude(pk__in=...)) : reste UNE
+    seule requete SQL (sous-requete), jamais une requete separee.
+    / Anti-join source: stays a single SQL query (subquery), never a
+    separate round trip.
+
+    LOCALISATION : front/views_taches.py
+    """
+    return NotificationTacheLue.objects.filter(
+        utilisateur=utilisateur, type_tache=type_tache_stocke,
+    ).values_list("tache_id", flat=True)
 
 
 def _calculer_etat_bouton(user):
@@ -24,28 +51,85 @@ def _calculer_etat_bouton(user):
     Priority: erreur > succes > en_cours > neutre.
 
     LOCALISATION : front/views_taches.py
+
+    Perimetre ELARGI (defaut 1, revue de cloture du 11 aout) :
+    _filtre_proprietaire_page (front/views.py) reproduit
+    _est_proprietaire_page — proprietaire de la note OU proprietaire
+    d'un carnet qui la contient — pour matcher exactement qui
+    _destinataires_de_notification (front/tasks.py) previent. Ecrit en
+    filtre de requete (pas en boucle par objet) pour eviter le N+1.
+    / Widened scope to match notification recipients; expressed as a
+    query filter, not a per-object loop, to avoid N+1.
     """
     # Comptage taches en cours / Count tasks in progress
     nombre_extractions_en_cours = ExtractionJob.objects.filter(
-        page__owner=user, status__in=["pending", "processing"],
-    ).count()
+        _filtre_proprietaire_page("page__", user),
+        status__in=["pending", "processing"],
+    ).distinct().count()
     nombre_transcriptions_en_cours = TranscriptionJob.objects.filter(
-        page__owner=user, status__in=["pending", "processing"],
-    ).count()
-    nombre_en_cours = nombre_extractions_en_cours + nombre_transcriptions_en_cours
+        _filtre_proprietaire_page("page__", user),
+        status__in=["pending", "processing"],
+    ).distinct().count()
+    # Les ingestions n'ont pas de job : leur etat vit sur la Page.
+    # `ingestion_etat` vide = aucune ingestion demandee (un .txt, une page
+    # nee avant le moteur ELEMENT) : ce n'est pas une tache.
+    # / Ingestions have no job; an empty state means no task at all.
+    # Defaut 2 (revue de cloture du 11 aout) : un etat actif sans mise
+    # a jour depuis DELAI_INGESTION_FANTOME_MIN est un FANTOME (worker
+    # mort) — meme regle que relancer_ingestion (front/views.py), sinon
+    # le badge reste allume pour toujours.
+    # Correction 2 (revue de cloture du 11 aout, meme jour) : filter(__gte=seuil)
+    # au lieu de exclude(__lt=seuil) — une comparaison NULL est TOUJOURS
+    # inconnue en SQL, donc exclue d'un filter(). Un etat actif SANS
+    # ingestion_maj_le (le bug corrige de core/views.py, plus jamais
+    # produit desormais) est ainsi traite comme un fantome : sans date,
+    # rien ne prouve qu'il est recent.
+    # / filter(__gte=) instead of exclude(__lt=): a NULL comparison is
+    # always unknown in SQL, so filter() drops it — an active state
+    # with no timestamp is now treated as a ghost.
+    seuil_fantome = timezone.now() - timedelta(minutes=DELAI_INGESTION_FANTOME_MIN)
+    nombre_ingestions_en_cours = Page.objects.filter(
+        _filtre_proprietaire_page("", user),
+        ingestion_etat__in=[EtatIngestion.EN_ATTENTE, EtatIngestion.EN_COURS],
+        ingestion_maj_le__gte=seuil_fantome,
+    ).distinct().count()
+    nombre_en_cours = (
+        nombre_extractions_en_cours
+        + nombre_transcriptions_en_cours
+        + nombre_ingestions_en_cours
+    )
 
     # Comptage taches terminees non lues / Count finished unread tasks
+    # Correction 1 (revue de cloture du 11 aout) : "non lue" est
+    # desormais "aucune ligne NotificationTacheLue pour CET
+    # utilisateur" — anti-jointure en sous-requete (exclude(pk__in=...)),
+    # pas une requete separee ni une boucle : le cout en requetes ne
+    # bouge pas (voir le rapport de tache).
+    # / "Unread" is now "no NotificationTacheLue row for THIS user" —
+    # an anti-join subquery, not an extra round trip.
     nombre_extractions_non_lues = ExtractionJob.objects.filter(
-        page__owner=user,
+        _filtre_proprietaire_page("page__", user),
         status__in=["completed", "error"],
-        notification_lue=False,
-    ).count()
+    ).exclude(
+        pk__in=_ids_taches_lues_par(user, TypeDeTache.EXTRACTION),
+    ).distinct().count()
     nombre_transcriptions_non_lues = TranscriptionJob.objects.filter(
-        page__owner=user,
+        _filtre_proprietaire_page("page__", user),
         status__in=["completed", "error"],
-        notification_lue=False,
-    ).count()
-    nombre_non_lues = nombre_extractions_non_lues + nombre_transcriptions_non_lues
+    ).exclude(
+        pk__in=_ids_taches_lues_par(user, TypeDeTache.TRANSCRIPTION),
+    ).distinct().count()
+    nombre_ingestions_non_lues = Page.objects.filter(
+        _filtre_proprietaire_page("", user),
+        ingestion_etat__in=[EtatIngestion.REUSSIE, EtatIngestion.ECHOUEE],
+    ).exclude(
+        pk__in=_ids_taches_lues_par(user, TypeDeTache.INGESTION),
+    ).distinct().count()
+    nombre_non_lues = (
+        nombre_extractions_non_lues
+        + nombre_transcriptions_non_lues
+        + nombre_ingestions_non_lues
+    )
 
     # Etat dominant : priorite erreur > en_cours > succes > neutre
     # On veut voir 'en_cours' pendant qu'une tache tourne, meme s'il y a
@@ -56,9 +140,20 @@ def _calculer_etat_bouton(user):
     # / are unread old notifications (don't mask them but defer to end of
     # / current task).
     a_des_erreurs_non_lues = ExtractionJob.objects.filter(
-        page__owner=user, status="error", notification_lue=False,
+        _filtre_proprietaire_page("page__", user),
+        status="error",
+    ).exclude(
+        pk__in=_ids_taches_lues_par(user, TypeDeTache.EXTRACTION),
     ).exists() or TranscriptionJob.objects.filter(
-        page__owner=user, status="error", notification_lue=False,
+        _filtre_proprietaire_page("page__", user),
+        status="error",
+    ).exclude(
+        pk__in=_ids_taches_lues_par(user, TypeDeTache.TRANSCRIPTION),
+    ).exists() or Page.objects.filter(
+        _filtre_proprietaire_page("", user),
+        ingestion_etat=EtatIngestion.ECHOUEE,
+    ).exclude(
+        pk__in=_ids_taches_lues_par(user, TypeDeTache.INGESTION),
     ).exists()
 
     if a_des_erreurs_non_lues:
@@ -104,16 +199,20 @@ class TachesViewSet(viewsets.ViewSet):
         / Returns 30 most recent tasks in a dropdown + OOB swap button.
         """
         # Taches recentes : 30 dernieres extractions + 30 dernieres transcriptions
-        # melangees par created_at desc, max 30 au total
+        # melangees par created_at desc, max 30 au total. Perimetre
+        # ELARGI (defaut 1, revue de cloture du 11 aout) : voir
+        # _filtre_proprietaire_page. .distinct() est necessaire — le
+        # join sur appartenances_dossiers duplique une ligne par carnet.
         # / Recent tasks: 30 latest extractions + 30 latest transcriptions
-        # / merged by created_at desc, max 30 total
+        # / merged by created_at desc, max 30 total. Widened scope; the
+        # / join can duplicate rows, hence distinct().
         extractions_recentes = list(ExtractionJob.objects.filter(
-            page__owner=request.user,
-        ).select_related("page").order_by("-created_at")[:30])
+            _filtre_proprietaire_page("page__", request.user),
+        ).select_related("page").order_by("-created_at").distinct()[:30])
 
         transcriptions_recentes = list(TranscriptionJob.objects.filter(
-            page__owner=request.user,
-        ).select_related("page").order_by("-created_at")[:30])
+            _filtre_proprietaire_page("page__", request.user),
+        ).select_related("page").order_by("-created_at").distinct()[:30])
 
         # Annoter le type pour le template / Annotate type for template
         # Une ExtractionJob peut etre soit une analyse, soit une synthese
@@ -155,11 +254,66 @@ class TachesViewSet(viewsets.ViewSet):
             transcription.page_resultat_id = transcription.page.pk
             transcription.libelle_de_tache = "Transcription"
 
-        # Fusionner et trier par date desc, garder 30
-        # / Merge and sort by date desc, keep 30
+        # Les ingestions recentes de l'utilisateur. On annote les memes
+        # attributs que les jobs pour que le template ne connaisse qu'une
+        # seule forme. `status` est traduit depuis ingestion_etat : le
+        # `status` propre de la Page parle d'autre chose. `page = soi-meme`
+        # reproduit la FK `.page` qu'ont ExtractionJob et TranscriptionJob :
+        # le gabarit lit `tache.page.title` et (branche erreur)
+        # `tache.page.pk` sans savoir que la tache EST la page (complement
+        # du brief, piege 1).
+        # / Same annotations as jobs, so the template knows one shape only.
+        # `page = self` mirrors the `.page` FK of the other two models,
+        # since the template reads `tache.page.title`/`tache.page.pk`
+        # without knowing an ingestion tache IS the page.
+        # Correction 2, second endroit (revue de cloture du 11 aout) :
+        # sous PostgreSQL, "-ingestion_maj_le" place les NULL EN TETE
+        # (NULLS FIRST par defaut en DESC) — un etat actif fantome sans
+        # date (bug corrige de core/views.py) squattait donc le haut du
+        # menu devant des ingestions reellement recentes.
+        # nulls_last=True les traite comme les plus anciennes possibles,
+        # coherent avec le comptage (meme fantome, memes deux endroits
+        # a corriger).
+        # / Under PostgreSQL, DESC ordering puts NULLs first by default;
+        # nulls_last treats a dateless ghost as the oldest possible row.
+        ingestions_recentes = list(Page.objects.filter(
+            _filtre_proprietaire_page("", request.user),
+        ).exclude(ingestion_etat="").order_by(
+            F("ingestion_maj_le").desc(nulls_last=True),
+        ).distinct()[:30])
+
+        for page_ingeree in ingestions_recentes:
+            page_ingeree.type_tache = "ingestion"
+            page_ingeree.page_resultat_id = page_ingeree.pk
+            page_ingeree.libelle_de_tache = "Découpage"
+            page_ingeree.page = page_ingeree
+            if page_ingeree.ingestion_etat == EtatIngestion.ECHOUEE:
+                page_ingeree.status = "error"
+            elif page_ingeree.ingestion_etat == EtatIngestion.REUSSIE:
+                page_ingeree.status = "completed"
+            else:
+                page_ingeree.status = "processing"
+
+        # Fusionner et trier par date desc, garder 30. Cle de tri commune
+        # explicite (`date_tri`) plutot que `created_at` brut : pour un
+        # job, created_at EST la date de la tache, mais pour une
+        # ingestion, created_at est la date de creation de la NOTE — qui
+        # peut preceder de loin le decoupage. Utiliser ingestion_maj_le
+        # pour les ingestions evite de trier deux sens du temps
+        # differents dans le meme sorted().
+        # / Common sort key rather than raw created_at: a job's
+        # created_at IS its date, but a page's created_at is when the
+        # NOTE was made, not when it was ingested.
+        for extraction in extractions_recentes:
+            extraction.date_tri = extraction.created_at
+        for transcription in transcriptions_recentes:
+            transcription.date_tri = transcription.created_at
+        for page_ingeree in ingestions_recentes:
+            page_ingeree.date_tri = page_ingeree.ingestion_maj_le or page_ingeree.created_at
+
         toutes_taches = sorted(
-            extractions_recentes + transcriptions_recentes,
-            key=lambda t: t.created_at,
+            extractions_recentes + transcriptions_recentes + ingestions_recentes,
+            key=lambda t: t.date_tri,
             reverse=True,
         )[:30]
 
@@ -173,24 +327,57 @@ class TachesViewSet(viewsets.ViewSet):
     @action(detail=True, methods=["POST"], url_path="marquer-lue")
     def marquer_lue(self, request, pk=None):
         """
-        Marque une notification comme lue. Pk = id du job.
-        Le query param ?type=extraction|transcription distingue les 2 modeles.
-        / Marks a notification as read. Pk = job id.
+        Marque une notification comme lue. Pk = id du job (ou, pour une
+        ingestion qui n'a pas de job, id de la Page elle-meme).
+        Le query param ?type=extraction|transcription|ingestion distingue
+        les modeles concernes.
+        / Marks a notification as read. Pk = job id, or (ingestion has no
+        job) the Page id itself.
 
         LOCALISATION : front/views_taches.py
+
+        Perimetre ELARGI (defaut 1, revue de cloture du 11 aout) : on
+        recupere l'objet par pk SEUL, puis on verifie l'acces avec
+        _est_proprietaire_page — la MEME fonction que le reste du
+        depot, appelee ici sur un objet unique (pas de N+1 : c'est une
+        action detail=True, un seul objet). Acces refuse -> Http404,
+        JAMAIS 403 (doctrine du projet) : un tiers ne doit pas
+        distinguer une tache d'autrui d'une tache inexistante.
+        / Widened scope: fetch by pk alone, then check access with the
+        same _est_proprietaire_page used everywhere else. No access ->
+        Http404, never 403.
         """
         type_tache = request.query_params.get("type")
         # "analyse" et "synthese" pointent tous deux sur ExtractionJob (distinction via raw_result.est_synthese)
         # / "analyse" and "synthese" both point to ExtractionJob (distinguished via raw_result.est_synthese)
+        # Correction 1 (revue de cloture du 11 aout) : la lecture ne
+        # touche plus le booleen partage du job/de la page — elle cree
+        # UNE ligne NotificationTacheLue pour CE destinataire.
+        # / The read no longer writes the shared boolean — it creates a
+        # row for THIS recipient only.
         if type_tache in ("analyse", "synthese", "extraction"):
-            job = get_object_or_404(ExtractionJob, pk=pk, page__owner=request.user)
+            job = get_object_or_404(ExtractionJob, pk=pk)
+            if not _est_proprietaire_page(request.user, job.page):
+                raise Http404("No ExtractionJob matches the given query.")
+            _marquer_tache_lue_pour(request.user, TypeDeTache.EXTRACTION, job.pk)
         elif type_tache == "transcription":
-            job = get_object_or_404(TranscriptionJob, pk=pk, page__owner=request.user)
+            job = get_object_or_404(TranscriptionJob, pk=pk)
+            if not _est_proprietaire_page(request.user, job.page):
+                raise Http404("No TranscriptionJob matches the given query.")
+            _marquer_tache_lue_pour(request.user, TypeDeTache.TRANSCRIPTION, job.pk)
+        elif type_tache == "ingestion":
+            # Pas de job : pk est directement l'id de la Page.
+            # / No job: pk IS the page id.
+            page = get_object_or_404(Page, pk=pk)
+            if not _est_proprietaire_page(request.user, page):
+                raise Http404("No Page matches the given query.")
+            _marquer_tache_lue_pour(request.user, TypeDeTache.INGESTION, page.pk)
         else:
-            return HttpResponse("Parametre type=analyse|synthese|transcription requis", status=400)
+            return HttpResponse(
+                "Parametre type=analyse|synthese|transcription|ingestion requis",
+                status=400,
+            )
 
-        job.notification_lue = True
-        job.save(update_fields=["notification_lue"])
         return HttpResponse(status=204)
 
     @action(detail=False, methods=["POST"], url_path="marquer-toutes-lues")
@@ -202,18 +389,68 @@ class TachesViewSet(viewsets.ViewSet):
         Then refetch fresh dropdown + OOB swap of button (neutre state).
 
         LOCALISATION : front/views_taches.py
-        """
-        nombre_extractions = ExtractionJob.objects.filter(
-            page__owner=request.user,
-            status__in=["completed", "error"],
-            notification_lue=False,
-        ).update(notification_lue=True)
 
-        nombre_transcriptions = TranscriptionJob.objects.filter(
-            page__owner=request.user,
-            status__in=["completed", "error"],
-            notification_lue=False,
-        ).update(notification_lue=True)
+        Perimetre ELARGI (defaut 1, revue de cloture du 11 aout) : voir
+        _filtre_proprietaire_page.
+
+        Correction 1 (meme revue) : plus un .update() sur un booleen
+        partage — pour chaque type, on liste les taches non lues PAR CE
+        DESTINATAIRE (anti-jointure), puis on cree leurs lignes
+        NotificationTacheLue en un seul bulk_create(). Deux requetes
+        par type (1 SELECT + 1 INSERT), aucune boucle Python cote DB,
+        et ignore_conflicts=True encaisse une notification deja lue
+        entre-temps sans lever.
+        / No longer a shared-boolean .update(): for each type, select
+        this recipient's unread task ids then bulk_create their rows —
+        two queries per type, no per-row loop.
+        """
+        NotificationTacheLue.objects.bulk_create(
+            [
+                NotificationTacheLue(
+                    utilisateur=request.user, type_tache=TypeDeTache.EXTRACTION,
+                    tache_id=identifiant,
+                )
+                for identifiant in ExtractionJob.objects.filter(
+                    _filtre_proprietaire_page("page__", request.user),
+                    status__in=["completed", "error"],
+                ).exclude(
+                    pk__in=_ids_taches_lues_par(request.user, TypeDeTache.EXTRACTION),
+                ).distinct().values_list("pk", flat=True)
+            ],
+            ignore_conflicts=True,
+        )
+
+        NotificationTacheLue.objects.bulk_create(
+            [
+                NotificationTacheLue(
+                    utilisateur=request.user, type_tache=TypeDeTache.TRANSCRIPTION,
+                    tache_id=identifiant,
+                )
+                for identifiant in TranscriptionJob.objects.filter(
+                    _filtre_proprietaire_page("page__", request.user),
+                    status__in=["completed", "error"],
+                ).exclude(
+                    pk__in=_ids_taches_lues_par(request.user, TypeDeTache.TRANSCRIPTION),
+                ).distinct().values_list("pk", flat=True)
+            ],
+            ignore_conflicts=True,
+        )
+
+        NotificationTacheLue.objects.bulk_create(
+            [
+                NotificationTacheLue(
+                    utilisateur=request.user, type_tache=TypeDeTache.INGESTION,
+                    tache_id=identifiant,
+                )
+                for identifiant in Page.objects.filter(
+                    _filtre_proprietaire_page("", request.user),
+                    ingestion_etat__in=[EtatIngestion.REUSSIE, EtatIngestion.ECHOUEE],
+                ).exclude(
+                    pk__in=_ids_taches_lues_par(request.user, TypeDeTache.INGESTION),
+                ).distinct().values_list("pk", flat=True)
+            ],
+            ignore_conflicts=True,
+        )
 
         # Renvoie le dropdown rafraichi (avec OOB swap du bouton inclus)
         # / Returns refreshed dropdown (with OOB button swap included)

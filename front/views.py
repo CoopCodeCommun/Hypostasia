@@ -19,7 +19,7 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, EtatIngestion, GroupeUtilisateurs, Invitation, Page, PageEdit, Question, ReponseQuestion, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, VisibiliteDossier
+from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, EtatIngestion, GroupeUtilisateurs, Invitation, NotificationTacheLue, Page, PageEdit, Question, ReponseQuestion, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, TypeDeTache, VisibiliteDossier
 from core.services.corpus import (
     deplacer_une_note_vers_un_carnet,
     ranger_une_note_dans_un_carnet,
@@ -393,6 +393,71 @@ def _est_proprietaire_page(utilisateur, page):
         appartenances_pages__page=page,
         owner=utilisateur,
     ).exists()
+
+
+def _filtre_proprietaire_page(prefixe, utilisateur):
+    """
+    Filtre Q reproduisant EXACTEMENT _est_proprietaire_page, pour les
+    requetes en LISTE (compteurs du badge, dropdown des taches) ou un
+    appel par-objet couterait un N+1 (revue de cloture du 11 aout,
+    defaut 1). `prefixe` est le chemin ORM jusqu'a Page : "" si le
+    queryset porte deja sur Page, "page__" s'il porte sur un job
+    (ExtractionJob/TranscriptionJob) lie a une Page par FK.
+    / Q filter mirroring _est_proprietaire_page for list/count queries,
+    to avoid a per-row N+1. `prefixe` is the ORM path down to Page.
+
+    NE PAS FAIRE DIVERGER de _est_proprietaire_page : proprietaire de
+    la note OU proprietaire d'un carnet qui la contient. Les deux
+    doivent rester la MEME notion d'acces (spec § 11, phase D) — c'est
+    elle que _destinataires_de_notification (front/tasks.py) notifie.
+    / Must stay in sync with _est_proprietaire_page — the one notion of
+    access that _destinataires_de_notification notifies.
+
+    Produit des lignes dupliquees si la note est dans plusieurs carnets
+    du meme proprietaire : l'appelant doit chainer .distinct().
+    / Yields duplicate rows when a note sits in several notebooks of
+    the same owner: callers must chain .distinct().
+    """
+    return (
+        Q(**{f"{prefixe}owner": utilisateur}) |
+        Q(**{f"{prefixe}appartenances_dossiers__dossier__owner": utilisateur})
+    )
+
+
+def _type_tache_stocke(type_tache_url):
+    """
+    Normalise le parametre ?type= (analyse|synthese|extraction|
+    transcription|ingestion, tel qu'utilise dans les URL/templates) vers
+    le type stocke dans NotificationTacheLue. 'analyse' et 'synthese'
+    pointent tous deux sur ExtractionJob (distingues par
+    raw_result.est_synthese) : meme type stocke 'extraction'.
+    / Normalizes the ?type= query param to the type stored in
+    NotificationTacheLue; 'analyse' and 'synthese' both map to
+    'extraction' since both point at ExtractionJob.
+
+    LOCALISATION : front/views.py
+    """
+    if type_tache_url in ("analyse", "synthese", "extraction"):
+        return TypeDeTache.EXTRACTION
+    return type_tache_url
+
+
+def _marquer_tache_lue_pour(utilisateur, type_tache_stocke, tache_id):
+    """
+    Enregistre que `utilisateur` a lu la tache (type_tache_stocke,
+    tache_id) — correction 1, revue de cloture du 11 aout. get_or_create
+    est idempotent : un double-clic (ou un double-onglet) ne leve pas
+    d'IntegrityError sur la contrainte d'unicite.
+    / Records that `utilisateur` has read this task. Idempotent via
+    get_or_create — a double click never raises on the unique constraint.
+
+    LOCALISATION : front/views.py
+    """
+    NotificationTacheLue.objects.get_or_create(
+        utilisateur=utilisateur,
+        type_tache=type_tache_stocke,
+        tache_id=tache_id,
+    )
 
 
 def _peut_supprimer_extraction(utilisateur, entite):
@@ -811,6 +876,17 @@ DELAI_MAX_INACTIVITE_JOB = timedelta(minutes=5)
 # jobs. 90 min aligns with the edit guard's ceiling.
 DELAI_MAX_ATTENTE_EN_FILE = timedelta(minutes=90)
 
+# Un etat d'ingestion actif (en_attente/en_cours) sans mise a jour depuis
+# ce delai est un FANTOME : le worker Docling qui le portait est mort
+# (relecture U2, defaut H2). relancer_ingestion l'utilise pour autoriser
+# la relance ; le comptage du badge (front/views_taches.py) DOIT
+# utiliser la meme constante, sinon les deux se contredisent au premier
+# changement (defaut 2, revue de cloture du 11 aout).
+# / An active ingestion state with no update past this delay is a
+# GHOST: the worker that owned it died. Both the relaunch guard and the
+# badge counter must share this one constant.
+DELAI_INGESTION_FANTOME_MIN = 15
+
 
 def _verifier_et_nettoyer_job_bloque(job_en_cours):
     """
@@ -1117,19 +1193,55 @@ class LectureViewSet(viewsets.ViewSet):
         # / Mark notification as read if query params present (A.6 refactor)
         # / Dropdown link passes ?marquer_lue=X&type=analyse|synthese|transcription
         # / ("analyse" and "synthese" both point to ExtractionJob)
+        # Second chemin de marquage "lu", independant de TachesViewSet.marquer_lue :
+        # le lien du dropdown pointe ici, pas vers /taches/<pk>/marquer-lue/
+        # (complement du brief du 11 aout, piege 2). "ingestion" n'a pas de
+        # job : marquer_lue EST directement l'id de la Page.
+        # / Second, independent read-marking path — the dropdown link lands
+        # here, not on TachesViewSet.marquer_lue. "ingestion" has no job:
+        # marquer_lue IS the page id directly.
+        # Perimetre ELARGI (defaut 1, revue de cloture du 11 aout) :
+        # _filtre_proprietaire_page reproduit _est_proprietaire_page —
+        # proprietaire de la note OU proprietaire d'un carnet qui la
+        # contient — pour matcher _destinataires_de_notification
+        # (front/tasks.py). Sans ca, le proprietaire d'un carnet de
+        # classe recevait la notification mais ne pouvait jamais la
+        # marquer lue par ce chemin.
+        # / Widened scope: mirrors _est_proprietaire_page so the
+        # notebook owner (not just the note owner) can mark it read.
         marquer_lue = request.query_params.get("marquer_lue")
         type_tache = request.query_params.get("type")
-        if marquer_lue and type_tache in ("analyse", "synthese", "extraction", "transcription"):
+        if marquer_lue and type_tache in (
+            "analyse", "synthese", "extraction", "transcription", "ingestion",
+        ) and request.user.is_authenticated:
+            # Correction 1 (revue de cloture du 11 aout) : la lecture
+            # POUR CE DESTINATAIRE devient une ligne NotificationTacheLue,
+            # plus une ecriture sur un booleen partage — voir
+            # _marquer_tache_lue_pour. / Now writes a per-recipient row
+            # instead of a shared boolean.
             try:
-                if type_tache == "transcription":
+                type_stocke = _type_tache_stocke(type_tache)
+                if type_stocke == TypeDeTache.TRANSCRIPTION:
                     from core.models import TranscriptionJob
-                    TranscriptionJob.objects.filter(
-                        pk=marquer_lue, page__owner=request.user,
-                    ).update(notification_lue=True)
+                    existe = TranscriptionJob.objects.filter(
+                        pk=marquer_lue,
+                    ).filter(
+                        _filtre_proprietaire_page("page__", request.user),
+                    ).exists()
+                elif type_stocke == TypeDeTache.INGESTION:
+                    existe = Page.objects.filter(
+                        pk=marquer_lue,
+                    ).filter(
+                        _filtre_proprietaire_page("", request.user),
+                    ).exists()
                 else:
-                    ExtractionJob.objects.filter(
-                        pk=marquer_lue, page__owner=request.user,
-                    ).update(notification_lue=True)
+                    existe = ExtractionJob.objects.filter(
+                        pk=marquer_lue,
+                    ).filter(
+                        _filtre_proprietaire_page("page__", request.user),
+                    ).exists()
+                if existe:
+                    _marquer_tache_lue_pour(request.user, type_stocke, marquer_lue)
             except (ValueError, TypeError):
                 # marquer_lue n'est pas un entier valide, ignorer silencieusement
                 # / marquer_lue is not a valid integer, ignore silently
@@ -2020,17 +2132,33 @@ class LectureViewSet(viewsets.ViewSet):
         # docling tue en pleine conversion (serveur 8 Go, concurrence 1)
         # laisse en_cours pour toujours. Au-dela de DELAI_INGESTION_
         # FANTOME_MIN sans mise a jour, on autorise la relance : le
-        # message « attendez » deviendrait un mensonge. / A dead worker
-        # leaves an active state forever; past a delay, allow relaunch.
-        DELAI_INGESTION_FANTOME_MIN = 15
+        # message « attendez » deviendrait un mensonge. DELAI_INGESTION_
+        # FANTOME_MIN est une constante MODULE (pas locale) : le badge
+        # (front/views_taches.py) la reutilise pour ne pas se
+        # contredire (defaut 2, revue de cloture du 11 aout).
+        # / A dead worker leaves an active state forever; past a delay,
+        # allow relaunch. Module-level constant, reused by the badge.
+        #
+        # Correction 2 (revue de cloture du 11 aout, meme jour) : SANS
+        # date, on ne peut PAS affirmer que l'etat est recent — meme
+        # convention que le comptage du badge (front/views_taches.py).
+        # Avant ce correctif, `derniere_maj is None` donnait
+        # fantome=False : une page active sans horodatage (le bug
+        # corrige de core/views.py) etait a la fois INVISIBLE au badge
+        # ET IMPOSSIBLE A RELANCER ici — une impasse, pire que le
+        # defaut d'origine ou le badge au moins la signalait.
+        # / Without a date, recency cannot be proven — same convention
+        # as the badge's count. Previously NULL meant "not a ghost",
+        # leaving a dateless active page both invisible to the badge
+        # AND unrelaunchable — a dead end, worse than the original bug.
         ingestion_active = page.ingestion_etat in (
             EtatIngestion.EN_ATTENTE, EtatIngestion.EN_COURS,
         )
         if ingestion_active:
             derniere_maj = page.ingestion_maj_le
             fantome = (
-                derniere_maj is not None
-                and (timezone.now() - derniere_maj)
+                derniere_maj is None
+                or (timezone.now() - derniere_maj)
                 > timedelta(minutes=DELAI_INGESTION_FANTOME_MIN)
             )
             if not fantome:

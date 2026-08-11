@@ -95,7 +95,11 @@ class ExtractionJob(models.Model):
     notification_lue = models.BooleanField(
         default=False,
         help_text="Notification de fin lue par le proprietaire / "
-                  "End-of-task notification read by the owner",
+                  "End-of-task notification read by the owner. MORT "
+                  "pour la decision depuis la correction 1 (11 aout "
+                  "2026) : voir core.models.NotificationTacheLue, qui "
+                  "porte le drapeau PAR DESTINATAIRE. Champ laisse en "
+                  "base mais plus ecrit ni lu.",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

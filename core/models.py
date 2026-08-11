@@ -233,6 +233,16 @@ class Page(models.Model):
                   "the state last changed; used to break a stale active "
                   "state left by a dead worker.",
     )
+    ingestion_notification_lue = models.BooleanField(
+        default=False,
+        help_text="La fin du decoupage en elements a-t-elle ete vue ? "
+                  "Symetrique du notification_lue des jobs d'analyse et "
+                  "de transcription (addendum du 11 aout 2026). MORT "
+                  "pour la decision depuis la correction 1 (11 aout, "
+                  "meme jour) : voir NotificationTacheLue, qui porte le "
+                  "drapeau PAR DESTINATAIRE. Champ laisse en base "
+                  "(pas de suppression de colonne) mais plus ecrit ni lu.",
+    )
     type_de_note = models.CharField(
         max_length=10,
         choices=TypeDeNote.choices,
@@ -372,6 +382,74 @@ class Page(models.Model):
         return Page.objects.filter(
             Q(pk=racine.pk) | Q(parent_page=racine)
         ).order_by("version_number")
+
+
+class TypeDeTache(models.TextChoices):
+    """
+    Les trois formes que peut prendre une tache dans le bouton
+    'taches' : une ExtractionJob (analyse/synthese/wiki/verification),
+    un TranscriptionJob, ou une Page en cours d'ingestion (pas de job
+    dedie, l'etat vit sur la Page elle-meme).
+    / The three shapes a task can take in the tasks button.
+    """
+    EXTRACTION = "extraction", "Extraction"
+    TRANSCRIPTION = "transcription", "Transcription"
+    INGESTION = "ingestion", "Ingestion"
+
+
+class NotificationTacheLue(models.Model):
+    """
+    Un utilisateur a-t-il lu la notification de fin d'une tache ?
+    (correction 1, revue de cloture du 11 aout 2026)
+
+    LOCALISATION : core/models.py
+
+    Drapeau PAR DESTINATAIRE — l'EXISTENCE de la ligne est le drapeau,
+    pas un booleen partage. Depuis que le perimetre de lecture du
+    bouton 'taches' inclut le proprietaire d'un carnet EN PLUS de
+    l'auteur de la note (_filtre_proprietaire_page, front/views.py),
+    un booleen unique sur le job/la Page (ExtractionJob.notification_lue,
+    TranscriptionJob.notification_lue, Page.ingestion_notification_lue)
+    faisait que le premier des deux destinataires qui clique eteint la
+    notification pour l'autre. Ces trois booleens restent en base
+    (dette assumee, pas de suppression de colonne dans cette passe)
+    mais ne pilotent plus AUCUNE decision : voir le rapport de tache.
+    / Per-recipient read flag: row existence IS the flag. The three
+    legacy booleans stay in the schema but no longer decide anything.
+
+    (type_tache, tache_id) plutot qu'une GenericForeignKey : une tache
+    est soit une ExtractionJob, soit une TranscriptionJob, soit une
+    Page (ingestion, aucun job dedie) — trois tables, aucune FK
+    d'integrite commune possible de toute facon. Le couple explicite
+    suffit et reste lisible sans indirection, conformement a la
+    preference du projet pour l'explicite (voir front/views_taches.py
+    qui distingue deja `type_tache` + `tache_id` de la meme facon pour
+    router marquer_lue()).
+    / An explicit (type, id) couple instead of a GenericForeignKey —
+    three source tables, no shared FK integrity possible anyway; this
+    mirrors how views_taches.py already routes on type_tache.
+    """
+    utilisateur = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="notifications_taches_lues",
+        help_text="Le destinataire qui a lu cette tache.",
+    )
+    type_tache = models.CharField(max_length=14, choices=TypeDeTache.choices)
+    tache_id = models.PositiveIntegerField(
+        help_text="Pk de l'ExtractionJob, du TranscriptionJob ou de la "
+                  "Page (ingestion) concerne, selon type_tache.",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["utilisateur", "type_tache", "tache_id"],
+                name="unicite_notification_tache_lue_par_destinataire",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.utilisateur} a lu {self.type_tache} #{self.tache_id}"
 
 
 class HypostasisTag(models.Model):
@@ -1162,7 +1240,11 @@ class TranscriptionJob(models.Model):
     notification_lue = models.BooleanField(
         default=False,
         help_text="Notification de fin lue par le proprietaire / "
-                  "End-of-task notification read by the owner",
+                  "End-of-task notification read by the owner. MORT "
+                  "pour la decision depuis la correction 1 (11 aout "
+                  "2026) : voir NotificationTacheLue, qui porte le "
+                  "drapeau PAR DESTINATAIRE. Champ laisse en base mais "
+                  "plus ecrit ni lu.",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

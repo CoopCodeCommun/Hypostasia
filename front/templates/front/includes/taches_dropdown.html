@@ -6,8 +6,8 @@
     <div class="taches-dropdown-header">
         <h3 class="text-sm font-semibold text-slate-700">Mes tâches récentes</h3>
         <div class="taches-dropdown-actions">
-            {# Bouton 'tout marquer lu' : passe notification_lue=True sur toutes les terminees #}
-            {# / 'Mark all as read' button: sets notification_lue=True on all finished #}
+            {# Bouton 'tout marquer lu' : cree une ligne NotificationTacheLue pour l'utilisateur sur toutes les terminees non lues #}
+            {# / 'Mark all as read' button: creates a NotificationTacheLue row for the user on every unread finished task #}
             <button type="button"
                     class="taches-dropdown-action-btn"
                     hx-post="/taches/marquer-toutes-lues/"

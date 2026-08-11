@@ -396,6 +396,32 @@ def _mettre_a_jour_la_pile_des_titres(pile_des_titres, texte_du_titre, label):
     return [texte_du_titre]
 
 
+def _coord_origin_en_chaine(coord_origin):
+    """
+    Rend "BOTTOMLEFT", jamais "CoordOrigin.BOTTOMLEFT".
+    / Returns "BOTTOMLEFT", never "CoordOrigin.BOTTOMLEFT".
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    `coord_origin` est un membre de l'enumeration CoordOrigin de
+    docling-core. str() d'un membre d'enum rend "NomDeClasse.MEMBRE" — le
+    prefixe de classe compris — ce qu'un visualiseur PDF ne sait pas
+    interpreter : c'est `.value` qu'il faut, pas `str()`. Le systeme de
+    coordonnees n'est pas cosmetique : BOTTOMLEFT dit que `t` se mesure
+    depuis le bas de la page, et se tromper dessine les surlignages a
+    l'envers.
+    / `.value` on purpose, never `str()`: str() leaks "ClassName.MEMBER",
+    and the origin decides which way highlights get drawn.
+
+    :param coord_origin: un membre d'enum, une chaine deja propre, ou
+        absent (None) selon la source Docling.
+    """
+    if coord_origin is None:
+        return ""
+    valeur = getattr(coord_origin, "value", coord_origin)
+    return str(valeur)
+
+
 def _provenance_de_l_element(element_docling):
     """
     Rend la provenance physique d'un element : page et boites.
@@ -433,7 +459,9 @@ def _provenance_de_l_element(element_docling):
             "t": getattr(boite, "t", None),
             "r": getattr(boite, "r", None),
             "b": getattr(boite, "b", None),
-            "coord_origin": str(getattr(boite, "coord_origin", "") or ""),
+            "coord_origin": _coord_origin_en_chaine(
+                getattr(boite, "coord_origin", None),
+            ),
             "page_no": numero_de_page,
         })
 
