@@ -662,6 +662,29 @@ def transcrire_audio_task(self, job_id, chemin_fichier_audio, max_locuteurs=5, l
             "content_hash", "status",
         ])
 
+        # BASCULE AUDIO (decision D2, ordre 3) : la transcription est
+        # posee, on la decoupe en tours de parole pour le moteur
+        # ELEMENT. C'est le dernier flux a le rejoindre.
+        #
+        # Encadre comme les deux autres bascules : un broker en panne ne
+        # doit pas faire echouer une transcription qui, elle, a reussi.
+        # / Last flow to join the ELEMENT engine; a dead broker must not
+        # fail a transcription that succeeded.
+        try:
+            from hypostasis_extractor.tasks_element import (
+                ingerer_une_transcription_diarisee_en_elements,
+            )
+            ingerer_une_transcription_diarisee_en_elements.delay(
+                page_associee.pk,
+            )
+        except Exception as erreur_de_file:
+            logger.warning(
+                "Page %s : transcription enregistree, mais la mise en file "
+                "de l'ingestion par elements a echoue (%s). La page reste "
+                "lisible ; relancer l'ingestion depuis la lecture.",
+                page_associee.pk, erreur_de_file,
+            )
+
         # Mettre a jour le Job / Update the Job
         duree_traitement = time.time() - debut_traitement
         job_transcription.raw_result = segments_transcrits

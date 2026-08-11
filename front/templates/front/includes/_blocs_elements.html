@@ -14,10 +14,10 @@
 {# defaut sur. / `la_note_est_modifiable` is evaluated once by the #}
 {# caller; a missing value falls back to the reader rendering.     #}
 {#                                                                #}
-{# Chaque bloc est soit une liste regroupee (est_une_liste, puces, #}
-{# toutes_masquees) soit un element simple (balise, html_du_texte, #}
-{# est_masque, fusion_possible). Le html_du_texte est deja echappe #}
-{# et marque par PORTION (markup fige par test_rendu_elements).    #}
+{# Chaque element est UN bloc, puces comprises : une puce rend un  #}
+{# <ul> d'un seul <li> (etalon l. 1449), ce qui lui donne sa        #}
+{# gouttiere sans casser la validite du HTML. Le html_du_texte est  #}
+{# deja echappe et marque par PORTION (markup fige par les tests).  #}
 {#                                                                #}
 {# U1 — LES OPERATIONS D'ELEMENT ONT LEURS BOUTONS :               #}
 {# - qui PEUT ECRIRE recoit dans chaque bloc un groupe de boutons  #}
@@ -30,36 +30,11 @@
 {# / Writers get per-block action buttons and un-hideable          #}
 {# placeholders; readers get none of it, not even an empty <ul>.   #}
 {# ============================================================= #}
-<div data-testid="blocs-elements">
+{% if blocs_de_lecture %}{% with premier=blocs_de_lecture.0 %}
+<div data-testid="blocs-elements" data-media="{{ premier.media }}">
+{% endwith %}{% else %}<div data-testid="blocs-elements">{% endif %}
     {% for bloc in blocs_de_lecture %}
-        {% if bloc.est_une_liste %}
-            {% if la_note_est_modifiable or not bloc.toutes_masquees %}
-            <ul>
-                {% for puce in bloc.puces %}
-                    {% if puce.est_masque %}
-                        {% if la_note_est_modifiable %}
-                        <li class="element-masque"
-                            data-element-id="{{ puce.element.pk }}"
-                            data-testid="element-masque-{{ puce.element.ordre }}">
-                            <span class="etiquette">Passage masqué</span>
-                            <span class="extrait">{{ puce.element.texte|truncatechars:160 }}</span>
-                            <button type="button"
-                                    hx-post="/elements/{{ puce.element.pk }}/demasquer/"
-                                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                                    hx-swap="none"
-                                    hx-disabled-elt="this"
-                                    data-testid="btn-element-demasquer"
-                                    title="Rétablir ce passage dans la lecture">démasquer</button>
-                        </li>
-                        {% endif %}
-                    {% else %}
-                        <li data-element-id="{{ puce.element.pk }}"
-                            data-testid="bloc-element-{{ puce.element.ordre }}">{{ puce.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" with bloc=puce %}{% endif %}</li>
-                    {% endif %}
-                {% endfor %}
-            </ul>
-            {% endif %}
-        {% elif bloc.est_masque %}
+        {% if bloc.est_masque %}
             {% if la_note_est_modifiable %}
             <div class="element-masque"
                  data-element-id="{{ bloc.element.pk }}"
@@ -81,7 +56,7 @@
             {# rendre la page inutilisable. On le DIT, au lieu de servir #}
             {# un texte nu dont rien n'indique qu'il porte des preuves.  #}
             {# / Say it, instead of serving bare text that hides them.   #}
-            <p class="avis-surlignage-abandonne"
+            <p class="avertissement-plafond"
                data-testid="avis-surlignage-abandonne-{{ bloc.element.ordre }}">
                 Ce passage porte {{ bloc.idees_non_surlignees }} idées :
                 trop pour les surligner sans rendre la lecture
@@ -89,12 +64,78 @@
                 des idées.
             </p>
             {% endif %}
+            {# LA GOUTTIERE DE L'ETALON (maquette.html § .bloc).         #}
+            {# Chaque bloc est une grille « gouttiere | corps », avec un  #}
+            {# filet d'etat entre les deux. La gouttiere porte le reperage#}
+            {# du passage : son numero, son label, son empreinte — tous   #}
+            {# CACHES en lecture, un lecteur n'a rien a en faire — et le  #}
+            {# COMPTEUR D'IDEES, lui bien visible : c'est la seule chose  #}
+            {# de la gouttiere qui s'adresse au lecteur.                  #}
+            {# / The mock's gutter: numbering hidden, idea count shown.   #}
+            <div class="bloc"
+                 data-media="{{ bloc.media }}"
+                 data-label="{{ bloc.element.label }}"
+                 data-etat="{% if bloc.est_debattu %}debattu{% else %}analyse{% endif %}"
+                 data-testid="bloc-{{ bloc.element.ordre }}">
+                <div class="gouttiere">
+                    {% if bloc.locuteur %}
+                    {# La glissiere d'un AUDIO porte d'abord QUI parle,   #}
+                    {# puis QUAND (etalon l. 1567-1575). C'est ce qui     #}
+                    {# rend un verbatim citable : une phrase sans son     #}
+                    {# locuteur n'est pas une preuve.                     #}
+                    {# / Who speaks, then when: a quote needs its voice.  #}
+                    <span class="etiquette-locuteur"
+                          {% if bloc.couleur_du_locuteur %}style="--couleur-locuteur: {{ bloc.couleur_du_locuteur }}"{% endif %}
+                          data-testid="locuteur-{{ bloc.element.ordre }}">{{ bloc.locuteur }}</span>
+                    {% endif %}
+                    {% if bloc.minutage %}
+                    <span class="ligne-minutage">
+                        <span class="minutage">{{ bloc.minutage }}</span>
+                    </span>
+                    {% endif %}
+                    <span class="etiquette-label">{{ bloc.label_affiche }}</span>
+                    {% if bloc.numero_de_page %}
+                    <span class="numero-page">p. {{ bloc.numero_de_page }}</span>
+                    {% endif %}
+                    <span class="numero-element">#{{ bloc.numero }}</span>
+                    {% if bloc.nombre_d_idees %}
+                    <button type="button" class="compteur-idees"
+                            data-element-id="{{ bloc.element.pk }}"
+                            data-testid="compteur-idees-{{ bloc.element.ordre }}"
+                            title="{{ bloc.nombre_d_idees }} idée{{ bloc.nombre_d_idees|pluralize }} extraite{{ bloc.nombre_d_idees|pluralize }} de ce passage">{{ bloc.nombre_d_idees }}</button>
+                    {% endif %}
+                    {% if bloc.numero_de_page %}
+                    {# L'etalon ouvrirait le document source a cette page,  #}
+                    {# boite surlignee. Le visualiseur PDF n'existe pas     #}
+                    {# encore (SPEC-ancrage § 8.2 incomplete) : le bouton   #}
+                    {# le DIT, au lieu de promettre ce qu'il ne fait pas.   #}
+                    {# / Says what it cannot do yet, instead of promising.  #}
+                    <button type="button" class="bouton-voir-source"
+                            data-page-source="{{ bloc.numero_de_page }}"
+                            data-testid="bouton-voir-source-{{ bloc.element.ordre }}"
+                            title="Ouvrir le document source à cette page">
+                        <span class="icone-source">⤴</span>
+                        <span class="libelle-source">voir la source</span>
+                    </button>
+                    {% endif %}
+                    <span class="empreinte"
+                          title="empreinte_contenu, 8 premiers signes">{{ bloc.empreinte_courte }}</span>
+                </div>
+                <div class="filet-etat"></div>
+                <div class="corps" id="corps-{{ bloc.element.pk }}">
             {% if bloc.balise == "h2" %}
                 <h2 data-element-id="{{ bloc.element.pk }}"
                     data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h2>{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}
             {% elif bloc.balise == "h3" %}
                 <h3 data-element-id="{{ bloc.element.pk }}"
                     data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h3>{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}
+            {% elif bloc.balise == "li" %}
+                {# Une puce est un bloc comme un autre, avec sa gouttiere. #}
+                {# Son corps est un <ul> d'un seul <li> : le HTML reste    #}
+                {# valide, et la puce garde son reperage (etalon l. 1449). #}
+                {# / One-item list per bullet: valid HTML, own gutter.     #}
+                <ul><li data-element-id="{{ bloc.element.pk }}"
+                        data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</li></ul>
             {% elif bloc.balise == "pre" %}
                 <pre data-element-id="{{ bloc.element.pk }}"
                      data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</pre>
@@ -102,6 +143,8 @@
                 <p data-element-id="{{ bloc.element.pk }}"
                    data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</p>
             {% endif %}
+                </div>
+            </div>
         {% endif %}
     {% endfor %}
 </div>

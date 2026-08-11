@@ -65,7 +65,7 @@ class BaseIngestionUITest(TestCase):
             html_original="<p>o</p>",
             html_readability="<p>Lisible par l'ancien moteur.</p>",
             text_readability="texte", content_hash=f"hash-u2-{suffixe}",
-            owner=self.proprietaire, moteur=moteur, status="completed",
+            owner=self.proprietaire, status="completed",
             original_filename=nom_fichier,
             ingestion_etat=etat, ingestion_detail=detail)
         if nom_fichier:

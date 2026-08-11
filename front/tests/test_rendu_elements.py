@@ -21,6 +21,7 @@ from front.services.rendu_elements import (
 )
 from hypostasis_extractor.models import (
     AncrageExtraction,
+    CommentaireExtraction,
     EtatAncrage,
     ExtractedEntity,
     ExtractionJob,
@@ -482,10 +483,16 @@ class BlocsDeLectureTest(BaseRenduTestCase):
             [bloc["balise"] for bloc in blocs], ["h2", "h3", "p", "p"],
         )
 
-    def test_les_puces_consecutives_sont_regroupees(self):
+    def test_chaque_puce_reste_un_bloc_distinct(self):
         """
-        Un <li> hors d'un <ul> n'est pas du HTML valide.
-        / A <li> outside a <ul> is invalid HTML.
+        Les puces ne sont PLUS regroupees dans un <ul> commun.
+
+        Le regroupement rendait un HTML valide, mais sortait les puces
+        de la structure `.bloc` : elles n'avaient ni gouttiere, ni filet
+        d'etat, ni compteur d'idees. L'etalon (l. 1449) donne a chaque
+        puce son propre <ul> d'un seul <li> — valide aussi, et chaque
+        puce garde son reperage.
+        / Bullets are no longer merged: each keeps its own gutter.
         """
         self._ajouter_un_element("Une intro", label="text")
         self._ajouter_un_element("Premiere puce", label="list_item")
@@ -494,21 +501,11 @@ class BlocsDeLectureTest(BaseRenduTestCase):
 
         blocs = construire_les_blocs_de_lecture(self.page_de_test)
 
-        self.assertEqual(len(blocs), 3)
-        self.assertFalse(blocs[0]["est_une_liste"])
-        self.assertTrue(blocs[1]["est_une_liste"])
-        self.assertEqual(len(blocs[1]["puces"]), 2)
-        self.assertFalse(blocs[2]["est_une_liste"])
-
-    def test_deux_listes_separees_ne_fusionnent_pas(self):
-        self._ajouter_un_element("Puce A", label="list_item")
-        self._ajouter_un_element("Un paragraphe entre les deux", label="text")
-        self._ajouter_un_element("Puce B", label="list_item")
-
-        blocs = construire_les_blocs_de_lecture(self.page_de_test)
-
-        listes = [bloc for bloc in blocs if bloc.get("est_une_liste")]
-        self.assertEqual(len(listes), 2)
+        self.assertEqual(len(blocs), 4)
+        self.assertEqual(
+            [bloc["balise"] for bloc in blocs], ["p", "li", "li", "p"],
+        )
+        self.assertEqual([bloc["numero"] for bloc in blocs], [1, 2, 3, 4])
 
     def test_le_compteur_compte_les_idees_pas_les_portions(self):
         """
@@ -577,3 +574,366 @@ class BlocsDeLectureTest(BaseRenduTestCase):
 
         with self.assertNumQueries(2):
             construire_les_blocs_de_lecture(self.page_de_test)
+
+
+class LaGouttiereDUnBlocTest(BaseRenduTestCase):
+    """
+    Ce que la gouttiere de l'etalon affiche a cote de chaque bloc.
+    / What the mock's gutter shows beside each block.
+
+    LOCALISATION : front/tests/test_rendu_elements.py
+
+    L'etalon (`tmp/maquettes/maquette.html`) pose chaque bloc en grille
+    « gouttiere | corps », avec un filet d'etat entre les deux. La
+    gouttiere porte le numero de l'element, son label, son empreinte —
+    et surtout le COMPTEUR D'IDEES, seul element visible en lecture, les
+    autres n'apparaissant qu'en mode structure.
+
+    Confrontation au navigateur du 10 aout : 14 elements de gouttiere
+    dans l'etalon, ZERO dans l'application.
+    / Measured: 14 gutter elements in the mock, zero in the app.
+    """
+
+    def test_chaque_bloc_porte_son_numero_d_element(self):
+        # L'etalon numerote a partir de 1 : « #1 » pour le premier bloc,
+        # pas « #0 ». C'est un repere pour un humain, pas un index.
+        # / The mock numbers from 1: it is a human landmark, not an index.
+        self._ajouter_un_element("Premier passage.")
+        self._ajouter_un_element("Second passage.")
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertEqual([bloc["numero"] for bloc in blocs], [1, 2])
+
+    def test_un_bloc_dont_une_idee_porte_un_commentaire_est_debattu(self):
+        """
+        « Debattu » se lit sur les COMMENTAIRES, pas sur `statut_debat`.
+
+        Premiere version : le critere etait `statut_debat == "commente"`,
+        le statut binaire de A.8. Mesure au navigateur : la page 235
+        porte 188 COMMENTAIRES et ZERO extraction « commente » — ses
+        statuts sont herites d'avant A.8 (consensuel, discute,
+        controverse, discutable...). Le filet d'etat ne s'allumait donc
+        sur aucune donnee reelle : du code mort livre comme une
+        fonctionnalite.
+
+        On interroge la seule chose qui ne ment pas : l'existence d'un
+        commentaire humain.
+        / Measured: 188 comments, zero "commente" status. Ask the
+        comments themselves.
+        """
+        from django.contrib.auth import get_user_model
+
+        auteur = get_user_model().objects.create_user(
+            username="commentateur_bloc", password="motdepasse",
+        )
+        element = self._ajouter_un_element("Un passage discute.")
+        portion = self._ancrer(element, 0, 3, ordre=0)
+        CommentaireExtraction.objects.create(
+            entity=portion.extraction, user=auteur,
+            commentaire="Je ne suis pas d'accord.",
+        )
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertTrue(blocs[0]["est_debattu"])
+
+    def test_un_commentaire_compte_meme_si_le_statut_est_perime(self):
+        """
+        LE CAS REEL, celui qui a fait tomber la premiere version.
+
+        En base, 878 extractions portent un commentaire ET un statut
+        herite d'avant A.8 (`discute`, `consensuel`, `controverse`...) —
+        seules 22 disent « commente ». Le signal qui derive ce champ n'a
+        jamais rattrape ces donnees. Un critere fonde sur `statut_debat`
+        marche donc en test (le signal tourne) et rate en production :
+        c'est exactement ce qui s'est produit, le filet d'etat ne
+        s'allumait sur aucun bloc de la page 235 malgre ses 188
+        commentaires.
+        / Measured: 878 commented extractions carry a stale status.
+        """
+        from django.contrib.auth import get_user_model
+
+        auteur = get_user_model().objects.create_user(
+            username="commentateur_perime", password="motdepasse",
+        )
+        element = self._ajouter_un_element("Un passage commente jadis.")
+        portion = self._ancrer(element, 0, 3, ordre=0)
+        CommentaireExtraction.objects.create(
+            entity=portion.extraction, user=auteur, commentaire="Ancien.",
+        )
+        # On remet le statut dans l'etat ou la base le porte vraiment,
+        # APRES coup, comme si le signal n'avait jamais tourne.
+        # / Put the status back the way the database actually holds it.
+        ExtractedEntity.objects.filter(pk=portion.extraction_id).update(
+            statut_debat="discute",
+        )
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertTrue(blocs[0]["est_debattu"])
+
+    def test_un_statut_herite_ne_suffit_pas_a_dire_debattu(self):
+        # `discute` est un statut d'avant A.8, encore porte par des
+        # centaines d'extractions. Sans commentaire, il ne dit rien d'un
+        # debat. / A pre-A.8 status alone does not make a debate.
+        element = self._ajouter_un_element("Un passage etiquete.")
+        portion = self._ancrer(element, 0, 3, ordre=0)
+        portion.extraction.statut_debat = "discute"
+        portion.extraction.save(update_fields=["statut_debat"])
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertFalse(blocs[0]["est_debattu"])
+
+    def test_un_bloc_sans_idee_commentee_n_est_pas_debattu(self):
+        element = self._ajouter_un_element("Un passage tranquille.")
+        self._ancrer(element, 0, 3, ordre=0)
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertFalse(blocs[0]["est_debattu"])
+
+    def test_la_gouttiere_affiche_le_debut_de_l_empreinte(self):
+        # L'etalon montre les 8 premiers signes de `empreinte_contenu`,
+        # sous le titre « empreinte_contenu, 8 premiers signes ». C'est
+        # un outil de diagnostic, visible en mode structure seulement.
+        # / The mock shows the first 8 characters of the content hash.
+        element = self._ajouter_un_element("Un passage.")
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertEqual(
+            blocs[0]["empreinte_courte"], element.empreinte_contenu[:8],
+        )
+
+
+class UnePuceDeListeEstUnBlocCommeUnAutreTest(BaseRenduTestCase):
+    """
+    Chaque puce a SA gouttiere, comme dans l'etalon.
+    / Each bullet gets its own gutter, as in the mock.
+
+    LOCALISATION : front/tests/test_rendu_elements.py
+
+    L'application regroupait les `list_item` consecutifs dans un seul
+    `<ul>`, hors de la structure `.bloc` : ces passages n'avaient donc
+    ni gouttiere, ni filet d'etat, ni compteur d'idees. Mesure au
+    navigateur sur /lire/676/ : 2 elements et 1 idee dans ce cas.
+
+    L'etalon resout autrement (maquette.html l. 1449) : chaque puce est
+    un bloc a part entiere dont le corps est `<ul><li>…</li></ul>`. Le
+    HTML reste valide — un `<li>` a toujours son `<ul>` — et la puce
+    gagne sa gouttiere.
+    / The mock wraps each bullet in its own one-item list.
+    """
+
+    def test_une_puce_est_un_bloc_avec_son_numero(self):
+        self._ajouter_un_element("Un paragraphe.")
+        self._ajouter_un_element("Premiere puce.", label="list_item")
+        self._ajouter_un_element("Seconde puce.", label="list_item")
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertEqual(len(blocs), 3)
+        self.assertEqual([bloc["numero"] for bloc in blocs], [1, 2, 3])
+
+    def test_une_puce_porte_son_compteur_d_idees(self):
+        puce = self._ajouter_un_element("Une puce citee.", label="list_item")
+        self._ancrer(puce, 0, 3, ordre=0)
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertEqual(blocs[0]["nombre_d_idees"], 1)
+
+    def test_le_regroupement_en_liste_a_disparu(self):
+        # Plus de bloc « liste » englobant : la notion elle-meme part,
+        # avec le code qui la portait.
+        # / The grouping notion is gone, along with its code.
+        self._ajouter_un_element("Premiere puce.", label="list_item")
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertNotIn("est_une_liste", blocs[0])
+        self.assertNotIn("puces", blocs[0])
+
+
+class LaGouttiereMontreLaPageDuPdfTest(BaseRenduTestCase):
+    """
+    Le numero de page et le bouton « voir la source » (etalon § 7).
+    / Page number and "see source" button.
+
+    LOCALISATION : front/tests/test_rendu_elements.py
+
+    L'etalon affiche dans la gouttiere le numero de page du document
+    source, et un bouton pour l'y ouvrir — mais SEULEMENT quand la
+    donnee existe : `body[data-docling="non"]` les masque tous les deux.
+
+    Etat mesure le 10 aout : 0 element sur 4 899 porte une provenance.
+    Aucun PDF n'a encore ete ingere par le flux ELEMENT. La regle
+    d'affichage manquait pourtant : sans elle, le jour ou un PDF arrive,
+    la gouttiere resterait muette. On porte donc la REGLE, pas
+    seulement l'etat du jour.
+    / The mock hides both without data; we port the rule, not the state.
+    """
+
+    def test_un_element_sans_provenance_n_affiche_pas_de_page(self):
+        self._ajouter_un_element("Un passage sans PDF.")
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertIsNone(blocs[0]["numero_de_page"])
+
+    def test_un_element_venu_d_un_pdf_affiche_sa_page(self):
+        element = self._ajouter_un_element("Un passage de PDF.")
+        element.provenance = {"page_no": 4, "boites": []}
+        element.save(update_fields=["provenance"])
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertEqual(blocs[0]["numero_de_page"], 4)
+
+    def test_une_provenance_sans_numero_de_page_ne_ment_pas(self):
+        # Une provenance audio ({debut, fin}) n'a pas de page : la
+        # gouttiere ne doit pas afficher « p. None ».
+        # / An audio provenance has no page; do not print "p. None".
+        element = self._ajouter_un_element("Un tour de parole.")
+        element.provenance = {"debut": 12.5, "fin": 30.0}
+        element.save(update_fields=["provenance"])
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertIsNone(blocs[0]["numero_de_page"])
+
+
+class LaGouttiereDependDuMediaTest(BaseRenduTestCase):
+    """
+    L'etalon n'a pas UNE gouttiere, il en a trois.
+    / The mock has three gutters, not one.
+
+    LOCALISATION : front/tests/test_rendu_elements.py
+
+    Largeurs (etalon l. 73-78) : 46px en lecture et 124px en inspection
+    pour un document ecrit ; 96px et 150px pour un AUDIO, dont la
+    gouttiere porte davantage — le locuteur et le minutage.
+
+    Contenu (etalon l. 1567-1580) :
+      · audio    -> etiquette de locuteur, minutage + bouton d'ecoute,
+                    et le label vaut « utterance » quel que soit
+                    l'element ;
+      · document -> le label reel, et le numero de page s'il y en a un.
+
+    CE QUI EST PORTABLE AUJOURD'HUI, ET CE QUI NE L'EST PAS
+    La largeur et le label le sont : ils ne dependent que du type de la
+    page. Le locuteur et le minutage, non — mesure du 10 aout : les 36
+    pages audio de la base ont des elements SANS provenance et SANS
+    transcription. L'ingestion audio par le moteur ELEMENT n'a jamais
+    ete branchee (elle etait prevue « en dernier », decision D2). On ne
+    fabrique pas une gouttiere qui afficherait des minutages inventes.
+    / Width and label are portable; speaker and timing await ingestion.
+    """
+
+    def test_un_document_ecrit_garde_le_label_de_son_element(self):
+        self._ajouter_un_element("Un titre.", label="title")
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertEqual(blocs[0]["label_affiche"], "title")
+
+    def test_un_audio_affiche_utterance_quel_que_soit_le_label(self):
+        self.page_de_test.source_type = "audio"
+        self.page_de_test.save(update_fields=["source_type"])
+        self._ajouter_un_element("Un tour de parole.", label="text")
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertEqual(blocs[0]["label_affiche"], "utterance")
+
+    def test_le_media_de_la_page_est_transmis_au_gabarit(self):
+        # C'est lui qui commande la largeur de la gouttiere en CSS,
+        # comme `body[data-source]` chez l'etalon.
+        # / It drives the gutter width, like the mock's body attribute.
+        self.page_de_test.source_type = "audio"
+        self.page_de_test.save(update_fields=["source_type"])
+        self._ajouter_un_element("Un tour de parole.")
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertEqual(blocs[0]["media"], "audio")
+
+
+class ChaqueLocuteurAUneCouleurTest(BaseRenduTestCase):
+    """
+    Suivre un debat, c'est suivre qui parle (etalon § 7).
+    / Following a debate means following who speaks.
+
+    LOCALISATION : front/tests/test_rendu_elements.py
+
+    L'etalon donne une pastille de couleur a chaque locuteur, attribuee
+    par ORDRE D'APPARITION et non par hachage du nom : deux noms
+    quelconques peuvent hacher vers des teintes voisines, alors que
+    l'ordre garantit des couleurs franchement distinctes entre les
+    locuteurs d'un MEME enregistrement — c'est la seule chose qui
+    compte, personne ne compare deux debats cote a cote.
+
+    La palette est celle de WONG, deja employee par les categories du
+    corpus : huit couleurs distinguables par les daltoniens. Celle de
+    l'etalon met un rouge et un vert cote a cote, indistinguables pour
+    un deuteranope. Et la couleur ne porte JAMAIS l'information seule :
+    le nom du locuteur est ecrit a cote.
+    / Order beats hashing for distinctness; Wong beats the mock's
+    red-next-to-green; the name is always written.
+    """
+
+    def _page_audio(self):
+        self.page_de_test.source_type = "audio"
+        self.page_de_test.save(update_fields=["source_type"])
+
+    def _ajouter_un_tour(self, texte, locuteur, debut=0.0):
+        element = self._ajouter_un_element(texte)
+        element.provenance = {"locuteur": locuteur, "debut": debut, "fin": debut + 2}
+        element.save(update_fields=["provenance"])
+        return element
+
+    def test_deux_locuteurs_ont_deux_couleurs_differentes(self):
+        self._page_audio()
+        self._ajouter_un_tour("Je commence.", "Laurent", 0.0)
+        self._ajouter_un_tour("Je reponds.", "Eric", 5.0)
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertNotEqual(
+            blocs[0]["couleur_du_locuteur"], blocs[1]["couleur_du_locuteur"],
+        )
+
+    def test_un_meme_locuteur_garde_sa_couleur_tout_du_long(self):
+        # Sinon la pastille ne servirait a rien : c'est sa CONSTANCE qui
+        # permet de suivre une voix. / Constancy is the whole point.
+        self._page_audio()
+        self._ajouter_un_tour("Premier tour.", "Laurent", 0.0)
+        self._ajouter_un_tour("Un autre parle.", "Eric", 5.0)
+        self._ajouter_un_tour("Je reprends.", "Laurent", 10.0)
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertEqual(
+            blocs[0]["couleur_du_locuteur"], blocs[2]["couleur_du_locuteur"],
+        )
+
+    def test_la_couleur_vient_de_la_palette_daltonien_safe(self):
+        from core.models import CategorieDossier
+
+        self._page_audio()
+        self._ajouter_un_tour("Je parle.", "Laurent", 0.0)
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertIn(
+            blocs[0]["couleur_du_locuteur"], CategorieDossier.PALETTE_WONG,
+        )
+
+    def test_un_document_ecrit_n_a_pas_de_couleur_de_locuteur(self):
+        self._ajouter_un_element("Un paragraphe.")
+
+        blocs = construire_les_blocs_de_lecture(self.page_de_test)
+
+        self.assertIsNone(blocs[0]["couleur_du_locuteur"])

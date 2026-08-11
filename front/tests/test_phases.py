@@ -820,121 +820,6 @@ class Phase03JobStockeAnalyseurIdTest(TestCase):
         )
 
 
-class Phase03AnalyserPageTaskUtiliseFonctionCommuneTest(TestCase):
-    """Verifie que analyser_page_task charge les exemples depuis l'analyseur
-    via _construire_exemples_langextract (pas depuis raw_result serialise).
-    / Verify that analyser_page_task loads examples from the analyzer
-    via _construire_exemples_langextract (not from serialized raw_result)."""
-
-    def test_task_charge_analyseur_depuis_raw_result(self):
-        """analyser_page_task utilise analyseur_id de raw_result pour charger les exemples."""
-        from unittest.mock import patch, MagicMock
-        from core.models import AIModel, Page, Provider
-        from hypostasis_extractor.models import (
-            AnalyseurSyntaxique, ExtractionJob,
-        )
-
-        # Setup / Mise en place
-        page = Page.objects.create(
-            url="https://example.com/task-test",
-            html_original="<html>Test</html>",
-            html_readability="<article>Test task</article>",
-            text_readability="Contenu de test pour la tache Celery.",
-        )
-        modele_ia = AIModel.objects.create(
-            name="Mock Task",
-            provider=Provider.MOCK,
-            model_name="gemini-2.5-flash",
-        )
-        analyseur = AnalyseurSyntaxique.objects.create(
-            name="Analyseur pour tache",
-        )
-        job = ExtractionJob.objects.create(
-            page=page,
-            ai_model=modele_ia,
-            name="Job test task",
-            prompt_description="Extraire les entites",
-            status="pending",
-            raw_result={"analyseur_id": analyseur.pk},
-        )
-
-        # Mock lx.extract pour ne pas appeler le LLM
-        # / Mock lx.extract to avoid calling the LLM
-        mock_resultat = MagicMock()
-        mock_resultat.extractions = []
-
-        with patch("langextract.extract", return_value=mock_resultat) as mock_extract, \
-             patch(
-                 "hypostasis_extractor.services._construire_exemples_langextract",
-                 wraps=None,
-             ) as mock_construire:
-            # Configurer le mock pour retourner une liste vide
-            # / Configure mock to return empty list
-            mock_construire.return_value = []
-
-            from front.tasks import analyser_page_task
-            analyser_page_task(job.pk)
-
-            # Verifier que _construire_exemples_langextract a ete appele avec le bon analyseur
-            # / Verify _construire_exemples_langextract was called with the correct analyzer
-            mock_construire.assert_called_once()
-            appel_args = mock_construire.call_args
-            analyseur_passe = appel_args[0][0]
-            self.assertEqual(analyseur_passe.pk, analyseur.pk)
-
-    def test_task_sans_analyseur_id_retourne_liste_vide(self):
-        """Sans analyseur_id dans raw_result, _construire_exemples_langextract n'est pas appele.
-        / Without analyseur_id in raw_result, _construire_exemples_langextract is not called."""
-        from unittest.mock import patch, MagicMock
-        from core.models import AIModel, Page, Provider
-        from hypostasis_extractor.models import ExtractionJob
-
-        page = Page.objects.create(
-            url="https://example.com/task-no-analyseur",
-            html_original="<html>Test</html>",
-            html_readability="<article>Test</article>",
-            text_readability="Contenu sans analyseur.",
-        )
-        modele_ia = AIModel.objects.create(
-            name="Mock No Analyseur",
-            provider=Provider.MOCK,
-            model_name="gemini-2.5-flash",
-        )
-        job = ExtractionJob.objects.create(
-            page=page,
-            ai_model=modele_ia,
-            name="Job sans analyseur",
-            prompt_description="Extraire",
-            status="pending",
-            raw_result={},
-        )
-
-        # Patch _construire_exemples_langextract a la source pour verifier
-        # qu'il n'est PAS appele quand analyseur_id est absent du raw_result.
-        # On patche aussi _creer_annotateur_avec_progression pour eviter
-        # l'appel reel au LLM.
-        # / Patch _construire_exemples at source to verify it's NOT called when
-        # / analyseur_id is absent. Also patch the annotator factory to avoid real LLM calls.
-        mock_resultat = MagicMock()
-        mock_resultat.extractions = []
-
-        mock_annotateur = MagicMock()
-        mock_annotateur.annotate.return_value = mock_resultat
-
-        with patch(
-            "hypostasis_extractor.services._construire_exemples_langextract"
-        ) as mock_construire, patch(
-            "front.tasks._creer_annotateur_avec_progression",
-            return_value=mock_annotateur,
-        ):
-            from front.tasks import analyser_page_task
-            analyser_page_task(job.pk)
-
-            # Sans analyseur_id, _construire_exemples ne doit pas etre appele
-            # / Without analyseur_id, _construire_exemples must not be called
-            mock_construire.assert_not_called()
-
-
 class Phase03GrepRunLangextractJobTest(TestCase):
     """Verifie que run_langextract_job n'est pas appele depuis front/.
     / Verify that run_langextract_job is not called from front/."""
@@ -965,8 +850,22 @@ class Phase03GrepRunLangextractJobTest(TestCase):
             f"run_langextract_job encore reference dans front/ : {occurrences}",
         )
 
-    def test_analyser_page_task_est_seul_point_entree_celery_extraction(self):
-        """analyser_page_task est le seul @shared_task qui fait de l'extraction LangExtract."""
+    def test_plus_aucune_tache_de_front_ne_fait_d_extraction(self):
+        """
+        L'extraction LangExtract a quitte `front/tasks.py`.
+
+        Ce test verifiait que `analyser_page_task` en etait le SEUL
+        point d'entree. Cette tache portait l'ancien moteur (ancrage par
+        offsets) et a ete supprimee avec lui : l'extraction vit
+        desormais dans `hypostasis_extractor/tasks_element.py`, qui
+        ancre des portions dans des elements.
+
+        L'invariant garde son sens, retourne : aucune tache de
+        `front/tasks.py` ne doit refaire d'extraction — sinon deux
+        moteurs coexisteraient a nouveau, ce que la decision du 10 aout
+        a precisement voulu finir.
+        / The invariant, inverted: no extraction task may come back here.
+        """
         import ast
 
         chemin_tasks = BASE_DIR / "front" / "tasks.py"
@@ -994,10 +893,10 @@ class Phase03GrepRunLangextractJobTest(TestCase):
                             taches_avec_langextract.append(noeud.name)
 
         self.assertEqual(
-            taches_avec_langextract,
-            ["analyser_page_task"],
-            f"Taches Celery faisant de l'extraction : {taches_avec_langextract} "
-            f"(attendu : ['analyser_page_task'] uniquement)",
+            taches_avec_langextract, [],
+            f"Taches Celery faisant de l'extraction dans front/tasks.py : "
+            f"{taches_avec_langextract}. L'extraction appartient au moteur "
+            f"ELEMENT (hypostasis_extractor/tasks_element.py).",
         )
 
 

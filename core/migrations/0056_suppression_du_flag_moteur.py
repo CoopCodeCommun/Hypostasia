@@ -35,18 +35,35 @@ def refuser_si_des_pages_sont_encore_sur_l_ancien(apps, schema_editor):
     field there would silently drop their highlights.
     """
     Page = apps.get_model("core", "Page")
-    restantes = Page.objects.filter(moteur="ancien").count()
+
+    # ON NE S'ARRETE QUE S'IL Y A QUELQUE CHOSE A PERDRE.
+    #
+    # Une page ANCIEN qui ne porte AUCUNE extraction n'a aucun
+    # surlignage : la basculer ne change rien a ce qu'on voit. C'est le
+    # cas des pages nues qu'une base neuve ou un test de migration
+    # fabriquent. Lever pour elles bloquerait la migration sans
+    # protéger personne — et c'est ce qui s'est produit : la garde
+    # d'origine faisait echouer les tests qui rejouent les migrations.
+    #
+    # Ce qu'on protege vraiment, c'est une page ANCIEN AVEC des
+    # extractions : celle-la perdrait ses surlignages en silence.
+    # / Only stop when there is something to lose: a bare ANCIEN page
+    # has no highlights to drop.
+    restantes = Page.objects.filter(
+        moteur="ancien",
+        extraction_jobs__entities__isnull=False,
+    ).distinct().count()
     if not restantes:
         print(
-            "[migration 0056] 0 page sur l'ancien moteur — "
+            "[migration 0056] aucune page ANCIEN porteuse d'extractions — "
             "suppression du flag sans reserve."
         )
         return
 
     raise RuntimeError(
-        f"ARRET : {restantes} page(s) sont encore sur l'ANCIEN moteur. "
-        f"Supprimer le flag maintenant les afficherait SANS leurs "
-        f"surlignages, en silence. Reconvertir d'abord :\n"
+        f"ARRET : {restantes} page(s) sur l'ANCIEN moteur portent des "
+        f"extractions. Supprimer le flag maintenant les afficherait SANS "
+        f"leurs surlignages, en silence. Reconvertir d'abord :\n"
         f"    manage.py basculer_vers_le_moteur_element --a-blanc\n"
         f"    manage.py basculer_vers_le_moteur_element"
     )

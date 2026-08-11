@@ -22,8 +22,11 @@ par white-space:normal sur .actions-element.
 rendered inside <pre> blocks where every newline shows.
 
 FLUX :
-- corriger / couper : GET le formulaire -> #zone-dialogue-element
-  (le script du formulaire ouvre le <dialog> en modal) ;
+- corriger : GET l'editeur -> injecte DANS LE CORPS du bloc, qui
+  bascule en edition (etalon § 11 : on corrige dans le document) ;
+- couper : GET le formulaire -> #zone-dialogue-element, en <dialog>
+  modal — on y vise un point de coupe, le texte doit etre montre en
+  entier et sans surlignage qui gene la visee ;
 - recoller / masquer : POST direct avec confirmation HTMX ;
   la reponse 200 porte lectureReload -> la lecture se recharge.
 - hx-disabled-elt="this" : un double-clic n'envoie pas deux fois
@@ -36,7 +39,7 @@ directly; success reloads the reading zone; buttons self-disable.
       data-testid="actions-element-{{ element.ordre }}">
     <button type="button"
             hx-get="/elements/{{ element.pk }}/formulaire_correction/"
-            hx-target="#zone-dialogue-element" hx-swap="innerHTML"
+            hx-target="#corps-{{ element.pk }}" hx-swap="beforeend"
             hx-disabled-elt="this"
             data-testid="btn-element-corriger"
             title="Corriger le texte de ce passage">corriger</button>

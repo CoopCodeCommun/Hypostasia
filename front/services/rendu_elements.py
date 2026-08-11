@@ -46,10 +46,15 @@ closes inside it, and the HTML is always well formed.
 
 import logging
 
+from django.db.models import Exists, OuterRef
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 
-from hypostasis_extractor.models import AncrageExtraction, EtatAncrage
+from hypostasis_extractor.models import (
+    AncrageExtraction,
+    CommentaireExtraction,
+    EtatAncrage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +184,34 @@ def construire_les_segments(longueur_du_texte, portions):
         segments.append((debut_du_segment, fin_du_segment, portions_couvrantes))
 
     return segments
+
+
+def _minutage_lisible(debut_en_secondes):
+    """
+    Rend un debut de tour de parole sous la forme « 12:05 ».
+    / Renders a turn's start as "12:05".
+
+    LOCALISATION : front/services/rendu_elements.py
+
+    L'etalon affiche un minutage court a cote du locuteur. Au-dela de
+    l'heure il en faut trois morceaux, sinon deux : « 1:04:12 » ou
+    « 04:12 » — jamais « 64:12 », qu'on lirait de travers.
+    / Three parts past the hour, two below; never "64:12".
+    """
+    if debut_en_secondes is None:
+        return None
+    try:
+        total = int(float(debut_en_secondes))
+    except (TypeError, ValueError):
+        return None
+    if total < 0:
+        return None
+
+    heures, reste = divmod(total, 3600)
+    minutes, secondes = divmod(reste, 60)
+    if heures:
+        return f"{heures}:{minutes:02d}:{secondes:02d}"
+    return f"{minutes:02d}:{secondes:02d}"
 
 
 def _nombre_de_marques_prevu(segments):
@@ -355,11 +388,63 @@ def construire_les_blocs_de_lecture(page):
     if not elements:
         return []
 
+    # LE MEDIA COMMANDE LA GOUTTIERE.
+    #
+    # L'etalon n'a pas une gouttiere mais trois : 46px pour un document
+    # ecrit, 96px pour un AUDIO — dont la glissiere porte le locuteur et
+    # le minutage —, et le label y vaut « utterance » quel que soit
+    # l'element (l. 73-78 et 1567-1580).
+    # / The mock has three gutters; the medium decides which.
+    media = page.source_type or "file"
+    c_est_un_audio = media == "audio"
+
+    # UNE COULEUR PAR LOCUTEUR, ATTRIBUEE PAR ORDRE D'APPARITION.
+    #
+    # Suivre un debat, c'est suivre qui parle : la pastille ne sert que
+    # si elle reste LA MEME d'un bout a l'autre pour une meme voix.
+    #
+    # Par ordre d'apparition, et non par hachage du nom : deux noms
+    # quelconques peuvent hacher vers des teintes voisines, alors que
+    # l'ordre garantit des couleurs franchement distinctes entre les
+    # locuteurs d'un MEME enregistrement — la seule comparaison qu'un
+    # lecteur fasse jamais.
+    #
+    # Palette de WONG, celle des categories du corpus : huit couleurs
+    # distinguables par les daltoniens. Celle de l'etalon met un rouge
+    # et un vert cote a cote. Et la couleur ne porte jamais seule : le
+    # NOM du locuteur est ecrit a cote.
+    # / By order of appearance, not by hash; Wong, not the mock's
+    # red-next-to-green; and the name is always written.
+    couleur_par_locuteur = {}
+    if c_est_un_audio:
+        from core.models import CategorieDossier
+
+        palette = CategorieDossier.PALETTE_WONG
+        for element in elements:
+            locuteur = (element.provenance or {}).get("locuteur")
+            if locuteur and locuteur not in couleur_par_locuteur:
+                couleur_par_locuteur[locuteur] = palette[
+                    len(couleur_par_locuteur) % len(palette)
+                ]
+
     portions = (
         AncrageExtraction.objects
         .filter(element__page=page, extraction__masquee=False)
         .exclude(etat_ancrage=EtatAncrage.DETACHEE)
         .select_related("extraction")
+        # « Cette idee porte-t-elle un commentaire ? » est demandee DANS
+        # la requete des portions : une question de plus, pas une
+        # requete de plus. Le rendu tient en deux requetes, quel que
+        # soit le nombre d'elements — l'invariant que ce service s'est
+        # donne des l'origine.
+        # / Asked inside the existing query: still two queries total.
+        .annotate(
+            idee_commentee=Exists(
+                CommentaireExtraction.objects.filter(
+                    entity_id=OuterRef("extraction_id"),
+                ),
+            ),
+        )
         .order_by("debut_dans_element", "pk")
     )
 
@@ -367,12 +452,28 @@ def construire_les_blocs_de_lecture(page):
     for portion in portions:
         portions_par_element.setdefault(portion.element_id, []).append(portion)
 
+
     blocs = []
     for indice, element in enumerate(elements):
         portions_de_l_element = portions_par_element.get(element.pk, [])
         identifiants_des_idees = {
             portion.extraction_id for portion in portions_de_l_element
         }
+
+        # « Debattu » au sens de l'etalon (`data-etat="debattu"`, filet
+        # d'etat colore) : au moins une idee de ce passage porte un
+        # commentaire humain.
+        # / "Debated" per the mock: at least one idea here is commented.
+        # `ExtractedEntity.statut_debat` est cense repondre a cette
+        # question — c'est un champ DERIVE, pose par un signal. En base,
+        # il ment : 878 extractions commentees portent un statut herite
+        # d'avant A.8 (`discute`, `consensuel`...), 22 seulement disent
+        # « commente ». Un critere fonde sur lui passe tous les tests
+        # (le signal y tourne) et n'allume RIEN en production.
+        # / The derived status lies on 878 rows; ask the comments.
+        est_debattu = any(
+            portion.idee_commentee for portion in portions_de_l_element
+        )
 
         # « Recoller avec le suivant » (U1) n'a de sens que si un
         # suivant existe ET qu'il est visible : le service refuse
@@ -403,6 +504,42 @@ def construire_les_blocs_de_lecture(page):
                 element, portions_de_l_element, segments_de_l_element,
             ),
             "nombre_d_idees": len(identifiants_des_idees),
+            # Ce que la GOUTTIERE de l'etalon affiche a cote du bloc.
+            # Le numero part de 1 : c'est un repere pour un humain, pas
+            # un index. L'empreinte et le label ne se montrent qu'en
+            # mode structure ; le compteur d'idees, lui, se voit en
+            # lecture. / What the mock's gutter shows beside the block.
+            "numero": indice + 1,
+            "est_debattu": est_debattu,
+            "empreinte_courte": (element.empreinte_contenu or "")[:8],
+            # Le numero de page du document source, quand il existe.
+            # L'etalon l'affiche dans la gouttiere et masque tout le
+            # groupe sans lui (`body[data-docling="non"]`). Une
+            # provenance AUDIO ({debut, fin}) n'a pas de page : on rend
+            # None plutot que d'ecrire « p. None ».
+            # / The source page number, when there is one.
+            "numero_de_page": (element.provenance or {}).get("page_no"),
+            "media": media,
+            # Sur un audio, chaque element est un TOUR DE PAROLE (mesure
+            # D3) : l'etalon l'etiquette « utterance » sans regarder le
+            # label Docling, qui n'a pas de sens ici.
+            # / On audio every element is an utterance.
+            "label_affiche": "utterance" if c_est_un_audio else element.label,
+            # Ce que la gouttiere d'un AUDIO porte en plus : qui parle,
+            # et a quel moment. L'ingestion audio les range dans la
+            # provenance, la ou un PDF met sa page et ses boites.
+            # / What an audio gutter adds: who speaks, and when.
+            "locuteur": (
+                (element.provenance or {}).get("locuteur")
+                if c_est_un_audio else None
+            ),
+            "couleur_du_locuteur": couleur_par_locuteur.get(
+                (element.provenance or {}).get("locuteur"),
+            ),
+            "minutage": (
+                _minutage_lisible((element.provenance or {}).get("debut"))
+                if c_est_un_audio else None
+            ),
             # Combien d'idees ce bloc porte sans pouvoir les montrer.
             # Zero dans l'immense majorite des cas ; le bloc n'en parle
             # que lorsqu'il y renonce vraiment.
@@ -418,51 +555,17 @@ def construire_les_blocs_de_lecture(page):
             "fusion_possible": fusion_possible,
         })
 
-    return _regrouper_les_items_de_liste(blocs)
+    # PAS DE REGROUPEMENT DES PUCES.
+    #
+    # Les `list_item` consecutifs etaient rassembles dans un seul <ul>,
+    # hors de la structure `.bloc` : ces passages n'avaient ni
+    # gouttiere, ni filet d'etat, ni compteur d'idees, et une idee
+    # ancree sur une puce devenait introuvable depuis la gouttiere.
+    #
+    # L'etalon resout autrement (maquette.html l. 1449) : chaque puce
+    # est un bloc a part entiere dont le corps est un <ul> d'un seul
+    # <li>. Le HTML reste valide et la puce garde son reperage.
+    # / The mock wraps each bullet in its own one-item list.
+    return blocs
 
 
-def _regrouper_les_items_de_liste(blocs):
-    """
-    Regroupe les list_item consecutifs, pour un HTML valide.
-    / Groups consecutive list_item blocks, for valid HTML.
-
-    LOCALISATION : front/services/rendu_elements.py
-
-    Un <li> hors d'un <ul> n'est pas du HTML valide. Docling rend les
-    puces d'une meme liste comme des elements successifs de label
-    list_item : on les rassemble donc sous une seule liste.
-    / A <li> outside a <ul> is invalid HTML.
-
-    Le regroupement est fait ICI, dans une boucle explicite, et pas dans
-    le template : un gabarit Django ne sait pas regarder l'element
-    suivant sans devenir illisible.
-    / Done here, because a template cannot look ahead readably.
-    """
-    blocs_regroupes = []
-    liste_en_cours = None
-
-    for bloc in blocs:
-        c_est_une_puce = bloc["balise"] == "li"
-
-        if c_est_une_puce:
-            if liste_en_cours is None:
-                liste_en_cours = {"est_une_liste": True, "puces": []}
-                blocs_regroupes.append(liste_en_cours)
-            liste_en_cours["puces"].append(bloc)
-            continue
-
-        liste_en_cours = None
-        bloc["est_une_liste"] = False
-        blocs_regroupes.append(bloc)
-
-    # Une liste dont TOUTES les puces sont masquees ne doit pas rendre
-    # un <ul> vide chez un simple lecteur (relecture U1, defaut B3) —
-    # le template a besoin de le savoir sans regarder chaque puce.
-    # / Flag fully-hidden lists so the template can skip the empty <ul>.
-    for bloc in blocs_regroupes:
-        if bloc.get("est_une_liste"):
-            bloc["toutes_masquees"] = all(
-                puce["est_masque"] for puce in bloc["puces"]
-            )
-
-    return blocs_regroupes

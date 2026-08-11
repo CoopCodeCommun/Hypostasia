@@ -699,7 +699,10 @@ class CorrectifsRelectureETest(TestCase):
         )
 
         self.client.login(username="demandeur_synthese", password="test1234")
-        with patch("front.tasks.analyser_page_task.delay"):
+        with patch(
+            "hypostasis_extractor.tasks_element"
+            ".analyser_une_page_avec_le_moteur_element.delay"
+        ):
             reponse = self.client.post(
                 f"/lire/{self.fixtures['note_source'].pk}/analyser/",
                 {"nettoyer_ia": "1", "analyseur_id": analyseur_d_analyse.pk},

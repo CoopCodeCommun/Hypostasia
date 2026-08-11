@@ -421,3 +421,88 @@ def ingerer_une_capture_web_avec_docling(self, identifiant_de_la_page):
         page.pk, len(elements),
     )
     return {"elements": len(elements)}
+
+
+@shared_task(bind=True)
+def ingerer_une_transcription_diarisee_en_elements(self, identifiant_de_la_page):
+    """
+    Convertit la transcription d'un audio en elements (D2, ordre 3).
+    / Converts an audio transcript into elements.
+
+    LOCALISATION : hypostasis_extractor/tasks_element.py
+
+    Le dernier flux a rejoindre le moteur ELEMENT. Meme patron que
+    l'import de fichier (BR-B) et la capture web (U4) : meme surface
+    d'etat (U2), meme garde de re-ingestion, meme repli honnete.
+
+    UNE DIFFERENCE, ET ELLE COMPTE : PAS DE DOCLING.
+
+    Il n'y a rien a convertir — la transcription EST deja structuree,
+    en tours de parole diarises. Cette tache ne charge donc aucun modele
+    et ne passe pas par la file `ingestion_docling` a concurrence 1 :
+    elle ne pese rien, la ou une conversion Docling charge plusieurs Go.
+    / No Docling here: a transcript is already structured.
+
+    :param identifiant_de_la_page: la cle primaire de la Page audio
+    :return: {"elements": int} ou un dict d'erreur
+    """
+    from core.models import EtatIngestion, Page
+    from hypostasis_extractor.services.ingestion_audio import (
+        ingerer_une_transcription_diarisee,
+    )
+
+    try:
+        page = Page.objects.get(pk=identifiant_de_la_page)
+    except Page.DoesNotExist:
+        logger.error("Page %s introuvable.", identifiant_de_la_page)
+        return {"erreur": "page introuvable"}
+
+    if page.elements.exists():
+        logger.warning(
+            "Page %s a deja des elements : ingestion audio refusee.", page.pk,
+        )
+        _noter_l_etat_d_ingestion(page.pk, EtatIngestion.REUSSIE)
+        return {"erreur": "page deja ingeree"}
+
+    _noter_l_etat_d_ingestion(page.pk, EtatIngestion.EN_COURS)
+
+    # UNE LEVEE NE DOIT PAS FIGER L'ETAT SUR « EN COURS ».
+    #
+    # Le service promet de ne pas lever pour un cas normal, mais un cas
+    # ANORMAL existe : deux workers sur la meme page passent tous deux
+    # la garde `elements.exists()`, et le second prend le ValueError de
+    # `creer_les_elements_d_une_page`. Sans ce filet, la tache meurt et
+    # l'etat reste EN_COURS pour toujours — la puce d'ingestion tourne
+    # dans le vide et « Relancer » refuse d'agir. Les trois autres
+    # taches d'ingestion ont ce filet ; celle-ci l'avait oublie.
+    # / Without this, a crash freezes the state on EN_COURS forever.
+    try:
+        resultat = ingerer_une_transcription_diarisee(page)
+    except Exception as erreur:  # noqa: BLE001 — on veut TOUT rattraper
+        logger.exception(
+            "Page %s : l'ingestion de la transcription a echoue.", page.pk,
+        )
+        _noter_l_etat_d_ingestion(
+            page.pk, EtatIngestion.ECHOUEE,
+            "Le découpage de cette transcription en tours de parole a "
+            "échoué. L'enregistrement reste lisible tel quel.",
+        )
+        return {"erreur": str(erreur)}
+
+    if "erreur" in resultat:
+        # Une transcription vide ou illisible n'est pas un plantage :
+        # la page reste lisible par son HTML diarise, et l'etat le dit.
+        # / An empty transcript is not a crash; the page stays readable.
+        _noter_l_etat_d_ingestion(
+            page.pk, EtatIngestion.ECHOUEE,
+            "Cet enregistrement n'a pas de transcription exploitable à "
+            "découper en tours de parole. Il reste lisible tel quel.",
+        )
+        return resultat
+
+    _noter_l_etat_d_ingestion(page.pk, EtatIngestion.REUSSIE)
+    logger.info(
+        "Page %s : %s element(s) crees depuis la transcription.",
+        page.pk, resultat["elements_crees"],
+    )
+    return {"elements": resultat["elements_crees"]}

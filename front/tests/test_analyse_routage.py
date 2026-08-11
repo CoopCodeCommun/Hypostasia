@@ -7,7 +7,7 @@ LOCALISATION : front/tests/test_analyse_routage.py
 SPEC-ancrage-par-element-v2 § 9 (double moteur) + cahier
 PLAN/branchement-moteur-ancrage-cahier-des-charges.md, phase BR-C : la
 vue `analyser` cree toujours le meme ExtractionJob, mais la tache
-lancee depend du moteur de la page — `analyser_page_task` (offsets)
+lancee ne depend plus du moteur : l'ancien (`analyser_page_task`)
 pour une page ANCIEN, `analyser_une_page_avec_le_moteur_element`
 (portions) pour une page ELEMENT. Les deux tachent prennent la meme
 cle de job : le routage est UNE decision, a UN endroit.

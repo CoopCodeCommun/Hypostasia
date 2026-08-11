@@ -34,6 +34,17 @@
     var contenu = document.getElementById('drawer-contenu');
 
     var drawerEstOuvert = false;
+
+    // FERMER, C'EST UNE DECISION — ON NE LA DEFAIT PAS DANS SON DOS.
+    //
+    // Corriger, masquer ou scinder un passage rechargent la zone de
+    // lecture (`lectureReload`), et ce rechargement rappelait
+    // l'ouverture par defaut : le panneau qu'on venait de fermer se
+    // rouvrait a chaque geste. On retient donc la fermeture EXPLICITE
+    // et on ne rouvre plus tant que l'utilisateur ne le redemande pas.
+    // / Closing is a decision; a reload must not undo it.
+    var l_utilisateur_a_ferme_le_panneau = false;
+
     var contenuCharge = false;
 
     // Flag pour scroller en haut du drawer apres rechargement filtre (PHASE-26a UX)
@@ -190,6 +201,14 @@
         overlay.classList.remove('translate-x-full');
         overlay.classList.remove('pointer-events-none');
 
+        // Sur grand ecran, le panneau fait PARTIE de la page : la zone
+        // de lecture lui cede sa place au lieu de passer dessous, et le
+        // voile disparait (etalon § 13). Sous 1400px, rien ne change —
+        // le drawer glisse par-dessus comme avant.
+        // / On a wide screen the panel joins the page; below, unchanged.
+        document.body.classList.add('panneau-integre');
+        l_utilisateur_a_ferme_le_panneau = false;
+
         // Charger le contenu drawer-vue-liste seulement si demande
         // (clic toolbar ou raccourci E, pas HX-Trigger d'un autre flow)
         // / Load drawer-vue-liste content only if requested
@@ -217,6 +236,8 @@
         // / Slide drawer out to the right and disable pointer events
         overlay.classList.add('translate-x-full');
         overlay.classList.add('pointer-events-none');
+        document.body.classList.remove('panneau-integre');
+        l_utilisateur_a_ferme_le_panneau = true;
 
         // Apres la transition, cache completement le backdrop
         // / After transition, fully hide the backdrop
@@ -451,6 +472,44 @@
     // ouvre le drawer (s'il est ferme) puis scrolle vers la carte concernee.
     // / A.8 drawer-only: bidirectional scroll dot → drawer is now handled by
     // / marginalia.js via window.marginalia.ouvrirDrawerEtScrollerVersCarte().
+
+    // --- OUVERT PAR DEFAUT SUR GRAND ECRAN (etalon § 13) ---
+    //
+    // Au-dela de 1400px le panneau fait partie de la page : le laisser
+    // ferme demanderait un clic pour voir ce qui est deja a l'ecran
+    // dans la maquette. En dessous, il reste ferme — l'ouvrir
+    // couvrirait le texte, et sur telephone c'est la feuille du bas qui
+    // prend le relais.
+    //
+    // Seulement sur un ECRAN DE LECTURE : ailleurs (carnet, bases), le
+    // panneau des idees d'une note n'a rien a montrer.
+    // / Open by default only where there is a text to read.
+    var LARGEUR_DU_PANNEAU_INTEGRE = 1400;
+
+    function ouvrirParDefautSurGrandEcran() {
+        if (l_utilisateur_a_ferme_le_panneau) return;
+        if (window.innerWidth < LARGEUR_DU_PANNEAU_INTEGRE) return;
+        if (!document.getElementById('readability-content')) return;
+        if (drawerEstOuvert) return;
+        ouvrirDrawer(true);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ouvrirParDefautSurGrandEcran);
+    } else {
+        ouvrirParDefautSurGrandEcran();
+    }
+
+    // Une lecture chargee en HTMX (navigation interne) doit se comporter
+    // comme un chargement direct. / An HTMX-loaded reading behaves the same.
+    document.body.addEventListener('htmx:afterSwap', function (evenement) {
+        var cible = evenement.detail && evenement.detail.target;
+        if (!cible) return;
+        if (cible.id === 'zone-lecture' || cible.closest('#zone-lecture')) {
+            ouvrirParDefautSurGrandEcran();
+        }
+    });
+
 
     // Expose l'API publique
     // / Expose public API

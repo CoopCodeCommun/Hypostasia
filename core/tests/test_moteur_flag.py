@@ -29,7 +29,7 @@ module_de_migration = importlib.import_module(
 class GardeDeLaMigrationDuFlagTest(TestCase):
     """Le controle de la migration 0056. / Migration 0056's guard."""
 
-    def test_elle_s_arrete_s_il_reste_des_pages_sur_l_ancien(self):
+    def test_elle_s_arrete_si_des_pages_ancien_portent_des_extractions(self):
         garde = module_de_migration.refuser_si_des_pages_sont_encore_sur_l_ancien
 
         with self.assertRaises(RuntimeError) as leve:
@@ -41,6 +41,21 @@ class GardeDeLaMigrationDuFlagTest(TestCase):
         # / The message must say what to do, not merely refuse.
         self.assertIn("basculer_vers_le_moteur_element", message)
 
+    def test_une_page_ancien_NUE_ne_bloque_pas_la_migration(self):
+        """
+        Rien a perdre, rien a proteger.
+
+        La garde d'origine comptait TOUTE page ANCIEN. Une page nue —
+        sans une seule extraction — n'a pourtant aucun surlignage a
+        perdre : la bloquer n'aurait protege personne, et ca faisait
+        echouer les tests qui rejouent les migrations (18 RuntimeError
+        mesures sur la suite).
+        / A bare page has no highlights to lose.
+        """
+        garde = module_de_migration.refuser_si_des_pages_sont_encore_sur_l_ancien
+
+        garde(_ApplicationsFeintes(nombre_de_pages_anciennes=0), None)
+
     def test_elle_laisse_passer_une_base_entierement_reconvertie(self):
         garde = module_de_migration.refuser_si_des_pages_sont_encore_sur_l_ancien
 
@@ -50,6 +65,11 @@ class GardeDeLaMigrationDuFlagTest(TestCase):
 class _RequeteFeinte:
     def __init__(self, combien):
         self._combien = combien
+
+    def distinct(self):
+        # La vraie requete joint les extractions, donc dedoublonne.
+        # / The real query joins extractions, hence distinct().
+        return self
 
     def count(self):
         return self._combien

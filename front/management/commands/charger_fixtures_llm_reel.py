@@ -43,7 +43,6 @@ from core.models import (
     Configuration,
     Dossier,
     ListeDeCategories,
-    MoteurDePage,
     Page,
     VisibiliteDossier,
     empreinte_du_texte,
@@ -242,7 +241,6 @@ class Command(BaseCommand):
             chemin.write_text(markdown, encoding="utf-8")
             elements = ingerer_un_fichier(page, str(chemin))
         page.refresh_from_db()
-        self.stdout.write(f"  {len(elements)} élément(s), moteur={page.moteur}.")
 
     def _creer_page_web(self, proprietaire):
         return Page.objects.create(
@@ -260,7 +258,6 @@ class Command(BaseCommand):
         self.stdout.write("  Ingestion Docling du HTML capturé…")
         elements = ingerer_une_capture_web(page)
         page.refresh_from_db()
-        self.stdout.write(f"  {len(elements)} élément(s), moteur={page.moteur}.")
 
     def _analyser_reellement(self, page, analyseur, ai_model):
         # Meme construction que la vue d'analyse (front/views.py) : job
@@ -273,9 +270,15 @@ class Command(BaseCommand):
             analyser_une_page_avec_le_moteur_element,
         )
 
-        if page.moteur != MoteurDePage.ELEMENT:
+        # Une page sans element n'a rien a ancrer : l'analyse produirait
+        # des extractions sans passage. On le dit et on passe.
+        # (Le flag `Page.moteur` disait cela avant sa suppression ; la
+        # question se pose maintenant aux elements eux-memes.)
+        # / No element, nothing to anchor: say it and move on.
+        if not page.elements.exists():
             self.stdout.write(self.style.WARNING(
-                f"  Page {page.pk} restée ANCIEN (ingestion échouée) : analyse sautée.",
+                f"  Page {page.pk} sans élément (ingestion échouée) : "
+                f"analyse sautée.",
             ))
             return
 

@@ -123,7 +123,12 @@ class AncresDetacheesDansLePanneauTest(TestCase):
         # le service (`idees_non_surlignees`) : on pouvait retirer le
         # bloc {% if %} du gabarit sans qu'un seul tombe. L'avis n'etait
         # prouve que par un passage au navigateur, qui ne se rejoue pas.
-        # / Removing the template block left every test green.
+        #
+        # La classe est celle de l'ETALON (`avertissement-plafond`,
+        # maquette.html § 8) : la maquette prevoyait deja ce cas, et
+        # deux vocabulaires pour la meme chose est l'ecart qu'on
+        # cherche a supprimer.
+        # / The class name is the mock's own.
         from django.template.loader import render_to_string
 
         html = render_to_string(
@@ -143,7 +148,7 @@ class AncresDetacheesDansLePanneauTest(TestCase):
 
         )
 
-        self.assertIn("avis-surlignage-abandonne", html)
+        self.assertIn("avertissement-plafond", html)
         self.assertIn("623", html,
 
     )
@@ -168,7 +173,7 @@ class AncresDetacheesDansLePanneauTest(TestCase):
 
         )
 
-        self.assertNotIn("avis-surlignage-abandonne", html)
+        self.assertNotIn("avertissement-plafond", html)
 
     def test_une_idee_ancree_reste_non_detachee_parmi_des_detachees(self):
         """
@@ -193,3 +198,87 @@ class AncresDetacheesDansLePanneauTest(TestCase):
         # Une seule etiquette, pour la seule idee sans ancre.
         # / One label, for the one idea without an anchor.
         self.assertEqual(reponse.content.decode().count("ancre détachée"), 1)
+
+
+class LaGouttiereEstRendueDansLeBlocTest(TestCase):
+    """
+    Le markup de la gouttiere (etalon `maquette.html` § .bloc).
+    / The gutter markup.
+
+    LOCALISATION : front/tests/test_ancres_detachees_drawer.py
+
+    Confrontation au navigateur du 10 aout : l'etalon compte 14 elements
+    de gouttiere, l'application ZERO. Ces tests figent ce qui doit s'y
+    trouver, et surtout LE COMPTEUR D'IDEES — le seul habitant de la
+    gouttiere qui s'adresse au lecteur, les autres etant du diagnostic
+    reserve au mode structure.
+    / Measured: 14 gutter elements in the mock, zero in the app.
+    """
+
+    def _rendre(self, **surcharges):
+        from django.template.loader import render_to_string
+
+        bloc = {
+            "element": type("E", (), {
+                "pk": 7, "ordre": 0, "label": "text", "texte": "Un passage.",
+            })(),
+            "balise": "p",
+            "html_du_texte": "Un passage.",
+            "nombre_d_idees": 3,
+            "idees_non_surlignees": 0,
+            "est_masque": False,
+            "fusion_possible": False,
+            "numero": 1,
+            "est_debattu": False,
+            "empreinte_courte": "a1b2c3d4",
+        }
+        bloc.update(surcharges)
+        return render_to_string(
+            "front/includes/_blocs_elements.html",
+            {"blocs_de_lecture": [bloc], "la_note_est_modifiable": False},
+        )
+
+    def test_le_bloc_est_une_grille_gouttiere_corps(self):
+        html = self._rendre()
+
+        self.assertIn('class="bloc"', html)
+        self.assertIn('class="gouttiere"', html)
+        self.assertIn('class="filet-etat"', html)
+        self.assertIn('class="corps"', html)
+
+    def test_le_compteur_d_idees_affiche_leur_nombre(self):
+        html = self._rendre(nombre_d_idees=3)
+
+        self.assertIn('class="compteur-idees"', html)
+        self.assertIn("3 idées extraites de ce passage", html)
+
+    def test_un_passage_sans_idee_n_a_pas_de_compteur(self):
+        # Un « 0 » dans la gouttiere serait du bruit : l'absence se lit
+        # deja a l'absence de surlignage.
+        # / A zero would be noise; absence already reads as absence.
+        html = self._rendre(nombre_d_idees=0)
+
+        self.assertNotIn("compteur-idees", html)
+
+    def test_une_seule_idee_se_dit_au_singulier(self):
+        html = self._rendre(nombre_d_idees=1)
+
+        self.assertIn("1 idée extraite de ce passage", html)
+
+    def test_un_passage_debattu_le_dit_dans_son_etat(self):
+        html = self._rendre(est_debattu=True)
+
+        self.assertIn('data-etat="debattu"', html)
+
+    def test_un_passage_tranquille_ne_se_dit_pas_debattu(self):
+        html = self._rendre(est_debattu=False)
+
+        self.assertIn('data-etat="analyse"', html)
+
+    def test_le_numero_et_l_empreinte_sont_dans_la_gouttiere(self):
+        # Presents dans le DOM, mais caches en lecture par le CSS : le
+        # mode structure les revele. / In the DOM, hidden by CSS.
+        html = self._rendre(numero=4, empreinte_courte="deadbeef")
+
+        self.assertIn("#4", html)
+        self.assertIn("deadbeef", html)

@@ -199,8 +199,17 @@ class ElementViewSet(viewsets.ViewSet):
         / The server-rendered text-correction form.
 
         FLUX : bouton « corriger » (_actions_element.html) -> GET ici ->
-        injecte dans #zone-dialogue-element -> le script du gabarit
-        ouvre le <dialog> en modal -> POST corriger.
+        injecte DANS LE CORPS DU BLOC -> le script bascule le bloc en
+        edition -> POST corriger.
+
+        L'ETALON CORRIGE DANS LE DOCUMENT, PAS DANS UN MODAL (§ 11).
+        Le <dialog> livre en U1 arrachait le passage a son contexte : on
+        corrigeait une phrase sans voir celles qui l'entourent, alors
+        que ce sont elles qui disent si la correction est juste. Le
+        dialogue reste pour la SCISSION, ou l'on vise un point de coupe
+        dans un texte qu'il faut montrer en entier.
+        / The mock edits inside the document; the modal hid the context.
+
         Le droit est LE MEME que pour agir : pas de formulaire pour qui
         ne peut pas ecrire. / Same write rule as the action itself.
         """
@@ -214,7 +223,7 @@ class ElementViewSet(viewsets.ViewSet):
             return refus
         return render(
             request,
-            "front/includes/_formulaire_element_correction.html",
+            "front/includes/_editeur_en_place.html",
             {"element": element},
         )
 

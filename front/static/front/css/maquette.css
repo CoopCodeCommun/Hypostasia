@@ -1285,19 +1285,23 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
 .etat-ingestion button:hover { background: var(--papier-creux); }
 
 /* ------------------------------------------------------------------ */
-/* Avis « trop d'idees pour les surligner » (reconversion du 10 aout). */
-/* Un bloc peut porter plus d'idees qu'on ne peut en marquer sans      */
-/* rendre la page inutilisable. Il le DIT ici, au lieu de se presenter */
-/* comme un texte ordinaire. Filet gauche : la grammaire des etats de  */
-/* ce design system (jamais la teinte seule).                          */
-/* / The block says it carries ideas it cannot show.                   */
-.avis-surlignage-abandonne {
-  font-size: .82rem; color: var(--encre-douce);
-  background: var(--papier-creux);
-  border-left: 3px solid var(--filet-controle);
-  border-radius: 0 4px 4px 0;
-  padding: .5rem .7rem; margin: 0 0 .6rem;
-  font-style: italic;
+/* AVERTISSEMENT DE PLAFOND — le nom et la forme sont ceux de          */
+/* l'etalon (maquette.html § 8, `.avertissement-plafond`).             */
+/*                                                                      */
+/* Il avait d'abord ete recree sous un autre nom et un autre style :    */
+/* la maquette PREVOYAIT deja ce cas, et deux vocabulaires pour la      */
+/* meme chose est exactement l'ecart qu'on cherche a supprimer.         */
+/*                                                                      */
+/* Ce qu'on ne reprend PAS de l'etalon, c'est son TEXTE : il affiche    */
+/* « 623 marques : au-dela de 400, le texte est rendu nu               */
+/* (rendu_elements.py:215) ». C'est un message de diagnostic pour qui   */
+/* developpe la maquette, pas une phrase adressee a un lecteur.        */
+/* / Same name and shape as the mock; not its developer-facing text.   */
+.avertissement-plafond {
+  margin: .4rem 0 .6rem;
+  font-family: ui-monospace, Menlo, monospace; font-size: .68rem;
+  color: var(--encre); border-left: 2px solid var(--danger);
+  padding-left: .5rem;
 }
 
 /* Etiquette « ancre detachee » sur une carte du panneau (10 aout).    */
@@ -1322,4 +1326,478 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
   background: transparent;
   box-shadow: none;
   opacity: 1;
+}
+
+/* ================================================================== */
+/* LA GOUTTIERE (etalon maquette.html § .bloc, § 7)                   */
+/*                                                                     */
+/* Chaque bloc de lecture est une grille « gouttiere | corps », avec   */
+/* un filet d'etat vertical entre les deux. La gouttiere porte le      */
+/* reperage du passage.                                                */
+/*                                                                     */
+/* CE QUI SE VOIT, ET CE QUI NE SE VOIT PAS                            */
+/* Un lecteur n'a rien a faire de « SECTION_HEADER #6 » ni d'une       */
+/* empreinte : label, numero et empreinte ne paraissent qu'en mode     */
+/* structure. Le COMPTEUR D'IDEES, lui, s'adresse au lecteur — il      */
+/* reste visible, c'est le seul habitant permanent de la gouttiere.    */
+/* / Only the idea count speaks to a reader; the rest is diagnostics.  */
+/* ================================================================== */
+#readability-content {
+  --gouttiere: 46px;
+  /* LA GOUTTIERE S'AJOUTE A LA LARGEUR DE LECTURE, elle ne s'y prend
+     pas. Sans cette compensation, poser la grille retire 70px a la
+     colonne de texte (mesure au navigateur : 648 -> 578px) : on aurait
+     paye la gouttiere en confort de lecture, ce que l'etalon ne fait
+     pas — il donne 672px au corps au meme viewport.
+     / The gutter adds to the reading width instead of eating it. */
+  max-width: calc(100% + var(--gouttiere) + 3rem);
+  /* La compensation ne peut pas depasser la place REELLEMENT libre a
+     gauche, sinon elle pousse le texte hors de l'ecran. Mesure : la
+     marge disponible n'atteint 70px qu'a ~845px de viewport, et 120px
+     (gouttiere audio) qu'a ~945px — entre 769px et ces seuils, la
+     lecture etait rognee. `min()` sur la moitie de la marge du
+     conteneur borne le debordement au lieu de le supposer.
+     / Clamp the pull to the space that actually exists. */
+  /* Ce sont les marges NEGATIVES qui elargissent la boite, pas le
+     max-width : en flux normal, un bloc prend la largeur de son parent
+     moins ses marges, et `max-width` ne fait qu'autoriser sans pousser.
+     A gauche on rend la place prise par la gouttiere ; a droite on
+     rejoint les 672px de corps de l'etalon.
+     / Negative margins widen the box; max-width alone would not. */
+  margin-left: min(0px, calc(-1 * (var(--gouttiere) + 1.5rem)));
+  margin-right: -1.5rem;
+}
+#readability-content.mode-structure,
+#zone-lecture.mode-structure #readability-content {
+  --gouttiere: 124px;
+}
+
+/* UN AUDIO A UNE GOUTTIERE PLUS LARGE (etalon l. 77-78).
+   Elle porte davantage : le nom du locuteur et le minutage du tour de
+   parole, la ou un document ecrit n'a qu'un label et un numero. 96px
+   en lecture, 150px en mode structure — les memes valeurs que
+   l'etalon, qui les a calees sur « Marie-Christine 00:14:32 ».
+   / An audio gutter carries a speaker and a timecode: it is wider. */
+#readability-content:has([data-media="audio"]),
+#readability-content [data-testid="blocs-elements"][data-media="audio"] {
+  --gouttiere: 96px;
+}
+#zone-lecture.mode-structure
+  #readability-content:has([data-media="audio"]),
+#zone-lecture.mode-structure
+  #readability-content [data-testid="blocs-elements"][data-media="audio"] {
+  --gouttiere: 150px;
+}
+
+/* Repli pour les navigateurs sans `:has()` — la variable est alors
+   posee par l'attribut du conteneur de blocs, qui suffit.
+   / Fallback: the blocks container carries the attribute too. */
+@supports not selector(:has(*)) {
+  #readability-content [data-testid="blocs-elements"][data-media="audio"] {
+    --gouttiere: 96px;
+  }
+}
+
+#readability-content .bloc {
+  display: grid;
+  grid-template-columns: var(--gouttiere) 1fr;
+  gap: 0 1.5rem;
+  position: relative;
+}
+
+#readability-content .gouttiere {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .62rem; line-height: 1.45;
+  color: var(--encre-douce); text-align: right;
+  padding-top: .5rem;
+  display: flex; flex-direction: column; align-items: flex-end; gap: .2rem;
+  user-select: none;
+}
+
+/* Diagnostic : reserve au mode structure. / Debug only. */
+#readability-content .etiquette-label,
+#readability-content .numero-element,
+#readability-content .empreinte { display: none; }
+#zone-lecture.mode-structure #readability-content .etiquette-label,
+#zone-lecture.mode-structure #readability-content .numero-element,
+#zone-lecture.mode-structure #readability-content .empreinte {
+  display: inline-block;
+}
+#readability-content .etiquette-label {
+  font-size: .53rem; text-transform: uppercase; letter-spacing: .07em;
+  padding: .04rem .28rem;
+  border: 1px solid var(--filet); border-radius: 2px;
+}
+#readability-content .numero-element,
+#readability-content .empreinte { opacity: .55; }
+
+/* Le filet d'etat : ambre des qu'une idee du passage est commentee.  */
+/* La COULEUR ne porte pas seule l'information — le compteur d'idees  */
+/* et le surlignage disent la meme chose autrement (daltonien-safe).  */
+/* / Colour never carries the meaning alone.                          */
+#readability-content .filet-etat {
+  position: absolute;
+  left: calc(var(--gouttiere) + .55rem);
+  top: .5rem; bottom: .1rem;
+  width: 2px; border-radius: 1px;
+  background: transparent;
+}
+#readability-content .bloc[data-etat="debattu"] .filet-etat {
+  background: var(--filet-statut-commente);
+}
+#zone-lecture.mode-structure #readability-content .filet-etat {
+  background: var(--filet);
+}
+#zone-lecture.mode-structure
+  #readability-content .bloc[data-etat="debattu"] .filet-etat {
+  background: var(--filet-statut-commente);
+}
+
+/* Le compteur d'idees. Cible tactile de 24px (WCAG 2.5.8) : l'etalon */
+/* s'en tient a 1,05rem, trop petit pour un doigt.                    */
+/* / 24px touch target; the mock's 1.05rem is too small for a finger. */
+#readability-content .compteur-idees {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 24px; height: 24px; padding: 0 .3rem;
+  border: 1px solid var(--filet-controle); border-radius: 999px;
+  font-size: .62rem; font-family: ui-monospace, Menlo, monospace;
+  background: none; color: var(--encre); cursor: pointer;
+  transition: border-color .12s, color .12s;
+}
+/* Au survol, seul le CONTOUR prend la teinte d'etat : le texte, lui,
+   garde l'encre pleine. Mesure : `--filet-statut-commente` en TEXTE
+   tombe a 3,82:1 sur le papier clair, sous les 4,5:1 exiges. Un
+   contour n'a besoin que de 3:1 (WCAG 1.4.11), il passe.
+   / On hover only the border takes the state colour; text stays ink. */
+#readability-content .compteur-idees:hover {
+  border-color: var(--filet-statut-commente);
+  color: var(--encre);
+}
+#readability-content .compteur-idees:focus-visible {
+  outline: 2px solid var(--encre); outline-offset: 2px;
+}
+
+/* Sous 768px la gouttiere mange la largeur de lecture : elle passe   */
+/* au-dessus du bloc, en ligne. / Below 768px the gutter goes inline. */
+@media (max-width: 960px) {
+  /* ON ANNULE LA COMPENSATION DE GOUTTIERE.
+     Elle deborde le conteneur vers la gauche pour rendre au texte la
+     place que la grille lui prend. En mobile il n'y a plus de colonne
+     de gouttiere — elle passe au-dessus du bloc — donc plus rien a
+     compenser : la laisser rognait la lecture de 54px hors ecran,
+     lettres coupees et aucun scroll pour aller les chercher.
+
+     LE SEUIL EST A 960px, PAS 768. Entre les deux, la marge du
+     conteneur ne suffit pas encore a absorber la compensation (70px
+     pour un document, 120px pour un audio dont la gouttiere est plus
+     large) : la bande 769-945px etait rognee elle aussi.
+     / 960px, not 768: the margin only covers the pull past ~945px. */
+  #readability-content { max-width: 100%; margin-left: 0; margin-right: 0; }
+  #readability-content .bloc { grid-template-columns: 1fr; gap: 0; }
+  #readability-content .gouttiere {
+    flex-direction: row; align-items: center; justify-content: flex-end;
+    gap: .4rem; padding-top: .2rem;
+  }
+  #readability-content .filet-etat { left: -.6rem; }
+}
+
+/* ================================================================== */
+/* TYPOGRAPHIE DE LECTURE — alignee sur l'etalon (maquette.html § 5-7)*/
+/*                                                                     */
+/* Mesure de l'ecart avant alignement : l'application lisait en 18px / */
+/* interligne 1,85 (Tailwind `prose-lg`) contre 17px / 1,7 pour        */
+/* l'etalon, avec des marges de paragraphe de 20px la ou l'etalon en   */
+/* met ZERO.                                                           */
+/*                                                                     */
+/* LE POINT QUI CHANGE TOUT : QUI PORTE L'ESPACEMENT                   */
+/* Dans l'etalon, `.corps > * { margin: 0 }` — un paragraphe n'a pas   */
+/* de marge. C'est le BLOC qui espace, et sa valeur depend du label :  */
+/* un titre respire plus qu'une puce. L'espacement devient donc une    */
+/* propriete de la STRUCTURE du document, pas de la balise rendue —    */
+/* ce qui est exactement ce que le moteur ELEMENT sait dire.           */
+/* / The block spaces, not the paragraph: spacing follows structure.   */
+/* ================================================================== */
+#readability-content {
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+#readability-content .bloc {
+  scroll-margin-top: 7rem;
+  margin-bottom: 1.15rem;
+}
+#readability-content .bloc[data-label="title"] { margin-bottom: 1.6rem; }
+#readability-content .bloc[data-label="section_header"] {
+  margin-top: 2.6rem; margin-bottom: 1rem;
+}
+#readability-content .bloc[data-label="list_item"] { margin-bottom: .15rem; }
+#readability-content .bloc[data-label="picture"] { margin: 2rem 0; }
+#readability-content .bloc[data-label="table"] { margin: 1.8rem 0; }
+
+/* Le corps ne porte AUCUNE marge : elle appartient au bloc. */
+/* / The body carries no margin; the block owns it. */
+#readability-content .corps > * { margin: 0; }
+#readability-content .corps h2 {
+  font-size: 1.42rem; line-height: 1.3; letter-spacing: -.012em;
+}
+#readability-content .corps h3 {
+  font-size: 1.1rem; line-height: 1.35; letter-spacing: -.008em;
+}
+#readability-content .corps ul { margin: 0; padding-left: 1.15rem; }
+#readability-content .corps li { margin: 0; }
+
+/* Numero de page et bouton « voir la source » (etalon § 7).          */
+/* Le bouton se revele au survol du bloc : en lecture il ne doit pas  */
+/* encombrer la gouttiere, mais rester a portee. En mode structure il */
+/* prend son libelle complet, la gouttiere y est assez large.         */
+/* / Revealed on block hover; full label in structure mode.           */
+/* PAS D'OPACITE SUR UN TEXTE QU'ON DOIT LIRE.
+   `--encre-douce` a .75 tombe a ~3,4:1 sur le papier, sous les 4,5:1
+   d'un texte de 10px. L'etalon met .75 parce que sa gouttiere est un
+   decor ; ici le numero de page se lit. Pleine encre douce : 5,4:1.
+   / Opacity dropped this to 3.4:1; it is text, not decoration. */
+#readability-content .numero-page {
+  font-variant-numeric: tabular-nums;
+}
+#readability-content .bouton-voir-source {
+  border: none; background: none; padding: 0; cursor: pointer;
+  font-size: .62rem; color: var(--encre-douce);
+  opacity: 0; transition: opacity .12s ease; white-space: nowrap;
+  min-height: 24px;
+}
+#readability-content .bouton-voir-source .libelle-source { display: none; }
+#readability-content .bloc:hover .bouton-voir-source,
+#readability-content .bouton-voir-source:focus-visible { opacity: 1; }
+#readability-content .bouton-voir-source:focus-visible {
+  outline: 2px solid var(--encre); outline-offset: 2px;
+}
+#zone-lecture.mode-structure #readability-content .bouton-voir-source {
+  opacity: 1; font-size: .58rem;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+#zone-lecture.mode-structure
+  #readability-content .bouton-voir-source .libelle-source { display: inline; }
+#zone-lecture.mode-structure
+  #readability-content .bouton-voir-source .icone-source { display: none; }
+
+/* Glissiere d'un AUDIO : le locuteur, puis le minutage (etalon § 7).  */
+/* Le locuteur porte une pastille de couleur — la meme d'un bloc a     */
+/* l'autre pour une meme voix — parce que suivre un debat, c'est       */
+/* d'abord suivre qui parle. La couleur ne porte pas l'information     */
+/* seule : le NOM est ecrit a cote.                                    */
+/* / Colour never carries it alone: the name is written beside it.     */
+#readability-content .etiquette-locuteur {
+  color: var(--encre); font-weight: 600;
+  display: inline-flex; align-items: center; gap: .28rem;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#readability-content .etiquette-locuteur::before {
+  content: ""; display: inline-block; flex: none;
+  width: .46rem; height: .46rem; border-radius: 50%;
+  background: var(--couleur-locuteur, var(--encre-douce));
+}
+#readability-content .ligne-minutage {
+  display: flex; align-items: center; gap: .28rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ */
+/* EDITEUR EN PLACE (etalon § 11)                                      */
+/*                                                                     */
+/* Le corps du bloc s'efface, le champ prend sa place — meme largeur,  */
+/* meme typographie, meme interligne. Corriger ne doit pas donner      */
+/* l'impression de changer d'endroit : c'est le meme texte, ecrit      */
+/* autrement. Le contour ambre est le seul signal qu'on edite.         */
+/* / The body gives way to the field: same width, same type, same      */
+/* place. Correcting is not going somewhere else.                      */
+/* ------------------------------------------------------------------ */
+#readability-content .editeur { display: none; }
+#readability-content .bloc.est-en-edition .corps > :not(.editeur) {
+  display: none;
+}
+#readability-content .bloc.est-en-edition .editeur { display: block; }
+#readability-content .editeur textarea {
+  width: 100%; font: inherit; line-height: 1.7;
+  color: var(--encre); background: var(--papier);
+  /* Le token FILET, pas l'ambre brut : celui-ci fait 2,2:1 sur le
+     papier clair, sous les 3:1 d'un contour de controle (1.4.11).
+     C'est la convention de ce fichier depuis le lot T10.
+     / The filet token: raw amber is 2.2:1 on light paper. */
+  border: 1px solid var(--filet-statut-commente); border-radius: 4px;
+  padding: .5rem .6rem; resize: vertical; min-height: 4.5rem;
+}
+#readability-content .editeur-barre {
+  display: flex; align-items: center; gap: .45rem; margin-top: .45rem;
+  font-family: ui-monospace, Menlo, monospace; font-size: .64rem;
+  flex-wrap: wrap;
+}
+#readability-content .editeur-aide {
+  margin-left: auto; color: var(--encre-douce);
+}
+/* L'etiquette du champ est lue par les lecteurs d'ecran, pas montree : */
+/* le contexte visuel (le bloc s'efface, le champ apparait a sa place)  */
+/* dit deja ce qu'on edite. / Read aloud, not shown: context says it.   */
+#readability-content .editeur .etiquette-invisible {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+#readability-content .erreur-de-l-editeur {
+  margin: .4rem 0 0; padding-left: .5rem;
+  border-left: 3px solid var(--danger);
+  color: var(--encre); font-size: .78rem;
+}
+
+/* ================================================================== */
+/* LE SURLIGNAGE SE REVELE, IL NE S'IMPOSE PAS (etalon § 9)           */
+/*                                                                     */
+/* L'etalon le dit dans son propre commentaire : « Au repos le texte  */
+/* est nu. Il se revele au survol du bloc, et s'allume au choix        */
+/* explicite. » Trois niveaux, donc, et l'application n'en avait       */
+/* qu'un : tout surligne, tout le temps.                               */
+/*                                                                     */
+/* CE QUE CE CHANGEMENT DIT DU PRODUIT                                 */
+/* Un texte entierement surligne n'est plus un texte : c'est une       */
+/* liste de citations. Le parti pris de la maquette est l'inverse —    */
+/* on lit d'abord, on voit les idees quand on s'approche, on en        */
+/* choisit une quand on la veut. Le document reste le sujet.           */
+/* / Bare at rest, revealed on block hover, lit on explicit choice.    */
+/* ================================================================== */
+
+/* 1. AU REPOS : nu. Le statut ne pose qu'une VARIABLE, aucun fond.   */
+#readability-content mark.hl-extraction {
+  background: none;
+  border-bottom: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: .04em 0;
+  transition: background-color .14s ease, box-shadow .14s ease;
+}
+#readability-content .hl-extraction[data-statut="nouveau"] {
+  --couleur-statut: var(--filet-statut-nouveau);
+}
+#readability-content .hl-extraction[data-statut="commente"],
+#readability-content .hl-extraction[data-statut="discutable"],
+#readability-content .hl-extraction[data-statut="discute"] {
+  --couleur-statut: var(--filet-statut-commente);
+}
+#readability-content .hl-extraction[data-statut="consensuel"] {
+  --couleur-statut: var(--succes);
+}
+#readability-content .hl-extraction[data-statut="controverse"] {
+  --couleur-statut: var(--danger);
+}
+
+/* 2. AU SURVOL DU BLOC : les idees de CE passage se revelent, dans un */
+/*    gris neutre — on montre OU elles sont, pas encore lesquelles.    */
+#readability-content .bloc:hover mark.hl-extraction {
+  background-color: var(--revelation);
+}
+
+/* 3. AU SURVOL DE L'ANCRE puis AU CHOIX : la teinte du statut, puis   */
+/*    le liseré. Le liseré porte l'etat sans la couleur seule.         */
+/* La regle du BLOC survole (1,3,1) l'emporterait sur `mark:hover`
+   (1,2,1) : mesure au navigateur, l'ancre survolee restait grise. On
+   remet le survol de l'ancre au-dessus en le qualifiant du bloc.
+   / Measured: the block rule outranked the anchor's own hover. */
+#readability-content .bloc:hover mark.hl-extraction:hover,
+#readability-content mark.hl-extraction:hover {
+  background-color: color-mix(
+    in srgb, var(--couleur-statut, var(--encre-douce)) 14%, transparent
+  );
+}
+#readability-content .bloc:hover mark.hl-extraction.ancre-active,
+#readability-content mark.hl-extraction.ancre-active {
+  background-color: color-mix(
+    in srgb, var(--couleur-statut, var(--encre-douce)) 22%, transparent
+  );
+  box-shadow: inset 0 -2px 0 0 var(--couleur-statut, var(--encre-douce));
+}
+#readability-content mark.hl-extraction:focus-visible {
+  outline: 2px solid var(--encre); outline-offset: 2px;
+}
+
+/* Les marques IMBRIQUEES gardent leurs liserés lisibles l'un sous     */
+/* l'autre — sinon deux idees sur le meme passage n'en font qu'une.    */
+#readability-content mark.hl-extraction[data-superposition="2"] {
+  padding-bottom: .14em;
+}
+#readability-content mark.hl-extraction[data-superposition="3"],
+#readability-content mark.hl-extraction[data-superposition="4"] {
+  padding-bottom: .24em;
+}
+
+/* CLAVIER ET TACTILE : sans survol, la revelation n'arriverait        */
+/* jamais. Un bloc qui contient le focus se revele comme au survol.    */
+/* / Without hover there is no reveal: focus does it too.              */
+#readability-content .bloc:focus-within mark.hl-extraction {
+  background-color: var(--revelation);
+}
+@media (hover: none) {
+  #readability-content mark.hl-extraction {
+    background-color: var(--revelation);
+  }
+}
+
+/* ================================================================== */
+/* LE PANNEAU S'INTEGRE A LA PAGE SUR GRAND ECRAN (etalon § 13)       */
+/*                                                                     */
+/* L'etalon a DEUX panneaux selon la place disponible :                */
+/*   · au-dela de 1400px, il est `sticky` — dans la page, a droite du  */
+/*     texte, SANS voile : on lit et on consulte en meme temps ;       */
+/*   · en dessous, il glisse par-dessus, avec son voile.               */
+/*                                                                     */
+/* L'application n'avait que le second, a toutes les largeurs : sur un */
+/* grand ecran, consulter une idee cachait le passage dont elle vient  */
+/* — exactement ce qu'un panneau de preuve ne doit pas faire.          */
+/*                                                                     */
+/* POURQUOI EN CSS PLUTOT QU'EN DEPLACANT LE PANNEAU DANS LE FLUX      */
+/* Le rendre `sticky` demanderait de le sortir de `base.html` pour le  */
+/* mettre a cote de la zone de lecture — donc de toucher au gabarit    */
+/* global, au piegeage de focus et au JS qui l'ouvre. Le laisser fixe  */
+/* et RENDRE SA PLACE au texte donne le meme resultat a l'oeil, sans   */
+/* rien casser. Un panneau fixe ne defile pas : c'est precisement ce   */
+/* que `sticky` fait chez l'etalon.                                    */
+/* / Same result to the eye, without touching the global template.     */
+/*                                                                     */
+/* MOBILE INCHANGE : sous 1400px, tout reste comme avant — drawer      */
+/* glissant, et la feuille du bas sur telephone. Ce qui marche ne      */
+/* change pas. / Below 1400px nothing changes.                         */
+/* ================================================================== */
+@media (min-width: 1400px) {
+  /* Pas de voile : le texte reste lisible et cliquable a gauche. */
+  #drawer-backdrop { display: none !important; }
+
+  /* Le panneau garde sa largeur mais cesse d'etre un intrus : la zone
+     de lecture lui cede la place au lieu de passer dessous. */
+  body.panneau-integre #zone-lecture {
+    padding-right: calc(min(36rem, 100vw) + 2rem);
+    transition: padding-right .22s ease;
+  }
+  #zone-lecture { transition: padding-right .22s ease; }
+
+  /* Le panneau integre n'a plus l'ombre portee d'un objet flottant :
+     il fait partie de la page, un filet suffit a l'en separer.
+     / Integrated, not floating: a rule replaces the drop shadow. */
+  body.panneau-integre #drawer-overlay {
+    box-shadow: none;
+    border-left: 1px solid var(--filet);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* LA CARTE DU PANNEAU : SOBRE PAR DEFAUT (etalon § 14)                */
+/*                                                                     */
+/* La citation ne s'affiche QUE sur la carte choisie. Une liste ou     */
+/* chaque carte deroule son extrait n'est plus une liste : c'est un    */
+/* mur de texte qui redit ce que la page dit deja a cote. L'etalon     */
+/* garde le titre et le statut, et ouvre la citation au clic.          */
+/* / The quote opens on the chosen card; a wall of quotes is not a     */
+/* list. */
+#drawer-contenu .drawer-carte-compacte .typo-citation {
+  display: none;
+}
+#drawer-contenu .drawer-carte-compacte.drawer-carte-active .typo-citation {
+  display: block;
 }

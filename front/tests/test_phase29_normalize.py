@@ -304,7 +304,20 @@ class SynonymesHypostasesTest(TestCase):
 # ========================================================================
 
 class AnnotationMultiJobsTest(TestCase):
-    """Tests que la vue lecture affiche les pastilles de TOUS les jobs completed."""
+    """
+    La lecture montre les ancres de TOUS les jobs termines, pas du
+    dernier. / Reading shows anchors from every completed job.
+
+    Le nom d'origine parlait de « pastilles » : elles ont disparu avec
+    l'ancien moteur. L'invariant, lui, reste entier — une page analysee
+    deux fois doit montrer les idees des DEUX analyses, sinon la
+    seconde efface la premiere aux yeux du lecteur.
+
+    La page est batie sur le moteur ELEMENT, le seul qui reste : sans
+    element ni ancre, il n'y a plus de surlignage a trouver, l'ancien
+    rendu par offsets ayant ete supprime.
+    / Same invariant, on the only engine left.
+    """
 
     def setUp(self):
         """Cree une page avec 2 jobs completed et des entites dans chacun."""
@@ -327,6 +340,15 @@ class AnnotationMultiJobsTest(TestCase):
             owner=self.utilisateur,
         )
 
+        from core.models import ElementDocument, empreinte_du_texte
+        from hypostasis_extractor.models import AncrageExtraction, EtatAncrage
+
+        self.element = ElementDocument.objects.create(
+            page=self.page, ordre=0, label="text",
+            texte=self.page.text_readability,
+            empreinte_contenu=empreinte_du_texte(self.page.text_readability),
+        )
+
         # Job 1 : 1 entite sur "Premier passage"
         # / Job 1: 1 entity on "Premier passage"
         self.job_1 = ExtractionJob.objects.create(
@@ -338,6 +360,11 @@ class AnnotationMultiJobsTest(TestCase):
             extraction_text="Premier passage",
             start_char=0, end_char=15,
             attributes={"resume": "test1", "hypostases": "theorie"},
+        )
+        AncrageExtraction.objects.create(
+            extraction=self.entite_1, element=self.element,
+            debut_dans_element=0, fin_dans_element=15,
+            ordre_dans_extraction=0, etat_ancrage=EtatAncrage.ANCREE,
         )
 
         # Job 2 : 1 entite sur "Troisieme passage"
@@ -351,6 +378,11 @@ class AnnotationMultiJobsTest(TestCase):
             extraction_text="Troisieme passage",
             start_char=34, end_char=51,
             attributes={"resume": "test2", "hypostases": "probleme"},
+        )
+        AncrageExtraction.objects.create(
+            extraction=self.entite_2, element=self.element,
+            debut_dans_element=34, fin_dans_element=51,
+            ordre_dans_extraction=0, etat_ancrage=EtatAncrage.ANCREE,
         )
 
         self.client.login(username="test_multijob", password="test1234")
@@ -366,9 +398,9 @@ class AnnotationMultiJobsTest(TestCase):
         self.assertIn(f"data-extraction-id=\"{self.entite_1.pk}\"", contenu)
         self.assertIn(f"data-extraction-id=\"{self.entite_2.pk}\"", contenu)
 
-    def test_lecture_f5_affiche_pastilles_de_tous_les_jobs(self):
-        """L'acces direct (F5) affiche aussi les pastilles des 2 jobs."""
-        # / Direct access (F5) also shows pastilles from both jobs
+    def test_lecture_f5_affiche_les_ancres_de_tous_les_jobs(self):
+        """L'acces direct (F5) montre les ancres des DEUX jobs."""
+        # / Direct access (F5) shows anchors from both jobs
         reponse = self.client.get(f"/lire/{self.page.pk}/")
         contenu = reponse.content.decode("utf-8")
 

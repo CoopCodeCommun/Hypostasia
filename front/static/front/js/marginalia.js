@@ -199,6 +199,104 @@
     });
 
 
+    // --- Le COMPTEUR D'IDEES de la gouttiere (etalon, l. 1884) ---
+    //
+    // Un clic allume TOUTES les ancres du passage — pas une seule — et
+    // ouvre le panneau sur la premiere carte. C'est la reponse a « que
+    // dit-on de ce paragraphe ? », une question que le surlignage seul
+    // ne permet pas de poser : il faut cliquer chaque ancre une par une.
+    // / Lights every anchor of the block and opens the panel on the
+    // first card: "what is said about this paragraph?".
+    document.addEventListener('click', function (evenement) {
+        var compteur = evenement.target.closest('.compteur-idees');
+        if (!compteur) return;
+        evenement.preventDefault();
+
+        var bloc = compteur.closest('.bloc');
+        if (!bloc) return;
+
+        var ancresDuBloc = bloc.querySelectorAll(
+            '.hl-extraction[data-extraction-id]'
+        );
+        if (!ancresDuBloc.length) return;
+        var premiereIdee = ancresDuBloc[0].dataset.extractionId;
+
+        if (window.innerWidth <= 768) {
+            if (window.bottomSheet) window.bottomSheet.ouvrir(premiereIdee);
+            return;
+        }
+
+        // OUVRIR D'ABORD, ALLUMER ENSUITE.
+        //
+        // `ouvrirDrawerEtScrollerVersCarte` commence par ETEINDRE toutes
+        // les ancres actives pour n'allumer que la sienne. Allumer avant
+        // de l'appeler revenait donc a s'annuler soi-meme : mesure au
+        // navigateur, 1 ancre allumee sur 97. L'ordre n'est pas un
+        // detail, c'est la fonctionnalite.
+        // / It clears every active anchor first: light them AFTER.
+        ouvrirDrawerEtScrollerVersCarte(premiereIdee);
+        ancresDuBloc.forEach(function (ancre) {
+            ancre.classList.add('ancre-active');
+        });
+    });
+
+
+    // --- « Voir la source » : dire ce qu'on ne sait pas encore faire ---
+    //
+    // L'etalon ouvrirait le document source a la bonne page, boite
+    // surlignee — chez lui c'est un mock qui affiche un toast, le
+    // visualiseur PDF n'existe pas plus que chez nous (SPEC-ancrage
+    // § 8.2 est incomplete : elle donne le delta, pas le socle).
+    // On tient le meme discours : le bouton existe la ou la donnee
+    // existe, et il dit honnetement ou en est le produit.
+    // / The mock toasts too: the PDF viewer exists in neither.
+    document.addEventListener('click', function (evenement) {
+        var bouton = evenement.target.closest('.bouton-voir-source');
+        if (!bouton) return;
+        evenement.preventDefault();
+        var page = bouton.dataset.pageSource;
+        document.body.dispatchEvent(new CustomEvent('showToast', {
+            detail: {
+                message: 'Ce passage vient de la page ' + page +
+                         ' du document source. Le visualiseur PDF ' +
+                         "n'est pas encore disponible.",
+            },
+        }));
+    });
+
+
+    // --- Annuler une correction en place (etalon § 11) ---
+    //
+    // Refermer, c'est retirer l'editeur et rendre le corps : pas de
+    // rechargement, rien a redemander au serveur. Le bouton est pose
+    // par un fragment HTMX, donc l'ecouteur vit sur `document` — un
+    // ecouteur pose sur le fragment lui-meme s'empilerait a chaque
+    // ouverture (piege connu de ce depot).
+    // / Delegated on document: a per-fragment listener would stack up.
+    document.addEventListener('click', function (evenement) {
+        var bouton = evenement.target.closest('.annuler-edition');
+        if (!bouton) return;
+        evenement.preventDefault();
+        var bloc = bouton.closest('.bloc');
+        if (!bloc) return;
+        bloc.classList.remove('est-en-edition');
+        var editeur = bloc.querySelector('.editeur');
+        if (editeur) editeur.remove();
+    });
+
+    // Echap ferme l'editeur, comme il fermait le dialogue. Ce qui
+    // s'ouvre doit se fermer par la meme touche, quelle que soit sa
+    // forme. / Escape closes it, as it closed the modal.
+    document.addEventListener('keydown', function (evenement) {
+        if (evenement.key !== 'Escape') return;
+        var bloc = document.querySelector('.bloc.est-en-edition');
+        if (!bloc) return;
+        bloc.classList.remove('est-en-edition');
+        var editeur = bloc.querySelector('.editeur');
+        if (editeur) editeur.remove();
+    });
+
+
     // Expose l'API publique
     // / Expose public API
     window.marginalia = {
