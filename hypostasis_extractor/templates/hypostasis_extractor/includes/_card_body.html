@@ -143,17 +143,52 @@
     </form>
 </div>
 
-{# === 6. Footer : bouton commenter === #}
-{# / === 6. Footer: comment button === #}
-<button class="btn-commenter-extraction text-xs text-slate-400 hover:text-amber-600 transition-colors mt-2 flex items-center gap-1"
+{# === 6. Footer : commenter a gauche, ecouter a droite === #}
+{# / === 6. Footer: comment left, listen right === #}
+<div class="flex items-center justify-between mt-2">
+<button class="btn-commenter-extraction text-xs text-slate-400 hover:text-amber-600 transition-colors flex items-center gap-1"
         data-entity-id="{{ entity.pk }}"
         data-testid="btn-commenter-extraction"
-        onclick="this.previousElementSibling.classList.toggle('hidden'); var ta = this.previousElementSibling.querySelector('textarea'); if (ta) ta.focus();"
+        onclick="this.parentElement.previousElementSibling.classList.toggle('hidden'); var ta = this.parentElement.previousElementSibling.querySelector('textarea'); if (ta) ta.focus();"
         title="Commenter">
     <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/>
     </svg>
     Commenter
 </button>
+{% if page.source_type == "audio" and page.source_file and not entity.est_detachee %}
+{% comment %}
+ECOUTER LE PASSAGE D'OU L'IDEE VIENT. Une carte affirme quelque chose
+et cite un passage ; sur un audio, cette citation est une
+TRANSCRIPTION, c'est-a-dire deja une interpretation. Le bouton permet
+de verifier la source plutot que de croire la carte sur parole.
+
+L'INSTANT N'EST PAS RECOPIE ICI. Le bouton ne porte que l'identifiant
+de l'idee : `lecteur_audio.js` retrouve sa marque dans le texte et lit
+le minutage du bloc qui la contient. Une donnee ecrite a un seul
+endroit ne peut pas diverger de sa copie, puisqu'il n'y en a pas — et
+une idee peut avoir PLUSIEURS ancres, dont le serveur ne saurait pas
+laquelle choisir ici.
+
+PAS DE BOUTON SUR UNE ANCRE DETACHEE. Elle a perdu son passage :
+proposer de l'ecouter serait une promesse vide, et le drawer le dit
+deja par son etiquette « ancre detachee ». C'est le SERVEUR qui
+tranche, parce qu'il le sait — une premiere version laissait le JS
+retirer les boutons sans marque au chargement, ce qui les faisait
+disparaitre sous le doigt au gre des swaps HTMX.
+/ No button on a detached anchor: the server knows, and says so already.
+An earlier version had the JS remove them, which made them vanish under
+the finger as HTMX swapped.
+{% endcomment %}
+<button class="btn-ecouter-extraction text-xs text-slate-400 hover:text-amber-600 transition-colors flex items-center gap-1"
+        data-extraction-id="{{ entity.pk }}"
+        data-testid="btn-ecouter-extraction"
+        title="Écouter le passage"
+        aria-label="Écouter le passage dont vient cette idée">
+    <span aria-hidden="true">&#9654;</span>
+    Écouter
+</button>
+{% endif %}
+</div>
 
 </div>{# fin .extraction-content / end .extraction-content #}

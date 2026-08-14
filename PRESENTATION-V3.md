@@ -116,7 +116,27 @@ Autour de ce modèle, une famille de services (`hypostasis_extractor/services/`)
   empreinte (sur un pad de 200 comptes rendus, seuls ~2 % du contenu repartent
   en analyse) ;
 - `garde_edition.py` — refuse l'édition pendant qu'une analyse tourne, pour ne
-  jamais écrire d'ancres calculées sur un texte qui n'existe plus.
+  jamais écrire d'ancres calculées sur un texte qui n'existe plus ;
+- `ingestion_docling.py` — l'entrée de toute la chaîne : un fichier devient N
+  `ElementDocument`, chacun avec son label, son chemin de section et sa
+  provenance physique (`{page_no, boites}` pour un PDF, une **liste** de boîtes
+  car un paragraphe peut être à cheval sur deux colonnes ou deux pages).
+
+**Un PDF scanné est lu comme un PDF natif** (mesuré le 14 août 2026). Docling
+embarque `RapidOCR` et n'OCRise que les *zones* dépourvues de couche texte
+(`force_full_page_ocr=False`) : la même étude, rastérisée en images, ressort avec
+**11 éléments, mêmes labels, mêmes pages, mêmes boîtes** que sa version native.
+Neuf des onze sont restitués au-dessus de 0,90 de similarité, tableaux compris.
+Le coût est le temps : 3,7 s par page en régime établi, environ dix fois plus
+quand l'OCR entre en jeu, sur une file Celery dédiée à concurrence 1.
+
+Deux conséquences à retenir. D'abord cette capacité n'est **déclarée nulle part** :
+`rapidocr` arrive en dépendance transitive de `docling-slim`, absent de
+`pyproject.toml` — si l'amont la bascule en extra optionnel, l'OCR disparaît en
+silence. Ensuite, un scan produit une page aux dimensions de son image (935×1210
+pour un scan 110 dpi, contre 612×792 pt en natif) : le calque de surlignage du
+visualiseur PDF doit se calculer **relativement à `page.size`**, jamais en points
+absolus.
 
 Côté affichage, `front/services/rendu_elements.py` est écrit et testé : il
 remplace l'injection de balises par offsets par un découpage du texte de chaque

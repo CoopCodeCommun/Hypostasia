@@ -370,15 +370,36 @@
                 <button class="onglet-panneau text-sm px-3 py-1.5 rounded-t font-medium bg-white text-blue-600 border border-b-0 border-slate-200"
                         data-onglet="extractions">Extractions</button>
             </nav>
-            <div id="panneau-extractions">
-                {% if page_preloaded and analyseurs_actifs %}
-                    {# Cas F5 sur une page : on pre-charge le selecteur et le bouton #}
-                    {# / F5 case on a page: pre-load the selector and button #}
-                    {% include "front/includes/panneau_analyse.html" with page=page_preloaded analyseurs_actifs=analyseurs_actifs %}
-                {% else %}
-                    <p class="text-xs text-slate-400">Selectionnez une page puis lancez une analyse.</p>
-                {% endif %}
-            </div>
+            {% comment %}
+            CE CONTENEUR RESTE VIDE AU CHARGEMENT — corrige le 14 aout.
+
+            Il incluait `panneau_analyse.html`, c'est-a-dire LES MEMES
+            CARTES que le panneau visible. Mais ce dernier ne se remplit
+            pas au rendu : il demande son contenu par HTMX
+            (`/extractions/drawer_contenu/`, drawer_vue_liste.js:158).
+            Les cartes du HTML initial etaient donc celles d'ici — et
+            elles se retrouvaient EN DOUBLE dans le DOM des que le
+            panneau visible se chargeait. Mesure sur la note 8 : 3 ici,
+            3 la, pour trois idees.
+
+            Ce que ce doublon coutait : un rendu serveur complet paye
+            deux fois a chaque ouverture de note — cartes, commentaires
+            et attributs compris —, et chaque `data-testid` present deux
+            fois dans le DOM, dont une fois sur un element qui ne sera
+            JAMAIS visible. Un selecteur nu tombe alors sur l'invisible
+            une fois sur deux ; c'est ce qui a fait attendre 30 secondes
+            a un test le 14 aout.
+
+            LE CONTENEUR, LUI, RESTE : quatre OOB swaps (views.py) et
+            trois appels HTMX (hypostasia.js) le visent. HTMX n'avertit
+            pas quand une cible OOB manque — le retirer ferait tomber
+            ces reponses dans le vide, en silence.
+            / Left empty: it re-rendered the same cards the visible panel
+            fetches by HTMX, doubling every data-testid and paying the
+            server render twice. The container stays: OOB targets vanish
+            silently when removed.
+            {% endcomment %}
+            <div id="panneau-extractions"></div>
         </aside>
     </div>
 
@@ -403,7 +424,19 @@
     {% include "front/includes/selection_menu.html" %}
 
 
-    <script src="{% static 'front/js/hypostasia.js' %}?v=37"></script>
+    {% comment %}
+    v=38 (14 aout 2026) : nouveau message WebSocket file_ingestion_modifiee.
+    Ce numero DOIT etre incremente a chaque changement du fichier :
+    nginx sert /static/ avec `Cache-Control: public, immutable` pendant
+    30 jours (nginx/default.conf), et `immutable` interdit meme la
+    revalidation au rechargement forcé. Sans ce changement d'URL, tout
+    navigateur deja venu garderait l'ancien script pendant un mois — et
+    la position dans la file resterait figee, precisement le defaut que
+    ce script corrige.
+    / Bump on every change: nginx serves /static/ as immutable for 30
+    days, so a stale browser would keep the old script for a month.
+    {% endcomment %}
+    <script src="{% static 'front/js/hypostasia.js' %}?v=38"></script>
     <script src="{% static 'front/js/marginalia.js' %}?v=27"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
     {# `arbre_overlay.js` et `arbre_context_menu.js` etaient charges ici. #}

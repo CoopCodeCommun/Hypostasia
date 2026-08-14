@@ -27,13 +27,20 @@ elle ne reste pas LA MEME d'un bout a l'autre : deux codes couleur
 contradictoires ne valent pas mieux qu'aucun code — ils coutent meme
 plus cher, puisqu'il faut apprendre lequel vaut ou.
 
-CE QUE CE TEST NE FAIT PAS
+MISE A JOUR DU 14 AOUT : LA TIMELINE A DISPARU
 
-Il ne touche pas au HTML de transcription FIGE en base
+Ces tests portaient sur les DEUX widgets. La timeline a ete retiree le
+14 aout — son clic visait un HTML que les pages ELEMENT ne rendent plus
+(voir `test_retrait_timeline_audio`). Ils portent donc desormais sur les
+pilules seules. L'invariant, lui, n'a pas bouge : une voix, une couleur,
+la meme que celle de la gouttiere.
+
+CE QUE CES TESTS NE FONT PAS
+
+Ils ne touchent pas au HTML de transcription FIGE en base
 (`construire_html_diarise`, fonds pales compris) : ces pages existent
 deja, leur HTML est ecrit, et le rendu principal passe desormais par
-les `ElementDocument`. Le test porte sur ce qui est calcule A CHAQUE
-RENDU — les pilules et la timeline.
+les `ElementDocument`.
 / The player's rail made an existing disagreement visible: gutter and
 rail use Wong, pills and timeline used Tailwind. One speaker, two
 colours, 700px apart.
@@ -67,23 +74,13 @@ class CouleursDesLocuteursTest(SimpleTestCase):
         la meme que celle que la gouttiere lui donnera.
         / The first speaker takes Wong's first hue, as the gutter does.
         """
-        html_pilules, _ = construire_widgets_audio(TRANSCRIPTION_DE_DEUX_VOIX)
+        html_pilules = construire_widgets_audio(TRANSCRIPTION_DE_DEUX_VOIX)
 
         premiere_teinte = CategorieDossier.PALETTE_WONG[0]
         seconde_teinte = CategorieDossier.PALETTE_WONG[1]
 
         self.assertIn(premiere_teinte, html_pilules)
         self.assertIn(seconde_teinte, html_pilules)
-
-    def test_la_timeline_prend_la_meme_palette(self):
-        """
-        Les deux widgets sont cote a cote : ils ne peuvent pas diverger.
-        / The two widgets sit side by side; they cannot diverge.
-        """
-        _, html_timeline = construire_widgets_audio(TRANSCRIPTION_DE_DEUX_VOIX)
-
-        self.assertIn(CategorieDossier.PALETTE_WONG[0], html_timeline)
-        self.assertIn(CategorieDossier.PALETTE_WONG[1], html_timeline)
 
     def test_aucune_teinte_tailwind_ne_subsiste_dans_les_widgets(self):
         """
@@ -92,23 +89,26 @@ class CouleursDesLocuteursTest(SimpleTestCase):
         defaut qu'on repare — a un endroit de moins.
         / Catches a half-done fix: pills without timeline, or the reverse.
         """
-        html_pilules, html_timeline = construire_widgets_audio(
-            TRANSCRIPTION_DE_DEUX_VOIX
-        )
+        html_pilules = construire_widgets_audio(TRANSCRIPTION_DE_DEUX_VOIX)
 
         for teinte_tailwind in ("#3b82f6", "#ef4444", "#10b981"):
             self.assertNotIn(teinte_tailwind, html_pilules)
-            self.assertNotIn(teinte_tailwind, html_timeline)
 
-    def test_le_meme_locuteur_garde_sa_teinte_sur_tous_ses_tours(self):
+    def test_une_voix_n_a_qu_une_pilule(self):
         """
-        Le troisieme tour revient au premier locuteur : meme voix, meme
-        couleur, sinon la pastille ne dit plus rien.
-        / The third turn returns to the first speaker: same colour.
+        Le troisieme tour revient au premier locuteur, et ne lui vaut pas
+        une seconde pilule : le filtre liste des VOIX, pas des tours.
+
+        Ce test remplace `test_le_meme_locuteur_garde_sa_teinte_sur_tous
+        _ses_tours`, qui comptait les segments de la timeline retiree le
+        14 aout. L'invariant qu'il protegeait — une voix, une couleur —
+        se verifie ici sur l'unicite de la pilule, et dans la gouttiere
+        sur `couleur_du_locuteur` (test_rendu_elements).
+        / Replaces a test that counted timeline segments: the filter
+        lists voices, not turns.
         """
-        _, html_timeline = construire_widgets_audio(TRANSCRIPTION_DE_DEUX_VOIX)
+        html_pilules = construire_widgets_audio(TRANSCRIPTION_DE_DEUX_VOIX)
 
         premiere_teinte = CategorieDossier.PALETTE_WONG[0]
-        # Deux tours pour speaker_1, un pour speaker_2.
-        # / Two turns for speaker_1, one for speaker_2.
-        self.assertEqual(html_timeline.count(premiere_teinte), 2)
+        self.assertEqual(html_pilules.count(premiere_teinte), 1)
+        self.assertEqual(html_pilules.count('data-speaker-filter="speaker_1"'), 1)

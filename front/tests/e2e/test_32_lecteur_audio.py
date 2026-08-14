@@ -129,28 +129,30 @@ class E2ELecteurAudioTest(PlaywrightLiveTestCase):
         Force le telechargement COMPLET du media avant d'eprouver un
         deplacement.
 
-        POURQUOI CE HELPER EXISTE — ET CE QU'IL REVELE
+        POURQUOI CE HELPER EXISTE, ET CE QU'IL NE PROUVE PAS
 
         Se deplacer dans un audio demande, au navigateur, l'un des deux :
         le fichier entier en memoire, ou un serveur qui repond aux
         requetes `Range`. Le produit rend `preload="metadata"` — il ne
-        telecharge donc PAS le fichier — et le serveur de test est
-        Django, qui ne gere pas `Range`. Sans ce helper, le clic sur le
-        rail est silencieusement ignore et le test mesure 0.
+        telecharge donc PAS le fichier — et le serveur de CE TEST est
+        `StaticLiveServerTestCase`, c'est-a-dire Django, qui ne gere pas
+        `Range`. Sans ce helper, le clic sur le rail serait
+        silencieusement ignore et le test mesurerait 0.
 
-        CE N'EST PAS UN DEFAUT DU LECTEUR, MAIS UNE LIMITE DE
-        L'ENVIRONNEMENT DE DEV : en production, `/media/` est servi par
-        nginx (nginx/default.conf:25), qui gere `Range` nativement. En
-        dev, `hypostasia/urls.py:32` le confie a `django.views.static`,
-        qui ne le gere pas — un enregistrement d'une heure y serait donc
-        illisible en avance rapide.
+        L'APPLICATION, ELLE, NE PASSE PLUS PAR LA. Depuis le 14 aout,
+        `/media/` est servi par nginx en dev comme en prod
+        (`nginx/dev.conf`, `nginx/default.conf`), et nginx repond `206
+        Partial Content` : le deplacement y marche sans rien forcer.
+        C'est `test_les_medias_sont_servis_par_nginx` (front/tests/
+        test_service_des_medias.py) qui protege cette conf — un test
+        e2e ne peut pas le faire, puisque nginx n'est pas dans sa boucle.
 
-        Le helper met `preload="auto"`, recharge, et attend que la plage
-        bufferisee couvre toute la duree.
-        / Seeking needs either the whole file in memory or a server that
-        answers Range requests. Dev serves media through Django, which
-        does not. Not a player defect — an environment limit, documented
-        here rather than hidden behind a sleep.
+        Ce helper compense donc un ecart entre le serveur de test et le
+        serveur reel. Il ne dit rien de la qualite du lecteur, et c'est
+        pourquoi il est ecrit ici plutot que cache derriere une attente.
+        / Django's test server ignores Range; nginx (dev and prod) does
+        not. This helper compensates for that gap and proves nothing
+        about the player — hence the explicit name and this note.
         """
         self.page.evaluate(
             """() => {
@@ -440,6 +442,103 @@ class E2ELecteurAudioTest(PlaywrightLiveTestCase):
         self.assertNotIn(
             mesures["fondDuTour"], ("rgba(0, 0, 0, 0)", "transparent"),
             "Le tour en cours d'écoute n'a aucun fond.",
+        )
+
+    def test_la_carte_d_une_idee_ecoute_le_passage_dont_elle_vient(self):
+        """
+        Demande du mainteneur, 14 aout : le meme bouton play sur les
+        cartes d'extraction, a droite de « Commenter ».
+
+        CE QUE CE GESTE AJOUTE. Une carte affirme quelque chose et cite
+        un passage. Sur un audio, la citation est une TRANSCRIPTION —
+        c'est-a-dire deja une interpretation. Pouvoir entendre le
+        passage d'ou l'idee vient, c'est pouvoir verifier la source
+        plutot que de croire la carte sur parole.
+
+        L'INSTANT N'EST PAS RECOPIE DANS LA CARTE. Le bouton ne porte
+        que l'identifiant de l'idee ; le JS retrouve sa marque dans le
+        texte et lit le minutage du bloc qui la contient. Une donnee
+        ecrite a un seul endroit ne peut pas diverger de son autre
+        copie, puisqu'il n'y en a pas.
+        / A card asserts something and quotes a passage; on audio that
+        quote is a transcription, hence already an interpretation. The
+        instant is not copied into the card: the button carries only the
+        idea's id, and the JS reads the timing off the text.
+        """
+        from core.models import AIModel
+        from hypostasis_extractor.models import (
+            AncrageExtraction, ExtractedEntity, ExtractionJob,
+        )
+
+        troisieme_tour = self.note_audio.elements.get(ordre=2)
+        modele_simule = AIModel.objects.create(
+            name="Mock lecteur", model_choice="mock_default", is_active=True,
+        )
+        job = ExtractionJob.objects.create(
+            page=self.note_audio, ai_model=modele_simule,
+            name="Extraction du lecteur", prompt_description="Support",
+            status="completed", entities_count=1,
+        )
+        idee = ExtractedEntity.objects.create(
+            job=job, extraction_class="phenomene",
+            extraction_text="On doit vous la poser souvent",
+            start_char=0, end_char=29,
+            attributes={"hypostases": "PHENOMENE", "resume": "Une question."},
+        )
+        AncrageExtraction.objects.create(
+            extraction=idee, element=troisieme_tour,
+            ordre_dans_extraction=0,
+            debut_dans_element=0, fin_dans_element=29,
+        )
+
+        # A 1600px le panneau EST une colonne, ouverte par defaut : une
+        # premiere version cliquait `#btn-toolbar-drawer` pour l'ouvrir
+        # et le FERMAIT, si bien que le bouton restait hors de l'ecran.
+        # / Above the threshold the panel is an open column; clicking the
+        # toolbar button closed it.
+        self.ouvrir_la_note_audio()
+        self.attendre_que_le_deplacement_soit_possible()
+        # ON VISE LE PANNEAU, ET NON N'IMPORTE QUELLE CARTE. Les cartes
+        # sont rendues DEUX FOIS : dans `#drawer-contenu`, qu'on voit, et
+        # dans `#sidebar-right`, cache et conserve comme cible d'OOB
+        # swaps. Les `data-testid` y sont donc en double, et un selecteur
+        # nu tombe sur l'invisible une fois sur deux.
+        # / Cards render twice — the visible panel and the hidden OOB
+        # target — so a bare selector hits the invisible one half the time.
+        bouton = self.page.wait_for_selector(
+            '#drawer-contenu [data-testid="btn-ecouter-extraction"]')
+        # La carte peut etre sous le pli du panneau : on l'amene a
+        # l'ecran, comme le ferait la personne en faisant defiler.
+        # / The card may sit below the panel's fold; scroll to it.
+        bouton.scroll_into_view_if_needed()
+        bouton.click()
+        self.page.wait_for_function(
+            """() => !document.getElementById('audio-source').paused""",
+            timeout=10000,
+        )
+        self.page.wait_for_timeout(500)
+
+        instant = self.mesurer()["instant"]
+        self.assertGreaterEqual(
+            instant, 1.85,
+            f"La carte a lancé la lecture à {instant:.2f}s au lieu de "
+            f"1,9s : elle n'écoute pas le passage dont elle vient.",
+        )
+
+        # UN SEUL TOUR SURLIGNE, MEME APRES LE SWAP HTMX QUE CE CLIC
+        # DECLENCHE. C'est ici que le defaut se voyait : `brancherLeLecteur`
+        # oubliait le tour courant a chaque swap sans effacer sa marque,
+        # laissant un surlignage orphelin — mesure du 14 aout, lecture a
+        # 4,63s et bloc surligne a 0,0s.
+        # / One wash at a time, even after the swap this click triggers.
+        combien_surlignes = self.page.evaluate(
+            """() => document.querySelectorAll(
+                '#readability-content .bloc.bloc-en-lecture').length"""
+        )
+        self.assertLessEqual(
+            combien_surlignes, 1,
+            f"{combien_surlignes} tours surlignés en même temps : un "
+            f"surlignage orphelin a survécu au rafraîchissement du panneau.",
         )
 
     def test_la_barre_ne_survit_pas_a_la_note_qu_elle_joue(self):

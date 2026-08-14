@@ -2686,3 +2686,15 @@ body:has(.lecteur) { --barre-audio: 62px; }
 /* Le fond du tour en cours d'ecoute est defini plus haut, avec le
    bouton d'ecoute de la gouttiere — les deux forment le meme geste.
    / The playing turn's wash is defined above, with the gutter button. */
+
+/* ================================================================== */
+/* LE FILTRE PAR LOCUTEUR — masquage des tours des autres voix        */
+/* ================================================================== */
+/* Corrige le 14 aout 2026, en meme temps que le JS.
+   `hypostasia.css:167` ne masquait que `.speaker-block`, c'est-a-dire
+   le HTML diarise fige que les pages ELEMENT ne rendent plus. Le filtre
+   rebranche sur les blocs reels serait reste sans effet VISIBLE : la
+   classe etait bien posee, aucune regle ne la lisait.
+   / The masking rule only covered the frozen diarised HTML: rewiring
+   the filter without this would set a class no rule ever read. */
+#readability-content .bloc.masque-par-filtre { display: none; }

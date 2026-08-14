@@ -1,33 +1,50 @@
 /**
- * Rythme visuel de la transcription audio (PHASE-15)
- * / Audio transcription visual rhythm (PHASE-15)
+ * Filtre par locuteur d'une transcription audio (PHASE-15).
+ * / Speaker filter for an audio transcription (PHASE-15).
  *
- * 3 fonctionnalites :
- * 1. Filtrage par locuteur (pilules cliquables)
- * 2. Timeline click-to-scroll (clic sur segment → scroll vers le bloc)
- * 3. Barre de progression de lecture (suit le scroll)
+ * LOCALISATION : front/static/front/js/transcription_rythme.js
  *
- * Toutes les interactions utilisent la delegation d'evenements
- * sur #zone-lecture pour supporter le contenu charge via HTMX.
- * / All interactions use event delegation on #zone-lecture
- * to support content loaded via HTMX.
+ * CE FICHIER PORTAIT TROIS DISPOSITIFS. DEUX ONT ETE RETIRES LE
+ * 14 AOUT 2026, A LA DEMANDE DU MAINTENEUR — ET AUCUN DES TROIS NE
+ * FONCTIONNAIT ENCORE.
+ *
+ * Tous visaient `.speaker-block` / `#speaker-block-N`, c'est-a-dire le
+ * HTML DIARISE FIGE que `construire_html_diarise` produisait a
+ * l'ingestion. Les pages passees au moteur ELEMENT ne rendent plus ce
+ * HTML : elles rendent leurs `ElementDocument`, en blocs `.bloc`.
+ * Mesure du 14 aout sur la note 8 : `speaker-block-` y apparait ZERO
+ * fois.
+ *
+ *   · TIMELINE click-to-scroll — retiree. Son clic cherchait
+ *     `#speaker-block-N`, introuvable : il ne se passait rien. Le rail
+ *     du lecteur audio (maquette § 19) fait ce qu'elle promettait, et
+ *     davantage : il montre la forme du debat ET deplace la lecture.
+ *   · BARRE DE PROGRESSION — retiree. Elle suivait le DEFILEMENT du
+ *     texte, pas le son, et doublait la barre du navigateur. Son nom,
+ *     « progression de lecture », a longtemps fait croire qu'un lecteur
+ *     audio existait deja.
+ *   · FILTRE PAR LOCUTEUR — REPARE, et non retire. Il masquait des
+ *     `.speaker-block` absents : cliquer « speaker_1 » ne masquait
+ *     AUCUN texte (9 blocs visibles sur 9), alors que la pilule
+ *     s'allumait. Un controle qui ne fait rien est pire qu'un controle
+ *     absent : on croit avoir filtre. Il vise desormais les blocs
+ *     reels.
+ *
+ * Suivre une voix a travers un echange a un sens : c'est pourquoi ce
+ * troisieme dispositif est repare plutot que supprime avec les autres.
+ * / All three targeted the frozen diarised HTML that ELEMENT pages no
+ * longer render. Two removed; the speaker filter repaired, because
+ * following one voice through a debate is worth having.
  */
 (function () {
     "use strict";
 
-    // Reference a la zone de lecture principale
-    // / Reference to the main reading zone
     var zoneLecture = document.getElementById("zone-lecture");
     if (!zoneLecture) return;
 
-
-    // ================================================================
-    // 1. Filtrage par locuteur
-    // / 1. Speaker filtering
-    // ================================================================
-
-    // Delegue les clics sur les pilules de filtre locuteur
-    // / Delegate clicks on speaker filter pills
+    // Delegue les clics sur les pilules de filtre locuteur : les blocs
+    // arrivent par HTMX, un ecouteur par bloc serait perdu au premier
+    // rechargement. / Delegated: blocks arrive via HTMX.
     zoneLecture.addEventListener("click", function (evenement) {
         var piluleCliquee = evenement.target.closest(".pilule-locuteur");
         if (!piluleCliquee) return;
@@ -35,141 +52,25 @@
         var filtreLocuteur = piluleCliquee.getAttribute("data-speaker-filter");
         if (!filtreLocuteur) return;
 
-        // Mettre a jour l'etat actif des pilules
-        // / Update the active state of pills
         var toutesPilules = zoneLecture.querySelectorAll(".pilule-locuteur");
         for (var indexPilule = 0; indexPilule < toutesPilules.length; indexPilule++) {
             toutesPilules[indexPilule].classList.remove("pilule-active");
         }
         piluleCliquee.classList.add("pilule-active");
 
-        // Appliquer le filtre sur les blocs de transcription
-        // / Apply filter on transcription blocks
-        var tousLesBlocsLocuteur = zoneLecture.querySelectorAll(".speaker-block");
-        var tousLesMarqueurs = zoneLecture.querySelectorAll(".marqueur-temporel");
-        var tousLesSegmentsTimeline = zoneLecture.querySelectorAll(".timeline-segment");
+        // LES BLOCS REELS, et non `.speaker-block`. C'est la correction
+        // du 14 aout : le filtre visait un HTML que la page ne rend
+        // plus, et ne masquait donc rien.
+        // / The real blocks, not the frozen diarised ones.
+        var tousLesTours = zoneLecture.querySelectorAll(
+            "#readability-content .bloc[data-locuteur]");
 
-        if (filtreLocuteur === "tous") {
-            // Montrer tout / Show all
-            for (var i = 0; i < tousLesBlocsLocuteur.length; i++) {
-                tousLesBlocsLocuteur[i].classList.remove("masque-par-filtre");
-            }
-            for (var j = 0; j < tousLesMarqueurs.length; j++) {
-                tousLesMarqueurs[j].classList.remove("masque-par-filtre");
-            }
-            for (var k = 0; k < tousLesSegmentsTimeline.length; k++) {
-                tousLesSegmentsTimeline[k].classList.remove("masque-par-filtre");
-            }
-        } else {
-            // Masquer les blocs qui ne correspondent pas au locuteur selectionne
-            // / Hide blocks that don't match the selected speaker
-            for (var ib = 0; ib < tousLesBlocsLocuteur.length; ib++) {
-                var nomLocuteurBloc = tousLesBlocsLocuteur[ib].getAttribute("data-speaker");
-                if (nomLocuteurBloc === filtreLocuteur) {
-                    tousLesBlocsLocuteur[ib].classList.remove("masque-par-filtre");
-                } else {
-                    tousLesBlocsLocuteur[ib].classList.add("masque-par-filtre");
-                }
-            }
-            // Masquer les marqueurs temporels quand un filtre est actif
-            // / Hide time markers when a filter is active
-            for (var jm = 0; jm < tousLesMarqueurs.length; jm++) {
-                tousLesMarqueurs[jm].classList.add("masque-par-filtre");
-            }
-            // Griser les segments timeline qui ne correspondent pas
-            // / Gray out timeline segments that don't match
-            for (var kt = 0; kt < tousLesSegmentsTimeline.length; kt++) {
-                var nomLocuteurSegment = tousLesSegmentsTimeline[kt].getAttribute("data-speaker");
-                if (nomLocuteurSegment === filtreLocuteur) {
-                    tousLesSegmentsTimeline[kt].classList.remove("masque-par-filtre");
-                } else {
-                    tousLesSegmentsTimeline[kt].classList.add("masque-par-filtre");
-                }
-            }
+        for (var i = 0; i < tousLesTours.length; i++) {
+            var estLeBonLocuteur = filtreLocuteur === "tous"
+                || tousLesTours[i].getAttribute("data-locuteur") === filtreLocuteur;
+            tousLesTours[i].classList.toggle(
+                "masque-par-filtre", !estLeBonLocuteur);
         }
-    });
-
-
-    // ================================================================
-    // 2. Timeline click-to-scroll
-    // / 2. Timeline click-to-scroll
-    // ================================================================
-
-    // Delegue les clics sur les segments de la timeline
-    // / Delegate clicks on timeline segments
-    zoneLecture.addEventListener("click", function (evenement) {
-        var segmentClique = evenement.target.closest(".timeline-segment");
-        if (!segmentClique) return;
-
-        var indexBlocCible = segmentClique.getAttribute("data-block-index");
-        if (indexBlocCible === null) return;
-
-        // Trouver le bloc correspondant et scroller vers lui
-        // / Find the matching block and scroll to it
-        var blocCible = zoneLecture.querySelector("#speaker-block-" + indexBlocCible);
-        if (!blocCible) return;
-
-        blocCible.scrollIntoView({ behavior: "smooth", block: "center" });
-
-        // Ajouter un flash visuel temporaire
-        // / Add a temporary visual flash
-        blocCible.classList.add("bloc-flash");
-        setTimeout(function () {
-            blocCible.classList.remove("bloc-flash");
-        }, 1500);
-    });
-
-
-    // ================================================================
-    // 3. Barre de progression de lecture
-    // / 3. Reading progress bar
-    // ================================================================
-
-    // Met a jour la barre de progression en fonction du scroll
-    // / Updates the progress bar based on scroll position
-    function mettreAJourBarreProgression() {
-        var barreRemplissage = zoneLecture.querySelector("#barre-progression-remplissage");
-        if (!barreRemplissage) return;
-
-        var hauteurScrollable = zoneLecture.scrollHeight - zoneLecture.clientHeight;
-        if (hauteurScrollable <= 0) {
-            barreRemplissage.style.width = "0%";
-            return;
-        }
-
-        var pourcentageScroll = (zoneLecture.scrollTop / hauteurScrollable) * 100;
-        barreRemplissage.style.width = Math.min(pourcentageScroll, 100) + "%";
-    }
-
-    // Ecouter le scroll sur la zone de lecture
-    // / Listen to scroll on the reading zone
-    zoneLecture.addEventListener("scroll", mettreAJourBarreProgression);
-
-    // Clic sur la barre de progression → scroll proportionnel
-    // / Click on progress bar → proportional scroll
-    zoneLecture.addEventListener("click", function (evenement) {
-        var barreProgression = evenement.target.closest("#barre-progression-audio");
-        if (!barreProgression) return;
-
-        // Calculer la position relative du clic dans la barre
-        // / Calculate the relative click position in the bar
-        var rectangleBarre = barreProgression.getBoundingClientRect();
-        var positionRelative = (evenement.clientX - rectangleBarre.left) / rectangleBarre.width;
-        positionRelative = Math.max(0, Math.min(1, positionRelative));
-
-        // Scroller a la position proportionnelle
-        // / Scroll to the proportional position
-        var hauteurScrollable = zoneLecture.scrollHeight - zoneLecture.clientHeight;
-        zoneLecture.scrollTo({
-            top: positionRelative * hauteurScrollable,
-            behavior: "smooth",
-        });
-    });
-
-    // Recalculer apres chaque swap HTMX (contenu dynamique)
-    // / Recalculate after each HTMX swap (dynamic content)
-    document.body.addEventListener("htmx:afterSettle", function () {
-        mettreAJourBarreProgression();
     });
 
 })();

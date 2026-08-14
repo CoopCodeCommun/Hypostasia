@@ -411,15 +411,15 @@ def construire_html_diarise(segments_transcrits):
 
 def construire_widgets_audio(transcription_raw, entites_extraction=None):
     """
-    Construit les widgets audio : filtre par locuteur et timeline horizontale.
-    / Builds audio widgets: speaker filter and horizontal timeline.
+    Construit le filtre par locuteur : une pilule cliquable par voix.
+    / Builds the speaker filter: one clickable pill per voice.
 
     Args:
         transcription_raw: dict avec {model, text, segments} OU list[dict]
         entites_extraction: queryset d'entites (optionnel, pour les points d'extraction)
 
     Returns:
-        tuple (html_filtre_locuteurs, html_timeline)
+        str — le HTML des pilules de filtre / the filter pills' HTML
 
     LA PALETTE EST CELLE DE LA GOUTTIERE, ET NON `COULEURS_LOCUTEURS`.
 
@@ -450,7 +450,7 @@ def construire_widgets_audio(transcription_raw, entites_extraction=None):
         segments = segments["segments"]
 
     if not segments:
-        return "", ""
+        return ""
 
     # Normaliser les segments
     # / Normalize segments
@@ -488,13 +488,13 @@ def construire_widgets_audio(transcription_raw, entites_extraction=None):
             })
 
     if not groupes_locuteurs:
-        return "", ""
+        return ""
 
     # Duree totale de l'audio
     # / Total audio duration
     duree_totale = max(groupe["end"] for groupe in groupes_locuteurs)
     if duree_totale <= 0:
-        return "", ""
+        return ""
 
     # --- Filtre locuteurs : pilules cliquables ---
     # / --- Speaker filter: clickable pills ---
@@ -515,78 +515,22 @@ def construire_widgets_audio(transcription_raw, entites_extraction=None):
         + '</div>'
     )
 
-    # --- Timeline audio : barre horizontale avec segments colores ---
-    # / --- Audio timeline: horizontal bar with colored segments ---
-    segments_timeline_html = []
-    for index_bloc, groupe in enumerate(groupes_locuteurs):
-        nom_locuteur = groupe["speaker"]
-        index_locuteur = locuteurs_uniques.index(nom_locuteur)
-        couleur_locuteur = palette_des_locuteurs[index_locuteur % len(palette_des_locuteurs)]
-        nom_echappe = html_escape(nom_locuteur)
-
-        # Calcul de la largeur proportionnelle
-        # / Calculate proportional width
-        duree_groupe = groupe["end"] - groupe["start"]
-        pourcentage_largeur = (duree_groupe / duree_totale) * 100
-
-        # Apercu du texte pour le tooltip (30 premiers caracteres)
-        # / Text preview for tooltip (first 30 chars)
-        apercu_texte = " ".join(groupe["phrases"])[:30]
-        if len(" ".join(groupe["phrases"])) > 30:
-            apercu_texte += "…"
-        apercu_echappe = html_escape(apercu_texte)
-        timestamp_debut = _formater_timestamp(groupe["start"])
-
-        segments_timeline_html.append(
-            f'<div class="timeline-segment" '
-            f'data-speaker="{nom_echappe}" data-block-index="{index_bloc}" '
-            f'data-start="{groupe["start"]}" data-end="{groupe["end"]}" '
-            f'style="width: {pourcentage_largeur:.2f}%; background-color: {couleur_locuteur};" '
-            f'title="{nom_echappe} {timestamp_debut} — {apercu_echappe}"></div>'
-        )
-
-    # Points d'extraction sur la timeline (si entites fournies)
-    # / Extraction dots on timeline (if entities provided)
-    dots_extraction_html = ""
-    if entites_extraction:
-        # Calcul du texte brut total pour l'interpolation position char → temps
-        # / Calculate total plain text for char→time position interpolation
-        texte_brut_total = " ".join(
-            " ".join(groupe["phrases"]) for groupe in groupes_locuteurs
-        )
-        longueur_texte_total = len(texte_brut_total) if texte_brut_total else 1
-
-        dots_html_parties = []
-        for entite in entites_extraction:
-            texte_entite = getattr(entite, "source_text", "") or ""
-            if not texte_entite:
-                continue
-            # Trouver la position approximative dans le texte brut
-            # / Find approximate position in plain text
-            position_char = texte_brut_total.find(texte_entite[:50])
-            if position_char < 0:
-                continue
-            # Interpolation position → pourcentage horizontal
-            # / Interpolate position → horizontal percentage
-            pourcentage_position = (position_char / longueur_texte_total) * 100
-            dots_html_parties.append(
-                f'<div class="timeline-extraction-dot" '
-                f'style="left: {pourcentage_position:.1f}%;" '
-                f'title="{html_escape(texte_entite[:40])}"></div>'
-            )
-        if dots_html_parties:
-            dots_extraction_html = "".join(dots_html_parties)
-
-    html_timeline = (
-        '<div id="timeline-audio" class="timeline-audio">'
-        '<div class="timeline-segments">'
-        + "".join(segments_timeline_html)
-        + '</div>'
-        + (f'<div class="timeline-extraction-dots">{dots_extraction_html}</div>' if dots_extraction_html else '')
-        + '</div>'
-    )
-
-    return html_filtre_locuteurs, html_timeline
+    # LA TIMELINE A ETE RETIREE LE 14 AOUT 2026.
+    #
+    # Elle rendait un segment par tour de parole, dont le clic cherchait
+    # `#speaker-block-N` — c'est-a-dire le HTML DIARISE FIGE que
+    # `construire_html_diarise` produisait a l'ingestion. Les pages
+    # passees au moteur ELEMENT ne rendent plus ce HTML : elles rendent
+    # leurs `ElementDocument`. Mesure du 14 aout sur la note 8 :
+    # `speaker-block-` y apparait ZERO fois. Le clic ne faisait donc
+    # rien, et les points d'extraction n'etaient jamais rendus.
+    #
+    # Le rail du lecteur audio (maquette § 19) fait ce que la timeline
+    # promettait, et davantage : il montre la forme du debat ET deplace
+    # la lecture.
+    # / Removed: its clicks looked for the frozen diarised HTML, which
+    # ELEMENT pages no longer render. The player's rail does the job.
+    return html_filtre_locuteurs
 
 
 def _formater_timestamp(secondes):

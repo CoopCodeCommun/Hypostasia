@@ -8,11 +8,16 @@ Lancer avec :
     docker exec hypostasia_dev_web uv run python manage.py test \\
         hypostasis_extractor.tests.test_ingestion_docling
 
-La conversion Docling elle-meme est lente (chargement de modeles). Les
-tests qui l'appellent portent le tag "docling" et sont ignores par defaut,
-comme les tests d'appel LLM. Le reste — le parcours du document, la
-construction des elements — est teste avec un document simule.
-/ Docling conversion is slow; those tests are tagged and opt-in.
+La conversion Docling elle-meme est lente (construction du pipeline).
+Les tests qui l'appellent sont sautes SAUF si la variable
+d'environnement TESTS_DOCLING est posee, comme les tests d'appel LLM.
+Ils portent aussi le tag "docling", qui sert a les CIBLER
+(`--tag=docling`) — ce n'est pas lui qui les saute, et aucun
+`--exclude-tag=docling` n'existe dans le depot. Le reste — le parcours
+du document, la construction des elements — est teste avec un document
+simule.
+/ Docling tests are skipped unless TESTS_DOCLING is set; the "docling"
+tag only serves to target them, it is not what skips them.
 """
 
 import enum
@@ -416,8 +421,18 @@ class GardesFousDeConversionTest(TestCase):
         from hypostasis_extractor.services.ingestion_docling import (
             LIMITE_DE_PAGES_DOCLING,
             LIMITE_DE_TAILLE_DOCLING,
+            _convertisseur_docling,
             convertir_un_fichier_avec_docling,
         )
+
+        # Le convertisseur est mutualise (memoise au niveau du module) :
+        # sans cette remise a zero, un test precedent laisse un cache
+        # chaud, le patch ci-dessous ne construit plus rien, et
+        # l'assertion finale tomberait sur un mock jamais appele.
+        # / The converter is memoized: without this reset, a warm cache
+        # from an earlier test makes the patch below a no-op.
+        _convertisseur_docling.cache_clear()
+        self.addCleanup(_convertisseur_docling.cache_clear)
 
         convertisseur = MagicMock()
         with patch(
@@ -628,3 +643,149 @@ class _DocumentFeint:
 
     def groupe_est_inline(self, cref):
         return cref in self._groupes_inline
+
+
+class ConvertisseurMutualiseTest(TestCase):
+    """
+    Un seul DocumentConverter par process, construit au premier besoin.
+    / One DocumentConverter per process, built on first need.
+
+    LOCALISATION : hypostasis_extractor/tests/test_ingestion_docling.py
+
+    POURQUOI
+
+    Construire un DocumentConverter coute 2 a 3,6 s (mesure du 14 aout
+    2026 : converter neuf -> 3,09 s puis 4,96 s ; converter partage ->
+    1,33 s puis 1,34 s). C'etait paye a CHAQUE ingestion, sur les deux
+    portes d'entree — le fichier et la capture web.
+    / Building a converter costs 2-3.6 s, paid on every single ingestion.
+
+    LE PIEGE DU POOL PREFORK
+
+    Celery prefork duplique le process du worker. Un objet Docling
+    construit dans le PARENT serait herite par tous les enfants : des
+    modeles torch partages par copie-sur-ecriture entre process, ce que
+    torch ne garantit pas. La memoisation est donc PARESSEUSE — rien
+    n'est construit tant qu'aucune conversion n'est demandee, et le fork
+    a lieu bien avant la premiere tache. Chaque enfant construit ensuite
+    le sien, dans son propre espace memoire.
+    / Nothing is built at import time, so nothing is inherited across
+    the fork; each child builds its own afterwards.
+    """
+
+    def setUp(self):
+        from hypostasis_extractor.services.ingestion_docling import (
+            _convertisseur_docling,
+        )
+
+        # Chaque test part d'un cache froid, et le laisse froid en
+        # partant : un converter reel oublie ici rendrait muets les
+        # patches des tests suivants.
+        # / Cold cache in, cold cache out.
+        _convertisseur_docling.cache_clear()
+        self.addCleanup(_convertisseur_docling.cache_clear)
+
+    def test_deux_conversions_de_fichier_ne_construisent_qu_un_convertisseur(self):
+        from unittest.mock import MagicMock, patch
+
+        from hypostasis_extractor.services.ingestion_docling import (
+            convertir_un_fichier_avec_docling,
+        )
+
+        convertisseur = MagicMock()
+        with patch(
+            "docling.document_converter.DocumentConverter",
+            return_value=convertisseur,
+        ) as fabrique_de_convertisseur:
+            convertir_un_fichier_avec_docling("/tmp/premier.pdf")
+            convertir_un_fichier_avec_docling("/tmp/second.pdf")
+
+        self.assertEqual(fabrique_de_convertisseur.call_count, 1)
+        # Le convertisseur est partage, mais les deux documents sont bien
+        # convertis : mutualiser n'est pas sauter un appel.
+        # / Sharing the converter must not skip a conversion.
+        self.assertEqual(convertisseur.convert.call_count, 2)
+
+    def test_la_capture_web_partage_le_convertisseur_du_fichier(self):
+        from unittest.mock import MagicMock, patch
+
+        from hypostasis_extractor.services.ingestion_docling import (
+            convertir_du_html_avec_docling,
+            convertir_un_fichier_avec_docling,
+        )
+
+        # Les deux portes d'entree (fichier et HTML capture) doivent
+        # tirer le MEME convertisseur : en poser un sur une seule
+        # laisserait la moitie du gain.
+        # / Both entry points must share it, or half the gain is lost.
+        convertisseur = MagicMock()
+        with patch(
+            "docling.document_converter.DocumentConverter",
+            return_value=convertisseur,
+        ) as fabrique_de_convertisseur:
+            convertir_un_fichier_avec_docling("/tmp/un.pdf")
+            convertir_du_html_avec_docling("<p>une capture</p>")
+
+        self.assertEqual(fabrique_de_convertisseur.call_count, 1)
+        self.assertEqual(convertisseur.convert.call_count, 2)
+
+    def test_le_bootstrap_celery_n_importe_jamais_docling(self):
+        """
+        L'invariant qui rend le partage sur pour le pool prefork.
+        / The invariant that makes sharing prefork-safe.
+
+        LOCALISATION : hypostasis_extractor/tests/test_ingestion_docling.py
+
+        CE QU'IL FAUT OBSERVER, ET CE QU'IL NE FAUT PAS
+
+        Une premiere version de ce test lisait `cache_info().currsize`.
+        Elle ne prouvait rien : un `DocumentConverter()` construit par
+        n'importe quel AUTRE chemin laisse ce compteur a zero. Verifie
+        en injectant la violation — le test restait vert (relecture
+        adverse du 14 aout 2026).
+
+        Ce qu'on observe donc, c'est `sys.modules` : construire un
+        convertisseur exige d'importer `docling`, quel que soit le
+        chemin emprunte. Le module absent, aucun convertisseur ne peut
+        exister. / Watch sys.modules, not the cache counter: building a
+        converter requires importing docling by ANY path.
+
+        LE MOMENT QU'ON REPRODUIT
+
+        Pas un simple import du service : le fork a lieu au bootstrap de
+        `celery -A hypostasia worker`, qui importe TOUS les modules de
+        taches via l'autodiscover. C'est ce graphe-la qu'il faut
+        parcourir — `import_default_modules()` le fait — sans quoi le
+        test ne visite jamais `tasks_element.py`.
+        / The fork happens after Celery's autodiscover; that is the
+        import graph to walk.
+
+        Le tout dans un process NEUF : dans celui des tests, docling a
+        deja pu etre importe par un autre test.
+        / In a fresh process: this one may already have imported docling.
+        """
+        import subprocess
+        import sys
+
+        programme = (
+            "import sys, django;"
+            "django.setup();"
+            "from hypostasia.celery import celery_app;"
+            "celery_app.loader.import_default_modules();"
+            "print(int('docling' in sys.modules))"
+        )
+        resultat = subprocess.run(
+            [sys.executable, "-c", programme],
+            capture_output=True, text=True, timeout=120,
+            cwd=os.getcwd(),
+            env={**os.environ, "PYTHONPATH": os.getcwd()},
+        )
+
+        self.assertEqual(resultat.returncode, 0, resultat.stderr)
+        self.assertEqual(
+            resultat.stdout.strip(), "0",
+            "Le bootstrap de Celery importe docling : un convertisseur "
+            "pourrait alors etre construit AVANT le fork, et hérité par "
+            "tous les enfants du pool — avec ses threads onnxruntime et "
+            "OpenMP, ce qui bloque classiquement au fork.",
+        )

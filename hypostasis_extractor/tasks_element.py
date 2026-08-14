@@ -261,6 +261,18 @@ def _noter_l_etat_d_ingestion(identifiant_de_la_page, etat, detail=""):
     ne reverrait plus JAMAIS la notification de fin du nouveau cycle.
     / Same rearming for every recipient's NotificationTacheLue rows —
     without it, a past reader would never see a new cycle's completion.
+
+    Correction du 14 aout 2026 (relecture adverse, defaut 1) : c'est
+    aussi d'ici que part la notification de FILE QUI AVANCE. Toute
+    ecriture d'un etat qui fait SORTIR de la file — en_cours, reussie,
+    echouee — decale le rang de ceux qui restent derriere. La placer
+    chez les appelants l'avait deja fait oublier a six endroits : les
+    trois passages a `en_cours`, et les trois gardes « page deja
+    ingeree » qui ecrivent `reussie` puis rendent la main sans rien
+    dire. Ici, aucun chemin ne peut y echapper.
+    / The queue-moved notification also fires from here: every state
+    that LEAVES the queue shifts everyone else's rank. Placing it in
+    the callers had already missed six paths.
     """
     from django.utils import timezone
 
@@ -277,6 +289,13 @@ def _noter_l_etat_d_ingestion(identifiant_de_la_page, etat, detail=""):
         ).delete()
 
     Page.objects.filter(pk=identifiant_de_la_page).update(**valeurs_a_ecrire)
+
+    # Entrer dans la file ne change le rang de personne : la page se
+    # range derriere tout le monde. Les trois autres etats, eux, la
+    # font sortir. / Joining the queue shifts nobody; the other three
+    # states leave it.
+    if etat != EtatIngestion.EN_ATTENTE:
+        _prevenir_la_file_d_attente(identifiant_de_la_page)
 
 
 def _traiter_comme_deja_ingeree(page):
@@ -364,6 +383,97 @@ def _prevenir_de_l_ingestion(page, statut):
             logger.warning(
                 "Page %s : notification d'ingestion non transmise (%s).",
                 page.pk, erreur,
+            )
+
+
+def _prevenir_la_file_d_attente(identifiant_de_la_page_sortie):
+    """
+    Previent ceux qui attendent derriere que la file a avance.
+    / Tells those waiting behind that the queue has moved.
+
+    LOCALISATION : hypostasis_extractor/tasks_element.py
+
+    POURQUOI
+
+    Le menu des taches affiche une position dans la file d'ingestion
+    (« 3ᵉ dans la file », front/views_taches.py). Cette position vient
+    de changer pour tous ceux qui attendent — et eux n'ont aucun moyen
+    de l'apprendre : rien ne s'est passe de leur cote, et il n'existe
+    aucun polling de secours (le WebSocket est le seul rafraichissement
+    du menu). Sans ce fan-out, le chiffre affiche se fige, ce qui se lit
+    comme une file bloquee.
+    / Nothing on their side could tell them, and there is no polling
+    fallback. A frozen number reads as a stuck queue.
+
+    QUAND, EXACTEMENT
+
+    A chaque etat qui fait SORTIR de la file, et pas seulement a la fin
+    d'une ingestion : le passage a `en_cours` sort aussi une page de la
+    file. C'est pourquoi l'appel vit dans `_noter_l_etat_d_ingestion` —
+    le point de passage unique de l'ecriture d'etat — et non chez ses
+    appelants, ou six chemins l'avaient deja manque.
+    / On every state that LEAVES the queue, not just at the end.
+
+    CE QUI EST ENVOYE, ET A QUI
+
+    Un message sans donnee, un par UTILISATEUR (pas par page) : deux
+    notes en file du meme destinataire ne valent qu'un rafraichissement.
+    Les destinataires sont rassembles en DEUX requetes fixes, quelle que
+    soit la longueur de la file — proprietaires des notes, puis
+    proprietaires des carnets qui les contiennent. Les interroger page
+    par page serait le N+1 que le calcul du rang evite justement cote
+    vue.
+    / Recipients gathered in two fixed queries, never one per page.
+
+    Les fantomes sont exclus — leur worker est mort, leur proprietaire
+    n'attend plus rien, et ils ne comptent deja plus dans les rangs
+    affiches. La page qui vient de sortir est exclue aussi : une
+    re-ingestion peut la remettre en attente dans la foulee, mais son
+    proprietaire est deja prevenu par la notification de fin.
+    / Ghosts and the page that just left are excluded.
+
+    :param identifiant_de_la_page_sortie: la cle primaire de la page
+        qui vient de quitter la file
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from core.models import AppartenancePageDossier, EtatIngestion, Page
+    from front.tasks import notifier_la_file_d_ingestion
+    from front.views import DELAI_INGESTION_FANTOME_MIN
+
+    seuil_fantome = timezone.now() - timedelta(minutes=DELAI_INGESTION_FANTOME_MIN)
+    pages_encore_en_file = Page.objects.filter(
+        ingestion_etat=EtatIngestion.EN_ATTENTE,
+        ingestion_maj_le__gte=seuil_fantome,
+    ).exclude(pk=identifiant_de_la_page_sortie)
+
+    # Les memes destinataires que _destinataires_de_notification
+    # (front/tasks.py) — l'auteur de la note ET les proprietaires des
+    # carnets qui la contiennent — mais rassembles pour TOUTES les pages
+    # en file d'un coup. / Same recipients, gathered for every queued
+    # page at once.
+    pks_a_prevenir = set(
+        pages_encore_en_file.filter(owner__isnull=False)
+        .values_list("owner_id", flat=True)
+    )
+    pks_a_prevenir.update(
+        AppartenancePageDossier.objects.filter(
+            page__in=pages_encore_en_file, dossier__owner__isnull=False,
+        ).values_list("dossier__owner_id", flat=True)
+    )
+
+    for pk_destinataire in sorted(pks_a_prevenir):
+        try:
+            notifier_la_file_d_ingestion(user_pk=pk_destinataire)
+        except Exception as erreur:
+            # Meme principe que la notification de fin : prevenir la
+            # file est un service rendu, jamais une condition de succes
+            # de l'ingestion. / A courtesy, never a success condition.
+            logger.warning(
+                "File d'ingestion : utilisateur %s non prevenu (%s).",
+                pk_destinataire, erreur,
             )
 
 

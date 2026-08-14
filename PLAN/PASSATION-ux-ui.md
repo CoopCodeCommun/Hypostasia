@@ -62,19 +62,39 @@ Tout tourne dans Docker. Les conteneurs sont lancés (`docker ps` :
 `hypostasia_redis`, `traefik`).
 
 ```bash
-# Le serveur — port 8000, PAS 8123 (l'en-tête du docker-compose ment,
-# nginx/dev.conf proxie vers web:8000 ; sur 8123 tu obtiens un 502)
-docker exec -w /app hypostasia_web uv run python manage.py runserver 0.0.0.0:8000
+# Tout démarrer : runserver (port 8000) + les DEUX workers Celery
+docker exec hypostasia_web supervisord -c /app/supervisord-dev.conf
 
-# Le worker Celery — files par défaut ET ingestion_docling
-docker exec -w /app hypostasia_web uv run celery -A hypostasia worker \
-    --loglevel=info --concurrency=2 -Q celery,ingestion_docling
+# État / redémarrage d'un service
+docker exec hypostasia_web supervisorctl -c /app/supervisord-dev.conf status
+docker exec hypostasia_web supervisorctl -c /app/supervisord-dev.conf restart runserver
+
+# Logs (supervisord tourne en démon, rien ne sort sur stdout)
+docker exec hypostasia_web tail -f /app/logs/celery_worker_docling.log
 ```
+
+Le serveur écoute sur le **port 8000, PAS 8123** (l'en-tête du
+docker-compose ment, `nginx/dev.conf` proxie vers `web:8000` ; sur 8123
+tu obtiens un 502).
 
 **Le site : https://h.localhost/ — identifiants `jonas` / `admin1234`.**
 
-`uv run` est **obligatoire** : `python manage.py` seul échoue dans ce
-conteneur (`ImportError: Couldn't import Django`).
+**DEUX workers, pas un** (14 août 2026) : `celery_worker` sert la file
+par défaut à concurrence 2, `celery_worker_docling` sert
+`ingestion_docling` **à concurrence 1**. Le lancement dev tirait
+auparavant les deux files depuis un worker unique à concurrence 2 —
+deux conversions Docling simultanées étaient donc possibles (~2 Go et
+~83 s de warm-up chacune), et une ingestion pouvait occuper les deux
+slots au détriment des analyses. `hypostasis_extractor/tests/
+test_files_celery_ingestion.py` verrouille désormais l'invariant.
+
+`uv run` n'est **pas** nécessaire : le `PATH` de l'image contient déjà
+`/app/.venv/bin` (Dockerfile:59), donc `docker exec -w /app
+hypostasia_web python manage.py check` fonctionne tel quel. La version
+précédente de cette passation affirmait le contraire — c'était faux.
+Sous supervisord, `uv run` est même nuisible : il laisse un process
+wrapper entre supervisord et le vrai programme, et le SIGTERM d'arrêt
+irait au wrapper plutôt qu'au worker qui doit finir sa conversion.
 
 Le mainteneur travaille dans **byobu**. Convention utile : le pane 0
 porte Claude, un autre le serveur, un autre le worker. Les index de

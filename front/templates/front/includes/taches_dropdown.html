@@ -81,7 +81,25 @@
                             Voir détails
                         </a>
                     {% else %}
+                        {% comment %}
+                        Une ingestion qui attend son tour annonce sa
+                        position. La file Docling est servie par un seul
+                        worker, une conversion a la fois (~83 s a froid) :
+                        sans ce chiffre, « En cours… » reste affiche
+                        plusieurs minutes et se lit comme une panne.
+                        Les autres taches, elles, n'ont pas de file
+                        d'attente a une place — elles gardent « En cours ».
+                        / A waiting ingestion shows its position: the
+                        Docling queue is served one at a time, and a bare
+                        "in progress" for minutes reads as a breakdown.
+                        {% endcomment %}
+                        {% if tache.position_dans_la_file %}
+                        <span class="taches-meta-en-cours" data-testid="taches-position-file">
+                            en attente &mdash; {{ tache.position_dans_la_file }} dans la file
+                        </span>
+                        {% else %}
                         <span class="taches-meta-en-cours">En cours&hellip;</span>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>

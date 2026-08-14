@@ -47,6 +47,46 @@ def notifier_tache_terminee(user_pk, tache_id, tache_type, status):
     )
 
 
+def notifier_la_file_d_ingestion(user_pk):
+    """
+    Dit a un utilisateur que la file d'ingestion a avance devant lui.
+    / Tells a user the ingestion queue has moved ahead of them.
+
+    LOCALISATION : front/tasks.py
+
+    Le menu des taches affiche une position dans la file d'ingestion
+    (front/views_taches.py). Cette position change quand l'ingestion de
+    QUELQU'UN D'AUTRE se termine — un evenement dont le destinataire
+    n'a, par construction, aucun moyen d'etre averti. Sans ce message,
+    son « 3ᵉ dans la file » resterait affiche jusqu'a ce qu'il rouvre le
+    menu de lui-meme, et un chiffre fige se lit comme une file bloquee.
+    / The displayed queue position changes when SOMEONE ELSE's ingestion
+    ends — an event the recipient could never learn about otherwise.
+
+    Le message ne transporte rien : le client se contente d'aller
+    relire son bouton et son menu. C'est deliberé — la position exacte
+    se calcule cote serveur, au moment de la lecture, jamais ici.
+    / The message carries no payload: the position is computed server
+    side at read time, never pushed.
+
+    :param user_pk: pk de l'utilisateur a prevenir
+    """
+    from asgiref.sync import async_to_sync
+    from channels.layers import get_channel_layer
+
+    couche_channels = get_channel_layer()
+    if couche_channels is None:
+        logger.debug(
+            "notifier_la_file_d_ingestion: channel layer non configure, skip",
+        )
+        return
+
+    async_to_sync(couche_channels.group_send)(
+        f"user_{user_pk}",
+        {"type": "file_ingestion_modifiee"},
+    )
+
+
 def _destinataires_de_notification(page):
     """
     Les destinataires d'une notification de fin de tache sur une note :

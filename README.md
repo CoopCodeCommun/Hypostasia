@@ -115,15 +115,23 @@ POSTGRES_HOST=localhost    # si PostgreSQL est hors Docker
 # Lancer les containers / Start containers
 docker compose up -d
 
-# Entrer dans le container / Enter the container
-docker exec -it hypostasia_web bash
+# Tout passe par le Makefile, depuis l'hote / Everything via the Makefile
+make install        # docker compose up -d + install.sh (idempotent)
+make dev            # serveur + les DEUX workers Celery
+make status
+make restart S=runserver
+make logs S=celery_worker_docling
 
-# Lancer le serveur Django / Start Django server
-uv run python manage.py runserver 0.0.0.0:8123
-
-# (Autre terminal) Lancer Celery / (Another terminal) Start Celery
-uv run celery -A hypostasia worker --loglevel=info
+make                # liste toutes les cibles / lists every target
 ```
+
+Deux workers Celery, et non un seul : `celery_worker` (file par defaut,
+concurrence 2) et `celery_worker_docling` (file `ingestion_docling`,
+**concurrence 1** — une conversion Docling a la fois, elles pesent ~2 Go
+chacune). Meme topologie qu'en production (`supervisord.conf`).
+
+*Two Celery workers, not one: the Docling queue is served alone, one
+conversion at a time. Same topology as production.*
 
 Ou sans Docker (Python local — necessite PostgreSQL et Redis installes) :
 
@@ -357,9 +365,13 @@ Le coeur d'Hypostasia est un cycle en 4 etapes qui transforme un texte brut en s
 
 ### 1. Extraction
 
-L'IA (ou l'utilisateur) extrait les passages cles du texte et les classe par **hypostase** — un type d'argument parmi 30 categories (theorie, hypothese, paradoxe, donnee, principe...) regroupees en 8 familles.
+L'IA (ou l'utilisateur) extrait les passages cles du texte et les classe par **hypostase** — une maniere d'etre discutable, parmi les 30 que definit la geometrie des debats (theorie, hypothese, paradoxe, donnee, principe...). Ces 30 se repartissent en **6 familles epistemiques** : voir [Les 30 hypostases](#les-30-hypostases--la-geometrie-des-debats) ci-dessous.
 
-*The AI (or the user) extracts key passages and classifies them by **hypostasis** — an argument type among 30 categories grouped into 8 families.*
+*The AI (or the user) extracts key passages and classifies them by **hypostasis** — one of the 30 ways of being debatable defined by the geometry of debates, split into 6 epistemic families.*
+
+> Ne pas confondre avec les **8 familles de couleurs** utilisees pour l'affichage des cartes d'extraction (`hypostase_famille`) : ce regroupement-la est purement visuel et sans rapport avec les 6 familles epistemiques.
+>
+> *Not to be confused with the 8 colour families used for card display: that grouping is purely visual.*
 
 ### 2. Debat
 
@@ -385,6 +397,145 @@ Entre deux **versions** d'un meme texte, la comparaison affiche :
 Quand le consensus atteint 80%, l'IA peut generer une **nouvelle version** du texte qui integre les ponderations par statut. Le texte produit est une V2 autonome, chainnee a la V1 d'origine.
 
 Le prompt complet est visible, le cout est estime avant l'appel, et la V2 peut etre re-analysee pour relancer un nouveau cycle.
+
+---
+
+## Les 30 hypostases — la geometrie des debats
+
+Une **hypostase** est une maniere d'etre discutable. C'est le concept fondateur du projet — d'ou son nom.
+
+*A **hypostasis** is a way of being debatable. It is the founding concept of the project — hence its name.*
+
+### Pourquoi exactement 30
+
+Le nombre n'est pas arbitraire : il se deduit.
+
+Une idee peut etre mise a l'epreuve de **2 manieres** (les dispositifs de preuve) selon **3 modes de raisonnement** :
+
+| Dispositif de preuve | Mode de raisonnement |
+|---|---|
+| formel, empirique | induction, abduction, deduction |
+
+**2 × 3 = 6 modes de mise a l'epreuve.**
+
+Chaque hypostase se definit alors par un couple :
+
+1. **ce qui ne peut pas la refuter** — 6 choix ;
+2. **ce qui ne peut pas la prouver** — 5 choix restants.
+
+Le second ne peut pas etre egal au premier : un meme mode ne peut pas a la fois echouer a refuter et echouer a prouver la meme idee sans la vider de son sens.
+
+**6 × 5 = 30 hypostases**, chacune occupant une case unique.
+
+*The count is derived, not arbitrary: 2 proof devices x 3 reasoning modes = 6 modes; each hypostasis is a pair (what cannot refute it, what cannot prove it), the two being distinct — 6 x 5 = 30.*
+
+### La matrice complete
+
+Chaque case hors diagonale contient exactement une hypostase. La diagonale est vide par construction.
+
+| non refutee par ↓ \ non prouvee par → | induction emp. | induction form. | abduction emp. | abduction form. | deduction emp. | deduction form. |
+|---|---|---|---|---|---|---|
+| **induction empirique** | — | formalisme | classification | paradoxe | aporie | approximation |
+| **deduction empirique** | mode | croyance | variation | dimension | — | événement |
+| **induction formelle** | axiome | — | valeur | structure | conjecture | invariant |
+| **deduction formelle** | loi | principe | paradigme | objet | domaine | — |
+| **abduction empirique** | variance | donnée | — | variable | indice | phénomène |
+| **abduction formelle** | hypothèse | théorie | définition | — | problème | méthode |
+
+La matrice se lit aussi par paires symetriques : `valeur` ↔ `donnée`, `conjecture` ↔ `croyance`, `structure` ↔ `théorie`, `principe` ↔ `invariant`... Les 15 paires sont completes.
+
+### Les 6 familles epistemiques
+
+Une **famille** regroupe les 5 hypostases qui partagent le meme « ce qui ne peut pas les refuter ».
+
+*A **family** groups the 5 hypostases sharing the same "what cannot refute them".*
+
+#### Famille 1 — non refutee par induction empirique
+
+*Ce qu'on observe sans pouvoir generaliser.*
+
+| Hypostase | Definition | Non prouvee par |
+|---|---|---|
+| **classification** | distribuer en classes, en catégories | abduction empirique |
+| **aporie** | difficulté d'ordre rationnel apparemment sans issue | déduction empirique |
+| **approximation** | calcul approché d'une grandeur réelle | déduction formelle |
+| **paradoxe** | proposition à la fois vraie et fausse | abduction formelle |
+| **formalisme** | considération de la forme d'un raisonnement | induction formelle |
+
+#### Famille 2 — non refutee par deduction empirique
+
+*Ce qui se produit sans cadre formel.*
+
+| Hypostase | Definition | Non prouvee par |
+|---|---|---|
+| **événement** | ce qui arrive | déduction formelle |
+| **variation** | changement d'un état dans un autre | abduction empirique |
+| **dimension** | grandeur mesurable qui détermine des positions | abduction formelle |
+| **mode** | manière d'être d'un système | induction empirique |
+| **croyance** | certitude ou conviction qui fait croire une chose vraie ou possible | induction formelle |
+
+#### Famille 3 — non refutee par induction formelle
+
+*Ce qu'on formalise sans pouvoir verifier.*
+
+| Hypostase | Definition | Non prouvee par |
+|---|---|---|
+| **invariant** | grandeur, relation ou propriété conservée lors d'une transformation | déduction formelle |
+| **valeur** | mesure d'une grandeur variable | abduction empirique |
+| **structure** | organisation des parties d'un système | abduction formelle |
+| **axiome** | proposition admise au départ d'une théorie | induction empirique |
+| **conjecture** | opinion ou proposition non vérifiée | déduction empirique |
+
+#### Famille 4 — non refutee par deduction formelle
+
+*Ce qu'on deduit formellement.*
+
+| Hypostase | Definition | Non prouvee par |
+|---|---|---|
+| **paradigme** | modèle ou exemple | abduction empirique |
+| **objet** | ce sur quoi porte le discours, la pensée, la connaissance | abduction formelle |
+| **principe** | cause a priori d'une connaissance | induction formelle |
+| **domaine** | champ discerné par des limites, bornes, frontières | déduction empirique |
+| **loi** | corrélation | induction empirique |
+
+#### Famille 5 — non refutee par abduction empirique
+
+*Ce qu'on constate sans pouvoir l'expliquer.*
+
+| Hypostase | Definition | Non prouvee par |
+|---|---|---|
+| **phénomène** | ce qui se manifeste à la connaissance via les sens | déduction formelle |
+| **variable** | ce qui prend différentes valeurs, dont dépend l'état d'un système | abduction formelle |
+| **variance** | dispersion d'une distribution ou d'un échantillon | induction empirique |
+| **indice** | indicateur numérique ou littéral qui sert à distinguer ou classer | déduction empirique |
+| **donnée** | ce qui est admis, donné, qui sert à découvrir ou à raisonner | induction formelle |
+
+#### Famille 6 — non refutee par abduction formelle
+
+*Ce qu'on propose sans pouvoir le confirmer.*
+
+| Hypostase | Definition | Non prouvee par |
+|---|---|---|
+| **méthode** | procédure qui indique ce que l'on doit faire ou comment le faire | déduction formelle |
+| **définition** | détermination, caractérisation du contenu d'un concept | abduction empirique |
+| **hypothèse** | explication ou possibilité d'un événement | induction empirique |
+| **problème** | difficulté à résoudre | déduction empirique |
+| **théorie** | construction intellectuelle explicative, hypothétique et synthétique | induction formelle |
+
+### Ou vit ce referentiel dans le code
+
+Les 30 hypostases sont ecrites a **quatre endroits**, qui doivent rester d'accord :
+
+| Emplacement | Role |
+|---|---|
+| `core/models.py` → `HypostasisChoices` | la taxonomie du modele |
+| `front/services/fixtures_analyseurs.py` | le referentiel enseigne au LLM (le tableau ci-dessus) |
+| `front/services/fixtures_analyseurs.py` | les 30 exemples few-shot, un par hypostase |
+| `front/normalisation.py` → `HYPOSTASES_CONNUES` | **le filtre** : toute hypostase inconnue est supprimee |
+
+`hypostasis_extractor/tests/test_referentiel_des_hypostases.py` verifie que les quatre concordent et que les 6 familles respectent le motif. Toute evolution du referentiel doit donc toucher les quatre ensemble.
+
+> **Correction du 14 aout 2026.** La famille 4 violait le motif depuis l'origine : `principe` et `loi` occupaient la meme case, `domaine` occupait une case diagonale (interdite), et deux cases restaient vides. Le referentiel ne comptait donc reellement que 28 manieres d'etre discutable. `principe` est passe a *induction formelle* et `domaine` a *deduction empirique* ; `loi` n'a pas bouge. Les 30 cases sont desormais toutes occupees, une seule fois chacune.
 
 ---
 

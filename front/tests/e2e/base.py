@@ -16,7 +16,7 @@ import os
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
-from django.test import override_settings
+from django.test import override_settings, tag
 from playwright.sync_api import sync_playwright
 
 from core.models import Page, Dossier, Configuration, AIModel
@@ -84,6 +84,14 @@ def fermer_le_navigateur_partage():
     _instance_playwright_partagee = None
 
 
+# Le tag « e2e » est pose ICI, sur la classe de base, et se propage aux
+# 37 classes des 30 fichiers e2e — un seul endroit a tenir. Il rend
+# possible `--exclude-tag=e2e`, dont depend la cible `make test-rapide` :
+# sans lui, `manage.py test` sans argument lance TOUT, navigateur
+# compris, et il n'existe aucun moyen d'obtenir la suite rapide seule.
+# / Tagged on the base class: it propagates to all 37 e2e classes and
+# makes `--exclude-tag=e2e` possible, which `make test-rapide` needs.
+@tag("e2e")
 @override_settings(
     CELERY_TASK_ALWAYS_EAGER=True,
     CELERY_TASK_EAGER_PROPAGATES=True,

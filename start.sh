@@ -23,5 +23,10 @@ bash /app/install.sh
 
 # Demarrer supervisord au premier plan (logs vers stdout/stderr)
 # / Start supervisord in foreground (logs to stdout/stderr)
+# Sans `uv run` : le PATH de l'image contient deja /app/.venv/bin
+# (Dockerfile), et un wrapper de plus entre PID 1 et supervisord ne ferait
+# qu'eloigner les signaux d'arret du conteneur de ceux qui doivent les
+# recevoir. / No `uv run`: the venv is already on PATH, and a wrapper
+# would only push the container's stop signals further from their target.
 echo "Starting services via supervisord..."
-exec uv run supervisord -c /app/supervisord.conf
+exec supervisord -c /app/supervisord.conf

@@ -82,8 +82,8 @@ Tu répond uniquement sous forme de JSON.
 - conjecture : non réfuté par induction formelle et non prouvé par déduction empirique
 - paradigme : non réfuté par déduction formelle et non prouvé par abduction empirique.
 - objet :non réfuté par déduction formelle et non prouvé par abduction formelle.
-- principe : non réfuté par déduction formelle et non prouvé par induction empirique.
-- domaine : non réfuté par déduction formelle et non prouvé par déduction formelle.
+- principe : non réfuté par déduction formelle et non prouvé par induction formelle.
+- domaine : non réfuté par déduction formelle et non prouvé par déduction empirique.
 - loi : non réfuté par déduction formelle et non prouvé par induction empirique.
 - phénomène :non réfuté par abduction empirique et non prouvé par déduction formelle.
 - variable : non réfuté par abduction empirique et non prouvé par abduction formelle.

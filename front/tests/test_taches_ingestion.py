@@ -359,11 +359,21 @@ class NotificationDestinataireCarnetTest(TestCase):
 
         self.client.force_login(self.proprietaire_carnet)
 
-        # 14 requetes fixes (session, user, 3 listes + 11 compteurs/
-        # exists du bouton), aucune par ligne rendue : la preuve que
-        # l'elargissement de perimetre n'a pas transforme 1 requete en
-        # 30. / 14 fixed queries, none per rendered row.
-        with self.assertNumQueries(14):
+        # 15 requetes fixes (session, user, 3 listes, 11 compteurs/
+        # exists du bouton, et 1 pour ranger la file d'ingestion),
+        # aucune par ligne rendue : la preuve que l'elargissement de
+        # perimetre n'a pas transforme 1 requete en 30.
+        # / 15 fixed queries, none per rendered row.
+        #
+        # 14 -> 15 le 14 aout 2026 : la position dans la file d'attente
+        # (_rangs_dans_la_file_d_ingestion) rend TOUTE la file en une
+        # seule requete, pas une par ligne affichee. C'est precisement
+        # ce que ce test verrouille — si ce chiffre devait bouger avec
+        # le nombre de notes en file, l'affichage serait a refaire.
+        # / The queue-rank feature adds exactly one query for the whole
+        # menu; if this number ever varied with the row count, the
+        # feature would need rewriting.
+        with self.assertNumQueries(15):
             self.client.get("/taches/dropdown/")
 
 

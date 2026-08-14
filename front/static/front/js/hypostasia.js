@@ -1477,7 +1477,15 @@ document.addEventListener('click', function(evenement) {
     connexionTaches.addEventListener('message', function(evenement) {
         var donneesMessage = JSON.parse(evenement.data);
         console.log('[A.6] WebSocket taches : message recu', donneesMessage);
-        if (donneesMessage.type === 'tache_terminee') {
+        // 'file_ingestion_modifiee' : l'ingestion de QUELQU'UN D'AUTRE
+        // s'est terminee, donc notre position dans la file a change
+        // (« 3e dans la file » -> « 2e »). Meme reaction que pour une
+        // tache a nous : aller relire le bouton et le menu. Le message
+        // ne porte aucune donnee, la position se calcule cote serveur.
+        // / 'file_ingestion_modifiee': SOMEONE ELSE's ingestion ended,
+        // so our queue position changed. Same reaction: go re-read.
+        if (donneesMessage.type === 'tache_terminee' ||
+            donneesMessage.type === 'file_ingestion_modifiee') {
             rafraichirBoutonTaches();
         }
     });

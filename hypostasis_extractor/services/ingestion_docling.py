@@ -28,6 +28,7 @@ identifiant_stable, qui ne bouge pas.
 """
 
 import logging
+from functools import lru_cache
 
 from django.db import transaction
 
@@ -90,6 +91,84 @@ def fichier_couvert_par_docling(nom_fichier):
     return extension in EXTENSIONS_COUVERTES_PAR_DOCLING
 
 
+@lru_cache(maxsize=1)
+def _convertisseur_docling():
+    """
+    Rend LE convertisseur Docling de ce process, construit au besoin.
+    / Returns THIS process's Docling converter, built on demand.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    CE QU'ON MUTUALISE N'EST PAS CE QU'ON CROIT
+
+    `DocumentConverter()` lui-meme est bon marche : son `__init__` ne
+    charge aucun modele, il construit une trentaine d'objets d'options
+    et un dictionnaire `initialized_pipelines` VIDE. Ce qui coute cher,
+    c'est le PIPELINE, bati paresseusement au premier `convert()` et
+    range dans ce dictionnaire — un attribut d'INSTANCE. Jeter le
+    convertisseur jetait donc le cache de pipelines avec lui, et le
+    suivant repayait tout.
+    / The converter's __init__ is cheap; the pipeline is not, and it
+    lives in a per-INSTANCE dict. Dropping the converter dropped the
+    pipeline cache with it.
+
+    C'est donc le cache de pipelines qu'on partage. Mesure du 14 aout
+    2026, six conversions du meme PDF dans un process : 9,87 s de
+    moyenne (converter neuf) contre 6,70 s (converter partage), RSS
+    final 2424 Mo contre 2132 Mo, pic 2928 Mo contre 2288 Mo. Le gain
+    depend du format : il est plus net sur les pipelines legers
+    (HTML, markdown) que sur un PDF, dont la conversion elle-meme pese.
+    / What we share is the pipeline cache. Gain varies by format.
+
+    POURQUOI C'EST SUR AVEC LE POOL PREFORK DE CELERY
+
+    Celery duplique le process du worker au demarrage. Un pipeline
+    construit dans le PARENT serait herite par tous les enfants — et le
+    pipeline PDF ouvre onnxruntime (RapidOCR) et des pools OpenMP :
+    forker un process qui porte des threads vivants de ces
+    bibliotheques est un blocage classique, bien plus concret qu'une
+    question de copie-sur-ecriture.
+
+    La memoisation est donc PARESSEUSE : rien n'est construit au
+    chargement du module, et le fork a lieu bien avant la premiere
+    tache. Chaque enfant batit ensuite le sien, dans son propre espace
+    memoire. Un test verrouille cet invariant en reproduisant le
+    bootstrap complet de Celery, autodiscover compris
+    (test_le_bootstrap_celery_n_importe_jamais_docling).
+    / Lazy on purpose: the PDF pipeline holds onnxruntime and OpenMP
+    threads, and forking a process that carries those is a classic
+    hang — nothing exists before the fork, so nothing is inherited.
+
+    UN SEUL APPELANT PAR PROCESS
+
+    `lru_cache` protege son dictionnaire, PAS l'execution de la
+    fonction : deux appelants concurrents manqueraient tous deux le
+    cache et batiraient chacun un convertisseur. Sans consequence
+    aujourd'hui — toutes les conversions passent par des taches Celery
+    (`.delay()`), une par process a la fois — mais un appel depuis un
+    thread de requete ferait cohabiter deux pipelines de ~2 Go. Docling
+    ne promet d'ailleurs pas la conversion concurrente sur une meme
+    instance : son propre parallelisme est desactive par defaut, avec
+    la mention « Experimental ».
+    / lru_cache guards its dict, not the call: concurrent callers would
+    each build one. Today every conversion comes from a Celery task.
+
+    `lru_cache` plutot qu'une variable de module : il apporte
+    `.cache_clear()`, dont les tests ont besoin pour repartir d'un cache
+    froid — sans quoi un convertisseur oublie par un test rendrait muets
+    les patches des suivants.
+    / lru_cache for the free .cache_clear() the tests need.
+
+    L'import de Docling reste DANS le corps, et pas en tete de fichier :
+    il charge des modeles lourds, et le faire au demarrage de Django
+    ralentirait chaque commande, y compris celles qui n'ingerent rien.
+    / Import stays inside: it loads heavy models.
+    """
+    from docling.document_converter import DocumentConverter
+
+    return DocumentConverter()
+
+
 def convertir_un_fichier_avec_docling(chemin_du_fichier):
     """
     Passe un fichier a Docling et rend son document structure.
@@ -101,15 +180,10 @@ def convertir_un_fichier_avec_docling(chemin_du_fichier):
     :return: le DoclingDocument
     :raises RuntimeError: si la conversion echoue
 
-    L'import de Docling est fait ICI, dans le corps de la fonction, et pas
-    en tete de fichier. Docling charge des modeles lourds au premier
-    import : le faire au demarrage de Django ralentirait chaque commande,
-    y compris celles qui n'ingerent rien.
-    / Docling is imported lazily: it loads heavy models on first import.
+    Le convertisseur est celui du process, partage avec la capture web
+    (voir `_convertisseur_docling`). / Shared, process-wide converter.
     """
-    from docling.document_converter import DocumentConverter
-
-    convertisseur = DocumentConverter()
+    convertisseur = _convertisseur_docling()
     try:
         resultat = convertisseur.convert(
             chemin_du_fichier,
@@ -144,17 +218,22 @@ def convertir_du_html_avec_docling(html, nom_source="capture-web.html"):
         de Docling se choisit sur l'extension)
     :return: le DoclingDocument
     :raises RuntimeError: si la conversion echoue
+
+    Le convertisseur est celui du process, partage avec la conversion de
+    fichier (voir `_convertisseur_docling`) : un DocumentConverter sait
+    traiter tous les formats, en poser un par porte d'entree ne
+    servirait qu'a payer deux fois la construction.
+    / Shared with file conversion: one converter handles every format.
     """
     import io
 
     from docling.datamodel.base_models import DocumentStream
-    from docling.document_converter import DocumentConverter
 
     flux = DocumentStream(
         name=nom_source,
         stream=io.BytesIO((html or "").encode("utf-8")),
     )
-    convertisseur = DocumentConverter()
+    convertisseur = _convertisseur_docling()
     try:
         resultat = convertisseur.convert(
             flux,

@@ -177,15 +177,22 @@
     {# / Progression notification banner (PHASE-20) #}
     <div id="bandeau-notifications" data-testid="bandeau-notifications"></div>
 
-    {# Widgets audio : filtre locuteurs + timeline + barre de progression (PHASE-15) #}
-    {# / Audio widgets: speaker filter + timeline + progress bar (PHASE-15) #}
+    {# LE FILTRE PAR LOCUTEUR (PHASE-15). Deux dispositifs qui vivaient  #}
+    {# ici ont ete RETIRES le 14 aout, a la demande du mainteneur :      #}
+    {#                                                                  #}
+    {#  · la TIMELINE click-to-scroll : son clic cherchait              #}
+    {#    `#speaker-block-N`, le HTML diarise fige que les pages ELEMENT #}
+    {#    ne rendent plus — mesure du 14 aout : zero occurrence dans la  #}
+    {#    page. Le rail du lecteur audio fait mieux, et il agit ;        #}
+    {#  · la BARRE DE PROGRESSION, qui suivait le DEFILEMENT et non le   #}
+    {#    son. Son nom — « progression de lecture » — a longtemps fait   #}
+    {#    croire qu'un lecteur audio existait deja.                      #}
+    {#                                                                  #}
+    {# Le filtre, lui, reste : suivre une voix a travers un echange a un #}
+    {# sens. Il a ete REBRANCHE sur les blocs reels le meme jour.        #}
+    {# / Timeline and progress bar removed: the first clicked at HTML no #}
+    {# longer rendered, the second tracked scrolling, not sound. #}
     {% if html_filtre_locuteurs %}{{ html_filtre_locuteurs|safe }}{% endif %}
-    {% if html_timeline %}{{ html_timeline|safe }}{% endif %}
-    {% if page.source_type == "audio" %}
-    <div id="barre-progression-audio" class="barre-progression-audio">
-        <div id="barre-progression-remplissage" class="barre-progression-remplissage"></div>
-    </div>
-    {% endif %}
 
     {# Les utilitaires prose-*:text-* / bg-* / border-* ont ete RETIRES #}
     {# (bascule CSS, verification finale) : ils posaient un `color` en #}

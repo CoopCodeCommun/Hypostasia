@@ -43,6 +43,81 @@ def _ids_taches_lues_par(utilisateur, type_tache_stocke):
     ).values_list("tache_id", flat=True)
 
 
+def _rangs_dans_la_file_d_ingestion():
+    """
+    Rend {pk_de_page: rang} pour toute la file d'ingestion Docling.
+    / Returns {page_pk: rank} for the whole Docling ingestion queue.
+
+    LOCALISATION : front/views_taches.py
+
+    POURQUOI CETTE FONCTION NE FILTRE PAS PAR PROPRIETAIRE
+
+    C'est la seule du fichier dans ce cas, et c'est deliberé (decision du
+    mainteneur, 14 aout 2026). La file d'ingestion est GLOBALE : un seul
+    worker la sert, a concurrence 1, sans distinction d'utilisateur. Un
+    rang calcule sur mes seules pages afficherait « 1ᵉʳ » pendant que
+    quatre notes d'autrui passent devant — un chiffre faux vaut moins
+    que pas de chiffre.
+
+    Ce qui sort d'ici est un ENTIER DE CHARGE, et rien d'autre : ni
+    titre, ni proprietaire, ni contenu. C'est l'information que donnerait
+    un temps d'attente estime.
+    / The only unfiltered query in this file, on purpose: the queue is
+    global. What leaks is one integer of load, nothing else.
+
+    POURQUOI TOUTE LA FILE D'UN COUP
+
+    Le menu peut afficher plusieurs notes en attente. Calculer le rang
+    note par note ferait une requete par ligne — et le menu deviendrait
+    couteux exactement le jour ou la file s'allonge, c'est-a-dire le
+    jour ou il sert. Une requete rend la file entiere, ordonnee.
+    / One query for the whole queue: per-row ranking would get expensive
+    precisely when the queue gets long.
+
+    :return: dict {pk de page: rang, a partir de 1}, limite aux pages
+        reellement en attente (les fantomes sont exclus)
+    """
+    # Meme regle de peremption que _calculer_etat_bouton : une page que
+    # personne ne traite plus (worker mort) ne doit pas decaler le rang
+    # de tout le monde, definitivement.
+    # / Same ghost rule as the badge counter: an abandoned page must not
+    # shift everyone's rank forever.
+    seuil_fantome = timezone.now() - timedelta(minutes=DELAI_INGESTION_FANTOME_MIN)
+    pks_des_pages_en_attente = Page.objects.filter(
+        ingestion_etat=EtatIngestion.EN_ATTENTE,
+        ingestion_maj_le__gte=seuil_fantome,
+    ).order_by(
+        # `pk` en second critere : deux imports dans la meme microseconde
+        # doivent recevoir deux rangs distincts et stables d'un
+        # rafraichissement a l'autre.
+        # / pk breaks ties: same-microsecond imports need distinct,
+        # stable ranks across refreshes.
+        "ingestion_maj_le", "pk",
+    ).values_list("pk", flat=True)
+
+    return {
+        pk_de_page: rang
+        for rang, pk_de_page in enumerate(pks_des_pages_en_attente, start=1)
+    }
+
+
+def _ordinal_francais(rang):
+    """
+    Rend "1ᵉʳ", "2ᵉ", "3ᵉ"… / Returns French ordinals.
+
+    LOCALISATION : front/views_taches.py
+
+    Le premier rang s'ecrit differemment des autres. C'est du francais
+    lu par un humain, pas une numerotation technique — le calcul est
+    fait ici plutot que dans le gabarit, qui n'a pas a porter de regle
+    de langue. / French writes the first ordinal differently; the rule
+    belongs here, not in the template.
+    """
+    if rang == 1:
+        return "1ᵉʳ"
+    return f"{rang}ᵉ"
+
+
 def _calculer_etat_bouton(user):
     """
     Calcule l'etat du bouton + les compteurs pour un utilisateur.
@@ -282,11 +357,26 @@ class TachesViewSet(viewsets.ViewSet):
             F("ingestion_maj_le").desc(nulls_last=True),
         ).distinct()[:30])
 
+        # Le rang de chaque note dans la file d'ingestion, calcule pour
+        # toute la file en UNE requete (voir _rangs_dans_la_file_d_ingestion).
+        # / Each note's queue rank, computed in ONE query for the lot.
+        rangs_dans_la_file = _rangs_dans_la_file_d_ingestion()
+
         for page_ingeree in ingestions_recentes:
             page_ingeree.type_tache = "ingestion"
             page_ingeree.page_resultat_id = page_ingeree.pk
             page_ingeree.libelle_de_tache = "Découpage"
             page_ingeree.page = page_ingeree
+            # Seule une note EN ATTENTE a une position : une note EN
+            # COURS a deja quitte la file, elle est sur le worker.
+            # `.get()` rend None pour tout le reste — et un fantome, qui
+            # n'est dans aucun rang, retombe donc sur « En cours… ».
+            # / Only a waiting note has a position; an in-progress one
+            # has already left the queue.
+            rang_de_la_note = rangs_dans_la_file.get(page_ingeree.pk)
+            page_ingeree.position_dans_la_file = (
+                _ordinal_francais(rang_de_la_note) if rang_de_la_note else ""
+            )
             if page_ingeree.ingestion_etat == EtatIngestion.ECHOUEE:
                 page_ingeree.status = "error"
             elif page_ingeree.ingestion_etat == EtatIngestion.REUSSIE:

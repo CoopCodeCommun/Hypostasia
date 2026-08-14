@@ -49,8 +49,8 @@ Avec 2 dispositifs de preuve (formel, empirique) et 3 modes de raisonnement (ind
 
 - **paradigme** : modèle ou exemple. — *non prouvé par abduction empirique*
 - **objet** : ce sur quoi porte le discours, la pensée, la connaissance. — *non prouvé par abduction formelle*
-- **principe** : cause a priori d'une connaissance. — *non prouvé par induction empirique*
-- **domaine** : champ discerné par des limites, bornes, frontières. — *non prouvé par déduction formelle*
+- **principe** : cause a priori d'une connaissance. — *non prouvé par induction formelle*
+- **domaine** : champ discerné par des limites, bornes, frontières. — *non prouvé par déduction empirique*
 - **loi** : corrélation. — *non prouvé par induction empirique*
 
 ## Famille 5 — Non réfuté par abduction empirique (ce qu'on constate sans pouvoir l'expliquer)

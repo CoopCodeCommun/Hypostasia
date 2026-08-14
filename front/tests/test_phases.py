@@ -2516,8 +2516,9 @@ class Phase15ConstruireHtmlDiariseTest(TestCase):
     # / Case: empty list
     # -------------------------------------------------------------------------
 
-    def test_liste_vide_renvoie_chaines_vides(self):
-        """Une liste vide renvoie deux chaines vides."""
+    def test_liste_vide_renvoie_une_chaine_vide(self):
+        """Une liste vide ne produit aucune pilule.
+        / An empty list yields no pill."""
         html, texte = self.construire_html_diarise([])
         self.assertEqual(html, "")
         self.assertEqual(texte, "")
@@ -2528,8 +2529,9 @@ class Phase15ConstruireHtmlDiariseTest(TestCase):
         self.assertEqual(html, "")
         self.assertEqual(texte, "")
 
-    def test_dict_avec_segments_vides_renvoie_chaines_vides(self):
-        """Un dict avec segments=[] renvoie deux chaines vides."""
+    def test_dict_avec_segments_vides_renvoie_une_chaine_vide(self):
+        """Un dict avec segments=[] ne produit aucune pilule.
+        / A dict with segments=[] yields no pill."""
         html, texte = self.construire_html_diarise({"model": "voxtral", "segments": []})
         self.assertEqual(html, "")
         self.assertEqual(texte, "")
@@ -2841,6 +2843,273 @@ class Phase15ConstruireHtmlDiariseTest(TestCase):
         self.assertIn("Test.", texte)
 
 
+class Phase15HtmlDiariseEtWidgetsTest(TestCase):
+    """LES 19 TESTS DE CETTE CLASSE N'ONT JAMAIS TOURNE JUSQU'AU 14 AOUT 2026.
+
+    Une SECONDE classe portait le meme nom, 240 lignes plus bas dans ce
+    fichier. En Python la seconde definition ecrase la premiere : celle-ci
+    n'existait plus au moment ou le lanceur collectait les tests, en
+    silence — ni erreur, ni avertissement.
+
+    Huit tests etaient ainsi perdus, dont DEUX QUI EPROUVENT
+    L'ECHAPPEMENT XSS (`test_nom_locuteur_echappe_xss`,
+    `test_texte_segment_echappe_xss`). Un test de securite qui ne tourne
+    pas est pire qu'un test absent : il donne le sentiment d'etre
+    couvert.
+
+    Le nom est donc corrige pour dire ce que la classe eprouve : le HTML
+    diarise ET les widgets.
+    / These 19 tests never ran: a second class 240 lines below bore the
+    same name and silently replaced this one. Eight tests were lost,
+    including two XSS escaping tests.
+    """
+
+    def setUp(self):
+        # DEUX fonctions, parce que cette classe eprouve les deux.
+        #
+        # `construire_html_diarise` MANQUAIT : les huit tests qui s'en
+        # servent levaient un `AttributeError` des qu'on les reveillait.
+        # La classe etait donc incomplete DES L'ORIGINE — et la
+        # duplication de nom l'a masquee avant que quiconque ne le voie.
+        # Les deux defauts se sont couverts l'un l'autre.
+        # / construire_html_diarise was missing: the eight tests using it
+        # raised AttributeError the moment they woke up. The class was
+        # incomplete from the start, and the name clash hid it.
+        from front.services.transcription_audio import (
+            construire_html_diarise, construire_widgets_audio,
+        )
+        self.construire_widgets_audio = construire_widgets_audio
+        self.construire_html_diarise = construire_html_diarise
+
+    # -------------------------------------------------------------------------
+    # Cas : input vide
+    # / Case: empty input
+    # -------------------------------------------------------------------------
+
+    def test_liste_vide_renvoie_une_chaine_vide(self):
+        """Une liste vide ne produit aucune pilule.
+        / An empty list yields no pill."""
+        html_filtre = self.construire_widgets_audio([])
+        self.assertEqual(html_filtre, "")
+
+    def test_dict_avec_segments_vides_renvoie_une_chaine_vide(self):
+        """Un dict avec segments=[] ne produit aucune pilule.
+        / A dict with segments=[] yields no pill."""
+        html_filtre = self.construire_widgets_audio(
+            {"model": "voxtral", "segments": []}
+        )
+        self.assertEqual(html_filtre, "")
+
+    def test_segments_tous_texte_vide_renvoient_chaines_vides(self):
+        """Si tous les segments n'ont pas de texte, les widgets sont vides."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 5.0, "text": ""},
+        ]
+        html_filtre = self.construire_widgets_audio(segments)
+        self.assertEqual(html_filtre, "")
+
+    # -------------------------------------------------------------------------
+    # Cas : filtre locuteurs
+    # / Case: speaker filter
+    # -------------------------------------------------------------------------
+
+    def test_filtre_contient_bouton_tous(self):
+        """Le filtre locuteurs contient toujours le bouton 'Tous'."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Bonjour."},
+        ]
+        html_filtre = self.construire_widgets_audio(segments)
+        self.assertIn("Tous", html_filtre)
+        self.assertIn('data-speaker-filter="tous"', html_filtre)
+
+    def test_filtre_contient_nom_locuteur(self):
+        """Le filtre contient le nom de chaque locuteur present."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Bonjour."},
+            {"speaker": "Bob", "start": 10.0, "end": 20.0, "text": "Salut."},
+        ]
+        html_filtre = self.construire_widgets_audio(segments)
+        self.assertIn("Alice", html_filtre)
+        self.assertIn("Bob", html_filtre)
+
+    def test_filtre_un_seul_locuteur(self):
+        """Avec un seul locuteur, le filtre contient 'Tous' + 1 pilule."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Monologue."},
+        ]
+        html_filtre = self.construire_widgets_audio(segments)
+        nombre_pilules = html_filtre.count("pilule-locuteur")
+        # 2 pilules : "Tous" + "Alice"
+        # / 2 pills: "Tous" + "Alice"
+        self.assertEqual(nombre_pilules, 2)
+
+    def test_filtre_data_speaker_filter_present(self):
+        """Chaque pilule de locuteur a l'attribut data-speaker-filter."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Test."},
+        ]
+        html_filtre = self.construire_widgets_audio(segments)
+        self.assertIn('data-speaker-filter="Alice"', html_filtre)
+
+    def test_filtre_id_correct(self):
+        """Le conteneur du filtre a l'id 'filtre-locuteurs'."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Test."},
+        ]
+        html_filtre = self.construire_widgets_audio(segments)
+        self.assertIn('id="filtre-locuteurs"', html_filtre)
+
+    # -------------------------------------------------------------------------
+    # Cas : timeline audio
+    # / Case: audio timeline
+    # -------------------------------------------------------------------------
+
+    # LES CINQ TESTS DE LA TIMELINE ONT ETE RETIRES LE 14 AOUT 2026,
+    # avec la timeline elle-meme : id du conteneur, un segment par
+    # groupe de locuteur, `data-speaker` sur chaque segment, largeurs
+    # proportionnelles, et cas du monologue a 100%.
+    #
+    # Ils ne sont pas reecrits sur les pilules : celles-ci listent des
+    # VOIX, pas des tours, et n'ont donc ni segment ni largeur. Ce que
+    # ces tests protegeaient vraiment — une voix, une couleur, et
+    # l'echappement du nom — se verifie desormais dans
+    # `test_couleurs_des_locuteurs` et dans le test XSS ci-dessous.
+    # / The five timeline tests are gone with the timeline; what they
+    # really guarded is covered elsewhere.
+
+    # -------------------------------------------------------------------------
+    # Cas : input dict vs list
+    # / Case: dict input vs list input
+    # -------------------------------------------------------------------------
+
+    def test_input_dict_avec_cle_segments(self):
+        """Un dict {'model': ..., 'segments': [...]} est accepte comme input."""
+        donnees = {
+            "model": "voxtral-v1",
+            "text": "Alice dit bonjour.",
+            "segments": [
+                {"speaker": "Alice", "start": 0.0, "end": 5.0, "text": "Bonjour."},
+            ],
+        }
+        html, texte = self.construire_html_diarise(donnees)
+        self.assertIn("Alice", html)
+        self.assertIn("Bonjour.", html)
+
+    def test_input_list_directe(self):
+        """Une liste directe de segments est acceptee comme input."""
+        segments = [
+            {"speaker": "Bob", "start": 0.0, "end": 3.0, "text": "Salut."},
+        ]
+        html, texte = self.construire_html_diarise(segments)
+        self.assertIn("Bob", html)
+        self.assertIn("Salut.", html)
+
+    def test_dict_et_list_produisent_meme_resultat(self):
+        """Un dict et une liste avec les memes segments produisent le meme HTML."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 5.0, "text": "Bonjour."},
+            {"speaker": "Bob", "start": 5.0, "end": 10.0, "text": "Salut."},
+        ]
+        donnees_dict = {"model": "voxtral-v1", "segments": segments[:]}
+        html_via_list, texte_via_list = self.construire_html_diarise(segments)
+        html_via_dict, texte_via_dict = self.construire_html_diarise(donnees_dict)
+        self.assertEqual(html_via_list, html_via_dict)
+        self.assertEqual(texte_via_list, texte_via_dict)
+
+    # -------------------------------------------------------------------------
+    # Cas : securite XSS
+    # / Case: XSS safety
+    # -------------------------------------------------------------------------
+
+    def test_nom_locuteur_echappe_xss(self):
+        """Un nom de locuteur avec des balises HTML est echappe (protection XSS)."""
+        segments = [
+            {"speaker": "<script>alert('xss')</script>", "start": 0.0, "end": 5.0, "text": "Texte."},
+        ]
+        html, texte = self.construire_html_diarise(segments)
+        self.assertNotIn("<script>", html)
+        self.assertIn("&lt;script&gt;", html)
+
+    def test_texte_segment_echappe_xss(self):
+        """Un texte de segment avec des balises HTML est echappe (protection XSS)."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 5.0, "text": "<b>Bold</b>"},
+        ]
+        html, texte = self.construire_html_diarise(segments)
+        # Le texte doit etre echappe
+        # / The text must be escaped
+        self.assertNotIn("<b>Bold</b>", html)
+        self.assertIn("&lt;b&gt;Bold&lt;/b&gt;", html)
+
+    # -------------------------------------------------------------------------
+    # Cas : segments avec texte vide (doivent etre ignores)
+    # / Case: segments with empty text (should be ignored)
+    # -------------------------------------------------------------------------
+
+    def test_segment_texte_vide_ignore(self):
+        """Un segment avec texte vide est ignore et ne cree pas de bloc."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 5.0, "text": ""},
+            {"speaker": "Bob", "start": 5.0, "end": 10.0, "text": "Bonjour."},
+        ]
+        html, texte = self.construire_html_diarise(segments)
+        # Seul Bob devrait avoir un bloc
+        # / Only Bob should have a block
+        self.assertNotIn("Alice", html)
+        self.assertIn("Bob", html)
+
+    def test_tous_segments_vides_renvoient_chaines_vides(self):
+        """Si tous les segments ont un texte vide, on renvoie deux chaines vides."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 5.0, "text": ""},
+            {"speaker": "Bob", "start": 5.0, "end": 10.0, "text": "   "},
+        ]
+        html, texte = self.construire_html_diarise(segments)
+        self.assertEqual(html, "")
+        self.assertEqual(texte, "")
+
+    # -------------------------------------------------------------------------
+    # Cas : structure du HTML genere
+    # / Case: structure of generated HTML
+    # -------------------------------------------------------------------------
+
+    def test_bloc_html_contient_data_speaker(self):
+        """Chaque bloc contient l'attribut data-speaker avec le nom du locuteur."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 5.0, "text": "Test."},
+        ]
+        html, texte = self.construire_html_diarise(segments)
+        self.assertIn('data-speaker="Alice"', html)
+
+    def test_bloc_html_contient_data_start_end(self):
+        """Chaque bloc contient les attributs data-start et data-end."""
+        segments = [
+            {"speaker": "Alice", "start": 12.5, "end": 25.0, "text": "Test."},
+        ]
+        html, texte = self.construire_html_diarise(segments)
+        self.assertIn('data-start="12.5"', html)
+        self.assertIn('data-end="25.0"', html)
+
+    def test_bloc_html_contient_timestamp_debut(self):
+        """Chaque bloc affiche le timestamp de debut formate."""
+        segments = [
+            {"speaker": "Alice", "start": 65.0, "end": 90.0, "text": "Test."},
+        ]
+        html, texte = self.construire_html_diarise(segments)
+        # 65 secondes = 01:05
+        # / 65 seconds = 01:05
+        self.assertIn("01:05", html)
+
+    def test_texte_brut_contient_format_locuteur_timestamp(self):
+        """Le texte brut contient les interventions au format [Locuteur MM:SS]."""
+        segments = [
+            {"speaker": "Alice", "start": 0.0, "end": 5.0, "text": "Test."},
+        ]
+        html, texte = self.construire_html_diarise(segments)
+        self.assertIn("[Alice", texte)
+        self.assertIn("Test.", texte)
+
+
 class Phase15ConstruireWidgetsAudioTest(TestCase):
     """Teste la fonction construire_widgets_audio avec differents cas limites.
     / Tests construire_widgets_audio with various edge cases."""
@@ -2856,28 +3125,27 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
     # / Case: empty input
     # -------------------------------------------------------------------------
 
-    def test_liste_vide_renvoie_chaines_vides(self):
-        """Une liste vide renvoie deux chaines vides."""
-        html_filtre, html_timeline = self.construire_widgets_audio([])
+    def test_liste_vide_renvoie_une_chaine_vide(self):
+        """Une liste vide ne produit aucune pilule.
+        / An empty list yields no pill."""
+        html_filtre = self.construire_widgets_audio([])
         self.assertEqual(html_filtre, "")
-        self.assertEqual(html_timeline, "")
 
-    def test_dict_avec_segments_vides_renvoie_chaines_vides(self):
-        """Un dict avec segments=[] renvoie deux chaines vides."""
-        html_filtre, html_timeline = self.construire_widgets_audio(
+    def test_dict_avec_segments_vides_renvoie_une_chaine_vide(self):
+        """Un dict avec segments=[] ne produit aucune pilule.
+        / A dict with segments=[] yields no pill."""
+        html_filtre = self.construire_widgets_audio(
             {"model": "voxtral", "segments": []}
         )
         self.assertEqual(html_filtre, "")
-        self.assertEqual(html_timeline, "")
 
     def test_segments_tous_texte_vide_renvoient_chaines_vides(self):
         """Si tous les segments n'ont pas de texte, les widgets sont vides."""
         segments = [
             {"speaker": "Alice", "start": 0.0, "end": 5.0, "text": ""},
         ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
+        html_filtre = self.construire_widgets_audio(segments)
         self.assertEqual(html_filtre, "")
-        self.assertEqual(html_timeline, "")
 
     # -------------------------------------------------------------------------
     # Cas : filtre locuteurs
@@ -2889,7 +3157,7 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
         segments = [
             {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Bonjour."},
         ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
+        html_filtre = self.construire_widgets_audio(segments)
         self.assertIn("Tous", html_filtre)
         self.assertIn('data-speaker-filter="tous"', html_filtre)
 
@@ -2899,7 +3167,7 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
             {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Bonjour."},
             {"speaker": "Bob", "start": 10.0, "end": 20.0, "text": "Salut."},
         ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
+        html_filtre = self.construire_widgets_audio(segments)
         self.assertIn("Alice", html_filtre)
         self.assertIn("Bob", html_filtre)
 
@@ -2908,7 +3176,7 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
         segments = [
             {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Monologue."},
         ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
+        html_filtre = self.construire_widgets_audio(segments)
         nombre_pilules = html_filtre.count("pilule-locuteur")
         # 2 pilules : "Tous" + "Alice"
         # / 2 pills: "Tous" + "Alice"
@@ -2919,7 +3187,7 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
         segments = [
             {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Test."},
         ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
+        html_filtre = self.construire_widgets_audio(segments)
         self.assertIn('data-speaker-filter="Alice"', html_filtre)
 
     def test_filtre_id_correct(self):
@@ -2927,7 +3195,7 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
         segments = [
             {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Test."},
         ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
+        html_filtre = self.construire_widgets_audio(segments)
         self.assertIn('id="filtre-locuteurs"', html_filtre)
 
     # -------------------------------------------------------------------------
@@ -2935,55 +3203,15 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
     # / Case: audio timeline
     # -------------------------------------------------------------------------
 
-    def test_timeline_id_correct(self):
-        """La timeline a l'id 'timeline-audio'."""
-        segments = [
-            {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Test."},
-        ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
-        self.assertIn('id="timeline-audio"', html_timeline)
-
-    def test_timeline_contient_segment_par_locuteur(self):
-        """La timeline contient un segment pour chaque groupe de locuteur."""
-        segments = [
-            {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Test."},
-            {"speaker": "Bob", "start": 10.0, "end": 20.0, "text": "Test."},
-        ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
-        # Compter 'class="timeline-segment"' pour eviter de compter le conteneur
-        # 'timeline-segments' (pluriel) comme un segment
-        # / Count 'class="timeline-segment"' to avoid counting the container
-        # 'timeline-segments' (plural) as a segment
-        nombre_segments = html_timeline.count('class="timeline-segment"')
-        self.assertEqual(nombre_segments, 2)
-
-    def test_timeline_segment_contient_data_speaker(self):
-        """Chaque segment de timeline contient l'attribut data-speaker."""
-        segments = [
-            {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Test."},
-        ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
-        self.assertIn('data-speaker="Alice"', html_timeline)
-
-    def test_timeline_largeur_proportionnelle(self):
-        """Les largeurs des segments timeline sont proportionnelles a leur duree."""
-        # Alice: 0-5s (50%), Bob: 5-10s (50%)
-        segments = [
-            {"speaker": "Alice", "start": 0.0, "end": 5.0, "text": "Test."},
-            {"speaker": "Bob", "start": 5.0, "end": 10.0, "text": "Test."},
-        ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
-        # Chaque segment doit avoir une largeur de 50%
-        # / Each segment should have a width of 50%
-        self.assertIn("50.00%", html_timeline)
-
-    def test_timeline_un_seul_locuteur_largeur_100_pourcent(self):
-        """Avec un seul segment, sa largeur est 100%."""
-        segments = [
-            {"speaker": "Alice", "start": 0.0, "end": 30.0, "text": "Monologue."},
-        ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
-        self.assertIn("100.00%", html_timeline)
+    # LES CINQ TESTS DE LA TIMELINE ONT ETE RETIRES LE 14 AOUT 2026,
+    # avec la timeline elle-meme : id du conteneur, un segment par
+    # groupe de locuteur, `data-speaker` par segment, largeurs
+    # proportionnelles, monologue a 100%.
+    #
+    # Ils ne sont pas reecrits sur les pilules : celles-ci listent des
+    # VOIX, pas des tours, et n'ont donc ni segment ni largeur.
+    # / The five timeline tests are gone with the timeline; pills list
+    # voices, not turns, so they have neither segments nor widths.
 
     # -------------------------------------------------------------------------
     # Cas : input dict vs list
@@ -2998,16 +3226,15 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
                 {"speaker": "Alice", "start": 0.0, "end": 10.0, "text": "Test."},
             ],
         }
-        html_filtre, html_timeline = self.construire_widgets_audio(donnees)
+        html_filtre = self.construire_widgets_audio(donnees)
         self.assertIn("Alice", html_filtre)
-        self.assertIn("timeline-audio", html_timeline)
 
     def test_input_list_directe(self):
         """Une liste directe de segments est acceptee comme input."""
         segments = [
             {"speaker": "Bob", "start": 0.0, "end": 10.0, "text": "Test."},
         ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
+        html_filtre = self.construire_widgets_audio(segments)
         self.assertIn("Bob", html_filtre)
 
     def test_dict_et_list_produisent_meme_resultat(self):
@@ -3017,10 +3244,9 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
             {"speaker": "Bob", "start": 5.0, "end": 10.0, "text": "Salut."},
         ]
         donnees_dict = {"model": "voxtral-v1", "segments": segments[:]}
-        html_filtre_list, html_timeline_list = self.construire_widgets_audio(segments)
-        html_filtre_dict, html_timeline_dict = self.construire_widgets_audio(donnees_dict)
+        html_filtre_list = self.construire_widgets_audio(segments)
+        html_filtre_dict = self.construire_widgets_audio(donnees_dict)
         self.assertEqual(html_filtre_list, html_filtre_dict)
-        self.assertEqual(html_timeline_list, html_timeline_dict)
 
     # -------------------------------------------------------------------------
     # Cas : securite XSS
@@ -3032,9 +3258,8 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
         segments = [
             {"speaker": "<img src=x onerror=alert(1)>", "start": 0.0, "end": 5.0, "text": "Test."},
         ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
+        html_filtre = self.construire_widgets_audio(segments)
         self.assertNotIn("<img", html_filtre)
-        self.assertNotIn("<img", html_timeline)
 
     # -------------------------------------------------------------------------
     # Cas : normalisation speaker_id
@@ -3046,7 +3271,7 @@ class Phase15ConstruireWidgetsAudioTest(TestCase):
         segments = [
             {"speaker_id": "SPEAKER_00", "start": 0.0, "end": 10.0, "text": "Voxtral."},
         ]
-        html_filtre, html_timeline = self.construire_widgets_audio(segments)
+        html_filtre = self.construire_widgets_audio(segments)
         self.assertIn("SPEAKER_00", html_filtre)
 
 

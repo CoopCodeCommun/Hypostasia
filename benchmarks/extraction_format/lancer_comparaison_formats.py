@@ -1,8 +1,34 @@
 """
-Script de test : comparer 2 approches de format d'extraction x N modeles LLM.
-/ Test script: compare 2 extraction format approaches x N LLM models.
+Banc d'essai MANUEL : comparer 2 approches de format d'extraction x N modeles LLM.
+/ MANUAL benchmark: compare 2 extraction format approaches x N LLM models.
 
-LOCALISATION : benchmarks/extraction_format/test_format_extraction.py
+LOCALISATION : benchmarks/extraction_format/lancer_comparaison_formats.py
+
+CE N'EST PAS UN TEST — ET C'EST POURQUOI IL A CHANGE DE NOM.
+
+Ce fichier s'appelait `test_format_extraction.py` jusqu'au 14 aout 2026.
+Il n'a jamais contenu un seul `TestCase` : c'est un script `__main__`, qui
+appelle de vrais fournisseurs payants et lit une page de la base par un
+`PAGE_ID` code en dur. Il ne peut donc pas tourner dans une suite.
+
+Le nom mentait deux fois. `manage.py test` ne l'a jamais collecte — le
+dossier `benchmarks/` n'est pas une app Django et n'a pas de
+`__init__.py` — mais quiconque parcourait le depot pouvait lire
+« test_… » et croire le format d'extraction couvert par la suite. Il ne
+l'etait pas.
+
+Ce que ce banc mesure — quel format d'extraction et quel modele rendent
+le plus de classes distinctes — releve de la decision d'ingenierie
+ponctuelle, pas de la non-regression : on le lance quand on arbitre, on
+en range le compte rendu dans ce dossier, et on n'y revient plus.
+
+La non-regression du format, elle, est couverte par des tests, eux :
+  - hypostasis_extractor/tests/test_referentiel_des_hypostases.py
+    (les 4 copies du referentiel des 30 hypostases concordent) ;
+  - hypostasis_extractor/tests/test_justesse_semantique_llm.py
+    (le modele classe dans la bonne famille — tag « llm_reel »).
+/ Never a TestCase: a __main__ script hitting paid providers with a
+hardcoded PAGE_ID. The name suggested coverage that did not exist.
 
 Approche A : extraction_class = "hypostase" (classe unique, hypostase specifique dans attributes)
 Approche B : extraction_class = nom de l'hypostase (classe variable : "théorie", "problème"...)
@@ -11,7 +37,7 @@ Les few-shot couvrent les 30 hypostases pour ne pas biaiser les resultats.
 / Few-shots cover all 30 hypostases to avoid biasing results.
 
 Lancer depuis le conteneur Docker :
-  docker exec hypostasia_web uv run python benchmarks/extraction_format/test_format_extraction.py
+  docker exec hypostasia_web uv run python benchmarks/extraction_format/lancer_comparaison_formats.py
 """
 
 import os

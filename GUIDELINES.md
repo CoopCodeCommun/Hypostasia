@@ -185,19 +185,76 @@ Les templates de `core/` ne servent que l'extension navigateur (sidebar).
 
 ## 5. Commandes
 
-Toutes les commandes Django se lancent via `uv run` :
+Tout passe par le **Makefile**, a la racine, depuis l'hote (jamais depuis
+l'interieur du conteneur). `make` seul liste les cibles.
 
 ```bash
-uv run python manage.py runserver 0.0.0.0:8123
-uv run python manage.py migrate
-uv run python manage.py check
-
-# Worker Celery (requis pour la transcription audio)
-uv run celery -A hypostasia worker --loglevel=info
-
-# Charger les fixtures de demo (idempotent)
-uv run python manage.py charger_fixtures_demo
+make install        # docker compose up -d + install.sh (idempotent)
+make dev            # runserver + les DEUX workers Celery (supervisord)
+make status
+make restart S=runserver
+make logs S=celery_worker_docling
 ```
+
+Ces cibles ne sont qu'une facade : elles appellent `install.sh` et
+`supervisord-dev.conf`, elles ne reimplementent rien. C'est deliberé —
+deux descriptions du meme demarrage finiraient par diverger, ce qui est
+exactement la panne que ce Makefile existe pour empecher.
+
+Sans Makefile, les memes commandes s'ecrivent :
+
+```bash
+docker exec hypostasia_web supervisord -c /app/supervisord-dev.conf
+docker exec hypostasia_web supervisorctl -c /app/supervisord-dev.conf status
+```
+
+**Deux workers Celery, jamais un seul** : `celery_worker` sert la file
+par defaut a concurrence 2, `celery_worker_docling` sert
+`ingestion_docling` a **concurrence 1** — une conversion Docling a la
+fois (elles pesent ~2 Go et ~83 s de warm-up chacune). C'est aussi ce
+qui rend exacte la position affichee dans la file d'attente. Un test
+verrouille l'invariant : `hypostasis_extractor/tests/test_files_celery_ingestion.py`.
+
+### Les tests
+
+Quatre familles, et elles ne coutent pas la meme chose :
+
+```bash
+make test               # l'aide : les cibles et leur cout
+make test-rapide        # tout sauf e2e/docling/llm — le geste quotidien
+make test-suite S=front.tests.test_taches_ingestion
+make test-e2e           # 30 fichiers Playwright, plusieurs minutes
+make test-docling       # conversions Docling REELLES (~85 s)
+make test-llm           # appels LLM REELS — FACTURES, confirmation demandee
+make test-tout          # rapide + e2e + docling, PAS le LLM payant
+```
+
+Les tests couteux sont opt-in par **deux** mecanismes a la fois : une
+variable d'environnement (`TESTS_DOCLING`, `TESTS_LLM_REELS`) ET un tag
+Django. Les e2e, eux, sont tagues `e2e` par leur classe de base
+(`front/tests/e2e/base.py`) — c'est ce qui permet a `test-rapide` de les
+exclure.
+
+**Une suite a la fois, jamais `--parallel`** : la base de test est
+partagee, deux executions simultanees se la detruisent mutuellement en
+plein vol.
+
+### Commandes Django ponctuelles
+
+Elles s'appellent directement — le `PATH` de l'image contient deja
+`/app/.venv/bin` :
+
+```bash
+make check
+make fixtures        # ou : docker exec -w /app hypostasia_web \
+                     #        python manage.py charger_fixtures_demo
+docker exec -w /app hypostasia_web python manage.py migrate
+```
+
+`uv run` fonctionne encore mais n'apporte rien : il ajoute un process
+wrapper et une reverification du lock a chaque appel. Sous supervisord,
+il est a proscrire — le SIGTERM d'arret irait au wrapper au lieu du
+worker qui doit finir sa tache.
 
 ---
 

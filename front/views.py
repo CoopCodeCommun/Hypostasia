@@ -1311,14 +1311,15 @@ class LectureViewSet(viewsets.ViewSet):
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
 
-        # Widgets audio : filtre locuteurs + timeline (PHASE-15)
-        # / Audio widgets: speaker filter + timeline (PHASE-15)
+        # Filtre par locuteur (PHASE-15). La timeline qui l'accompagnait
+        # a ete retiree le 14 aout : son clic visait un HTML diarise que
+        # les pages ELEMENT ne rendent plus.
+        # / Speaker filter; the timeline beside it was removed on 14 Aug.
         html_filtre_locuteurs = ""
-        html_timeline = ""
         if page.source_type == "audio" and page.transcription_raw:
             from .services.transcription_audio import construire_widgets_audio
-            html_filtre_locuteurs, html_timeline = construire_widgets_audio(
-                page.transcription_raw, entites_extraction=entites_existantes,
+            html_filtre_locuteurs = construire_widgets_audio(
+                page.transcription_raw,
             )
 
         # Contexte commun pour les deux partials (HTMX et F5).
@@ -1339,7 +1340,6 @@ class LectureViewSet(viewsets.ViewSet):
             "versions": toutes_les_versions,
             "page_racine": page_racine,
             "html_filtre_locuteurs": html_filtre_locuteurs,
-            "html_timeline": html_timeline,
             "est_requete_htmx": est_requete_htmx,
             "est_proprietaire": est_proprietaire,
         }
@@ -1415,12 +1415,11 @@ class LectureViewSet(viewsets.ViewSet):
         toutes_les_versions = page.toutes_les_versions
         page_racine = page.page_racine
 
-        # Widgets audio (PHASE-15) / Audio widgets (PHASE-15)
+        # Filtre par locuteur (PHASE-15) / Speaker filter (PHASE-15)
         html_filtre_locuteurs = ""
-        html_timeline = ""
         if page.source_type == "audio" and page.transcription_raw:
             from .services.transcription_audio import construire_widgets_audio
-            html_filtre_locuteurs, html_timeline = construire_widgets_audio(
+            html_filtre_locuteurs = construire_widgets_audio(
                 page.transcription_raw,
             )
 
@@ -1436,7 +1435,6 @@ class LectureViewSet(viewsets.ViewSet):
             "versions": toutes_les_versions,
             "page_racine": page_racine,
             "html_filtre_locuteurs": html_filtre_locuteurs,
-            "html_timeline": html_timeline,
             "est_requete_htmx": est_requete_htmx,
         }
 
@@ -1476,7 +1474,6 @@ class LectureViewSet(viewsets.ViewSet):
             "versions": toutes_les_versions,
             "page_racine": page_racine,
             "html_filtre_locuteurs": html_filtre_locuteurs,
-            "html_timeline": html_timeline,
             "est_proprietaire": est_proprietaire,
             "job_en_cours": job_en_cours,
             "entites_deja_creees": entites_deja_creees,

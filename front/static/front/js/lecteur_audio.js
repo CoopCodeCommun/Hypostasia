@@ -66,6 +66,53 @@
     }
 
     /**
+     * Place la lecture a un instant, MEME si les donnees n'y sont pas
+     * encore.
+     * / Seek to an instant, even if the data is not there yet.
+     *
+     * LE BUG QUE CETTE FONCTION CORRIGE (signale le 14 aout) : cliquer
+     * un play dans le texte lancait l'audio DEPUIS LE DEBUT.
+     *
+     * Un navigateur IGNORE SILENCIEUSEMENT une affectation de
+     * `currentTime` quand il n'a pas de quoi se placer la : ni erreur,
+     * ni exception, la valeur retombe simplement a ce qu'elle etait. Or
+     * la barre demande `preload="metadata"` — elle ne telecharge donc
+     * que l'en-tete —, et `/media/` est servi en dev par
+     * `django.views.static`, qui NE GERE PAS les requetes `Range` : le
+     * navigateur ne peut pas aller chercher le morceau qui l'interesse.
+     * Resultat : l'instant demande etait perdu, et la lecture partait
+     * de zero.
+     *
+     * CE QUI A ETE ESSAYE, ET QU'IL NE FAUT PAS REFAIRE
+     *
+     * Une premiere correction rejouait l'affectation a chaque `canplay`,
+     * et basculait `preload` a `auto` avec un `load()`. Le mainteneur a
+     * entendu « un gresillement dans l'oreille a la place de l'audio » :
+     * `load()` vide le tampon sous une lecture en cours, et le
+     * repositionnement rejoue en boucle faisait sauter le decodeur
+     * plusieurs fois par seconde. Un bricolage cote client ne repare pas
+     * un serveur qui ne sait pas envoyer un morceau de fichier — il
+     * ajoute un defaut au premier.
+     *
+     * LA CAUSE EST SERVEUR, ET C'EST LA QU'ELLE EST CORRIGEE :
+     * `/media/` est desormais servi par nginx (nginx/dev.conf), qui
+     * repond aux requetes `Range` en 206. Le navigateur va chercher le
+     * morceau qui l'interesse, et `currentTime` prend du premier coup.
+     *
+     * Cette fonction reste le point de passage unique de tout
+     * deplacement : un seul endroit a regarder le jour ou un navigateur
+     * se comportera autrement.
+     * / An earlier fix replayed the seek on every `canplay` and forced a
+     * full `load()`; it produced audible crackling — load() empties the
+     * buffer under a playing stream. The cause was the server, and that
+     * is where it is fixed: nginx now serves /media/ and answers Range
+     * with 206.
+     */
+    function deplacerLaLecture(audio, instantVise) {
+        audio.currentTime = instantVise;
+    }
+
+    /**
      * Met les segments du rail a l'echelle de la duree REELLE du
      * fichier, et les peint a la couleur de leur locuteur.
      *
@@ -106,6 +153,24 @@
                 segment.style.background = segment.dataset.couleur;
             }
         }
+    }
+
+    /**
+     * Le tour de parole ou une idee est marquee, ou null.
+     * / The turn where an idea is marked, or null.
+     *
+     * Une idee peut avoir PLUSIEURS ancres — elle enjambe deux tours, ou
+     * revient plus loin. On prend la PREMIERE dans l'ordre du document :
+     * c'est la ou l'idee apparait, et c'est de la qu'on veut ecouter.
+     * / An idea may have several anchors; take the first in document
+     * order — where it appears is where one wants to listen from.
+     */
+    function blocDUneIdee(identifiantDeLIdee) {
+        if (!identifiantDeLIdee) return null;
+        var marque = document.querySelector(
+            '#readability-content mark[data-extraction-id="'
+            + identifiantDeLIdee + '"]');
+        return marque ? marque.closest(".bloc[data-debut]") : null;
     }
 
     /**
@@ -197,7 +262,28 @@
      */
     function brancherLeLecteur() {
         var audio = lElementAudio();
+
+        // ON OUBLIE LE TOUR COURANT, DONC ON EFFACE SA MARQUE.
+        //
+        // Remettre la variable a null sans nettoyer le DOM laissait un
+        // SURLIGNAGE ORPHELIN : le bloc gardait sa teinte pour toujours,
+        // et le tour suivant en recevait une seconde. Deux tours
+        // surlignes a la fois ne designent plus rien.
+        //
+        // Le cas se produit a chaque swap HTMX PENDANT la lecture — par
+        // exemple quand on clique « Écouter » sur une carte, ce qui
+        // rafraichit le panneau. Mesure du 14 aout : la lecture etait a
+        // 4,63s et le bloc surligne etait celui de 0,0s.
+        // / Clearing the variable without clearing the DOM left an
+        // orphan wash: the block kept its tint forever and the next turn
+        // got a second one. Happens on every HTMX swap during playback.
+        var dejaMarques = document.querySelectorAll(
+            "#readability-content .bloc.bloc-en-lecture");
+        for (var rang = 0; rang < dejaMarques.length; rang++) {
+            dejaMarques[rang].classList.remove("bloc-en-lecture");
+        }
         elementDuTourCourant = null;
+
         if (!audio || audio.dataset.branche === "oui") return;
         audio.dataset.branche = "oui";
 
@@ -230,7 +316,7 @@
         var boite = rail.getBoundingClientRect();
         var proportion = (positionEnX - boite.left) / boite.width;
         proportion = Math.max(0, Math.min(1, proportion));
-        audio.currentTime = proportion * audio.duration;
+        deplacerLaLecture(audio, proportion * audio.duration);
         rafraichir(audio);
     }
 
@@ -282,6 +368,27 @@
         // repere qu'on lit, celui-la une action qu'on prend.
         // / Play from a turn, via the gutter button — distinct from the
         // timecode, which stays a marker you read.
+        // ECOUTER DEPUIS LA CARTE D'UNE IDEE. Le bouton ne porte que
+        // l'identifiant : on retrouve la marque de l'idee dans le texte,
+        // et c'est le bloc qui la contient qui donne l'instant. Rien
+        // n'est recopie, donc rien ne peut diverger.
+        // / The card's button carries only the id; the mark in the text
+        // gives the instant. Nothing is copied, so nothing can drift.
+        var boutonDeCarte = evenement.target.closest(".btn-ecouter-extraction");
+        if (boutonDeCarte) {
+            var lecteurDeCarte = lElementAudio();
+            var blocDeLIdee = blocDUneIdee(boutonDeCarte.dataset.extractionId);
+            if (!lecteurDeCarte || !blocDeLIdee) return;
+            var instantDeLIdee = parseFloat(blocDeLIdee.dataset.debut);
+            if (!isFinite(instantDeLIdee)) return;
+            deplacerLaLecture(lecteurDeCarte, instantDeLIdee);
+            var lectureDeCarte = lecteurDeCarte.play();
+            if (lectureDeCarte && lectureDeCarte.catch) {
+                lectureDeCarte.catch(function () {});
+            }
+            return;
+        }
+
         var boutonDEcoute = evenement.target.closest(".bouton-ecouter");
         if (boutonDEcoute) {
             var bloc = boutonDEcoute.closest(".bloc[data-debut]");
@@ -289,7 +396,7 @@
             if (!bloc || !lecteur) return;
             var debut = parseFloat(bloc.dataset.debut);
             if (!isFinite(debut)) return;
-            lecteur.currentTime = debut;
+            deplacerLaLecture(lecteur, debut);
             var lancement = lecteur.play();
             if (lancement && lancement.catch) { lancement.catch(function () {}); }
         }
@@ -307,13 +414,13 @@
         var pas = 0;
         if (evenement.key === "ArrowRight") pas = 5;
         else if (evenement.key === "ArrowLeft") pas = -5;
-        else if (evenement.key === "Home") { audio.currentTime = 0; rafraichir(audio); evenement.preventDefault(); return; }
-        else if (evenement.key === "End") { audio.currentTime = audio.duration; rafraichir(audio); evenement.preventDefault(); return; }
+        else if (evenement.key === "Home") { deplacerLaLecture(audio, 0); rafraichir(audio); evenement.preventDefault(); return; }
+        else if (evenement.key === "End") { deplacerLaLecture(audio, audio.duration); rafraichir(audio); evenement.preventDefault(); return; }
         else return;
 
         evenement.preventDefault();
-        audio.currentTime = Math.max(
-            0, Math.min(audio.duration, audio.currentTime + pas));
+        deplacerLaLecture(audio, Math.max(
+            0, Math.min(audio.duration, audio.currentTime + pas)));
         rafraichir(audio);
     });
 

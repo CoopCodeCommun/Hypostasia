@@ -5,6 +5,380 @@
 
 ---
 
+## 2026-08-14 — UN MAKEFILE, POUR QUE LES COMMANDES CESSENT DE DERIVER
+
+**Quoi / What :** un `Makefile` a la racine rassemble le demarrage, les
+tests et la mise a jour de production. / A Makefile gathers startup,
+tests and production update.
+
+### POURQUOI, PRECISEMENT
+
+Le lancement de dev avait derive pendant des semaines sans que personne
+ne le voie : un worker Celery unique tirait `-Q celery,ingestion_docling`
+a concurrence 2, la ou la production declare un worker DEDIE a
+concurrence 1. La commande exacte vivait dans une passation Markdown —
+un document qu'on lit, pas qu'on execute. Le Makefile la rend
+EXECUTABLE : ce qui se tape ne peut plus diverger de ce qui est ecrit.
+
+Les cibles sont une FACADE, jamais une reimplementation : `make install`
+appelle `install.sh`, `make dev` appelle `supervisord-dev.conf`. Deux
+descriptions du meme demarrage finiraient par diverger — c'est
+exactement la panne qu'on vient de corriger.
+
+### LES TESTS, PAR CE QU'ILS COUTENT
+
+    make test-rapide     tout sauf e2e/docling/llm — le geste quotidien
+    make test-suite S=…  une suite precise
+    make test-e2e        30 fichiers Playwright, plusieurs minutes
+    make test-docling    conversions Docling REELLES (~85 s)
+    make test-llm        appels LLM REELS — FACTURES, confirmation demandee
+    make test-tout       rapide + e2e + docling, PAS le LLM payant
+
+`test-tout` exclut deliberement le LLM : un geste machinal ne doit pas
+coûter d'argent.
+
+**Une ligne a rendu `test-rapide` possible** : `@tag("e2e")` sur
+`PlaywrightLiveTestCase` (front/tests/e2e/base.py), la classe de base
+dont heritent les 37 classes des 30 fichiers navigateur. Sans elle,
+`manage.py test` sans argument lance TOUT, Playwright compris, et il
+n'existait aucun moyen d'obtenir la suite rapide seule. Verifie :
+`--exclude-tag=e2e` rend 0 test sur `front.tests.e2e`, `--tag=e2e` en
+rend 222.
+
+### LA PRODUCTION, AVEC UN GARDE-FOU
+
+`make prod-update` (git pull, uv sync, migrate, collectstatic, restart
+des 4 programmes) et `make prod-status` **refusent de tourner si `.env`
+porte `DEBUG=true`** : sur un poste de developpement, elles s'arretent
+avec un message plutot que de faire des degats a moitie. Le nom du
+conteneur est surchargeable (`CONTENEUR=…`), car `docker-compose-prod.yml`
+nomme les siens `hypostasia_dev_web`.
+
+### CE QUI N'A PAS ETE FAIT, ET POURQUOI
+
+**Pas de cible `pytest`** : pytest n'est pas installe dans ce depot,
+tout passe par `manage.py test`. Une cible serait morte des le premier
+jour. Y migrer est un chantier a part entiere.
+
+**Pas de distinction e2e court / e2e long** : rien ne les separe
+aujourd'hui. `make test-e2e S=test_09_alignement` cible un fichier ; une
+categorie « long » demanderait d'abord de taguer les lents.
+
+**Pas de `collectstatic` dans `make dev`** : il ne sert a rien en
+developpement — `nginx/dev.conf` n'a aucun `location /static/`, le
+runserver sert les statiques par les finders quand `DEBUG=true`. La
+cible existe, explicite, pour l'avant-deploiement.
+
+**Pas de verification « les fixtures sont-elles chargees »** :
+`charger_fixtures_demo` est idempotent par `get_or_create`
+(install.sh § 5). Verifier par-dessus reviendrait a controler ce que la
+commande garantit deja.
+
+---
+
+## 2026-08-14 — LA FILE D'INGESTION : UN CONVERTISSEUR PARTAGE, UN WORKER DEDIE EN DEV, ET UN RANG AFFICHE
+
+**Quoi / What :** trois corrections sur le chemin d'ingestion Docling —
+le convertisseur n'est plus reconstruit a chaque document, le dev sert
+enfin la file Docling comme la prod, et celui qui attend voit sa
+position dans la file. / Three fixes on the Docling ingestion path: a
+shared converter, dev queue topology aligned on production, and a
+visible queue position.
+
+### A. LE CONVERTISSEUR ETAIT JETE APRES CHAQUE DOCUMENT
+
+`ingestion_docling.py` construisait un `DocumentConverter()` neuf a
+chaque appel, aux DEUX portes d'entree — la conversion de fichier et
+celle de la capture web. Il est desormais memoise par process
+(`_convertisseur_docling`, `@lru_cache(maxsize=1)`).
+
+Ce qui coute cher n'est pas le convertisseur lui-meme : son `__init__`
+ne charge aucun modele. C'est le PIPELINE, bati au premier `convert()`
+et range dans un dictionnaire d'INSTANCE (`initialized_pipelines`).
+Jeter le convertisseur jetait ce cache avec lui.
+
+Mesure, six conversions du meme PDF dans un process :
+
+| | avant | apres |
+|---|---|---|
+| moyenne des conversions 2 a 6 | 9,87 s | **6,70 s** (-32 %) |
+| RSS final | 2424 Mo | **2132 Mo** |
+| pic de RSS | 2928 Mo | **2288 Mo** |
+| derive apres le warm-up | +407 Mo | **+239 Mo** |
+
+La memoire ne monte donc pas plus vite — elle monte moins.
+
+**Sur pour le pool prefork**, et c'est la seule chose qui rendait ce
+partage risque : la construction est PARESSEUSE. Le pipeline PDF ouvre
+onnxruntime (RapidOCR) et des pools OpenMP ; forker un process qui
+porte des threads de ces bibliotheques bloque classiquement. Un test
+reproduit le bootstrap complet de Celery — autodiscover compris — et
+verifie que `docling` n'est jamais importe avant le fork.
+
+### B. LE DEV NE SERVAIT PAS LA FILE COMME LA PROD
+
+`supervisord.conf` declare un worker dedie `-Q ingestion_docling
+--concurrency=1` depuis toujours. Le lancement de dev, lui, tirait
+`-Q celery,ingestion_docling --concurrency=2` depuis un worker unique :
+deux conversions Docling simultanees etaient possibles (~2 Go et ~83 s
+de warm-up chacune, sur un hote 8 Go partage), et une ingestion pouvait
+occuper les deux slots au detriment des analyses.
+
+Nouveau `supervisord-dev.conf` : `runserver` (ASGI, port 8000) +
+`celery_worker` (file par defaut, concurrence 2) + `celery_worker_docling`
+(file dediee, **concurrence 1**). Le dev se lance desormais d'une seule
+commande.
+
+**Aucune commande ne passe plus par `uv run`**, ni en dev ni en prod
+(`supervisord.conf`, `start.sh`). `uv run` laissait un process wrapper
+VIVANT entre supervisord et le programme reel : supervisord surveillait
+le wrapper, et son SIGTERM d'arret allait a lui plutot qu'au worker —
+or c'est le worker qui doit le recevoir pour finir sa conversion en
+cours (`stopwaitsecs`). Le PATH de l'image contient deja
+`/app/.venv/bin` : la mention « `uv run` est obligatoire » qu'on lisait
+dans le README, les GUIDELINES et la passation etait fausse.
+
+Un test verrouille la topologie, pour les deux environnements a la
+fois : `test_files_celery_ingestion.py`. Il refuse qu'un worker melange
+la file dediee avec une autre, qu'elle soit servie a plus de 1, qu'elle
+ne soit servie par personne, ou qu'un programme repasse par un wrapper.
+
+### C. CELUI QUI ATTEND VOIT MAINTENANT OU IL EN EST
+
+Une ingestion dure 83 s a froid et la file est servie une conversion a
+la fois : la cinquieme note importee attendait plusieurs minutes
+derriere un « En cours… » immobile, qui se lit comme une panne. Le menu
+des taches affiche desormais **« en attente — 3ᵉ dans la file »**.
+
+**Le rang traverse les utilisateurs** — c'est la seule requete de
+`front/views_taches.py` qui ne filtre pas par proprietaire, et c'est
+une decision explicite du mainteneur. La file d'ingestion est globale :
+un worker, aucune identite dans les taches. Un rang calcule sur ses
+seules pages afficherait « 1ᵉʳ » pendant que quatre notes d'autrui
+passent devant. Ce qui sort est un ENTIER DE CHARGE : jamais un titre,
+un proprietaire ni un contenu, et le mainteneur a retenu la position
+SEULE, sans le total. Un test verifie qu'aucun titre de tiers ne fuit.
+
+Deux pieges, tenus par des tests :
+
+- **les fantomes sont exclus du rang** (meme regle que le compteur du
+  badge : `DELAI_INGESTION_FANTOME_MIN`, ou date absente). Sans ca, une
+  note abandonnee par un worker mort decalerait le compteur de tout le
+  monde, definitivement ;
+- **la fin d'une ingestion previent ceux qui attendent derriere**
+  (`_prevenir_la_file_d_attente`). Leur position vient de changer sans
+  que rien ne se soit passe chez eux : sans ce fan-out, le chiffre
+  affiche se fige — et un chiffre fige est pire que pas de chiffre. Un
+  message par UTILISATEUR, pas par page.
+
+Le message WebSocket est un type NOUVEAU, `file_ingestion_modifiee`,
+sans charge utile. Deliberement pas un `tache_terminee` : aucune tache
+de ce destinataire ne s'est terminee, et reutiliser l'autre message
+deviendrait un mensonge le jour ou le client affichera « Tache
+terminee » en clair.
+
+Le rang n'est exact que si la file est servie a concurrence 1 : le
+point C depend du point B.
+
+### CE QUE LES RELECTURES ADVERSES ONT CORRIGE
+
+Deux relectures par agent, l'une sur A, l'autre sur B et C. Chaque
+defaut ci-dessous a ete verifie a la main avant correction.
+
+**Le fan-out ne partait qu'a la fin d'une ingestion.** Or le passage a
+`en_cours` fait AUSSI sortir une page de la file : le rang affiche
+etait donc faux pendant TOUTE la duree de chaque conversion (83 a
+164 s), et la page en cours annoncait encore « 1ᵉʳ dans la file »
+pendant sa propre conversion. Il n'existe aucun polling de secours —
+le WebSocket est le seul rafraichissement du menu. Trois autres chemins
+(les gardes « page deja ingeree ») ecrivaient `reussie` et rendaient la
+main sans rien dire. Le fan-out vit desormais dans
+`_noter_l_etat_d_ingestion`, le point de passage unique de l'ecriture
+d'etat : six chemins l'avaient manque chez les appelants, aucun ne peut
+plus y echapper.
+
+**Le fan-out faisait un N+1** — une requete par page en file pour en
+trouver les destinataires, exactement le cout que le calcul du rang
+evite cote vue. Il tient maintenant en deux requetes fixes, quelle que
+soit la longueur de la file.
+
+**Le test de topologie laissait passer la derive qu'il devait
+empecher.** Il ne lisait que `-Q file` et `--concurrency=N` ; la forme
+collee `-Qcelery,ingestion_docling` — parfaitement valide pour Celery —
+etait lue comme « la file par defaut », le programme etait ignore par le
+test des melanges, et la suite restait VERTE avec un worker qui tire les
+deux files. Le lecteur couvre desormais les quatre ecritures de chaque
+option, refuse `--autoscale` (qui ecraserait la concurrence declaree en
+silence) et verifie les reglages d'arret.
+
+**Deux tests ne prouvaient rien.** Celui de l'invariant prefork lisait
+un compteur de cache qu'un convertisseur construit par un autre chemin
+laisse a zero (verifie en injectant la violation) ; il observe
+maintenant `sys.modules` apres avoir rejoue le bootstrap complet de
+Celery. Celui du departage a date egale passait au vert meme sans tri
+sur le `pk`, l'ordre d'insertion PostgreSQL suffisant ; la page qui doit
+sortir premiere est desormais creee en second.
+
+**`?v=37` n'avait pas bouge** alors que `hypostasia.js` change. Nginx
+sert `/static/` en `Cache-Control: public, immutable` pendant 30 jours,
+ce qui interdit meme la revalidation : tout navigateur deja venu aurait
+garde l'ancien script — et sa position figee, precisement le defaut
+corrige. Passe a `v=38`.
+
+Corriges aussi : les logs de dev ouvraient deux journaux tournants
+independants sur un meme fichier (lignes perdues au premier
+basculement) ; `killasgroup` manquait sur les workers de prod (enfants
+prefork orphelins apres un SIGKILL) ; la socket de dev etait celle de la
+prod ; l'en-tete du `docker-compose.yml` documentait encore l'ancien
+lancement et oubliait `celery_worker_docling`.
+
+### CE QUI RESTE OUVERT — DEUX ARBITRAGES
+
+**1. Une note qui attend plus de 15 minutes disparait de sa propre
+file.** `ingestion_maj_le` est pose une fois, a la mise en file, et
+n'est jamais rafraichi pendant l'attente : la regle du fantome
+(`DELAI_INGESTION_FANTOME_MIN = 15`) ne distingue donc pas « worker
+mort » de « sagement en file depuis 16 minutes ». A 83-164 s par
+document, le seuil tombe des ~7 a 11 documents en file. La note sort
+alors du rang (le menu affiche « En cours… », ce qui est faux), le badge
+s'eteint, et elle decale le rang de tous ceux qui sont derriere alors
+que sa tache est toujours dans Redis. Le defaut est ANTERIEUR au
+chantier — la regle du fantome existait — mais l'affichage du rang le
+rend visible et nuisible. Le corriger demande de choisir un second delai
+pour l'attente et de le propager au badge et a la relance : c'est un
+arbitrage, il n'a pas ete tranche.
+
+**2. Une relance reordonne la file affichee.** `relancer_ingestion`
+reecrit `ingestion_maj_le` : une page qui etait devant passe derriere,
+alors que dans Redis sa tache reste devant. Le rang d'un tiers baisse
+sans raison reelle.
+
+**3. La croissance memoire du worker Docling n'est bornee par rien** —
+ni `worker_max_tasks_per_child`, ni `worker_max_memory_per_child`.
+Chaque conversion laisse 40 a 70 Mo qui ne sont jamais rendus a l'OS,
+avant comme apres ce chantier. Un enfant qui enchaine une soixantaine de
+PDF atteindrait ~5 Go sur un hote 8 Go. Le partage du convertisseur rend
+ce plancher permanent au lieu de transitoire, sans l'aggraver (mesure :
+la derive est plus faible qu'avant). Decision a prendre :
+`--max-memory-per-child` sur `celery_worker_docling`.
+
+---
+
+## 2026-08-14 — LA FAMILLE 4 N'AVAIT JAMAIS ETE COMPLETE
+
+**Quoi / What :** le referentiel des 30 hypostases n'en decrivait
+reellement que 28. La famille 4 est corrigee, et cinq tests empechent
+desormais les cinq copies du referentiel de diverger. / The 30-hypostases
+reference actually described only 28; family 4 is fixed and five tests now
+keep the five copies from drifting.
+
+### LE MOTIF, ET CE QUI LE VIOLAIT
+
+La geometrie des debats se deduit : 2 dispositifs de preuve (formel,
+empirique) x 3 modes de raisonnement (induction, abduction, deduction)
+= **6 modes**. Chaque hypostase est un couple *(ce qui ne peut pas la
+refuter, ce qui ne peut pas la prouver)*, les deux etant distincts —
+donc **6 x 5 = 30** cases, une par hypostase.
+
+Lu comme une matrice 6x6, le referentiel doit occuper toutes les cases
+hors diagonale. **Cinq familles sur six le faisaient.** La famille 4
+(« non refutee par deduction formelle ») cumulait trois defauts :
+
+- `principe` et `loi` occupaient **la meme case** (*non prouve par
+  induction empirique*) ;
+- `domaine` occupait une **case diagonale** — *non prouve par deduction
+  formelle*, soit le mode de sa propre famille, le seul interdit ;
+- **deux cases restaient vides**, face a `invariant` et face a
+  `evenement`.
+
+Le referentiel promettait 30 manieres d'etre discutable et en livrait
+28, dont une comptee deux fois.
+
+L'anomalie figurait **a l'identique dans les six sources** du depot
+(`seed_prompts.py`, le banc d'essai de mars 2026, le prompt de
+production et les trois fixtures de demo) : elle ne venait pas d'une
+recopie fautive, elle etait dans la saisie d'origine.
+
+### LA CORRECTION
+
+| Hypostase | Avant | Apres | Fait desormais face a |
+|---|---|---|---|
+| `loi` | induction empirique | *inchangee* | `approximation` |
+| `principe` | induction empirique | **induction formelle** | `invariant` |
+| `domaine` | deduction formelle *(illegal)* | **deduction empirique** | `evenement` |
+
+`loi` ne bouge pas : « non prouve par induction empirique » y decrit le
+probleme de Hume — une correlation ne se prouve pas en generalisant des
+observations. Les 15 paires symetriques de la matrice sont desormais
+completes.
+
+Fichiers touches : `seed_prompts.py`,
+`benchmarks/extraction_format/prompts.py`,
+`front/services/fixtures_analyseurs.py`, et les fixtures
+`demo_ia.json`, `demo_completes.json`, `demo_alignement_versions.json`.
+
+### CE QUI EMPECHE LA DERIVE MAINTENANT
+
+`hypostasis_extractor/tests/test_referentiel_des_hypostases.py` — 11 tests.
+Les 30 hypostases sont ecrites en de nombreux endroits sans qu'aucun
+lien de code ne relie ces copies :
+
+1. `core.models.HypostasisChoices` ;
+2. le referentiel du prompt ;
+3. les 30 exemples few-shot ;
+4. `front.normalisation.HYPOSTASES_CONNUES` — **le filtre**, qui supprime
+   en silence toute hypostase qu'il ne connait pas ;
+5. le `README.md`, ou la matrice est desormais publiee ;
+6. **les fixtures de demo — douze copies**, reparties entre des
+   `promptpiece.content` et des `extractionjob.prompt_description`.
+
+Le point 6 est le moins evident et le plus piegeux. `demo_ia.json` ne
+porte pas que des donnees d'illustration : il contient un analyseur
+« Hypostasia » COMPLET, prompt inclus. Or
+`creer_les_modeles_ia_et_les_analyseurs()` fait un `get_or_create` sur le
+NOM et ne garnit le prompt que si l'analyseur n'a aucune piece — donc sur
+une base ou la fixture a ete chargee en premier, **c'est le prompt de la
+fixture qui gagne**, et le referentiel du code n'y arrivera jamais. Une
+fixture laissee en arriere est un referentiel fantome : invisible dans
+les fichiers Python, et pourtant celui qu'un modele recevra.
+
+Restent hors filet : `seed_prompts.py` et
+`benchmarks/extraction_format/prompts.py`, corriges eux aussi mais
+surveilles par aucun test — ni l'un ni l'autre n'est charge par
+l'installation.
+
+Jusqu'ici, seul le *compte* de la copie n°4 etait teste
+(`test_phase29_normalize`) : compter 30 de chaque cote ne dit pas que ce
+sont les memes 30. Un renommage passait sans bruit.
+
+`hypostasis_extractor/tests/test_justesse_semantique_llm.py` — 2 tests
+sous le tag `llm_reel`, qui mesurent sur un vrai appel si le modele
+range les passages dans la bonne famille epistemique (10/10 au
+14 aout, seuil a 60 %). C'est le seul test qui puisse attraper une
+regression du prompt : toute la mecanique reste verte meme quand les
+etiquettes deviennent fausses.
+
+### A FAIRE SUR LES BASES EXISTANTES
+
+`creer_les_modeles_ia_et_les_analyseurs()` ne reecrit **jamais** un
+analyseur deja garni — c'est voulu, un prompt retouche a la main
+appartient a son auteur. La consequence : **une base existante garde
+l'ancien prompt**, famille 4 cassee comprise. La correction du code ne
+se propage pas toute seule. Voir `README.md` §
+« Les 30 hypostases » pour le referentiel a jour.
+
+### AUSSI
+
+- `benchmarks/extraction_format/test_format_extraction.py` renomme en
+  `lancer_comparaison_formats.py` : il n'a jamais contenu de `TestCase`
+  et laissait croire a une couverture inexistante.
+- `README.md` : la matrice complete et les 6 familles sont publiees. La
+  mention « 8 familles » y designait les familles **de couleurs**
+  (affichage des cartes), sans rapport avec les 6 familles
+  epistemiques — l'ambiguite est levee.
+
+---
+
 ## 2026-08-13 — R6 : LE LECTEUR AUDIO EXISTE
 ## (ecart n°2 de l'etalon, le dernier ouvert)
 
@@ -111,11 +485,76 @@ parait au survol du bloc ou pendant sa lecture.
     regle, on tabule sur un bouton invisible : le focus est quelque
     part, et rien a l'ecran ne le dit.
 
-**Tests :** 29 nouveaux — `test_lecteur_audio` (5),
+### TROISIEME PASSE — LE DEPLACEMENT NE MARCHAIT PAS (14 aout)
+
+**Le mainteneur :** « si je clique sur un play dans le texte, l'audio se
+lance depuis le debut ».
+
+**LA CAUSE ETAIT SERVEUR.** En dev, `/media/` tombait dans le
+`location /` de `nginx/dev.conf`, donc sur `django.views.static.serve`,
+qui NE GERE PAS les requetes `Range` — verifie sur Django 6.0.2 :
+`FileResponse` n'en contient aucune trace. Elle repond `200 OK` avec le
+fichier ENTIER la ou le navigateur demande un morceau. Or un navigateur
+IGNORE SILENCIEUSEMENT un `currentTime` qu'il ne peut pas atteindre : ni
+erreur, ni exception, la valeur retombe. Le clic demandait 1,9s,
+n'obtenait rien, et la lecture partait de zero.
+
+**CE QU'IL NE FALLAIT PAS FAIRE, ET QUI A ETE FAIT D'ABORD.** Contourner
+cote client : rejouer le positionnement a chaque `canplay`, forcer
+`preload="auto"` + `load()`. Le mainteneur a entendu « un gresillement
+dans l'oreille a la place de l'audio » — `load()` vide le tampon sous
+une lecture en cours, et le repositionnement rejoue faisait sauter le
+decodeur plusieurs fois par seconde. **Un bricolage cote client ne
+repare pas un serveur qui ne sait pas envoyer un morceau de fichier : il
+ajoute un defaut au premier.**
+
+**LA CORRECTION** tient en un `location /media/` dans `nginx/dev.conf` :
+nginx repond `206 Partial Content` nativement, comme il le fait deja en
+prod. Mesure sur le vrai serveur : clic sur le 4e tour -> lecture a
+4,33s apres 1,2s depuis 3,2s, **sans une ligne de JavaScript**. Dev et
+prod servent desormais les medias de la meme facon — un defaut de ce
+genre ne peut plus se voir d'un seul cote.
+
+### UN BOUTON « ECOUTER » SUR LES CARTES D'EXTRACTION
+
+Demande du mainteneur, a droite de « Commenter ». Une carte affirme
+quelque chose et cite un passage ; sur un audio, cette citation est une
+TRANSCRIPTION, donc deja une interpretation. Le bouton permet de
+verifier la source plutot que de croire la carte sur parole.
+
+L'INSTANT N'EST PAS RECOPIE dans la carte : le bouton ne porte que
+l'identifiant de l'idee, et le JS retrouve sa marque dans le texte pour
+lire le minutage du bloc qui la contient. Une donnee ecrite a un seul
+endroit ne peut pas diverger de sa copie — et une idee peut avoir
+PLUSIEURS ancres, dont le serveur ne saurait pas laquelle choisir.
+
+Pas de bouton sur une ancre detachee : elle a perdu son passage, et le
+panneau le dit deja. C'est le SERVEUR qui tranche (`entity.est_detachee`)
+— une premiere version laissait le JS retirer ces boutons, ce qui les
+faisait disparaitre sous le doigt au gre des swaps HTMX.
+
+### UN SURLIGNAGE ORPHELIN, REVELE PAR CE BOUTON
+
+Cliquer « Écouter » sur une carte declenche un swap HTMX, et
+`brancherLeLecteur` oubliait le tour courant SANS effacer sa marque : le
+surlignage restait colle au bloc precedent pendant que la lecture etait
+ailleurs, et le tour suivant en recevait un second. Mesure : lecture a
+4,63s, bloc surligne a 0,0s. Deux tours surlignes a la fois ne designent
+plus rien.
+
+**Tests :** 37 nouveaux — `test_lecteur_audio` (5),
 `test_barre_du_lecteur_audio` (7), `test_couleurs_des_locuteurs` (4),
-`test_gouttiere_audio` (5), `test_32_lecteur_audio` e2e (8).
-Suite complete : **1882 tests, verts** — et 1882 methodes `def test_`
-dans les fichiers, donc une collecte exactement complete.
+`test_gouttiere_audio` (5), `test_service_des_medias` (2),
+`test_32_lecteur_audio` e2e (9), plus les gardes ajoutees aux tests
+existants. Suite complete : **1894 tests, verts**.
+
+NOTE SUR `test_service_des_medias` : il lit la CONFIGURATION nginx,
+faute de pouvoir lire le comportement. Aucun test e2e ne le peut :
+`StaticLiveServerTestCase` est un serveur Django, nginx n'est pas dans
+sa boucle. C'est aussi pourquoi les e2e gardent
+`attendre_que_le_deplacement_soit_possible()` — un helper qui compense
+l'ecart entre le serveur de test et le serveur reel, et qui ne prouve
+rien du lecteur.
 
 ---
 
