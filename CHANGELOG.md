@@ -5,6 +5,327 @@
 
 ---
 
+## 2026-08-13 — R6 : LE LECTEUR AUDIO EXISTE
+## (ecart n°2 de l'etalon, le dernier ouvert)
+
+**Quoi / What :** une barre de lecture en bas de l'ecran, avec un rail
+d'un segment par tour de parole. / A playback bar with one rail segment
+per speech turn.
+
+### CE QUI EXISTAIT, ET N'ETAIT PAS UN LECTEUR
+
+Mesure du 12 aout sur la note 8 : **0 balise `<audio>`, aucune tete de
+lecture, aucun rail**. Le produit portait depuis PHASE-15 une « barre de
+progression de lecture » dont le nom trompait : elle suit le
+DEFILEMENT du texte, pas le son. On pouvait la voir avancer sans
+qu'aucun son ne sorte.
+
+### CE QUI A ETE BATI
+
+- `front/templates/front/includes/_lecteur_audio.html` — la barre, 62px,
+  `fixed` en bas. Rendue si la note est un audio **et** qu'un media est
+  attache : une transcription sans son (la note 7, dont le
+  `source_file` est un `.json`) garderait sinon un bouton qui ne joue
+  rien.
+- `front/static/front/js/lecteur_audio.js` — mise a l'echelle du rail
+  sur `loadedmetadata`, tete de lecture, minutage, tour courant marque
+  dans la marge. Le texte suit l'oreille **pendant la lecture
+  seulement**, et au changement de tour seulement.
+- `rendu_elements.py` expose `debut`/`fin` BRUTS a cote du minutage
+  formate : le rail calcule avec, la gouttiere affiche l'autre. Reparser
+  « 00:00 » aurait perdu les decimales — les tours de la note 8 durent
+  0,4 seconde.
+- Le minutage de la gouttiere devient un `<button>` qui ecoute a partir
+  de la. Il DISAIT deja l'instant ; il ne manquait qu'a l'atteindre.
+
+### UN LOCUTEUR AVAIT DEUX COULEURS SUR LE MEME ECRAN
+
+Le rail a rendu visible un desaccord qui existait deja : les pilules de
+filtre et la timeline prenaient la palette TAILWIND
+(`transcription_audio.py:23`) quand la gouttiere prend celle de WONG
+(`rendu_elements.py:585`). `speaker_1` etait donc **bleu en haut et
+orange en bas**, a 700 pixels d'ecart. Suivre un debat, c'est suivre qui
+parle : deux codes couleur contradictoires coutent plus cher qu'aucun
+code. Les widgets prennent desormais Wong.
+
+### DEUX ECARTS ASSUMES AVEC L'ETALON
+
+1. **Segments en absolu, non empiles en `flex`.** L'empilement suppose
+   que les tours se touchent. Ils ne se touchent pas : le premier finit
+   a 0,5s, le second commence a 0,7s. En flex, chaque segment derive de
+   la somme des silences qui le precedent, et la tete de lecture ne
+   tombe plus sur le tour qu'on entend.
+2. **Filet `--filet`, non `2px solid var(--cible)`.** Le violet marque
+   dans l'etalon ce qui n'existe PAS ENCORE.
+
+### LA BARRE VIT HORS DE `#zone-lecture`
+
+`lectureReload` remplace tout l'`innerHTML` de cette zone apres chaque
+operation d'element : un lecteur qui vivrait dedans serait detruit et
+recree a chaque extraction, et l'audio repartirait a zero au milieu de
+l'ecoute. Elle suit donc le chemin OOB du fil d'Ariane, redeposee par
+TOUS les ecrans — un ecran sans audio rend un conteneur vide, sans quoi
+la barre survivrait a la note qu'elle joue.
+
+### A SAVOIR : LE DEPLACEMENT EXIGE NGINX
+
+`/media/` est servi par `django.views.static` en dev
+(`hypostasia/urls.py:32`), qui **ne gere pas les requetes `Range`** : sur
+un enregistrement long, se deplacer ne marchera pas en dev. En prod,
+nginx le sert (`nginx/default.conf:25`) et gere `Range` nativement.
+
+### RESTE OUVERT — DECISION DU MAINTENEUR
+
+**Deux rails a l'ecran** : celui du lecteur, et la timeline
+click-to-scroll de PHASE-15 que l'etalon decrivait comme « l'existant »
+a remplacer. Le rail fait plus ; la timeline garde le defilement au
+clic, sans equivalent. Non tranche.
+
+### DEUXIEME PASSE — LE SURLIGNAGE ET LE BOUTON DE GOUTTIERE
+
+Deux remarques du mainteneur, le meme jour, sur deux points ou la
+premiere version s'ecartait de l'etalon sans raison.
+
+**1. Le tour ecoute se surligne EN ENTIER** (etalon l. 559) :
+`background: color-mix(in srgb, var(--statut-commente) 7%, transparent)`
+sur tout le bloc. La premiere version posait un lisere dans la
+gouttiere, par crainte qu'un fond n'abaisse le contraste du texte.
+Mesure au navigateur, note 8 : **clair 16,79:1 -> 14,37:1** (perte de
+2,42 points), **sombre 15,10:1 -> 15,30:1** (gain de 0,20). La perte est
+reelle en clair, et plus grande que ce que le commentaire annoncait
+d'abord — mais 14,37:1 reste trois fois le seuil AA. La crainte etait
+fondee sur le principe, sans consequence sur ce texte-la.
+
+**2. Un BOUTON D'ECOUTE dans la gouttiere** (etalon l. 1725-1727), a
+cote du minutage et non a sa place. La premiere version faisait du
+minutage LUI-MEME un bouton : le minutage est un REPERE qu'on lit pour
+situer et pour citer, et un repere qui se souligne au survol invite a
+un clic qu'on ne cherchait pas ; l'action, elle, n'etait ecrite nulle
+part. Deux objets distincts, donc. Le bouton s'efface (`opacity: 0`) et
+parait au survol du bloc ou pendant sa lecture.
+
+  · ECART ASSUME : couleur `--encre-douce`, non le violet `--cible` de
+    l'etalon, qui marque ce qui n'existe pas encore.
+  · AJOUT : `:focus-visible` revele le bouton. L'etalon ne le montre
+    qu'au SURVOL — un geste que le clavier ne fait pas. Sans cette
+    regle, on tabule sur un bouton invisible : le focus est quelque
+    part, et rien a l'ecran ne le dit.
+
+**Tests :** 29 nouveaux — `test_lecteur_audio` (5),
+`test_barre_du_lecteur_audio` (7), `test_couleurs_des_locuteurs` (4),
+`test_gouttiere_audio` (5), `test_32_lecteur_audio` e2e (8).
+Suite complete : **1882 tests, verts** — et 1882 methodes `def test_`
+dans les fichiers, donc une collecte exactement complete.
+
+---
+
+## 2026-08-12 — R5 : LE PANNEAU CESSE DE RECOUVRIR LA BARRE
+## (fixture d'extractions sans LLM, geometrie de l'etalon, toast sombre)
+
+**Quoi / What :** trois defauts mesures au navigateur, corriges et
+verrouilles par des tests qui MESURENT plutot qu'ils ne lisent le DOM —
+c'etait la geometrie qui etait fausse, pas la structure. / Three
+browser-measured defects, locked by tests that measure geometry.
+
+Spec : `docs/superpowers/specs/2026-08-12-ossature-lecteur-etalon-design.md`
+
+### D'ABORD, DE QUOI STYLER : `charger_extractions_demo`
+
+La base portait six notes, 670 elements et **zero extraction**. Le
+panneau affichait « 0 extractions » : il n'y avait rien a mettre au
+point. Lancer une vraie analyse coute un appel facture, ne se rejoue
+pas, et ne garantit aucun des cas limites que la maquette dessine.
+
+`front/management/commands/charger_extractions_demo.py` pose 12 idees a
+la main, **sans aucun appel LLM** — 13 ancrages, 5 commentaires, sur
+trois notes etalons. Elle couvre expres : les 8 familles d'hypostases,
+les deux statuts, deux idees **superposees** sur un meme element
+(marques imbriquees), une idee qui **enjambe** deux elements, une ancre
+sur un `table`, des ancres sur tours de parole audio, et des cartes a
+0, 1 et 2 commentaires.
+
+Les positions ne sont jamais ecrites en dur : chaque portion declare un
+fragment litteral, la commande le cherche dans le texte de l'element et
+en deduit les bornes. Fragment introuvable → elle **leve**. Une ancre
+fausse produit un surlignage decale que rien ne signale ; mieux vaut un
+echec bruyant.
+
+Verifie a l'ecran : le moteur d'ancrage produit bien 7 `<mark>` sur le
+paragraphe de la note 9, dont trois issues du decoupage d'une
+superposition (`data-superposition="1"` et `"2"`).
+
+### LE PANNEAU RECOUVRAIT LA BARRE D'OUTILS
+
+Mesure du 12 aout, fenetre de 1600px : le panneau partait de `y=0` avec
+un `z-index` de 70 ; la barre d'outils vit a `y=0` avec un `z-index` de
+30. Le panneau la **recouvrait sur ses 576 derniers pixels** — la barre
+s'arretait visuellement a `x=968`, « Dashboard », « Analyses » et
+l'avatar disparaissaient dessous.
+
+L'entree R4 de la veille annoncait un « panneau integre » : il l'etait
+en largeur rendue au texte, pas en empilement. Un panneau qui mange la
+barre d'outils n'est pas integre, il flotte plus discretement.
+
+Trois declarations, sous le seuil de 1400px de l'etalon : `top:
+var(--barre-outils)`, `width: var(--panneau)` — 23rem, soit 368px au
+lieu de 576 — et `z-index: 67`.
+
+**Ce qui protege la barre, c'est le `top`, pas le z-index.** Une
+premiere version descendait aussi le panneau a `z-index: 20`, « sous la
+barre » : elle l'a fait passer sous le FIL D'ARIANE, `sticky` a z-index
+66 et large de toute la zone de lecture. `elementFromPoint` dans le
+panneau rendait `#fil-ariane`, dont la bande masquait le haut des
+cartes. Regression trouvee au navigateur le jour meme, verrouillee par
+un test qui interroge `elementFromPoint`. La barre occupe y=0..48 et le
+panneau commence a 48 : ils ne se recouvrent plus, leur ordre
+d'empilement n'a plus a arbitrer entre eux.
+
+**Deux tokens manquaient sur `:root`.** `--panneau` et `--barre-outils`
+n'existaient nulle part : la largeur du panneau etait ecrite DEUX fois —
+`min(36rem, 100vw)` dans le style inline du gabarit, et la meme
+expression recopiee dans la compensation de la zone de lecture. Les deux
+copies etaient d'accord (576px, et 576 + 2rem de respiration) ; c'est la
+DUPLICATION qui posait probleme, pas une divergence — toute correction
+de l'une devait etre reportee a la main sur l'autre. Elles derivent
+desormais du meme token.
+
+### UN TABLEAU FAISAIT DEFILER TOUTE LA PAGE
+
+Les tableaux sortent du service en `<pre>` (ecart n°6 de l'etalon, non
+comble). Celui du PDF etalon mesurait **3 162px** et poussait la zone de
+lecture a 3 419px pour 1 586 de large : une barre de defilement
+horizontale sous un texte de lecture.
+
+`overflow-x: auto` **et** `min-width: 0` sur la piste de corps. La
+seconde n'est pas decorative : dans une grille, un `1fr` a un
+`min-width: auto` implicite qui le laisse grandir a la taille de son
+contenu — sans elle, la boite aurait grandi avec le `<pre>` et le
+defilement interne n'aurait jamais eu lieu.
+
+### LE TOAST NE SE DETACHAIT PAS, EN SOMBRE
+
+    texte du toast   rgb(236, 234, 228)
+    fond du toast    rgb(22, 21, 26)
+    fond de la page  rgb(22, 21, 26)   <- le MEME
+    bordure          0px none
+    ombre            noire a 18 %, invisible sur du noir
+
+Le contraste du TEXTE etait excellent — 14,8:1 — et c'est ce qui a
+trompe : aucune mesure d'accessibilite ne signalait quoi que ce soit.
+Mais un rectangle sans contour, pose sur un fond identique au sien,
+n'est pas percu comme un objet. On lisait son message superpose au
+panneau sans voir que c'en etait un.
+
+Fond `--papier-creux`, contour `--filet-controle`, ombre plus dense.
+Contours mesures : **4,13:1 en sombre, 3,28:1 en clair** (WCAG 1.4.11
+demande 3:1 quand le contour est le seul indice de la limite).
+
+### L'EN-TETE DE LA MAQUETTE ETAIT PERIME
+
+Quatre des sept ecarts annonces dans `maquette.html` ne tenaient plus.
+Le tableau est reecrit avec l'etat verifie au navigateur, et porte
+desormais la consigne de le remettre a jour a chaque correction — une
+carte fausse a deja fait repartir une session sur de mauvaises bases.
+
+Restent vrais : le lecteur audio (0 balise `<audio>`, verifie sur la
+note 8), les tableaux en `<pre>`, et la progression WebSocket — celle-la
+non par retard mais par **decision contraire** : `front/consumers.py:3`
+dit « Refonte A.6 : un seul consumer minimal, pas de progression
+streaming ».
+
+### LES TESTS E2E N'ETAIENT PAS CASSES, IL LEUR MANQUAIT UNE VARIABLE
+
+La passation annoncait 21 tests e2e en echec permanent. Ils echouaient
+en `setUpClass` faute de `PLAYWRIGHT_BROWSERS_PATH` dans
+l'environnement du conteneur — les navigateurs, eux, sont bien
+installes. Avec la variable, la suite passe. A poser dans
+`docker-compose.yml`.
+
+```bash
+docker exec -w /app -e PLAYWRIGHT_BROWSERS_PATH=/home/hypostasia/.cache/ms-playwright \
+  hypostasia_web uv run python manage.py test front.tests.e2e
+```
+
+### ET DEUX MODULES E2E NE TOURNAIENT JAMAIS
+
+`front/tests/e2e/__init__.py` importe ses modules UN PAR UN. Un fichier
+absent de cette liste n'est jamais collecte par `manage.py test
+front.tests.e2e`, et **rien ne le signale** : la suite annonce
+fierement « OK » sur les modules qu'elle connait.
+
+`test_14_visibilite` et `test_17_filtre_contributeur` en manquaient :
+**15 tests ecrits, jamais executes**. Verifies avant de les ajouter —
+les 15 passent. Les deux nouveaux modules de cette session y sont
+egalement inscrits ; sans cela, ils auraient rejoint les orphelins.
+
+Le symptome qui a mis sur la piste : la suite annoncait « Ran 104 »
+avant ET apres l'ajout de huit tests.
+
+**Suite e2e apres cette session : 129 tests, OK** (104 d'origine + 15
+rendus a la collecte + 10 nouveaux), plus les 22 tests unitaires de
+`charger_extractions_demo`.
+
+### LA RELECTURE ADVERSE A RATTRAPE UN CRITIQUE
+
+`text_readability` est **VIDE** sur les pages ingerees par le moteur
+element — longueur 0 sur les notes « Etude epistemologique » et
+« Badgeons la Normandie ». La commande y cherchait la position de
+l'extraction et retombait sur 0 en cas d'echec : NEUF extractions sur
+douze portaient `start_char = 0`. Le tri « Position » du panneau mentait
+et tout clic sur une carte renvoyait en tete de document.
+
+Le silence etait exactement ce que la docstring de la commande pretend
+interdire deux paragraphes plus haut. Les positions sont desormais
+RECONSTRUITES depuis les elements — douze valeurs distinctes, verifiees.
+Et le test qui aurait du le voir construisait un `text_readability`
+complaisant : le decor de test etait plus favorable que la production.
+
+Trois autres defauts de la meme relecture :
+
+- les commentaires de demonstration etaient poses sous le COMPTE REEL du
+  mainteneur (`get_or_create(username="jonas")` a trouve le sien). Ils
+  passent sous `demo_*`, inactifs et sans mot de passe utilisable ;
+- un fragment ambigu — present deux fois dans le meme element —
+  s'ancrait sur la premiere occurrence, au hasard de l'ecriture. La
+  commande LEVE desormais ;
+- deux defauts d'affichage mesures en plus : un mot insecable long
+  faisait defiler la page comme le tableau (`overflow-wrap: anywhere`),
+  et le panneau tronquait de 240px le menu deroulant « Dashboard »
+  (defaut preexistant : le panneau etait deja au-dessus).
+
+### DEUX CHIFFRES QUI ETAIENT RACONTES, PAS MESURES
+
+Corriges partout ou ils avaient ete recopies :
+
+- **la « divergence 576 / 608 »** n'a jamais existe. 608 = 576 + 2rem,
+  ecrit dans la meme expression : les deux valeurs derivaient deja du
+  meme `min(36rem, 100vw)`. C'etait une DUPLICATION, pas une derive ;
+- **le fond « franchement distinct » du toast** ne fait que 1,09:1 en
+  sombre. Il ecarte la coincidence exacte des deux couleurs, rien de
+  plus. C'est le CONTOUR qui detache le toast.
+
+Et toutes les references `maquette.html:NNN` de cette session etaient
+fausses de +38 lignes, decalees par la reecriture de l'en-tete — dans le
+fichier meme qui prescrit de tenir ces reperes a jour. Elles designent
+desormais des sections, pas des numeros de ligne.
+
+### CE QUI RESTE OUVERT
+
+**La colonne de lecture n'est pas centree comme l'etalon.** Le bloc fait
+bien 742px — la largeur de l'etalon — mais son centre tombe 42px a
+gauche du centre de l'espace disponible, contre 13px dans la maquette.
+L'etalon decale son EN-TETE vers la droite (`padding-left: calc(var(--gouttiere)
++ 1.5rem)`) ; le produit tire son CORPS vers la gauche par des marges
+negatives. Les deux alignent titre et texte, un seul centre l'ensemble.
+Non corrige : le CSS concerne est explicitement argumente par la session
+du 9 aout, l'arbitrage revient au mainteneur.
+
+**Le panneau reste `fixed`** la ou l'etalon le veut `sticky` dans une
+grille. Ecart de moyen, pas de rendu : la geometrie mesuree est celle de
+l'etalon.
+
+---
+
 ## 2026-08-11 — R4 : LE FRONT RESSEMBLE A LA MAQUETTE
 ## (gouttiere par media, audio branche, panneau integre, surlignage revele)
 

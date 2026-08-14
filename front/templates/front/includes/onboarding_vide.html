@@ -4,22 +4,61 @@
 {# / Contains: Discover/Manifesto tabs + 4-step process + 6 statuses + keyboard shortcuts #}
 {# LOCALISATION : front/templates/front/includes/onboarding_vide.html #}
 
-{# === Barre d'onglets accueil — Decouvrir / Manifeste (refonte A.1) === #}
-{# / === Home tabs bar — Discover / Manifesto (refactor A.1) === #}
+{# === Barre d'onglets accueil — Decouvrir / Bases / Manifeste === #}
+{#                                                                     #}
+{# TROIS ONGLETS DEPUIS LE 12 AOUT. Le troisieme, « Bases de           #}
+{# connaissances », remplace le tiroir lateral retire le meme jour :   #}
+{# la navigation dans le corpus remonte a la surface, sur l'ecran      #}
+{# d'accueil, au lieu de se cacher derriere un hamburger.              #}
+{#                                                                     #}
+{# Les bascules ne peuvent plus s'ecrire en `nextElementSibling` : a   #}
+{# deux boutons voisins cela tenait, a trois cela devient faux. On     #}
+{# nomme donc les zones et les onglets, et une seule fonction fait la  #}
+{# bascule. / Three tabs now; sibling-based toggling breaks beyond     #}
+{# two, so zones and tabs are named instead. #}
 <div class="flex gap-3 justify-center pt-6 pb-4 border-b border-slate-200 mb-2" data-testid="onglets-accueil">
     <button class="onglet-accueil active"
             data-testid="onglet-decouvrir"
-            aria-label="D&eacute;couvrir l'application"
-            onclick="document.getElementById('zone-onboarding').classList.remove('hidden'); document.getElementById('zone-manifeste').classList.add('hidden'); this.classList.add('active'); this.nextElementSibling.classList.remove('active');">
+            data-zone-accueil="zone-onboarding"
+            aria-label="D&eacute;couvrir l'application">
         D&eacute;couvrir l'app
     </button>
     <button class="onglet-accueil"
+            data-testid="onglet-bases"
+            data-zone-accueil="zone-bases-accueil"
+            aria-label="Voir les bases de connaissances">
+        Bases de connaissances
+    </button>
+    <button class="onglet-accueil"
             data-testid="onglet-manifeste"
-            aria-label="Lire le manifeste Hypostasia"
-            onclick="document.getElementById('zone-onboarding').classList.add('hidden'); document.getElementById('zone-manifeste').classList.remove('hidden'); this.classList.add('active'); this.previousElementSibling.classList.remove('active');">
+            data-zone-accueil="zone-manifeste"
+            aria-label="Lire le manifeste Hypostasia">
         Manifeste
     </button>
 </div>
+
+<script>
+// La bascule des onglets d'accueil. Elle vit ici et non dans un fichier
+// separe : ce gabarit est injecte par HTMX, et un script charge une fois
+// au demarrage n'aurait pas de boutons a accrocher au moment ou il
+// s'execute. La delegation sur le conteneur survit aux reinjections.
+// / Inline because this template is HTMX-injected: a script loaded once
+// at boot would have no buttons to bind. Delegation survives re-injection.
+(function () {
+    var barre = document.querySelector('[data-testid="onglets-accueil"]');
+    if (!barre) return;
+    barre.addEventListener('click', function (evenement) {
+        var onglet = evenement.target.closest('[data-zone-accueil]');
+        if (!onglet) return;
+        barre.querySelectorAll('[data-zone-accueil]').forEach(function (autre) {
+            var zone = document.getElementById(autre.dataset.zoneAccueil);
+            var estChoisi = autre === onglet;
+            autre.classList.toggle('active', estChoisi);
+            if (zone) zone.classList.toggle('hidden', !estChoisi);
+        });
+    });
+})();
+</script>
 
 <div id="zone-onboarding">
 <div class="onboarding-contenu" data-testid="onboarding-guide">
@@ -318,6 +357,54 @@
 }
 </style>
 </div>{# fin zone-onboarding #}
+
+{# === Zone « Bases de connaissances » — les deux moities du corpus === #}
+{#                                                                       #}
+{# DEUX ZONES, ET NON UNE LISTE TRIEE (demande du mainteneur, 12 aout).  #}
+{# Elles ne se lisent pas de la meme facon : ce que j'ai cree, j'y       #}
+{# REVIENS — c'est un espace de travail ; ce que d'autres publient, je   #}
+{# l'EXPLORE — c'est un catalogue. Une liste unique melangerait les deux #}
+{# intentions et obligerait a lire chaque ligne pour savoir ou l'on est. #}
+{#                                                                       #}
+{# Une base a moi ET publique reste du cote « les miennes » : la montrer #}
+{# deux fois ferait douter du sens des zones (voir                       #}
+{# `BibliothequeViewSet._les_deux_zones_de_bases`).                      #}
+{# / Two zones, not one sorted list: mine is a workspace, theirs is a    #}
+{# catalogue. Ownership wins over publication. #}
+<div id="zone-bases-accueil" class="hidden zone-corpus" data-testid="zone-bases-accueil">
+
+    {% if mes_bases %}
+    <section class="section-bases-accueil" data-testid="zone-mes-bases">
+        <h2 class="titre-section-bases">Mes bases</h2>
+        <p class="sous-titre-section-bases">
+            Celles que vous avez cr&eacute;&eacute;es.
+        </p>
+        <ul class="grille-bases">
+            {% for base in mes_bases %}
+                {% include "front/corpus/partials/carte_de_base.html" %}
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    <section class="section-bases-accueil" data-testid="zone-bases-partagees">
+        <h2 class="titre-section-bases">Bases publiques et partag&eacute;es</h2>
+        <p class="sous-titre-section-bases">
+            Celles que d&rsquo;autres ont ouvertes.
+        </p>
+        {% if bases_des_autres %}
+        <ul class="grille-bases">
+            {% for base in bases_des_autres %}
+                {% include "front/corpus/partials/carte_de_base.html" %}
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="etat-vide-bases">
+            Aucune base publique pour l&rsquo;instant.
+        </p>
+        {% endif %}
+    </section>
+</div>
 
 {# === Zone Manifeste — affichee quand l'utilisateur clique sur l'onglet Manifeste === #}
 {# / === Manifesto zone — displayed when the user clicks the Manifesto tab === #}

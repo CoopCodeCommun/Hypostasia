@@ -89,7 +89,12 @@
                     data-contributeur-id="{{ contrib.user__pk }}"
                     data-testid="pilule-contributeur-{{ contrib.user__pk }}"
                     style="--pilule-hue: {{ contrib.couleur_hsl }}">
-                {{ contrib.user__username|title }}
+                {# Le PRENOM d'abord, comme sur la carte (_card_body.html). #}
+                {# La requete le charge deja (`user__first_name`) mais la #}
+                {# pilule n'affichait que l'identifiant de connexion : on #}
+                {# lisait « Demo_Sonia » a cote d'un commentaire signe #}
+                {# « Sonia ». / First name first, as on the card. #}
+                {{ contrib.user__first_name|default:contrib.user__username|title }}
                 <span class="text-[10px] opacity-60">
                     {% if contrib.user__pk in contributeurs_actifs %}
                         ({{ contrib.nombre_entites }})
@@ -132,11 +137,21 @@
     {# Garde la classe historique drawer-carte-compacte pour matcher les handlers JS #}
     {# (drawer_vue_liste.js : clic carte -> scroll vers le passage dans le texte) #}
     {# / Keeps historic drawer-carte-compacte class to match JS handlers #}
+    {# Le statut passe en data-attribut, comme dans l'etalon             #}
+    {# (`.carte[data-statut="commente"]`). Il etait pose en STYLE INLINE #}
+    {# — `border-left: 3px solid var(--statut-…-accent)` — et le bord    #}
+    {# gauche sortait quand meme au gris du filet : le remappage         #}
+    {# Tailwind `.border-slate-100 { border-color: var(--filet)          #}
+    {# !important }` (maquette.css) ecrase les QUATRE cotes, inline      #}
+    {# compris. Le statut vit donc dans le data-attribut, et la couleur  #}
+    {# dans la feuille de style, en un seul endroit.                     #}
+    {# / Status moves to a data attribute: the inline left border was    #}
+    {# overridden by the Tailwind border-color remap on all four sides.  #}
     <div class="drawer-carte-compacte mb-2 rounded-lg border border-slate-100 overflow-hidden cursor-pointer hover:border-slate-200 transition-colors group"
          data-extraction-id="{{ entity.pk }}"
          data-page-id="{{ page.pk }}"
-         data-testid="drawer-carte"
-         style="border-left: 3px solid var(--statut-{{ entity.statut_debat }}-accent);">
+         data-statut="{{ entity.statut_debat }}"
+         data-testid="drawer-carte">
         <div class="px-3 py-2">
             {% if entity.est_detachee %}
             {# Cette idee n'est montree NULLE PART dans le texte : ses      #}
@@ -232,6 +247,37 @@
     </div>
     {% endif %}
     </div>{# fin #drawer-cartes-liste #}
+
+    {# PIED DU PANNEAU : l'etat du debat, puis la synthese qui en sort.  #}
+    {# Les deux vivaient dans le dashboard de la barre d'outils, retire  #}
+    {# le 12 aout. Le bouton de synthese y avait son SEUL point d'entree #}
+    {# — le retirer tel quel aurait supprime l'acces a la synthese.      #}
+    {# Leur place est ici : on lit les idees, on voit ou en est le       #}
+    {# debat, on lance la synthese. Dans cet ordre, et dans la note.     #}
+    {# / Debate state and synthesis, moved from the removed dashboard.   #}
+    {% if consensus.total %}
+    <div class="pied-de-panneau" data-testid="pied-de-panneau">
+        <p class="etat-du-debat" data-testid="etat-du-debat">
+            <strong>{{ consensus.commentees }}</strong> sur
+            <strong>{{ consensus.total }}</strong>
+            idée{{ consensus.total|pluralize:"s" }}
+            commentée{{ consensus.commentees|pluralize:"s" }}
+            <span class="part-du-debat">({{ consensus.pourcentage }} %)</span>
+        </p>
+        <div class="jauge-du-debat"
+             role="img"
+             aria-label="{{ consensus.pourcentage }} % du débat est engagé">
+            <div class="jauge-remplie" style="width: {{ consensus.pourcentage }}%;"></div>
+        </div>
+        <button class="btn-synthese"
+                data-testid="btn-lancer-synthese"
+                hx-get="/lire/{{ page.pk }}/previsualiser_synthese/"
+                hx-target="#drawer-contenu"
+                hx-swap="innerHTML">
+            Lancer la synth&egrave;se
+        </button>
+    </div>
+    {% endif %}
 </div>
 
 {# OOB : restaurer le titre "Analyses" dans le header du drawer #}

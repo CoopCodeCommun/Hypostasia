@@ -538,77 +538,78 @@ class SynthetiserTaskTest(TestCase):
 
 
 # =============================================================================
-# Tests template dashboard bouton
-# / Dashboard button template tests
+# Tests du pied de panneau : etat du debat et bouton de synthese
+# / Panel footer tests: debate state and synthesis button
 # =============================================================================
 
 
-class DashboardBoutonTest(TestCase):
-    """Tests pour le bouton synthese dans le dashboard consensus.
-    / Tests for the synthesis button in the consensus dashboard."""
+class PiedDePanneauSyntheseTest(TestCase):
+    """
+    Le bouton de synthese et l'etat du debat, dans le PANNEAU.
+    / The synthesis button and debate state, in the PANEL.
+
+    LOCALISATION : front/tests/test_phase28_light.py
+
+    Ces tests visaient `/extractions/dashboard/`, l'endpoint du dashboard
+    de la barre d'outils, retire le 12 aout a la demande du mainteneur.
+    L'intention qu'ils portaient reste valide — le bouton de synthese doit
+    exister quelque part, et l'etat du debat avec lui. Ils sont donc
+    REDIRIGES vers le panneau, ou les deux ont demenage, plutot que
+    supprimes avec l'endpoint : c'est la couverture qu'on garde, pas la
+    route. / Redirected to the panel, where both moved.
+    """
 
     def setUp(self):
         self.fixtures = creer_fixtures_synthese()
         self.client.login(username="testeur_synthese", password="test1234")
 
-    def test_bouton_est_cliquable(self):
-        """Le bouton synthese n'a plus l'attribut disabled."""
+    def _lire_le_panneau(self):
+        """Rend le HTML du panneau d'analyse. / Return the panel HTML."""
         reponse = self.client.get(
-            f"/extractions/dashboard/?page_id={self.fixtures['page_source'].pk}",
+            f"/extractions/drawer_contenu/?page_id={self.fixtures['page_source'].pk}",
             HTTP_HX_REQUEST="true",
         )
         self.assertEqual(reponse.status_code, 200)
-        contenu = reponse.content.decode("utf-8")
-        # PHASE-29 : le bouton ouvre maintenant la confirmation drawer via HTMX
-        # / PHASE-29: button now opens confirmation drawer via HTMX
+        return reponse.content.decode("utf-8")
+
+    def test_le_bouton_de_synthese_est_dans_le_panneau(self):
+        """
+        Son SEUL point d'entree etait le dashboard : le retirer sans le
+        deplacer aurait supprime l'acces a la synthese.
+        / Its only entry point was the dashboard.
+        """
+        contenu = self._lire_le_panneau()
+
+        self.assertIn("btn-lancer-synthese", contenu)
         self.assertIn("/previsualiser_synthese/", contenu)
-        self.assertNotIn('disabled', contenu.split("btn-lancer-synthese")[1].split(">")[0])
 
-    # A.8 : test_bouton_variante_avertissement retire — la variante
-    # "avertissement" (seuil de consensus non atteint) a ete retiree.
-    # Le bouton synthese est toujours affichable, l'utilisateur lance
-    # quand il veut (decision Q1=B du brainstorming A.8).
-    # / A.8: removed — "warning" variant (consensus threshold not reached)
-    # / removed. Synthesis button always shown, user launches when they want.
+    def test_le_bouton_de_synthese_est_cliquable(self):
+        """Pas d'attribut `disabled` : on lance quand on veut (A.8, Q1=B)."""
+        contenu = self._lire_le_panneau()
 
-    def test_zone_btn_synthese_presente(self):
-        """Le div #zone-btn-synthese est present dans le dashboard."""
-        reponse = self.client.get(
-            f"/extractions/dashboard/?page_id={self.fixtures['page_source'].pk}",
-            HTTP_HX_REQUEST="true",
-        )
-        contenu = reponse.content.decode("utf-8")
-        self.assertIn('id="zone-btn-synthese"', contenu)
+        balise_du_bouton = contenu.split("btn-lancer-synthese")[1].split(">")[0]
+        self.assertNotIn("disabled", balise_du_bouton)
 
-    def test_dashboard_entites_nouveau_ne_montre_pas_etat_vide(self):
-        """Des entites visibles ne declenchent pas l'etat vide (A.8 dashboard simplifie)."""
-        # A.8 : la grille 6 compteurs ("compteur-nouveau", "compteur-consensuel"...)
-        # est remplacee par un compteur binaire commentees/total.
-        # / A.8: 6-counter grid replaced by binary commentees/total counter.
+    def test_le_panneau_montre_l_etat_du_debat_quand_il_y_a_des_idees(self):
+        """Le compteur binaire « commentees / total » suit les cartes."""
         ExtractedEntity.objects.filter(
             job=self.fixtures["job_analyse"],
         ).update(statut_debat="nouveau", masquee=False)
 
-        reponse = self.client.get(
-            f"/extractions/dashboard/?page_id={self.fixtures['page_source'].pk}",
-            HTTP_HX_REQUEST="true",
-        )
-        contenu = reponse.content.decode("utf-8")
-        # Pas d'etat vide quand il y a des entites
-        # / No empty state when entities exist
-        self.assertNotIn("Aucune extraction sur cette page", contenu)
-        # Le dashboard affiche bien le compteur (commentees / total)
-        # / Dashboard shows the counter (commented / total)
-        self.assertIn("extraction", contenu)
+        contenu = self._lire_le_panneau()
 
-    def test_dashboard_aucune_entite_montre_etat_vide(self):
-        """Sans aucune entite, le dashboard affiche bien le message etat vide."""
+        self.assertIn("etat-du-debat", contenu)
+        self.assertIn("commentée", contenu)
+
+    def test_sans_aucune_idee_le_pied_de_panneau_disparait(self):
+        """
+        Un etat du debat sans debat, et un bouton de synthese sans rien a
+        synthetiser, n'apprennent rien : le pied s'efface.
+        / No ideas, no footer.
+        """
         ExtractedEntity.objects.filter(job=self.fixtures["job_analyse"]).delete()
 
-        reponse = self.client.get(
-            f"/extractions/dashboard/?page_id={self.fixtures['page_source'].pk}",
-            HTTP_HX_REQUEST="true",
-        )
-        contenu = reponse.content.decode("utf-8")
-        # A.8 : message simplifie / A.8: simplified message
-        self.assertIn("Aucune extraction sur cette page", contenu)
+        contenu = self._lire_le_panneau()
+
+        self.assertNotIn("btn-lancer-synthese", contenu)
+        self.assertNotIn("pied-de-panneau", contenu)

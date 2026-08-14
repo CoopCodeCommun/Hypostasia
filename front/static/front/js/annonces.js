@@ -18,11 +18,11 @@
  * des le rendu (#zone-annonces, base.html), que la technologie
  * d'assistance surveille depuis le debut.
  *
- * POURQUOI ENVELOPPER Swal.fire. Les appels sont disperses dans sept
- * fichiers (hypostasia, keyboard, arbre_overlay, arbre_context_menu,
- * drawer_vue_liste, dashboard_consensus, alignement). Les modifier un a
- * un aurait laisse le prochain appel ecrit ailleurs sans annonce. Ici,
- * un seul point d'entree couvre l'existant ET le futur.
+ * POURQUOI ENVELOPPER Swal.fire. Les appels sont disperses dans
+ * plusieurs fichiers (hypostasia, keyboard, drawer_vue_liste,
+ * alignement). Les modifier un a un aurait laisse le prochain appel
+ * ecrit ailleurs sans annonce. Ici, un seul point d'entree couvre
+ * l'existant ET le futur.
  *
  * Les MODALES sont volontairement exclues : SweetAlert les annonce deja
  * (role=dialog + focus). Les annoncer en plus ferait un doublon.

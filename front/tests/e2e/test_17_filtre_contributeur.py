@@ -3,7 +3,11 @@ Tests E2E PHASE-26a / PHASE-26a-bis — Filtre multi-contributeurs (pilules togg
 / E2E tests PHASE-26a / PHASE-26a-bis — Multi-contributor filter (toggle pills).
 
 Lancer avec : uv run python manage.py test front.tests.e2e.test_17_filtre_contributeur -v2
+
+LOCALISATION : front/tests/e2e/test_17_filtre_contributeur.py
 """
+
+from playwright.sync_api import expect
 
 from front.tests.e2e.base import PlaywrightLiveTestCase
 
@@ -103,11 +107,40 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
         """
         Navigue vers le document, ouvre le drawer et attend les pilules contributeurs.
         / Navigate to document, open drawer and wait for contributor pills.
+
+        Le `wait_for_load_state("networkidle")` qui suivait la navigation
+        a ete retire : `naviguer_vers()` attend deja `load` puis la fin
+        des requetes HTMX. Le repeter coutait 500 ms de silence reseau
+        sans rien verifier de plus ; ce que ce helper attend vraiment,
+        c'est l'apparition des pilules — et c'est la ligne d'apres qui
+        le dit.
+        / The extra networkidle wait is gone: naviguer_vers() already
+        waits for load + HTMX. What this helper actually waits for is
+        the pills, and the next line says so.
         """
         self.naviguer_vers(f"/lire/{page_doc.pk}/")
-        self.page.wait_for_load_state("networkidle")
         self.page.click('[data-testid="btn-toolbar-extractions"]')
         self.page.wait_for_selector('[data-testid="pilules-contributeurs"]', timeout=5000)
+
+    def attendre_le_rechargement_du_drawer(self):
+        """
+        Attend la fin du rechargement declenche par un clic de pilule.
+        / Wait for the reload triggered by a pill click to finish.
+
+        POURQUOI CECI PLUTOT QU'UNE ATTENTE FIXE
+
+        Cliquer une pilule appelle `chargerContenu()`, qui lance un
+        `htmx.ajax()` vers /extractions/drawer_contenu/. HTMX pose la
+        classe `.htmx-request` de facon synchrone, dans le gestionnaire
+        du clic — elle est donc deja la quand `click()` rend la main — et
+        ne la retire qu'apres avoir remplace le contenu du drawer.
+        Attendre sa disparition, c'est attendre le fait lui-meme au lieu
+        de parier sur une duree.
+        / HTMX sets .htmx-request synchronously inside the click handler
+        and removes it only after swapping the drawer content. Waiting on
+        that is waiting for the event itself, not betting on a duration.
+        """
+        self.attendre_htmx()
 
     # ====================================================================
     # Tests
@@ -140,13 +173,12 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
 
         # Cliquer sur la pilule Alice / Click Alice pill
         self.page.click(f'[data-testid="pilule-contributeur-{alice.pk}"]')
-        self.page.wait_for_timeout(1500)
+        self.attendre_le_rechargement_du_drawer()
 
         # Alice a commente 2 entites (entite_1 et entite_2) → 2 cartes
         # / Alice commented 2 entities → 2 cards
         cartes = self.page.locator('[data-testid="drawer-carte"]')
-        nombre_cartes = cartes.count()
-        self.assertEqual(nombre_cartes, 2)
+        expect(cartes).to_have_count(2)
 
     def test_03_commentaires_autres_dimmes(self):
         """Commentaires des autres → opacite reduite via classe CSS.
@@ -157,11 +189,12 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
 
         # Cliquer sur la pilule Alice / Click Alice pill
         self.page.click(f'[data-testid="pilule-contributeur-{alice.pk}"]')
-        self.page.wait_for_timeout(1500)
+        self.attendre_le_rechargement_du_drawer()
 
         # Les commentaires de Bob doivent avoir la classe commentaire-hors-filtre
         # / Bob's comments must have the commentaire-hors-filtre class
         commentaires_dimmes = self.page.locator('.commentaire-hors-filtre')
+        expect(commentaires_dimmes.first).to_be_attached()
         self.assertGreater(commentaires_dimmes.count(), 0)
 
     def test_04_pastilles_api_marginalia(self):
@@ -173,7 +206,7 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
 
         # Cliquer sur la pilule Bob / Click Bob pill
         self.page.click(f'[data-testid="pilule-contributeur-{bob.pk}"]')
-        self.page.wait_for_timeout(1000)
+        self.attendre_le_rechargement_du_drawer()
 
         # Verifier que l'API marginalia existe et retourne un tableau
         # / Check marginalia API exists and returns an array
@@ -190,7 +223,7 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
 
         # Filtrer par Alice / Filter by Alice
         self.page.click(f'[data-testid="pilule-contributeur-{alice.pk}"]')
-        self.page.wait_for_timeout(1500)
+        self.attendre_le_rechargement_du_drawer()
 
         # Le bouton "Tous x" doit etre visible / "Tous x" button must be visible
         bouton_reset = self.page.locator('[data-testid="btn-reset-contributeurs"]')
@@ -198,12 +231,12 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
 
         # Cliquer "Tous x" / Click "Tous x"
         bouton_reset.click()
-        self.page.wait_for_timeout(1500)
+        self.attendre_le_rechargement_du_drawer()
 
         # Tous les commentaires doivent etre restaures (pas de dimming)
         # / All comments must be restored (no dimming)
         commentaires_dimmes = self.page.locator('.commentaire-hors-filtre')
-        self.assertEqual(commentaires_dimmes.count(), 0)
+        expect(commentaires_dimmes).to_have_count(0)
 
     def test_06_marginalia_api_expose(self):
         """L'API window.marginalia contient les methodes de filtre.
@@ -211,7 +244,12 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
         page_doc, _, _ = self.creer_document_avec_commentaires()
         self.se_connecter("e2e_p26a_owner")
         self.naviguer_vers(f"/lire/{page_doc.pk}/")
-        self.page.wait_for_load_state("networkidle")
+        # `marginalia.js` est un script classique de `base.html` : il est
+        # execute avant l'evenement `load`, que `naviguer_vers` attend
+        # deja. Le silence reseau n'apprenait rien de plus sur une API
+        # posee sur `window`.
+        # / marginalia.js is a plain script from base.html, executed
+        # before the `load` event naviguer_vers already waits for.
 
         # Verifier que les methodes sont exposees
         # / Check that methods are exposed
@@ -229,17 +267,16 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
 
         # Cliquer sur Alice / Click Alice
         self.page.click(f'[data-testid="pilule-contributeur-{alice.pk}"]')
-        self.page.wait_for_timeout(1500)
+        self.attendre_le_rechargement_du_drawer()
 
         # Cliquer sur Bob (les 2 pilules sont actives) / Click Bob (both pills active)
         self.page.click(f'[data-testid="pilule-contributeur-{bob.pk}"]')
-        self.page.wait_for_timeout(1500)
+        self.attendre_le_rechargement_du_drawer()
 
         # Alice commente entites 1,2 + Bob commente entites 1,3 → union = 3 cartes
         # / Alice commented entities 1,2 + Bob commented entities 1,3 → union = 3 cards
         cartes = self.page.locator('[data-testid="drawer-carte"]')
-        nombre_cartes = cartes.count()
-        self.assertEqual(nombre_cartes, 3)
+        expect(cartes).to_have_count(3)
 
     def test_08_pilule_toggle_deselect(self):
         """Cliquer 2 fois sur la meme pilule → desactive le filtre.
@@ -250,15 +287,15 @@ class Phase26aBisFiltreContributeurE2ETest(PlaywrightLiveTestCase):
 
         # Cliquer Alice (active) / Click Alice (activate)
         self.page.click(f'[data-testid="pilule-contributeur-{alice.pk}"]')
-        self.page.wait_for_timeout(1500)
+        self.attendre_le_rechargement_du_drawer()
 
         # Verifier filtre actif : 2 cartes / Verify filter active: 2 cards
         cartes_filtrees = self.page.locator('[data-testid="drawer-carte"]')
-        self.assertEqual(cartes_filtrees.count(), 2)
+        expect(cartes_filtrees).to_have_count(2)
 
         # Recliquer Alice (desactive) / Click Alice again (deactivate)
         self.page.click(f'[data-testid="pilule-contributeur-{alice.pk}"]')
-        self.page.wait_for_timeout(1500)
+        self.attendre_le_rechargement_du_drawer()
 
         # Plus de filtre actif : toutes les cartes (3 entites commentees + 0 sans comm = 3)
         # Sauf si l'entite sans commentaire est aussi affichee... verifions avec le compteur

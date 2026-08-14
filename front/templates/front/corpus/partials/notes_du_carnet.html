@@ -6,17 +6,24 @@
 {% if message_d_ordre %}
 <p class="resume-filtres" role="status" data-testid="corpus-message-ordre">{{ message_d_ordre }}</p>
 {% endif %}
-{% if phrase_des_filtres %}
+{# LE COMPTEUR EST TOUJOURS LA. L'etalon affiche « 5 sur 9 notes » meme #}
+{# sans aucun filtre coche (mesure du 12 aout sur corpus.html) ; le #}
+{# produit ne l'affichait qu'une fois un filtre pose, si bien qu'a #}
+{# l'arrivee sur un carnet le lecteur ne savait pas combien de notes il #}
+{# regardait — ni, plus tard, qu'un filtre venait d'en retirer. Seuls la #}
+{# phrase des filtres et « Tout afficher » restent conditionnels : ils #}
+{# n'ont de sens que s'il y a quelque chose a vider. #}
+{# / The counter is always shown, as in the reference; only the filter #}
+{# sentence and the reset link stay conditional. #}
 <p class="resume-filtres" role="status" data-testid="corpus-resume-filtres">
-    {{ appartenances|length }} sur {{ nombre_total }} note{{ nombre_total|pluralize }} —
+    {{ appartenances|length }} sur {{ nombre_total }} note{{ nombre_total|pluralize }}{% if phrase_des_filtres %} —
     {{ phrase_des_filtres }}
     <a href="/carnets/{{ carnet.pk }}/"
        hx-get="/carnets/{{ carnet.pk }}/"
        hx-target="#zone-lecture" hx-swap="innerHTML"
        hx-push-url="true"
-       data-testid="corpus-filtre-vider">Tout afficher</a>
+       data-testid="corpus-filtre-vider">Tout afficher</a>{% endif %}
 </p>
-{% endif %}
 
 <ul class="liste-notes" aria-label="Notes du carnet" data-testid="corpus-notes-liste">
     {% for appartenance in appartenances %}
@@ -24,7 +31,7 @@
         data-page-id="{{ appartenance.page.pk }}">
         {# RANG : epingle, ou position AFFICHEE (etalon:1161-1162). #}
         <span class="rang" data-testid="corpus-note-rang">
-            {% if appartenance.epinglee %}<span class="epingle-marque" role="img" aria-label="Épinglée">📌</span>{% else %}{{ forloop.counter }}{% endif %}
+            {% if appartenance.epinglee %}<span class="epingle-marque" aria-label="Épinglée">✱</span>{% else %}{{ forloop.counter }}{% endif %}
         </span>
         <span>
             <a href="/lire/{{ appartenance.page.pk }}/"
@@ -45,11 +52,19 @@
             {# / Provenance first, then counters. Everything comes from #}
             {# the existing select_related and annotations: no extra #}
             {# query. Audio duration and speakers are not on Page. #}
-            <span class="sous-note">
-                {% if appartenance.page.source_type == "audio" %}<span class="marque-source" data-testid="corpus-note-source"><span aria-hidden="true">🎧</span> audio</span>{% elif appartenance.page.source_type == "web" %}<span class="marque-source" data-testid="corpus-note-source"><span aria-hidden="true">🌐</span> web</span>{% elif appartenance.page.original_filename %}<span class="marque-source" data-testid="corpus-note-source"><span aria-hidden="true">📄</span> fichier</span>{% endif %}
+            {# .separateurs : les « · » de l'etalon (« conseil.m4a · 3 min #}
+            {# 12 · 5 locuteurs · 10 extractions ») sont poses par le CSS, #}
+            {# pas ecrits dans le gabarit. Ecrits a la main, ils devaient #}
+            {# etre conditionnes a la presence de ce qui precede — et #}
+            {# quand la marque de source manquait (fichier sans nom #}
+            {# d'origine) la ligne commencait par un point isole. #}
+            {# / The middots come from CSS, not the template: hand-written #}
+            {# they had to know what preceded them, and got it wrong. #}
+            <span class="sous-note separateurs">
+                {% if appartenance.page.source_type == "audio" %}<span class="marque-source" data-testid="corpus-note-source">audio</span>{% elif appartenance.page.source_type == "web" %}<span class="marque-source" data-testid="corpus-note-source">web</span>{% elif appartenance.page.original_filename %}<span class="marque-source" data-testid="corpus-note-source">fichier</span>{% endif %}
                 {% if appartenance.page.original_filename %}<span class="nom-de-fichier" title="{{ appartenance.page.original_filename }}" data-testid="corpus-note-fichier">{{ appartenance.page.original_filename|truncatechars:34 }}</span>{% endif %}
                 <span>{{ appartenance.nombre_d_extractions }} extraction{{ appartenance.nombre_d_extractions|pluralize }}</span>
-                {% if appartenance.nombre_de_carnets > 1 %}<span data-testid="corpus-note-multi-carnets">· dans {{ appartenance.nombre_de_carnets }} carnets</span>{% endif %}
+                {% if appartenance.nombre_de_carnets > 1 %}<span data-testid="corpus-note-multi-carnets">dans {{ appartenance.nombre_de_carnets }} carnets</span>{% endif %}
             </span>
             <span class="etiquettes" role="group" aria-label="Catégories">
                 {% for categorie in appartenance.categories.all %}
@@ -58,21 +73,56 @@
                 {% endfor %}
             </span>
         </span>
-        {# ORDRE NARRATIF au clavier (§ 8.3). #}
+        {# LES ACTIONS DE LA LIGNE, dans UNE seule cellule de grille.    #}
+        {# `.ligne-note` est une grille a TROIS colonnes (rang, corps,   #}
+        {# actions) : un second enfant d'action se serait replie sur un  #}
+        {# nouveau rang, sous la note, detache d'elle — verifie au       #}
+        {# navigateur le 12 aout.                                       #}
+        {# / .ligne-note is a three-column grid; a second action child   #}
+        {# would wrap onto its own row, detached from the note. #}
         {% if peut_ecrire %}
-        <span class="boutons-ordre" role="group" aria-label="Déplacer la note">
-            <button type="button"
-                    data-testid="corpus-note-monter"
-                    aria-label="Monter cette note"
-                    hx-post="/carnets/{{ carnet.pk }}/reordonner/"
-                    hx-vals='{"deplacer": "{{ appartenance.page.pk }}", "direction": "monter"{% if categories_choisies %}, "categorie": "{{ categories_choisies|join:"," }}"{% endif %}}'
-                    hx-target="#corpus-notes" hx-swap="innerHTML">▲</button>
-            <button type="button"
-                    data-testid="corpus-note-descendre"
-                    aria-label="Descendre cette note"
-                    hx-post="/carnets/{{ carnet.pk }}/reordonner/"
-                    hx-vals='{"deplacer": "{{ appartenance.page.pk }}", "direction": "descendre"{% if categories_choisies %}, "categorie": "{{ categories_choisies|join:"," }}"{% endif %}}'
-                    hx-target="#corpus-notes" hx-swap="innerHTML">▼</button>
+        <span class="actions-de-la-note">
+            {# ORDRE NARRATIF au clavier (§ 8.3). #}
+            <span class="boutons-ordre" role="group" aria-label="Déplacer la note">
+                <button type="button"
+                        data-testid="corpus-note-monter"
+                        aria-label="Monter cette note"
+                        hx-post="/carnets/{{ carnet.pk }}/reordonner/"
+                        hx-vals='{"deplacer": "{{ appartenance.page.pk }}", "direction": "monter"{% if categories_choisies %}, "categorie": "{{ categories_choisies|join:"," }}"{% endif %}}'
+                        hx-target="#corpus-notes" hx-swap="innerHTML">▲</button>
+                <button type="button"
+                        data-testid="corpus-note-descendre"
+                        aria-label="Descendre cette note"
+                        hx-post="/carnets/{{ carnet.pk }}/reordonner/"
+                        hx-vals='{"deplacer": "{{ appartenance.page.pk }}", "direction": "descendre"{% if categories_choisies %}, "categorie": "{{ categories_choisies|join:"," }}"{% endif %}}'
+                        hx-target="#corpus-notes" hx-swap="innerHTML">▼</button>
+            </span>
+            {# SUPPRIMER LA NOTE — relogé ici le 12 aout 2026.          #}
+            {#                                                          #}
+            {# Ce geste n'existait que dans le menu contextuel de       #}
+            {# l'arbre lateral, sur le noeud d'une page. L'arbre part ; #}
+            {# la liste des notes du carnet est le seul autre endroit   #}
+            {# ou une note apparait comme une LIGNE que l'on vise.      #}
+            {#                                                          #}
+            {# Le libelle dit « definitivement » parce que la page de   #}
+            {# la note porte deja un « Retirer de ce carnet » qui, lui, #}
+            {# ne supprime rien : sans ce mot, deux gestes voisins      #}
+            {# auraient l'air interchangeables alors que l'un est       #}
+            {# reversible et l'autre non.                               #}
+            {#                                                          #}
+            {# `carnet_id` accompagne le POST : la vue renvoie la liste #}
+            {# des notes de CE carnet, celle d'ou le clic est parti.    #}
+            {# / Rehoused from the tree's context menu. "Definitively"  #}
+            {# distinguishes it from "remove from this notebook", which #}
+            {# deletes nothing. carnet_id tells the view where to go. #}
+            <button type="button" class="bouton-icone danger"
+                    title="Supprimer définitivement cette note"
+                    aria-label="Supprimer définitivement la note « {{ appartenance.page.title|default:appartenance.page.url }} »"
+                    hx-post="/pages/{{ appartenance.page.pk }}/supprimer/"
+                    hx-vals='{"carnet_id": "{{ carnet.pk }}"}'
+                    hx-target="#corpus-notes" hx-swap="innerHTML"
+                    hx-confirm="Supprimer définitivement « {{ appartenance.page.title|default:appartenance.page.url }} » ? La note et ses extractions disparaissent de tous ses carnets. Pour la sortir de celui-ci seulement, utilisez « Retirer de ce carnet » sur sa page."
+                    data-testid="corpus-note-supprimer">✕</button>
         </span>
         {% endif %}
     </li>

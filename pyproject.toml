@@ -36,4 +36,14 @@ dependencies = [
     "stripe>=8.0",
     "markdown>=3.10.2",
     "docling>=2.118.0",
+    # Pillow est requis par `ImageField` (BaseDeConnaissances.image_de_couverture,
+    # 12 aout 2026) : sans lui, Django refuse de demarrer sur `fields.E210`,
+    # avant meme la premiere requete. Il etait deja installe, mais SEULEMENT
+    # comme dependance transitive de docling-parse, pdfplumber et python-pptx.
+    # Retirer ou alleger l'un d'eux aurait casse le demarrage sans qu'aucun
+    # fichier du projet ne mentionne la cause.
+    # / Pillow is required by ImageField; Django refuses to start without it.
+    # It was present only transitively via docling-parse, pdfplumber and
+    # python-pptx: dropping any of them would have broken startup silently.
+    "pillow>=11.0",
 ]

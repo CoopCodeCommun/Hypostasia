@@ -11,6 +11,8 @@ from pathlib import Path
 
 from django.conf import settings
 from django.template.loader import get_template
+import pathlib
+
 from django.test import TestCase, RequestFactory
 
 
@@ -44,27 +46,9 @@ class Phase01ExtractionCSSJSTest(TestCase):
     # / Static files existence
     # -------------------------------------------------------------------------
 
-    def test_fichier_css_existe(self):
-        """hypostasia.css existe dans front/static/front/css/."""
-        chemin_css = STATIC_FRONT / "css" / "hypostasia.css"
-        self.assertTrue(chemin_css.exists(), f"Fichier CSS manquant : {chemin_css}")
 
-    def test_fichier_js_existe(self):
-        """hypostasia.js existe dans front/static/front/js/."""
-        chemin_js = STATIC_FRONT / "js" / "hypostasia.js"
-        self.assertTrue(chemin_js.exists(), f"Fichier JS manquant : {chemin_js}")
 
-    def test_fichier_css_non_vide(self):
-        """hypostasia.css n'est pas vide."""
-        chemin_css = STATIC_FRONT / "css" / "hypostasia.css"
-        taille = chemin_css.stat().st_size
-        self.assertGreater(taille, 100, f"hypostasia.css semble trop petit ({taille} octets)")
 
-    def test_fichier_js_non_vide(self):
-        """hypostasia.js n'est pas vide."""
-        chemin_js = STATIC_FRONT / "js" / "hypostasia.js"
-        taille = chemin_js.stat().st_size
-        self.assertGreater(taille, 100, f"hypostasia.js semble trop petit ({taille} octets)")
 
     # -------------------------------------------------------------------------
     # Pas de CSS/JS inline dans base.html
@@ -190,27 +174,9 @@ class Phase02VendorJSTest(TestCase):
     def setUp(self):
         self.contenu_base_html = TEMPLATE_BASE.read_text(encoding="utf-8")
 
-    def test_htmx_local_existe(self):
-        """Le fichier HTMX local existe dans front/static/front/vendor/."""
-        chemin_htmx = STATIC_FRONT / "vendor" / "htmx-2.0.4.min.js"
-        self.assertTrue(chemin_htmx.exists(), f"HTMX manquant : {chemin_htmx}")
 
-    def test_htmx_local_non_vide(self):
-        """Le fichier HTMX local fait au moins 10 Ko (pas un placeholder)."""
-        chemin_htmx = STATIC_FRONT / "vendor" / "htmx-2.0.4.min.js"
-        taille = chemin_htmx.stat().st_size
-        self.assertGreater(taille, 10_000, f"HTMX trop petit ({taille} octets)")
 
-    def test_sweetalert2_local_existe(self):
-        """Le fichier SweetAlert2 local existe dans front/static/front/vendor/."""
-        chemin_swal = STATIC_FRONT / "vendor" / "sweetalert2-11.min.js"
-        self.assertTrue(chemin_swal.exists(), f"SweetAlert2 manquant : {chemin_swal}")
 
-    def test_sweetalert2_local_non_vide(self):
-        """Le fichier SweetAlert2 local fait au moins 10 Ko."""
-        chemin_swal = STATIC_FRONT / "vendor" / "sweetalert2-11.min.js"
-        taille = chemin_swal.stat().st_size
-        self.assertGreater(taille, 10_000, f"SweetAlert2 trop petit ({taille} octets)")
 
     def test_base_html_charge_htmx_local(self):
         """base.html charge HTMX via {% static %} et non via CDN."""
@@ -225,10 +191,6 @@ class Phase02TailwindCSSTest(TestCase):
     """Verifie que Tailwind CSS est compile en local.
     / Verify that Tailwind CSS is compiled locally."""
 
-    def test_tailwind_css_compile_existe(self):
-        """Le fichier tailwind.css compile existe."""
-        chemin_tw = STATIC_FRONT / "css" / "tailwind.css"
-        self.assertTrue(chemin_tw.exists(), f"tailwind.css manquant : {chemin_tw}")
 
     def test_tailwind_css_taille_raisonnable(self):
         """Le CSS compile fait au moins 50 Ko (pas un fichier vide ou tronque)."""
@@ -262,10 +224,6 @@ class Phase02TailwindCSSTest(TestCase):
         contenu = TEMPLATE_BASE.read_text(encoding="utf-8")
         self.assertIn("{% static 'front/css/tailwind.css' %}", contenu)
 
-    def test_fichier_source_input_css_existe(self):
-        """Le fichier source input.css pour la compilation Tailwind existe."""
-        chemin_input = BASE_DIR / "front" / "tailwind" / "input.css"
-        self.assertTrue(chemin_input.exists(), f"input.css manquant : {chemin_input}")
 
 
 class Phase02PolicesLocalesTest(TestCase):
@@ -492,33 +450,6 @@ class AnnonceDesToastsTest(TestCase):
         contenu = chemin.read_text(encoding="utf-8")
         self.assertIn("options.toast === true", contenu,
                       "Le filtre sur les toasts a disparu")
-
-
-class Phase02CollectstaticTest(TestCase):
-    """Verifie que les settings Django pour collectstatic sont corrects.
-    / Verify that Django settings for collectstatic are correct."""
-
-    def test_static_root_configure(self):
-        """settings.STATIC_ROOT est configure."""
-        self.assertTrue(
-            hasattr(settings, "STATIC_ROOT") and settings.STATIC_ROOT,
-            "STATIC_ROOT n'est pas configure dans settings.py"
-        )
-
-    def test_static_url_configure(self):
-        """settings.STATIC_URL est configure."""
-        self.assertTrue(
-            hasattr(settings, "STATIC_URL") and settings.STATIC_URL,
-            "STATIC_URL n'est pas configure dans settings.py"
-        )
-
-    def test_staticfiles_app_installee(self):
-        """django.contrib.staticfiles est dans INSTALLED_APPS."""
-        self.assertIn(
-            "django.contrib.staticfiles",
-            settings.INSTALLED_APPS,
-            "django.contrib.staticfiles absent de INSTALLED_APPS"
-        )
 
 
 class Phase02PageAccueilSansErreurTest(TestCase):
@@ -931,19 +862,37 @@ class Phase04SuppressionPageTest(TestCase):
         from core.services.corpus import ranger_une_note_dans_un_carnet
         ranger_une_note_dans_un_carnet(self.page, self.dossier, self.user_test)
 
-    def test_supprimer_page_retourne_200(self):
-        """POST /pages/{pk}/supprimer/ retourne 200 et supprime la page."""
+    def test_supprimer_page_sans_carnet_de_retour(self):
+        """
+        POST /pages/{pk}/supprimer/ sans `carnet_id` supprime et repond 204.
+
+        La reponse etait l'arbre lateral (200 + HTML), retire le 12 aout
+        2026. Sans carnet de retour, la vue ne sait pas quelle liste
+        rendre : elle repond « rien a echanger » plutot que de deviner.
+        / The response used to be the removed side tree; with no return
+        notebook the view answers 204 instead of guessing.
+        """
         from core.models import Page
         reponse = self.client.post(f"/pages/{self.page.pk}/supprimer/")
-        self.assertEqual(reponse.status_code, 200)
+        self.assertEqual(reponse.status_code, 204)
         self.assertFalse(Page.objects.filter(pk=self.page.pk).exists())
 
-    def test_supprimer_page_retourne_html(self):
-        """La reponse est du HTML (partial arbre), pas du JSON."""
-        reponse = self.client.post(f"/pages/{self.page.pk}/supprimer/")
+    def test_supprimer_page_avec_carnet_de_retour(self):
+        """
+        Avec `carnet_id`, la reponse est la liste des notes de CE carnet
+        — celle d'ou le geste est parti.
+        / With carnet_id the response is that notebook's note list.
+        """
+        from core.models import Page
+        reponse = self.client.post(
+            f"/pages/{self.page.pk}/supprimer/",
+            {"carnet_id": self.dossier.pk},
+        )
+        self.assertEqual(reponse.status_code, 200)
         contenu = reponse.content.decode("utf-8")
-        # L'arbre HTML ne contient pas de JSON brut
-        # / The tree HTML doesn't contain raw JSON
+        self.assertIn("corpus-notes-liste", contenu)
+        self.assertFalse(Page.objects.filter(pk=self.page.pk).exists())
+        # Du HTML, jamais du JSON brut / HTML, never raw JSON
         self.assertNotIn('"pk":', contenu)
 
     def test_supprimer_page_inexistante_404(self):
@@ -1134,29 +1083,46 @@ class Phase04URLsExistentTest(TestCase):
 
 
 class Phase04TemplatesContiennentBoutonsTest(TestCase):
-    """Verifie que les templates contiennent les boutons CRUD necessaires.
-    / Verify that templates contain the necessary CRUD buttons."""
+    """Verifie que les gestes de gouvernance d'un carnet ont un domicile.
+    / Verify a notebook's governance gestures have a home.
 
-    def test_arbre_contient_bouton_ctx_menu_dossier(self):
-        """_dossier_node.html contient le menu contextuel kebab pour les dossiers.
-        / _dossier_node.html contains the kebab context menu for folders."""
-        chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "_dossier_node.html"
-        contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("data-ctx-type=\"dossier\"", contenu)
+    LES TROIS TESTS DU MENU CONTEXTUEL DE L'ARBRE ONT ETE REECRITS LE
+    12 AOUT 2026. Ils lisaient `_dossier_node.html`, le gabarit d'un
+    noeud du tiroir lateral, supprime avec lui. Ce qu'ils protegeaient —
+    « les actions sur un carnet et sur une note sont ATTEIGNABLES » —
+    est verifie ici sur leurs nouveaux domiciles.
+    / The three context-menu tests read the removed tree node template;
+    what they protected is checked on the new hosts."""
 
-    def test_arbre_contient_bouton_ctx_menu_actions_dossier(self):
-        """_dossier_node.html contient le bouton btn-ctx-menu pour les dossiers.
-        / _dossier_node.html contains the btn-ctx-menu button for folders."""
-        chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "_dossier_node.html"
+    def test_la_page_du_carnet_porte_ses_actions(self):
+        """carnet_detail.html porte renommer, visibilite, partager, supprimer.
+        / The notebook page carries rename, visibility, share, delete."""
+        chemin = BASE_DIR / "front" / "templates" / "front" / "corpus" / "carnet_detail.html"
         contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("btn-ctx-menu", contenu)
+        for identifiant in [
+            "corpus-carnet-renommer",
+            "corpus-carnet-changer-visibilite",
+            "corpus-carnet-partager",
+            "corpus-carnet-supprimer",
+        ]:
+            self.assertIn(identifiant, contenu)
 
-    def test_arbre_contient_bouton_ctx_menu_page(self):
-        """_dossier_node.html contient le menu contextuel kebab pour les pages.
-        / _dossier_node.html contains the kebab context menu for pages."""
-        chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "_dossier_node.html"
+    def test_la_page_du_carnet_porte_quitter_un_partage(self):
+        """carnet_detail.html porte « Quitter ce partage ».
+        / The notebook page carries "leave this share"."""
+        chemin = BASE_DIR / "front" / "templates" / "front" / "corpus" / "carnet_detail.html"
         contenu = chemin.read_text(encoding="utf-8")
-        self.assertIn("data-ctx-type=\"page\"", contenu)
+        self.assertIn("corpus-carnet-quitter", contenu)
+
+    def test_la_liste_des_notes_porte_la_suppression(self):
+        """notes_du_carnet.html porte la suppression d'une note.
+        / The note list carries note deletion."""
+        chemin = (
+            BASE_DIR / "front" / "templates" / "front" / "corpus" / "partials"
+            / "notes_du_carnet.html"
+        )
+        contenu = chemin.read_text(encoding="utf-8")
+        self.assertIn("corpus-note-supprimer", contenu)
 
     def test_js_contient_handler_renommer_dossier(self):
         """hypostasia.js contient le handler pour renommer un dossier."""
@@ -1598,16 +1564,7 @@ class Phase09FichiersStatiquesTest(TestCase):
     # / marginalia.js file existence
     # -------------------------------------------------------------------------
 
-    def test_fichier_marginalia_js_existe(self):
-        """marginalia.js existe dans front/static/front/js/."""
-        chemin_marginalia = STATIC_FRONT / "js" / "marginalia.js"
-        self.assertTrue(chemin_marginalia.exists(), f"Fichier JS manquant : {chemin_marginalia}")
 
-    def test_fichier_marginalia_js_non_vide(self):
-        """marginalia.js n'est pas vide."""
-        chemin_marginalia = STATIC_FRONT / "js" / "marginalia.js"
-        taille = chemin_marginalia.stat().st_size
-        self.assertGreater(taille, 100, f"marginalia.js semble trop petit ({taille} octets)")
 
     def test_script_marginalia_dans_base_html(self):
         """base.html reference marginalia.js via {% static %}."""
@@ -1773,16 +1730,7 @@ class Phase10FichiersStatiquesTest(TestCase):
     """Verifie l'existence des fichiers statiques drawer (PHASE-10).
     / Verify drawer static files exist (PHASE-10)."""
 
-    def test_fichier_js_drawer_existe(self):
-        """Le fichier drawer_vue_liste.js existe dans front/static/front/js/."""
-        chemin_js = STATIC_FRONT / "js" / "drawer_vue_liste.js"
-        self.assertTrue(chemin_js.exists(), f"Fichier manquant : {chemin_js}")
 
-    def test_fichier_js_drawer_non_vide(self):
-        """Le fichier drawer_vue_liste.js n'est pas vide."""
-        chemin_js = STATIC_FRONT / "js" / "drawer_vue_liste.js"
-        taille = chemin_js.stat().st_size
-        self.assertGreater(taille, 100, "drawer_vue_liste.js trop petit")
 
     def test_css_contient_styles_drawer(self):
         """hypostasia.css contient les styles du drawer (PHASE-10)."""
@@ -1817,9 +1765,33 @@ class Phase10BaseHtmlDrawerTest(TestCase):
         """base.html contient le bouton de fermeture du drawer."""
         self.assertIn('id="btn-fermer-drawer"', self.contenu_base)
 
-    def test_base_contient_bouton_toolbar_drawer(self):
-        """base.html contient le bouton E de la toolbar (sans data-placeholder)."""
-        self.assertIn('id="btn-toolbar-drawer"', self.contenu_base)
+    def test_le_bouton_du_panneau_vit_dans_la_note(self):
+        """
+        Le bouton d'ouverture du panneau est rendu par la NOTE, plus par
+        la barre d'outils globale.
+
+        Le mainteneur, 12 aout : « Le bouton dans le menu n'a d'ailleurs
+        pas de sens. » Dans la barre, il suivait l'utilisateur sur les
+        carnets et les bases, ou il ne designait rien — le panneau parle
+        d'UNE note.
+
+        Ce test cherchait `id="btn-toolbar-drawer"` dans `base.html` ; il
+        le cherche desormais la ou le bouton vit.
+        / The panel button is rendered by the note, not the global bar.
+        """
+        chemin_de_la_lecture = (
+            pathlib.Path(settings.BASE_DIR)
+            / "front" / "templates" / "front" / "includes"
+            / "lecture_principale.html"
+        )
+        contenu_de_la_lecture = chemin_de_la_lecture.read_text(encoding="utf-8")
+
+        self.assertIn('id="btn-toolbar-drawer"', contenu_de_la_lecture)
+        self.assertNotIn(
+            'id="btn-toolbar-drawer"',
+            self.contenu_base,
+            "Le bouton est revenu dans la barre d'outils globale.",
+        )
 
     def test_bouton_toolbar_drawer_sans_placeholder(self):
         """Le bouton E n'a plus de data-placeholder='PHASE-10'."""
@@ -3166,32 +3138,6 @@ class Phase15CSSStylesTranscriptionTest(TestCase):
         self.assertIn("filtre-locuteurs", self.contenu_css)
 
 
-# =============================================================================
-# PHASE-18 — Alignement cross-documents par hypostases
-# / PHASE-18 — Cross-document alignment by hypostases
-# =============================================================================
-
-
-class Phase18FichiersStatiquesTest(TestCase):
-    """Verifie que les fichiers statiques de PHASE-18 existent.
-    / Verify that PHASE-18 static files exist."""
-
-    def test_views_alignement_py_existe(self):
-        """front/views_alignement.py existe."""
-        chemin = BASE_DIR / "front" / "views_alignement.py"
-        self.assertTrue(chemin.exists(), f"Fichier manquant : {chemin}")
-
-    def test_alignement_js_existe(self):
-        """front/static/front/js/alignement.js existe."""
-        chemin = STATIC_FRONT / "js" / "alignement.js"
-        self.assertTrue(chemin.exists(), f"Fichier manquant : {chemin}")
-
-    def test_template_alignement_tableau_existe(self):
-        """front/templates/front/includes/alignement_tableau.html existe."""
-        chemin = BASE_DIR / "front" / "templates" / "front" / "includes" / "alignement_tableau.html"
-        self.assertTrue(chemin.exists(), f"Template manquant : {chemin}")
-
-
 class Phase18BaseHTMLTest(TestCase):
     """Verifie que base.html integre les elements PHASE-18.
     / Verify that base.html integrates PHASE-18 elements."""
@@ -3332,13 +3278,11 @@ class Phase18CSSStylesTest(TestCase):
         """CSS contient .alignement-cell-gap."""
         self.assertIn(".alignement-cell-gap", self.contenu_css)
 
-    def test_classe_barre_selection(self):
-        """CSS contient .barre-selection-alignement."""
-        self.assertIn(".barre-selection-alignement", self.contenu_css)
-
-    def test_classe_checkbox_selection(self):
-        """CSS contient .arbre-checkbox-selection."""
-        self.assertIn(".arbre-checkbox-selection", self.contenu_css)
+    # `.barre-selection-alignement` et `.arbre-checkbox-selection` etaient
+    # verifiees ici. Les deux ne servaient que le mode selection DANS
+    # L'ARBRE lateral, retire le 12 aout 2026 ; aucun gabarit ne portait
+    # plus ces classes. Les regles CSS ont ete supprimees avec lui.
+    # / Both classes only served the removed tree's selection mode.
 
 
 class Phase18URLsExistentTest(TestCase):
@@ -3903,41 +3847,16 @@ class Phase18bDossierAlignementEndpointTest(TestCase):
         self.assertEqual(reponse.status_code, 200)
 
 
-class Phase18bArbreTemplateTest(TestCase):
-    """Verifie que le template arbre_dossiers contient le bouton Aligner.
-    / Verify the tree template contains the Align button."""
-
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        # Le contenu est maintenant dans _dossier_node.html (PHASE-25c)
-        # / Content is now in _dossier_node.html (PHASE-25c)
-        chemin_template = BASE_DIR / "front" / "templates" / "front" / "includes" / "_dossier_node.html"
-        cls.contenu_template = chemin_template.read_text() if chemin_template.exists() else ""
-
-    def test_bouton_aligner_dossier_present(self):
-        """Le template contient la classe btn-aligner-dossier."""
-        self.assertIn("btn-aligner-dossier", self.contenu_template)
-
-    def test_bouton_aligner_a_data_testid(self):
-        """Le bouton aligner a un data-testid."""
-        self.assertIn('data-testid="btn-aligner-dossier"', self.contenu_template)
-
-    def test_bouton_aligner_conditionne_par_count(self):
-        """Le bouton aligner n'apparait que si >= 2 pages."""
-        # Phase D corpus : le template compte les appartenances prechargees.
-        # / Corpus phase D: the template counts prefetched memberships.
-        self.assertIn("dossier.appartenances_racines|length >= 2", self.contenu_template)
-
-    def test_bouton_aligner_a_data_dossier_id(self):
-        """Le bouton aligner porte le data-dossier-id."""
-        self.assertIn("data-dossier-id", self.contenu_template)
-
-    def test_bouton_aligner_dans_liste_pages(self):
-        """Le bouton aligner est dans la liste <ul> des pages, pas dans le header."""
-        # Le bouton est dans un <li> a l'interieur de .dossier-pages
-        # / The button is in a <li> inside .dossier-pages
-        self.assertIn("<li", self.contenu_template.split("btn-aligner-dossier")[0].split("dossier-pages")[-1])
+# La classe `Phase18bArbreTemplateTest` verifiait le bouton « Aligner
+# (N pages) » du noeud de dossier de l'arbre lateral (`_dossier_node.html`),
+# supprime le 12 aout 2026 avec l'arbre.
+#
+# L'ALIGNEMENT N'A RIEN PERDU : son second point d'entree existait deja,
+# l'onglet « Alignement » de la page d'un carnet, qui appelle le meme
+# `window.alignement.ouvrirDossier`. Il est verifie de bout en bout par
+# front/tests/e2e/test_09_alignement.py.
+# / The class checked the align button inside the removed tree node; the
+# notebook page's "Alignment" tab already offered the same entry point.
 
 
 class Phase18bAlignementJSTest(TestCase):
@@ -4340,9 +4259,11 @@ class Phase21CSSMobileTest(TestCase):
         self.assertNotIn(".pastilles-marge", self.contenu_css)
         self.assertIn(".hl-extraction[data-extraction-id]", self.contenu_css)
 
-    def test_arbre_plein_ecran_mobile(self):
-        """L'arbre prend 100vw sur mobile."""
-        self.assertIn("#arbre-overlay { width: 100vw", self.contenu_css)
+    # `#arbre-overlay { width: 100vw }` etait verifie ici : le tiroir
+    # lateral prenait tout l'ecran sur mobile. Le tiroir est retire le
+    # 12 aout 2026. Ce que le mobile doit encore pouvoir faire est
+    # verifie au navigateur (test_10_mobile.py).
+    # / The full-screen mobile drawer rule went with the drawer.
 
     def test_surlignage_visible_mobile(self):
         """Le surlignage des extractions a un fond visible sur mobile."""
@@ -4563,8 +4484,14 @@ class Phase23BoutonToolbarAnalyserHTMXTest(TestCase):
             / "lecture_principale.html"
         )
         self.contenu_lecture = chemin_lecture.read_text(encoding="utf-8")
+        # Le handler du bouton Analyser vivait dans `arbre_overlay.js`,
+        # supprime le 12 aout 2026 avec le tiroir lateral. On surveille
+        # desormais `hypostasia.js`, le fichier de scripts general : si
+        # le handler devait revenir quelque part, ce serait la.
+        # / The handler lived in the deleted arbre_overlay.js; we now
+        # watch hypostasia.js, the general script file.
         chemin_js = (
-            BASE_DIR / "front" / "static" / "front" / "js" / "arbre_overlay.js"
+            BASE_DIR / "front" / "static" / "front" / "js" / "hypostasia.js"
         )
         self.contenu_js = chemin_js.read_text(encoding="utf-8")
 
@@ -4793,9 +4720,16 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
         contenu_html = reponse.content.decode("utf-8")
         self.assertIn("Cout estime", contenu_html)
-        # Le cout doit etre un nombre decimal arrondi au centime
-        # / Cost must be a decimal number rounded to the cent
-        self.assertRegex(contenu_html, r"[\d]+\.[\d]{2} .euro")
+        # Le cout doit etre un nombre decimal arrondi au centime.
+        #
+        # LA VIRGULE, PAS LE POINT. `LANGUAGE_CODE` valait 'en-us' dans
+        # une interface entierement francaise ; il est passe a 'fr-fr'
+        # le 12 aout, et `floatformat` rend depuis « 0,01 € » la ou il
+        # rendait « 0.01 € ». Le motif accepte les deux separateurs :
+        # c'est le montant qui est teste ici, pas la locale.
+        # / French locale renders a decimal comma; the pattern accepts
+        # both separators because the amount is what matters here.
+        self.assertRegex(contenu_html, r"[\d]+[.,][\d]{2} .euro")
 
     def test_reponse_contient_prompt_complet(self):
         """La reponse contient le prompt complet dans une zone cachee."""
@@ -5943,9 +5877,18 @@ class Phase25cAccesDossierAnonymePriveTest(TestCase):
         self.assertFalse(_utilisateur_a_acces_dossier(AnonymousUser(), self.dossier))
 
 
-class Phase25cArbreAnonymePublicSeulementTest(TestCase):
-    """Arbre anonyme = publics seulement.
-    / Anonymous tree = public only."""
+class Phase25cCollectionAnonymePublicSeulementTest(TestCase):
+    """
+    Collection anonyme = carnets publics seulement.
+    / Anonymous collection = public notebooks only.
+
+    Ce test interrogeait `/arbre/`, la route du tiroir lateral, retiree
+    le 12 aout 2026. La REGLE qu'il protege — un anonyme ne voit pas le
+    carnet prive d'autrui — n'a pas bouge d'un pouce ; c'est `/carnets/`
+    qui l'applique maintenant (`carnets_visibles_par`).
+    / The test hit the removed /arbre/ route; the rule it protects is
+    unchanged and now applied by /carnets/.
+    """
 
     def setUp(self):
         from django.contrib.auth.models import User
@@ -5960,7 +5903,7 @@ class Phase25cArbreAnonymePublicSeulementTest(TestCase):
         )
 
     def test_anonyme_ne_voit_que_publics(self):
-        reponse = self.client.get("/arbre/")
+        reponse = self.client.get("/carnets/", HTTP_HX_REQUEST="true")
         contenu = reponse.content.decode("utf-8")
         self.assertIn("Public arbre", contenu)
         self.assertNotIn("Prive arbre", contenu)

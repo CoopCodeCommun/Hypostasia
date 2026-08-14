@@ -41,7 +41,8 @@ class E2ELectureTest(PlaywrightLiveTestCase):
         self.naviguer_vers(f"/lire/{self.page_lecture.pk}/")
         # Recharger la page (simule F5)
         # / Reload the page (simulates F5)
-        self.page.reload(wait_until="networkidle")
+        self.page.reload(wait_until="load")
+        self.attendre_htmx()
         # La page doit avoir le doctype HTML complet (toolbar visible)
         # / The page must have the full HTML doctype (toolbar visible)
         toolbar = self.page.locator("nav").first

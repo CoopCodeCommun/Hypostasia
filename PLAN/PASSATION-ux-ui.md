@@ -1,10 +1,3 @@
-# Passation — UX/UI : panneau, gouttière, puis lecteurs audio et PDF
-
-> Écrit le 11 août 2026 au soir, à la fin de la session « machine Docling ».
-> Tous les chiffres de ce document ont été **mesurés**, pas estimés.
-
----
-
 ## 0. Ce qu'il faut savoir en trois phrases
 
 Hypostasia est un outil de **délibération sourcée** : on importe des
@@ -142,6 +135,14 @@ tri (« Position »), un bouton « Lancer une analyse ». Il est **permanent
 
 Compare-le à la maquette section « 9. PANNEAU ET SURFACES » et « 6. LA
 CARTE — reproduit `_card_body.html` ».
+
+**un défault à corriger** 
+
+Le panneau s'ouvre par dessus le reste. Regarde sur la maquette, il est intégré au corp de la div du texte. A corriger, et rend le collapsable avec toujours ouvert sur le grand écran. Check les Z index et le scrole.
+
+**a améliorer**
+
+Idéalement, il faudrait que les extraction soit au même niveau que l'endroit ou elle sont dans le texte, pour pouvoir faire la correspondance facilement d'un coup d'oeil.
 
 **Un défaut mesuré, à corriger tôt** — le toast, en mode sombre :
 
@@ -285,19 +286,10 @@ fichier.
 
 ## 7. L'état du dépôt au moment de cette passation
 
-**Une journée entière de travail non commité** : ~17 fichiers créés,
+**Une journée entière de travail commité** : ~17 fichiers créés,
 une douzaine modifiés, 7 migrations (toutes appliquées à la base de
 dev). C'est au mainteneur d'en décider.
 
-Deux choses à trancher avant tout commit :
-
-- **`.superpowers/` est dans l'index git** (1,1 Mio de journaux et de
-  snapshots de travail). À retirer : `git restore --staged .superpowers/`
-  puis l'ajouter à `.gitignore`.
-- La docstring de `--reset` dans `charger_fixtures_sample.py` affirme
-  être « la seule façon de rejouer l'appel Voxtral » — c'est faux
-  depuis qu'une ingestion ratée se répare seule. Un mensonge sur une
-  opération facturée.
 
 ### Plans écrits et NON exécutés
 
@@ -338,6 +330,6 @@ rechargement.
 3. **Corrige le toast en mode sombre** — petit, mesuré, visible.
 4. Puis le panneau, la gouttière, et les deux lecteurs, dans l'ordre.
 
-Et à chaque étape : TDD, relecture adverse par un agent, vérification au
+Et à chaque étape : TDD, relecture adverse par un agent opus, vérification au
 navigateur avec contrastes calculés. C'est ce qui a rattrapé, sur les
 sessions précédentes, ce que la relecture seule laissait passer.

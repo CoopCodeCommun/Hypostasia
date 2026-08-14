@@ -70,7 +70,12 @@ class Phase25bTokenE2ETest(PlaywrightLiveTestCase):
         # Regenerer
         # / Regenerate
         self.page.click('[data-testid="btn-regenerer-token"]')
-        self.page.wait_for_load_state("networkidle")
+        # Le bouton soumet un formulaire : on attend la page qui revient,
+        # puis la fin des echanges HTMX.
+        # / The button submits a form: wait for the returning page, then
+        # for HTMX to be done.
+        self.page.wait_for_load_state("load")
+        self.attendre_htmx()
 
         # Verifier que le token a change
         # / Check token changed

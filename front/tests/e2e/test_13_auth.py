@@ -96,21 +96,28 @@ class Phase25AuthE2ETest(PlaywrightLiveTestCase):
         self.assertEqual(reponse.status_code, 403)
 
     def test_login_puis_creer_dossier_avec_owner(self):
-        """Apres login, la creation d'un dossier assigne l'owner."""
+        """
+        Apres login, la creation d'un carnet assigne l'owner.
+
+        Le test ouvrait le tiroir lateral pour cliquer « Nouveau
+        dossier », puis — le SweetAlert n'etant pas pilotable ici —
+        refaisait la creation par le client HTTP. Le tiroir est retire
+        le 12 aout 2026 : on cree par le formulaire de `/carnets/`, qui
+        est le domicile du geste, et l'ecran ET la base sont verifies.
+        / The drawer step is gone; creation now happens through the
+        /carnets/ form, and both screen and database are checked.
+        """
         from core.models import Dossier
         user = self.creer_utilisateur_demo(username="dossier_owner", password="testpass123")
         self.se_connecter("dossier_owner", "testpass123")
-        # Ouvrir l'arbre et creer un dossier
-        self.ouvrir_arbre()
-        self.page.click('[data-testid="btn-creer-dossier-overlay"]')
-        self.page.wait_for_timeout(500)
-        # Verifier que le dossier a l'owner via ORM
-        # (le JS du SweetAlert gere la creation, on verifie le resultat cote serveur)
-        # On va utiliser le client HTTP directement
-        from django.test import Client
-        client = Client()
-        client.login(username="dossier_owner", password="testpass123")
-        client.post("/dossiers/", {"name": "Dossier Test Owner"}, HTTP_HX_REQUEST="true")
+
+        self.naviguer_vers("/carnets/")
+        self.page.fill(
+            '[data-testid="corpus-carnet-creer-nom"]', "Dossier Test Owner",
+        )
+        self.page.click('[data-testid="corpus-carnet-creer-bouton"]')
+        self.attendre_htmx()
+
         dossier_cree = Dossier.objects.filter(name="Dossier Test Owner").first()
         self.assertIsNotNone(dossier_cree)
         self.assertEqual(dossier_cree.owner, user)

@@ -10,7 +10,7 @@
 {# / The N-N killed the tree: a note in two notebooks has no single #}
 {# parent. The breadcrumb shows one path; the chevron switches path. #}
 {% if fil_carnet %}
-<nav class="fil-ariane" aria-label="Fil d'Ariane" data-testid="fil-ariane">
+<nav class="fil-ariane" id="fil-ariane" aria-label="Fil d'Ariane" data-testid="fil-ariane">
     {% if fil_base %}
     <a href="/bases/{{ fil_base.slug }}/"
        hx-get="/bases/{{ fil_base.slug }}/" hx-target="#zone-lecture"

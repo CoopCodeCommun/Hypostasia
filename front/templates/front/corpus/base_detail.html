@@ -7,6 +7,7 @@
 {# dans CETTE base — meme patron que la note, un cran au-dessus (§ 3.2). #}
 {# Les data-testid sont inchanges : ce sont des contrats, pas du style. #}
 {% include "front/corpus/_style_maquette.html" %}
+{% include "front/includes/_lecteur_audio_oob.html" %}
 <div class="zone-corpus" data-testid="corpus-base-detail"
      data-base-slug="{{ base.slug }}">
 
@@ -23,6 +24,72 @@
         {% if base.description %}
         <p class="note-explicative">{{ base.description }}</p>
         {% endif %}
+
+        {% comment %}
+        GERER CETTE BASE — le seul endroit d'ou l'on peut renseigner sa
+        description et sa couverture.
+
+        Les deux champs existaient en base et la carte les affiche, mais
+        RIEN ne permettait de les remplir : l'admin Django est desactive
+        et le formulaire de creation ne prend que le nom. Deux champs
+        qu'aucun ecran ne remplit sont deux champs morts, et la carte
+        serait restee au substitut typographique faute de porte
+        d'entree — non par choix de conception.
+
+        REPLIE, comme la gouvernance d'un carnet : on vient sur cette
+        page pour LIRE la base, pas pour l'administrer. Ouvert par
+        defaut, ce bloc mettrait un formulaire entre l'en-tete et les
+        carnets.
+
+        `enctype="multipart/form-data"` et `hx-encoding` : sans les deux,
+        le fichier n'arrive jamais au serveur et l'echec est SILENCIEUX
+        — la description passe, l'image non.
+
+        `peut_ecrire` decide de ce qu'on MONTRE ; l'endpoint refait sa
+        propre verification. Montrer un formulaire qu'on ne peut pas
+        soumettre est une promesse non tenue.
+        / Both fields existed and the card shows them, but no screen
+        could fill them. Collapsed, as this page is for reading. Without
+        multipart encoding the upload fails silently.
+        {% endcomment %}
+        {% if peut_ecrire %}
+        <details class="gouvernance-carnet" data-testid="corpus-base-gouvernance">
+            <summary>G&eacute;rer cette base</summary>
+
+            <form class="rangee-champ"
+                  enctype="multipart/form-data"
+                  hx-post="/bases/{{ base.slug }}/editer/"
+                  hx-encoding="multipart/form-data"
+                  hx-target="#zone-lecture" hx-swap="innerHTML"
+                  data-testid="corpus-base-editer-form">
+
+                <label class="champ-etiquette" for="editer-description-{{ base.slug }}">
+                    Description
+                </label>
+                <textarea class="champ-texte" rows="3"
+                          id="editer-description-{{ base.slug }}"
+                          name="description"
+                          placeholder="Ce que cette base rassemble, et pour qui."
+                          data-testid="corpus-base-editer-description">{{ base.description }}</textarea>
+
+                <label class="champ-etiquette" for="editer-couverture-{{ base.slug }}">
+                    Couverture
+                </label>
+                <input type="file" class="champ-texte"
+                       id="editer-couverture-{{ base.slug }}"
+                       name="image_de_couverture"
+                       accept="image/*"
+                       data-testid="corpus-base-editer-couverture">
+                <p class="aide-champ">
+                    Facultative. Recadr&eacute;e en 16/9 sur la carte ; sans
+                    elle, la carte garde sa cote color&eacute;e.
+                </p>
+
+                <button type="submit" class="bouton-plat"
+                        data-testid="corpus-base-editer-bouton">Enregistrer</button>
+            </form>
+        </details>
+        {% endif %}
     </header>
 
     <ul class="liste-notes" aria-label="Carnets de la base">
@@ -31,7 +98,7 @@
             data-carnet-id="{{ appartenance.dossier.pk }}">
             {# Icone ET mot : l'emoji seul ne dit rien de fiable. #}
             <span class="marque-visibilite">
-                {% if appartenance.dossier.visibilite == "public" %}<span class="glyphe" aria-hidden="true">🌐</span>public{% elif appartenance.dossier.visibilite == "partage" %}<span class="glyphe" aria-hidden="true">👥</span>partagé{% else %}<span class="glyphe" aria-hidden="true">🔒</span>privé{% endif %}
+                {% if appartenance.dossier.visibilite == "public" %}public{% elif appartenance.dossier.visibilite == "partage" %}partagé{% else %}privé{% endif %}
             </span>
             <span>
                 <a href="/carnets/{{ appartenance.dossier.pk }}/"
@@ -40,7 +107,7 @@
                    class="titre-note"
                    data-testid="corpus-base-carnet-lien">{{ appartenance.dossier.name }}</a>
                 {% if appartenance.epingle %}
-                <span class="sous-note"><span class="epingle-marque" role="img" aria-label="Épinglé dans cette base">📌</span> épinglé</span>
+                <span class="sous-note"><span class="epingle-marque" aria-hidden="true">✱</span> épinglé</span>
                 {% endif %}
                 <span class="etiquettes" role="group" aria-label="Catégories dans cette base">
                     {% for categorie in appartenance.categories.all %}
@@ -85,7 +152,7 @@
                         title="{% if appartenance.epingle %}Désépingler{% else %}Épingler{% endif %}"
                         data-testid="corpus-base-epingler"
                         hx-post="/bases/{{ base.slug }}/carnets/{{ appartenance.dossier.pk }}/epingler/"
-                        hx-target="#zone-lecture" hx-swap="innerHTML">📌</button>
+                        hx-target="#zone-lecture" hx-swap="innerHTML"><span aria-hidden="true">✱</span></button>
                 <button type="button" class="bouton-icone danger"
                         aria-label="Retirer de cette base" title="Retirer de cette base"
                         data-testid="corpus-base-retirer"

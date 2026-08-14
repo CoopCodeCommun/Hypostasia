@@ -607,3 +607,29 @@ class GererCategoriesSerializer(serializers.Serializer):
                 "Le nom ne peut pas etre vide / Name cannot be empty"
             )
         return donnees_validees
+
+class EditionDeBaseSerializer(serializers.Serializer):
+    """
+    Valide la description et la couverture d'une base de connaissances.
+    / Validates a knowledge base's description and cover image.
+
+    LOCALISATION : front/serializers.py
+
+    POURQUOI UN SERIALIZER ET PAS UNE LECTURE DIRECTE DE `request.data`
+
+    `ImageField` verifie le CONTENU du fichier, pas seulement son
+    extension : un fichier arbitraire renomme en `.png` est refuse ici,
+    au lieu d'atterrir dans `media/` et de rendre une image brisee sur
+    la carte. C'est aussi la convention du depot — serializers DRF,
+    jamais de Django Forms.
+    / ImageField validates content, not just the extension: a renamed
+    arbitrary file is rejected here instead of landing in media/.
+    """
+
+    description = serializers.CharField(
+        required=False, allow_blank=True, max_length=2000,
+    )
+    # `required=False` : on edite souvent la seule description, et une
+    # couverture absente du formulaire ne doit pas effacer celle qui est
+    # deja posee. / An absent cover must not erase the existing one.
+    image_de_couverture = serializers.ImageField(required=False)

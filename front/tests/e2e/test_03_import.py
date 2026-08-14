@@ -56,14 +56,25 @@ class E2EImportTest(PlaywrightLiveTestCase):
         finally:
             os.unlink(fichier_temp.name)
 
-    def test_page_importee_visible_dans_arbre(self):
-        """Apres import, la page apparait dans l'arbre."""
+    def test_page_importee_rangee_dans_un_carnet(self):
+        """
+        Apres import, la page est RANGEE et se retrouve depuis la
+        collection.
+
+        Ce test verifiait que la page apparaissait dans l'arbre lateral,
+        retire le 12 aout 2026. L'intention — « une page importee ne se
+        perd pas, on la retrouve » — vaut toujours : l'import range la
+        page dans le carnet « Mes imports » (_obtenir_ou_creer_dossier_
+        imports), et c'est la qu'on va la chercher.
+        / The test read the removed side tree; the intent (an imported
+        page is not lost) now reads the notebook it is filed into.
+        """
         # Creer un fichier temporaire .txt
         # / Create a temporary .txt file
         fichier_temp = tempfile.NamedTemporaryFile(
             suffix=".txt", delete=False, mode="w", encoding="utf-8",
         )
-        fichier_temp.write("Page pour test arbre E2E.")
+        fichier_temp.write("Page pour test import E2E.")
         fichier_temp.close()
 
         try:
@@ -71,13 +82,28 @@ class E2EImportTest(PlaywrightLiveTestCase):
             input_fichier = self.page.locator("#input-import-fichier")
             input_fichier.set_input_files(fichier_temp.name)
             self._attendre_fin_import()
-            # Ouvrir l'arbre et verifier que la page y est
-            # / Open tree and verify the page is there
-            self.ouvrir_arbre()
-            contenu_arbre = self.page.text_content('[data-testid="arbre-dossiers"]')
-            # Le titre de la page importee devrait contenir le nom du fichier
-            # / The imported page's title should contain the filename
-            self.assertTrue(len(contenu_arbre.strip()) > 0)
+
+            from core.models import Page
+            page_importee = Page.objects.order_by("-id").first()
+            self.assertIsNotNone(
+                page_importee, "L'import doit avoir cree une page.",
+            )
+            carnet_de_rangement = page_importee.appartenances_dossiers.first()
+            self.assertIsNotNone(
+                carnet_de_rangement,
+                "La page importee doit etre rangee dans un carnet : sans "
+                "cela, l'arbre retire, plus rien ne la montrerait.",
+            )
+
+            # Et on la retrouve VRAIMENT depuis l'ecran du carnet.
+            # / And it is really findable from the notebook screen.
+            self.naviguer_vers(
+                f"/carnets/{carnet_de_rangement.dossier.pk}/"
+            )
+            contenu_du_carnet = self.page.text_content(
+                '[data-testid="corpus-notes-liste"]'
+            )
+            self.assertTrue(len(contenu_du_carnet.strip()) > 0)
         finally:
             os.unlink(fichier_temp.name)
 

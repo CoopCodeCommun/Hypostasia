@@ -107,7 +107,17 @@ class E2ECorpusTest(PlaywrightLiveTestCase):
         self.page.click(
             'label.puce-categorie:has([data-testid="corpus-filtre-categorie"])'
         )
-        self.page.wait_for_selector('[data-testid="corpus-resume-filtres"]')
+        # Attendre la PRESENCE du resume ne synchronise plus rien : depuis
+        # que le compteur « X sur Y notes » est affiche des l'arrivee
+        # (alignement sur l'etalon, 12 aout), l'element existe deja avant
+        # le clic et le selecteur rendait la main avant le swap HTMX. On
+        # attend donc son CONTENU d'apres-filtre.
+        # / Waiting for the element no longer synchronises anything: the
+        # counter is now shown from the start, so we wait for its
+        # post-filter CONTENT instead.
+        self.page.wait_for_selector(
+            '[data-testid="corpus-resume-filtres"]:has-text("Type : Budget")'
+        )
         resume = self.page.inner_text('[data-testid="corpus-resume-filtres"]')
         self.assertIn("Type : Budget", resume)
         self.assertIn("1 sur 1", resume)

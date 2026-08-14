@@ -12,10 +12,10 @@
     {# gets in a tab bar, a bookmark or a history entry. #}
     <title>{% if article %}{{ article.title|truncatechars:60 }} — Hypostasia{% elif page_preloaded %}{{ page_preloaded.title|default:"Sans titre"|truncatechars:60 }} — Hypostasia{% elif carnet %}{{ carnet.name|truncatechars:60 }} — Hypostasia{% elif base %}{{ base.nom|truncatechars:60 }} — Hypostasia{% elif carnets_liste_preloaded %}Carnets — Hypostasia{% elif bases_liste_preloaded %}Bases de connaissances — Hypostasia{% else %}Hypostasia — Bibliothèque{% endif %}</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
-    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=35">
+    <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=36">
     {# La couche maquette globale (9 aout 2026) : le design de l'etalon #}
     {# applique au chrome — chargee EN DERNIER, elle re-teinte le reste. #}
-    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=37">
+    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=59">
     {# Le theme 3 etats, applique AVANT le premier rendu (lot T7) : #}
     {# charge plus bas, la page clignoterait du clair vers le sombre. #}
     {# / Three-state theme, applied before first paint. #}
@@ -54,11 +54,15 @@
         <!-- / Left: hamburger + title (takes remaining space, truncated) -->
         <!-- / On mobile: no "Hypostasia" word, just truncated document title -->
         <div class="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-            <button id="btn-hamburger-arbre" class="flex items-center justify-center w-8 h-8 text-slate-500 hover:text-blue-600 rounded hover:bg-slate-100 transition-colors shrink-0" title="Ouvrir la bibliothèque (T)" aria-label="Ouvrir la bibliothèque" data-testid="btn-hamburger-arbre">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
-                </svg>
-            </button>
+            {# LE BURGER N'EXISTE PLUS (12 aout 2026).                       #}
+            {#                                                               #}
+            {# Il ouvrait un tiroir lateral, puis — le temps d'une journee — #}
+            {# il a mene a `/bases/`. Le mainteneur a tranche : ni tiroir ni #}
+            {# burger. Trois pictogrammes empiles ne disent pas ou l'on va ; #}
+            {# les liens « Carnets » et « Bases » ci-dessous le disent en    #}
+            {# toutes lettres, et menent aux memes ecrans.                   #}
+            {# / The hamburger is gone: two named links say where they lead, #}
+            {# three stacked bars do not. #}
             <a href="/"
                hx-get="/"
                hx-target="#zone-lecture"
@@ -69,14 +73,19 @@
             {# Navigation corpus (phase H, audit UX P1) : une fonctionnalite #}
             {# sans point d'entree n'existe pas pour l'utilisateur. #}
             {# / Corpus nav: a feature with no entry point does not exist. #}
-            <a href="/carnets/" hx-get="/carnets/" hx-target="#zone-lecture"
-               hx-swap="innerHTML" hx-push-url="true"
-               class="text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
-               data-testid="lien-nav-carnets">Carnets</a>
+            {# ORDRE HIERARCHIQUE : une base contient des carnets, qui       #}
+            {# contiennent des notes. Le menu les listait dans l'ordre        #}
+            {# inverse — on lisait « Carnets, Bases » en descendant la        #}
+            {# hierarchie a l'envers. / Bases contain notebooks: the menu     #}
+            {# now reads in that order.                                       #}
             <a href="/bases/" hx-get="/bases/" hx-target="#zone-lecture"
                hx-swap="innerHTML" hx-push-url="true"
                class="text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
                data-testid="lien-nav-bases">Bases</a>
+            <a href="/carnets/" hx-get="/carnets/" hx-target="#zone-lecture"
+               hx-swap="innerHTML" hx-push-url="true"
+               class="text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
+               data-testid="lien-nav-carnets">Carnets</a>
             <span id="titre-toolbar" class="text-sm text-slate-400 truncate" data-testid="titre-toolbar">{% if page_preloaded %}{{ page_preloaded.title|default:"Sans titre" }}{% endif %}</span>
         </div>
         <!-- Droite : boutons d'action (ne se compresse jamais) + separateur + import + config -->
@@ -84,20 +93,6 @@
         <div class="flex items-center gap-1 shrink-0">
             <!-- Boutons d'action (certains placeholder) -->
             <!-- / Action buttons (some placeholder) -->
-            <button id="btn-toolbar-dashboard" class="btn-toolbar btn-desktop-only" title="Dashboard consensus" data-testid="btn-toolbar-dashboard">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/>
-                </svg>
-                <span class="btn-toolbar-label">Dashboard</span>
-            </button>
-            <button id="btn-toolbar-drawer" class="btn-toolbar btn-desktop-only" title="Analyses (E)" data-testid="btn-toolbar-extractions">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
-                </svg>
-                <span class="btn-toolbar-label">Analyses</span>
-                {# Point indicateur filtre contributeur actif (PHASE-26a UX) #}
-                <span id="badge-filtre-contributeur" class="badge-filtre-contributeur hidden" data-testid="badge-filtre-contributeur"></span>
-            </button>
             <!-- Bouton toggle mode mobile : surlignage → lecture (PHASE-21, refonte A.2) -->
             <!-- Visible uniquement sur mobile, cache sur desktop -->
             <!-- / Mobile mode toggle button: highlight → reading (PHASE-21, A.2 refactor) -->
@@ -144,9 +139,18 @@
             <!-- Separateur (desktop uniquement) -->
             <!-- / Separator (desktop only) -->
             <div class="w-px h-5 bg-slate-200 mx-1 btn-desktop-only"></div>
-            <!-- Bouton import fichier (desktop uniquement, sur mobile on importe via l'arbre) -->
-            <!-- / Compact file import button (desktop only, on mobile import via tree) -->
-            <label class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 cursor-pointer transition-colors btn-desktop-only" title="Importer un fichier ou audio" data-testid="btn-toolbar-import">
+            {# IMPORT — DESORMAIS VISIBLE AUSSI SUR MOBILE (12 aout 2026).  #}
+            {#                                                              #}
+            {# Ce bouton portait `btn-desktop-only`, et son commentaire     #}
+            {# disait pourquoi : « sur mobile on importe via l'arbre ». Le  #}
+            {# tiroir lateral est retire ; garder cette classe aurait laisse#}
+            {# un telephone SANS AUCUN moyen d'importer des lors qu'une     #}
+            {# page existe — l'ecran d'accueil vide, seul autre point       #}
+            {# d'entree, disparait au premier document.                     #}
+            {# / It was desktop-only because mobile imported through the    #}
+            {# tree. The tree is gone, so keeping the class would leave a   #}
+            {# phone with no way to import at all once a page exists. #}
+            <label class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 cursor-pointer transition-colors" title="Importer un fichier ou audio" data-testid="btn-toolbar-import">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
                 </svg>
@@ -219,101 +223,29 @@
         </div>
     </nav>
 
-    <!-- Dropdown dashboard consensus (PHASE-14) -->
-    <!-- / Consensus dashboard dropdown (PHASE-14) -->
-    <div id="dashboard-consensus-dropdown" class="dashboard-dropdown hidden" aria-label="Dashboard consensus" data-testid="dashboard-dropdown">
-        <div id="dashboard-consensus-contenu"></div>
-    </div>
-
-    <!-- Backdrop overlay arbre (PHASE-08) -->
-    <!-- / Tree overlay backdrop (PHASE-08) -->
-    {# z-index en inline : le build Tailwind est fige et ne genere PAS les #}
-    {# classes arbitraires z-[..], et l'echelle standard plafonne a z-50 < #}
-    {# le fil d'Ariane (66). Le voile et le panneau doivent passer AU-DESSUS #}
-    {# du fil, sinon sa bande haute reste cliquable/illisible (conformite #}
-    {# maquette, agent du 10 aout). / Inline z-index: the frozen Tailwind #}
-    {# build has no arbitrary z-[..] and caps at z-50, below the breadcrumb. #}
-    <div id="arbre-backdrop" class="fixed inset-0 bg-black/40 hidden opacity-0" style="z-index: 68;"></div>
-
-    <!-- Overlay arbre lateral (PHASE-08) -->
-    <!-- / Side tree overlay (PHASE-08) -->
-    <aside id="arbre-overlay" class="fixed top-0 left-0 bottom-0 bg-white shadow-xl -translate-x-full pointer-events-none flex flex-col" style="width: 20rem; z-index: 70;" aria-label="Navigation bibliothèque" data-testid="arbre-overlay">
-        <!-- Header overlay -->
-        <div class="h-12 border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
-            <span class="font-semibold text-sm text-slate-700">Bibliothèque</span>
-            <button id="btn-fermer-arbre" class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors" title="Fermer (Escape)" aria-label="Fermer la bibliothèque" data-testid="btn-fermer-arbre">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-        <!-- Contenu arbre — conteneur cible des OOB swaps -->
-        <!-- / Tree content — OOB swap target container -->
-        <div id="arbre" class="p-3 overflow-y-auto flex-1"
-             hx-get="/arbre/"
-             hx-trigger="load"
-             hx-swap="innerHTML"
-             aria-live="polite"
-             data-testid="arbre-dossiers">
-        </div>
-        <!-- Menu contextuel arbre — dans l'overlay pour rester au-dessus du backdrop (PHASE-25) -->
-        <!-- / Tree context menu — inside overlay to stay above backdrop (PHASE-25) -->
-        {# z-index inline (build Tailwind fige, z-[100] inerte) : le menu #}
-        {# contextuel doit dominer le contenu de l'overlay (70). #}
-        <div id="arbre-ctx-menu" class="hidden fixed bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[160px] text-sm" style="z-index: 100;" data-testid="arbre-ctx-menu" role="menu" aria-label="Actions"></div>
-        <!-- Footer overlay : actions rapides -->
-        <!-- / Overlay footer: quick actions -->
-        <div class="arbre-footer">
-            <div class="arbre-footer-rangee">
-                <button id="btn-creer-dossier-overlay" class="arbre-footer-btn" title="Créer un nouveau dossier" data-testid="btn-creer-dossier-overlay">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5v6m3-3H9m4.06-7.19l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/>
-                    </svg>
-                    <span>Nouveau dossier</span>
-                </button>
-                <label class="arbre-footer-btn" title="Importer un fichier">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
-                    </svg>
-                    <span>Importer</span>
-                    <input type="file" class="hidden" id="input-import-fichier-overlay"
-                           accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
-                </label>
-            </div>
-        </div>
-    </aside>
+    {# L'ARBRE LATERAL A ETE RETIRE LE 12 AOUT 2026.                      #}
+    {#                                                                    #}
+    {# Il vivait ici : un voile (#arbre-backdrop), un tiroir              #}
+    {# (#arbre-overlay) charge par `hx-get="/arbre/"`, son menu           #}
+    {# contextuel et son pied d'actions. Il repondait a la touche T.      #}
+    {#                                                                    #}
+    {# CE QU'IL PORTAIT A ETE RELOGE AVANT SON RETRAIT :                  #}
+    {#   creer un carnet ........ /carnets/ (formulaire de creation)      #}
+    {#   renommer, visibilite,                                            #}
+    {#   partager, supprimer .... /carnets/<id>/ (« Gerer ce carnet »)    #}
+    {#   quitter un partage ..... /carnets/<id>/                          #}
+    {#   supprimer une note ..... liste des notes du carnet               #}
+    {#   deplacer une note ...... bloc « Dans N carnets » de la note      #}
+    {#   aligner un carnet ...... onglet « Alignement » du carnet         #}
+    {#   importer ............... bouton de la barre, desormais visible   #}
+    {#                            aussi sur mobile                        #}
+    {# / The side tree lived here and is gone; everything it alone        #}
+    {# hosted was rehoused first (see the map above). #}
 
     <!-- Backdrop overlay drawer (PHASE-10) -->
     <!-- / Drawer overlay backdrop (PHASE-10) -->
     <div id="drawer-backdrop" class="fixed inset-0 bg-black/40 hidden opacity-0" style="z-index: 68;"></div>
 
-    <!-- Overlay drawer vue liste (PHASE-10) -->
-    <!-- / Drawer list view overlay (PHASE-10) -->
-    <aside id="drawer-overlay" class="fixed top-0 right-0 bottom-0 bg-white shadow-xl translate-x-full pointer-events-none flex flex-col" style="width: min(36rem, 100vw); z-index: 70;" aria-label="Analyses" data-testid="drawer-overlay">
-        <!-- Header drawer -->
-        <div class="h-12 border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
-            <div class="flex items-center gap-2">
-                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
-                </svg>
-                <span id="drawer-titre" class="font-semibold text-sm text-slate-700">Analyses</span>
-            </div>
-            <button id="btn-fermer-drawer" class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors" title="Fermer (Escape)" aria-label="Fermer le drawer" data-testid="btn-fermer-drawer">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-        <!-- Contenu drawer — zone scrollable chargee via HTMX -->
-        <!-- / Drawer content — scrollable zone loaded via HTMX -->
-        <div id="drawer-contenu" class="overflow-y-auto flex-1 p-3" data-testid="drawer-contenu">
-            <div class="py-8 space-y-3 px-2">
-                <div class="skeleton h-4 w-full"></div>
-                <div class="skeleton h-4 w-3/4"></div>
-                <div class="skeleton h-4 w-5/6"></div>
-            </div>
-        </div>
-    </aside>
 
     <!-- Bottom sheet mobile (PHASE-21) -->
     <!-- / Mobile bottom sheet (PHASE-21) -->
@@ -329,9 +261,56 @@
     <!-- / Alignment modal container (PHASE-18) -->
     <div id="alignement-modale-container"></div>
 
-    <!-- Layout mono-colonne -->
-    <!-- / Single-column layout -->
-    <div style="height: calc(100vh - 3rem);">
+    {# LA BANDE DE CONTEXTE — fil d'Ariane ET titre du panneau.        #}
+    {#                                                                  #}
+    {# Arbitrage du mainteneur, 12 aout : « ca devrait etre le meme      #}
+    {# menu, la meme div ». Le fil faisait 32px, l'en-tete du panneau    #}
+    {# 40,6 — deux bandes cote a cote, separees par un decrochement de   #}
+    {# 8px que rien ne justifiait.                                       #}
+    {#                                                                  #}
+    {# Les aligner aurait voulu dire tenir DEUX regles egales a la main, #}
+    {# qui derivent des qu'on touche a l'une. Une seule div rend         #}
+    {# l'alignement vrai par construction.                               #}
+    {#                                                                  #}
+    {# ELLE VIT ICI, ET NON DANS LA ZONE DE LECTURE. Le fil y etait      #}
+    {# clippe : `#zone-lecture` porte `overflow-y: auto`, donc rien de   #}
+    {# ce qu'elle contient ne peut s'etendre sous le panneau. Le fil est #}
+    {# donc pose ici par OOB swap depuis les ecrans qui le calculent.    #}
+    {#                                                                  #}
+    {# ECART ASSUME avec l'etalon, qui garde deux bandes distinctes.     #}
+    {# / One div, so the alignment is true by construction. It sits here #}
+    {# because #zone-lecture clips its own overflow. #}
+    <div class="bande-de-contexte" data-testid="bande-de-contexte">
+        {# AU CHARGEMENT DIRECT, c'est ici que le fil est rendu : HTMX  #}
+        {# n'applique ses OOB que sur SES reponses, jamais sur le HTML   #}
+        {# initial d'une page. Les navigations HTMX, elles, le           #}
+        {# redeposent par `_fil_ariane_oob.html`.                        #}
+        {# / On a direct load the breadcrumb is rendered here; HTMX only #}
+        {# applies OOB swaps to its own responses. #}
+        <div id="fil-ariane-conteneur" class="fil-ariane-conteneur">
+            {% include "front/corpus/_fil_ariane.html" %}
+        </div>
+
+        {# Le titre du panneau, a droite de la meme bande. Il ne parait  #}
+        {# que lorsqu'une note est ouverte : c'est le CSS qui l'efface   #}
+        {# ailleurs, en meme temps que le panneau lui-meme.              #}
+        {# / Shown only on a note; CSS hides it with the panel. #}
+        <div class="bande-titre-panneau" data-testid="bande-titre-panneau">
+            <span id="drawer-titre">Analyses</span>
+            <button id="btn-fermer-drawer" class="fermer"
+                    title="Fermer (Escape)" aria-label="Fermer le panneau"
+                    data-testid="btn-fermer-drawer">&#10005;</button>
+        </div>
+    </div>
+
+    {# LE PLATEAU : la grille « lecture | panneau » de l'etalon           #}
+    {# (maquette.html § 5 « DISPOSITION »). Le panneau d'analyse etait    #}
+    {# un enfant direct de <body>, place AVANT ce conteneur : aucune      #}
+    {# grille ne pouvait le prendre dans son flux, sa place etait simulee #}
+    {# par un `padding-right`, et il suivait l'utilisateur d'un ecran a   #}
+    {# l'autre alors qu'il ne parle que d'une note.                       #}
+    {# / The plateau grid: the panel used to live outside any container.  #}
+    <div class="plateau">
 
         <!-- Zone de lecture -->
         <!-- / Reading zone -->
@@ -370,6 +349,20 @@
             {% endif %}
         </main>
 
+    <!-- Overlay drawer vue liste (PHASE-10) -->
+    <!-- / Drawer list view overlay (PHASE-10) -->
+    <aside id="drawer-overlay" class="fixed top-0 right-0 bottom-0 bg-white shadow-xl translate-x-full pointer-events-none flex flex-col" style="width: min(36rem, 100vw); z-index: 70;" aria-label="Analyses" data-testid="drawer-overlay">
+        <!-- Contenu drawer — zone scrollable chargee via HTMX -->
+        <!-- / Drawer content — scrollable zone loaded via HTMX -->
+        <div id="drawer-contenu" class="overflow-y-auto flex-1 p-3" data-testid="drawer-contenu">
+            <div class="py-8 space-y-3 px-2">
+                <div class="skeleton h-4 w-full"></div>
+                <div class="skeleton h-4 w-3/4"></div>
+                <div class="skeleton h-4 w-5/6"></div>
+            </div>
+        </div>
+    </aside>
+
         <!-- Sidebar droite — cachee, conservee comme cible OOB pour les swaps HTMX -->
         <!-- / Right sidebar — hidden, kept as OOB target for HTMX swaps -->
         <aside id="sidebar-right" class="hidden" aria-live="polite" data-testid="bibliotheque-colonne-analyse">
@@ -389,19 +382,43 @@
         </aside>
     </div>
 
+    {# LA BARRE DU LECTEUR AUDIO — ecart n°2 de l'etalon (§ 19).        #}
+    {#                                                                  #}
+    {# ELLE VIT ICI, hors du plateau, pour deux raisons. La premiere    #}
+    {# vaut aussi pour le fil : `#zone-lecture` porte `overflow-y:auto` #}
+    {# et clippe ce qu'elle contient. La seconde n'appartient qu'au     #}
+    {# lecteur : `lectureReload` remplace TOUT l'innerHTML de cette     #}
+    {# zone apres chaque operation d'element — un lecteur qui vivrait   #}
+    {# dedans serait detruit et recree a chaque extraction, et l'audio  #}
+    {# repartirait a zero au milieu de l'ecoute.                        #}
+    {#                                                                  #}
+    {# Au chargement direct, la barre est rendue ici. Les navigations   #}
+    {# HTMX la redeposent par `_lecteur_audio_oob.html`.                #}
+    {# / It lives outside the plateau: #zone-lecture clips its overflow #}
+    {# AND lectureReload replaces it wholesale after each operation. #}
+    <div id="lecteur-audio-conteneur">
+        {% include "front/includes/_lecteur_audio.html" with page=page_preloaded %}
+    </div>
+
     {% include "front/includes/selection_menu.html" %}
 
 
     <script src="{% static 'front/js/hypostasia.js' %}?v=37"></script>
     <script src="{% static 'front/js/marginalia.js' %}?v=27"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
-    <script src="{% static 'front/js/arbre_overlay.js' %}?v=23"></script>
-    <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=13"></script>
-    <script src="{% static 'front/js/dashboard_consensus.js' %}?v=18"></script>
+    {# `arbre_overlay.js` et `arbre_context_menu.js` etaient charges ici. #}
+    {# Ils sont supprimes avec l'arbre (12 aout 2026). #}
+    {# / The two tree scripts were loaded here; deleted with the tree. #}
+    <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=14"></script>
     <script src="{% static 'front/js/transcription_rythme.js' %}?v=15"></script>
+    {# `transcription_rythme.js` ci-dessus suit le DEFILEMENT du texte ; #}
+    {# celui-ci suit le SON. Les deux coexistent : l'un dit ou l'on lit, #}
+    {# l'autre ou l'on ecoute. Le nom « barre de progression de lecture » #}
+    {# du premier a longtemps laisse croire qu'un lecteur existait.      #}
+    {# / One tracks scrolling, the other tracks sound. #}
+    <script src="{% static 'front/js/lecteur_audio.js' %}?v=1"></script>
     <script src="{% static 'front/js/alignement.js' %}?v=19"></script>
-    <script src="{% static 'front/js/keyboard.js' %}?v=25"></script>
-    <script src="{% static 'front/js/arbre_context_menu.js' %}?v=26"></script>
+    <script src="{% static 'front/js/keyboard.js' %}?v=26"></script>
 
     <!-- Fermeture du dropdown menu utilisateur au clic exterieur (PHASE-25) -->
     <!-- / Close user menu dropdown on outside click (PHASE-25) -->

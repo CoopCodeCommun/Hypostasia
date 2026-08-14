@@ -2,14 +2,30 @@
 Tests E2E — Confirmation analyse : tokens, cout, prompt, selecteur analyseur.
 / E2E tests — Analysis confirmation: tokens, cost, prompt, analyzer selector.
 
-DESACTIVE (2026-03-20) : le bouton btn-toolbar-analyser n'existe plus dans la toolbar.
-Le workflow d'analyse a ete refonde en PHASE-26g (Hub d'analyse via le drawer).
-Ces tests doivent etre reecrits pour le nouveau workflow (analyser depuis le drawer).
-/ DISABLED (2026-03-20): btn-toolbar-analyser no longer exists in the toolbar.
-The analysis workflow was redesigned in PHASE-26g (analysis hub via drawer).
-These tests must be rewritten for the new workflow (analyze from the drawer).
+LOCALISATION : front/tests/e2e/test_11_confirmation_analyse.py
+
+REVEILLES LE 13 AOUT 2026, APRES CINQ MOIS DE SOMMEIL
+
+Ces douze tests etaient `@unittest.skip` depuis le 20 mars : PHASE-26g
+avait retire `btn-toolbar-analyser` de la barre d'outils, et le clic
+d'ouverture ne trouvait plus rien.
+
+Ce que le skip ne disait pas, c'est que RIEN D'AUTRE n'avait bouge. La
+boite de confirmation existe toujours, entiere, dans
+`front/templates/front/includes/confirmation_analyse.html` : l'estimation
+des jetons, le cout en euros, le prompt complet, le selecteur
+d'analyseur, les deux boutons. Seule sa PORTE a demenage — de la barre
+d'outils vers le tiroir, ou « Lancer une analyse » appelle desormais
+`/lire/{pk}/previsualiser_analyse/`.
+
+Douze tests dormaient donc sur une fonction vivante, et sur celle qui
+engage de l'argent : c'est cet ecran qui annonce le cout AVANT d'appeler
+l'API. Les rouvrir demandait de changer une ligne — celle de la porte.
+/ Asleep since 20 March because PHASE-26g moved the entry point. The
+confirmation screen itself never changed: only its door moved, from the
+toolbar to the drawer. Twelve tests were dormant on the one screen that
+announces the cost before spending money.
 """
-import unittest
 
 from front.tests.e2e.base import PlaywrightLiveTestCase
 from core.models import AIModel, Configuration
@@ -22,7 +38,6 @@ from hypostasis_extractor.models import (
 )
 
 
-@unittest.skip("PHASE-26g a supprime btn-toolbar-analyser — tests a reecrire pour le workflow drawer")
 class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     """Tests de la boite de confirmation avant analyse IA."""
 
@@ -100,12 +115,31 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
             order=0,
         )
 
+    def ouvrir_la_confirmation_d_analyse(self):
+        """
+        Ouvre le tiroir et demande la previsualisation de l'analyse.
+        / Open the drawer and ask for the analysis preview.
+
+        C'est la porte qui a change en PHASE-26g. La page de test n'a
+        aucune extraction : le tiroir montre donc son etat vide, dont le
+        bouton « Lancer une analyse » porte le meme geste que l'ancien
+        bouton de barre d'outils.
+        / This is the door that moved. The fixture page has no
+        extraction, so the drawer shows its empty state, whose button
+        carries what the old toolbar button carried.
+        """
+        self.ouvrir_drawer()
+        self.page.click('[data-testid="btn-lancer-analyse-empty"]')
+        self.page.wait_for_selector(
+            '[data-testid="confirmation-analyse"]', timeout=10000,
+        )
+
     def test_bouton_analyser_ouvre_confirmation(self):
         """Cliquer le bouton Analyser affiche la boite de confirmation."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
         # Cliquer le bouton Analyser dans la toolbar
         # / Click the Analyser button in the toolbar
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         # Attendre que la confirmation apparaisse dans #zone-lecture
         # / Wait for the confirmation to appear in #zone-lecture
         self.page.wait_for_selector(
@@ -120,7 +154,7 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     def test_confirmation_affiche_tokens_input(self):
         """La confirmation affiche l'estimation des tokens input."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="estimation-tokens"]', timeout=10000)
         # La zone d'estimation doit contenir "Tokens input"
         # / The estimation zone must contain "Tokens input"
@@ -130,7 +164,7 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     def test_confirmation_affiche_tokens_output(self):
         """La confirmation affiche l'estimation des tokens output."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="estimation-tokens"]', timeout=10000)
         contenu_estimation = self.page.text_content('[data-testid="estimation-tokens"]')
         self.assertIn("Tokens output", contenu_estimation)
@@ -138,7 +172,7 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     def test_confirmation_affiche_cout_estime(self):
         """La confirmation affiche le cout estime en euros."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="estimation-tokens"]', timeout=10000)
         contenu_estimation = self.page.text_content('[data-testid="estimation-tokens"]')
         self.assertIn("Cout estime", contenu_estimation)
@@ -149,7 +183,7 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     def test_confirmation_affiche_nom_analyseur(self):
         """La confirmation affiche le nom de l'analyseur."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="confirmation-analyse"]', timeout=10000)
         contenu_confirmation = self.page.text_content('[data-testid="confirmation-analyse"]')
         self.assertIn("Hypostasia Test", contenu_confirmation)
@@ -157,7 +191,7 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     def test_confirmation_affiche_nom_modele_ia(self):
         """La confirmation affiche le nom du modele IA."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="confirmation-analyse"]', timeout=10000)
         contenu_confirmation = self.page.text_content('[data-testid="confirmation-analyse"]')
         # Le modele mock_default n'a pas de display_name, mais "Gemini" ou le nom doit etre present
@@ -170,7 +204,7 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     def test_bouton_voir_prompt_complet(self):
         """Le bouton 'Voir le prompt complet' affiche le prompt."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="btn-voir-prompt"]', timeout=10000)
         # La zone prompt doit etre cachee au depart
         # / The prompt zone must be hidden initially
@@ -180,7 +214,10 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
         # Cliquer le bouton pour voir le prompt
         # / Click the button to view the prompt
         self.page.click('[data-testid="btn-voir-prompt"]')
-        self.page.wait_for_timeout(300)
+        # Le bouton retire la classe `hidden` de la zone : on attend ce
+        # fait plutot qu'un delai.
+        # / The button drops the `hidden` class; wait for that fact.
+        self.page.wait_for_selector("#zone-prompt-complet:not(.hidden)")
         # La zone prompt doit etre visible maintenant
         # / The prompt zone must be visible now
         est_visible = zone_prompt.evaluate("el => !el.classList.contains('hidden')")
@@ -193,12 +230,15 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     def test_prompt_complet_contient_texte_source(self):
         """Le prompt complet contient le texte source de la page analysee."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="btn-voir-prompt"]', timeout=10000)
         # Ouvrir le prompt complet
         # / Open the full prompt
         self.page.click('[data-testid="btn-voir-prompt"]')
-        self.page.wait_for_timeout(300)
+        # Le bouton retire la classe `hidden` de la zone : on attend ce
+        # fait plutot qu'un delai.
+        # / The button drops the `hidden` class; wait for that fact.
+        self.page.wait_for_selector("#zone-prompt-complet:not(.hidden)")
         contenu_prompt = self.page.locator("#zone-prompt-complet").text_content()
         # Le texte source de la page doit etre dans le prompt
         # / The page's source text must be in the prompt
@@ -207,20 +247,33 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     def test_prompt_complet_contient_exemples_fewshot(self):
         """Le prompt complet contient les exemples few-shot."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="btn-voir-prompt"]', timeout=10000)
         self.page.click('[data-testid="btn-voir-prompt"]')
-        self.page.wait_for_timeout(300)
+        # Le bouton retire la classe `hidden` de la zone : on attend ce
+        # fait plutot qu'un delai.
+        # / The button drops the `hidden` class; wait for that fact.
+        self.page.wait_for_selector("#zone-prompt-complet:not(.hidden)")
         contenu_prompt = self.page.locator("#zone-prompt-complet").text_content()
-        # L'exemple few-shot doit etre mentionne
-        # / The few-shot example must be mentioned
-        self.assertIn("EXEMPLES FEW-SHOT", contenu_prompt)
+        # L'exemple few-shot doit etre transmis EN ENTIER : sa question
+        # et l'annotation attendue en reponse.
+        #
+        # Ce test exigeait le titre de section « EXEMPLES FEW-SHOT ».
+        # Entre mars et aout ce titre est devenu « Examples » — et rien
+        # d'autre : l'exemple, lui, est toujours la. Verrouiller un
+        # libelle d'affichage, c'est se donner un test qui tombe quand
+        # la formulation change et qui se tait si l'exemple disparait.
+        # On verifie donc ce qui part vraiment au modele.
+        # / The assertion targeted a section heading that has since been
+        # reworded, while the example itself never moved. Check what is
+        # actually sent to the model instead.
         self.assertIn("L'IA va changer le monde", contenu_prompt)
+        self.assertIn("conjecture", contenu_prompt)
 
     def test_bouton_annuler_recharge_page(self):
         """Le bouton Annuler recharge la page de lecture."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="btn-annuler-analyse"]', timeout=10000)
         # Cliquer Annuler
         # / Click Cancel
@@ -234,7 +287,7 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     def test_confirmation_affiche_nombre_exemples(self):
         """La confirmation affiche le nombre d'exemples few-shot."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="confirmation-analyse"]', timeout=10000)
         contenu_confirmation = self.page.text_content('[data-testid="confirmation-analyse"]')
         # Doit mentionner "1" comme nombre d'exemples
@@ -244,7 +297,7 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
     def test_confirmation_affiche_nombre_pieces(self):
         """La confirmation affiche le nombre de pieces de prompt."""
         self.naviguer_vers(f"/lire/{self.page_analyse.pk}/")
-        self.page.click('[data-testid="btn-toolbar-analyser"]')
+        self.ouvrir_la_confirmation_d_analyse()
         self.page.wait_for_selector('[data-testid="confirmation-analyse"]', timeout=10000)
         contenu_confirmation = self.page.text_content('[data-testid="confirmation-analyse"]')
         # Doit mentionner "2" comme nombre de pieces

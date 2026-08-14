@@ -420,7 +420,29 @@ def construire_widgets_audio(transcription_raw, entites_extraction=None):
 
     Returns:
         tuple (html_filtre_locuteurs, html_timeline)
+
+    LA PALETTE EST CELLE DE LA GOUTTIERE, ET NON `COULEURS_LOCUTEURS`.
+
+    Corrige le 13 aout. Ces widgets prenaient la palette TAILWIND du
+    haut de ce fichier, quand la gouttiere et le rail du lecteur
+    prennent celle de WONG (rendu_elements.py:585). Le meme locuteur
+    portait donc deux couleurs sur le meme ecran — bleu dans la pilule,
+    orange dans la marge —, ce que la barre du lecteur, posee ce
+    jour-la, a rendu impossible a ignorer.
+
+    Suivre un debat, c'est suivre qui parle : une pastille qui change de
+    teinte selon l'endroit ne vaut pas mieux qu'une absence de pastille.
+
+    `COULEURS_LOCUTEURS` reste utilisee par `construire_html_diarise`,
+    dont le HTML est FIGE en base a l'ingestion : le reecrire ici ne
+    changerait rien aux pages deja transcrites, et le rendu principal
+    passe desormais par les `ElementDocument`.
+    / These widgets used the Tailwind palette while the gutter and the
+    player's rail use Wong: one speaker, two colours on one screen.
     """
+    from core.models import CategorieDossier
+    palette_des_locuteurs = CategorieDossier.PALETTE_WONG
+
     # Extraction intelligente : si l'input est un dict avec 'segments', extraire la liste
     # / Smart extraction: if input is a dict with 'segments', extract the list
     segments = transcription_raw
@@ -480,7 +502,7 @@ def construire_widgets_audio(transcription_raw, entites_extraction=None):
         '<button class="pilule-locuteur pilule-active" data-speaker-filter="tous">Tous</button>'
     ]
     for index_locuteur, nom_locuteur in enumerate(locuteurs_uniques):
-        couleur_locuteur = COULEURS_LOCUTEURS[index_locuteur % len(COULEURS_LOCUTEURS)]
+        couleur_locuteur = palette_des_locuteurs[index_locuteur % len(palette_des_locuteurs)]
         nom_echappe = html_escape(nom_locuteur)
         pilules_html.append(
             f'<button class="pilule-locuteur" data-speaker-filter="{nom_echappe}">'
@@ -499,7 +521,7 @@ def construire_widgets_audio(transcription_raw, entites_extraction=None):
     for index_bloc, groupe in enumerate(groupes_locuteurs):
         nom_locuteur = groupe["speaker"]
         index_locuteur = locuteurs_uniques.index(nom_locuteur)
-        couleur_locuteur = COULEURS_LOCUTEURS[index_locuteur % len(COULEURS_LOCUTEURS)]
+        couleur_locuteur = palette_des_locuteurs[index_locuteur % len(palette_des_locuteurs)]
         nom_echappe = html_escape(nom_locuteur)
 
         # Calcul de la largeur proportionnelle

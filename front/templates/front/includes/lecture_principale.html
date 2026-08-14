@@ -2,7 +2,8 @@
 {# Le fil d'Ariane a besoin du design system pour ses tokens de #}
 {# composant ; il est inclus une seule fois, ici. #}
 {% include "front/corpus/_style_maquette.html" %}
-{% include "front/corpus/_fil_ariane.html" %}
+{% include "front/corpus/_fil_ariane_oob.html" %}
+{% include "front/includes/_lecteur_audio_oob.html" %}
 <div class="lecture-zone-conteneur mx-auto relative" data-page-id="{{ page.pk }}" data-dossier-id="{{ page.dossier_id|default:'' }}" data-testid="lecture-zone-principale">
     {# Barre de progression analyse IA — cachee par defaut, affichee via JS #}
     {# / AI analysis progress bar — hidden by default, shown via JS #}
@@ -20,6 +21,24 @@
         {% elif page.original_filename %}
             <span class="text-xs text-slate-400 truncate max-w-md">{{ page.original_filename }}</span>
         {% endif %}
+
+        {# BOUTON DU PANNEAU D'ANALYSE — il vit ICI, pas dans la barre.  #}
+        {# Le mainteneur, 12 aout : « Le bouton dans le menu n'a         #}
+        {# d'ailleurs pas de sens. » Dans la barre globale, il suivait   #}
+        {# l'utilisateur sur les carnets et les bases, ou il ne          #}
+        {# designait rien. Le panneau parle d'UNE note : son bouton      #}
+        {# appartient a la rangee d'actions de cette note, a cote de     #}
+        {# « Source » et « Exporter ».                                   #}
+        {# Ecart assume avec l'etalon, qui garde « Analyses » en barre.  #}
+        {# / The panel is about one note; so is its button.              #}
+        <button type="button" id="btn-toolbar-drawer"
+                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                title="Analyses (E)" data-testid="btn-toolbar-extractions">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/>
+            </svg>
+            Analyses
+        </button>
 
         {# Bouton telecharger la source / Download source button #}
         <a href="/lire/{{ page.pk }}/telecharger_source/"

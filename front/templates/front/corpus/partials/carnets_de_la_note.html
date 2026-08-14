@@ -18,11 +18,11 @@
             data-testid="corpus-bloc-carnet-ligne"
             data-carnet-id="{{ appartenance.dossier.pk }}">
             <span class="flex items-center gap-2">
-                {% if appartenance.epinglee %}<span role="img" aria-label="Épinglée">📌</span>{% endif %}
+                {% if appartenance.epinglee %}<span class="epingle-marque" aria-label="Épinglée">✱</span>{% endif %}
                 {# Visibilite par ligne : une ligne publique = la note est #}
                 {# publique (§ 5.2) — l'information de gouvernance centrale. #}
                 {# / Per-row visibility: a public row = the note is public. #}
-                {% if appartenance.dossier.visibilite == "public" %}<span role="img" aria-label="Carnet public" title="Public : la note y est visible par tous">🌐</span>{% elif appartenance.dossier.visibilite == "partage" %}<span role="img" aria-label="Carnet partagé" title="Partagé">👥</span>{% else %}<span role="img" aria-label="Carnet privé" title="Privé">🔒</span>{% endif %}
+                <span class="marque-visibilite">{% if appartenance.dossier.visibilite == "public" %}public{% elif appartenance.dossier.visibilite == "partage" %}partagé{% else %}privé{% endif %}</span>
                 {# Le lien OUVRE LE CARNET (pas la note dans le carnet) : #}
                 {# la vraie bascule de contexte de l'etalon vit dans le fil #}
                 {# d'Ariane, encore « cible » (maquette.html:912-931). #}
@@ -46,7 +46,7 @@
                         title="{% if appartenance.epinglee %}Désépingler{% else %}Épingler{% endif %}"
                         data-testid="corpus-bloc-epingler"
                         hx-post="/notes/{{ note.pk }}/carnets/{{ appartenance.dossier.pk }}/epingler/"
-                        hx-target="#corpus-bloc-carnets-{{ note.pk }}" hx-swap="outerHTML">📌</button>
+                        hx-target="#corpus-bloc-carnets-{{ note.pk }}" hx-swap="outerHTML"><span aria-hidden="true">✱</span></button>
                 <button type="button" class="text-slate-400 hover:text-red-600 px-1"
                         aria-label="Retirer de ce carnet" title="Retirer de ce carnet"
                         data-testid="corpus-bloc-retirer"

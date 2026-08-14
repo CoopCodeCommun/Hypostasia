@@ -81,6 +81,16 @@ MIDDLEWARE = [
     # HTML jamais servi perime par le cache navigateur (audit UX D14)
     # / HTML never served stale by the browser cache (UX audit D14)
     'core.middleware.EmpecherLeCacheDuHtml',
+    # `django_htmx` etait dans INSTALLED_APPS depuis le debut, mais son
+    # middleware n'y avait jamais ete branche : `request.htmx` valait
+    # donc None dans TOUS les gabarits, et un `{% if request.htmx %}`
+    # y etait silencieusement toujours faux. Le besoin est apparu le
+    # 12 aout avec la bande de contexte, dont le fil doit etre rendu
+    # d'une facon au chargement direct et d'une autre en reponse HTMX.
+    # / The app was installed but its middleware never was: request.htmx
+    # was None in every template, so any {% if request.htmx %} silently
+    # never fired.
+    'django_htmx.middleware.HtmxMiddleware',
 ]
 
 ROOT_URLCONF = 'hypostasia.urls'
@@ -143,7 +153,13 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+# L'interface est ecrite en francais de bout en bout, mais la locale
+# restait celle de `startproject`. Consequence visible : `|date:"F Y"`
+# rendait « AUGUST 2026 » au milieu d'une page francaise, et les
+# pluriels comme les separateurs de nombres suivaient l'anglais.
+# / The UI is French throughout; the locale was still the startproject
+# default, so date filters rendered English month names.
+LANGUAGE_CODE = 'fr-fr'
 
 TIME_ZONE = 'UTC'
 

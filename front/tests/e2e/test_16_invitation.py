@@ -54,9 +54,8 @@ class Phase25dInvitationE2ETest(PlaywrightLiveTestCase):
                 method: 'POST',
                 headers: {{'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)[1]}},
                 body: 'email=invinv@test.com'
-            }})
+            }}).then((reponse) => reponse.status)
         """)
-        self.page.wait_for_timeout(500)
         self.assertTrue(
             DossierPartage.objects.filter(dossier=dossier, utilisateur=invite).exists(),
             "Un partage direct doit avoir ete cree",
@@ -75,9 +74,8 @@ class Phase25dInvitationE2ETest(PlaywrightLiveTestCase):
                 method: 'POST',
                 headers: {{'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)[1]}},
                 body: 'email=unknown_e2e@test.com'
-            }})
+            }}).then((reponse) => reponse.status)
         """)
-        self.page.wait_for_timeout(500)
         self.assertTrue(
             Invitation.objects.filter(dossier=dossier, email="unknown_e2e@test.com").exists(),
             "Une invitation doit avoir ete creee",
@@ -99,7 +97,10 @@ class Phase25dInvitationE2ETest(PlaywrightLiveTestCase):
             expires_at=timezone.now() + timedelta(days=7),
         )
         self.naviguer_vers(f"/invitation/{token}/")
-        self.page.wait_for_timeout(500)
+        # La redirection est le fait attendu : on l'attend, au lieu de
+        # dormir en esperant qu'elle soit passee.
+        # / The redirect is the awaited fact; wait for it.
+        self.page.wait_for_url("**/auth/register/**")
         # Devrait rediriger vers /auth/register/?token=...
         self.assertIn("/auth/register/", self.page.url)
         self.assertIn(token, self.page.url)

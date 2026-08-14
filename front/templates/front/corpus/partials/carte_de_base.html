@@ -1,0 +1,116 @@
+{# LA CARTE D'UNE BASE DE CONNAISSANCES.
+   LOCALISATION : front/templates/front/corpus/partials/carte_de_base.html
+
+   Extraite de `bases_liste.html` le 12 aout : l'onglet « Bases de
+   connaissances » de l'accueil montre les memes cartes, et une carte
+   recopiee aurait diverge des la premiere retouche.
+
+   Attend dans le contexte : `base`, avec ses annotations
+   `nombre_de_carnets`, `nombre_de_notes`, son `numero_de_cote` et son
+   `appartenances_ouvrables` — tout cela vient de
+   `bases_visibles_avec_leurs_comptes` (views_corpus.py).
+   / Extracted so the home tab and /bases/ share one card. #}
+<li class="carte-base" data-testid="corpus-base-item"
+    data-base-slug="{{ base.slug }}">
+
+    {# LA COUVERTURE est FACULTATIVE et le restera : le champ #}
+    {# vient d'etre ajoute, il est vide sur toute base deja #}
+    {# creee. Absente, on ne rend RIEN — pas de cadre vide, pas #}
+    {# de place reservee : la carte commence a sa cote et n'a #}
+    {# l'air de manquer de rien. #}
+    {# / The cover is optional and stays so: when absent we #}
+    {# render nothing at all, so the card looks complete. #}
+    {% if base.image_de_couverture %}
+    <img class="couverture-base" src="{{ base.image_de_couverture.url }}"
+         alt="" decoding="async"
+         {# PAS de `loading="lazy"` : la liste vit dans #zone-lecture,
+            qui porte `overflow-y: auto`. Le chargement differe observe
+            l'intersection avec le scroller le PLUS PROCHE, et il ne se
+            declenche pas de facon fiable dans un scroller imbrique :
+            mesure du 12 aout, l'image occupait le haut de l'ecran avec
+            une boite de 313x176 et un `naturalWidth` de 0 — jamais
+            chargee. Ces couvertures sont peu nombreuses et au-dessus de
+            la ligne de flottaison : le differe ne gagnait rien.
+            / Lazy loading is unreliable inside a nested scroller; the
+            image never loaded despite being on screen. #}
+         data-testid="corpus-base-couverture">
+    {% endif %}
+
+    {# LA COTE : le filet teinte derive du slug, puis le slug #}
+    {# lui-meme. C'est l'identite visuelle d'une base sans #}
+    {# image — la bande de couleur d'une boite d'archives. La #}
+    {# teinte ne porte jamais seule l'information : le nom est #}
+    {# juste dessous. / The tinted rule and the slug itself. #}
+    <div class="cote-base" data-testid="corpus-base-cote"
+         style="--teinte-de-cote:var(--cote-{{ base.numero_de_cote }})"
+         aria-hidden="true"></div>
+    <p class="cartouche-base">
+        <span class="identifiant">{{ base.slug }}</span>
+        {# LA VISIBILITE EN TOUTES LETTRES, sans glyphe. Les #}
+        {# lignes de liste du corpus l'ecrivent « icone + mot » #}
+        {# parce que la couleur ni la forme ne doivent jamais #}
+        {# porter seules l'information (§ 8.3) : le mot SEUL #}
+        {# satisfait la regle encore mieux, et l'emoji couleur #}
+        {# etait ici la tache la plus criarde de la page, en #}
+        {# concurrence directe avec le filet de cote. #}
+        {# / The word alone satisfies the rule better than #}
+        {# icon+word, and the colour emoji was the loudest mark #}
+        {# on the page, competing with the tinted rule. #}
+        <span class="marque-visibilite">{% if base.visibilite == "public" %}public{% elif base.visibilite == "partage" %}partagé{% else %}privé{% endif %}</span>
+    </p>
+
+    <div class="corps-carte-base">
+        <a href="/bases/{{ base.slug }}/"
+           hx-get="/bases/{{ base.slug }}/"
+           hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true"
+           class="titre-base"
+           data-testid="corpus-base-lien">{{ base.nom }}</a>
+
+        {% if base.description %}
+        <p class="description-base"
+           data-testid="corpus-base-description">{{ base.description }}</p>
+        {% elif base.appartenances_ouvrables %}
+        {# LE SOMMAIRE remplace la description absente. Trois #}
+        {# noms au plus : au-dela, la carte devient une liste #}
+        {# et cesse d'etre une carte. / At most three names. #}
+        <p class="sommaire-base" data-testid="corpus-base-sommaire">
+            <span class="intitule">Contient</span>
+            {% for appartenance in base.appartenances_ouvrables|slice:":3" %}{% if not forloop.first %}, {% endif %}{{ appartenance.dossier.name }}{% endfor %}{% if base.nombre_de_carnets > 3 %}<span class="reste"> et {{ base.nombre_de_carnets|add:"-3" }} autre{{ base.nombre_de_carnets|add:"-3"|pluralize }}</span>{% endif %}
+        </p>
+        {% else %}
+        {# Ni description ni carnet : on DIT l'etat plutot que #}
+        {# de laisser un trou dans la carte. #}
+        {# / State the fact instead of leaving a hole. #}
+        <p class="sommaire-base" data-testid="corpus-base-sommaire">
+            <span class="reste">Aucun carnet rangé dans cette base
+            pour l'instant.</span>
+        </p>
+        {% endif %}
+    </div>
+
+    {# LE PIED : les compteurs DERIVES, jamais tapes. Ils sont #}
+    {# ecrits en minuscules et mis en capitales par le CSS — le #}
+    {# texte reste « 1 carnet », ce que verifie la suite. #}
+    {# / Derived counters, lowercased in the markup and #}
+    {# uppercased by CSS. #}
+    <p class="pied-carte-base" data-testid="corpus-base-pied">
+        {# Rang 1 : CE QU'ELLE CONTIENT. Rang 2 : D'OU ELLE #}
+        {# VIENT. Deux registres, deux rangs — et aucune ligne #}
+        {# assez longue pour se replier sur un « · » orphelin. #}
+        {# / Row 1: contents. Row 2: provenance. #}
+        <span class="rangee">
+            <span>{{ base.nombre_de_carnets }} carnet{{ base.nombre_de_carnets|pluralize }}</span>
+            <span>{{ base.nombre_de_notes }} note{{ base.nombre_de_notes|pluralize }}</span>
+        </span>
+        <span class="rangee">
+            {% if base.owner %}<span class="proprietaire">par {{ base.owner.username }}</span>{% endif %}
+            {# Date NUMERIQUE, comme partout ailleurs dans le corpus #}
+            {# (liste_syntheses, liste_wikis, article) : `LANGUAGE_CODE` #}
+            {# vaut 'en-us', donc « F Y » rendrait « AUGUST 2026 » dans #}
+            {# une interface francaise. #}
+            {# / Numeric date: LANGUAGE_CODE is 'en-us', so month names #}
+            {# would render in English inside a French UI. #}
+            <span>{{ base.created_at|date:"d/m/Y" }}</span>
+        </span>
+    </p>
+</li>

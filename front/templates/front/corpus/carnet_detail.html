@@ -6,7 +6,8 @@
 {# nombre_de_notes, nombre_de_categories, nombre_de_wikis, #}
 {# nombre_de_syntheses, categories_choisies (pks, int), peut_ecrire. #}
 {% include "front/corpus/_style_maquette.html" %}
-{% include "front/corpus/_fil_ariane.html" %}
+{% include "front/corpus/_fil_ariane_oob.html" %}
+{% include "front/includes/_lecteur_audio_oob.html" %}
 <div class="zone-corpus" data-testid="corpus-carnet-detail"
      data-carnet-id="{{ carnet.pk }}">
 
@@ -18,9 +19,19 @@
             · {{ axes|length }} axe{{ axes|length|pluralize }} de classement
             · {{ nombre_de_categories }} catégorie{{ nombre_de_categories|pluralize }}{% endif %}
             <span data-testid="corpus-carnet-visibilite">
-                {% if carnet.visibilite == "public" %}<span role="img" aria-hidden="true">🌐</span> public{% elif carnet.visibilite == "partage" %}<span role="img" aria-hidden="true">👥</span> partagé{% else %}<span role="img" aria-hidden="true">🔒</span> privé{% endif %}
+                {% if carnet.visibilite == "public" %}public{% elif carnet.visibilite == "partage" %}partagé{% else %}privé{% endif %}
             </span>
         </p>
+        {# LA DESCRIPTION. Elle repond a « de quoi parle ce carnet ? », #}
+        {# question distincte de celle du guide de redaction, qui repond #}
+        {# a « comment y contribuer ? ». Les deux existaient sur le #}
+        {# modele ; seul le guide etait affiche. #}
+        {# / The description answers "what is this notebook about?", a #}
+        {# different question from the writing guide's "how do I #}
+        {# contribute?". Only the guide was shown. #}
+        {% if carnet.description %}
+        <p class="note-explicative" data-testid="corpus-carnet-description">{{ carnet.description }}</p>
+        {% endif %}
         {# CREER DEPUIS L'EN-TETE (etalon : les deux actions du carnet #}
         {# sont visibles sans fouiller les onglets). Ces boutons #}
         {# n'ouvrent AUCUN chemin nouveau : ils activent l'onglet qui #}
@@ -38,6 +49,108 @@
                     data-testid="corpus-btn-nouvelle-synthese">▤ Nouvelle synthèse</button>
         </div>
         {% endif %}
+        {# LA GOUVERNANCE DU CARNET — relogée ici le 12 aout 2026.       #}
+        {#                                                              #}
+        {# Renommer, changer la visibilite, partager, supprimer : ces   #}
+        {# quatre gestes n'existaient QUE dans le menu contextuel de    #}
+        {# l'arbre lateral (clic droit, ou kebab « ⋮ » sur un noeud).   #}
+        {# L'arbre part. Un menu cache derriere un clic droit dans un   #}
+        {# tiroir n'etait de toute facon pas un domicile : la page du   #}
+        {# carnet, elle, porte deja son nom, ses compteurs et sa        #}
+        {# visibilite — les actions qui les changent y appartiennent.   #}
+        {#                                                              #}
+        {# Elle est repliee (`<details>`) parce qu'on vient ici pour    #}
+        {# LIRE le carnet, pas pour l'administrer : ouverte par defaut, #}
+        {# elle mettrait quatre boutons de gouvernance entre l'en-tete  #}
+        {# et les notes.                                                #}
+        {#                                                              #}
+        {# Chaque endpoint refait sa propre verification cote serveur : #}
+        {# `est_proprietaire` decide de ce qu'on MONTRE, jamais de ce   #}
+        {# qu'on AUTORISE.                                              #}
+        {# / Rehoused from the tree's context menu. Collapsed because   #}
+        {# this page is for reading, not administering. The flag drives #}
+        {# display only; every endpoint re-checks server-side. #}
+        {% if est_proprietaire %}
+        <details class="gouvernance-carnet" data-testid="corpus-carnet-gouvernance">
+            <summary>Gérer ce carnet</summary>
+
+            {# RENOMMER. Un champ pre-rempli, pas une boite de dialogue :#}
+            {# on voit le nom actuel pendant qu'on tape le nouveau. #}
+            {# / A pre-filled field, not a dialog. #}
+            <form class="rangee-champ"
+                  hx-post="/dossiers/{{ carnet.pk }}/renommer/"
+                  hx-target="#zone-lecture" hx-swap="innerHTML"
+                  data-testid="corpus-carnet-renommer">
+                <label class="champ-etiquette" for="renommer-carnet-{{ carnet.pk }}">Nom</label>
+                <input type="text" class="champ-texte"
+                       id="renommer-carnet-{{ carnet.pk }}"
+                       name="nouveau_nom" value="{{ carnet.name }}" required
+                       data-testid="corpus-carnet-renommer-nom">
+                <button type="submit" class="bouton-plat"
+                        data-testid="corpus-carnet-renommer-bouton">Renommer</button>
+            </form>
+
+            {# VISIBILITE. Trois boutons plutot qu'un menu : les trois  #}
+            {# etats sont VISIBLES en meme temps, et celui qui est      #}
+            {# actif est marque par `aria-pressed` — la couleur seule   #}
+            {# ne porte jamais l'information (§ 8.3).                   #}
+            {# / Three buttons, not a menu: all states visible at once, #}
+            {# the active one marked by aria-pressed, not by colour. #}
+            <div class="rangee-champ" role="group"
+                 aria-label="Visibilité du carnet"
+                 data-testid="corpus-carnet-changer-visibilite">
+                <span class="champ-etiquette">Visibilité</span>
+                {% for valeur, libelle in niveaux_de_visibilite %}
+                <button type="button" class="bouton-plat"
+                        aria-pressed="{% if carnet.visibilite == valeur %}true{% else %}false{% endif %}"
+                        hx-post="/dossiers/{{ carnet.pk }}/visibilite/"
+                        hx-vals='{"visibilite": "{{ valeur }}"}'
+                        hx-target="#zone-lecture" hx-swap="innerHTML"
+                        data-testid="corpus-carnet-visibilite-choix-{{ valeur }}">{{ libelle }}</button>
+                {% endfor %}
+            </div>
+
+            {# PARTAGER. Le formulaire existant est charge a la demande #}
+            {# dans le conteneur qu'il cible lui-meme                   #}
+            {# (`#partage-contenu-<pk>`) : ses propres soumissions se   #}
+            {# reinjectent donc au bon endroit, sans rien reecrire.     #}
+            {# / The existing sharing form keeps its own target id. #}
+            <div class="rangee-boutons">
+                <button type="button" class="bouton-plat"
+                        hx-get="/dossiers/{{ carnet.pk }}/partager/"
+                        hx-target="#partage-contenu-{{ carnet.pk }}"
+                        hx-swap="innerHTML"
+                        data-testid="corpus-carnet-partager">Partager…</button>
+
+                {# SUPPRIMER. `hx-confirm` demande avant, et le libelle #}
+                {# dit ce qui SURVIT : les notes ne sont pas detruites  #}
+                {# avec le carnet. / The label says what survives. #}
+                <button type="button" class="bouton-plat danger"
+                        hx-delete="/dossiers/{{ carnet.pk }}/"
+                        hx-target="#zone-lecture" hx-swap="innerHTML"
+                        hx-confirm="Supprimer le carnet « {{ carnet.name }} » ? Ses notes ne sont pas supprimées : celles qui n'appartiennent à aucun autre carnet deviennent orphelines."
+                        data-testid="corpus-carnet-supprimer">Supprimer le carnet</button>
+            </div>
+            <div id="partage-contenu-{{ carnet.pk }}" aria-live="polite"></div>
+        </details>
+        {% endif %}
+
+        {# QUITTER UN PARTAGE RECU. Ce geste vivait sur une icone du    #}
+        {# tiroir (`.btn-quitter-partage`), invisible autrement. Il ne  #}
+        {# concerne que les partages DIRECTS : un acces obtenu par un   #}
+        {# groupe se quitte en sortant du groupe, pas carnet par        #}
+        {# carnet. / Only for DIRECT shares; group access is left by    #}
+        {# leaving the group. #}
+        {% if partage_direct_recu %}
+        <div class="rangee-boutons" data-testid="corpus-carnet-partage-recu">
+            <button type="button" class="bouton-plat danger"
+                    hx-post="/dossiers/{{ carnet.pk }}/quitter/"
+                    hx-target="#zone-lecture" hx-swap="innerHTML"
+                    hx-confirm="Quitter le partage de « {{ carnet.name }} » ? Vous perdrez l'accès à ce carnet ; son propriétaire devra le repartager."
+                    data-testid="corpus-carnet-quitter">Quitter ce partage</button>
+        </div>
+        {% endif %}
+
         {% if carnet.guide_de_redaction %}
         <aside class="guide-redaction" data-testid="corpus-carnet-guide"
                aria-label="Guide de rédaction de ce carnet">

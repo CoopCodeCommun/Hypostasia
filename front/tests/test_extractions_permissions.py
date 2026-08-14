@@ -1,6 +1,6 @@
 """
 Le controle d'acces des lectures d'extractions (drawer, cartes,
-dashboard, formulaire de promotion).
+formulaire de promotion).
 / Access control for extraction READ endpoints.
 
 LOCALISATION : front/tests/test_extractions_permissions.py
@@ -13,7 +13,6 @@ AUCUNE permission :
   connecte. La pire.
 - `/extractions/carte_mobile/?entity_id=N` : une extraction et son
   activite.
-- `/extractions/dashboard/?page_id=N` : les stats de debat de la page.
 - `/extractions/formulaire_promouvoir/?page_id=N` : le titre de la
   page (et un oracle d'existence).
 
@@ -167,15 +166,6 @@ class ExtractionsPermissionsTest(TestCase):
             f"/extractions/carte_mobile/?entity_id={self.extraction_privee.pk}",
         )
         self.assertEqual(reponse.status_code, 200)
-
-    # ---- dashboard ----
-
-    def test_le_dashboard_d_une_note_interdite_est_introuvable(self):
-        self.client.force_login(self.intrus)
-        reponse = self.client.get(
-            f"/extractions/dashboard/?page_id={self.note_privee.pk}",
-        )
-        self.assertEqual(reponse.status_code, 404)
 
     # ---- formulaire_promouvoir ----
 

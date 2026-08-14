@@ -4,15 +4,30 @@
 {# LOCALISATION : front/templates/front/corpus/carnets_liste.html #}
 {# INCLUS dans #zone-lecture de base.html (branche carnets_liste_preloaded) #}
 {# ou renvoye seul en HTMX. Variables : carnets (annotes nombre_de_notes, #}
-{# nombre_d_axes). Compteurs DERIVES, jamais tapes (regle de l'etalon). #}
+{# nombre_d_axes, nombre_de_wikis, nombre_de_syntheses, et l'attribut #}
+{# appartenances_de_bases_visibles pose par un Prefetch), plus #}
+{# nombre_total_de_notes et nombre_total_de_syntheses pour l'en-tete. #}
+{# Compteurs DERIVES, jamais tapes (regle de l'etalon). #}
 {# Les data-testid sont inchanges : ce sont des contrats, pas du style. #}
+{# Ajouts du 12 aout (confrontation a l'etalon, vue « base ») : la #}
+{# description du carnet, ses etiquettes, et les deux compteurs de #}
+{# synthese qui manquaient a la sous-ligne. #}
 {% include "front/corpus/_style_maquette.html" %}
+{% include "front/includes/_lecteur_audio_oob.html" %}
 <div class="zone-corpus" data-testid="corpus-carnets-liste">
 
     <header class="entete-zone">
         <h1>Carnets</h1>
+        {# L'etalon totalise dans son en-tete (« 4 carnets · 10 notes · #}
+        {# 4 synthèses ») : on sait ce que pese la collection AVANT #}
+        {# d'ouvrir quoi que ce soit. Les totaux sont DISTINCTS, calcules #}
+        {# dans la vue : une note rangee dans deux carnets ne compte #}
+        {# qu'une fois. / The reference totals in its header; the totals #}
+        {# are DISTINCT counts, computed in the view. #}
         <p class="meta">
             {{ carnets|length }} carnet{{ carnets|length|pluralize }} visible{{ carnets|length|pluralize }}
+            · {{ nombre_total_de_notes }} note{{ nombre_total_de_notes|pluralize }}
+            {% if nombre_total_de_syntheses %}· {{ nombre_total_de_syntheses }} synthèse{{ nombre_total_de_syntheses|pluralize }}{% endif %}
         </p>
         <a href="/bases/" hx-get="/bases/" hx-target="#zone-lecture"
            hx-swap="innerHTML" hx-push-url="true"
@@ -27,7 +42,7 @@
             {# La visibilite : icone ET mot. La couleur ni la forme ne #}
             {# portent jamais seules l'information (§ 8.3). #}
             <span class="marque-visibilite">
-                {% if carnet.visibilite == "public" %}<span class="glyphe" aria-hidden="true">🌐</span>public{% elif carnet.visibilite == "partage" %}<span class="glyphe" aria-hidden="true">👥</span>partagé{% else %}<span class="glyphe" aria-hidden="true">🔒</span>privé{% endif %}
+                {% if carnet.visibilite == "public" %}public{% elif carnet.visibilite == "partage" %}partagé{% else %}privé{% endif %}
             </span>
             <span>
                 <a href="/carnets/{{ carnet.pk }}/"
@@ -36,12 +51,49 @@
                    class="titre-note"
                    data-testid="corpus-carnet-lien">{{ carnet.name }}</a>
                 {# Les compteurs a zero sont TUS (audit UX D7) : dire vingt fois #}
-                {# « 0 axes » n'informe personne. / Zero counters stay silent. #}
+                {# « 0 axes » n'informe personne. L'etalon lui-meme tait les #}
+                {# wikis et les syntheses a zero (corpus.html:1224-1226). #}
+                {# / Zero counters stay silent; the reference does the same. #}
+                {# Les DEUX genres de synthese sont comptes separement : un #}
+                {# wiki est vivant, une synthese dirigee est un acte date — #}
+                {# les additionner effacerait la seule distinction qui #}
+                {# compte. / The two kinds are counted separately. #}
                 <span class="sous-note">
                     <span>{{ carnet.nombre_de_notes }} note{{ carnet.nombre_de_notes|pluralize }}</span>
+                    {% if carnet.nombre_de_wikis %}<span>· {{ carnet.nombre_de_wikis }} wiki{{ carnet.nombre_de_wikis|pluralize }}</span>{% endif %}
+                    {% if carnet.nombre_de_syntheses %}<span>· {{ carnet.nombre_de_syntheses }} synthèse{{ carnet.nombre_de_syntheses|pluralize }}</span>{% endif %}
                     {% if carnet.nombre_d_axes %}<span>· {{ carnet.nombre_d_axes }} axe{{ carnet.nombre_d_axes|pluralize }} de classement</span>{% endif %}
                     {% if carnet.owner %}<span>· par {{ carnet.owner.username }}</span>{% endif %}
                 </span>
+                {# LA DESCRIPTION. Le champ existe sur le modele depuis la #}
+                {# phase corpus et n'etait affiche NULLE PART : il fallait #}
+                {# ouvrir chaque carnet pour savoir ce qu'il contient. #}
+                {# / The field existed on the model and was displayed #}
+                {# nowhere: you had to open each notebook to find out. #}
+                {% if carnet.description %}
+                <span class="description-carnet" data-testid="corpus-carnet-description">{{ carnet.description }}</span>
+                {% endif %}
+                {# LES ETIQUETTES du carnet. Elles vivent sur la RELATION #}
+                {# carnet<->base, comme celles d'une note vivent sur la #}
+                {# relation note<->carnet (SPEC-corpus § 3.2) : un meme #}
+                {# carnet porte donc des etiquettes differentes selon la #}
+                {# base. Ici on les reunit, chacune prefixee de sa base — #}
+                {# sans ce prefixe, deux categories homonymes venues de #}
+                {# deux bases seraient indiscernables. La vue ne prefetch #}
+                {# que les bases OUVRABLES par le visiteur. #}
+                {# / Tags live on the notebook<->base relation, so they #}
+                {# are gathered here, each prefixed by its base. #}
+                {% if carnet.appartenances_de_bases_visibles %}
+                <span class="etiquettes" role="group" aria-label="Catégories dans les bases">
+                    {% for appartenance in carnet.appartenances_de_bases_visibles %}
+                    {% for categorie in appartenance.categories.all %}
+                    <span class="etiquette-categorie"{% if categorie.couleur %} style="--teinte:{{ categorie.couleur }}"{% endif %}
+                          title="{{ categorie.nom }} — base « {{ appartenance.base.nom }} »"
+                          data-testid="corpus-carnet-categorie">{{ categorie.nom }}</span>
+                    {% endfor %}
+                    {% endfor %}
+                </span>
+                {% endif %}
             </span>
         </li>
         {% empty %}
@@ -54,4 +106,42 @@
         </li>
         {% endfor %}
     </ul>
+
+    {# CREER UN CARNET — relogé ici le 12 aout 2026.                   #}
+    {#                                                                 #}
+    {# Ce geste n'existait QU'AU PIED DU TIROIR LATERAL                #}
+    {# (`#btn-creer-dossier-overlay`). Le tiroir disparait ; sans ce   #}
+    {# formulaire, plus personne ne pourrait creer de carnet — l'admin #}
+    {# Django etant ferme, l'un des trois objets du produit serait     #}
+    {# devenu impossible a fabriquer.                                  #}
+    {#                                                                 #}
+    {# Il est APRES la liste, comme la carte de creation de /bases/    #}
+    {# est la derniere cellule de sa grille : sur un ecran de          #}
+    {# collection, on lit d'abord ce qui existe.                       #}
+    {# / Rehoused here on 12 Aug: this gesture only existed at the     #}
+    {# foot of the side drawer, which is going away. Placed after the  #}
+    {# list, like the create card on /bases/: the collection reads     #}
+    {# first. #}
+    {% if user.is_authenticated %}
+    <div class="surface-creation">
+        <h3>Nouveau carnet</h3>
+        <p class="note-explicative">
+            Un carnet rassemble des notes et leur donne un ordre de
+            lecture. Il est privé tant que vous ne l'ouvrez pas :
+            sa page permet ensuite de le partager ou de le rendre public.
+        </p>
+        <form hx-post="/carnets/" hx-target="#zone-lecture" hx-swap="innerHTML"
+              data-testid="corpus-carnet-creer-form">
+            <label class="champ-etiquette" for="creer-carnet-nom">Nom du carnet</label>
+            <input type="text" name="nom" id="creer-carnet-nom" maxlength="200"
+                   class="champ-texte" required
+                   placeholder="Conseil d'administration"
+                   data-testid="corpus-carnet-creer-nom">
+            <div class="rangee-boutons">
+                <button type="submit" class="bouton-plat principal"
+                        data-testid="corpus-carnet-creer-bouton">Créer</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
 </div>

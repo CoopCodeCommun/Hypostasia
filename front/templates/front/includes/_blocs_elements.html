@@ -76,6 +76,16 @@
                  data-media="{{ bloc.media }}"
                  data-label="{{ bloc.element.label }}"
                  data-etat="{% if bloc.est_debattu %}debattu{% else %}analyse{% endif %}"
+                 {% comment %}
+                 LES BORNES DU TOUR, pour que le lecteur audio sache
+                 quel passage on entend. Elles ne paraissent que sur un
+                 audio minute : sur un PDF, un `data-debut` vide se
+                 lirait comme un tour de duree nulle.
+                 / The turn's bounds, so the player knows what is heard.
+                 {% endcomment %}
+                 {% if bloc.debut is not None and bloc.fin is not None %}data-debut="{{ bloc.debut|stringformat:'g' }}"
+                 data-fin="{{ bloc.fin|stringformat:'g' }}"
+                 data-locuteur="{{ bloc.locuteur|default:'' }}"{% endif %}
                  data-testid="bloc-{{ bloc.element.ordre }}">
                 <div class="gouttiere">
                     {% if bloc.locuteur %}
@@ -89,7 +99,34 @@
                           data-testid="locuteur-{{ bloc.element.ordre }}">{{ bloc.locuteur }}</span>
                     {% endif %}
                     {% if bloc.minutage %}
+                    {% comment %}
+                    UN BOUTON D'ECOUTE A COTE DU MINUTAGE — patron de
+                    l'etalon (maquette.html:1725-1727).
+
+                    Une premiere version faisait du MINUTAGE LUI-MEME un
+                    bouton. Deux choses s'y perdaient. Le minutage est un
+                    REPERE — on le lit pour situer un passage, pour le
+                    citer — et un repere qui se souligne au survol invite
+                    a un clic qu'on ne cherchait pas. Et l'action, elle,
+                    n'etait ecrite nulle part : rien ne DISAIT
+                    « ecouter ».
+
+                    Deux objets distincts, donc : un repere qui se lit,
+                    un bouton qui agit. Le bouton ne parait que si un
+                    media est attache — une transcription sans son
+                    garderait sinon un play qui ne joue rien —, et il
+                    s'efface (CSS) jusqu'a ce qu'on survole le bloc ou
+                    qu'on l'ecoute.
+                    / A play button beside the timecode, not instead of
+                    it: one is a marker you read, the other an action.
+                    {% endcomment %}
                     <span class="ligne-minutage">
+                        {% if page.source_file and bloc.debut is not None %}
+                        <button type="button" class="bouton-ecouter"
+                                data-testid="bouton-ecouter-{{ bloc.element.ordre }}"
+                                title="Écouter à partir d'ici"
+                                aria-label="Écouter à partir de {{ bloc.minutage }}">&#9654;</button>
+                        {% endif %}
                         <span class="minutage">{{ bloc.minutage }}</span>
                     </span>
                     {% endif %}
@@ -136,6 +173,32 @@
                 {# / One-item list per bullet: valid HTML, own gutter.     #}
                 <ul><li data-element-id="{{ bloc.element.pk }}"
                         data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</li></ul>
+            {% elif bloc.balise == "table" %}
+                {# Le HTML du tableau est deja construit par le service   #}
+                {# (`convertir_un_tableau_markdown`), marques comprises : #}
+                {# on l'insere tel quel dans un conteneur qui le fait     #}
+                {# defiler s'il est plus large que la colonne.            #}
+                {# / The table HTML is built by the service, marks and    #}
+                {# all; the wrapper lets it scroll inside its own box.    #}
+                <div class="cadre-tableau" data-element-id="{{ bloc.element.pk }}"
+                     data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</div>{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}
+            {% elif bloc.balise == "blockquote" %}
+                {# Une citation porte un filet et l'italique (etalon § 8) : #}
+                {# sans eux, elle a la forme du texte qui la commente.      #}
+                {# / A quote needs its rule and italics, or it reads as the #}
+                {# prose around it. #}
+                <blockquote data-element-id="{{ bloc.element.pk }}"
+                            data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</blockquote>
+            {% elif bloc.balise == "figure" %}
+                {# FORMULE ET IMAGE partagent la `<figure>` : toutes deux   #}
+                {# sont un bloc autonome qu'on ne coupe pas au milieu, et   #}
+                {# que le texte designe de l'exterieur. La classe distingue #}
+                {# leur habillage — centre entre filets pour la formule,    #}
+                {# cadre et legende pour l'image.                           #}
+                {# / Both are self-contained blocks the prose points at.    #}
+                <figure class="{% if bloc.element.label == 'formula' %}formule{% else %}illustration{% endif %}"
+                        data-element-id="{{ bloc.element.pk }}"
+                        data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</figure>
             {% elif bloc.balise == "pre" %}
                 <pre data-element-id="{{ bloc.element.pk }}"
                      data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</pre>

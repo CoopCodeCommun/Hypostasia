@@ -55,41 +55,17 @@ class E2ELayoutTest(PlaywrightLiveTestCase):
         est_cachee = sidebar.evaluate("el => el.classList.contains('hidden')")
         self.assertTrue(est_cachee, "La sidebar droite devrait etre cachee")
 
-    def test_raccourci_t_ouvre_arbre(self):
-        """Le raccourci T ouvre l'overlay arbre."""
-        self.naviguer_vers(f"/lire/{self.page_layout.pk}/")
-        # Presser T pour ouvrir l'arbre
-        # / Press T to open the tree
-        self.page.keyboard.press("t")
-        # L'arbre overlay ne doit plus avoir pointer-events-none
-        # / The tree overlay must not have pointer-events-none
-        self.page.wait_for_selector(
-            '#arbre-overlay:not(.pointer-events-none)',
-            timeout=3000,
-        )
-        arbre_visible = self.page.locator("#arbre-overlay").is_visible()
-        self.assertTrue(arbre_visible, "L'arbre devrait etre visible apres T")
-
-    def test_escape_ferme_arbre(self):
-        """Escape ferme l'overlay arbre."""
-        self.naviguer_vers(f"/lire/{self.page_layout.pk}/")
-        # Ouvrir l'arbre
-        # / Open the tree
-        self.page.keyboard.press("t")
-        self.page.wait_for_selector(
-            '#arbre-overlay:not(.pointer-events-none)',
-            timeout=3000,
-        )
-        # Presser Escape pour fermer
-        # / Press Escape to close
-        self.page.keyboard.press("Escape")
-        self.page.wait_for_timeout(500)
-        # L'arbre doit etre de nouveau cache
-        # / The tree must be hidden again
-        est_cache = self.page.locator("#arbre-overlay").evaluate(
-            "el => el.classList.contains('pointer-events-none') || el.classList.contains('-translate-x-full')"
-        )
-        self.assertTrue(est_cache, "L'arbre devrait etre ferme apres Escape")
+    # LES DEUX TESTS DE LA TOUCHE T ONT ETE RETIRES LE 12 AOUT 2026.
+    #
+    # `test_raccourci_t_ouvre_arbre` et `test_escape_ferme_arbre`
+    # verrouillaient l'ouverture et la fermeture du tiroir lateral. Le
+    # tiroir, la touche T et son rang dans la cascade Escape ont disparu
+    # ensemble : il n'y a plus de comportement a verifier.
+    #
+    # La cascade Escape reste couverte pour ce qu'il en reste — le
+    # drawer (`test_escape_ferme_drawer`, juste apres).
+    # / Both T tests are gone with the drawer, the key and its rung in
+    # the Escape cascade. Escape is still covered for the drawer.
 
     def test_raccourci_e_ouvre_drawer(self):
         """Le raccourci E ouvre le drawer."""
@@ -105,7 +81,13 @@ class E2ELayoutTest(PlaywrightLiveTestCase):
         # Presser Escape pour fermer
         # / Press Escape to close
         self.page.keyboard.press("Escape")
-        self.page.wait_for_timeout(500)
+        # La fermeture se marque par une classe : on l'attend, au lieu de
+        # dormir un demi-seconde en esperant qu'elle soit posee.
+        # / Closing is marked by a class; wait for it rather than sleeping.
+        self.page.wait_for_selector(
+            "#drawer-overlay.pointer-events-none, #drawer-overlay.translate-x-full",
+            state="attached",
+        )
         est_cache = self.page.locator("#drawer-overlay").evaluate(
             "el => el.classList.contains('pointer-events-none') || el.classList.contains('translate-x-full')"
         )

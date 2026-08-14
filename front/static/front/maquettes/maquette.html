@@ -31,20 +31,127 @@
      · raccourcis : front/static/front/js/keyboard.js
 
    CE QUI EST UNE CIBLE, PAS L'EXISTANT — signale par le bandeau « cible »
-     1. Le fil d'Ariane : il n'existe aucun fil dans le produit. Le seul
-        repere est le titre tronque de la barre d'outils.
-     2. Le lecteur audio : aucun <audio>, aucune tete de lecture temporelle.
-        L'existant est une timeline click-to-scroll.
-     3. La progression en direct : le WebSocket ne pousse que « termine ».
-        Le bandeau de progression du drawer est du code mort.
-     4. Le panneau permanent : le produit est mono-colonne + drawer.
-     5. Le mode sombre : le produit n'en a pas.
-     6. Les tableaux en <table> : le service les rend en <pre>. De meme,
-        blockquote, formula, picture et utterance ne sont PAS dans
-        BALISE_PAR_LABEL (rendu_elements.py:82-89) : le service les rend
-        tous en <p>. Les formes propres qu'on leur donne ici sont a ajouter.
-     7. Les elements masques et les ancres detachees : modele present,
-        aucune interface ni endpoint.
+
+   ETAT REVERIFIE AU NAVIGATEUR LE 12 AOUT 2026 (fenetre de 1600px, notes
+   etalons 8 et 9). Quatre des sept lignes etaient PERIMEES. Toute session
+   qui en corrige une DOIT remettre ce tableau a jour, sinon la suivante
+   repart sur une carte fausse — c'est deja arrive.
+
+     1. Le fil d'Ariane — RESOLU. Le produit en affiche un :
+        « Demonstration › Documents etalons › Etude epistemologique ».
+
+     2. Le lecteur audio — RESOLU le 13 aout. La barre existe : 62px,
+        posee en bas, `<audio>` sur `page.source_file`, bouton, minutage,
+        et un rail d'un segment par tour de parole colore par locuteur.
+        Le clic sur le rail deplace la lecture ; le minutage de la
+        gouttiere est devenu un bouton qui ecoute a partir de la ; le
+        tour entendu se marque dans la marge et le texte suit l'oreille
+        PENDANT la lecture seulement.
+        La veille encore : 0 balise <audio>, aucune tete de lecture,
+        aucun rail. Ce que le produit avait — une « barre de progression
+        de lecture » (PHASE-15) — suivait le DEFILEMENT, pas le son.
+
+        DEUX ECARTS ASSUMES, tous deux dans le sens de la justesse :
+        · les segments sont positionnes en ABSOLU, la ou cet etalon les
+          empile dans un `flex`. L'empilement suppose que les tours se
+          touchent : sur la note 8 le premier finit a 0,5s et le second
+          commence a 0,7s, si bien qu'en flex chaque segment derive de
+          la somme des silences qui le precedent, et la tete de lecture
+          ne tombe plus sur le tour qu'on entend ;
+        · le filet du haut est `--filet` et non `2px solid var(--cible)`.
+          Le violet marque ici ce qui n'existe PAS ENCORE ; le garder
+          maintenant que le lecteur existe mentirait dans l'autre sens.
+
+        RESTE OUVERT, ET C'EST UNE QUESTION DE PRODUIT : il y a
+        desormais DEUX rails a l'ecran. Celui du lecteur, en bas, et la
+        timeline click-to-scroll de PHASE-15, en haut — celle-la meme
+        que le bandeau « cible » de cet etalon decrivait comme
+        « l'existant ». Leurs couleurs concordent depuis le 13 aout
+        (palette de Wong des deux cotes, corrigee ce jour-la : le meme
+        locuteur portait du bleu en haut et de l'orange en bas), mais
+        la question de garder les deux appartient au mainteneur.
+
+     3. La progression en direct — VRAI, mais ASSUME, pas en dette :
+        front/consumers.py:3 le dit — « Refonte A.6 : un seul consumer
+        minimal, pas de progression streaming ». Ce n'est plus un retard
+        sur la maquette, c'est une decision contraire. La maquette devra
+        s'aligner, ou la decision etre revue.
+
+     4. Le panneau permanent — RESOLU le 12 aout. Au-dela de 1400px le
+        panneau fait 368px (--panneau: 23rem), commence SOUS la barre
+        d'outils et lui rend sa pleine largeur ; la zone de lecture lui
+        cede exactement sa place. Il reste techniquement `fixed` la ou
+        l'etalon le veut `sticky` dans une grille : ecart de moyen, pas
+        de rendu (maquette.css, « LE PANNEAU EST UNE COLONNE »).
+        Avant ce jour il partait de y=0 a z-index 70 et RECOUVRAIT la
+        barre d'outils (z-index 30) sur ses 576 derniers pixels.
+
+     5. Le mode sombre — RESOLU. Le produit en a un, et il fonctionne.
+
+     6. Les formes par label — RESOLU le 13 aout. BALISE_PAR_LABEL
+        (rendu_elements.py:88) rend desormais `table` en <table> — le
+        markdown « pipe » de Docling passe par
+        `convertir_un_tableau_markdown`, qui REFERME les marques
+        d'ancrage a chaque frontiere de cellule, meme regle que pour une
+        ancre qui enjambe deux elements. `blockquote`, `formula` et
+        `picture` ont leur forme propre (<blockquote>, <figure>).
+        `utterance` reste un <p> A DESSEIN : c'est un label d'AFFICHAGE
+        pose sur tout element d'un audio (rendu_elements.py:707), et une
+        prise de parole EST un paragraphe.
+        Corrige la veille : ces <pre> mesuraient 3 162px et faisaient
+        defiler toute la page horizontalement. Ils defilent desormais
+        dans leur propre boite (.cadre-tableau, overflow-x:auto).
+
+     7. Les elements masques et les ancres detachees — RESOLU. Un bouton
+        « masquer » poste sur /elements/{pk}/masquer/
+        (_actions_element.html:61) et le drawer affiche « ancre detachee —
+        aucun passage, a replacer » (drawer_vue_liste.html:148).
+
+   L'ECART DE CENTRAGE EST CORRIGE (12 aout). La colonne de lecture
+   tombait 42px a gauche du centre, contre 13px ici : le produit tirait
+   son CORPS vers la gauche par des marges negatives la ou cet etalon
+   decale son EN-TETE vers la droite. Les deux alignaient titre et
+   texte, un seul centrait l'ensemble. Le produit suit desormais le
+   chemin de l'etalon.
+
+   ===================================================================
+   CE SUR QUOI LE PRODUIT S'ECARTE DE CET ETALON — PAR DECISION
+   ===================================================================
+
+   Ces trois points ne sont NI des retards NI des defauts : ce sont des
+   arbitrages du mainteneur, pris le 12 aout en connaissance de l'ecart.
+   Les lire comme des ecarts a rattraper ferait DEFAIRE des decisions.
+   C'est cet etalon qui devra evoluer, pas le produit.
+
+   A. UNE SEULE BANDE DE CONTEXTE, ET NON DEUX.
+      Ici, le fil d'Ariane traverse la page (§ 4) et le panneau porte
+      son propre en-tete dessous (§ 13). Le produit les FOND en une
+      seule div : fil a gauche, titre du panneau a droite, une seule
+      hauteur.
+      Motif : les deux bandes faisaient 32px et 40,6px — les aligner
+      demandait de tenir deux regles egales a la main, qui derivent des
+      qu'on touche a l'une. Une div unique rend l'alignement vrai par
+      construction.
+
+   B. LE BOUTON DU PANNEAU VIT DANS LA NOTE, PAS DANS LA BARRE.
+      Ici, « Analyses » est un bouton de la barre d'outils. Dans le
+      produit il est dans la rangee d'actions de la note, a cote de
+      « Source » et « Exporter ».
+      Motif (mainteneur) : « Le bouton dans le menu n'a d'ailleurs pas
+      de sens. » Dans la barre globale, il suivait l'utilisateur sur
+      les carnets et les bases, ou il ne designait rien — le panneau ne
+      parle que d'UNE note.
+
+   C. L'ORDRE DU MENU EST « BASES » PUIS « CARNETS ».
+      Motif : une base CONTIENT des carnets, qui contiennent des notes.
+      L'ordre inverse faisait lire la hierarchie a l'envers.
+
+   Et deux retraits decides le meme jour, sans equivalent ici :
+   le DASHBOARD de la barre (son bouton de synthese a demenage dans le
+   pied du panneau, ou il avait son seul point d'entree) et l'ARBRE
+   LATERAL avec son hamburger (la navigation passe par /bases/ et
+   /carnets/, qui montrent ce que chaque conteneur porte — ce qu'un
+   arbre replie ne montre pas).
 
    Tout est simule. Aucune requete, aucune dependance externe.
    ========================================================================= */
@@ -234,6 +341,25 @@ button { font-family:inherit; }
   flex:none; font-size:.55rem; text-transform:uppercase; letter-spacing:.07em;
   color:var(--cible); border:1px solid var(--cible); border-radius:2px;
   padding:.02rem .28rem; cursor:help;
+}
+
+/* LE TITRE DU PANNEAU VIT DANS LE FIL (fusion du 12 aout).
+   Le fil s'etire, le titre occupe la colonne de droite : une seule
+   bande, une seule hauteur, et la separation des deux colonnes se
+   prolonge du haut de la page jusqu'en bas.
+   / One strip, one height; the columns' split runs through it. */
+.fil-ariane { padding-right: 0; }
+.fil-ariane .section-courante { margin-left: auto; }
+.titre-du-panneau {
+  display: none; align-items: center; gap: .5rem;
+  width: var(--panneau); flex: none;
+  height: 100%; padding: 0 .8rem;
+  border-left: 1px solid var(--filet);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.titre-du-panneau .fermer { margin-left: auto; text-transform: none; letter-spacing: 0; }
+@media (min-width: 1400px) {
+  body[data-panneau="permanent"] .titre-du-panneau { display: flex; }
 }
 
 /* ======================= 5. DISPOSITION ======================= */
@@ -504,15 +630,13 @@ body[data-panneau="drawer"] .panneau.est-ouvert { transform:translateX(0); }
 html, body { overflow-x:hidden; }
 .voile.est-visible { display:block; }
 
-.panneau-entete {
-  padding:.7rem .8rem .55rem; border-bottom:1px solid var(--filet); flex:none;
-}
-.panneau-titre {
-  display:flex; align-items:center; gap:.5rem;
-  font-family:ui-monospace,Menlo,monospace; font-size:.66rem;
-  text-transform:uppercase; letter-spacing:.08em; color:var(--encre-douce);
-}
-.panneau-titre .fermer { margin-left:auto; text-transform:none; letter-spacing:0; }
+/* `.panneau-entete` et `.panneau-titre` ont ete retires le 12 aout :
+   l'en-tete du panneau a fusionne avec le fil d'Ariane dans une bande
+   unique (voir `.titre-du-panneau`, § 5). Leurs regles restaient la,
+   sans element a habiller — du CSS mort qui laisse croire que le
+   composant existe encore.
+   / Removed: the panel header merged into the breadcrumb strip. The
+   rules lingered with nothing to style. */
 .panneau-corps { flex:1; overflow-y:auto; padding:.7rem .8rem 3rem; }
 
 .bandeau-resume {
@@ -801,7 +925,7 @@ body[data-mode="inspection"] .carte.est-active .origine-element { display:block;
   color:var(--encre-douce);
 }
 
-/* ======================= 19. LECTEUR AUDIO (cible) ======================= */
+/* ==================== 19. LECTEUR AUDIO (bati le 13 aout) ================ */
 .lecteur {
   position:fixed; left:0; right:0; bottom:0; z-index:82; height:var(--barre-audio);
   display:none; align-items:center; gap:.9rem; padding:0 1rem;
@@ -895,13 +1019,24 @@ body[data-source="audio"][data-lecteur="oui"] .lecteur { display:flex; }
 
 <!-- ============ BARRE D'OUTILS (base.html:19-169) ============ -->
 <div class="barre-outils">
-  <button id="btn-arbre" title="Bibliothèque (T)">☰</button>
   <span class="marque">Hypostasia</span>
+  <!-- ORDRE HIERARCHIQUE : une base contient des carnets, qui contiennent
+       des notes. Le menu les listait a l'envers. Decision du 12 aout.
+       / Bases contain notebooks: the menu now reads in that order. -->
+  <a class="lien-nav" href="corpus.html" id="nav-bases">Bases</a>
+  <a class="lien-nav" href="corpus.html" id="nav-carnets">Carnets</a>
   <span class="titre-doc" id="titre-barre">—</span>
   <div class="droite">
-    <button id="btn-dashboard" title="État du débat">◍ <span class="libelle">Dashboard</span></button>
-    <button id="btn-panneau" title="Analyses (E)">▤ <span class="libelle">Analyses</span>
-      <span class="pastille-badge" id="badge-panneau" hidden></span></button>
+    <!-- LE HAMBURGER, LE DASHBOARD ET LE BOUTON « ANALYSES » ONT ETE
+         RETIRES DE LA BARRE le 12 aout (decisions du mainteneur) :
+         · le hamburger ouvrait un arbre lateral, lui-meme retire ; la
+           navigation passe par « Bases » et « Carnets », qui disent ou
+           ils menent la ou trois traits empiles ne le disent pas ;
+         · le dashboard portait le SEUL acces a la synthese — celui-ci a
+           demenage dans le pied du panneau, ou il suit les idees ;
+         · « Analyses » suivait l'utilisateur sur des ecrans ou il ne
+           designait rien ; il vit dans la rangee d'actions de la note.
+         / Hamburger, dashboard and the Analyses button left the bar. -->
     <button id="btn-import" title="Importer un document">↑ <span class="libelle">Importer</span></button>
     <button id="btn-taches" title="Mes tâches"><span id="icone-taches">✓</span>
       <span class="pastille-badge" id="badge-taches" hidden></span></button>
@@ -927,6 +1062,17 @@ body[data-source="audio"][data-lecteur="oui"] .lecteur { display:flex; }
   <span class="separateur-fil">›</span>
   <span class="courant" id="fil-page">—</span>
   <span class="section-courante" id="fil-section"></span>
+
+  <!-- LE TITRE DU PANNEAU, dans la MEME bande que le fil. Il occupe la
+       largeur de la colonne de droite : la separation verticale des deux
+       colonnes se prolonge donc dans la bande au lieu de s'y interrompre.
+       / The panel title shares this strip; the columns' split continues
+       through it. -->
+  <span class="titre-du-panneau" id="titre-du-panneau">
+    <button class="bouton-plat" id="btn-retour-liste" hidden>◀</button>
+    <span id="panneau-titre-texte">Extractions</span>
+    <button class="bouton-plat fermer" id="btn-fermer-panneau">✕</button>
+  </span>
 </nav>
 
 <div class="note-source" id="note-source"></div>
@@ -940,6 +1086,14 @@ body[data-source="audio"][data-lecteur="oui"] .lecteur { display:flex; }
         <h1 class="titre-page" id="titre-page" title="Cliquer pour renommer">—</h1>
         <div class="source-doc" id="source-doc"></div>
         <div class="rangee-actions">
+          <!-- LE BOUTON DU PANNEAU VIT ICI, PAS DANS LA BARRE (12 aout).
+               Dans la barre globale il suivait l'utilisateur sur les
+               carnets et les bases, ou il ne designait rien : le panneau
+               ne parle que d'UNE note, son bouton appartient donc aux
+               actions de cette note.
+               / The panel is about one note; so is its button. -->
+          <button class="bouton-plat" id="btn-panneau" title="Analyses (E)">▤ Analyses
+            <span class="pastille-badge" id="badge-panneau" hidden></span></button>
           <button class="bouton-plat" id="btn-source">⤓ Source</button>
           <button class="bouton-plat" id="btn-exporter">⤒ Exporter ▾</button>
           <span class="separateur-vertical"></span>
@@ -963,13 +1117,13 @@ body[data-source="audio"][data-lecteur="oui"] .lecteur { display:flex; }
 
   <!-- ============ PANNEAU / DRAWER ============ -->
   <aside class="panneau" id="panneau" data-ecran="liste">
-    <div class="panneau-entete">
-      <div class="panneau-titre">
-        <button class="bouton-plat" id="btn-retour-liste" hidden>◀</button>
-        <span id="panneau-titre-texte">Extractions</span>
-        <button class="bouton-plat fermer" id="btn-fermer-panneau">✕</button>
-      </div>
-    </div>
+    <!-- L'EN-TETE DU PANNEAU A FUSIONNE AVEC LE FIL D'ARIANE (12 aout).
+         Les deux bandes faisaient 32px et 40,6px : les aligner demandait
+         de tenir deux regles egales a la main, qui derivent des qu'on
+         touche a l'une. Une seule div rend l'alignement vrai par
+         construction. Voir la bande de contexte, plus haut.
+         / The panel header merged into the breadcrumb strip: one div,
+         one height, alignment true by construction. -->
     <div class="panneau-corps">
 
       <!-- ---- Écran liste ---- -->
@@ -1150,13 +1304,12 @@ body[data-source="audio"][data-lecteur="oui"] .lecteur { display:flex; }
   </div>
 </div>
 
-<!-- ============ LECTEUR AUDIO (cible) ============ -->
+<!-- ======= LECTEUR AUDIO — bati dans le produit le 13 aout ======= -->
 <div class="lecteur">
   <button class="bouton-lecture" id="bouton-lecture" aria-label="Lecture">▶</button>
   <div class="piste">
     <div class="piste-entete">
-      <span><span class="marque-cible" title="Aucun lecteur audio n'existe dans le produit. L'existant est une timeline click-to-scroll.">cible</span>
-        <span id="piste-titre">—</span></span>
+      <span><span id="piste-titre">—</span></span>
       <span id="minutage">00:00 / 00:00</span>
     </div>
     <div class="rail" id="rail"><div class="tete-de-lecture" id="tete" style="left:0"></div></div>
@@ -1986,7 +2139,9 @@ document.getElementById('btn-fermer-panneau').addEventListener('click', fermerLe
 
 function ouvrirLArbre()  { arbre.classList.add('est-ouvert');  voile.classList.add('est-visible'); }
 function fermerLArbre()  { arbre.classList.remove('est-ouvert'); if (!panneau.classList.contains('est-ouvert')) voile.classList.remove('est-visible'); }
-document.getElementById('btn-arbre').addEventListener('click', ouvrirLArbre);
+/* Le hamburger a ete retire de la barre le 12 aout : l'arbre lateral
+   n'existe plus, la navigation passe par « Bases » et « Carnets ».
+   / The hamburger is gone with the side tree it opened. */
 document.getElementById('btn-fermer-arbre').addEventListener('click', fermerLArbre);
 voile.addEventListener('click', function () { fermerLePanneau(); fermerLArbre(); fermerLaFeuille(); });
 
@@ -2002,7 +2157,11 @@ function basculerSurface(identifiant) {
   document.querySelectorAll('.surface').forEach(function (s) { s.classList.remove('est-visible'); });
   if (!etaitVisible) surface.classList.add('est-visible');
 }
-document.getElementById('btn-dashboard').addEventListener('click', function () { basculerSurface('surface-dashboard'); });
+/* Le dashboard a ete retire de la barre le 12 aout. Il portait le SEUL
+   acces a la synthese : ce bouton a demenage dans le pied du panneau,
+   ou il suit les idees dont la synthese sort.
+   / The dashboard held the only entry point to synthesis; that button
+   moved into the panel's footer. */
 document.getElementById('btn-taches').addEventListener('click', function () { basculerSurface('surface-taches'); rendreLesTaches(); });
 document.getElementById('ouvrir-aide').addEventListener('click', function () { basculerSurface('surface-aide'); });
 document.getElementById('btn-fermer-aide').addEventListener('click', function () { basculerSurface('surface-aide'); });

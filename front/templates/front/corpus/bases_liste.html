@@ -1,68 +1,98 @@
-{# LISTE DES BASES DE CONNAISSANCES — phase H corpus, portee sur le #}
-{# design de la MAQUETTE le 9 aout 2026 (lot T5 de la bascule CSS). #}
-{# / KNOWLEDGE BASE LIST — corpus phase H, ported to the etalon design. #}
+{# LISTE DES BASES DE CONNAISSANCES — refondue en GRILLE DE CARTES le #}
+{# 12 aout 2026. Le menu burger va mener ici : /bases/ cesse d'etre un #}
+{# ecran secondaire pour devenir une PORTE D'ENTREE, souvent le premier #}
+{# ecran qu'un visiteur voit. Trois consequences, dans cet ordre : #}
+{#  1. la page EXPLIQUE ce qu'est une base, en permanence — l'ancienne #}
+{#     version ne l'expliquait que dans son etat VIDE, c'est-a-dire #}
+{#     l'ecran que plus personne ne voit des qu'une base existe ; #}
+{#  2. la carte montre `description`, un champ du modele qui n'etait #}
+{#     affiche NULLE PART (meme defaut que Dossier.description avant le #}
+{#     12 aout) ; #}
+{#  3. quand la description est vide — le cas de la base de #}
+{#     developpement — la carte montre son SOMMAIRE : les carnets #}
+{#     reellement dedans, ceux que le visiteur peut ouvrir. De la #}
+{#     donnee reelle, jamais un texte d'attente. #}
+{# / KNOWLEDGE BASE DIRECTORY — rebuilt as a card grid: it becomes a #}
+{# main entry point, so it explains itself, shows the description field #}
+{# nobody displayed, and falls back to real contents, never filler. #}
 {# LOCALISATION : front/templates/front/corpus/bases_liste.html #}
-{# Les data-testid sont inchanges : ce sont des contrats, pas du style. #}
+{# Variables : bases (annotees nombre_de_carnets et nombre_de_notes, #}
+{# avec .numero_de_cote et .appartenances_ouvrables poses par la vue), #}
+{# nombre_de_bases, nombre_total_de_carnets. #}
+{# Les data-testid existants sont inchanges : ce sont des contrats. #}
 {% include "front/corpus/_style_maquette.html" %}
+{% include "front/includes/_lecteur_audio_oob.html" %}
 <div class="zone-corpus" data-testid="corpus-bases-liste">
 
     <header class="entete-zone">
         <h1>Bases de connaissances</h1>
-        <p class="meta">
-            {{ bases|length }} base{{ bases|length|pluralize }} visible{{ bases|length|pluralize }}
+        {# L'EXPLICATION, permanente. Elle reprend le modele mot pour #}
+        {# mot (core/models.py, BaseDeConnaissances) : une base est un #}
+        {# ensemble de carnets porte par un collectif, et ce niveau est #}
+        {# FACULTATIF — le dire evite de faire croire qu'il faut creer #}
+        {# une base avant d'ouvrir un carnet. #}
+        {# / The permanent explanation, taken from the model itself. #}
+        <p class="introduction" data-testid="corpus-bases-intro">
+            Une base rassemble les carnets d'un collectif — un réseau de
+            tiers-lieux, un lycée, une coopérative — et les classe avec ses
+            propres axes. Un carnet peut appartenir à plusieurs bases ; il
+            peut aussi n'appartenir à aucune.
         </p>
-        <a href="/carnets/" hx-get="/carnets/" hx-target="#zone-lecture"
-           hx-swap="innerHTML" hx-push-url="true"
-           class="lien-navigation"
-           data-testid="corpus-lien-carnets">→ Voir les carnets</a>
+        <div class="rangee-entete">
+            {# Les totaux sont DISTINCTS, calcules dans la vue : un #}
+            {# carnet range dans deux bases ne compte qu'une fois. #}
+            {# / DISTINCT totals, computed in the view. #}
+            <p class="meta" data-testid="corpus-bases-compteur">
+                {{ nombre_de_bases }} base{{ nombre_de_bases|pluralize }}
+                · {{ nombre_total_de_carnets }} carnet{{ nombre_total_de_carnets|pluralize }}
+            </p>
+            <a href="/carnets/" hx-get="/carnets/" hx-target="#zone-lecture"
+               hx-swap="innerHTML" hx-push-url="true"
+               class="lien-navigation"
+               data-testid="corpus-lien-carnets">→ Voir les carnets</a>
+        </div>
     </header>
 
-    {% if user.is_authenticated %}
-    <form class="rangee-champ"
-          hx-post="/bases/" hx-target="#zone-lecture" hx-swap="innerHTML"
-          data-testid="corpus-base-creer-form">
-        <label class="champ-etiquette" for="creer-base-nom">+ Nouvelle base</label>
-        <input type="text" name="nom" id="creer-base-nom" maxlength="200"
-               class="champ-texte"
-               data-testid="corpus-base-creer-nom">
-        <button type="submit" class="bouton-plat principal">Créer</button>
-    </form>
+    {% if not bases %}
+    {# Etat vide DIDACTIQUE (audit UX D4) : expliquer, pas constater. #}
+    {# Il est plus court qu'avant parce que l'en-tete explique deja ce #}
+    {# qu'est une base : il ne lui reste qu'a dire quoi faire. #}
+    {# / Shorter than before: the header already explains what a base #}
+    {# is, so the empty state only has to say what to do. #}
+    <p class="vide" data-testid="corpus-bases-vide">
+        <strong>Aucune base de connaissances pour l'instant.</strong>
+        {% if user.is_authenticated %}
+        Créez la première avec la carte ci-dessous. Vous pourrez y ranger
+        vos carnets ensuite, et les classer selon vos propres axes.
+        {% else %}
+        Connectez-vous pour en créer une. Les bases des autres
+        n'apparaissent ici que si elles sont publiques.
+        {% endif %}
+    </p>
     {% endif %}
 
-    <ul class="liste-notes" aria-label="Liste des bases">
+    <ul class="grille-bases" aria-label="Liste des bases"
+        data-testid="corpus-bases-grille">
         {% for base in bases %}
-        <li class="ligne-note" data-testid="corpus-base-item"
-            data-base-slug="{{ base.slug }}">
-            <span class="marque-visibilite">
-                {% if base.visibilite == "public" %}<span class="glyphe" aria-hidden="true">🌐</span>public{% elif base.visibilite == "partage" %}<span class="glyphe" aria-hidden="true">👥</span>partagé{% else %}<span class="glyphe" aria-hidden="true">🔒</span>privé{% endif %}
-            </span>
-            <span>
-                <a href="/bases/{{ base.slug }}/"
-                   hx-get="/bases/{{ base.slug }}/"
-                   hx-target="#zone-lecture" hx-swap="innerHTML" hx-push-url="true"
-                   class="titre-note"
-                   data-testid="corpus-base-lien">{{ base.nom }}</a>
-                <span class="sous-note">
-                    <span>{{ base.nombre_de_carnets }} carnet{{ base.nombre_de_carnets|pluralize }}</span>
-                    {% if base.owner %}<span>· par {{ base.owner.username }}</span>{% endif %}
-                </span>
-            </span>
-        </li>
-        {% empty %}
-        {# Etat vide DIDACTIQUE (audit UX D4) : expliquer, pas constater. #}
-        {# / DIDACTIC empty state: explain, don't just state. #}
-        <li class="vide" data-testid="corpus-bases-vide">
-            <strong>Aucune base de connaissances pour l'instant.</strong>
-            <p>Une base regroupe plusieurs carnets — par exemple les carnets
-            thématiques d'un réseau, ou les carnets d'un lycée par classe et
-            par projet. Un carnet peut appartenir à plusieurs bases, et
-            chaque base classe ses carnets avec ses propres axes.</p>
-            {% if user.is_authenticated %}
-            <p>Créez-en une avec le formulaire ci-dessus.</p>
-            {% else %}
-            <p>Connectez-vous pour en créer une.</p>
-            {% endif %}
-        </li>
+        {% include "front/corpus/partials/carte_de_base.html" %}
         {% endfor %}
+
+        {% if user.is_authenticated %}
+        {# LA CREATION est la DERNIERE cellule de la grille : sur une #}
+        {# porte d'entree, « + Nouvelle base » ne doit pas passer avant #}
+        {# la collection. / Last cell: the collection is read first. #}
+        <li class="cellule-creation">
+            <form class="carte-creation-base"
+                  hx-post="/bases/" hx-target="#zone-lecture" hx-swap="innerHTML"
+                  data-testid="corpus-base-creer-form">
+                <label class="champ-etiquette" for="creer-base-nom">+ Nouvelle base</label>
+                <input type="text" name="nom" id="creer-base-nom" maxlength="200"
+                       class="champ-texte"
+                       placeholder="Réseau des tiers-lieux"
+                       data-testid="corpus-base-creer-nom">
+                <button type="submit" class="bouton-plat principal">Créer</button>
+            </form>
+        </li>
+        {% endif %}
     </ul>
 </div>

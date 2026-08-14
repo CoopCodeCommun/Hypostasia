@@ -27,7 +27,21 @@
 (function() {
     'use strict';
 
-    var boutonToolbar = document.getElementById('btn-toolbar-drawer');
+    // LE BOUTON DU PANNEAU VIT DANS LA NOTE, PAS DANS LA BARRE.
+    //
+    // Depuis le 12 aout il est rendu par `lecture_principale.html` : il
+    // n'existe donc pas sur les autres ecrans, et il est RECREE a chaque
+    // navigation HTMX vers une note. Une reference prise au chargement
+    // pointerait sur un bouton detruit des le premier changement de
+    // page, et planterait la ou il n'y en a pas.
+    //
+    // On passe donc par une DELEGATION sur le document : elle survit aux
+    // swaps et tolere l'absence du bouton.
+    // / The button now lives in the note template: it is re-created on
+    // every HTMX swap and absent elsewhere. Delegate, never hold a ref.
+    function boutonDuPanneau() {
+        return document.getElementById('btn-toolbar-drawer');
+    }
     var boutonFermer = document.getElementById('btn-fermer-drawer');
     var backdrop = document.getElementById('drawer-backdrop');
     var overlay = document.getElementById('drawer-overlay');
@@ -247,7 +261,8 @@
 
         // Remet le focus sur le bouton toolbar
         // / Return focus to toolbar button
-        boutonToolbar.focus();
+        var bouton = boutonDuPanneau();
+        if (bouton) bouton.focus();
     }
 
     // Bascule ouvert/ferme
@@ -265,7 +280,9 @@
 
     // Clic bouton toolbar → bascule
     // / Toolbar button click → toggle
-    boutonToolbar.addEventListener('click', basculerDrawer);
+    document.addEventListener('click', function (evenement) {
+        if (evenement.target.closest('#btn-toolbar-drawer')) basculerDrawer();
+    });
 
     // Clic fermer → ferme
     // / Close click → close

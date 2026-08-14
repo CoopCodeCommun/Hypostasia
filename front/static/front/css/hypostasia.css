@@ -379,63 +379,11 @@ body { font-family: 'B612', sans-serif; }
 }
 
 
-/* === 10. Overlay arbre et toolbar ===
-   Transitions overlay arbre (PHASE-08) et boutons toolbar.
-   / Tree overlay transitions (PHASE-08) and toolbar buttons.
+/* === 10. Boutons de la toolbar ===
+   L'overlay de l'arbre lateral vivait ici (#arbre-backdrop,
+   #arbre-overlay, .arbre-footer*). Retire le 12 aout 2026 avec l'arbre.
+   / The side-tree overlay lived here; removed with the tree.
    ========================================================================== */
-
-#arbre-backdrop { transition: opacity 0.2s ease; }
-#arbre-overlay { transition: transform 0.2s ease; }
-
-/* Footer de l'arbre : boutons d'action en bas de la sidebar */
-/* / Tree footer: action buttons at the bottom of the sidebar */
-.arbre-footer {
-    border-top: 1px solid var(--border-default);
-    padding: 0.625rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.375rem;
-    flex-shrink: 0;
-    background: var(--surface-secondary);
-}
-.arbre-footer-rangee {
-    display: flex;
-    gap: 0.375rem;
-}
-.arbre-footer-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.375rem;
-    padding: 0.5rem 0.625rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    background: var(--surface-primary);
-    border: 1px solid var(--border-default);
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-decoration: none;
-    text-align: center;
-    line-height: 1.2;
-}
-.arbre-footer-btn:hover {
-    color: #2563eb;
-    border-color: #bfdbfe;
-    background: #eff6ff;
-}
-.arbre-footer-btn:active {
-    background: #dbeafe;
-}
-.arbre-footer-btn svg {
-    flex-shrink: 0;
-    opacity: 0.6;
-}
-.arbre-footer-btn:hover svg {
-    opacity: 1;
-}
 
 /* Boutons toolbar uniformes (PHASE-08) */
 /* / Uniform toolbar buttons (PHASE-08) */
@@ -485,15 +433,6 @@ body { font-family: 'B612', sans-serif; }
 }
 
 
-/* === 12a. Active states ===
-   État actif pour les items de l'arbre et les cartes.
-   / Active state for tree items and cards.
-   ========================================================================== */
-
-.arbre-item-actif {
-    background-color: #eef2ff;  /* indigo-50 */
-    border-left: 3px solid #6366f1;  /* indigo-500 */
-}
 
 
 /* === 12b. Loading states ===
@@ -638,27 +577,6 @@ body { font-family: 'B612', sans-serif; }
    / Dropdown, progress bar and dashboard components.
    ========================================================================== */
 
-/* Dropdown ancre sous le bouton toolbar / Dropdown anchored below toolbar button */
-.dashboard-dropdown {
-    position: absolute;
-    top: 3rem;
-    right: 8rem;
-    z-index: 50;
-    max-width: 22rem;
-    width: 22rem;
-    background: var(--surface-primary);
-    border: 1px solid var(--border-default);
-    border-radius: 0.5rem;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-}
-@media (max-width: 640px) {
-    .dashboard-dropdown {
-        right: 0.5rem;
-        left: 0.5rem;
-        width: auto;
-        max-width: none;
-    }
-}
 
 /* Barre de progression consensus / Consensus progress bar */
 .progress-bar-consensus {
@@ -979,7 +897,8 @@ body { font-family: 'B612', sans-serif; }
 
 
 /* === 21. Alignement cross-documents (PHASE-18) ===
-   Modale, tableau croise et mode selection dans l'arbre.
+   Modale et tableau croise (le mode selection vivait dans l'arbre,
+   retire le 12 aout 2026).
    / Modal, cross-table and selection mode in the tree.
    ========================================================================== */
 
@@ -1161,30 +1080,6 @@ body { font-family: 'B612', sans-serif; }
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-/* Barre flottante de selection dans l'arbre / Floating selection bar in tree */
-.barre-selection-alignement {
-    position: sticky;
-    bottom: 0;
-    background: white;
-    border-top: 1px solid var(--border-default);
-    padding: 0.75rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    z-index: 5;
-}
-
-/* Checkbox du mode selection dans l'arbre / Selection mode checkbox in tree */
-.arbre-checkbox-selection {
-    width: 1rem;
-    height: 1rem;
-    margin-right: 0.375rem;
-    cursor: pointer;
-    accent-color: #6366f1;
-    flex-shrink: 0;
-    vertical-align: middle;
-}
 
 /* Bascule texte source / resume IA dans les cellules / Source text / AI summary toggle in cells */
 .alignement-texte-origine { display: none; }
@@ -1461,7 +1356,6 @@ body { font-family: 'B612', sans-serif; }
         border-bottom-style: dotted !important;
     }
 
-    #arbre-overlay { width: 100vw !important; }
     .btn-toolbar { min-width: 2.75rem; min-height: 2.75rem; }
 
     /* Boutons desktop masques sur mobile, boutons mobile visibles */

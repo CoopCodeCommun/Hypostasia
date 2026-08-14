@@ -211,6 +211,31 @@ def carnets_visibles_par(utilisateur):
     return Dossier.objects.filter(filtre).distinct()
 
 
+def _filtre_des_bases_visibles(utilisateur):
+    """
+    Le filtre Q, pose sur une AppartenanceDossierBase, des appartenances
+    dont la base est ouvrable par ce visiteur.
+    / The Q filter, on AppartenanceDossierBase, of memberships whose base
+    the visitor may open.
+
+    LOCALISATION : front/views_corpus.py
+
+    Meme doctrine que le fil d'Ariane (voir contexte_du_fil_d_ariane) :
+    le nom d'une base privee est deja une fuite, et le nom d'une de ses
+    categories l'est tout autant. On ne montre donc les etiquettes d'un
+    carnet que pour les bases publiques ou possedees par le visiteur.
+    / Same doctrine as the breadcrumb: a private base's name — and its
+    categories' names — must not leak.
+    """
+    filtre = (
+        Q(base__visibilite=VisibiliteDossier.PUBLIC)
+        | Q(base__owner__isnull=True)
+    )
+    if utilisateur is not None and utilisateur.is_authenticated:
+        filtre = filtre | Q(base__owner=utilisateur)
+    return filtre
+
+
 def contexte_du_fil_d_ariane(request, carnet=None, note=None, carnet_demande=None):
     """
     De quoi dessiner « Base › Carnet › Note » au-dessus d'un ecran.
@@ -349,6 +374,255 @@ def _contexte_des_notes_du_carnet(request, carnet, identifiants_bruts):
     }
 
 
+def _contexte_de_la_liste_des_carnets(request):
+    """
+    Le contexte de /carnets/ : les carnets visibles et les deux totaux
+    de l'en-tete.
+    / The context of /carnets/: visible notebooks and the header totals.
+
+    LOCALISATION : front/views_corpus.py
+
+    EXTRAIT DE CarnetViewSet.list LE 12 AOUT. Pourquoi : le retrait de
+    l'arbre lateral fait de `/carnets/` le domicile des gestes que le
+    tiroir portait seul (creer, supprimer, quitter un partage). Les vues
+    qui executent ces gestes vivent dans `front/views.py` et doivent
+    pouvoir RENDRE cette liste sans reimplementer ses requetes.
+    / Extracted so the gesture endpoints in front/views.py can render
+    this list without duplicating its queries.
+    """
+    # La regle d'acces vit dans carnets_visibles_par() : le fil
+    # d'Ariane s'en sert aussi, elle ne doit exister qu'une fois.
+    # / The access rule lives in one place; the breadcrumb reuses it.
+    # Compteurs DERIVES en une requete (regle de l'etalon : rien de
+    # tape). / DERIVED counters in one query.
+    #
+    # Le filtre type_de_note=NOTE est INDISPENSABLE : la page qui
+    # porte un wiki ou une synthese est RANGEE dans le carnet
+    # (views_synthese.py:454 et :837), donc sans ce filtre la liste
+    # annoncait « 6 notes » la ou le detail — qui, lui, filtre —
+    # annoncait « 3 notes ». Deux nombres pour un meme carnet.
+    # / Wiki and synthesis pages are filed in the notebook, so
+    # without this filter the list and the detail disagreed.
+    carnets_visibles = (
+        carnets_visibles_par(request.user)
+        .select_related("owner")
+        .prefetch_related(
+            # Les etiquettes d'un carnet vivent sur la relation
+            # carnet<->base, et on ne montre QUE celles des bases que
+            # le visiteur peut ouvrir : le nom d'une categorie d'une
+            # base privee est deja une fuite, exactement comme le nom
+            # de la base dans le fil d'Ariane.
+            # / A notebook's tags live on the notebook<->base
+            # relation; only visible bases' tags are shown.
+            models.Prefetch(
+                "appartenances_bases",
+                queryset=(
+                    AppartenanceDossierBase.objects
+                    .filter(_filtre_des_bases_visibles(request.user))
+                    .select_related("base")
+                    .prefetch_related("categories")
+                ),
+                to_attr="appartenances_de_bases_visibles",
+            ),
+        )
+        .annotate(
+            nombre_de_notes=models.Count(
+                "appartenances_pages",
+                filter=Q(
+                    appartenances_pages__page__parent_page__isnull=True,
+                    appartenances_pages__page__type_de_note=TypeDeNote.NOTE,
+                ),
+                distinct=True,
+            ),
+            nombre_d_axes=models.Count("listes_de_categories", distinct=True),
+            # Les deux genres de synthese, comptes SEPAREMENT : un
+            # wiki est vivant, une synthese dirigee est un acte date.
+            # L'etalon les distingue dans sa sous-ligne
+            # (« 2 wikis · 2 synthèses »), on ne les additionne pas.
+            # / The two synthesis kinds, counted separately.
+            nombre_de_wikis=models.Count("wikis", distinct=True),
+            nombre_de_syntheses=models.Count(
+                "syntheses_dirigees", distinct=True,
+            ),
+        )
+        .distinct()
+        .order_by("name")
+    )
+
+    # LES TOTAUX DE L'EN-TETE. L'etalon annonce « 4 carnets ·
+    # 10 notes · 4 synthèses » : des totaux DISTINCTS, pas la somme
+    # des compteurs de lignes — une note rangee dans deux carnets ne
+    # doit compter qu'une fois.
+    # / Header totals are DISTINCT counts, not a sum of row counters:
+    # a note filed in two notebooks must count once.
+    identifiants_des_carnets_visibles = list(
+        carnets_visibles_par(request.user).values_list("pk", flat=True)
+    )
+    nombre_total_de_notes = Page.objects.filter(
+        appartenances_dossiers__dossier_id__in=identifiants_des_carnets_visibles,
+        parent_page__isnull=True,
+        type_de_note=TypeDeNote.NOTE,
+    ).distinct().count()
+    # « Synthèses » au sens de l'etalon : les deux genres reunis, car
+    # l'en-tete dit ce que la base PRODUIT, pas comment elle le range.
+    # / "Syntheses" here means both kinds: the header says what the
+    # collection produced, not how it is filed.
+    from core.models import SyntheseDirigee, Wiki
+    nombre_total_de_syntheses = (
+        Wiki.objects.filter(
+            dossier_id__in=identifiants_des_carnets_visibles,
+        ).count()
+        + SyntheseDirigee.objects.filter(
+            dossier_id__in=identifiants_des_carnets_visibles,
+        ).count()
+    )
+
+    return {
+        "carnets": carnets_visibles,
+        "nombre_total_de_notes": nombre_total_de_notes,
+        "nombre_total_de_syntheses": nombre_total_de_syntheses,
+    }
+
+
+def rendre_la_liste_des_carnets(request):
+    """
+    La liste des carnets rendue en PARTIAL HTMX, quel que soit l'appelant.
+    / The notebook list rendered as an HTMX partial, whoever calls.
+
+    LOCALISATION : front/views_corpus.py
+
+    C'est la reponse des gestes qui font disparaitre le carnet courant —
+    le supprimer, quitter son partage : apres eux il n'y a plus de page
+    de carnet a montrer, seulement la collection. Les vues appelantes
+    vivent dans `front/views.py`, qui ne peut pas importer ce module en
+    tete (import circulaire) : elles l'importent dans le corps de la
+    methode.
+    / The response of gestures that destroy the current notebook page.
+    Callers live in front/views.py and import this lazily (circular).
+    """
+    return render(
+        request,
+        "front/corpus/carnets_liste.html",
+        _contexte_de_la_liste_des_carnets(request),
+    )
+
+
+def rendre_les_notes_du_carnet(request, carnet):
+    """
+    La liste des notes d'un carnet, en PARTIAL HTMX (cible #corpus-notes).
+    / A notebook's note list, as an HTMX partial (targets #corpus-notes).
+
+    LOCALISATION : front/views_corpus.py
+
+    C'est la reponse de la suppression d'une note (`PageViewSet.supprimer`,
+    dans front/views.py) : le geste part de cette liste, il y revient.
+    Les filtres de facettes ne sont pas rejoues — un POST n'a pas de
+    `?categorie=` — donc la liste revient complete, ce qui est honnete :
+    la note supprimee ne peut plus etre cachee par un filtre.
+    / The response of deleting a note; the gesture starts from this list
+    and returns to it, unfiltered.
+    """
+    return render(
+        request,
+        "front/corpus/partials/notes_du_carnet.html",
+        _contexte_des_notes_du_carnet(request, carnet, []),
+    )
+
+
+def _contexte_du_detail_du_carnet(request, carnet):
+    """
+    Le contexte de /carnets/{id}/ : notes filtrees, axes, compteurs des
+    onglets, fil d'Ariane, et les DROITS de gouvernance du visiteur.
+    / The context of /carnets/{id}/, including governance rights.
+
+    LOCALISATION : front/views_corpus.py
+    """
+    # L'etat des filtres vit dans l'URL (§ 8.2) : un F5 ou un lien
+    # partage retrouve les memes cases cochees et la meme liste.
+    # / Filter state lives in the URL: F5 or a shared link restores it.
+    identifiants_bruts = request.GET.getlist("categorie")
+    contexte = _contexte_des_notes_du_carnet(request, carnet, identifiants_bruts)
+
+    axes = list(
+        carnet.listes_de_categories.prefetch_related("categories_de_dossier")
+    )
+    # Compteurs des onglets synthese (phase H, etalon #cpt-wikis) :
+    # on sait s'il y a du contenu SANS cliquer.
+    # / Synthesis tab counters: content visible before clicking.
+    from core.models import SyntheseDirigee, Wiki
+    contexte.update({
+        "axes": axes,
+        "nombre_de_notes": contexte["nombre_total"],
+        "nombre_de_categories": sum(
+            len(axe.categories_de_dossier.all()) for axe in axes
+        ),
+        "nombre_de_wikis": Wiki.objects.filter(dossier=carnet).count(),
+        "nombre_de_syntheses": SyntheseDirigee.objects.filter(
+            dossier=carnet,
+        ).count(),
+    })
+
+    # LES DROITS DE GOUVERNANCE, poses ici parce que le gabarit doit
+    # decider quoi MONTRER, pas seulement quoi autoriser. Ils ne
+    # remplacent aucune garde serveur : chaque endpoint refait sa
+    # verification (DossierViewSet.renommer, .destroy, .partager…).
+    # / Governance rights, for what to SHOW. They replace no server-side
+    # guard: every endpoint re-checks.
+    #
+    # `est_proprietaire` suit la meme regle que DossierViewSet : les
+    # carnets legataires (owner NULL, anterieurs aux comptes) n'ont pas
+    # de proprietaire, donc personne ne les gouverne depuis l'interface.
+    # / Legacy notebooks (owner NULL) have no owner and no governance.
+    est_proprietaire = bool(
+        request.user.is_authenticated and carnet.owner_id == request.user.pk
+    )
+    # « Quitter » n'a de sens que pour un partage RECU EN DIRECT : un
+    # acces obtenu par un groupe ne se quitte pas note par note, il se
+    # quitte en sortant du groupe. / "Leave" only for a DIRECT share.
+    partage_direct_recu = bool(
+        request.user.is_authenticated
+        and DossierPartage.objects.filter(
+            dossier=carnet, utilisateur=request.user,
+        ).exists()
+    )
+    contexte.update({
+        "est_proprietaire": est_proprietaire,
+        "partage_direct_recu": partage_direct_recu,
+        # Les trois niveaux, ecrits une fois : le gabarit boucle dessus
+        # plutot que de repeter trois blocs presque identiques.
+        # / The three levels, written once.
+        "niveaux_de_visibilite": [
+            (VisibiliteDossier.PRIVE, "privé"),
+            (VisibiliteDossier.PARTAGE, "partagé"),
+            (VisibiliteDossier.PUBLIC, "public"),
+        ],
+    })
+
+    contexte.update(contexte_du_fil_d_ariane(request, carnet=carnet))
+    return contexte
+
+
+def rendre_le_detail_du_carnet(request, carnet):
+    """
+    Le detail d'un carnet rendu en PARTIAL HTMX, quel que soit l'appelant.
+    / A notebook's detail rendered as an HTMX partial, whoever calls.
+
+    LOCALISATION : front/views_corpus.py
+
+    C'est la reponse des gestes qui MODIFIENT le carnet sans le faire
+    disparaitre — le renommer, changer sa visibilite. Rendre la page
+    entiere plutot qu'un fragment evite la divergence classique : le
+    titre change dans l'en-tete mais pas dans le fil d'Ariane.
+    / Response of gestures that change the notebook without destroying
+    it. Re-rendering the whole page avoids a stale breadcrumb.
+    """
+    return render(
+        request,
+        "front/corpus/carnet_detail.html",
+        _contexte_du_detail_du_carnet(request, carnet),
+    )
+
+
 class CarnetViewSet(viewsets.ViewSet):
     """
     Le carnet : liste, detail, notes filtrees, categories, ordre manuel.
@@ -365,31 +639,47 @@ class CarnetViewSet(viewsets.ViewSet):
         Anonyme : uniquement les publics.
         / My notebooks + shared + public; anonymous: public only.
         """
-        # La regle d'acces vit dans carnets_visibles_par() : le fil
-        # d'Ariane s'en sert aussi, elle ne doit exister qu'une fois.
-        # / The access rule lives in one place; the breadcrumb reuses it.
-        # Compteurs DERIVES en une requete (regle de l'etalon : rien de
-        # tape). / DERIVED counters in one query.
-        carnets_visibles = (
-            carnets_visibles_par(request.user)
-            .select_related("owner")
-            .annotate(
-                nombre_de_notes=models.Count(
-                    "appartenances_pages",
-                    filter=Q(appartenances_pages__page__parent_page__isnull=True),
-                    distinct=True,
-                ),
-                nombre_d_axes=models.Count("listes_de_categories", distinct=True),
-            )
-            .distinct()
-            .order_by("name")
-        )
-
-        contexte = {"carnets": carnets_visibles}
+        contexte = _contexte_de_la_liste_des_carnets(request)
         if request.headers.get("HX-Request"):
             return render(request, "front/corpus/carnets_liste.html", contexte)
         contexte["carnets_liste_preloaded"] = True
         return render(request, "front/base.html", contexte)
+
+    def create(self, request):
+        """
+        POST /carnets/ — cree un carnet, comme POST /bases/ cree une base.
+        / Creates a notebook, exactly as POST /bases/ creates a base.
+
+        LOCALISATION : front/views_corpus.py
+
+        POURQUOI CET ENDPOINT EXISTE (12 aout). Creer un carnet n'etait
+        possible QUE depuis le pied du tiroir lateral
+        (`#btn-creer-dossier-overlay`), qui postait sur `/dossiers/` et
+        recevait un arbre en retour. Le tiroir part ; sans cet endpoint,
+        plus personne ne peut creer de carnet — l'admin Django etant
+        ferme, le produit serait ampute d'un de ses trois objets.
+        / Creating a notebook was only possible from the side drawer's
+        footer. The drawer goes away; without this, nobody can create a
+        notebook at all.
+
+        Un carnet EST un `Dossier` : le modele n'a jamais ete renomme,
+        seul le vocabulaire de l'interface l'a ete (SPEC-corpus § 2).
+        / A notebook IS a Dossier; only the UI vocabulary was renamed.
+        """
+        if not request.user.is_authenticated:
+            return _reponse_acces_refuse(request)
+
+        nom_soumis = str(request.data.get("nom", "")).strip()
+        if not nom_soumis:
+            return render(request, "front/corpus/partials/erreurs_formulaire.html", {
+                "erreurs": {"nom": ["Le nom est obligatoire / Name is required"]},
+            }, status=400)
+
+        Dossier.objects.create(name=nom_soumis[:200], owner=request.user)
+        logger.info(
+            "creer carnet: nom='%s' owner=%s", nom_soumis, request.user,
+        )
+        return self.list(request)
 
     def retrieve(self, request, pk=None):
         """
@@ -400,38 +690,12 @@ class CarnetViewSet(viewsets.ViewSet):
         if not _utilisateur_a_acces_dossier(request.user, carnet):
             return _reponse_acces_refuse(request)
 
-        # L'etat des filtres vit dans l'URL (§ 8.2) : un F5 ou un lien
-        # partage retrouve les memes cases cochees et la meme liste.
-        # / Filter state lives in the URL: F5 or a shared link restores it.
-        identifiants_bruts = request.GET.getlist("categorie")
-        contexte = _contexte_des_notes_du_carnet(request, carnet, identifiants_bruts)
-
-        axes = list(
-            carnet.listes_de_categories.prefetch_related("categories_de_dossier")
-        )
-        # Compteurs des onglets synthese (phase H, etalon #cpt-wikis) :
-        # on sait s'il y a du contenu SANS cliquer.
-        # / Synthesis tab counters: content visible before clicking.
-        from core.models import SyntheseDirigee, Wiki
-        contexte.update({
-            "axes": axes,
-            "nombre_de_notes": contexte["nombre_total"],
-            "nombre_de_categories": sum(
-                len(axe.categories_de_dossier.all()) for axe in axes
-            ),
-            "nombre_de_wikis": Wiki.objects.filter(dossier=carnet).count(),
-            "nombre_de_syntheses": SyntheseDirigee.objects.filter(
-                dossier=carnet,
-            ).count(),
-        })
-
-        contexte.update(contexte_du_fil_d_ariane(request, carnet=carnet))
-
         # Requete HTMX -> le contenu seul ; acces direct (F5) -> la page
         # complete via base.html, comme LectureViewSet.
         # / HTMX -> content only; direct hit -> full base.html page.
         if request.headers.get("HX-Request"):
-            return render(request, "front/corpus/carnet_detail.html", contexte)
+            return rendre_le_detail_du_carnet(request, carnet)
+        contexte = _contexte_du_detail_du_carnet(request, carnet)
         contexte["carnet_preloaded"] = True
         return render(request, "front/base.html", contexte)
 
@@ -965,21 +1229,191 @@ def _utilisateur_peut_ecrire_base(utilisateur, base):
     return base.owner_id is not None and base.owner_id == utilisateur.pk
 
 
-def _filtre_des_carnets_d_une_base_visibles(utilisateur):
+def _filtre_des_carnets_d_une_base_visibles(
+    utilisateur, prefixe="appartenances_dossiers__dossier",
+):
     """
-    Le filtre Q des carnets d'une base visibles par un utilisateur, pour
-    le compteur annote de la liste des bases. Publics + les siens ;
-    partages non comptes (sous-compte assume, jamais de fuite).
+    Le filtre Q des carnets d'une base visibles par un utilisateur.
+    Publics + les siens ; partages non comptes (sous-compte assume,
+    jamais de fuite).
     / Q filter for a base's notebooks visible to a user.
 
     LOCALISATION : front/views_corpus.py
+
+    Le prefixe existe parce que la MEME regle sert depuis deux points
+    d'entree : depuis la base (« combien de carnets ? », prefixe par
+    defaut) et depuis l'appartenance elle-meme (« lesquels nommer dans
+    le sommaire d'une carte ? », prefixe « dossier »). Une regle de
+    NON-FUITE ne doit exister qu'a un seul endroit : recopiee, elle
+    derive, et c'est le sommaire qui se met alors a nommer un carnet
+    prive d'autrui.
+    / The prefix exists so the same no-leak rule serves both entry
+    points; copied, such a rule drifts, and the drift is a leak.
+
+    :param prefixe: le chemin ORM qui mene au Dossier depuis le modele
+        interroge / the ORM path leading to the Dossier
     """
-    filtre = Q(
-        appartenances_dossiers__dossier__visibilite=VisibiliteDossier.PUBLIC
-    ) | Q(appartenances_dossiers__dossier__owner__isnull=True)
+    filtre = Q(**{f"{prefixe}__visibilite": VisibiliteDossier.PUBLIC}) | Q(
+        **{f"{prefixe}__owner__isnull": True}
+    )
     if utilisateur is not None and utilisateur.is_authenticated:
-        filtre = filtre | Q(appartenances_dossiers__dossier__owner=utilisateur)
+        filtre = filtre | Q(**{f"{prefixe}__owner": utilisateur})
     return filtre
+
+
+# Le nombre de teintes de cote disponibles (tokens --cote-1 a --cote-8
+# de front/static/front/css/maquette.css). Huit, comme les huit familles
+# d'hypostases : c'est le nombre de teintes que ce design system sait
+# tenir a 3:1 sur le papier clair ET sur le papier sombre.
+# / The number of available call-number tints.
+NOMBRE_DE_TEINTES_DE_COTE = 8
+
+
+def numero_de_cote_du_slug(slug):
+    """
+    Le numero de teinte (1 a 8) d'une base, derive de son slug.
+    / A base's tint number (1..8), derived from its slug.
+
+    LOCALISATION : front/views_corpus.py
+
+    POURQUOI PAS `hash()` : en Python, `hash()` d'une chaine est SALE
+    par processus (PYTHONHASHSEED). Deux workers gunicorn donneraient
+    deux couleurs a la meme base, et la couleur changerait a chaque
+    redemarrage. La somme des points de code, elle, est stable partout
+    et pour toujours.
+    / Python's hash() of a string is per-process salted: two gunicorn
+    workers would give the same base two different colours.
+
+    Une collision entre deux slugs est POSSIBLE et acceptee : la cote
+    aide a distinguer les cartes d'un coup d'oeil, elle n'identifie
+    pas — le nom identifie, et il est ecrit juste a cote.
+    / A collision is possible and accepted: the tint helps tell cards
+    apart, the name is what identifies.
+    """
+    somme_des_points_de_code = sum(ord(caractere) for caractere in slug)
+    return somme_des_points_de_code % NOMBRE_DE_TEINTES_DE_COTE + 1
+
+
+def bases_visibles_avec_leurs_comptes(utilisateur):
+    """
+    Rend les bases ouvrables par ce visiteur, comptees et cotees, plus le
+    nombre de carnets distincts qu'elles totalisent.
+    / Return the bases this visitor may open, counted and tinted, plus the
+    number of distinct notebooks they hold.
+
+    LOCALISATION : front/views_corpus.py
+
+    POURQUOI CETTE FONCTION EXISTE
+
+    Deux ecrans montrent ces bases : `/bases/` et, depuis le 12 aout,
+    l'onglet « Bases de connaissances » de l'accueil. Recopier le calcul
+    aurait recopie aussi la regle de non-fuite, les deux compteurs et
+    leurs `distinct=True` — et la moindre correction n'aurait porte que
+    sur une moitie. Le defaut existe deja au dossier : une meme base
+    annoncait deux nombres de notes selon l'ecran, faute d'un filtre de
+    type recopie d'un cote seulement.
+    / Two screens show these bases; duplicating the query would duplicate
+    the non-leak rule and both counters — and fixes would land on one
+    half only. That exact defect already happened once.
+
+    :return: (liste de BaseDeConnaissances, nombre de carnets distincts)
+    """
+    if utilisateur.is_authenticated:
+        filtre = (
+            Q(visibilite=VisibiliteDossier.PUBLIC)
+            | Q(owner=utilisateur)
+            | Q(owner__isnull=True)
+        )
+    else:
+        filtre = Q(visibilite=VisibiliteDossier.PUBLIC)
+
+    # LE SOMMAIRE D'UNE CARTE. La description d'une base est souvent
+    # vide (elle l'est sur la base de developpement) : sans
+    # substitut, la carte serait un cartouche creux. Le substitut
+    # est de la DONNEE REELLE — les carnets reellement dedans — et
+    # jamais un texte d'attente. On ne prefetch que les carnets
+    # OUVRABLES : le sommaire les NOMME, la regle de non-fuite du
+    # corpus s'applique donc mot pour mot.
+    # / A card's summary. Descriptions are often empty, so the
+    # substitute is real data: the notebooks actually inside, and
+    # only those the caller may open — the summary names them.
+    appartenances_ouvrables = (
+        AppartenanceDossierBase.objects.filter(
+            _filtre_des_carnets_d_une_base_visibles(
+                utilisateur, prefixe="dossier",
+            )
+        )
+        .select_related("dossier")
+        .order_by("-epingle", "dossier__name")
+        .distinct()
+    )
+
+    bases_visibles = (
+        BaseDeConnaissances.objects.filter(filtre)
+        .select_related("owner")
+        .prefetch_related(
+            models.Prefetch(
+                "appartenances_dossiers",
+                queryset=appartenances_ouvrables,
+                to_attr="appartenances_ouvrables",
+            ),
+        )
+        .annotate(
+            # Ne compte que les carnets que le DEMANDEUR peut voir —
+            # meme doctrine que « dans N carnets » (jamais de fuite,
+            # sous-compte des partages assume). Relecture H, B1.
+            # / Counts only notebooks the CALLER can see.
+            nombre_de_carnets=models.Count(
+                "appartenances_dossiers",
+                filter=_filtre_des_carnets_d_une_base_visibles(utilisateur),
+                distinct=True,
+            ),
+            # Le poids REEL d'une base : ses notes. Comptees a
+            # travers ses carnets visibles, en excluant wikis et
+            # syntheses par leur TYPE et les versions par leur
+            # parent — exactement le compteur de /carnets/, dont le
+            # defaut symetrique a ete corrige le 12 aout (une meme
+            # base annoncerait sinon deux nombres selon l'ecran).
+            # `distinct=True` : une note rangee dans deux carnets de
+            # la MEME base ne pese qu'une fois, et sans lui la
+            # double jointure gonflerait aussi le compte des
+            # carnets ci-dessus.
+            # / A base's real weight: its notes, counted through its
+            # visible notebooks, wikis and syntheses excluded by
+            # TYPE. distinct=True, or the double join inflates both
+            # counters.
+            nombre_de_notes=models.Count(
+                "appartenances_dossiers__dossier__appartenances_pages__page",
+                filter=(
+                    _filtre_des_carnets_d_une_base_visibles(utilisateur)
+                    & Q(
+                        appartenances_dossiers__dossier__appartenances_pages__page__parent_page__isnull=True,
+                        appartenances_dossiers__dossier__appartenances_pages__page__type_de_note=TypeDeNote.NOTE,
+                    )
+                ),
+                distinct=True,
+            ),
+        )
+        .distinct()
+        .order_by("nom")
+    )
+
+    # La liste est evaluee ICI, une fois : la boucle qui suit lit le
+    # prefetch, elle ne redeclenche aucune requete.
+    # / The queryset is evaluated once here; the loop below only
+    # reads the prefetch and issues no further query.
+    bases_a_afficher = list(bases_visibles)
+
+    identifiants_de_carnets_distincts = set()
+    for base in bases_a_afficher:
+        # La cote : l'identite visuelle d'une base qui n'a pas
+        # d'image de couverture — c'est-a-dire, pour l'instant,
+        # toutes. / The tint of a base with no cover image.
+        base.numero_de_cote = numero_de_cote_du_slug(base.slug)
+        for appartenance in base.appartenances_ouvrables:
+            identifiants_de_carnets_distincts.add(appartenance.dossier_id)
+
+    return bases_a_afficher, len(identifiants_de_carnets_distincts)
 
 
 class BaseViewSet(viewsets.ViewSet):
@@ -997,33 +1431,21 @@ class BaseViewSet(viewsets.ViewSet):
 
     def list(self, request):
         """GET /bases/ — les bases visibles. / Visible bases."""
-        if request.user.is_authenticated:
-            filtre = (
-                Q(visibilite=VisibiliteDossier.PUBLIC)
-                | Q(owner=request.user)
-                | Q(owner__isnull=True)
-            )
-        else:
-            filtre = Q(visibilite=VisibiliteDossier.PUBLIC)
-
-        bases_visibles = (
-            BaseDeConnaissances.objects.filter(filtre)
-            .select_related("owner")
-            .annotate(
-                # Ne compte que les carnets que le DEMANDEUR peut voir —
-                # meme doctrine que « dans N carnets » (jamais de fuite,
-                # sous-compte des partages assume). Relecture H, B1.
-                # / Counts only notebooks the CALLER can see.
-                nombre_de_carnets=models.Count(
-                    "appartenances_dossiers",
-                    filter=_filtre_des_carnets_d_une_base_visibles(request.user),
-                    distinct=True,
-                ),
-            )
-            .distinct()
-            .order_by("nom")
+        bases_a_afficher, nombre_total_de_carnets = (
+            bases_visibles_avec_leurs_comptes(request.user)
         )
-        contexte = {"bases": bases_visibles}
+
+        contexte = {
+            "bases": bases_a_afficher,
+            "nombre_de_bases": len(bases_a_afficher),
+            # DISTINCT : un carnet range dans deux bases ne compte
+            # qu'une fois. Additionner les compteurs par base le
+            # compterait deux fois — meme regle que les totaux de
+            # l'en-tete de /carnets/. Aucun cout : l'ensemble est
+            # construit a partir du prefetch deja charge.
+            # / DISTINCT: a notebook filed in two bases counts once.
+            "nombre_total_de_carnets": nombre_total_de_carnets,
+        }
         if request.headers.get("HX-Request"):
             return render(request, "front/corpus/bases_liste.html", contexte)
         contexte["bases_liste_preloaded"] = True
@@ -1114,6 +1536,67 @@ class BaseViewSet(viewsets.ViewSet):
             nom=nom_soumis, slug=slug_candidat, owner=request.user,
         )
         return self.list(request)
+
+    @action(detail=True, methods=["POST"], url_path="editer")
+    def editer(self, request, pk=None):
+        """
+        POST /bases/{slug}/editer/ — description et couverture.
+        / Description and cover image.
+
+        LOCALISATION : front/views_corpus.py
+
+        POURQUOI CET ENDPOINT EXISTE
+
+        `description` et `image_de_couverture` existaient en base, et la
+        carte les affiche — mais RIEN ne permettait de les renseigner :
+        l'admin Django est desactive, et le formulaire de creation ne
+        prend que le nom. Deux champs qu'aucun ecran ne remplit sont deux
+        champs morts, et la carte serait restee au substitut
+        typographique faute de porte d'entree, non par choix.
+
+        LE 404 PLUTOT QUE LE 403, comme partout dans le corpus : le slug
+        EST le nom, et un 403 confirmerait l'existence d'une base privee
+        a qui sonde des slugs.
+        / Both fields existed and the card shows them, but no screen
+        could fill them. 404, never 403: the slug is the name.
+        """
+        from front.serializers import EditionDeBaseSerializer
+
+        base = get_object_or_404(BaseDeConnaissances, slug=pk)
+        if not _utilisateur_a_acces_base(request.user, base):
+            from django.http import Http404
+            raise Http404
+
+        # L'ACCES EN LECTURE NE SUFFIT PAS. Une base publique se lit ;
+        # elle ne s'ecrit que par son proprietaire.
+        # / Public means readable, not writable.
+        if not request.user.is_authenticated or base.owner_id != request.user.pk:
+            return _reponse_acces_refuse(request)
+
+        serializer = EditionDeBaseSerializer(data=request.data)
+        if not serializer.is_valid():
+            return render(
+                request,
+                "front/corpus/partials/erreurs_formulaire.html",
+                {"erreurs": serializer.errors},
+                status=400,
+            )
+
+        donnees = serializer.validated_data
+        champs_modifies = []
+        if "description" in donnees:
+            base.description = donnees["description"]
+            champs_modifies.append("description")
+        # Une couverture absente du formulaire laisse en place celle qui
+        # existe : on ne l'efface que sur demande explicite.
+        # / An absent cover leaves the existing one alone.
+        if donnees.get("image_de_couverture"):
+            base.image_de_couverture = donnees["image_de_couverture"]
+            champs_modifies.append("image_de_couverture")
+        if champs_modifies:
+            base.save(update_fields=champs_modifies)
+
+        return self.retrieve(request, pk=pk)
 
     @action(
         detail=True,

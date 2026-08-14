@@ -345,12 +345,29 @@ class GardeAvantPurgeTest(TestCase):
             )
 
     def test_supprimer_la_page_source_citee_repond_un_message_pas_un_500(self):
+        """
+        LE CODE ATTENDU A CHANGE LE 13 AOUT : 200 -> 409.
+
+        Ce test attendait 200 parce que la reponse etait l'arbre lateral,
+        toujours du HTML. L'arbre retire, la reponse est devenue la liste
+        des notes du carnet d'ou part le geste — absente ici, la requete
+        ne nommant aucun carnet. Le refus repondait alors 204, que tout
+        client lit comme UN SUCCES SANS CORPS.
+
+        409 aligne ce refus sur son JUMEAU
+        (`test_supprimer_l_extraction_citee_repond_409_avec_message`,
+        plus bas) : meme cause, meme code. Les deux invariants que ce
+        test nomme sont inchanges — un message, pas un 500 ; et la page
+        est toujours la.
+        / The expected code changed from 200 to 409: the old response was
+        the (now removed) side tree. 409 matches the twin refusal below.
+        """
         self.client.force_login(self.utilisateur)
         reponse = self.client.post(f"/pages/{self.note_source.pk}/supprimer/")
 
         import json as json_stdlib
 
-        self.assertEqual(reponse.status_code, 200)
+        self.assertEqual(reponse.status_code, 409)
         declencheur = json_stdlib.loads(reponse.headers.get("HX-Trigger", "{}"))
         self.assertIn(
             "citée par une synthèse",

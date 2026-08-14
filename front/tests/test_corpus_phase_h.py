@@ -159,6 +159,56 @@ class BaseListeEtDetailTest(TestCase):
             "Carnet secret H", reponse.content.decode("utf-8")
         )
 
+    def test_le_sommaire_d_une_carte_ne_nomme_aucun_carnet_interdit(self):
+        # La liste des bases (refonte en cartes du 12 aout) NOMME
+        # desormais les carnets d'une base, pour remplacer une
+        # description absente. Elle herite donc de la meme doctrine que
+        # le detail : jamais un carnet que le demandeur ne peut lire.
+        # / The card grid now NAMES a base's notebooks; same no-leak
+        # doctrine as the detail view applies.
+        carnet_prive = Dossier.objects.create(
+            name="Carnet invisible du sommaire", owner=self.proprietaire,
+            visibilite=VisibiliteDossier.PRIVE,
+        )
+        AppartenanceDossierBase.objects.create(
+            dossier=carnet_prive, base=self.base_publique,
+        )
+        reponse = self.client.get("/bases/", HTTP_HX_REQUEST="true")
+        self.assertNotIn(
+            "Carnet invisible du sommaire", reponse.content.decode("utf-8")
+        )
+
+    def test_la_liste_des_bases_coute_le_meme_nombre_de_requetes(self):
+        # VERROU N+1. La carte d'une base montre son sommaire, donc les
+        # NOMS de ses carnets : sans `Prefetch`, chaque base ajouterait
+        # sa requete, et chaque carnet la sienne. On mesure le cout a
+        # une base, puis a quatre bases de deux carnets chacune : le
+        # nombre de requetes doit etre le MEME : deux, mesurees le 12 aout
+        # (la liste annotee, puis le prefetch des appartenances).
+        # / N+1 lock: cards name their notebooks, so without a Prefetch
+        # every base would add a query. The cost must not grow.
+        with self.assertNumQueries(2):
+            self.client.get("/bases/", HTTP_HX_REQUEST="true")
+
+        for numero in range(4):
+            base_ajoutee = BaseDeConnaissances.objects.create(
+                nom=f"Base de charge {numero}",
+                slug=f"base-de-charge-{numero}",
+                owner=self.proprietaire,
+                visibilite=VisibiliteDossier.PUBLIC,
+            )
+            for rang in range(2):
+                carnet_ajoute = Dossier.objects.create(
+                    name=f"Carnet {numero}-{rang}", owner=self.proprietaire,
+                    visibilite=VisibiliteDossier.PUBLIC,
+                )
+                AppartenanceDossierBase.objects.create(
+                    dossier=carnet_ajoute, base=base_ajoutee,
+                )
+
+        with self.assertNumQueries(2):
+            self.client.get("/bases/", HTTP_HX_REQUEST="true")
+
 
 class AjouterUnCarnetALaBaseTest(TestCase):
     """POST /bases/{slug}/carnets/. / Adding a notebook to a base."""

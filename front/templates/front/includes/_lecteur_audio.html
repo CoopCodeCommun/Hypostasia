@@ -1,0 +1,83 @@
+{% load rendu_moteur %}{% comment %}
+LA BARRE DU LECTEUR AUDIO — ecart n°2 de l'etalon (maquette.html § 19).
+LOCALISATION : front/templates/front/includes/_lecteur_audio.html
+
+Mesure du 12 aout sur la note 8 : « 0 balise <audio>, aucune tete de
+lecture, aucun rail ». La gouttiere audio, elle, faisait deja ses 96px
+et portait les locuteurs — la moitie du chemin etait faite.
+
+CE QUI EXISTAIT ET N'ETAIT PAS UN LECTEUR
+
+`transcription_rythme.js` porte une « barre de progression de lecture »
+depuis PHASE-15. Le nom trompe : elle suit le DEFILEMENT, pas l'audio.
+On la voyait avancer sans qu'aucun son ne sorte.
+
+DEUX CONDITIONS, ET NON UNE
+
+La barre ne parait que si la note est un AUDIO **et** qu'un media est
+attache. Une transcription peut arriver sans son fichier — la note 7 en
+est une, son `source_file` est un `.json`. Rendre la barre quand meme
+offrirait un bouton « lecture » qui ne jouerait rien.
+
+LE RAIL EST RENDU ICI, SES LARGEURS SONT POSEES AU NAVIGATEUR
+
+Le serveur connait les bornes de chaque tour, mais pas la duree REELLE
+du fichier : les bornes de transcription s'arretent au dernier mot, le
+media peut courir plus loin. Chaque segment porte donc ses bornes, et
+`lecteur_audio.js` les met a l'echelle sur `loadedmetadata`, quand
+`audio.duration` est connue.
+
+La couleur passe par `data-couleur` plutot que par un `style` : le CSP
+du projet interdirait un style inline, et c'est le JS qui peint le
+segment en meme temps qu'il le dimensionne.
+/ The bar needs both an audio source_type AND an attached media file.
+Segments carry their bounds; the JS scales them once duration is known.
+{% endcomment %}
+{% if page.source_type == "audio" and page.source_file %}
+{% blocs_de_lecture_de page as blocs_du_lecteur %}
+<div class="lecteur" data-testid="lecteur-audio">
+
+    {% comment %}
+    `preload="metadata"` : la duree suffit a construire le rail, et
+    telecharger tout le fichier avant le premier clic ferait payer une
+    bande passante que personne n'a demandee.
+    / Duration is all the rail needs; don't fetch the whole file unasked.
+    {% endcomment %}
+    <audio id="audio-source" data-testid="audio-source"
+           src="{{ page.source_file.url }}" preload="metadata"></audio>
+
+    <button type="button" class="bouton-lecture" id="bouton-lecture"
+            data-testid="bouton-lecture"
+            aria-label="Lire l'enregistrement">&#9654;</button>
+
+    <div class="piste">
+        <div class="piste-entete">
+            <span id="piste-titre" data-testid="piste-titre">&mdash;</span>
+            <span id="minutage" data-testid="minutage">00:00 / 00:00</span>
+        </div>
+
+        {% comment %}
+        Le rail est cliquable : c'est le geste de deplacement le plus
+        direct. `role="slider"` et les bornes ARIA le disent aux
+        technologies d'assistance, pour qui un <div> cliquable n'est
+        rien. / The rail is a slider, and says so.
+        {% endcomment %}
+        <div class="rail" id="rail" data-testid="rail"
+             role="slider" tabindex="0"
+             aria-label="Position dans l'enregistrement"
+             aria-valuemin="0" aria-valuenow="0"
+             aria-valuetext="00:00">
+            {% for bloc in blocs_du_lecteur %}{% if bloc.debut is not None and bloc.fin is not None %}
+            <div class="segment-locuteur{% if bloc.nombre_d_idees %} a-des-idees{% endif %}"
+                 data-debut="{{ bloc.debut|stringformat:'g' }}"
+                 data-fin="{{ bloc.fin|stringformat:'g' }}"
+                 data-element-id="{{ bloc.element.pk }}"
+                 data-couleur="{{ bloc.couleur_du_locuteur|default:'' }}"
+                 title="{{ bloc.locuteur|default:'' }} — {{ bloc.minutage }}"></div>
+            {% endif %}{% endfor %}
+            <div class="tete-de-lecture" id="tete-de-lecture"
+                 data-testid="tete-de-lecture"></div>
+        </div>
+    </div>
+</div>
+{% endif %}

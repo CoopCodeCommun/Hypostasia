@@ -23,6 +23,38 @@
   --cible:#7C5CBF; --danger:#b91c1c; --succes:#047857; --info:#4338ca;
   --verifie:#047857; --faible:#b45309; --non-source:#b91c1c;
   --source-debat:#0e7490; --preuve:26rem;
+  /* LA GEOMETRIE DE L'ETALON (§ 1 « JETONS » de maquette.html). Elle
+     manquait : seul `--gouttiere` existait, et encore, en scope local sur
+     #readability-content. Sans `--panneau` sur :root, la largeur de la
+     colonne de droite etait ecrite DEUX FOIS — `min(36rem, 100vw)` dans
+     le style inline du gabarit, et la meme expression recopiee dans la
+     compensation de la zone de lecture. Les deux copies etaient d'accord
+     (576px, et 576 + 2rem de respiration), mais toute correction de
+     l'une devait etre reportee a la main sur l'autre. Le token supprime
+     la copie, il ne repare pas une divergence.
+     / The etalon's geometry tokens. The panel width was written twice —
+     inline, and again inside the compensation expression. The copies
+     agreed; the token removes the duplication, not a drift. */
+  --panneau: 23rem;
+  /* La largeur de la COLONNE DE TEXTE, hors gouttiere (etalon § 1).
+     Elle vit ici et non dans `.lecture-zone-conteneur` parce que la
+     boite de lecture se calcule desormais a partir d'elle.
+     / The text column width, gutter excluded. */
+  --largeur-lecture: 40rem;
+  /* La barre d'outils du produit fait 48px (`h-12`), la ou l'etalon en
+     declare 44. On suit le PRODUIT : ce token sert a poser le haut du
+     panneau juste sous la barre, et 4px d'ecart y feraient un liseré.
+     / The product's toolbar is 48px, not the etalon's 44; the token
+     follows the product because it positions the panel against it. */
+  --barre-outils: 3rem;
+  /* LA HAUTEUR DE LA BARRE DU LECTEUR AUDIO (etalon § 19).
+     Elle vaut 0 par defaut, et 62px quand `.lecteur` est presente : la
+     barre est `fixed`, donc hors du flux, et sans cette reserve elle
+     recouvrirait les derniers tours de parole — ceux-la memes qu'on
+     lit quand on ecoute la fin de l'enregistrement.
+     / 0 by default, 62px when the player is present: the bar is fixed,
+     so without this reserve it would cover the last speech turns. */
+  --barre-audio: 0px;
   /* AJOUT au vocabulaire de l'etalon (ecart assume, verification T5) :
      l'etalon dessine ses champs et ses boutons avec --filet, qui tombe
      a 1,28:1 sur le papier — or WCAG 1.4.11 demande 3:1 pour le
@@ -31,6 +63,28 @@
      separateurs decoratifs qui, eux, restent en --filet.
      / Control borders need 3:1; the etalon's --filet gives 1.28:1. */
   --filet-controle: color-mix(in srgb, var(--encre-douce) 70%, var(--filet));
+
+  /* LES HUIT TEINTES DE COTE (lot « liste des bases », 12 aout 2026).
+     Une base de connaissances n'a le plus souvent PAS d'image de
+     couverture : le champ vient d'etre ajoute et il est vide partout.
+     Sa carte porte donc, en haut, un filet teinte derive de son slug —
+     la bande de couleur d'une boite d'archives, qui distingue les
+     cartes d'un coup d'oeil sans mentir sur une image absente.
+     La teinte ne porte JAMAIS seule une information : le nom de la
+     base et sa cote sont ecrits juste en dessous. Elle reste malgre
+     tout au-dessus de 3:1 (WCAG 1.4.11), parce qu'un filet qu'on ne
+     distingue pas du papier ne distingue rien.
+     Depart : la palette Wong (colorblind-safe) deja employee par les
+     categories du corpus, ASSOMBRIE pour le papier clair — les valeurs
+     Wong pures tombent a 1,1:1 (le jaune) et 2,1:1 (le bleu clair).
+     Ratios mesures sur --papier / --papier-creux :
+       1 bleu    4,68  2 orange  4,32  3 vert   4,88  4 rose   4,81
+       5 ambre   5,19  6 cyan    5,55  7 prune  6,19  8 brique 6,18
+     / The eight call-number tints. A base rarely has a cover image, so
+     its card carries a slug-derived tinted rule instead — the coloured
+     band of an archive box. Wong palette, darkened for light paper. */
+  --cote-1:#0072B2; --cote-2:#A85400; --cote-3:#00795A; --cote-4:#A24E80;
+  --cote-5:#846000; --cote-6:#186A80; --cote-7:#6B48A0; --cote-8:#A3341F;
 
   /* --- REMAPPAGE des tokens de hypostasia.css (audit I2) : toutes les
      surfaces/bordures/textes composant l'ancien chrome suivent la
@@ -81,6 +135,18 @@
     /* Le contour des controles : sur fond sombre, c'est l'inverse — il
        faut ECLAIRCIR le filet pour tenir les 3:1. */
     --filet-controle: color-mix(in srgb, var(--encre-douce) 75%, var(--filet));
+    /* Les huit teintes de cote, ECLAIRCIES : les valeurs claires sont
+       assombries POUR le papier clair, elles tombent donc sous 3:1 sur
+       le papier sombre (le bleu #0072B2 y fait 2,6:1). Meme doctrine
+       que les accents ci-dessus. La 7 rejoint --cible sombre : c'est
+       la meme prune, il n'y a pas de raison d'en avoir deux.
+       Ratios mesures sur --papier / --papier-creux sombres :
+         1  9,54  2  9,16  3 10,30  4  9,54
+         5 10,64  6 11,13  7  9,84  8  8,81
+       / The eight tints, lightened: the light values are darkened FOR
+       light paper and fall under 3:1 on dark paper. */
+    --cote-1:#7FC4EE; --cote-2:#F0A87A; --cote-3:#6ED6B0; --cote-4:#E9A9CE;
+    --cote-5:#E8C25C; --cote-6:#86D6EE; --cote-7:#C4B5FD; --cote-8:#F2A08C;
     /* Les 8 familles d'hypostases sont employees EN TEXTE : leurs
        valeurs claires tombent toutes sous 3:1 sur fond sombre. */
     --hypostase-epistemique-text:#a5b4fc; --hypostase-empirique-text:#6ee7b7;
@@ -112,6 +178,10 @@
   --ancre-color: 230, 159, 0;
   --statut-nouveau-text:#c0bcb4; --statut-commente-text:#fbbf24;
   --statut-nouveau-bg:#26242c; --statut-commente-bg:#2a2416;
+  /* Les huit teintes de cote, eclaircies (voir le bloc @media ci-dessus
+     pour les ratios mesures). / The eight lightened call-number tints. */
+  --cote-1:#7FC4EE; --cote-2:#F0A87A; --cote-3:#6ED6B0; --cote-4:#E9A9CE;
+  --cote-5:#E8C25C; --cote-6:#86D6EE; --cote-7:#C4B5FD; --cote-8:#F2A08C;
 }
 
 /* En sombre, les fonds pleins des anciens boutons (.bg-blue-600 &c.,
@@ -150,7 +220,6 @@
    T7). En sombre, c'est le FILET qui porte la separation.
    / Black shadows vanish on dark surfaces; the border takes over. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) #arbre-overlay,
   :root:not([data-theme="light"]) #drawer-overlay,
   :root:not([data-theme="light"]) #bottom-sheet {
     box-shadow: 0 0 0 1px var(--filet-controle), 0 10px 40px rgba(0, 0, 0, .55) !important;
@@ -160,7 +229,7 @@
     box-shadow: none;
   }
 }
-:root[data-theme="dark"] #arbre-overlay, :root[data-theme="dark"] #drawer-overlay,
+:root[data-theme="dark"] #drawer-overlay,
 :root[data-theme="dark"] #bottom-sheet {
   box-shadow: 0 0 0 1px var(--filet-controle), 0 10px 40px rgba(0, 0, 0, .55) !important;
 }
@@ -509,7 +578,7 @@ nav.h-12 #btn-user-menu:hover { background: rgba(255, 255, 255, .12) !important;
 
 /* Les MENUS DEROULANTS de la barre sont des panneaux papier : texte
    encre, jamais la couleur de la barre (audits B1/B2). */
-#user-menu-dropdown, .taches-dropdown-wrapper, #arbre-ctx-menu {
+#user-menu-dropdown, .taches-dropdown-wrapper {
   background: var(--papier) !important;
   border-color: var(--filet) !important;
   font-family: ui-monospace, Menlo, monospace;
@@ -526,30 +595,44 @@ nav.h-12 #btn-user-menu:hover { background: rgba(255, 255, 255, .12) !important;
 }
 .taches-dropdown-wrapper .taches-meta-lien { color: var(--info) !important; }
 
-/* ---- L'arbre lateral et les drawers : papier panneau, filets,
-   metadonnees en monospace comme l'etalon (agent visuel n°9). ---- */
-#arbre-overlay, #drawer-overlay {
+/* ---- Les drawers : papier panneau, filets, metadonnees en monospace
+   comme l'etalon (agent visuel n°9). Le tiroir lateral #arbre-overlay
+   partageait ces regles ; retire le 12 aout 2026.
+   / The drawers; the side tree shared these rules until its removal. ---- */
+#drawer-overlay {
   background: var(--papier-panneau) !important;
-  border-right: 1px solid var(--filet);
   box-shadow: 4px 0 24px rgba(0, 0, 0, .14) !important;
   font-family: ui-monospace, Menlo, monospace;
+  border-left: 1px solid var(--filet);
 }
-#drawer-overlay { border-right: none; border-left: 1px solid var(--filet); }
-#arbre-overlay .arbre-footer-btn, #arbre-overlay .btn-aligner-dossier {
-  background: var(--papier) !important;
-  color: var(--encre-douce) !important;
-  /* Leur bordure est leur seul contour : 3:1 (verification T7). */
-  border-color: var(--filet-controle) !important;
+/* LA CARTE DOIT SE DETACHER DU PANNEAU (etalon § 14 « LA CARTE »)
+
+   L'etalon pose la carte sur `--papier`, PLUS SOMBRE que le
+   `--papier-panneau` du panneau qui la porte. Mesure du 12 aout, en
+   sombre : carte rgb(22,21,26) sur panneau rgb(26,25,31).
+
+   Le produit la laissait TRANSPARENTE : la liste devenait un bloc
+   continu, sans separation entre deux idees. Trois autres ecarts
+   mesures avec : rayon 4px pour 5, marge basse 2px
+   (hypostasia.css:477) pour 8, et un bord gauche au gris du filet la
+   ou l'etalon y met la couleur du STATUT.
+
+   `!important` sur le bord gauche : il faut battre le remappage
+   Tailwind `.border-slate-100 { border-color: var(--filet) !important }`
+   plus haut dans ce fichier, qui repeint les QUATRE cotes — c'est lui
+   qui neutralisait le style inline du gabarit.
+   / The card sits on a darker fill than the panel; the left border
+   carries the status and must outrank the Tailwind border remap. */
+#drawer-overlay .drawer-carte-compacte {
+  background: var(--papier);
+  border-radius: 5px;
+  margin-bottom: .5rem;
+  border-left-width: 3px;
+  border-left-color: var(--statut-nouveau) !important;
 }
-#arbre-overlay .arbre-footer-btn:hover, #arbre-overlay .btn-aligner-dossier:hover {
-  background: var(--revelation) !important;
-  color: var(--encre) !important;
+#drawer-overlay .drawer-carte-compacte[data-statut="commente"] {
+  border-left-color: var(--statut-commente) !important;
 }
-#arbre-overlay .arbre-item-actif {
-  background: var(--revelation) !important;
-  border-color: var(--statut-commente) !important;
-}
-#drawer-overlay .drawer-carte-compacte { border-radius: 4px; }
 #drawer-overlay .drawer-carte-compacte.drawer-carte-active {
   background: var(--revelation) !important;
   border-color: var(--statut-commente) !important;
@@ -889,7 +972,44 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
   font-family: ui-monospace, Menlo, monospace;
 }
 .swal2-title, .swal2-html-container { color: var(--encre) !important; }
-.swal2-toast { box-shadow: 0 4px 18px rgba(0, 0, 0, .18) !important; }
+
+/* LE TOAST DOIT SE DETACHER, PAS SEULEMENT ETRE LISIBLE
+   (mesure au navigateur du 12 aout, mode sombre)
+
+     texte du toast   rgb(236, 234, 228)
+     fond du toast    rgb(22, 21, 26)
+     fond de la page  rgb(22, 21, 26)   <- le MEME
+     bordure          0px none
+     ombre            noire a 18 %, invisible sur un fond noir
+
+   Le contraste du TEXTE etait excellent — 14,8:1 — et c'est ce qui a
+   trompe : rien ne signalait de defaut. Mais un rectangle sans contour,
+   pose sur un fond identique au sien, n'est pas percu comme un objet.
+   On lisait son message superpose au panneau sans voir que c'en etait
+   un. En clair, l'ombre portee suffisait a le detacher ; en sombre, une
+   ombre noire sur du noir ne separe rien.
+
+   C'EST LE CONTOUR QUI FAIT LE TRAVAIL. Le fond passe de `papier` a
+   `creux`, mais soyons exact : en sombre, #1e1d23 contre #16151a ne
+   donne que 1,09:1 — un fond qu'on ne voit pas. Il ecarte la
+   coincidence exacte des deux couleurs, rien de plus. Ce qui detache
+   reellement le toast, c'est le contour au filet RENFORCE : `--filet`
+   tombe a 1,29:1 sur le fond sombre, la ou WCAG 1.4.11 demande 3:1
+   quand le contour est le seul indice de la limite. Contours mesures :
+   4,1:1 en sombre, 3,3:1 en clair. L'ombre, plus dense, aide en clair
+   et reste secondaire en sombre.
+
+   `.swal2-popus` porte deja un fond et un contour, mais SweetAlert
+   redeclare les siens pour la variante toast : sans `!important` ils
+   l'emportent.
+   / Excellent text contrast hid the real defect: an unbordered box on an
+   identical background does not read as an object. Distinct fill,
+   reinforced border, denser shadow. */
+.swal2-toast {
+  background: var(--papier-creux) !important;
+  border: 1px solid var(--filet-controle) !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .35) !important;
+}
 .swal2-actions .swal2-confirm {
   background: var(--encre) !important; color: var(--papier) !important;
   border-radius: 4px !important;
@@ -947,7 +1067,7 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
    lisible ; c'est la meme formule, les tokens *-text ayant bascule. */
 
 /* ---- Le bottom sheet et sa poignee. ---- */
-#bottom-sheet-backdrop, #drawer-backdrop, #arbre-backdrop {
+#bottom-sheet-backdrop, #drawer-backdrop {
   background: rgba(0, 0, 0, .45) !important;
 }
 #bottom-sheet .poignee, .bottom-sheet-poignee {
@@ -1405,6 +1525,38 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
   position: relative;
 }
 
+/* UN CONTENU LARGE DEFILE DANS SA BOITE, IL N'EMPORTE PAS LA PAGE
+   (mesure du 12 aout, PDF etalon, fenetre de 1600px)
+
+   Les tableaux sortent du service en `<pre>` (rendu_elements.py:87-94,
+   ecart n°6 de l'etalon, non encore comble). Un `<pre>` ne se replie
+   pas : celui du PDF etalon mesurait 3 162px et poussait la zone de
+   lecture a 3 419px pour 1 586 de large. Resultat : une barre de
+   defilement horizontale sous un texte de lecture, et un texte qui
+   glissait lateralement des qu'on la touchait.
+
+   Deux declarations, pas une. `overflow-x` seul ne suffit PAS : dans
+   une grille, une piste `1fr` a un `min-width: auto` implicite qui la
+   laisse grandir a la taille de son contenu — la boite du corps aurait
+   grandi avec le `<pre>`, et le defilement n'aurait jamais eu lieu.
+   `min-width: 0` rend a la piste le droit de se retrecir.
+   / Wide content scrolls inside its own box. `min-width: 0` is required:
+   a `1fr` track has implicit `min-width: auto` and would grow instead. */
+#readability-content .bloc > .corps {
+  min-width: 0;
+  /* `min-width: 0` rend la piste retrecissable ; encore faut-il que son
+     contenu accepte de se couper. Un mot insecable long — une URL dans
+     une note web — pousserait la boite exactement comme le `<pre>`, par
+     un autre chemin et sans etre couvert par `overflow-x` ci-dessous.
+     / Shrinkable is not enough: a long unbreakable word would push the
+     box just as the <pre> did, by another route. */
+  overflow-wrap: anywhere;
+}
+#readability-content .bloc > .corps pre {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 #readability-content .gouttiere {
   font-family: ui-monospace, Menlo, monospace;
   font-size: .62rem; line-height: 1.45;
@@ -1601,6 +1753,61 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
   display: flex; align-items: center; gap: .28rem;
   font-variant-numeric: tabular-nums;
 }
+/* LE BOUTON D'ECOUTE DE LA GOUTTIERE (etalon § 7, l. 455-460).
+
+   Il s'EFFACE jusqu'a ce qu'on en ait besoin : une colonne de fleches ▶
+   le long du texte ferait de la marge une barre d'outils verticale,
+   alors qu'elle est une marge de REPERES. Il parait au survol du bloc,
+   et pendant la lecture du tour — la ou l'oeil est deja.
+
+   ECART ASSUME AVEC L'ETALON : sa couleur est `--encre-douce`, non le
+   violet `--cible`. Ce violet marque dans l'etalon ce qui n'existe PAS
+   ENCORE ; le garder maintenant que le bouton fonctionne mentirait.
+   / It fades away until needed: a column of ▶ would turn the margin
+   into a vertical toolbar. Colour is --encre-douce, not the mock's
+   "unbuilt" violet. */
+#readability-content .bouton-ecouter {
+  appearance: none; background: none; border: none;
+  padding: 0; margin: 0; line-height: 1;
+  font-size: .66rem; color: var(--encre-douce);
+  cursor: pointer; opacity: 0; transition: opacity .12s ease;
+}
+#readability-content .bloc:hover .bouton-ecouter,
+#readability-content .bloc.bloc-en-lecture .bouton-ecouter { opacity: 1; }
+#readability-content .bouton-ecouter:hover { color: var(--encre); }
+
+/* AU CLAVIER, IL DOIT SE MONTRER. L'etalon ne revele le bouton qu'au
+   SURVOL — un geste que le clavier ne fait pas. Sans cette regle, on
+   tabule sur un bouton invisible : le focus est quelque part, et rien
+   a l'ecran ne dit ou. C'est le meme defaut qu'un `outline: none`.
+   / The mock reveals it on hover only — a gesture the keyboard cannot
+   make. Without this, focus lands on an invisible control. */
+#readability-content .bouton-ecouter:focus-visible {
+  opacity: 1; color: var(--encre);
+  outline: 2px solid var(--info); outline-offset: 2px; border-radius: 2px;
+}
+
+/* LE TOUR EN COURS D'ECOUTE (etalon l. 559). Un fond ambre a 7 % sur
+   TOUT le bloc — la teinte de `--statut-commente`, deja celle du filet
+   d'etat, donc rien de neuf a apprendre.
+
+   Une premiere version posait un liseré dans la gouttiere, par crainte
+   qu'un fond n'abaisse le contraste du texte. MESURE AU NAVIGATEUR, le
+   13 aout, sur la note 8 :
+
+     · clair  : 16,79:1 -> 14,37:1  (perte de 2,42 points)
+     · sombre : 15,10:1 -> 15,30:1  (gain de 0,20)
+
+   La perte existe donc bien en clair, et elle n'est pas negligeable en
+   valeur absolue — mais 14,37:1 reste trois fois le seuil AA de 4,5:1.
+   La crainte etait fondee sur le principe, sans consequence sur ce
+   texte-la, qui part de tres haut.
+   / An earlier version used a gutter rule, fearing contrast loss.
+   Measured: 16.79 -> 14.37 in light (real, but still 3x the AA
+   threshold), 15.10 -> 15.30 in dark. */
+#readability-content .bloc.bloc-en-lecture {
+  background: color-mix(in srgb, var(--statut-commente) 7%, transparent);
+}
 
 /* ------------------------------------------------------------------ */
 /* EDITEUR EN PLACE (etalon § 11)                                      */
@@ -1741,48 +1948,85 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
 }
 
 /* ================================================================== */
-/* LE PANNEAU S'INTEGRE A LA PAGE SUR GRAND ECRAN (etalon § 13)       */
+/* LE PANNEAU VIT DANS LE CORPS DE LA NOTE (etalon § 5 et § 13)       */
 /*                                                                     */
-/* L'etalon a DEUX panneaux selon la place disponible :                */
-/*   · au-dela de 1400px, il est `sticky` — dans la page, a droite du  */
-/*     texte, SANS voile : on lit et on consulte en meme temps ;       */
-/*   · en dessous, il glisse par-dessus, avec son voile.               */
+/* Decision du mainteneur, 12 aout : « Elle doit vraiment etre         */
+/* integree dans la note, et non pas ailleurs. »                       */
 /*                                                                     */
-/* L'application n'avait que le second, a toutes les largeurs : sur un */
-/* grand ecran, consulter une idee cachait le passage dont elle vient  */
-/* — exactement ce qu'un panneau de preuve ne doit pas faire.          */
+/* CE QUI A ETE ESSAYE AVANT, ET POURQUOI CA NE SUFFISAIT PAS          */
+/* Une premiere version gardait le panneau `fixed` et lui RENDAIT sa   */
+/* place par un `padding-right` sur la zone de lecture. A l'oeil, sur  */
+/* une note ouverte, le resultat etait le bon — d'ou l'argument, ecrit */
+/* ici le 9 aout, qu'on evitait ainsi de toucher au gabarit global.    */
 /*                                                                     */
-/* POURQUOI EN CSS PLUTOT QU'EN DEPLACANT LE PANNEAU DANS LE FLUX      */
-/* Le rendre `sticky` demanderait de le sortir de `base.html` pour le  */
-/* mettre a cote de la zone de lecture — donc de toucher au gabarit    */
-/* global, au piegeage de focus et au JS qui l'ouvre. Le laisser fixe  */
-/* et RENDRE SA PLACE au texte donne le meme resultat a l'oeil, sans   */
-/* rien casser. Un panneau fixe ne defile pas : c'est precisement ce   */
-/* que `sticky` fait chez l'etalon.                                    */
-/* / Same result to the eye, without touching the global template.     */
+/* Sauf qu'un element hors flux n'appartient a aucun ecran. Il RESTAIT */
+/* quand on quittait la note pour les carnets ou les bases, avec son   */
+/* bouton dans la barre, alors qu'il ne parle que d'une note. Et sa    */
+/* place devait etre recalculee a la main a chaque changement de       */
+/* largeur, au lieu d'etre repartie par une grille.                    */
 /*                                                                     */
-/* MOBILE INCHANGE : sous 1400px, tout reste comme avant — drawer      */
-/* glissant, et la feuille du bas sur telephone. Ce qui marche ne      */
-/* change pas. / Below 1400px nothing changes.                         */
+/* Le panneau est donc passe DANS le plateau (base.html), et cette     */
+/* couche ne fait plus que decrire la grille.                          */
+/* / An out-of-flow element belongs to no screen: it survived leaving  */
+/* the note. It now lives inside the plateau grid.                     */
+/*                                                                     */
+/* SOUS 1400px, RIEN NE CHANGE : le panneau redevient le tiroir        */
+/* superpose de 36rem, avec son voile. Ceder 368px au panneau sur un   */
+/* ecran etroit rendrait le texte illisible.                           */
 /* ================================================================== */
+
+/* Une seule colonne par defaut : c'est le regime du tiroir.
+   / One column by default: that is the drawer regime. */
+.plateau {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+
 @media (min-width: 1400px) {
   /* Pas de voile : le texte reste lisible et cliquable a gauche. */
   #drawer-backdrop { display: none !important; }
 
-  /* Le panneau garde sa largeur mais cesse d'etre un intrus : la zone
-     de lecture lui cede la place au lieu de passer dessous. */
-  body.panneau-integre #zone-lecture {
-    padding-right: calc(min(36rem, 100vw) + 2rem);
-    transition: padding-right .22s ease;
+  /* La grille repartit la place. Plus de `padding-right` compensatoire :
+     c'est la colonne qui occupe l'espace, pas un vide menage pour elle.
+     / The grid allocates the space; no compensating padding. */
+  body.panneau-integre .plateau {
+    grid-template-columns: 1fr var(--panneau);
   }
-  #zone-lecture { transition: padding-right .22s ease; }
 
-  /* Le panneau integre n'a plus l'ombre portee d'un objet flottant :
-     il fait partie de la page, un filet suffit a l'en separer.
-     / Integrated, not floating: a rule replaces the drop shadow. */
+  /* Le panneau REJOINT le flux. Chaque `!important` bat une classe
+     Tailwind ecrite en dur dans le gabarit ou son style inline — le
+     build Tailwind est fige, on ne peut pas les retirer la-bas sans
+     casser le mode tiroir, qui s'en sert encore sous 1400px.
+     / Each !important overrides a hardcoded Tailwind class still needed
+     by the drawer regime below 1400px. */
   body.panneau-integre #drawer-overlay {
+    position: static !important;   /* .fixed */
+    width: auto !important;        /* style inline min(36rem, 100vw) */
+    transform: none !important;    /* .translate-x-full */
+    pointer-events: auto !important;  /* .pointer-events-none */
+    z-index: auto !important;      /* style inline 70 */
+    height: 100%;
+    min-height: 0;
+
+    /* Integre, il n'a plus l'ombre portee d'un objet flottant : un
+       filet suffit a l'en separer. / A rule replaces the drop shadow. */
     box-shadow: none;
     border-left: 1px solid var(--filet);
+  }
+
+  /* La zone de lecture garde une respiration a droite, pas une place
+     reservee. / Breathing room, not reserved space. */
+  body.panneau-integre #zone-lecture {
+    padding-right: 2rem;
+  }
+
+  /* Le menu des taches deborde sur la colonne de droite et s'y faisait
+     tronquer. Mesure faite sur le menu « Dashboard », retire depuis :
+     240px perdus sur 352. Le menu des taches a la meme geometrie.
+     / A toolbar dropdown must outrank what it overlaps. */
+  .taches-dropdown-wrapper {
+    z-index: 71;
   }
 }
 
@@ -1801,3 +2045,644 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
 #drawer-contenu .drawer-carte-compacte.drawer-carte-active .typo-citation {
   display: block;
 }
+
+/* ================================================================== */
+/* LA COLONNE DE LECTURE EST CENTREE (etalon § 5 « DISPOSITION »)     */
+/*                                                                     */
+/* Mesure du 12 aout, fenetre de 1600px : le bloc faisait bien 742px  */
+/* — la largeur de l'etalon — mais son centre tombait 51px A GAUCHE   */
+/* du centre de l'espace disponible. L'etalon, lui, tient dans 13px.  */
+/*                                                                     */
+/* LES DEUX FACONS D'ALIGNER LE TITRE SUR LE TEXTE                     */
+/* Le corps du texte commence apres la gouttiere. Pour que le titre    */
+/* tombe a la meme abscisse, il y a deux chemins :                     */
+/*                                                                     */
+/*   · l'etalon DECALE LE TITRE vers la droite                         */
+/*     (`.entete-page { padding-left: calc(gouttiere + 1.5rem) }`) ;   */
+/*   · le produit TIRAIT LE CORPS vers la gauche, par des marges       */
+/*     negatives sur #readability-content.                             */
+/*                                                                     */
+/* Les deux alignent titre et texte. Mais le second deplace la boite   */
+/* entiere hors de son axe : la moitie de l'elargissement (70px a      */
+/* gauche, 24 a droite, plus les 56 de padding) part d'un seul cote.   */
+/* D'ou les 51px. On adopte donc le chemin de l'etalon.                */
+/* / Both align title and body; only offsetting the header keeps the   */
+/* whole box on its axis.                                              */
+/* ================================================================== */
+.lecture-zone-conteneur {
+  /* La gouttiere s'AJOUTE a la largeur de lecture, elle ne s'y prend
+     pas : 40rem de texte + 46px de gouttiere + 3.5rem de gap et de
+     respiration = les 742px de l'etalon.
+     / The gutter adds to the reading width instead of eating it. */
+  --gouttiere: 46px;
+  max-width: calc(var(--largeur-lecture) + var(--gouttiere) + 3.5rem);
+  padding-right: 0;
+  margin-left: auto;
+  margin-right: auto;
+}
+/* Un audio a une gouttiere plus large : elle porte le locuteur et le
+   minutage. La boite s'elargit d'autant, et le titre se decale
+   d'autant — sinon il se desaligne du texte des qu'on ouvre un audio.
+   / An audio gutter is wider; the box and the header follow. */
+.lecture-zone-conteneur:has([data-media="audio"]) {
+  --gouttiere: 96px;
+}
+
+/* Le corps reprend sa place : plus de marges negatives. */
+#readability-content {
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* L'EN-TETE se decale, lui. Tous les enfants directs du conteneur SAUF
+   le corps du document : titre, ligne de source, carnets, versions,
+   bandeaux. C'est ce decalage qui aligne le titre sur le texte.
+   / Everything but the document body shifts right by one gutter. */
+.lecture-zone-conteneur > *:not(#readability-content) {
+  padding-left: calc(var(--gouttiere) + 1.5rem);
+}
+/* La barre de progression traverse toute la boite : elle n'est pas du
+   texte, elle ne s'aligne sur rien. / The progress bar spans the box. */
+.lecture-zone-conteneur > #progress-analyse {
+  padding-left: 0;
+}
+
+/* Sous 768px il n'y a plus de place pour ce decalage : la gouttiere
+   se replie et l'en-tete revient au bord.
+   / Below 768px the offset is dropped along with the gutter. */
+@media (max-width: 768px) {
+  .lecture-zone-conteneur > *:not(#readability-content) {
+    padding-left: 0;
+  }
+}
+
+/* ================================================================== */
+/* LE PIED DU PANNEAU : l'etat du debat et la synthese                */
+/*                                                                     */
+/* Recueille ce que le dashboard de la barre d'outils portait, retire  */
+/* le 12 aout a la demande du mainteneur. Le bouton de synthese y      */
+/* avait son SEUL point d'entree.                                      */
+/*                                                                     */
+/* Il se detache du flux des cartes par un filet et un fond de         */
+/* panneau : c'est un pied, pas une carte de plus.                     */
+/* / Recovers what the removed toolbar dashboard carried.              */
+/* ================================================================== */
+.pied-de-panneau {
+  margin-top: 1rem;
+  padding: .8rem .65rem 1rem;
+  border-top: 1px solid var(--filet);
+}
+.pied-de-panneau .etat-du-debat {
+  margin: 0 0 .45rem;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .68rem;
+  color: var(--encre-douce);
+}
+.pied-de-panneau .etat-du-debat strong { color: var(--encre); font-weight: 700; }
+.pied-de-panneau .part-du-debat { opacity: .65; }
+
+.jauge-du-debat {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--papier-creux);
+  overflow: hidden;
+  margin-bottom: .7rem;
+}
+.jauge-du-debat .jauge-remplie {
+  height: 100%;
+  background: var(--statut-commente);
+  transition: width .5s ease;
+}
+
+.pied-de-panneau .btn-synthese {
+  width: 100%;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .68rem;
+  cursor: pointer;
+  background: var(--encre);
+  color: var(--papier);
+  border: 1px solid var(--encre);
+  border-radius: 4px;
+  padding: .4rem .6rem;
+}
+.pied-de-panneau .btn-synthese:hover {
+  background: color-mix(in srgb, var(--encre) 88%, var(--papier));
+}
+
+/* ================================================================== */
+/* LE PANNEAU N'EXISTE QUE SUR UNE NOTE                               */
+/*                                                                     */
+/* Le panneau vit dans `base.html`, donc dans le DOM de tous les       */
+/* ecrans. Mais il ne parle que d'une note : sur les carnets ou les    */
+/* bases, il n'a rien a montrer.                                       */
+/*                                                                     */
+/* POURQUOI EN CSS ET NON PAR UN `{% if %}`                            */
+/* La navigation est HTMX : elle ne remplace que `#zone-lecture`,      */
+/* jamais `base.html`. Un `{% if page %}` autour du panneau ne serait  */
+/* evalue qu'au chargement complet — passer d'un carnet a une note ne  */
+/* le ferait jamais apparaitre. La presence du conteneur de lecture    */
+/* dans la zone, elle, suit chaque swap.                               */
+/* / HTMX only swaps #zone-lecture, so a template condition would      */
+/* never re-evaluate. The reading container's presence does.           */
+/* ================================================================== */
+.plateau:not(:has([data-testid="lecture-zone-principale"])) > #drawer-overlay {
+  display: none;
+}
+/* Et la grille redevient une seule colonne : sans cela, elle          */
+/* reserverait 23rem a un panneau invisible.                           */
+/* / Otherwise the grid keeps 23rem for a hidden panel.                */
+@media (min-width: 1400px) {
+  body.panneau-integre
+    .plateau:not(:has([data-testid="lecture-zone-principale"])) {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ================================================================== */
+/* LA GOUVERNANCE D'UN CARNET, SUR SA PROPRE PAGE                     */
+/*                                                                     */
+/* Renommer, changer la visibilite, partager, supprimer, quitter un   */
+/* partage : ces gestes vivaient dans le menu contextuel du tiroir    */
+/* lateral, retire le 12 aout 2026. Ils sont relogés sur              */
+/* `/carnets/<id>/` (carnet_detail.html).                              */
+/*                                                                     */
+/* POURQUOI ICI ET NON EN CLASSES TAILWIND                             */
+/* Le build Tailwind du projet est FIGE : toute classe arbitraire     */
+/* (`z-[70]`, `min-w-[160px]`) est inerte, et l'echelle standard ne   */
+/* couvre pas ce dont ce bloc a besoin. On etend donc le design       */
+/* system du corpus (`.zone-corpus`, _style_maquette.html) depuis la  */
+/* feuille globale, chargee en dernier.                                */
+/* / The Tailwind build is frozen; arbitrary classes are inert. We    */
+/* extend the corpus design system from the global sheet instead.     */
+/* ================================================================== */
+
+/* Le bloc est REPLIE : on vient sur un carnet pour le lire, pas pour */
+/* l'administrer. Le triangle natif de <summary> suffit a dire que ca */
+/* s'ouvre. / Collapsed: this page is for reading, not admin.         */
+.zone-corpus .gouvernance-carnet {
+  margin: .8rem 0 0;
+  border: 1px solid var(--filet);
+  border-radius: 6px;
+  background: var(--papier-panneau);
+  padding: .5rem .7rem;
+}
+.zone-corpus .gouvernance-carnet > summary {
+  cursor: pointer;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .65rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--encre-douce);
+  /* Cible elargie sans decaler la ligne (WCAG 2.5.8).                */
+  padding: .2rem 0;
+}
+.zone-corpus .gouvernance-carnet > summary:hover { color: var(--encre); }
+/* Le contour de focus doit rester visible sur fond panneau : sans    */
+/* cette regle, le contour par defaut du navigateur se confond avec   */
+/* le filet du bloc. / Keep the focus ring visible on the panel.      */
+.zone-corpus .gouvernance-carnet > summary:focus-visible {
+  outline: 2px solid var(--cible);
+  outline-offset: 2px;
+}
+/* Les rangees du bloc respirent : quatre controles colles les uns    */
+/* aux autres se lisent comme un seul objet.                          */
+.zone-corpus .gouvernance-carnet .rangee-champ { margin: .5rem 0; }
+.zone-corpus .gouvernance-carnet .rangee-champ .champ-texte {
+  min-width: 14rem;
+}
+
+/* L'ETAT ACTIF de la visibilite passe par [aria-pressed], donc par   */
+/* la MEME source que ce qu'annonce un lecteur d'ecran. Un `.actif`   */
+/* pose a la main aurait pu diverger de l'attribut.                    */
+/* / The active state keys off [aria-pressed]: same source as what a  */
+/* screen reader announces, so the two cannot drift apart.            */
+.zone-corpus .bouton-plat[aria-pressed="true"] {
+  background: var(--encre);
+  color: var(--papier);
+  border-color: var(--encre);
+}
+
+/* LE DANGER se dit par la couleur ET par le mot : « Supprimer le     */
+/* carnet », « Quitter ce partage » nomment deja l'acte. La teinte    */
+/* n'est donc qu'un renfort, jamais le seul porteur (§ 8.3).          */
+/* --danger est defini en clair ET en sombre dans le :root de cette   */
+/* feuille : le bouton suit le theme sans regle supplementaire.        */
+/* / Colour reinforces a label that already names the act; --danger   */
+/* is themed at :root, so no dark-mode rule is needed here.           */
+.zone-corpus .bouton-plat.danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--filet));
+}
+.zone-corpus .bouton-plat.danger:hover {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--papier));
+}
+
+/* LES ACTIONS D'UNE LIGNE DE NOTE, groupees dans la troisieme colonne. */
+/* `.ligne-note` est une grille `auto 1fr auto` : la suppression, ajoutee */
+/* le 12 aout 2026 a cote des fleches d'ordre, faisait un QUATRIEME      */
+/* enfant, qui se repliait sur un nouveau rang sous la note et n'avait   */
+/* plus l'air de lui appartenir (verifie au navigateur).                 */
+/* / .ligne-note is a three-column grid; the delete button added beside  */
+/* the ordering arrows made a fourth child that wrapped onto its own row.*/
+.zone-corpus .ligne-note .actions-de-la-note {
+  display: flex;
+  align-items: flex-start;
+  gap: .35rem;
+}
+
+/* ================================================================== */
+/* L'ONGLET « BASES DE CONNAISSANCES » DE L'ACCUEIL                   */
+/*                                                                     */
+/* Il remplace le tiroir lateral retire le 12 aout : la navigation    */
+/* dans le corpus remonte a la surface au lieu de se cacher derriere  */
+/* un hamburger.                                                       */
+/*                                                                     */
+/* Deux sections, pas une liste triee. Ce que j'ai cree, j'y reviens  */
+/* — espace de travail ; ce que d'autres publient, je l'explore —     */
+/* catalogue. Le titre de section porte cette distinction, et le      */
+/* sous-titre la dit en toutes lettres : la place seule ne suffit pas */
+/* a faire comprendre pourquoi une base est d'un cote plutot que de   */
+/* l'autre.                                                            */
+/* / Two sections, not one sorted list; the subtitle says why.        */
+/* ================================================================== */
+.section-bases-accueil {
+  max-width: 64rem;
+  margin: 0 auto 2.5rem;
+  padding: 0 1.5rem;
+}
+.section-bases-accueil:first-child { margin-top: 1.5rem; }
+
+.titre-section-bases {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--encre-douce);
+  margin: 0 0 .15rem;
+}
+.sous-titre-section-bases {
+  margin: 0 0 1rem;
+  font-size: .82rem;
+  color: var(--encre-douce);
+}
+.etat-vide-bases {
+  margin: 0;
+  padding: 1.2rem 0;
+  font-size: .82rem;
+  font-style: italic;
+  color: var(--encre-douce);
+}
+
+/* ================================================================== */
+/* L'EN-TETE DU PANNEAU : UNE ETIQUETTE, PAS UNE BARRE DE TITRE       */
+/*                                                                     */
+/* Etalon § 13. Le panneau est dans le flux depuis le 12 aout, mais    */
+/* son en-tete parlait encore la langue d'un tiroir : barre de 48px,   */
+/* titre gras de 14px, croix de 32px. Un en-tete de colonne se lit     */
+/* comme l'etiquette d'une section — il ne rivalise pas avec le titre  */
+/* du document a cote.                                                 */
+/* / A column header reads as a section label; it must not compete     */
+/* with the document title beside it.                                  */
+/* ================================================================== */
+#drawer-overlay .panneau-entete {
+  padding: .7rem .8rem .55rem;
+  border-bottom: 1px solid var(--filet);
+  flex: none;
+}
+#drawer-overlay .panneau-titre {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .66rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--encre-douce);
+}
+#drawer-overlay .panneau-titre .fermer {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: .8rem;
+  line-height: 1;
+  padding: .15rem .3rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--encre-douce);
+  cursor: pointer;
+}
+#drawer-overlay .panneau-titre .fermer:hover {
+  border-color: var(--filet-controle);
+  color: var(--encre);
+}
+
+/* ================================================================== */
+/* LA BANDE DE CONTEXTE : UNE SEULE DIV POUR LES DEUX COLONNES        */
+/*                                                                     */
+/* Arbitrage du mainteneur, 12 aout. Le fil d'Ariane faisait 32px,     */
+/* l'en-tete du panneau 40,6 : deux bandes cote a cote, separees par   */
+/* un decrochement de 8px que rien ne justifiait.                      */
+/*                                                                     */
+/* Les aligner aurait voulu dire tenir DEUX regles egales a la main.   */
+/* Une seule div rend l'alignement vrai par construction : il n'y a    */
+/* plus qu'une hauteur.                                                */
+/*                                                                     */
+/* ECART ASSUME avec l'etalon, qui garde deux bandes distinctes        */
+/* (le fil traverse, le panneau porte son propre en-tete dessous).     */
+/* / One div, one height. Deliberate departure from the mockup.        */
+/* ================================================================== */
+.bande-de-contexte {
+  display: flex;
+  align-items: stretch;
+  min-height: var(--barre-fil, 2rem);
+  background: var(--papier-creux);
+  border-bottom: 1px solid var(--filet);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .65rem;
+  color: var(--encre-douce);
+}
+
+/* Le fil occupe la colonne de gauche, exactement la largeur de la
+   colonne de lecture : la separation verticale des deux colonnes se
+   prolonge donc dans la bande, au lieu de s'y interrompre.
+   / The strip's split continues the columns' own split. */
+.bande-de-contexte .fil-ariane-conteneur {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 .9rem;
+  overflow: hidden;
+}
+
+/* Le fil lui-meme perd les marges negatives qui le faisaient deborder
+   de la zone de lecture : il n'y est plus. / No more negative margins:
+   the breadcrumb no longer lives inside the reading zone. */
+.bande-de-contexte .fil-ariane {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border-bottom: none;
+  background: none;
+  width: 100%;
+}
+
+.bande-de-contexte .bande-titre-panneau {
+  display: none;
+  align-items: center;
+  gap: .5rem;
+  padding: 0 .8rem;
+  border-left: 1px solid var(--filet);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.bande-de-contexte .bande-titre-panneau .fermer {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: .8rem;
+  line-height: 1;
+  padding: .1rem .25rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--encre-douce);
+  cursor: pointer;
+}
+.bande-de-contexte .bande-titre-panneau .fermer:hover {
+  border-color: var(--filet-controle);
+  color: var(--encre);
+}
+
+/* La bande ne parait que la ou elle a un contexte a porter : sur un
+   ecran sans fil d'Ariane elle serait une barre vide.
+   / No breadcrumb, no strip: it would be an empty bar. */
+.bande-de-contexte:not(:has(.fil-ariane)) {
+  display: none;
+}
+
+/* Le titre du panneau suit le panneau : meme seuil, meme condition.
+   Ailleurs, la bande n'est que le fil. / The panel title follows the
+   panel: same threshold, same condition. */
+@media (min-width: 1400px) {
+  body.panneau-integre
+    .plateau:has([data-testid="lecture-zone-principale"])
+    ~ .bande-de-contexte .bande-titre-panneau,
+  body.panneau-integre .bande-de-contexte .bande-titre-panneau {
+    display: flex;
+    width: var(--panneau);
+    flex: none;
+  }
+}
+
+/* La hauteur du plateau se calcule a partir de CE QUI LE SURPLOMBE : la
+   barre d'outils, et la bande de contexte quand elle parait. Elle etait
+   ecrite en style inline (`calc(100vh - 3rem)`), ce qui ne pouvait pas
+   suivre l'apparition d'une seconde bande — le bas du panneau serait
+   passe sous le pli.
+   / The plateau's height derives from what sits above it; an inline
+   calc could not account for a second strip appearing. */
+.plateau {
+  height: calc(100vh - var(--barre-outils));
+}
+body:has(.bande-de-contexte .fil-ariane) .plateau {
+  height: calc(100vh - var(--barre-outils) - var(--barre-fil, 2rem));
+}
+
+/* L'aide sous un champ : elle dit ce que le champ accepte et ce qui se
+   passe sans lui. Un « facultatif » qui ne dit pas ce qui remplace le
+   vide laisse choisir a l'aveugle.
+   / Field help says what happens when the field stays empty. */
+.zone-corpus .aide-champ {
+  margin: -.2rem 0 .4rem;
+  font-size: .68rem;
+  color: var(--encre-douce);
+}
+
+/* ================================================================== */
+/* LES FORMES PAR LABEL (etalon § 8) — ecart n°6, comble le 12 aout   */
+/*                                                                     */
+/* `blockquote`, `formula` et `picture` tombaient dans le `<p>` par    */
+/* defaut, faute de figurer dans BALISE_PAR_LABEL. Une citation avait  */
+/* la forme du texte qui la commente ; une formule se coupait au       */
+/* milieu et se justifiait comme de la prose ; une image perdait le    */
+/* lien avec sa legende.                                               */
+/* / Three labels fell into the default <p>: a quote read as prose, a  */
+/* formula broke mid-line, an image lost its caption tie.              */
+/* ================================================================== */
+#readability-content .bloc > .corps blockquote {
+  margin: 1.1rem 0;
+  padding: .1rem 0 .1rem 1.05rem;
+  border-left: 3px solid var(--filet);
+  font-style: italic;
+  color: var(--encre-douce);
+}
+
+#readability-content .bloc > .corps figure {
+  margin: 0;
+}
+/* Une formule se lit d'un bloc : centree, entre deux filets, jamais
+   justifiee. / A formula reads as one block: centred, never justified. */
+#readability-content .bloc > .corps figure.formule {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .84rem;
+  text-align: center;
+  padding: .9rem 0;
+  margin: .5rem 0;
+  border-top: 1px solid var(--filet);
+  border-bottom: 1px solid var(--filet);
+}
+#readability-content .bloc > .corps figure.illustration {
+  margin: 1.1rem 0;
+  font-size: .77rem;
+  line-height: 1.5;
+  color: var(--encre-douce);
+  text-align: center;
+  font-style: italic;
+}
+
+/* LE TABLEAU (etalon § 8) — il remplace le `<pre>` de l'ecart n°6.
+   Le cadre le fait defiler DANS SA BOITE quand il depasse la colonne :
+   celui du PDF etalon mesurait 3 162px et emportait toute la page.
+   / The wrapper scrolls the table inside its own box. */
+#readability-content .bloc > .corps .cadre-tableau {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 1.1rem 0;
+}
+#readability-content .bloc > .corps table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: .85rem;
+  font-family: ui-monospace, Menlo, monospace;
+  line-height: 1.5;
+}
+#readability-content .bloc > .corps th,
+#readability-content .bloc > .corps td {
+  padding: .28rem .6rem;
+  text-align: right;
+  border-bottom: 1px solid var(--filet);
+}
+/* La premiere colonne porte le LIBELLE, les suivantes des nombres :
+   l'une se lit a gauche, les autres s'alignent a droite pour se
+   comparer d'un coup d'oeil.
+   / First column labels, the rest numbers: different alignments. */
+#readability-content .bloc > .corps th:first-child,
+#readability-content .bloc > .corps td:first-child { text-align: left; }
+#readability-content .bloc > .corps thead th {
+  color: var(--encre-douce);
+  font-weight: 600;
+  font-size: .75rem;
+}
+
+/* ================================================================== */
+/* LE LECTEUR AUDIO — etalon § 19                                     */
+/* ================================================================== */
+/* ECART N°2, le dernier ouvert. Mesure du 12 aout sur la note 8 :
+   « 0 balise <audio>, aucune tete de lecture, aucun rail ». Le produit
+   avait, depuis PHASE-15, une « barre de progression de lecture » dont
+   le nom trompait : elle suivait le DEFILEMENT, pas le son.
+   / Gap n°2: the old "playback progress bar" tracked scrolling, not
+   audio. */
+
+.lecteur {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  /* Au-dessus du panneau (z-70) : la barre parle du document entier,
+     le panneau d'une de ses idees. Celle qui porte le plus large
+     passe devant. / Above the panel: the bar speaks for the whole
+     document, the panel for one of its ideas. */
+  z-index: 82;
+  height: 62px;
+  display: flex; align-items: center; gap: .9rem;
+  padding: 0 1rem;
+  background: var(--papier);
+  /* L'etalon pose ici `2px solid var(--cible)` — le violet qui marque
+     ce qui n'existe PAS ENCORE dans le produit. Maintenant que le
+     lecteur existe, garder la marque de cible mentirait dans l'autre
+     sens. Le filet ordinaire suffit a detacher la barre du texte.
+     / The mock's violet border marks unbuilt things; the player is
+     built now, so it takes the ordinary rule. */
+  border-top: 1px solid var(--filet);
+}
+
+/* LA RESERVE DE PLACE. `.lecteur` est `fixed`, donc hors du flux :
+   sans elle, la barre recouvrirait les derniers tours de parole.
+   Le token n'est releve que lorsque la barre est reellement rendue —
+   `:has()` le dit en une regle, sans que le serveur ait a poser un
+   attribut sur <body> qu'il faudrait ensuite tenir a jour.
+   / .lecteur is fixed, so reserve its height — only when present. */
+body:has(.lecteur) { --barre-audio: 62px; }
+#zone-lecture { padding-bottom: calc(2rem + var(--barre-audio)); }
+
+.bouton-lecture {
+  flex: none; width: 34px; height: 34px; border-radius: 50%;
+  border: none; background: var(--encre); color: var(--papier);
+  cursor: pointer; display: grid; place-items: center;
+  font-size: .72rem; line-height: 1;
+}
+.bouton-lecture:focus-visible {
+  outline: 2px solid var(--info); outline-offset: 2px;
+}
+
+.piste { flex: 1; min-width: 0; }
+.piste-entete {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: .5rem;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .62rem; color: var(--encre-douce);
+  margin-bottom: .25rem;
+}
+/* Le titre de piste nomme le tour courant — il peut etre long, et il
+   ne doit jamais pousser le minutage hors de la barre.
+   / The track title may be long; it must never push the timecode out. */
+#piste-titre {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#minutage { flex: none; }
+
+.rail {
+  height: 8px; border-radius: 4px; background: var(--papier-creux);
+  position: relative; cursor: pointer; display: flex; overflow: hidden;
+}
+.rail:focus-visible { outline: 2px solid var(--info); outline-offset: 3px; }
+
+/* UN SEGMENT PAR TOUR DE PAROLE, a la couleur de sa voix. C'est ce qui
+   distingue ce rail d'une barre de progression : il donne la FORME du
+   debat — qui parle, combien de temps — avant qu'on l'ecoute.
+   Un tour qui porte des idees est plus opaque : le rail devient une
+   carte de ce qui a ete extrait.
+   / One segment per turn, coloured by voice: the rail shows the shape
+   of the debate. Turns bearing ideas are more opaque. */
+/* POSITIONNES EN ABSOLU, ET NON POUSSES LES UNS DERRIERE LES AUTRES.
+   ECART ASSUME AVEC L'ETALON, qui empile les segments dans un `flex`
+   en ne leur donnant qu'une largeur. Cela suppose que les tours de
+   parole se touchent — or ils ne se touchent pas : sur la note 8, le
+   premier finit a 0,5s et le second commence a 0,7s. En flex, ces
+   silences disparaissent et CHAQUE SEGMENT DERIVE de la somme des
+   blancs qui le precedent : la tete de lecture ne tombe plus sur le
+   tour qu'on entend. En absolu, chacun est a sa vraie place, et les
+   silences se lisent en creux — un blanc dans un debat est une
+   information.
+   / Deliberate departure: the mock flex-stacks segments by width,
+   which assumes turns are contiguous. They are not — silences would
+   vanish and every segment would drift by the sum of the gaps before
+   it. Absolute positioning puts each at its true time. */
+.segment-locuteur { position: absolute; top: 0; height: 100%; opacity: .45; }
+.segment-locuteur.a-des-idees { opacity: .85; }
+
+.tete-de-lecture {
+  position: absolute; top: -3px; left: 0;
+  width: 2px; height: 14px; background: var(--encre);
+  /* La tete ne doit pas intercepter le clic destine au rail : c'est le
+     rail qu'on vise pour se deplacer, et elle est juste dessus.
+     / The playhead must not steal the rail's click. */
+  pointer-events: none;
+}
+
+/* Le fond du tour en cours d'ecoute est defini plus haut, avec le
+   bouton d'ecoute de la gouttiere — les deux forment le meme geste.
+   / The playing turn's wash is defined above, with the gutter button. */

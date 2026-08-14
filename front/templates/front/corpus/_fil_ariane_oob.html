@@ -1,0 +1,27 @@
+{% comment %}
+LE FIL, DEPOSE DANS LA BANDE DE CONTEXTE PAR OOB SWAP.
+LOCALISATION : front/templates/front/corpus/_fil_ariane_oob.html
+
+Le fil est CALCULE par l'ecran courant — seul lui connait son chemin —
+mais il s'AFFICHE en travers de la page, au-dessus des deux colonnes.
+Or `#zone-lecture` porte `overflow-y: auto` : rien de ce qu'elle
+contient ne peut s'etendre sous le panneau. Le fil vit donc dans la
+bande de `base.html`, et chaque navigation HTMX l'y redepose.
+
+`{% templatetag openblock %} if request.htmx {% templatetag closeblock %}` :
+HTMX n'applique les OOB que sur SES reponses, jamais sur le HTML initial
+d'une page. Au chargement direct c'est `base.html` qui inclut le fil dans
+la bande ; rendre l'OOB en plus y afficherait un second fil, inerte, au
+milieu du texte.
+
+NOTE DE SYNTAXE : ce bloc est un `comment`, pas un `{# #}`. Dans les
+gabarits Django, `{# #}` ne vaut que sur UNE ligne — sur plusieurs, la
+premiere ligne seule est commentee et le reste est interprete. C'est ce
+qui a leve un `TemplateSyntaxError` ici meme le 12 aout.
+/ Django's {# #} is single-line only; multi-line needs comment tags.
+{% endcomment %}
+{% if request.htmx %}
+<div id="fil-ariane-conteneur" hx-swap-oob="innerHTML:#fil-ariane-conteneur">
+    {% include "front/corpus/_fil_ariane.html" %}
+</div>
+{% endif %}

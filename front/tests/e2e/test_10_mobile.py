@@ -171,13 +171,29 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         self.assertTrue(bouton_aide.is_visible())
 
     def test_navbar_boutons_desktop_caches_sur_mobile(self):
-        """Les boutons desktop (Dashboard, Analyser, Extractions) sont caches sur mobile."""
+        """
+        Les boutons `btn-desktop-only` sont caches sur mobile.
+
+        Ce test a vise successivement « btn-toolbar-dashboard » (retire
+        avec tout le dashboard) puis « btn-toolbar-extractions » (parti
+        dans la note). Un locator qui ne trouve rien rend `False` : le
+        test serait reste VERT en ne mesurant plus rien. D'ou le
+        `count()` avant l'assertion — il vise maintenant l'aide, qui
+        reste en barre.
+        / It targeted a removed button; an empty locator returns False,
+        so it would have stayed green while measuring nothing.
+        """
         self.page.set_viewport_size(self.VIEWPORT_MOBILE,
         )
         self.naviguer_vers(f"/lire/{self.page_mobile.pk}/")
-        bouton_dashboard = self.page.locator('[data-testid="btn-toolbar-dashboard"]',
+        bouton_aide = self.page.locator('[data-testid="btn-toolbar-aide"]',
         )
-        self.assertFalse(bouton_dashboard.is_visible())
+        self.assertEqual(
+            bouton_aide.count(),
+            1,
+            "Le bouton visé n'existe plus : ce test ne mesure rien.",
+        )
+        self.assertFalse(bouton_aide.is_visible())
 
     def test_navbar_boutons_dans_viewport(self):
         """Les boutons toggle mode et aide sont dans le viewport 390px (pas tronques)."""
@@ -248,10 +264,19 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         self.page.wait_for_function("() => typeof window.bottomSheet !== 'undefined'", timeout=5000,
         )
         self.page.evaluate(f"window.bottomSheet.ouvrir({self.entite_discutable.pk})")
-        self.page.wait_for_timeout(500,
-        )
+        # `ouvrir()` pose la classe `visible` sur le voile : c'est le
+        # signe qu'il est la et cliquable.
+        # / ouvrir() marks the backdrop `visible`; that is the sign it is
+        # there and clickable.
+        self.page.wait_for_selector('[data-testid="bottom-sheet-backdrop"].visible')
         self.page.click('[data-testid="bottom-sheet-backdrop"]')
-        self.page.wait_for_timeout(500,
+        # On attend le retrait de la classe (le DOM), puis on interroge
+        # l'etat de l'API (le JS) : deux choses distinctes, la seconde
+        # reste donc une vraie verification.
+        # / Wait on the DOM, then assert on the JS API: two distinct
+        # things, so the assertion still verifies something.
+        self.page.wait_for_selector(
+            '[data-testid="bottom-sheet-backdrop"]:not(.visible)'
         )
         self.assertFalse(self.page.evaluate("window.bottomSheet.estOuvert()"))
 
@@ -302,7 +327,8 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         self.page.wait_for_selector('[data-testid="btn-fermer-bottom-sheet"]', timeout=5000,
         )
         self.page.click('[data-testid="btn-fermer-bottom-sheet"]')
-        self.page.wait_for_timeout(500,
+        self.page.wait_for_selector(
+            '[data-testid="bottom-sheet-backdrop"]:not(.visible)'
         )
         self.assertFalse(self.page.evaluate("window.bottomSheet.estOuvert()"))
 
@@ -391,7 +417,14 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         # / Open bottom sheet on the extraction far in the text
         self.page.evaluate(f"window.bottomSheet.ouvrir({entite_loin.pk})",
         )
-        self.page.wait_for_timeout(1500)
+        # Le defilement part apres un `setTimeout` de 200 ms puis s'anime.
+        # On attend qu'il ait commence — l'assertion qui suit dit de
+        # combien il devait bouger.
+        # / The scroll starts after a 200 ms timeout, then animates. Wait
+        # for it to have started; the assertion below says how far.
+        self.page.wait_for_function(
+            "() => document.getElementById('zone-lecture').scrollTop > 0"
+        )
 
         # Le scroll de #zone-lecture doit avoir bouge
         # / The #zone-lecture scroll should have moved
@@ -450,8 +483,7 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         # Cliquer sur le bouton fermer (x) dans la modale
         # / Click the close button (x) in the modal
         self.page.click('#btn-fermer-modale-raccourcis')
-        self.page.wait_for_timeout(300,
-        )
+        self.page.wait_for_selector('[data-testid="modale-aide"]', state="detached")
         modale = self.page.locator('[data-testid="modale-aide"]')
         self.assertEqual(modale.count(), 0, "La modale doit disparaitre apres clic fermer",
 
@@ -469,9 +501,12 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         self.naviguer_vers(f"/lire/{self.page_mobile.pk}/")
         # Cliquer une fois : passe en mode lecture
         # / Click once: switch to reading mode
-        self.page.click('[data-testid="btn-toolbar-mode-mobile"]',
-        )
-        self.page.wait_for_timeout(300)
+        # Le gestionnaire de ce bouton pose la classe sur `body` de
+        # facon synchrone (keyboard.js) : quand `click()` rend la main,
+        # elle est deja posee. Il n'y a rien a attendre.
+        # / The handler sets the body class synchronously (keyboard.js):
+        # by the time click() returns it is already set. Nothing to wait for.
+        self.page.click('[data-testid="btn-toolbar-mode-mobile"]')
         est_mode_lecture = self.page.evaluate(
             "document.body.classList.contains('mode-lecture-mobile')"
         )
@@ -489,8 +524,6 @@ class E2EMobileTest(PlaywrightLiveTestCase):
         self.page.click('[data-testid="btn-toolbar-mode-mobile"]',
         )
         self.page.click('[data-testid="btn-toolbar-mode-mobile"]')
-        self.page.wait_for_timeout(300,
-        )
         est_mode_lecture = self.page.evaluate(
             "document.body.classList.contains('mode-lecture-mobile')"
         )
@@ -499,16 +532,31 @@ class E2EMobileTest(PlaywrightLiveTestCase):
     )
 
     # ================================================================
-    # 6. Arbre plein ecran mobile
-    # / 6. Full-screen mobile tree
+    # 6. La navigation mobile, sans tiroir
+    # / 6. Mobile navigation, without the drawer
     # ================================================================
 
-    def test_arbre_plein_ecran(self):
-        """L'arbre prend tout l'ecran sur mobile."""
-        self.page.set_viewport_size(self.VIEWPORT_MOBILE,
-        )
+    def test_navigation_et_import_atteignables_sur_mobile(self):
+        """
+        Sur un telephone, on peut encore naviguer ET importer.
+
+        Ce test verifiait que l'arbre lateral prenait tout l'ecran sur
+        mobile. L'arbre est retire le 12 aout 2026, et avec lui le seul
+        import qu'un telephone avait (la barre cachait le sien sous
+        768 px). L'intention devient : le mobile n'est ampute de rien.
+        / The test checked the full-screen mobile drawer. With it gone,
+        the intent becomes: nothing is amputated on a phone.
+        """
+        self.page.set_viewport_size(self.VIEWPORT_MOBILE)
         self.naviguer_vers(f"/lire/{self.page_mobile.pk}/")
-        self.ouvrir_arbre()
-        arbre = self.page.locator('[data-testid="arbre-overlay"]',
-        )
-        self.assertTrue(arbre.is_visible())
+
+        for identifiant, ce_que_c_est in [
+            ("lien-nav-bases", "les bases"),
+            ("lien-nav-carnets", "les carnets"),
+            ("btn-toolbar-import", "l'import"),
+        ]:
+            self.assertTrue(
+                self.page.locator(f'[data-testid="{identifiant}"]').is_visible(),
+                f"Sur mobile, {ce_que_c_est} doit rester atteignable : "
+                f"le tiroir qui les portait a ete retire.",
+            )

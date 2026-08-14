@@ -50,16 +50,16 @@
         }
     }
 
-    // Ouvre la modale d'alignement pour un dossier entier.
-    // Flux : ferme l'arbre → cree modale skeleton → GET /alignement/tableau/?dossier_id=X
-    // / Open alignment modal for an entire folder
-    // / Flow: close tree → create skeleton modal → GET /alignement/tableau/?dossier_id=X
+    // Ouvre la modale d'alignement pour un carnet entier.
+    // Flux : cree modale skeleton → GET /alignement/tableau/?dossier_id=X
+    // / Open alignment modal for an entire notebook.
+    //
+    // Le flux commencait par fermer le tiroir lateral, d'ou partait le
+    // geste. Le tiroir est retire le 12 aout 2026 : l'alignement s'ouvre
+    // depuis l'onglet « Alignement » de la page d'un carnet, qui n'a rien
+    // a fermer. / The flow used to start by closing the side drawer the
+    // gesture came from; it now starts from a notebook page tab.
     function ouvrirDossier(dossierId) {
-        // Ferme l'arbre si ouvert / Close tree if open
-        if (window.arbreOverlay && window.arbreOverlay.estOuvert()) {
-            window.arbreOverlay.fermer();
-        }
-
         // Empeche l'ouverture si deja ouverte / Prevent opening if already open
         if (modaleOuverte) return;
         modaleOuverte = true;
@@ -221,20 +221,14 @@
 
     // === Initialisation au chargement ===
     // / === Initialization on load ===
-    document.addEventListener('DOMContentLoaded', function() {
-        // Listener delegue sur les boutons "Aligner dossier" dans l'arbre
-        // / Delegated listener on "Align folder" buttons in the tree
-        document.body.addEventListener('click', function(evenement) {
-            var boutonAligner = evenement.target.closest('.btn-aligner-dossier');
-            if (!boutonAligner) return;
-
-            evenement.stopPropagation();
-            var dossierId = boutonAligner.dataset.dossierId;
-            if (dossierId) {
-                ouvrirDossier(dossierId);
-            }
-        });
-    });
+    // Un listener delegue sur `.btn-aligner-dossier` vivait ici : ce
+    // bouton etait rendu dans le noeud de dossier de l'arbre lateral,
+    // retire le 12 aout 2026. Aucun gabarit ne porte plus cette classe ;
+    // l'onglet « Alignement » d'un carnet appelle `ouvrirDossier`
+    // directement (carnet_detail.html).
+    // / A delegated listener for .btn-aligner-dossier lived here; that
+    // button was rendered inside the removed side tree. The notebook's
+    // "Alignment" tab calls ouvrirDossier directly.
 
 
     // Ouvre l'alignement du dossier de la page actuellement affichee

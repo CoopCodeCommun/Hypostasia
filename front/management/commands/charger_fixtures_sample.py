@@ -53,6 +53,11 @@ from core.models import (
     VisibiliteDossier,
 )
 from core.services.corpus import ranger_une_note_dans_un_carnet
+from front.services.fixtures_analyseurs import (
+    NOM_DE_L_ANALYSEUR_D_EXTRACTION,
+    NOM_DE_L_ANALYSEUR_DE_SYNTHESE,
+    creer_les_modeles_ia_et_les_analyseurs,
+)
 
 User = get_user_model()
 
@@ -65,6 +70,87 @@ NOM_DU_CARNET = "Documents étalons"
 # auto-generate from the accented name.
 NOM_DE_LA_BASE_DE_DEMONSTRATION = "Démonstration"
 SLUG_DE_LA_BASE_DE_DEMONSTRATION = "demonstration"
+
+
+# =============================================================================
+# LES TEXTES DE PRESENTATION
+#
+# Le carnet et la base etaient crees SANS description ni guide. Les ecrans
+# qui les montrent — liste des carnets, detail d'un carnet, cartes des
+# bases — avaient donc raison de paraitre vides : il n'y avait rien a
+# montrer. On ne met pas au point une carte de presentation sur un objet
+# sans texte de presentation.
+#
+# Ces textes disent ce que les objets SONT reellement, pas ce qu'on
+# aimerait qu'ils soient : ce carnet porte six documents choisis pour
+# eprouver le moteur, chacun sur un point precis. Une description de
+# fixture qui ment sur son contenu est pire qu'une description absente.
+# / These texts describe what the objects actually are.
+# =============================================================================
+
+# `Dossier.description` est un CharField(max_length=200) : ce texte doit
+# tenir dans 200 signes, un test le verifie.
+# / Capped at 200 characters; a test enforces it.
+DESCRIPTION_DU_CARNET = (
+    "Six documents choisis pour éprouver le moteur : un PDF à coordonnées, "
+    "une capture web, un audio transcrit, un long markdown. Chacun met à "
+    "l'épreuve un point précis de l'ancrage."
+)
+
+# Le guide s'adresse au contributeur AU MOMENT ou il contribue — l'etalon
+# (corpus.html) l'affiche en tete du carnet, encadre, pas range dans une
+# page d'aide. / Shown at contribution time, not filed in a help page.
+GUIDE_DE_REDACTION_DU_CARNET = (
+    "Ce carnet sert de banc d'essai : chaque note y est un cas limite, "
+    "pas un contenu à lire pour lui-même.\n\n"
+    "Avant d'ajouter un document, demandez-vous ce qu'il éprouve que les "
+    "six autres n'éprouvent pas — un format, une structure, une façon de "
+    "casser l'ancrage. Un septième document qui ressemble aux précédents "
+    "allonge les tests sans rien couvrir de plus.\n\n"
+    "Les extractions posées ici ne sont pas des opinions sur le texte : "
+    "elles existent pour donner à voir les huit familles d'hypostases, "
+    "les deux statuts de débat, les marques imbriquées et les ancres qui "
+    "enjambent deux éléments."
+)
+
+# LES AXES DE CLASSEMENT DU CARNET.
+#
+# L'etalon (corpus.html) montre les axes en facettes cliquables au haut du
+# carnet — « TYPE (4) · THEME (3) · ECHEANCE (2) ». Sans axe en base cette
+# rangee reste vide, et l'ecran ne peut ni etre compare a l'etalon ni meme
+# etre mis au point : on styleraient des facettes qui ne filtrent rien.
+#
+# Les deux axes retenus disent ce que ce carnet EST : un banc d'essai. Le
+# premier range par format d'entree, le second par ce que le document met
+# a l'epreuve. Deux axes croises sur six notes suffisent a montrer le
+# mecanisme sans le noyer.
+#
+# Couleurs : palette de Wong (Nature Methods, 2011), sure pour les huit
+# formes de daltonisme — celle que le projet emploie deja par ailleurs.
+# / The mockup shows axes as clickable facets; without any, that row stays
+# empty. Colours from Wong's colourblind-safe palette.
+AXES_DE_CLASSEMENT_DU_CARNET = {
+    "Format": {
+        "PDF": "#0072B2",
+        "Web": "#009E73",
+        "Audio": "#D55E00",
+        "Markdown": "#CC79A7",
+    },
+    "Éprouve": {
+        "Coordonnées": "#0072B2",
+        "Structure": "#009E73",
+        "Locuteurs": "#D55E00",
+        "Volume": "#E69F00",
+    },
+}
+
+DESCRIPTION_DE_LA_BASE_DE_DEMONSTRATION = (
+    "La base de démonstration d'Hypostasia. Elle rassemble les documents "
+    "qui servent à vérifier, à chaque installation, que la chaîne complète "
+    "tient debout : importer un document, en extraire des idées, les ancrer "
+    "au passage exact dont elles viennent, puis en débattre.\n\n"
+    "Rien ici n'est un contenu éditorial. Tout y est un étalon."
+)
 
 REPERTOIRE_SAMPLE = Path(settings.BASE_DIR) / "sample"
 
@@ -80,6 +166,24 @@ FICHIER_DU_PDF_ETUDE = "Etude_Epistemologique_IA.pdf"
 # renommer le fichier verse au depot. / The second PDF's filename carries
 # a space AND an accent — a legitimate case, not a reason to rename it.
 FICHIER_DU_PDF_OPEN_BADGES = "présentation des open badges.pdf"
+
+# Quelle note va sous quelles categories. La cle est le NOM DE FICHIER
+# d'origine : les identifiants changent d'une base a l'autre, pas les
+# documents. Une note absente de cette table n'est pas classee — et le
+# test qui l'exige echouera, ce qui est le comportement voulu.
+#
+# Ce bloc vit APRES les noms de fichiers, dont il depend. Le placer plus
+# haut levait un NameError au chargement du module.
+# / Keyed by source filename: pks differ across databases, documents do
+# not. Must sit after the filename constants it references.
+CLASSEMENT_DES_NOTES_ETALONS = {
+    FICHIER_DE_LA_CAPTURE: ("Web", "Structure"),
+    FICHIER_DU_MARKDOWN: ("Markdown", "Volume"),
+    FICHIER_DE_LA_TRANSCRIPTION: ("Audio", "Locuteurs"),
+    FICHIER_DU_MP3: ("Audio", "Locuteurs"),
+    FICHIER_DU_PDF_ETUDE: ("PDF", "Coordonnées"),
+    FICHIER_DU_PDF_OPEN_BADGES: ("PDF", "Coordonnées"),
+}
 
 # Les deux PDF sont SORTIS de ce refus le 11 aout 2026 : la mesure qui
 # manquait existe desormais (voir tmp/benchmark-docling-2026-08-11.md),
@@ -194,8 +298,20 @@ class Command(BaseCommand):
         # `_config_voxtral_utilisable`. / Not throwaway: it is the only
         # config known to be Voxtral.
         self.config_de_transcription = self._creer_la_config_de_transcription()
+        # Sans analyseur en base, le bouton « Lancer une analyse » n'ouvre
+        # aucun sélecteur : les notes chargées juste après seraient
+        # illisibles par l'IA. Les analyseurs viennent donc AVANT les
+        # documents. / Without an analyzer, the analysis button opens an
+        # empty selector, so analyzers come before the documents.
+        self._creer_les_analyseurs()
 
         self._charger_les_documents(proprietaire, carnet_des_etalons)
+        # APRES le chargement des documents : on ne peut classer que des
+        # notes qui existent. / After loading: only existing notes can be
+        # filed.
+        if not self.a_blanc:
+            self._poser_les_axes_de_classement(carnet_des_etalons)
+
         self._creer_la_base_de_demonstration(proprietaire, carnet_des_etalons)
 
         if self.a_blanc:
@@ -330,13 +446,120 @@ class Command(BaseCommand):
 
         carnet, a_ete_cree = Dossier.objects.get_or_create(
             name=NOM_DU_CARNET, owner=proprietaire,
-            defaults={"visibilite": VisibiliteDossier.PUBLIC},
+            defaults={
+                "visibilite": VisibiliteDossier.PUBLIC,
+                "description": DESCRIPTION_DU_CARNET,
+                "guide_de_redaction": GUIDE_DE_REDACTION_DU_CARNET,
+            },
         )
+
+        # ON REMPLIT LE VIDE, ON N'ECRASE JAMAIS.
+        #
+        # Les `defaults` de `get_or_create` ne touchent que les objets
+        # qu'il CREE. Le carnet des etalons existe depuis des semaines sur
+        # les bases de developpement : sans ce rattrapage il resterait
+        # sans description pour toujours, et les ecrans qui l'affichent
+        # continueraient d'avoir raison de paraitre vides.
+        #
+        # Mais la commande se relance a CHAQUE installation. Si elle
+        # reimposait ses textes, elle effacerait a chaque fois ce que le
+        # mainteneur aurait ecrit lui-meme. D'ou la condition : seul le
+        # champ vide est rempli.
+        # / defaults only apply to rows it creates, so pre-existing
+        # notebooks would stay blank forever. But the command re-runs on
+        # every install: fill blanks, never overwrite.
+        champs_completes = []
+        if not carnet.description.strip():
+            carnet.description = DESCRIPTION_DU_CARNET
+            champs_completes.append("description")
+        if not carnet.guide_de_redaction.strip():
+            carnet.guide_de_redaction = GUIDE_DE_REDACTION_DU_CARNET
+            champs_completes.append("guide_de_redaction")
+        if champs_completes:
+            carnet.save(update_fields=champs_completes)
+
+        etat_du_carnet = "créé" if a_ete_cree else "réutilisé"
+        if champs_completes and not a_ete_cree:
+            etat_du_carnet += f", {' et '.join(champs_completes)} complétée(s)"
         self.stdout.write(
             f"Carnet              : {NOM_DU_CARNET} — pk={carnet.pk} "
-            f"({'créé' if a_ete_cree else 'réutilisé'})",
+            f"({etat_du_carnet})",
         )
         return carnet
+
+    def _poser_les_axes_de_classement(self, carnet):
+        """
+        Pose les axes du carnet et classe ses notes dessous.
+        / Create the notebook's axes and file its notes under them.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        POURQUOI CETTE METHODE EXISTE
+
+        L'etalon montre les axes en facettes cliquables au haut du carnet.
+        Sans axe en base, cette rangee reste vide : on ne peut ni comparer
+        l'ecran a l'etalon, ni le mettre au point — on stylerait des
+        facettes qui ne filtrent rien.
+
+        DES AXES SANS NOTES CLASSEES NE VALENT GUERE MIEUX. Une facette
+        qui rend « 0 sur 6 » a chaque clic ne montre pas le mecanisme,
+        elle montre un bug. Les deux vont donc ensemble, ici.
+
+        On ne touche a une note que si elle n'a AUCUNE categorie : un
+        classement pose a la main ne doit pas etre refait a chaque
+        installation. / Axes and filing go together; a hand-made filing is
+        never redone.
+        """
+        from core.models import CategorieDossier, ListeDeCategories
+
+        if carnet is None:
+            return
+
+        categories_par_nom = {}
+        axes_crees = 0
+        for nom_de_l_axe, categories_de_l_axe in AXES_DE_CLASSEMENT_DU_CARNET.items():
+            axe, axe_a_ete_cree = ListeDeCategories.objects.get_or_create(
+                nom=nom_de_l_axe, dossier=carnet,
+            )
+            axes_crees += 1 if axe_a_ete_cree else 0
+            for rang, (nom_de_la_categorie, couleur) in enumerate(
+                categories_de_l_axe.items()
+            ):
+                categorie, _ = CategorieDossier.objects.get_or_create(
+                    liste=axe, nom=nom_de_la_categorie,
+                    defaults={"couleur": couleur, "ordre": rang},
+                )
+                categories_par_nom[nom_de_la_categorie] = categorie
+
+        notes_classees = 0
+        for appartenance in carnet.appartenances_pages.select_related("page"):
+            if appartenance.categories.exists():
+                continue
+
+            # La table de classement est indexee par nom de fichier
+            # d'origine. Une note qui n'y figure pas reste non classee :
+            # c'est visible, et c'est mieux qu'un rangement au hasard.
+            # / A note absent from the table stays unfiled: visible, and
+            # better than filing it at random.
+            noms_des_categories = CLASSEMENT_DES_NOTES_ETALONS.get(
+                appartenance.page.original_filename or "",
+            )
+            if not noms_des_categories:
+                continue
+
+            categories_a_poser = [
+                categories_par_nom[nom]
+                for nom in noms_des_categories
+                if nom in categories_par_nom
+            ]
+            if categories_a_poser:
+                appartenance.categories.set(categories_a_poser)
+                notes_classees += 1
+
+        self.stdout.write(
+            f"Axes de classement  : {len(AXES_DE_CLASSEMENT_DU_CARNET)} axe(s), "
+            f"{notes_classees} note(s) classée(s)",
+        )
 
     def _creer_la_config_de_transcription(self):
         """
@@ -381,6 +604,84 @@ class Command(BaseCommand):
             f"({'créée' if a_ete_creee else 'réutilisée'})",
         )
         return config
+
+    def _creer_les_analyseurs(self):
+        """
+        Cree les modeles IA et les deux analyseurs, via le service partage.
+        / Creates the AI models and both analyzers, via the shared service.
+
+        LOCALISATION : front/management/commands/charger_fixtures_sample.py
+
+        SANS ANALYSEUR, L'APPLICATION NE FAIT PLUS RIEN.
+
+        Cette commande a longtemps charge six documents dans une base qui
+        n'avait aucun analyseur : le bouton « Lancer une analyse » n'ouvrait
+        aucun sélecteur, faute d'avoir quoi que ce soit à proposer. Un
+        corpus qu'on ne peut pas analyser n'éprouve pas le produit.
+        / This command used to load six documents into a database with no
+        analyzer at all, leaving the analysis button with nothing to offer.
+
+        LA DEFINITION N'EST PAS ICI, ET C'EST VOULU.
+
+        Elle vit dans `front/services/fixtures_analyseurs.py`, partagée avec
+        `charger_fixtures_demo`. Recopier ici les quatre pièces de prompt et
+        les trente extractions d'exemple aurait donné une seconde version à
+        tenir à jour — l'oubli d'origine vient exactement de là.
+        / The definition lives in the shared service: a local copy would be
+        a second version to maintain, which is how the omission happened.
+
+        Le mode a blanc annonce sans écrire, comme partout ailleurs.
+        / Dry run announces without writing, as everywhere else.
+        """
+        if self.a_blanc:
+            self.stdout.write(
+                f"Analyseurs IA       : {NOM_DE_L_ANALYSEUR_D_EXTRACTION} + "
+                f"{NOM_DE_L_ANALYSEUR_DE_SYNTHESE} (seraient créés)",
+            )
+            return None
+
+        rapport_des_fixtures_ia = creer_les_modeles_ia_et_les_analyseurs()
+
+        # Les modèles IA dépendent des clés du .env : sans clé, pas de
+        # modèle du tout — on le dit, sinon l'IA resterait éteinte sans
+        # que personne sache pourquoi. / No key means no model at all, and
+        # silence here would leave the AI off for no visible reason.
+        if rapport_des_fixtures_ia["aucune_cle_api_detectee"]:
+            self.stdout.write(
+                "Modèles IA          : aucune clé API dans .env — IA non activée",
+            )
+        else:
+            noms_des_modeles_crees = [
+                nom for nom, _cle_env in rapport_des_fixtures_ia["modeles_ia_crees"]
+            ]
+            if noms_des_modeles_crees:
+                self.stdout.write(
+                    f"Modèles IA          : {', '.join(noms_des_modeles_crees)} (créés)",
+                )
+            else:
+                self.stdout.write("Modèles IA          : réutilisés")
+
+        # Le détail « 4 pièces, 1 exemple » n'est pas décoratif : c'est
+        # l'exemple few-shot qui rend l'analyseur utilisable, et son absence
+        # est invisible autrement. / The few-shot example is what makes the
+        # analyzer usable, and its absence is invisible otherwise.
+        etat_de_l_extraction = (
+            f"créé, {rapport_des_fixtures_ia['pieces_de_prompt_creees']} pièces, "
+            f"{rapport_des_fixtures_ia['extractions_d_exemple_creees']} extractions d'exemple"
+            if rapport_des_fixtures_ia["analyseur_extraction_cree"]
+            else "réutilisé"
+        )
+        etat_de_la_synthese = (
+            "créé" if rapport_des_fixtures_ia["analyseur_synthese_cree"] else "réutilisé"
+        )
+        self.stdout.write(
+            f"Analyseurs IA       : "
+            f"{rapport_des_fixtures_ia['analyseur_extraction'].name} "
+            f"({etat_de_l_extraction}), "
+            f"{rapport_des_fixtures_ia['analyseur_synthese'].name} "
+            f"({etat_de_la_synthese})",
+        )
+        return None
 
     def _reinitialiser(self, proprietaire):
         """
@@ -1362,11 +1663,25 @@ class Command(BaseCommand):
                 "slug": SLUG_DE_LA_BASE_DE_DEMONSTRATION,
                 "owner": proprietaire,
                 "visibilite": VisibiliteDossier.PUBLIC,
+                "description": DESCRIPTION_DE_LA_BASE_DE_DEMONSTRATION,
             },
         )
+
+        # Meme regle que pour le carnet : on remplit le vide d'une base
+        # deja presente, on n'ecrase jamais un texte ecrit a la main.
+        # / Same rule as the notebook: fill blanks, never overwrite.
+        description_a_ete_completee = False
+        if not base.description.strip():
+            base.description = DESCRIPTION_DE_LA_BASE_DE_DEMONSTRATION
+            base.save(update_fields=["description"])
+            description_a_ete_completee = True
+
+        etat_de_la_base = "créée" if base_a_ete_creee else "réutilisée"
+        if description_a_ete_completee and not base_a_ete_creee:
+            etat_de_la_base += ", description complétée"
         self.stdout.write(
             f"Base                : {NOM_DE_LA_BASE_DE_DEMONSTRATION} — "
-            f"pk={base.pk} ({'créée' if base_a_ete_creee else 'réutilisée'})",
+            f"pk={base.pk} ({etat_de_la_base})",
         )
 
         AppartenanceDossierBase.objects.get_or_create(

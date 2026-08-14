@@ -111,12 +111,36 @@
   font-family:ui-monospace,Menlo,monospace; font-size:.6rem; color:var(--encre-douce);
   margin-top:.15rem; display:flex; gap:.4rem; flex-wrap:wrap; align-items:center;
 }
+/* Les separateurs « · » de l'etalon, poses par le CSS. Un separateur
+   n'a de sens qu'ENTRE deux elements : le pose en CSS le rend
+   impossible a mettre en tete de ligne, ce qui arrivait quand un
+   gabarit ecrivait « · N extractions » alors que rien ne precedait.
+   Classe explicite (.separateurs) et non regle globale : les autres
+   sous-lignes du corpus ecrivent encore leurs points a la main, et
+   doubler les deux donnerait « · · ».
+   / Middots placed by CSS: a separator only makes sense BETWEEN items.
+   Opt-in class, because other sub-lines still write theirs by hand. */
+.zone-corpus .sous-note.separateurs > span + span::before {
+  content:"·"; margin-right:.4rem; color:var(--encre-douce);
+}
 /* La provenance d'une note dans sa sous-ligne : la marque de source
    (audio / web / fichier) et le nom de fichier, discrets mais lisibles.
    / A note's provenance in its sub-line: source mark and file name. */
 .zone-corpus .marque-source { white-space:nowrap; }
 .zone-corpus .nom-de-fichier {
   max-width:18rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--encre-douce);
+}
+/* LA DESCRIPTION D'UN CARNET dans une liste. Elle est en SERIF, comme
+   le titre : c'est du texte de lecture, ecrit par un humain. Le
+   monospace, dans ce design system, signale une donnee DERIVEE
+   (compteurs, etiquettes, sous-lignes) — l'y mettre ferait passer une
+   phrase pour un compteur. 0,82rem = 13,1 px, au-dessus du plancher de
+   12 px que tient le reste du systeme.
+   / A notebook's description: serif like the title, because it is
+   human-written reading text; monospace here means DERIVED data. */
+.zone-corpus .description-carnet {
+  display:block; margin-top:.2rem; font-size:.82rem; line-height:1.45;
   color:var(--encre-douce);
 }
 .zone-corpus .ligne-note .etiquettes { display:flex; gap:.2rem; flex-wrap:wrap; margin-top:.25rem; }
@@ -454,6 +478,199 @@
   font-size:.65rem; color:var(--encre-douce);
 }
 .zone-corpus .pied-page a { color:var(--info); }
+
+/* ---- Lot « liste des bases » (12 aout 2026) : LA GRILLE DE CARTES.
+   /bases/ cesse d'etre un ecran secondaire — le burger va y mener, donc
+   c'est souvent le PREMIER ecran. Une liste d'une ligne par base ne
+   soutient pas ce role : on passe a la carte, la seule forme qui puisse
+   porter a la fois un nom, une description et un pied de compteurs.
+   Le build Tailwind est FIGE : tout est ecrit ici, rien en classe
+   utilitaire arbitraire, qui serait inerte.
+   / The knowledge-base directory becomes an entry point, so it moves
+   from one-line rows to cards. The Tailwind build is frozen: every rule
+   is written here. ---- */
+
+/* auto-fill et non auto-fit : avec une seule base — le cas de la base
+   de developpement — auto-fit etirerait sa carte sur toute la largeur
+   du corpus, soit 64rem, ce qui donne une carte grotesque. auto-fill
+   garde les pistes vides et la carte reste a sa taille de carte.
+   / auto-fill, not auto-fit: with a single base, auto-fit would stretch
+   its card across the full 64rem and look absurd. */
+.zone-corpus .grille-bases {
+  list-style:none; margin:0; padding:0;
+  display:grid; gap:1rem;
+  grid-template-columns:repeat(auto-fill, minmax(17rem, 1fr));
+  /* start et non le stretch par defaut : une seule base illustree dans
+     un rang etirerait toutes ses voisines a sa hauteur, et chacune se
+     retrouverait avec un grand vide entre son texte et son pied. Chaque
+     carte fait donc sa propre hauteur. / start, not the default stretch:
+     one illustrated card would otherwise hollow out its whole row. */
+  align-items:start;
+}
+/* La cellule de creation etire son formulaire sur toute sa hauteur :
+   sans cette regle, la carte de creation — dont le contenu est plus
+   court — flotte plus haut que les cartes de base et le rang a deux
+   hauteurs. La regle est CIBLEE sur cette cellule : appliquee a tous
+   les <li>, elle donnerait flex:1 aux enfants d'une carte de base et
+   ferait grossir son filet de cote de 3 px a un tiers de la carte.
+   / Scoped to the create cell on purpose: applied to every <li> it
+   would stretch a base card's 3px tinted rule to a third of the card. */
+.zone-corpus .grille-bases > .cellule-creation { display:flex; min-width:0; }
+.zone-corpus .grille-bases > .cellule-creation > * { flex:1; min-width:0; }
+
+/* La carte est une COLONNE flex pour que son pied se colle en bas
+   (margin-top:auto) : d'une carte a l'autre, les compteurs s'alignent
+   meme quand les descriptions n'ont pas la meme longueur.
+   / A flex column so the footer sticks to the bottom and the counters
+   line up from card to card. */
+.zone-corpus .carte-base {
+  display:flex; flex-direction:column;
+  border:1px solid var(--filet); border-radius:6px;
+  background:var(--papier); overflow:hidden;
+  /* min-width:0 : sans lui, un nom de carnet tres long dans le sommaire
+     imposerait sa largeur a la piste de grille et ferait deborder la
+     page. / Without min-width:0 a long name would blow out the track. */
+  min-width:0;
+}
+.zone-corpus .carte-base:hover { background:var(--papier-panneau); }
+/* Le focus se voit sur la CARTE quand le lien de titre le prend : sans
+   cela, seul le texte du titre s'entoure et la cible reelle (toute la
+   carte, au clic) reste muette. / The whole card shows the focus. */
+.zone-corpus .carte-base:has(.titre-base:focus-visible) {
+  outline:2px solid var(--info); outline-offset:2px;
+}
+
+/* LA COUVERTURE, quand elle existe. `aspect-ratio` reserve sa place
+   AVANT le chargement : sans lui la grille sursaute quand l'image
+   arrive. La carte SANS couverture ne rend pas ce bloc du tout — elle
+   ne reserve aucune place vide, elle commence a sa cote.
+   / The cover, when there is one; a coverless card renders no block at
+   all rather than an empty slot. */
+/* Pas de bordure basse : le filet de cote, juste dessous, separe deja
+   l'image du cartouche — deux traits colles feraient un liseré.
+   / No bottom border: the tinted rule below already separates. */
+.zone-corpus .couverture-base {
+  display:block; width:100%; aspect-ratio:16/9; object-fit:cover;
+  background:var(--papier-creux);
+}
+
+/* LA COTE — l'identite visuelle d'une base sans image. Un filet teinte
+   pleine largeur, comme la bande de couleur d'une boite d'archives,
+   surmontant l'identifiant d'URL en monospace. La teinte ne dit rien a
+   elle seule : le nom est juste dessous.
+   / The call-number band: a full-width tinted rule over the URL
+   identifier in monospace. The tint carries nothing on its own. */
+.zone-corpus .cote-base {
+  height:3px; background:var(--teinte-de-cote, var(--encre-douce));
+  flex:none;
+}
+.zone-corpus .cartouche-base {
+  display:flex; align-items:baseline; gap:.5rem; flex-wrap:wrap;
+  padding:.4rem .7rem .3rem; background:var(--papier-creux);
+  border-bottom:1px solid var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.55rem;
+  text-transform:uppercase; letter-spacing:.09em; color:var(--encre-douce);
+}
+/* La cote peut etre longue (« cooperative-des-trois-vallees ») : elle
+   se coupe plutot que d'elargir la piste de grille.
+   / A long slug truncates instead of widening the grid track. */
+.zone-corpus .cartouche-base .identifiant {
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;
+}
+/* La marque de visibilite passe en LIGNE dans le cartouche : la version
+   en colonne de .marque-visibilite est faite pour une ligne de liste.
+   / The visibility mark goes inline here. */
+.zone-corpus .cartouche-base .marque-visibilite {
+  flex-direction:row; align-items:baseline; gap:.25rem;
+  margin-left:auto; min-width:0; padding-top:0;
+}
+
+.zone-corpus .corps-carte-base { padding:.6rem .7rem .5rem; flex:1; min-width:0; }
+.zone-corpus .titre-base {
+  display:block; font-size:1.05rem; line-height:1.3; color:var(--encre);
+  text-decoration:none; letter-spacing:-.01em;
+  /* anywhere et non break-word : un slug ou un nom sans espace doit
+     casser DANS le mot, sinon il deborde de sa piste. */
+  overflow-wrap:anywhere;
+}
+.zone-corpus .titre-base:hover { text-decoration:underline; }
+
+/* LA DESCRIPTION, tronquee a quatre lignes. En SERIF comme le titre :
+   c'est du texte ECRIT par un humain. Le monospace, dans ce design
+   system, signale une donnee DERIVEE — l'y mettre ferait passer une
+   phrase pour un compteur. / Serif, like the title: human-written text.
+   Monospace here means derived data. */
+.zone-corpus .description-base {
+  margin:.3rem 0 0; font-size:.82rem; line-height:1.45; color:var(--encre-douce);
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:4;
+  overflow:hidden;
+}
+
+/* LE SOMMAIRE — ce que la base contient, quand elle ne dit pas ce
+   qu'elle est. Ce n'est pas un texte d'attente : ce sont les vrais
+   carnets, ceux que le visiteur peut ouvrir. / The summary: the real
+   notebooks inside, never filler text. */
+.zone-corpus .sommaire-base {
+  margin:.35rem 0 0; font-size:.8rem; line-height:1.45; color:var(--encre-douce);
+}
+.zone-corpus .sommaire-base .intitule {
+  font-family:ui-monospace,Menlo,monospace; font-size:.55rem;
+  text-transform:uppercase; letter-spacing:.08em;
+}
+.zone-corpus .sommaire-base .reste { font-style:italic; }
+
+/* LE PIED — les compteurs derives, en monospace, colles en bas.
+   DEUX rangs et non une seule ligne qui se replie : ce qu'une base
+   CONTIENT et d'ou elle VIENT sont deux registres, et surtout, une
+   ligne unique de quatre elements se replie a 314 px de carte en
+   renvoyant un « · » orphelin en debut de second rang.
+   / Two rows, not one wrapping line: contents and provenance are two
+   registers, and a single four-item line orphans a middot. */
+.zone-corpus .pied-carte-base {
+  margin-top:auto; padding:.4rem .7rem .5rem;
+  border-top:1px solid var(--filet);
+  font-family:ui-monospace,Menlo,monospace; font-size:.56rem;
+  text-transform:uppercase; letter-spacing:.06em; color:var(--encre-douce);
+  display:flex; flex-direction:column; gap:.12rem;
+}
+.zone-corpus .pied-carte-base > .rangee {
+  display:flex; flex-wrap:wrap; gap:.3rem; min-width:0;
+}
+.zone-corpus .pied-carte-base > .rangee > span + span::before {
+  content:"·"; margin-right:.3rem;
+}
+/* Un nom d'utilisateur long ne doit pas elargir la piste de grille. */
+.zone-corpus .pied-carte-base .proprietaire {
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;
+}
+
+/* LA CARTE DE CREATION — derniere cellule de la grille. Sur une porte
+   d'entree, « + Nouvelle base » ne doit pas passer AVANT la
+   collection : on lit d'abord ce qui existe. Le trait tirete la
+   distingue d'une base sans jamais la faire passer pour un espace
+   reserve. / The create affordance is the LAST grid cell: the
+   collection is read first. */
+.zone-corpus .carte-creation-base {
+  display:flex; flex-direction:column; justify-content:center; gap:.4rem;
+  border:1px dashed var(--filet-controle); border-radius:6px;
+  background:transparent; padding:.9rem .8rem; min-width:0;
+}
+.zone-corpus .carte-creation-base .champ-etiquette { margin:0; }
+.zone-corpus .carte-creation-base .champ-texte { width:100%; min-width:0; }
+.zone-corpus .carte-creation-base .bouton-plat { align-self:flex-start; }
+
+/* L'introduction de l'en-tete : deux ou trois lignes qui disent ce
+   qu'on regarde. En serif, largeur de lecture bornee — au-dela de 62
+   caracteres une explication cesse d'etre lue.
+   / The header's introduction, bounded to a readable measure. */
+.zone-corpus .entete-zone .introduction {
+  margin:.35rem 0 .5rem; font-size:.9rem; line-height:1.55;
+  color:var(--encre-douce); max-width:42rem;
+}
+.zone-corpus .entete-zone .rangee-entete {
+  display:flex; align-items:baseline; justify-content:space-between;
+  gap:1rem; flex-wrap:wrap;
+}
 
 .zone-corpus .surface-creation {
   border:1px solid var(--filet); border-radius:6px; padding:.8rem .9rem;

@@ -1,10 +1,28 @@
 """
-Tests E2E PHASE-25c — Visibilite 3 niveaux, groupes, arbre restructure.
-/ E2E tests PHASE-25c — 3-level visibility, groups, restructured tree.
+Tests E2E — Visibilite 3 niveaux, partages, groupes.
+/ E2E tests — 3-level visibility, shares, groups.
 
 Lancer avec : uv run python manage.py test front.tests.e2e.test_14_visibilite -v2
 
 LOCALISATION : front/tests/e2e/test_14_visibilite.py
+
+CE MODULE LISAIT L'ARBRE LATERAL, RETIRE LE 12 AOUT 2026.
+
+Il ouvrait le tiroir (touche T) puis lisait le texte de `#arbre` pour
+savoir ce qu'un compte voit. La QUESTION reste entiere — « qu'est-ce
+qu'un anonyme voit ? qu'est-ce qu'un destinataire de partage voit ? » —
+mais l'ecran qui y repond est desormais `/carnets/`, ou la meme regle
+d'acces est appliquee (`carnets_visibles_par`, views_corpus.py).
+
+UN TEST A DISPARU SANS REMPLACANT : `test_accordeon_expand_collapse`.
+Il verifiait que les trois sections repliables de l'arbre (« Mes
+dossiers », « Partages avec moi », « Dossiers publics ») s'ouvraient et
+se fermaient. Cet accordeon etait un dispositif de l'arbre, pas une
+regle du produit : la liste des carnets n'a pas de sections repliables,
+et n'en a pas besoin — elle montre tout d'un coup.
+/ The module read the side tree to answer "what does this account
+see?". The question stands; /carnets/ now answers it. One test had no
+successor: the tree's accordion was a device of the tree, not a rule.
 """
 
 from core.models import Dossier, DossierPartage, Page, VisibiliteDossier
@@ -12,8 +30,8 @@ from front.tests.e2e.base import PlaywrightLiveTestCase
 
 
 class Phase25cVisibiliteE2ETest(PlaywrightLiveTestCase):
-    """Tests E2E pour la visibilite, l'arbre restructure et les groupes.
-    / E2E tests for visibility, restructured tree and groups."""
+    """Ce qu'un compte voit, selon la visibilite et les partages.
+    / What an account sees, by visibility and shares."""
 
     # ====================================================================
     # Helpers
@@ -38,13 +56,15 @@ class Phase25cVisibiliteE2ETest(PlaywrightLiveTestCase):
         self.page.click('[data-testid="btn-submit-login"]')
         self.page.wait_for_url("**/")
 
-    def ouvrir_arbre(self):
+    def texte_de_la_collection(self):
         """
-        Ouvre le panneau arbre overlay (hamburger).
-        / Opens the tree overlay panel (hamburger).
+        Le texte de la liste des carnets — l'ecran qui repond desormais
+        a « qu'est-ce que ce compte voit ? ».
+        / The notebook list's text: the screen that now answers "what
+        does this account see?".
         """
-        self.page.click("#btn-hamburger-arbre")
-        self.page.wait_for_selector("#arbre-overlay:not(.-translate-x-full)", timeout=3000)
+        self.naviguer_vers("/carnets/")
+        return self.page.text_content('[data-testid="corpus-carnets-liste"]')
 
     # ====================================================================
     # Test 1 : Anonyme voit uniquement les dossiers publics
@@ -52,24 +72,21 @@ class Phase25cVisibiliteE2ETest(PlaywrightLiveTestCase):
     # ====================================================================
 
     def test_anonyme_voit_uniquement_publics(self):
-        """L'arbre anonyme n'affiche que les dossiers publics.
-        / Anonymous tree only shows public folders."""
+        """La collection anonyme n'affiche que les carnets publics.
+        / The anonymous collection shows public notebooks only."""
         owner = self.creer_utilisateur_demo(username="owner_e2e", password="test1234")
 
-        # Creer un dossier prive et un dossier public
-        # / Create a private and a public folder
+        # Creer un carnet prive et un carnet public
+        # / Create a private and a public notebook
         Dossier.objects.create(name="Prive invisible", owner=owner)
         Dossier.objects.create(
             name="Public visible", owner=owner,
             visibilite=VisibiliteDossier.PUBLIC,
         )
 
-        self.naviguer_vers("/")
-        self.page.wait_for_selector('[data-testid="section-publics"]', timeout=5000)
-
-        contenu_arbre = self.page.text_content("#arbre")
-        self.assertIn("Public visible", contenu_arbre)
-        self.assertNotIn("Prive invisible", contenu_arbre)
+        contenu = self.texte_de_la_collection()
+        self.assertIn("Public visible", contenu)
+        self.assertNotIn("Prive invisible", contenu)
 
     # ====================================================================
     # Test 2 : Login → section "Mes dossiers" visible
@@ -77,18 +94,14 @@ class Phase25cVisibiliteE2ETest(PlaywrightLiveTestCase):
     # ====================================================================
 
     def test_login_mes_dossiers_visible(self):
-        """Apres login, la section 'Mes dossiers' est visible.
-        / After login, the 'My folders' section is visible."""
+        """Apres login, mes carnets prives apparaissent dans la collection.
+        / After login, my private notebooks appear in the collection."""
         owner = self.creer_utilisateur_demo(username="owner_mes", password="test1234")
         Dossier.objects.create(name="Mon dossier perso", owner=owner)
 
         self.se_connecter("owner_mes", "test1234")
-        self.naviguer_vers("/")
-
-        self.page.wait_for_selector('[data-testid="section-mes-dossiers"]', timeout=5000)
-        contenu_arbre = self.page.text_content("#arbre")
-        self.assertIn("Mon dossier perso", contenu_arbre)
-        self.assertIn("Mes dossiers", contenu_arbre)
+        contenu = self.texte_de_la_collection()
+        self.assertIn("Mon dossier perso", contenu)
 
     # ====================================================================
     # Test 3 : Changer visibilite via menu contextuel
@@ -96,30 +109,33 @@ class Phase25cVisibiliteE2ETest(PlaywrightLiveTestCase):
     # ====================================================================
 
     def test_changer_visibilite_menu_ctx(self):
-        """Le menu contextuel permet de changer la visibilite d'un dossier.
-        / The context menu allows changing folder visibility."""
+        """
+        Le proprietaire change la visibilite depuis la page du carnet.
+
+        Le geste vivait dans le sous-menu « Visibilite » du menu
+        contextuel de l'arbre. Il vit maintenant dans « Gerer ce
+        carnet », sur la page du carnet.
+        / The gesture moved from the tree's context sub-menu to the
+        notebook page's "Manage this notebook" block.
+        """
         owner = self.creer_utilisateur_demo(username="owner_ctx", password="test1234")
         dossier = Dossier.objects.create(name="Dossier ctx", owner=owner)
 
         self.se_connecter("owner_ctx", "test1234")
-        self.naviguer_vers("/")
-        self.ouvrir_arbre()
-        self.page.wait_for_selector('[data-testid="section-mes-dossiers"]', timeout=5000)
+        self.naviguer_vers(f"/carnets/{dossier.pk}/")
 
-        # Clic sur le kebab menu du dossier
-        # / Click on the folder's kebab menu
-        bouton_kebab = self.page.locator(
-            f'[data-dossier-id="{dossier.pk}"] [data-testid="btn-ctx-dossier"]'
-        )
-        bouton_kebab.click()
-
-        # Clic sur "Public" dans le sous-menu visibilite
-        # / Click "Public" in the visibility sub-menu
-        self.page.click('[data-visibilite="public"]')
+        # « Gerer ce carnet » est un <details> REPLIE : on vient sur cette
+        # page pour lire le carnet, pas pour l'administrer. Il faut donc
+        # le deplier, comme le ferait la personne — un clic sur un bouton
+        # enferme dans un <details> ferme n'atteint rien.
+        # / The governance block is a collapsed <details>: unfold it
+        # first, as a person would.
+        self.page.click('[data-testid="corpus-carnet-gouvernance"] summary')
+        self.page.click('[data-testid="corpus-carnet-visibilite-choix-public"]')
         self.attendre_htmx()
 
-        # Verifier que le dossier a change de visibilite en base
-        # / Verify folder visibility changed in DB
+        # Verifier que le carnet a change de visibilite en base
+        # / Verify notebook visibility changed in DB
         dossier.refresh_from_db()
         self.assertEqual(dossier.visibilite, VisibiliteDossier.PUBLIC)
 
@@ -143,16 +159,14 @@ class Phase25cVisibiliteE2ETest(PlaywrightLiveTestCase):
         # Se connecter en tant que destinataire
         # / Log in as recipient
         self.se_connecter("dest_part", "test1234")
-        self.naviguer_vers("/")
-        self.ouvrir_arbre()
 
-        # Ouvrir la section "Partages avec moi"
-        # / Open "Shared with me" section
-        bouton_section = self.page.locator('[data-testid="section-partages"] .arbre-section-toggle')
-        bouton_section.click()
-
-        contenu_arbre = self.page.text_content("#arbre")
-        self.assertIn("Dossier partage e2e", contenu_arbre)
+        # L'arbre rangeait les partages dans une section repliee ; la
+        # collection les montre avec les autres, la ligne portant sa
+        # propre marque de visibilite.
+        # / The tree filed shares in a collapsed section; the collection
+        # shows them inline, each row carrying its visibility mark.
+        contenu = self.texte_de_la_collection()
+        self.assertIn("Dossier partage e2e", contenu)
 
     # ====================================================================
     # Test 5 : Controle d'acces — 403 sur page privee via URL directe
@@ -174,9 +188,13 @@ class Phase25cVisibiliteE2ETest(PlaywrightLiveTestCase):
         )
 
         self.se_connecter("intrus_403", "test1234")
+        # Ce test lit un code HTTP, pas un ecran : `goto` le rend des la
+        # reponse recue. Attendre le silence reseau par-dessus n'ajoute
+        # rien a un 403.
+        # / This test reads an HTTP code, not a screen.
         reponse = self.page.goto(
             f"{self.live_server_url}/lire/{page_privee.pk}/",
-            wait_until="networkidle",
+            wait_until="commit",
         )
         self.assertEqual(reponse.status, 403)
 
@@ -193,36 +211,3 @@ class Phase25cVisibiliteE2ETest(PlaywrightLiveTestCase):
         dossier_imports = _obtenir_ou_creer_dossier_imports(owner)
         self.assertEqual(dossier_imports.name, "Mes imports")
         self.assertEqual(dossier_imports.owner, owner)
-
-    # ====================================================================
-    # Test 7 : Accordeon expand/collapse
-    # / Test 7: Accordion expand/collapse
-    # ====================================================================
-
-    def test_accordeon_expand_collapse(self):
-        """Les sections accordeon s'ouvrent et se ferment au clic.
-        / Accordion sections open and close on click."""
-        owner = self.creer_utilisateur_demo(username="owner_acc", password="test1234")
-        Dossier.objects.create(name="Mon dossier acc", owner=owner)
-
-        self.se_connecter("owner_acc", "test1234")
-        self.naviguer_vers("/")
-        self.ouvrir_arbre()
-        self.page.wait_for_selector('[data-testid="section-mes-dossiers"]', timeout=5000)
-
-        # La section "Mes dossiers" est ouverte par defaut (aria-expanded=true)
-        # / "My folders" section is open by default (aria-expanded=true)
-        bouton_section = self.page.locator('[data-testid="section-mes-dossiers"] .arbre-section-toggle')
-        etat_ouvert = bouton_section.get_attribute("aria-expanded")
-        self.assertEqual(etat_ouvert, "true")
-
-        # Clic → ferme la section / Click → closes the section
-        bouton_section.click()
-        etat_ferme = bouton_section.get_attribute("aria-expanded")
-        self.assertEqual(etat_ferme, "false")
-
-        # Re-clic → rouvre la section / Re-click → reopens the section
-        bouton_section.click()
-        etat_rouvert = bouton_section.get_attribute("aria-expanded")
-        self.assertEqual(etat_rouvert, "true")
-

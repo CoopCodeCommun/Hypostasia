@@ -148,9 +148,13 @@ class E2EExtractionsTest(PlaywrightLiveTestCase):
     def test_pastilles_marge_visibles(self):
         """Les pastilles de marge sont presentes sur la page de lecture."""
         self.naviguer_vers(f"/lire/{self.page_extractions.pk}/")
-        # Attendre que les marginalia soient rendues
-        # / Wait for marginalia to be rendered
-        self.page.wait_for_timeout(1000)
+        # Ce test lit `#readability-content` : c'est sa presence, et
+        # elle seule, qui conditionne la lecture qui suit.
+        # (Son nom annonce les pastilles de marge, mais son assertion
+        # porte sur le texte source — voir le rapport de session.)
+        # / This test reads #readability-content: its presence is the
+        # only precondition of the read below.
+        self.page.wait_for_selector("#readability-content")
         # Verifier que la page se charge sans erreur
         # / Verify the page loads without errors
         contenu = self.page.text_content("#readability-content")

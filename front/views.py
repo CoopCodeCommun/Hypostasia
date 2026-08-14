@@ -558,105 +558,70 @@ def _obtenir_ou_creer_dossier_imports(utilisateur):
     return dossier_imports
 
 
-def _render_arbre(request):
+# ---------------------------------------------------------------------
+# CE QUE RENVOIENT LES GESTES SUR UN CARNET, DEPUIS LE 12 AOUT.
+#
+# Ces gestes (creer, renommer, changer la visibilite, supprimer, quitter
+# un partage) repondaient tous par `_render_arbre` : leur reponse etait
+# le tiroir lateral, parce que le tiroir etait leur seul point de depart.
+# Ils partent maintenant de `/carnets/` et de `/carnets/<id>/`, donc ils
+# repondent par ces ecrans-la.
+#
+# Les deux fonctions vivent dans `front/views_corpus.py`, qui importe
+# CE module en tete : l'import doit donc se faire dans le corps, sinon
+# le cycle casse le demarrage de Django.
+# / These gestures used to answer with the side tree because the tree
+# was their only entry point. They now start from /carnets/, so they
+# answer with it. The import is lazy: views_corpus imports this module.
+# ---------------------------------------------------------------------
+
+def _rendre_la_collection_des_carnets(request):
     """
-    Helper interne — renvoie le partial HTML de l'arbre de dossiers.
-    3 sections : Mes dossiers, Partages avec moi, Dossiers publics.
-    Anonyme : uniquement les dossiers publics.
-    / Internal helper — returns the folder tree HTML partial.
-    3 sections: My folders, Shared with me, Public folders.
-    Anonymous: only public folders.
+    La liste des carnets, en partial HTMX.
+    / The notebook list, as an HTMX partial.
     """
-    # L'arbre lit la TABLE DE LIAISON, plus la FK (phase D corpus) : une
-    # note rangee dans deux carnets apparait dans les deux. On precharge
-    # les appartenances (pages racines seulement, pas les restitutions)
-    # dans un attribut dedie — zero requete par dossier au rendu.
-    # / The tree reads the LINK TABLE, no longer the FK: prefetched
-    # memberships (root pages only), zero per-folder query at render.
-    pages_racines_seulement = Prefetch(
-        "appartenances_pages",
-        queryset=AppartenancePageDossier.objects.filter(
-            page__parent_page__isnull=True,
-        ).select_related("page"),
-        to_attr="appartenances_racines",
-    )
+    from front.views_corpus import rendre_la_liste_des_carnets
+    return rendre_la_liste_des_carnets(request)
 
-    if request.user.is_authenticated:
-        # Mes dossiers : owner=moi ou legacy (owner=null)
-        # / My folders: owner=me or legacy (owner=null)
-        mes_dossiers = Dossier.objects.prefetch_related(
-            pages_racines_seulement,
-        ).filter(
-            Q(owner=request.user) | Q(owner__isnull=True)
-        ).distinct()
 
-        # Dossiers partages avec moi (direct ou via groupe), excluant mes propres dossiers
-        # / Folders shared with me (direct or via group), excluding my own folders
-        ids_dossiers_partages_directs = DossierPartage.objects.filter(
-            utilisateur=request.user,
-        ).values_list("dossier_id", flat=True)
-        ids_dossiers_partages_groupe = DossierPartage.objects.filter(
-            groupe__membres=request.user,
-        ).values_list("dossier_id", flat=True)
+def _rendre_la_page_du_carnet(request, carnet):
+    """
+    Le detail d'un carnet, en partial HTMX.
+    / A notebook's detail page, as an HTMX partial.
+    """
+    from front.views_corpus import rendre_le_detail_du_carnet
+    return rendre_le_detail_du_carnet(request, carnet)
 
-        dossiers_partages = Dossier.objects.prefetch_related(
-            pages_racines_seulement,
-        ).select_related("owner").filter(
-            Q(pk__in=ids_dossiers_partages_directs) | Q(pk__in=ids_dossiers_partages_groupe)
-        ).exclude(
-            Q(owner=request.user) | Q(owner__isnull=True)
-        ).distinct()
 
-        # Dossiers publics (tous, avec owner affiche) — exclut les partages
-        # / Public folders (all, with owner displayed) — excludes shared
-        dossiers_publics = Dossier.objects.prefetch_related(
-            pages_racines_seulement,
-        ).select_related("owner").filter(
-            visibilite=VisibiliteDossier.PUBLIC,
-        ).exclude(
-            Q(owner=request.user) | Q(owner__isnull=True)
-        ).exclude(
-            pk__in=ids_dossiers_partages_directs,
-        ).exclude(
-            pk__in=ids_dossiers_partages_groupe,
-        ).distinct()
-    else:
-        # Anonyme : uniquement les dossiers publics
-        # / Anonymous: only public folders
-        mes_dossiers = Dossier.objects.none()
-        dossiers_partages = Dossier.objects.none()
-        dossiers_publics = Dossier.objects.prefetch_related(
-            pages_racines_seulement,
-        ).select_related("owner").filter(
-            visibilite=VisibiliteDossier.PUBLIC,
-        )
+def _rendre_les_notes_du_carnet_demande(request):
+    """
+    La liste des notes du carnet designe par `carnet_id` dans la requete,
+    ou None si la requete n'en designe aucun d'accessible.
+    / The note list of the notebook named by `carnet_id`, or None.
 
-    # Calculer le total de notes par section pour les en-tetes, a partir
-    # des appartenances PRECHARGEES (relecture D) : meme source que les
-    # compteurs des noeuds — coherent, racines seulement, zero requete.
-    # / Section totals from the PREFETCHED memberships: same source as
-    # the node counters — coherent, roots only, zero query.
-    total_pages_mes_dossiers = sum(
-        len(dossier_comptage.appartenances_racines)
-        for dossier_comptage in mes_dossiers
-    )
-    total_pages_partages = sum(
-        len(dossier_comptage.appartenances_racines)
-        for dossier_comptage in dossiers_partages
-    )
-    total_pages_publics = sum(
-        len(dossier_comptage.appartenances_racines)
-        for dossier_comptage in dossiers_publics
-    )
+    LOCALISATION : front/views.py
 
-    return render(request, "front/includes/arbre_dossiers.html", {
-        "mes_dossiers": mes_dossiers,
-        "dossiers_partages": dossiers_partages,
-        "dossiers_publics": dossiers_publics,
-        "total_pages_mes_dossiers": total_pages_mes_dossiers,
-        "total_pages_partages": total_pages_partages,
-        "total_pages_publics": total_pages_publics,
-    })
+    Le geste « supprimer une note » part de la liste des notes d'un
+    carnet : il doit y revenir. La requete porte donc l'identifiant du
+    carnet d'ou l'on a clique. Sans lui — un appel d'API, un vieux
+    script — on ne devine pas ou renvoyer l'utilisateur, et l'appelant
+    repond alors sans corps.
+    / The delete-a-note gesture starts from a notebook's list and must
+    return to it, hence the carnet_id. Without it the caller answers
+    with no body rather than guessing.
+    """
+    identifiant_du_carnet = request.data.get("carnet_id") or request.GET.get("carnet_id")
+    if not identifiant_du_carnet or not str(identifiant_du_carnet).isdigit():
+        return None
+
+    carnet_de_retour = Dossier.objects.filter(pk=identifiant_du_carnet).first()
+    if carnet_de_retour is None:
+        return None
+    if not _utilisateur_a_acces_dossier(request.user, carnet_de_retour):
+        return None
+
+    from front.views_corpus import rendre_les_notes_du_carnet
+    return rendre_les_notes_du_carnet(request, carnet_de_retour)
 
 
 def _annoter_entites_avec_commentaires(queryset_entites):
@@ -1120,26 +1085,64 @@ class BibliothequeViewSet(viewsets.ViewSet):
     """
 
     def list(self, request):
+        contexte = {"ia_active": _get_ia_active()}
+        contexte.update(self._les_deux_zones_de_bases(request.user))
+
         # Requete HTMX → retourne l'onboarding comme contenu par defaut
         # / HTMX request → return onboarding as default content
         if request.headers.get('HX-Request'):
-            return render(request, "front/includes/onboarding_vide.html")
+            return render(
+                request, "front/includes/onboarding_vide.html", contexte,
+            )
 
         # Acces direct → page complete
         # / Direct access → full page
-        return render(request, "front/bibliotheque.html", {
-            "ia_active": _get_ia_active(),
-        })
+        return render(request, "front/bibliotheque.html", contexte)
 
+    def _les_deux_zones_de_bases(self, utilisateur):
+        """
+        Partage les bases visibles en deux : les miennes, celles des autres.
+        / Split the visible bases in two: mine, and other people's.
 
-class ArbreViewSet(viewsets.ViewSet):
-    """
-    Partial HTMX — arbre de dossiers + pages orphelines.
-    HTMX partial — folder tree + orphan pages.
-    """
+        LOCALISATION : front/views.py
 
-    def list(self, request):
-        return _render_arbre(request)
+        POURQUOI DEUX ZONES ET NON UNE LISTE TRIEE
+
+        Demande du mainteneur, 12 aout. Les deux moities ne se lisent pas
+        de la meme facon : ce que j'ai cree, j'y REVIENS — c'est un
+        espace de travail ; ce que d'autres publient, je l'EXPLORE —
+        c'est un catalogue. Une seule liste triee par nom melangerait les
+        deux intentions et obligerait a lire chaque ligne pour savoir
+        dans laquelle on se trouve.
+
+        UNE BASE NE FIGURE JAMAIS DES DEUX COTES. Une base a moi ET
+        publique reste dans « les miennes » : la montrer deux fois ferait
+        douter du sens des zones. L'appartenance l'emporte sur la
+        publication.
+
+        La regle de visibilite n'est pas reecrite ici : elle vient de
+        `bases_visibles_avec_leurs_comptes`, que `/bases/` utilise aussi.
+        / Ownership wins over publication; the visibility rule is shared
+        with /bases/, never re-implemented.
+        """
+        from front.views_corpus import bases_visibles_avec_leurs_comptes
+
+        bases_visibles, _nombre_de_carnets = bases_visibles_avec_leurs_comptes(
+            utilisateur
+        )
+
+        mes_bases = []
+        bases_des_autres = []
+        for base in bases_visibles:
+            if utilisateur.is_authenticated and base.owner_id == utilisateur.pk:
+                mes_bases.append(base)
+            else:
+                bases_des_autres.append(base)
+
+        return {
+            "mes_bases": mes_bases,
+            "bases_des_autres": bases_des_autres,
+        }
 
 
 class LectureViewSet(viewsets.ViewSet):
@@ -1560,16 +1563,8 @@ class LectureViewSet(viewsets.ViewSet):
             request=request,
         )
 
-        # OOB swap : arbre mis a jour via _render_arbre
-        # / OOB swap: updated tree via _render_arbre
-        reponse_arbre = _render_arbre(request)
-        html_arbre_oob = (
-            '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
-            + reponse_arbre.content.decode()
-            + '</div>'
-        )
 
-        reponse = HttpResponse(html_lecture + html_arbre_oob)
+        reponse = HttpResponse(html_lecture)
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": "Titre modifi\u00e9"},
         })
@@ -1644,7 +1639,7 @@ class LectureViewSet(viewsets.ViewSet):
             reponse_refus = HttpResponse(status=400)
             reponse_refus["HX-Trigger"] = json.dumps({
                 "showToast": {
-                    "message": "Impossible de supprimer la version racine. Supprimez plutôt le document depuis l'arbre.",
+                    "message": "Impossible de supprimer la version racine. Supprimez plutôt la note depuis la liste de son carnet.",
                     "icon": "warning",
                 },
             })
@@ -2012,8 +2007,12 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Desktop : passer la liste des raccourcis clavier
         # / Desktop: pass the keyboard shortcuts list
+        # \u00ab T \u2014 Ouvrir/fermer la bibliotheque \u00bb a ete retire le 12 aout
+        # 2026 avec l'arbre lateral. Une aide qui annonce un raccourci
+        # mort est pire qu'une aide incomplete : elle fait douter de tout
+        # le reste. / The T entry went with the side tree; a help screen
+        # that lists a dead shortcut discredits the rest of the list.
         liste_raccourcis = [
-            ("T", "Ouvrir/fermer la biblioth\u00e8que"),
             ("E", "Ouvrir/fermer le panneau extractions"),
             ("J", "Extraction suivante"),
             ("K", "Extraction pr\u00e9c\u00e9dente"),
@@ -3644,7 +3643,7 @@ class DossierViewSet(viewsets.ViewSet):
         )
         logger.info("create dossier: pk=%s name='%s' owner=%s", nouveau_dossier.pk, nouveau_dossier.name, request.user)
 
-        reponse = _render_arbre(request)
+        reponse = _rendre_la_collection_des_carnets(request)
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": f"Dossier \u00ab {nouveau_dossier.name} \u00bb cr\u00e9\u00e9"},
         })
@@ -3714,16 +3713,25 @@ class DossierViewSet(viewsets.ViewSet):
         else:
             message_toast = f"Dossier \u00ab {nom_dossier} \u00bb supprim\u00e9"
 
-        reponse = _render_arbre(request)
+        # Le carnet n'existe plus : on ne peut plus montrer SA page, on
+        # montre la collection d'ou il vient. / The notebook is gone: we
+        # show the collection it came from.
+        reponse = _rendre_la_collection_des_carnets(request)
         reponse["HX-Trigger"] = json.dumps({"showToast": {"message": message_toast}})
         return reponse
 
     @action(detail=True, methods=["POST"])
     def renommer(self, request, pk=None):
         """
-        Renomme un dossier et retourne l'arbre mis a jour.
-        Seul le proprietaire du dossier peut le renommer.
-        / Renames a folder and returns the updated tree.
+        Renomme un carnet et retourne SA PAGE mise a jour.
+        Seul le proprietaire du carnet peut le renommer.
+        / Renames a notebook and returns ITS updated page.
+
+        La reponse etait l'arbre lateral, seul endroit d'ou ce geste
+        partait. Il part maintenant de « Gerer ce carnet », sur la
+        page du carnet, qui est donc ce que l'on rend.
+        / The response used to be the side tree, this gesture's only
+        starting point.
         / Only the folder owner can rename it.
         """
         refus = _exiger_authentification(request)
@@ -3747,7 +3755,7 @@ class DossierViewSet(viewsets.ViewSet):
         dossier_a_renommer.name = nouveau_nom
         dossier_a_renommer.save(update_fields=["name"])
 
-        reponse = _render_arbre(request)
+        reponse = _rendre_la_page_du_carnet(request, dossier_a_renommer)
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": f"Dossier renomm\u00e9 en \u00ab {nouveau_nom} \u00bb"},
         })
@@ -3882,7 +3890,7 @@ class DossierViewSet(viewsets.ViewSet):
         dossier_cible.visibilite = nouvelle_visibilite
         dossier_cible.save(update_fields=["visibilite"])
 
-        reponse = _render_arbre(request)
+        reponse = _rendre_la_page_du_carnet(request, dossier_cible)
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": f"Visibilite changee en « {nouvelle_visibilite} »"},
         })
@@ -3906,7 +3914,11 @@ class DossierViewSet(viewsets.ViewSet):
             dossier=dossier_cible, utilisateur=request.user,
         ).delete()
 
-        reponse = _render_arbre(request)
+        # Quitter un partage, c'est perdre l'acces : rester sur la page
+        # du carnet montrerait un refus. On ramene a la collection.
+        # / Leaving a share means losing access: staying on the notebook
+        # page would render a refusal. Back to the collection.
+        reponse = _rendre_la_collection_des_carnets(request)
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": f"Partage quitte pour « {dossier_cible.name} »"},
         })
@@ -4039,10 +4051,18 @@ class PageViewSet(viewsets.ViewSet):
     @action(detail=True, methods=["POST"])
     def supprimer(self, request, pk=None):
         """
-        Supprime une page et retourne l'arbre mis a jour.
+        Supprime une note et retourne la liste des notes du carnet d'ou
+        le geste est parti (`carnet_id` dans la requete).
         Seul le proprietaire du dossier contenant la page peut la supprimer.
-        / Deletes a page and returns the updated tree.
-        / Only the owner of the folder containing the page can delete it.
+        / Deletes a note and returns the note list of the notebook the
+        gesture came from. Only the folder owner may delete.
+
+        La reponse etait l'ARBRE LATERAL jusqu'au 12 aout, parce que le
+        menu contextuel de l'arbre etait le seul endroit d'ou l'on
+        pouvait supprimer une note. L'arbre part ; le geste vit
+        desormais dans la liste des notes du carnet, et c'est elle que
+        l'on rend. / The response used to be the side tree, the only
+        place this gesture existed. The tree is gone.
         """
         refus = _exiger_authentification(request)
         if refus:
@@ -4063,7 +4083,26 @@ class PageViewSet(viewsets.ViewSet):
             with transaction.atomic():
                 page_a_supprimer.delete()
         except SuppressionRefuseeSourceCitee:
-            reponse_refus = _render_arbre(request)
+            # RIEN n'a ete supprime, et le code HTTP doit le DIRE.
+            #
+            # Ce chemin a rendu 204 pendant quelques heures, le 13 aout :
+            # la reponse etait l'arbre lateral — toujours du HTML, donc
+            # toujours 200 — et elle est devenue la liste des notes du
+            # carnet, qui vaut None quand la requete ne dit pas d'ou part
+            # le geste. Un refus repondait alors « 204 No Content », que
+            # tout client lit comme UN SUCCES SANS CORPS. Seul le toast
+            # disait le contraire.
+            #
+            # 409 Conflict, donc, comme le refus JUMEAU juste a cote
+            # (`supprimer_entite`) : meme cause — une synthese adoptee
+            # cite la source —, meme code. Le toast passe : le
+            # gestionnaire `htmx:responseError` (hypostasia.js:389) sait
+            # deja qu'une erreur porteuse de `showToast` parle
+            # d'elle-meme et ne la double pas d'un SweetAlert.
+            # / Nothing was deleted, and the status code must say so.
+            # This briefly answered 204 — read by any client as success.
+            # 409, like its twin refusal next door.
+            reponse_refus = HttpResponse(status=409)
             reponse_refus["HX-Trigger"] = json.dumps({"showToast": {
                 "message": f"« {titre_page} » est citée par une synthèse "
                            "adoptée : elle ne peut pas être supprimée. "
@@ -4073,7 +4112,10 @@ class PageViewSet(viewsets.ViewSet):
             }})
             return reponse_refus
 
-        reponse = _render_arbre(request)
+        reponse = (
+            _rendre_les_notes_du_carnet_demande(request)
+            or HttpResponse(status=204)
+        )
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": f"Page \u00ab {titre_page} \u00bb supprim\u00e9e"},
         })
@@ -4082,10 +4124,21 @@ class PageViewSet(viewsets.ViewSet):
     @action(detail=True, methods=["POST"])
     def classer(self, request, pk=None):
         """
-        Assigne une page a un dossier, retourne l'arbre mis a jour.
+        Assigne une note a un carnet et retourne le bloc « Dans N
+        carnets » de cette note.
         Verifie que l'utilisateur est owner du dossier source ou destination.
-        / Assign a page to a folder, return updated tree.
-        / Checks user is owner of source or destination folder.
+        / Files a note into a notebook and returns that note's
+        "in N notebooks" block. Owner of source OR destination required.
+
+        LA REPONSE A CHANGE LE 12 AOUT. Elle etait l'arbre lateral,
+        seul appelant de cet endpoint (« Deplacer » du menu contextuel).
+        Le geste vit maintenant dans le bloc « Dans N carnets » de la
+        page d'une note, qui sait faire plus : une note peut appartenir
+        a PLUSIEURS carnets, ce que « Deplacer » ne savait pas exprimer.
+        On rend donc ce bloc-la, cible naturelle du geste.
+        / The response used to be the side tree, this endpoint's only
+        caller. The gesture now lives in the note's "in N notebooks"
+        block, which expresses multi-membership that "Move" could not.
         """
         refus = _exiger_authentification(request)
         if refus:
@@ -4118,7 +4171,8 @@ class PageViewSet(viewsets.ViewSet):
                 page, dossier_destination, request.user
             )
 
-        return _render_arbre(request)
+        from front.views_corpus import NoteCorpusViewSet
+        return NoteCorpusViewSet()._rendre_le_bloc_carnets(request, page)
 
 
 def _calculer_teinte_contributeur(username):
@@ -4195,6 +4249,16 @@ class ExtractionViewSet(viewsets.ViewSet):
             "front/includes/_blocs_elements.html",
             {
                 "blocs_de_lecture": blocs_de_lecture,
+                # LA NOTE ELLE-MEME. Le gabarit en a besoin depuis que le
+                # minutage d'un tour de parole est un bouton d'ecoute :
+                # il ne le devient que si un media est attache, et c'est
+                # `page.source_file` qui le dit. Sans cette cle, ce
+                # chemin de rendu rendrait des minutages morts la ou
+                # l'autre rend des boutons — le meme texte, deux
+                # comportements, selon la route empruntee.
+                # / The template needs the page since the timecode became
+                # a play button, gated on page.source_file.
+                "page": page,
                 "la_note_est_modifiable": est_modifiable_par(
                     page, request.user,
                 ),
@@ -5035,7 +5099,6 @@ class ExtractionViewSet(viewsets.ViewSet):
             "showToast": {"message": "Extraction masqu\u00e9e"},
             "drawerContenuChange": True,
             "lectureReload": {"page_id": identifiant_page},
-            "dashboardReload": True,
         })
         return reponse
 
@@ -5073,46 +5136,8 @@ class ExtractionViewSet(viewsets.ViewSet):
             "showToast": {"message": "Extraction restaur\u00e9e"},
             "drawerContenuChange": True,
             "lectureReload": {"page_id": identifiant_page},
-            "dashboardReload": True,
         })
         return reponse
-
-    @action(detail=False, methods=["GET"], url_path="dashboard")
-    def dashboard(self, request):
-        """
-        Renvoie le dashboard de consensus pour une page donnee.
-        Delegue le calcul au helper _calculer_consensus pour partage avec
-        previsualiser_synthese (drawer de confirmation).
-        / Returns the consensus dashboard for a given page.
-        / Delegates calculation to _calculer_consensus helper for sharing with
-        / previsualiser_synthese (confirmation drawer).
-        """
-        identifiant_page = request.query_params.get("page_id")
-        if not identifiant_page:
-            return HttpResponse("page_id requis.", status=400)
-
-        page = get_object_or_404(Page, pk=identifiant_page)
-
-        # Doctrine du 404 (correctif du 10 aout) : les stats de debat
-        # d'une note interdite sont introuvables. / 404 doctrine.
-        if not _utilisateur_a_acces_page(request.user, page):
-            raise Http404("No Page matches the given query.")
-
-        # Calculer l'etat du consensus via le helper / Compute consensus state via helper
-        donnees_consensus = _calculer_consensus(page)
-
-        # Liste des analyseurs de synthese pour le bouton du dashboard
-        # / Synthesis analyzers list for the dashboard button
-        analyseurs_synthese = AnalyseurSyntaxique.objects.filter(
-            is_active=True, type_analyseur="synthetiser",
-        ).order_by("-est_par_defaut", "name")
-
-        contexte = {
-            "page": page,
-            "analyseurs_synthese": analyseurs_synthese,
-            "consensus": donnees_consensus,
-        }
-        return render(request, "front/includes/dashboard_consensus.html", contexte)
 
     @action(detail=False, methods=["GET"], url_path="drawer_contenu")
     def drawer_contenu(self, request):
@@ -5320,6 +5345,20 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / Get the last completed job for the drawer summary banner
         dernier_job_termine_pour_bandeau = tous_les_jobs_termines.order_by("-created_at").first()
 
+        # L'ETAT DU DEBAT ET LA SYNTHESE VIENNENT DANS LE PANNEAU.
+        # Ils vivaient dans le dashboard de la barre d'outils, retire le
+        # 12 aout a la demande du mainteneur. Le bouton « Lancer la
+        # synthese » y avait son SEUL point d'entree : le retirer tel quel
+        # aurait emporte l'acces a la synthese. Le panneau est le lieu
+        # naturel de l'un comme de l'autre — on y lit les idees, on y voit
+        # ou en est le debat, on y lance la synthese qui en sort.
+        # / Debate state and synthesis move into the panel: the toolbar
+        # dashboard held the only entry point to synthesis.
+        donnees_consensus = _calculer_consensus(page)
+        analyseurs_de_synthese = AnalyseurSyntaxique.objects.filter(
+            is_active=True, type_analyseur="synthetiser",
+        ).order_by("-est_par_defaut", "name")
+
         reponse = render(request, "front/includes/drawer_vue_liste.html", {
             "page": page,
             "entites_visibles": entites_visibles,
@@ -5335,6 +5374,8 @@ class ExtractionViewSet(viewsets.ViewSet):
             "mode_filtre": mode_filtre,
             "est_proprietaire": est_proprietaire,
             "dernier_job": dernier_job_termine_pour_bandeau,
+            "consensus": donnees_consensus,
+            "analyseurs_synthese": analyseurs_de_synthese,
         })
 
         reponse["HX-Trigger"] = donnees_trigger
@@ -5481,7 +5522,7 @@ class ImportViewSet(viewsets.ViewSet):
             page_importee.pk, nom_fichier, len(liste_segments),
         )
 
-        # Rendu du partial de lecture + OOB arbre et panneau (meme pattern que document)
+        # Rendu du partial de lecture + OOB panneau (meme pattern que document)
         # / Render reading partial + OOB tree and panel (same pattern as document)
         analyseurs_actifs = _analyseurs_extraction_utilisables()
         ia_active = _get_ia_active()
@@ -5499,15 +5540,6 @@ class ImportViewSet(viewsets.ViewSet):
             request=request,
         )
 
-        # OOB swap : arbre de dossiers mis a jour
-        # / OOB swap: updated folder tree
-        # OOB swap : arbre via _render_arbre / OOB swap: tree via _render_arbre
-        reponse_arbre = _render_arbre(request)
-        html_arbre_oob = (
-            '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
-            + reponse_arbre.content.decode()
-            + '</div>'
-        )
 
         # OOB swap : panneau d'analyse reinitialise
         # / OOB swap: reset analysis panel
@@ -5522,7 +5554,7 @@ class ImportViewSet(viewsets.ViewSet):
             + '</div>'
         )
 
-        html_complet = html_lecture + html_arbre_oob + html_panneau_oob
+        html_complet = html_lecture + html_panneau_oob
         reponse = HttpResponse(html_complet)
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": "Transcription JSON importée"},
@@ -5637,21 +5669,18 @@ class ImportViewSet(viewsets.ViewSet):
         )
 
         # Refonte A.6 : plus de template "transcription en cours" avec polling.
-        # On renvoie uniquement le swap OOB de l'arbre + un toast indiquant que
-        # la transcription a demarre. Le bouton "taches" de la toolbar notifiera
-        # l'utilisateur quand la transcription sera terminee.
-        # / A.6 refactor: no more "transcription-in-progress" polling template.
-        # / We only return the OOB tree swap + a toast indicating transcription
-        # / has started. The toolbar "tasks" button will notify the user when
-        # / transcription completes.
-        reponse_arbre = _render_arbre(request)
-        html_arbre_oob = (
-            '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
-            + reponse_arbre.content.decode()
-            + '</div>'
-        )
-
-        reponse = HttpResponse(html_arbre_oob)
+        # C'est le bouton "taches" de la toolbar qui notifiera l'utilisateur
+        # quand la transcription sera terminee.
+        #
+        # 12 aout 2026 : la reponse etait un swap OOB de l'arbre lateral, qui
+        # gagnait la nouvelle page. L'arbre est retire, et aucune autre zone
+        # de l'ecran ne montre cette page tant qu'elle transcrit : on repond
+        # donc 204 (« rien a echanger »), et le toast porte l'information.
+        # / A.6: no polling template; the toolbar "tasks" button notifies.
+        # / 12 Aug: the response used to be an OOB swap of the side tree,
+        # / now removed. Nothing else on screen shows the page while it
+        # / transcribes, so we answer 204 and let the toast speak.
+        reponse = HttpResponse(status=204)
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": "Transcription lanc\u00e9e..."},
         })
@@ -5786,7 +5815,7 @@ class ImportViewSet(viewsets.ViewSet):
                     page_importee.pk, erreur_de_broker,
                 )
 
-        # Rendu du partial de lecture + OOB arbre et panneau
+        # Rendu du partial de lecture + OOB panneau
         # / Render reading partial + OOB tree and panel
         analyseurs_actifs = _analyseurs_extraction_utilisables()
         ia_active = _get_ia_active()
@@ -5804,15 +5833,6 @@ class ImportViewSet(viewsets.ViewSet):
             request=request,
         )
 
-        # OOB swap : arbre de dossiers mis a jour
-        # / OOB swap: updated folder tree
-        # OOB swap : arbre via _render_arbre / OOB swap: tree via _render_arbre
-        reponse_arbre = _render_arbre(request)
-        html_arbre_oob = (
-            '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
-            + reponse_arbre.content.decode()
-            + '</div>'
-        )
 
         # OOB swap : panneau d'analyse reinitialise
         # / OOB swap: reset analysis panel
@@ -5827,7 +5847,7 @@ class ImportViewSet(viewsets.ViewSet):
             + '</div>'
         )
 
-        html_complet = html_lecture + html_arbre_oob + html_panneau_oob
+        html_complet = html_lecture + html_panneau_oob
         reponse = HttpResponse(html_complet)
         # Indique au front l'URL a pusher dans l'historique navigateur.
         # L'import est fait via XMLHttpRequest (pas HTMX direct), donc le JS
@@ -6053,21 +6073,18 @@ class ImportViewSet(viewsets.ViewSet):
         )
 
         # Refonte A.6 : plus de template "transcription en cours" avec polling.
-        # On renvoie uniquement le swap OOB de l'arbre + un toast indiquant que
-        # la transcription a demarre. Le bouton "taches" de la toolbar notifiera
-        # l'utilisateur quand la transcription sera terminee.
-        # / A.6 refactor: no more "transcription-in-progress" polling template.
-        # / We only return the OOB tree swap + a toast indicating transcription
-        # / has started. The toolbar "tasks" button will notify the user when
-        # / transcription completes.
-        reponse_arbre = _render_arbre(request)
-        html_arbre_oob = (
-            '<div id="arbre" hx-swap-oob="innerHTML:#arbre">'
-            + reponse_arbre.content.decode()
-            + '</div>'
-        )
-
-        reponse = HttpResponse(html_arbre_oob)
+        # C'est le bouton "taches" de la toolbar qui notifiera l'utilisateur
+        # quand la transcription sera terminee.
+        #
+        # 12 aout 2026 : la reponse etait un swap OOB de l'arbre lateral, qui
+        # gagnait la nouvelle page. L'arbre est retire, et aucune autre zone
+        # de l'ecran ne montre cette page tant qu'elle transcrit : on repond
+        # donc 204 (« rien a echanger »), et le toast porte l'information.
+        # / A.6: no polling template; the toolbar "tasks" button notifies.
+        # / 12 Aug: the response used to be an OOB swap of the side tree,
+        # / now removed. Nothing else on screen shows the page while it
+        # / transcribes, so we answer 204 and let the toast speak.
+        reponse = HttpResponse(status=204)
         reponse["HX-Trigger"] = json.dumps({
             "showToast": {"message": "Transcription lancée..."},
         })

@@ -1,0 +1,36 @@
+{% comment %}
+LA BARRE DU LECTEUR, REDEPOSEE PAR OOB SWAP A CHAQUE NAVIGATION.
+LOCALISATION : front/templates/front/includes/_lecteur_audio_oob.html
+
+Meme chemin que `_fil_ariane_oob.html`, et pour une raison de plus.
+
+Le fil vit hors de `#zone-lecture` parce que cette zone porte
+`overflow-y: auto` et clippe ce qu'elle contient. Le lecteur, lui, a
+une seconde raison, plus dure : `lectureReload` remplace TOUT
+l'innerHTML de `#zone-lecture` apres chaque operation d'element. Un
+lecteur qui vivrait dedans serait detruit et recree a chaque
+extraction — l'audio repartirait a zero au milieu de l'ecoute.
+
+CE PARTIAL EST INCLUS PAR TOUS LES ECRANS, Y COMPRIS CEUX QUI N'ONT PAS
+D'AUDIO. C'est le point important : sans cela, la barre d'une note
+audio SURVIVRAIT a la navigation vers un carnet, et proposerait de lire
+un enregistrement que l'ecran affiche plus. Un ecran sans audio rend un
+conteneur VIDE, ce qui efface la barre precedente.
+
+`{% templatetag openblock %} if request.htmx {% templatetag closeblock %}` :
+HTMX n'applique les OOB que sur SES reponses, jamais sur le HTML initial
+d'une page. Au chargement direct c'est `base.html` qui rend la barre ;
+l'OOB en plus en afficherait une seconde, inerte.
+
+NOTE DE SYNTAXE : ce bloc est un `comment`, pas un `{# #}`. Dans les
+gabarits Django, `{# #}` ne vaut que sur UNE ligne — c'est ce qui a leve
+un `TemplateSyntaxError` le 12 aout.
+/ Same OOB path as the breadcrumb, plus one harder reason: lectureReload
+replaces #zone-lecture wholesale. Included by every screen so a player
+never outlives the note it plays.
+{% endcomment %}
+{% if request.htmx %}
+<div id="lecteur-audio-conteneur" hx-swap-oob="innerHTML:#lecteur-audio-conteneur">
+    {% include "front/includes/_lecteur_audio.html" %}
+</div>
+{% endif %}

@@ -85,24 +85,23 @@ class E2EAlignementTest(PlaywrightLiveTestCase):
 
     def _deplier_dossier_et_aligner(self):
         """
-        Ouvre l'arbre, deplie le dossier et clique le bouton aligner.
-        / Open tree, expand folder and click the align button.
+        Ouvre le carnet et clique son onglet « Alignement ».
+        / Open the notebook and click its "Alignment" tab.
+
+        CE HELPER PASSAIT PAR L'ARBRE LATERAL : il ouvrait le tiroir
+        (touche T), depliait le noeud du dossier, puis cliquait le
+        bouton « Aligner (N pages) » qui n'existait que la. L'arbre est
+        retire le 12 aout 2026.
+
+        Le second point d'entree existait DEJA : l'onglet « Alignement »
+        de la page d'un carnet, qui appelle le meme
+        `window.alignement.ouvrirDossier`. C'est lui qu'on emprunte —
+        aucune couverture perdue, le tableau teste est le meme.
+        / The helper went through the removed tree; the notebook page's
+        "Alignment" tab already called the same entry point.
         """
-        self.naviguer_vers(f"/lire/{self.page_1.pk}/")
-        self.ouvrir_arbre()
-        # Deplier le dossier en cliquant sur le toggle
-        # / Expand the folder by clicking the toggle
-        toggle_dossier = self.page.locator(
-            f'.dossier-node[data-dossier-id="{self.dossier_alignement.pk}"] .dossier-toggle'
-        )
-        toggle_dossier.click()
-        self.page.wait_for_timeout(300)
-        # Cliquer le bouton d'alignement du dossier
-        # / Click the folder's alignment button
-        bouton_aligner = self.page.locator(
-            f'.btn-aligner-dossier[data-dossier-id="{self.dossier_alignement.pk}"]'
-        )
-        bouton_aligner.click()
+        self.naviguer_vers(f"/carnets/{self.dossier_alignement.pk}/")
+        self.page.click('[data-testid="corpus-onglet-alignement"]')
         self.attendre_htmx(timeout_ms=10000)
 
     def test_alignement_tableau_affiche(self):

@@ -45,6 +45,7 @@ closes inside it, and the HTML is always well formed.
 """
 
 import logging
+import re
 
 from django.db.models import Exists, OuterRef
 from django.utils.html import escape
@@ -88,10 +89,173 @@ BALISE_PAR_LABEL = {
     "title": "h2",
     "section_header": "h3",
     "list_item": "li",
-    "table": "pre",
+    # `<table>`, et non plus `<pre>` : un `<pre>` ne porte ni ligne ni
+    # colonne. Un lecteur d'ecran y lit une bouillie de barres
+    # verticales, il ne se replie pas, et celui du PDF etalon mesurait
+    # 3 162px. Le markdown « pipe » de Docling est converti par
+    # `convertir_un_tableau_markdown`, qui referme les marques d'ancrage
+    # a chaque frontiere de cellule.
+    # / <pre> carries neither rows nor columns; screen readers read a
+    # soup of pipes and it never wraps.
+    "table": "table",
     "code": "pre",
+    # Ajoutes le 12 aout (ecart n°6 de l'etalon). Ces trois labels
+    # tombaient dans le `<p>` par defaut :
+    #
+    # · une CITATION qui a la forme du texte qui la commente n'est plus
+    #   une citation — l'etalon lui donne un filet et l'italique ;
+    # · une FORMULE en `<p>` se coupe au milieu et se justifie comme de
+    #   la prose ; l'etalon la centre entre deux filets ;
+    # · une IMAGE sans `<figure>` perd le lien entre le visuel et sa
+    #   legende, y compris pour un lecteur d'ecran.
+    # / These three fell into the default <p>: a quote shaped like the
+    # prose around it is no quote; a formula breaks mid-line; an image
+    # without <figure> loses the tie to its caption.
+    "blockquote": "blockquote",
+    "formula": "figure",
+    "picture": "figure",
 }
 BALISE_PAR_DEFAUT = "p"
+
+
+# Une ligne faite de tirets, de deux-points et de barres : c'est la
+# CONVENTION d'ecriture du markdown, pas une donnee. Elle ne doit jamais
+# devenir une ligne du tableau.
+# / The dashes row is markdown syntax, not data.
+MOTIF_LIGNE_DE_SEPARATION = re.compile(r"^[\s|:-]+$")
+
+# Une balise ouvrante ou fermante dans le HTML deja rendu. On ne parse
+# pas du HTML quelconque : seulement celui que ce module vient de
+# produire, dont on connait la forme.
+# / Only the HTML this module just produced, whose shape we know.
+MOTIF_BALISE = re.compile(r"<(/?)(\w+)([^>]*)>")
+
+
+def _decouper_en_cellules_en_refermant_les_marques(ligne_html):
+    """
+    Decoupe une ligne de tableau sur ses barres, en refermant les balises
+    ouvertes a chaque frontiere et en les rouvrant apres.
+    / Split a table row on its pipes, closing open tags at each boundary
+    and reopening them after.
+
+    LOCALISATION : front/services/rendu_elements.py
+
+    POURQUOI CE SOIN
+
+    Le texte arrive DEJA balise : les marques d'ancrage y sont posees aux
+    positions des idees. Une idee qui traverse deux cellules laisserait,
+    si on decoupait naivement, une balise ouverte dans l'une et fermee
+    dans l'autre — du HTML invalide, que chaque navigateur repare a sa
+    facon.
+
+    La regle appliquee est celle que le moteur suit deja quand une ancre
+    enjambe deux elements : deux `<mark>` plutot qu'une qui traverse. Le
+    modele reste coherent d'un bout a l'autre.
+    / An idea spanning two cells would leave a tag opened in one and
+    closed in the next. Two marks, as across elements.
+    """
+    cellules = []
+    cellule_courante = []
+    balises_ouvertes = []
+    position = 0
+
+    while position < len(ligne_html):
+        if ligne_html[position] == "|":
+            # Frontiere : on ferme ce qui est ouvert, du plus interne au
+            # plus externe. / Boundary: close what is open, innermost first.
+            for nom_de_balise, _attributs in reversed(balises_ouvertes):
+                cellule_courante.append(f"</{nom_de_balise}>")
+            cellules.append("".join(cellule_courante).strip())
+            cellule_courante = []
+            # Et on rouvre de l'autre cote, dans l'ordre d'origine.
+            # / Reopen on the other side, outermost first.
+            for nom_de_balise, attributs in balises_ouvertes:
+                cellule_courante.append(f"<{nom_de_balise}{attributs}>")
+            position += 1
+            continue
+
+        correspondance = MOTIF_BALISE.match(ligne_html, position)
+        if correspondance:
+            fermante, nom_de_balise, attributs = correspondance.groups()
+            if fermante:
+                if balises_ouvertes and balises_ouvertes[-1][0] == nom_de_balise:
+                    balises_ouvertes.pop()
+            else:
+                balises_ouvertes.append((nom_de_balise, attributs))
+            cellule_courante.append(correspondance.group(0))
+            position = correspondance.end()
+            continue
+
+        cellule_courante.append(ligne_html[position])
+        position += 1
+
+    for nom_de_balise, _attributs in reversed(balises_ouvertes):
+        cellule_courante.append(f"</{nom_de_balise}>")
+    cellules.append("".join(cellule_courante).strip())
+
+    # Le markdown pipe borde ses lignes : la premiere et la derniere
+    # cellule sont vides et ne portent rien.
+    # / Pipe markdown borders its rows: first and last cells are empty.
+    if cellules and not cellules[0]:
+        cellules = cellules[1:]
+    if cellules and not cellules[-1]:
+        cellules = cellules[:-1]
+    return cellules
+
+
+def convertir_un_tableau_markdown(html_du_tableau):
+    """
+    Rend un tableau markdown « pipe » en vrai `<table>`.
+    / Render a pipe-markdown table as a real <table>.
+
+    LOCALISATION : front/services/rendu_elements.py
+
+    POURQUOI PAS UN `<pre>`
+
+    C'est l'ecart n°6 de l'etalon. Un `<pre>` ne porte ni ligne ni
+    colonne : un lecteur d'ecran y lit une bouillie de barres verticales,
+    et il ne se replie pas — celui du PDF etalon mesurait 3 162px et
+    faisait defiler toute la page horizontalement.
+
+    CE QUE CETTE FONCTION NE FAIT PAS
+
+    Elle ne change pas la GRANULARITE DE L'ANCRAGE. Un tableau reste UN
+    `ElementDocument` — 4 471 signes pour le premier du PDF etalon — et
+    une idee ancree dessus designe toujours tout le tableau. Le decouper
+    par ligne est une decision de modele, laissee au mainteneur.
+    / It does not change anchoring granularity: a table is still one
+    element, and an idea anchored on it still points at the whole.
+
+    :param html_du_tableau: le texte du tableau, DEJA balise de ses marques
+    :return: le HTML d'un `<table>`, ou le texte tel quel s'il n'en est pas un
+    """
+    lignes = [
+        ligne for ligne in html_du_tableau.split("\n") if ligne.strip()
+    ]
+    lignes_de_donnees = [
+        ligne for ligne in lignes
+        if not MOTIF_LIGNE_DE_SEPARATION.match(ligne)
+    ]
+
+    # Un label `table` sur un contenu qui n'en est pas un : mieux vaut
+    # rendre le texte qu'une table vide.
+    # / A `table` label on non-table content: the text beats an empty table.
+    if not lignes_de_donnees or "|" not in html_du_tableau:
+        return html_du_tableau
+
+    morceaux = ["<table>"]
+    for rang, ligne in enumerate(lignes_de_donnees):
+        cellules = _decouper_en_cellules_en_refermant_les_marques(ligne)
+        if rang == 0:
+            morceaux.append("<thead><tr>")
+            morceaux.extend(f"<th>{cellule}</th>" for cellule in cellules)
+            morceaux.append("</tr></thead><tbody>")
+        else:
+            morceaux.append("<tr>")
+            morceaux.extend(f"<td>{cellule}</td>" for cellule in cellules)
+            morceaux.append("</tr>")
+    morceaux.append("</tbody></table>")
+    return "".join(morceaux)
 
 
 def construire_les_segments(longueur_du_texte, portions):
@@ -497,12 +661,28 @@ def construire_les_blocs_de_lecture(page):
             len(element.texte or ""), portions_de_l_element,
         )
 
+        balise_du_bloc = BALISE_PAR_LABEL.get(element.label, BALISE_PAR_DEFAUT)
+        html_du_texte = rendre_le_texte_d_un_element(
+            element, portions_de_l_element, segments_de_l_element,
+        )
+
+        # LA CONVERSION VIENT APRES LE BALISAGE, jamais avant. Les
+        # positions d'ancrage sont comptees sur le TEXTE de l'element ;
+        # convertir d'abord y injecterait des balises de tableau et
+        # decalerait chaque offset. On pose donc les marques sur le texte
+        # tel qu'il est, puis on decoupe le HTML obtenu en cellules — en
+        # refermant les marques a chaque frontiere.
+        # / Conversion comes AFTER marking: offsets are counted on the
+        # element's text, so converting first would shift every one.
+        if balise_du_bloc == "table":
+            html_du_texte = mark_safe(
+                convertir_un_tableau_markdown(str(html_du_texte))
+            )
+
         blocs.append({
             "element": element,
-            "balise": BALISE_PAR_LABEL.get(element.label, BALISE_PAR_DEFAUT),
-            "html_du_texte": rendre_le_texte_d_un_element(
-                element, portions_de_l_element, segments_de_l_element,
-            ),
+            "balise": balise_du_bloc,
+            "html_du_texte": html_du_texte,
             "nombre_d_idees": len(identifiants_des_idees),
             # Ce que la GOUTTIERE de l'etalon affiche a cote du bloc.
             # Le numero part de 1 : c'est un repere pour un humain, pas
@@ -538,6 +718,27 @@ def construire_les_blocs_de_lecture(page):
             ),
             "minutage": (
                 _minutage_lisible((element.provenance or {}).get("debut"))
+                if c_est_un_audio else None
+            ),
+            # LES MEMES BORNES, BRUTES, POUR LE LECTEUR (ecart n°2).
+            #
+            # Le minutage ci-dessus est formate parce que la gouttiere
+            # l'AFFICHE. Le lecteur, lui, CALCULE avec : la largeur d'un
+            # segment de rail vaut `(fin - debut) / duree`, et le tour
+            # courant se trouve en comparant l'instant de lecture aux
+            # bornes. Reparser « 00:00 » perdrait les decimales — les
+            # tours de la note 8 durent 0,4 seconde.
+            #
+            # None hors audio, et NON 0 : un `debut` a 0 sur un PDF se
+            # lirait comme « commence a la seconde zero ».
+            # / The formatted timing is for the eye, these are for the
+            # maths. None off-audio, never 0.
+            "debut": (
+                (element.provenance or {}).get("debut")
+                if c_est_un_audio else None
+            ),
+            "fin": (
+                (element.provenance or {}).get("fin")
                 if c_est_un_audio else None
             ),
             # Combien d'idees ce bloc porte sans pouvoir les montrer.

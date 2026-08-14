@@ -34,8 +34,32 @@ def creer_une_page(url_unique, owner=None):
     )
 
 
-class ArbreMultiCarnetsTest(TestCase):
-    """L'arbre montre une note dans CHACUN de ses carnets. / Tree shows both."""
+# Le nombre de requetes de `/carnets/` (§ 5.3), MESURE le 12 aout 2026 :
+# session + auth, les carnets visibles annotes, leurs appartenances de
+# bases prefetchees, et les deux totaux de l'en-tete. Il est stable a
+# 8 pour 3 carnets/10 notes ET pour 6 carnets/20 notes — c'est cette
+# INDEPENDANCE que le test verrouille, pas le nombre lui-meme.
+# / Measured query count for /carnets/: stable at 8 for 3 notebooks/10
+# notes AND for 6 notebooks/20 notes. The test locks the independence.
+NOMBRE_DE_REQUETES_DE_LA_COLLECTION = 8
+
+
+class NoteDansPlusieursCarnetsTest(TestCase):
+    """
+    Une note rangee dans deux carnets apparait dans LES DEUX.
+    / A note filed in two notebooks appears in BOTH.
+
+    CE QUE CETTE CLASSE PROTEGE N'A PAS BOUGE : la phase D a fait passer
+    l'affichage de la FK `page.dossier` a la table de liaison
+    `AppartenancePageDossier`, et c'est ce basculement qu'on verrouille.
+
+    CE QUI A BOUGE, C'EST LE LECTEUR. Les trois tests interrogeaient
+    `/arbre/`, la route du tiroir lateral, retiree le 12 aout 2026. Ils
+    interrogent desormais les deux ecrans qui montrent la meme chose :
+    la page d'un carnet pour ses notes, la collection pour ses compteurs.
+    / The rule is unchanged; only the reader moved from the removed
+    /arbre/ route to /carnets/ and /carnets/<id>/.
+    """
 
     def setUp(self):
         self.utilisateur = Utilisateur.objects.create_user(
@@ -50,36 +74,46 @@ class ArbreMultiCarnetsTest(TestCase):
         )
 
     def test_une_note_dans_deux_carnets_apparait_sous_les_deux(self):
-        # LE comportement que la phase D debloque : avant elle, l'arbre
+        # LE comportement que la phase D debloque : avant elle, la vue
         # lisait la FK et la note n'apparaissait que sous un seul carnet.
         # / THE behaviour phase D unlocks: the note under BOTH notebooks.
         note = creer_une_page("http://exemple.local/note-arbre-double")
         ranger_une_note_dans_un_carnet(note, self.carnet_conseil, self.utilisateur)
         ranger_une_note_dans_un_carnet(note, self.carnet_veille, self.utilisateur)
 
-        reponse = self.client.get("/arbre/")
-        contenu = reponse.content.decode("utf-8")
+        for carnet in [self.carnet_conseil, self.carnet_veille]:
+            reponse = self.client.get(
+                f"/carnets/{carnet.pk}/", HTTP_HX_REQUEST="true",
+            )
+            self.assertEqual(reponse.status_code, 200)
+            self.assertIn(
+                f'data-page-id="{note.pk}"',
+                reponse.content.decode("utf-8"),
+                f"La note doit apparaitre dans « {carnet.name} » : elle "
+                f"est rangee dans les DEUX carnets.",
+            )
 
-        self.assertEqual(reponse.status_code, 200)
-        self.assertEqual(
-            contenu.count(f'data-page-id="{note.pk}"'),
-            2,
-            "La note doit apparaitre sous ses DEUX carnets",
-        )
-
-    def test_les_compteurs_de_l_arbre_suivent_les_appartenances(self):
+    def test_les_compteurs_suivent_les_appartenances(self):
         note = creer_une_page("http://exemple.local/note-compteur")
         ranger_une_note_dans_un_carnet(note, self.carnet_conseil, self.utilisateur)
         ranger_une_note_dans_un_carnet(note, self.carnet_veille, self.utilisateur)
 
-        reponse = self.client.get("/arbre/")
+        reponse = self.client.get("/carnets/", HTTP_HX_REQUEST="true")
         contenu = reponse.content.decode("utf-8")
 
-        # Chaque carnet compte 1 : data-ctx-pages="1" present pour les deux.
-        # / Each notebook counts 1.
-        self.assertEqual(contenu.count('data-ctx-pages="1"'), 2)
+        # On mesure LIGNE PAR LIGNE, pas sur la page entiere : l'en-tete
+        # annonce lui aussi « 1 note » (le total DISTINCT — une note
+        # rangee deux fois ne compte qu'une), et un simple `count()` sur
+        # tout le document melangerait les deux registres.
+        # / Measured row by row: the header also says "1 note" (the
+        # DISTINCT total), so counting over the whole page would mix
+        # two different statements.
+        lignes_de_carnet = contenu.split('data-testid="corpus-carnet-item"')[1:]
+        self.assertEqual(len(lignes_de_carnet), 2)
+        for ligne in lignes_de_carnet:
+            self.assertIn("1 note", ligne)
 
-    def test_l_arbre_ne_fait_pas_de_n_plus_un(self):
+    def test_la_collection_ne_fait_pas_de_n_plus_un(self):
         # § 5.3 : le compte de requetes de la vue de liste principale est
         # verrouille. 10 notes dans 3 carnets ne doivent pas ajouter une
         # requete par note ni par compteur affiche.
@@ -94,15 +128,13 @@ class ArbreMultiCarnetsTest(TestCase):
                 self.utilisateur,
             )
 
-        # 9 requetes mesurees (session/auth + les 3 sections et leur
-        # prefetch), INDEPENDANT du nombre de notes ET du nombre de
-        # dossiers — les en-tetes comptent dans les appartenances
-        # prechargees (relecture D : l'ancienne version a 12 absorbait
-        # 1 COUNT par dossier). Toute derive future cassera ce test.
-        # / 9 queries, independent of note AND folder counts — headers
-        # count from the prefetched memberships.
-        with self.assertNumQueries(9):
-            reponse = self.client.get("/arbre/")
+        # Compte MESURE sur la collection (les compteurs sont annotes en
+        # une requete, les etiquettes prefetchees). Il est INDEPENDANT du
+        # nombre de notes ET du nombre de carnets : c'est ce qu'il
+        # verrouille. Toute derive future cassera ce test.
+        # / Measured count, independent of note AND notebook counts.
+        with self.assertNumQueries(NOMBRE_DE_REQUETES_DE_LA_COLLECTION):
+            reponse = self.client.get("/carnets/", HTTP_HX_REQUEST="true")
         self.assertEqual(reponse.status_code, 200)
 
 

@@ -6,13 +6,16 @@
 //
 // Ce fichier est le SEUL listener keydown de l'application.
 // Il appelle les APIs publiques des autres modules :
-//   - window.arbreOverlay    (arbre_overlay.js)
 //   - window.drawerVueListe  (drawer_vue_liste.js)
-//   - window.dashboardConsensus (dashboard_consensus.js)
 //   - window.marginalia      (marginalia.js)
 //
+// LA TOUCHE T A DISPARU LE 12 AOUT 2026 avec l'arbre lateral qu'elle
+// ouvrait (window.arbreOverlay n'existe plus). La navigation entre
+// carnets et bases se fait par les liens nommes de la barre.
+// / T is gone with the side tree it opened; navigation is by the
+// toolbar's named links.
+//
 // RACCOURCIS :
-//   T       → Toggle arbre de navigation
 //   E       → Toggle drawer vue liste
 //   L       → Toggle mode focus lecture
 //   J       → Extraction suivante
@@ -23,7 +26,7 @@
 //   A       → Toggle mode selection alignement / ouvrir modale
 //   /       → Recherche (placeholder)
 //   ?       → Modale aide raccourcis
-//   Escape  → Cascade fermeture (modale alignement > modale aide > focus > dashboard > drawer > arbre > carte > selection)
+//   Escape  → Cascade fermeture (modale alignement > modale aide > focus > drawer > carte > selection)
 //
 // Expose : window.raccourcisClavier = { fermerAide }
 // ==========================================================================
@@ -320,10 +323,6 @@
 
         // 2. Dashboard ouvert → fermer
         // / 2. Dashboard open → close
-        if (window.dashboardConsensus && window.dashboardConsensus.estOuvert()) {
-            window.dashboardConsensus.fermer();
-            return true;
-        }
 
         // 3. Drawer ouvert → fermer
         // / 3. Drawer open → close
@@ -332,12 +331,9 @@
             return true;
         }
 
-        // 4. Arbre ouvert → fermer
-        // / 4. Tree open → close
-        if (window.arbreOverlay && window.arbreOverlay.estOuvert()) {
-            window.arbreOverlay.fermer();
-            return true;
-        }
+        // 4. L'arbre lateral occupait ce rang de la cascade jusqu'au
+        //    12 aout 2026. Retire avec l'arbre.
+        // / 4. The side tree held this rung until it was removed.
 
         // 5. Extraction selectionnee → deselectionner
         // (la branche 'carte inline ouverte' a ete retiree avec la refonte
@@ -376,14 +372,11 @@
         if (evenement.ctrlKey || evenement.metaKey || evenement.altKey) return;
 
         switch (touche) {
-            // T → Toggle arbre de navigation
-            // / T → Toggle navigation tree
-            case 't':
-                if (window.arbreOverlay) {
-                    window.arbreOverlay.basculer();
-                }
-                evenement.preventDefault();
-                break;
+            // La touche T ouvrait l'arbre lateral. Elle n'est plus liee :
+            // laisser un raccourci sans effet est pire que pas de
+            // raccourci du tout — il consomme la frappe sans rien faire.
+            // / T opened the side tree; unbound rather than left as a
+            // no-op that would swallow the keystroke.
 
             // E → Toggle drawer vue liste
             // / E → Toggle list view drawer

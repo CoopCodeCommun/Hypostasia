@@ -15,7 +15,9 @@ app_name = "front"
 # Router DRF — genere automatiquement les URLs pour chaque ViewSet
 # DRF Router — automatically generates URLs for each ViewSet
 router = DefaultRouter(trailing_slash=True)
-router.register(r"arbre", views.ArbreViewSet, basename="arbre")
+# La route `/arbre/` a ete retiree le 12 aout 2026 avec l'arbre lateral
+# qu'elle servait : elle ne rendait qu'un gabarit du tiroir, lui-meme
+# supprime. / The /arbre/ route went with the side tree it served.
 router.register(r"lire", views.LectureViewSet, basename="lire")
 router.register(r"dossiers", views.DossierViewSet, basename="dossier")
 router.register(r"pages", views.PageViewSet, basename="page")

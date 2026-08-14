@@ -142,7 +142,7 @@ front/tests/
 └── e2e/
     ├── __init__.py                     # Re-exports (incomplet)
     ├── base.py                         # PlaywrightLiveTestCase (classe de base)
-    ├── test_01_navigation.py           # 6 tests — arbre, dossiers, SweetAlert
+    ├── test_01_navigation.py           # 5 tests — carnets, notes, barre
     ├── test_02_lecture.py              # 5 tests — lecture page, F5, titre inline
     ├── test_03_import.py               # 3 tests — import .txt, .md
     ├── test_04_extractions.py          # 8 tests — cartes, statuts, pastilles
@@ -196,7 +196,6 @@ Fichier : `front/tests/e2e/base.py`
 | `creer_dossier_demo(nom)` | Cree un Dossier via ORM |
 | `creer_utilisateur_demo(username, password)` | Cree un User via ORM |
 | `se_connecter(username, password)` | Navigue vers /auth/login/ + remplit formulaire |
-| `ouvrir_arbre()` | Clique hamburger + attend overlay arbre visible |
 | `ouvrir_drawer()` | Presse E + attend overlay drawer visible |
 
 ### Configuration

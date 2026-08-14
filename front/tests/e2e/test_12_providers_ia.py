@@ -177,10 +177,10 @@ class E2EProvidersIAModelesBDDTest(PlaywrightLiveTestCase):
         self.assertGreater(cout_input, 0.0)
         self.assertGreater(cout_output, 0.0)
 
-    def test_core_services_supprime(self):
-        """Le fichier core/services.py ne doit plus exister (code mort supprime).
-        / core/services.py must no longer exist (dead code deleted)."""
-        from pathlib import Path
-        from django.conf import settings
-        chemin_services = Path(settings.BASE_DIR) / "core" / "services.py"
-        self.assertFalse(chemin_services.exists(), "core/services.py devrait etre supprime")
+    # `test_core_services_supprime` a ete retire d'ici le 13 aout 2026.
+    # Il ouvrait Chromium et demarrait un serveur live pour demander au
+    # systeme de fichiers si `core/services.py` existe encore. Le meme
+    # controle vit dans `Phase24LegacyServicesDeletedTest`, ou il coute
+    # une milliseconde et ou il est a sa place.
+    # / Removed: it launched a browser to ask the filesystem whether a
+    # file exists. The same check lives in Phase24LegacyServicesDeletedTest.

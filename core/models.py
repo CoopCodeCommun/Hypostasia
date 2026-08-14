@@ -2031,6 +2031,24 @@ class BaseDeConnaissances(models.Model):
         help_text="Identifiant d'URL, ex 'reseau-tiers-lieux-occitanie'.",
     )
     description = models.TextField(blank=True, default="")
+    # L'image de couverture est FACULTATIVE, et le restera : toute base
+    # deja creee a ce champ vide, et rien dans le produit n'oblige a en
+    # televerser une. La liste des bases doit donc etre aussi soignee
+    # SANS image qu'avec — la carte sans couverture ne reserve aucune
+    # place vide, elle commence directement a sa cote teintee (voir
+    # front/templates/front/corpus/bases_liste.html).
+    # / The cover image is OPTIONAL and stays so: every existing base has
+    # it empty, so the card must look finished without one — it reserves
+    # no empty slot, it simply starts at its tinted call-number band.
+    image_de_couverture = models.ImageField(
+        upload_to="bases/couvertures/",
+        null=True,
+        blank=True,
+        help_text=(
+            "Image de couverture facultative de la base. Vide : la carte "
+            "affiche sa cote typographique."
+        ),
+    )
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

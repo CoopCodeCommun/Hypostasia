@@ -61,53 +61,15 @@ document.addEventListener('click', function(e) {
     if (list) list.classList.toggle('hidden');
 });
 
-// Classer une page dans un dossier via SweetAlert
-document.addEventListener('click', async function(e) {
-    const btn = e.target.closest('.btn-classer');
-    if (!btn) return;
-    e.preventDefault();
-    const pageId = btn.dataset.pageId;
+// Le handler « Classer une page » (.btn-classer) vivait ici : un
+// SweetAlert qui postait sur /pages/<id>/classer/ puis reecrivait
+// #arbre. Sa classe n'etait plus rendue par aucun gabarit depuis la
+// PHASE-25 (le menu contextuel de l'arbre l'avait remplacee), et
+// l'arbre lui-meme est retire le 12 aout 2026. Le geste vit dans le
+// bloc « Dans N carnets » de la page d'une note.
+// / The .btn-classer handler lived here; its class was unrendered
+// since PHASE-25 and the tree it wrote into is gone.
 
-    const resp = await fetch('/dossiers/');
-    const dossiers = await resp.json();
-
-    if (Object.keys(dossiers).length === 0) {
-        Swal.fire({title: 'Aucun dossier', text: 'Créez d\'abord un dossier.', icon: 'info'});
-        return;
-    }
-
-    const options = {'': '— Aucun dossier —', ...dossiers};
-
-    const {value: dossierId, isDismissed} = await Swal.fire({
-        title: 'Déplacer vers…',
-        input: 'select',
-        inputOptions: options,
-        inputPlaceholder: 'Choisir un dossier',
-        showCancelButton: true,
-        cancelButtonText: 'Annuler',
-        confirmButtonText: 'Déplacer',
-    });
-
-    if (isDismissed) return;
-
-    // Recupere le token CSRF depuis hx-headers du body
-    // / Retrieve CSRF token from body's hx-headers attribute
-    var headersBrut = document.querySelector('body').getAttribute('hx-headers');
-    var csrfToken = '';
-    try { csrfToken = JSON.parse(headersBrut)['X-CSRFToken']; } catch (e) {}
-
-    const classerResp = await fetch(`/pages/${pageId}/classer/`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
-        body: JSON.stringify({dossier_id: dossierId || null}),
-    });
-
-    if (classerResp.ok) {
-        const arbreEl = document.getElementById('arbre');
-        arbreEl.innerHTML = await classerResp.text();
-        htmx.process(arbreEl);
-    }
-});
 // --- Les items analyseur utilisent hx-get directement ---
 // / Analyzer items use hx-get directly
 
@@ -571,26 +533,10 @@ document.body.addEventListener('lectureReload', function(evenement) {
     });
 });
 
-// --- Indication de la page active dans l'arbre ---
-// Apres chaque swap dans #zone-lecture, on surligne le lien correspondant
-// / Active page indicator in tree after each swap in #zone-lecture
-document.getElementById('zone-lecture').addEventListener('htmx:afterSwap', function() {
-    var conteneur = document.querySelector('#zone-lecture [data-page-id]');
-    if (!conteneur) return;
-    var pageIdActif = conteneur.dataset.pageId;
-
-    // Retirer la classe active de tous les liens / Remove active class from all links
-    document.querySelectorAll('#arbre .lien-page').forEach(function(lien) {
-        lien.classList.remove('bg-blue-50', 'text-blue-700', 'font-medium', 'rounded');
-    });
-
-    // Ajouter la classe active au lien correspondant / Add active class to matching link
-    var lienActif = document.querySelector('#arbre .lien-page[data-page-id="' + pageIdActif + '"]');
-    if (lienActif) {
-        lienActif.classList.add('bg-blue-50', 'text-blue-700', 'font-medium', 'rounded');
-    }
-
-});
+// L'indicateur « page active dans l'arbre » vivait ici : il
+// surlignait le lien de l'arbre apres chaque swap de #zone-lecture.
+// Retire avec l'arbre (12 aout 2026).
+// / The active-page-in-tree highlighter lived here.
 
 // === Focus extraction depuis URL (PHASE-25d-v2) ===
 // Apres chaque navigation HTMX avec push URL, on verifie si l'URL contient
@@ -1260,37 +1206,12 @@ function _naviguerVersExtraction(extractionId) {
     }
 }
 
-// --- Supprimer une page via SweetAlert ---
-// / Delete a page via SweetAlert
-document.addEventListener('click', async function(evenement) {
-    var bouton = evenement.target.closest('.btn-supprimer-page');
-    if (!bouton) return;
-    evenement.preventDefault();
-    evenement.stopPropagation();
-
-    var pageId = bouton.dataset.pageId;
-    var resultat = await Swal.fire({
-        title: 'Supprimer cette page ?',
-        text: 'Cette action est irréversible.',
-        icon: 'warning',
-        showCancelButton: true,
-        cancelButtonText: 'Annuler',
-        confirmButtonText: 'Supprimer',
-        confirmButtonColor: '#ef4444',
-    });
-    if (!resultat.isConfirmed) return;
-
-    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    var reponse = await fetch('/pages/' + pageId + '/supprimer/', {
-        method: 'POST',
-        headers: {'X-CSRFToken': csrfToken},
-    });
-    if (reponse.ok) {
-        var arbreEl = document.getElementById('arbre');
-        arbreEl.innerHTML = await reponse.text();
-        htmx.process(arbreEl);
-    }
-});
+// Le handler « Supprimer une page » (.btn-supprimer-page) vivait
+// ici. Meme histoire que .btn-classer : classe plus rendue depuis la
+// PHASE-25, cible #arbre disparue. Le geste vit dans la liste des
+// notes d'un carnet (notes_du_carnet.html).
+// / The .btn-supprimer-page handler lived here; the gesture now
+// lives in a notebook's note list.
 
 // --- Supprimer une extraction individuelle via SweetAlert ---
 // / Delete a single extraction via SweetAlert
@@ -1458,87 +1379,15 @@ document.addEventListener('click', function(evenement) {
 // / PHASE-04 — Missing CRUDs: folders (rename, delete) + comments
 // ==========================================================================
 
-// --- Renommer un dossier via SweetAlert ---
-// / Rename a folder via SweetAlert
-document.addEventListener('click', async function(evenement) {
-    var bouton = evenement.target.closest('.btn-renommer-dossier');
-    if (!bouton) return;
-    evenement.preventDefault();
-    evenement.stopPropagation();
-
-    var dossierId = bouton.dataset.dossierId;
-    var nomActuel = bouton.dataset.dossierNom;
-
-    var resultat = await Swal.fire({
-        title: 'Renommer le dossier',
-        input: 'text',
-        inputValue: nomActuel,
-        inputPlaceholder: 'Nouveau nom',
-        showCancelButton: true,
-        cancelButtonText: 'Annuler',
-        confirmButtonText: 'Renommer',
-        inputValidator: function(valeur) {
-            if (!valeur || !valeur.trim()) return 'Le nom ne peut pas être vide';
-        },
-    });
-    if (!resultat.isConfirmed) return;
-
-    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    var reponse = await fetch('/dossiers/' + dossierId + '/renommer/', {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': csrfToken,
-            'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'nouveau_nom=' + encodeURIComponent(resultat.value.trim()),
-    });
-    if (reponse.ok) {
-        var arbreEl = document.getElementById('arbre');
-        arbreEl.innerHTML = await reponse.text();
-        htmx.process(arbreEl);
-    }
-});
-
-// --- Supprimer un dossier via SweetAlert (avec avertissement si pages) ---
-// / Delete a folder via SweetAlert (with warning if it contains pages)
-document.addEventListener('click', async function(evenement) {
-    var bouton = evenement.target.closest('.btn-supprimer-dossier');
-    if (!bouton) return;
-    evenement.preventDefault();
-    evenement.stopPropagation();
-
-    var dossierId = bouton.dataset.dossierId;
-    var nomDossier = bouton.dataset.dossierNom;
-    var nombrePages = parseInt(bouton.dataset.pagesCount, 10) || 0;
-
-    var texteConfirmation = 'Cette action est irréversible.';
-    if (nombrePages > 0) {
-        texteConfirmation = 'Ce dossier contient ' + nombrePages + ' page(s). Elles seront reclassées en non classées.';
-    }
-
-    var resultat = await Swal.fire({
-        title: 'Supprimer « ' + nomDossier + ' » ?',
-        text: texteConfirmation,
-        icon: 'warning',
-        showCancelButton: true,
-        cancelButtonText: 'Annuler',
-        confirmButtonText: 'Supprimer',
-        confirmButtonColor: '#ef4444',
-    });
-    if (!resultat.isConfirmed) return;
-
-    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-    var reponse = await fetch('/dossiers/' + dossierId + '/', {
-        method: 'DELETE',
-        headers: {'X-CSRFToken': csrfToken},
-    });
-    if (reponse.ok) {
-        var arbreEl = document.getElementById('arbre');
-        arbreEl.innerHTML = await reponse.text();
-        htmx.process(arbreEl);
-    }
-});
-
+// Les handlers « Renommer un dossier » (.btn-renommer-dossier) et
+// « Supprimer un dossier » (.btn-supprimer-dossier) vivaient ici.
+// Leurs classes n'etaient plus rendues depuis la PHASE-25 — le menu
+// contextuel de l'arbre avait pris le relais — et ils reecrivaient
+// #arbre, disparu le 12 aout 2026. Les deux gestes vivent dans
+// « Gerer ce carnet », sur la page du carnet, en HTMX pur.
+// / Both handlers lived here; their classes were unrendered since
+// PHASE-25 and the tree they rewrote is gone. The gestures now live
+// in the notebook page's "Manage this notebook" block.
 
 
 // ==========================================================================
