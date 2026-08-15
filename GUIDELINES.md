@@ -394,18 +394,34 @@ La variable `DEBUG` dans `.env` determine le comportement :
 
 | | `DEBUG=true` (dev) | `DEBUG=false` (prod) |
 |---|---|---|
-| **Demarrage** | `sleep infinity` | `start.sh` (supervisord) |
-| **Serveur** | `runserver` lance a la main | Gunicorn (3 workers) |
-| **Celery** | Lance a la main | Supervisord (2 workers) |
-| **Nginx** | `NGINX_CONF=dev.conf` (proxy host) | `default.conf` (proxy interne) |
+| **Demarrage** | `bin/start-dev.sh` | `bin/start-prod.sh` |
+| **Serveur HTTP** | `runserver` **:8000** (ASGI, sert aussi le WS) | Gunicorn **:8001** |
+| **WebSocket** | le meme runserver | Daphne **:8000** |
+| **Celery** | 2 workers (supervisord-dev.conf) | 2 workers (supervisord.conf) |
+| **Nginx** | `NGINX_CONF=dev.conf` → tout vers 8000 | `default.conf` → `/` vers 8001, `/ws/` vers 8000 |
 
-### Scripts
+**`DEBUG` et `NGINX_CONF` vont ENSEMBLE.** La conf de prod avec
+`DEBUG=true` envoie `/` vers le port 8001, ou personne n'ecoute : 502 sur
+tout le site. L'inverse laisse gunicorn sans trafic. Un test tient cet
+invariant (`front/tests/test_script_d_installation.py`).
 
-- **`install.sh`** : idempotent — sync, mkdir, migrate, collectstatic, charger_fixtures_demo
-- **`start.sh`** : attend PostgreSQL → appelle `install.sh` → lance supervisord
+### Scripts — tous dans `bin/`
 
-`install.sh` peut etre relance a chaque redemarrage sans risque : les fixtures
-utilisent `get_or_create`, les migrations sautent celles deja appliquees.
+- **`bin/install.sh`** : la sequence d'installation, idempotente. Accepte
+  une etape en argument : `tout` (defaut), `fixtures`, `statiques`, `llm`.
+- **`bin/start-dev.sh`** : installation → `supervisord-dev.conf` (runserver)
+- **`bin/start-prod.sh`** : attente PostgreSQL → installation → `supervisord.conf`
+
+Ces scripts s'executent **dans le conteneur** : c'est ce qui leur permet
+de tourner au demarrage, quand aucun hote n'est au bout du fil. Le
+Makefile vit sur l'hote et ne fait que les APPELER — il ne recopie jamais
+leurs commandes, car deux definitions d'une meme sequence finissent
+toujours par diverger.
+
+`bin/install.sh` peut etre relance a chaque redemarrage sans risque :
+chaque etape saute ce qui est deja present (mesure : ~3 min au premier
+passage a cause des conversions PDF, **10 s** ensuite), et l'analyse par
+le vrai modele porte `--si-absent` pour ne pas refacturer.
 
 ### Cles API
 

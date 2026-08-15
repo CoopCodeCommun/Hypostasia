@@ -22,6 +22,17 @@
 {# Les data-testid existants sont inchanges : ce sont des contrats. #}
 {% include "front/corpus/_style_maquette.html" %}
 {% include "front/includes/_lecteur_audio_oob.html" %}
+{% comment %}
+LE FIL EST DEPOSE ICI MEME SI CET ECRAN N'EN A PAS. Sans `fil_carnet`,
+`_fil_ariane.html` ne rend rien, et l'OOB depose donc un conteneur VIDE
+— ce qui EFFACE le fil laisse par l'ecran precedent, puis escamote la
+bande entiere (`.bande-de-contexte:not(:has(.fil-ariane))`, maquette.css).
+Omettre cet include ne laisse pas la bande vide : il laisse en place le
+chemin d'une AUTRE note, au-dessus de la racine du corpus.
+/ Deposit the breadcrumb even with no path: the empty OOB clears the one
+left by the previous screen instead of stranding a stale trail.
+{% endcomment %}
+{% include "front/corpus/_fil_ariane_oob.html" %}
 <div class="zone-corpus" data-testid="corpus-bases-liste">
 
     <header class="entete-zone">

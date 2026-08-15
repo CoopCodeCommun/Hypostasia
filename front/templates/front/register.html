@@ -82,9 +82,11 @@
            class="bouton-plat pleine-largeur"
            style="display:inline-block;text-align:center;text-decoration:none">Se connecter</a>
     </div>
-    {# Bascule de theme (lot T7) : un visiteur anonyme doit pouvoir
-       changer de theme, il n'a pas acces a la page de reglages.
-       / Anonymous visitors need the toggle too. #}
+    {% comment %}
+    Bascule de theme (lot T7) : un visiteur anonyme doit pouvoir changer
+    de theme, il n'a pas acces a la page de reglages.
+    / Anonymous visitors need the toggle too.
+    {% endcomment %}
     <p class="pied-page" style="margin-top:.6rem">
         <button type="button" id="bascule-theme" data-testid="bascule-theme"
                 aria-label="Changer de thème">◑</button>

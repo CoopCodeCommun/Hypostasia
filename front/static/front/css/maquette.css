@@ -2416,7 +2416,16 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
   display: flex;
   align-items: center;
   padding: 0 .9rem;
-  overflow: hidden;
+  /* OVERFLOW VISIBLE, IMPERATIVEMENT — c'est deja ce qu'exige le
+     commentaire de `.fil-ariane` plus haut dans ce fichier. Le menu de
+     bascule est un `position: absolute` ancre sous le fil : un
+     `overflow: hidden` pose ICI le rogne sur la hauteur de la bande
+     (2rem), et le menu devient invisible bien qu'ouvert. Ce qu'il
+     protegeait — un long titre qui pousse la colonne — est desormais
+     traite sur le segment lui-meme, juste dessous.
+     / The switcher menu is absolutely positioned below the strip:
+     clipping here hides it. Long titles are truncated per-segment. */
+  overflow: visible;
 }
 
 /* Le fil lui-meme perd les marges negatives qui le faisaient deborder
@@ -2429,6 +2438,23 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
   border-bottom: none;
   background: none;
   width: 100%;
+  /* Une seule ligne : le fil mesure la hauteur de la bande, et la
+     variable `--barre-fil` sur laquelle se calcule la hauteur du
+     plateau reste juste. En `wrap`, un chemin long ferait deux lignes
+     et le bas du plateau passerait sous le pli.
+     / One line only, or the plateau height computation goes stale. */
+  flex-wrap: nowrap;
+}
+
+/* LA TRONCATURE VIT ICI, sur le dernier segment — le titre de la note,
+   seul element de longueur libre. Il cede en premier et s'abrege ; les
+   maillons cliquables en amont gardent leur cible entiere.
+   / Truncate the free-length trailing segment, not the whole strip. */
+.bande-de-contexte .fil-ariane > .courant {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bande-de-contexte .bande-titre-panneau {

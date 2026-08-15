@@ -79,15 +79,17 @@ services:
     restart: unless-stopped
     networks:
       - hypostasia
-    # DEBUG=true → sleep infinity (on lance le serveur a la main)
-    # DEBUG=false → start.sh (supervisord : gunicorn:8001 + daphne:8000 + celery)
+    # DEBUG=true  → bin/start-dev.sh   (runserver:8000)
+    # DEBUG=false → bin/start-prod.sh  (gunicorn:8001 + daphne:8000)
+    # Meme aiguillage que docker-compose.yml : la sequence de demarrage
+    # vit dans les scripts de bin/, pas dans ce YAML.
+    # / Same switch as docker-compose.yml; the sequence lives in bin/.
     command: >
       bash -c '
         if [ "$DEBUG" = "true" ] || [ "$DEBUG" = "True" ]; then
-          echo "Mode dev — sleep infinity. Lancer le serveur manuellement."
-          sleep infinity
+          exec bash bin/start-dev.sh
         else
-          bash start.sh
+          exec bash bin/start-prod.sh
         fi
       '
 

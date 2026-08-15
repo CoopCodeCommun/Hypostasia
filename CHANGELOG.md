@@ -5,6 +5,180 @@
 
 ---
 
+## 2026-08-15 — LES SCRIPTS DANS bin/, ET UNE SEULE DEFINITION PAR SEQUENCE
+
+**Quoi / What :** `install.sh` et `start.sh` quittent la racine pour
+`bin/`, le demarrage se separe en dev et prod, et le Makefile cesse de
+recopier leurs commandes. / The scripts move to bin/, startup splits in
+two, and the Makefile stops duplicating their commands.
+
+### POURQUOI PAS TOUT DANS LE MAKEFILE
+
+La question s'est posee : unifier vers `make`. La reponse est non, et
+elle tient a un fait verifiable — **`docker` n'existe pas dans le
+conteneur**. Or chaque cible du Makefile passe par `docker exec`. Le
+Makefile ne peut donc tourner que depuis l'hote.
+
+Ce sont deux plans distincts. Les scripts s'executent DANS le conteneur,
+au demarrage, quand aucun hote n'est au bout du fil : au boot de la
+machine, apres un redeploiement, quand la restart policy relance le
+service. C'est precisement ce qui garantit « les fixtures chargees a
+chaque installation, prod comme dev ». Le Makefile, lui, vit sur l'hote
+et ne fait que les APPELER.
+
+### CE QUI CHANGE
+
+    bin/install.sh      la sequence, avec une etape en argument :
+                        tout (defaut) | fixtures | statiques | llm
+    bin/start-dev.sh    installation → supervisord-dev.conf (runserver)
+    bin/start-prod.sh   attente PostgreSQL → installation → supervisord.conf
+
+Les deux fichiers compose choisissent lequel lancer selon `DEBUG` ; ils
+ne portent plus aucune sequence. Une commande ecrite dans un YAML est une
+commande que personne ne peut tester.
+
+`make fixtures` et `make collectstatic` appellent desormais les etapes du
+script (`bash bin/install.sh fixtures`) au lieu de reecrire les commandes
+Django. Un test refuse toute cible du Makefile qui nommerait directement
+une commande que le script porte deja : deux definitions d'une meme
+sequence finissent toujours par diverger, et c'est ce qui a produit les
+deux dernieres pannes.
+
+### LE MAKEFILE REFUSE DE TOURNER SANS DOCKER
+
+Il pilote Docker, il ne l'installe pas. Sans lui, chaque cible echouait
+sur un « command not found » qui ne dit pas quoi faire ; elle rend
+maintenant un message et un lien.
+
+### DEBUG ET NGINX_CONF VONT ENSEMBLE
+
+Verifie a cette occasion : la production sert le HTTP par gunicorn sur
+**8001** et le WebSocket par daphne sur **8000** ; le developpement sert
+les deux depuis runserver sur **8000**. Les deux configurations nginx
+suivent cette difference et se choisissent par `NGINX_CONF`.
+
+Rien ne tenait ces deux reglages ensemble. `DEBUG=true` avec la conf de
+prod envoie `/` vers 8001, ou personne n'ecoute : **502 sur tout le
+site**. L'inverse laisse gunicorn sans trafic. Deux tests le verrouillent
+desormais. Pas de conflit de port, en revanche : 8000 et 8001 sont
+internes au conteneur, seul traefik expose 80 et 443, et les deux stacks
+ne tournent jamais ensemble.
+
+### LE GARDE-FOU D'INSTALLATION RESTE PAR COMMANDE
+
+La question s'est posee d'ajouter un garde global « si la base est
+peuplee, ne rien faire ». C'est un recul : il empecherait de rattraper
+une installation partielle — une analyse LLM qui a echoue faute de cle
+doit pouvoir repartir au demarrage suivant, alors meme que la base est
+pleine. Chaque commande saute ce qui la concerne, ce qui est plus fin et
+deja mesure : 10 s au second passage, rien de reecrit.
+
+---
+
+## 2026-08-15 — L'INSTALLATION CHARGEAIT LE MAUVAIS JEU DE DONNEES
+
+**Quoi / What :** une installation neuve arrivait sans aucune base de
+connaissances, et les documents visibles n'etaient pas ceux du depot.
+/ A fresh install came up with no knowledge base, showing documents that
+were not the repository's own.
+
+### LE DEFAUT
+
+`install.sh` appelait `charger_fixtures_demo`, qui ecrit des notes
+FICTIVES en dur et ne cree AUCUNE base de connaissances. Les documents
+etalons de `sample/` — choisis pour couvrir les cinq formes d'entree du
+produit : capture web, fichier ecrit, transcription deja faite, audio
+brut, PDF — sont charges par `charger_fixtures_sample`, que le script
+n'appelait pas. Leurs extractions viennent d'une troisieme commande,
+`charger_extractions_demo`, pas davantage appelee.
+
+Trois jeux de donnees coexistaient donc, et l'installation lancait le
+seul qui ne montre pas le produit. Constate a l'ecran : `/bases/` vide.
+
+### CE QUE CHARGE DESORMAIS UNE INSTALLATION
+
+    migrate → collectstatic
+      → charger_fixtures_sample      les 6 documents de sample/,
+                                     la base, le carnet, les analyseurs
+      → charger_extractions_demo     les extractions et commentaires,
+                                     ecrits a la main pour couvrir des
+                                     cas limites (marques imbriquees,
+                                     ancre sur tableau, 0/1/2 commentaires)
+      → charger_fixtures_llm_reel    2 notes analysees par le VRAI modele
+
+Le premier passage convertit deux PDF avec Docling (~3 min) ; les
+suivants prennent 10 s, tout etant deja present. C'est ce qui permet au
+conteneur de rejouer ce script a chaque demarrage sans rien recouter.
+
+### L'INSTALLATION TESTE MAINTENANT LES CLES API
+
+Decision du mainteneur : les analyses de la demonstration passent par de
+VRAIS appels au modele, plus par des extractions simulees. Deux notes
+sont ingerees par le moteur ELEMENT puis analysees pour de bon — si une
+cle manque ou si l'appel echoue, l'installation le dit au lieu de
+laisser croire que tout va bien.
+
+Les analyses partent dans la FILE CELERY (`--asynchrone`) : le demarrage
+du conteneur n'attend pas le modele, et l'administrateur suit leur
+avancement depuis le menu des taches — badge, position dans la file.
+Mesure : 4 puis 3 extractions reelles produites par Gemini 2.5 Flash.
+
+`--si-absent` empeche la facture de se repeter. Le conteneur rejoue
+`install.sh` a CHAQUE demarrage ; sans cette garde, un simple
+`docker compose restart` renverrait deux appels payants. Une analyse
+deja EN FILE compte comme faite — sans quoi un redemarrage pendant le
+traitement les aurait toutes renvoyees.
+
+### LES FIXTURES APPARTENAIENT AU MAUVAIS UTILISATEUR
+
+Le menu des taches ne montre a chacun que SES notes. Le proprietaire des
+fixtures decide donc de qui voit l'installation travailler — et la regle
+etait « le premier superuser, sinon le premier utilisateur par cle
+primaire ». Or aucun compte n'est superuser dans ce projet, et le
+premier par pk est un compte de demonstration : sur la base reelle,
+`marie` portait douze notifications et l'administrateur `jonas` n'en
+voyait aucune. La regle prefere desormais un compte d'administration
+(superuser, puis staff) avant de retomber sur le premier venu.
+
+### DEUX COMMANDES ETAIENT CASSEES
+
+**`reset_demo` vidait la base et ne la rechargeait plus.** Il faisait
+`flush` puis `loaddata demo_completes.json` — une fixture qui ne se
+chargeait plus depuis le 21 mars 2026, cinq mois, a cause de deux
+migrations qui ont change le schema sous elle. Qui la lancait perdait
+tout sans rien recuperer. Ironie : la migration 0020 porte le
+commentaire « App pas en production — reset_demo les recree
+proprement ». Le filet de securite invoque etait lui-meme rompu. Il
+recharge desormais par le meme chemin que `install.sh`.
+
+**`--reset` de `charger_fixtures_llm_reel` levait une ProtectedError**
+des la premiere execution reussie : une analyse produit des ancrages, un
+ancrage protege son ElementDocument, qui protege sa Page. L'option de
+remise a zero ne fonctionnait qu'avant d'avoir servi a quelque chose.
+Elle defait maintenant l'ancrage avant la note, et cherche le carnet par
+son nom seul — filtrer sur le proprietaire courant laissait un carnet
+homonyme derriere elle quand ce proprietaire changeait.
+
+### LES JOURNAUX DE DEV ETAIENT INVISIBLES
+
+Le mode dev faisait `sleep infinity` et les services etaient lances a la
+main sous un supervisord demonise, journaux dans des fichiers :
+`docker compose logs -f` ne montrait RIEN. Le conteneur enchaine
+desormais `install.sh` puis supervisord en PID 1, comme la production,
+et tout sort sur la sortie standard — en DEBUG.
+
+### CE QUI RESTE OUVERT
+
+Les quatre fixtures JSON (`demo_ia`, `demo_completes`,
+`exemple_deliberation`, `demo_alignement_versions`) ne sont chargees par
+personne : ni l'installation, ni aucun test. Trois d'entre elles ne se
+chargent plus depuis cinq mois. Leur suppression est decidee mais pas
+faite — elles portent du travail non committe (la correction du
+referentiel famille 4). A supprimer apres un commit, en retirant alors
+la liste `FIXTURES_PORTANT_LE_REFERENTIEL` du test du referentiel.
+
+---
+
 ## 2026-08-14 — UN MAKEFILE, POUR QUE LES COMMANDES CESSENT DE DERIVER
 
 **Quoi / What :** un `Makefile` a la racine rassemble le demarrage, les

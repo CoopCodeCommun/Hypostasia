@@ -4,6 +4,23 @@
 {# / Contains: Discover/Manifesto tabs + 4-step process + 6 statuses + keyboard shortcuts #}
 {# LOCALISATION : front/templates/front/includes/onboarding_vide.html #}
 
+{% comment %}
+LE DESIGN SYSTEM DU CORPUS EST INDISPENSABLE ICI. L'onglet « Bases de
+connaissances » ci-dessous montre les memes cartes que /bases/, par le
+meme partial `carte_de_base.html`, sous les memes classes
+(`.grille-bases`, `.carte-base`). Or ces regles sont scopees
+`.zone-corpus` et vivent dans `_style_maquette.html`, que CHAQUE ecran
+du corpus inclut lui-meme (`bases_liste.html`, `base_detail.html`,
+`carnets_liste.html`...). Ce gabarit est la branche `{% templatetag openblock %} else {% templatetag closeblock %}` de la
+cascade de `base.html` : sans cet include, il est le seul a montrer des
+cartes de base sans une seule regle pour les dessiner, et elles tombent
+en texte brut.
+/ The home tab reuses the corpus cards, whose rules are scoped to
+.zone-corpus and shipped by _style_maquette.html — include it or the
+cards render unstyled.
+{% endcomment %}
+{% include "front/corpus/_style_maquette.html" %}
+
 {# === Barre d'onglets accueil — Decouvrir / Bases / Manifeste === #}
 {#                                                                     #}
 {# TROIS ONGLETS DEPUIS LE 12 AOUT. Le troisieme, « Bases de           #}

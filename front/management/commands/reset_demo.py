@@ -1,14 +1,36 @@
 """
-Flush la base de donnees et recharge les fixtures de demonstration.
+Vide la base de donnees et recharge la demonstration.
 Utilise pour preparer un environnement propre avant les tests E2E.
-/ Flush the database and reload demo fixtures.
-/ Used to prepare a clean environment before E2E tests.
+/ Empties the database and reloads the demonstration.
 
 LOCALISATION : front/management/commands/reset_demo.py
 
 Usage :
-    uv run python manage.py reset_demo
-    uv run python manage.py reset_demo --no-input   (pas de confirmation)
+    python manage.py reset_demo
+    python manage.py reset_demo --no-input   (pas de confirmation)
+
+ELLE VIDAIT LA BASE ET NE LA RECHARGEAIT PLUS (corrige le 15 aout 2026)
+
+Cette commande faisait `flush` puis `loaddata demo_completes.json`. Or
+cette fixture ne se chargeait plus depuis le 21 mars 2026 — cinq mois —
+a cause de deux migrations qui ont change le schema sous elle
+(`updated_at` sur ExtractedEntity, puis le remplacement de `prenom` par
+une cle etrangere sur CommentaireExtraction). La commande DETRUISAIT
+donc tout et echouait a recharger : qui la lancait perdait la base sans
+rien recuperer.
+
+Ironie de l'affaire : la migration 0020 porte le commentaire « App pas
+en production — reset_demo les recree proprement ». Le filet de securite
+invoque etait lui-meme rompu, et personne ne pouvait le savoir.
+/ It flushed then failed to reload, for five months. The migration that
+relied on this safety net had been broken all along.
+
+Elle recharge desormais par le MEME chemin que `install.sh` : les
+documents etalons de sample/, puis les extractions de demonstration.
+C'est en divergeant de ce chemin qu'elle etait morte sans temoin — un
+chemin que personne n'emprunte est un chemin que personne ne teste.
+/ It now reloads through the same path as install.sh: a path nobody
+walks is a path nobody tests.
 """
 
 from django.core.management import call_command
@@ -17,8 +39,8 @@ from django.core.management.base import BaseCommand
 
 class Command(BaseCommand):
     help = (
-        "Flush la base et recharge les fixtures de démonstration "
-        "(front/fixtures/demo_completes.json)."
+        "Vide la base et recharge la démonstration par le même chemin "
+        "que install.sh (documents étalons de sample/ + extractions)."
     )
 
     def add_arguments(self, parser):
@@ -44,20 +66,28 @@ class Command(BaseCommand):
 
         # Etape 2 : flush complet de la base
         # / Step 2: full database flush
-        self.stdout.write("1/3 — Flush de la base de données...")
+        self.stdout.write("1/4 — Flush de la base de données...")
         call_command("flush", "--no-input", verbosity=0)
         self.stdout.write(self.style.SUCCESS("     Base vidée."))
 
-        # Etape 3 : chargement des fixtures de demonstration
-        # / Step 3: load demo fixtures
-        self.stdout.write("2/3 — Chargement des fixtures...")
-        chemin_fixture = "front/fixtures/demo_completes.json"
-        call_command("loaddata", chemin_fixture, verbosity=1)
-        self.stdout.write(self.style.SUCCESS("     Fixtures chargées."))
+        # Etape 3 : les documents etalons de sample/, comme install.sh.
+        # Le premier chargement apres un flush reconvertit les deux PDF
+        # avec Docling : comptez ~3 minutes.
+        # / The reference documents, as install.sh does. The first load
+        # after a flush reconverts both PDFs (~3 min).
+        self.stdout.write("2/4 — Documents étalons (~3 min, conversions PDF)...")
+        call_command("charger_fixtures_sample")
+        self.stdout.write(self.style.SUCCESS("     Documents chargés."))
 
-        # Etape 4 : verification rapide
-        # / Step 4: quick verification
-        self.stdout.write("3/3 — Vérification...")
+        # Etape 4 : les extractions posees dessus, sans appel LLM.
+        # / The extractions anchored onto them, with no LLM call.
+        self.stdout.write("3/4 — Extractions de démonstration...")
+        call_command("charger_extractions_demo")
+        self.stdout.write(self.style.SUCCESS("     Extractions posées."))
+
+        # Etape 5 : verification rapide
+        # / Step 5: quick verification
+        self.stdout.write("4/4 — Vérification...")
         from core.models import Dossier, Page
         from hypostasis_extractor.models import (
             ExtractedEntity,

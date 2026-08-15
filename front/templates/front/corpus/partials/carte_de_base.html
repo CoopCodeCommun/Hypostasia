@@ -1,15 +1,21 @@
-{# LA CARTE D'UNE BASE DE CONNAISSANCES.
-   LOCALISATION : front/templates/front/corpus/partials/carte_de_base.html
+{% comment %}
+LA CARTE D'UNE BASE DE CONNAISSANCES.
+LOCALISATION : front/templates/front/corpus/partials/carte_de_base.html
 
-   Extraite de `bases_liste.html` le 12 aout : l'onglet « Bases de
-   connaissances » de l'accueil montre les memes cartes, et une carte
-   recopiee aurait diverge des la premiere retouche.
+Extraite de `bases_liste.html` le 12 aout : l'onglet « Bases de
+connaissances » de l'accueil montre les memes cartes, et une carte
+recopiee aurait diverge des la premiere retouche.
 
-   Attend dans le contexte : `base`, avec ses annotations
-   `nombre_de_carnets`, `nombre_de_notes`, son `numero_de_cote` et son
-   `appartenances_ouvrables` — tout cela vient de
-   `bases_visibles_avec_leurs_comptes` (views_corpus.py).
-   / Extracted so the home tab and /bases/ share one card. #}
+Attend dans le contexte : `base`, avec ses annotations
+`nombre_de_carnets`, `nombre_de_notes`, son `numero_de_cote` et son
+`appartenances_ouvrables` — tout cela vient de
+`bases_visibles_avec_leurs_comptes` (views_corpus.py).
+
+NOTE DE SYNTAXE : ce bloc est un `comment`, pas un `{# #}`. Dans les
+gabarits Django, `{# #}` ne vaut que sur UNE ligne — sur plusieurs, il
+n'est pas reconnu comme commentaire et son texte s'affiche a l'ecran.
+/ Extracted so the home tab and /bases/ share one card.
+{% endcomment %}
 <li class="carte-base" data-testid="corpus-base-item"
     data-base-slug="{{ base.slug }}">
 
@@ -21,18 +27,20 @@
     {# / The cover is optional and stays so: when absent we #}
     {# render nothing at all, so the card looks complete. #}
     {% if base.image_de_couverture %}
+    {% comment %}
+    PAS de `loading="lazy"` sur l'image ci-dessous : la liste vit dans
+    #zone-lecture, qui porte `overflow-y: auto`. Le chargement differe
+    observe l'intersection avec le scroller le PLUS PROCHE, et il ne se
+    declenche pas de facon fiable dans un scroller imbrique : mesure du
+    12 aout, l'image occupait le haut de l'ecran avec une boite de
+    313x176 et un `naturalWidth` de 0 — jamais chargee. Ces couvertures
+    sont peu nombreuses et au-dessus de la ligne de flottaison : le
+    differe ne gagnait rien.
+    / Lazy loading is unreliable inside a nested scroller; the image
+    never loaded despite being on screen.
+    {% endcomment %}
     <img class="couverture-base" src="{{ base.image_de_couverture.url }}"
          alt="" decoding="async"
-         {# PAS de `loading="lazy"` : la liste vit dans #zone-lecture,
-            qui porte `overflow-y: auto`. Le chargement differe observe
-            l'intersection avec le scroller le PLUS PROCHE, et il ne se
-            declenche pas de facon fiable dans un scroller imbrique :
-            mesure du 12 aout, l'image occupait le haut de l'ecran avec
-            une boite de 313x176 et un `naturalWidth` de 0 — jamais
-            chargee. Ces couvertures sont peu nombreuses et au-dessus de
-            la ligne de flottaison : le differe ne gagnait rien.
-            / Lazy loading is unreliable inside a nested scroller; the
-            image never loaded despite being on screen. #}
          data-testid="corpus-base-couverture">
     {% endif %}
 

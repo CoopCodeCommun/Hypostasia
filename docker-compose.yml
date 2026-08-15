@@ -110,16 +110,27 @@ services:
     restart: unless-stopped
     networks:
       - hypostasia
-    # DEBUG=true → sleep infinity, puis supervisord-dev.conf a la main
-    # DEBUG=false → start.sh (supervisord : gunicorn:8001 + daphne:8000 + 2 celery)
+    # DEBUG=true  → bin/start-dev.sh   (runserver:8000)
+    # DEBUG=false → bin/start-prod.sh  (gunicorn:8001 + daphne:8000)
+    #
+    # Les deux scripts enchainent bin/install.sh puis leur supervisord.
+    # La sequence de demarrage n'est PAS ecrite ici : ce fichier choisit
+    # lequel des deux scripts lancer, rien de plus. Une commande ecrite
+    # dans un YAML est une commande que personne ne peut tester.
+    # / The startup sequence is not written here: this file only picks
+    # which script to run.
+    #
+    # ATTENTION : `DEBUG` et `NGINX_CONF` vont ENSEMBLE. En dev,
+    # runserver sert le HTTP et le WebSocket sur 8000 ; en prod, gunicorn
+    # tient le 8001 et daphne le 8000. La conf de prod avec DEBUG=true
+    # enverrait `/` sur 8001, ou personne n'ecoute : 502 sur tout le
+    # site. / DEBUG and NGINX_CONF must move together.
     command: >
       bash -c '
         if [ "$DEBUG" = "true" ] || [ "$DEBUG" = "True" ]; then
-          echo "Mode dev — sleep infinity. Demarrer les services avec :"
-          echo "  docker exec hypostasia_web supervisord -c /app/supervisord-dev.conf"
-          sleep infinity
+          exec bash bin/start-dev.sh
         else
-          bash start.sh
+          exec bash bin/start-prod.sh
         fi
       '
 

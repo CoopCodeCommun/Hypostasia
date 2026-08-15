@@ -55,11 +55,31 @@ SUPERVISORCTL := docker exec $(CONTENEUR) supervisorctl -c $(CONF_DEV)
 # / Costly tests are opt-in through BOTH an env var and a Django tag.
 EXCLUSIONS_RAPIDES := --exclude-tag=e2e --exclude-tag=docling --exclude-tag=llm_reel
 
+# Les scripts de demarrage vivent dans bin/ et s'executent DANS le
+# conteneur. Ce Makefile ne recopie jamais leurs commandes : il les
+# appelle. Deux definitions d'une meme sequence finissent toujours par
+# diverger — c'est ce qui a produit les deux dernieres pannes.
+# / The Makefile calls the scripts in bin/, never duplicates them.
+SCRIPT_D_INSTALLATION := bin/install.sh
+
 .DEFAULT_GOAL := aide
 
 .PHONY: aide install dev status stop restart logs shell check fixtures \
-        collectstatic test test-rapide test-suite test-e2e test-docling \
-        test-llm test-tout prod-update prod-status .verif-services
+        collectstatic fixtures-llm test test-rapide test-suite test-e2e test-docling \
+        test-llm test-tout prod-update prod-status .verif-services .verif-docker
+
+# Ce Makefile PILOTE Docker, il ne l'installe pas. Sans lui, chaque
+# cible echouerait sur un « command not found » qui ne dit pas quoi
+# faire. / This Makefile drives Docker; it does not install it.
+.verif-docker:
+	@command -v docker >/dev/null 2>&1 || { \
+		echo ""; \
+		echo "  Docker est introuvable sur cette machine."; \
+		echo "  Ce Makefile pilote Docker depuis l'hote — il ne"; \
+		echo "  l'installe pas. Voir https://docs.docker.com/engine/install/"; \
+		echo ""; \
+		exit 1; \
+	}
 
 aide:  ## Affiche cette aide
 	@echo ""
@@ -79,28 +99,22 @@ aide:  ## Affiche cette aide
 # Cycle de vie — developpement
 # -----------------------------------------------------------------------------
 
-install:  ## Demarre les conteneurs puis installe (idempotent)
+install: .verif-docker  ## Demarre tout : conteneurs, installation, services
+	@# Le conteneur lance lui-meme bin/start-dev.sh (ou start-prod.sh
+	@# selon DEBUG), qui enchaine bin/install.sh puis supervisord : il
+	@# n'y a qu'une commande a taper.
+	@# / The container runs bin/start-dev.sh by itself.
 	docker compose up -d
-	@echo "--- install.sh dans le conteneur (idempotent) ---"
-	$(DANS) bash install.sh
+	@echo "--- attente des services (premiere install : ~3 min, conversions PDF) ---"
+	@until docker exec $(CONTENEUR) test -S $(SOCKET_DEV) 2>/dev/null; do sleep 3; done
+	@$(SUPERVISORCTL) status
 	@echo ""
-	@echo "Installe. Demarrer les services : make dev"
+	@echo "Le site : https://h.localhost/   —   les journaux : make logs"
 
-dev:  ## Demarre runserver + les 2 workers Celery (supervisord)
-	@if docker exec $(CONTENEUR) test -S $(SOCKET_DEV) 2>/dev/null; then \
-		echo "supervisord tourne deja — rien a demarrer. Etat :"; \
-		$(SUPERVISORCTL) status; \
-		echo ""; \
-		echo "Pour repartir de zero : make stop && make dev"; \
-	else \
-		docker exec $(CONTENEUR) supervisord -c $(CONF_DEV); \
-		sleep 2; \
-		$(SUPERVISORCTL) status; \
-		echo ""; \
-		echo "Le site : https://h.localhost/ (port 8000 en interne)"; \
-	fi
+dev: install  ## Synonyme d'install : le conteneur demarre tout lui-meme
+	@:
 
-status:  ## Etat des services de dev
+status: .verif-docker  ## Etat des services de dev
 	@if docker exec $(CONTENEUR) test -S $(SOCKET_DEV) 2>/dev/null; then \
 		$(SUPERVISORCTL) status; \
 	else \
@@ -112,7 +126,7 @@ status:  ## Etat des services de dev
 # un chemin de socket — qui ne dit pas quoi faire.
 # / Guard for the targets that make no sense without supervisord: the
 # raw supervisorctl error names a socket path but not the next step.
-.verif-services:
+.verif-services: .verif-docker
 	@docker exec $(CONTENEUR) test -S $(SOCKET_DEV) 2>/dev/null || { \
 		echo "Les services ne tournent pas. Les demarrer : make dev"; \
 		exit 1; \
@@ -125,13 +139,15 @@ restart: .verif-services  ## Redemarre tout, ou un service : make restart S=runs
 	@if [ -n "$(S)" ]; then $(SUPERVISORCTL) restart $(S); \
 	else $(SUPERVISORCTL) restart all; fi
 
-logs: .verif-services  ## Suit les journaux, ou un seul : make logs S=celery_worker_docling
+logs:  ## Suit tous les journaux (DEBUG), ou filtre : make logs S=docling
+	@# Les trois services ecrivent sur la sortie standard du conteneur :
+	@# un seul flux, celui que montre `docker compose logs -f`. Filtrer
+	@# par service se fait au grep, faute de prefixe pose par supervisord.
+	@# / All three write to the container's stdout: one stream.
 	@if [ -n "$(S)" ]; then \
-		docker exec $(CONTENEUR) tail -f /app/logs/$(S).log; \
+		docker compose logs -f web 2>&1 | grep -i --line-buffered "$(S)"; \
 	else \
-		docker exec $(CONTENEUR) tail -f /app/logs/runserver.log \
-			/app/logs/celery_worker.log \
-			/app/logs/celery_worker_docling.log; \
+		docker compose logs -f web; \
 	fi
 
 shell:  ## Ouvre un shell dans le conteneur
@@ -141,16 +157,36 @@ shell:  ## Ouvre un shell dans le conteneur
 # Commandes Django
 # -----------------------------------------------------------------------------
 
-check:  ## Verification Django (manage.py check)
+check: .verif-docker  ## Verification Django (manage.py check)
 	@$(DANS) python manage.py check
 
-fixtures:  ## (Re)charge les fixtures de demo (idempotent, get_or_create)
-	@$(DANS) python manage.py charger_fixtures_demo
+fixtures:  ## (Re)charge la demo : documents de sample/ + extractions
+	@# On APPELLE l'etape du script d'installation, on ne recopie pas ses
+	@# commandes : la sequence n'existe qu'a un seul endroit. Ne relance
+	@# PAS l'analyse LLM facturee — pour cela, `make fixtures-llm`.
+	@# / Call the installer's step; never duplicate its commands.
+	@$(DANS) bash $(SCRIPT_D_INSTALLATION) fixtures
+
+fixtures-llm:  ## Rejoue l'analyse par le VRAI LLM — APPELS FACTURES
+	@# `--reset` et non l'etape `llm` du script : celle-ci porte
+	@# `--si-absent`, qui ne referait justement rien. Ici on veut tout
+	@# rejouer, et c'est pour cela qu'on demande confirmation.
+	@# / --reset, not the installer's guarded step: here we want it redone.
+	@if [ "$(CONFIRME)" != "oui" ]; then \
+		echo ""; \
+		echo "  ATTENTION : refait de VRAIS appels au modele configure."; \
+		echo "  Ils sont FACTURES."; \
+		echo ""; \
+		printf "  Taper 'oui' pour continuer : "; \
+		read reponse; \
+		[ "$$reponse" = "oui" ] || { echo "  Annule."; exit 1; }; \
+	fi
+	$(DANS) python manage.py charger_fixtures_llm_reel --reset --asynchrone
 
 collectstatic:  ## Collecte les statiques — utile AVANT un deploiement
 	@echo "Rappel : inutile en dev (nginx/dev.conf ne sert pas /static/,"
 	@echo "le runserver les sert via les finders quand DEBUG=true)."
-	@$(DANS) python manage.py collectstatic --noinput
+	@$(DANS) bash $(SCRIPT_D_INSTALLATION) statiques
 
 # -----------------------------------------------------------------------------
 # Tests — une suite a la fois, JAMAIS --parallel

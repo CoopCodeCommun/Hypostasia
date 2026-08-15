@@ -73,18 +73,28 @@ MISTRAL_API_KEY=
 docker compose up -d
 ```
 
-C'est tout. Au demarrage, `start.sh` appelle `install.sh` qui fait automatiquement :
+C'est tout. Au demarrage, le conteneur lance `bin/start-dev.sh` ou
+`bin/start-prod.sh` selon `DEBUG` ; les deux appellent `bin/install.sh`,
+qui fait automatiquement :
 
-*That's it. On startup, `start.sh` calls `install.sh` which automatically runs:*
+*That's it. On startup the container runs `bin/start-dev.sh` or
+`bin/start-prod.sh` depending on `DEBUG`; both call `bin/install.sh`:*
 
 1. `uv sync` — installation des dependances
 2. `migrate` — creation/mise a jour des tables
 3. `collectstatic` — fichiers CSS/JS
-4. `charger_fixtures_demo` — donnees de demo (idempotent, ne cree que ce qui manque)
+4. `charger_fixtures_sample` — les documents etalons de `sample/`, la base de connaissances et le carnet
+5. `charger_extractions_demo` — leurs extractions et commentaires
+6. `charger_fixtures_llm_reel` — deux notes analysees par le **vrai** modele, ce qui teste les cles API
 
-`install.sh` est **idempotent** : il peut etre relance sans risque a chaque redemarrage. Les fixtures utilisent `get_or_create` — rien n'est ecrase.
+`bin/install.sh` est **idempotent** : il peut etre relance sans risque a
+chaque redemarrage. Le premier passage convertit deux PDF avec Docling
+(~3 min) ; les suivants prennent une dizaine de secondes, et l'analyse
+par le modele ne se refacture pas.
 
-*`install.sh` is **idempotent**: it can safely run on every restart. Fixtures use `get_or_create` — nothing is overwritten.*
+*`bin/install.sh` is **idempotent**: safe to run on every restart. The
+first run converts two PDFs (~3 min); later runs take about ten seconds
+and no LLM call is re-billed.*
 
 **Comptes crees** : `jonas` (admin), `marie`, `thomas`, `fatima`, `pierre` — mot de passe : `demo1234`
 
@@ -98,11 +108,19 @@ Le **meme** `docker-compose.yml` gere les deux modes. La variable `DEBUG` dans `
 
 | | `DEBUG=true` (dev) | `DEBUG=false` (prod) |
 |---|---|---|
-| **Demarrage** | `sleep infinity` (serveur lance a la main) | `start.sh` (supervisord automatique) |
-| **Serveur** | `runserver` Django | Gunicorn (3 workers) |
-| **Celery** | Lance a la main si besoin | Supervisord (2 workers) |
-| **Nginx** | Proxy vers `host.docker.internal:8123` | Proxy vers Gunicorn interne |
+| **Demarrage** | `bin/start-dev.sh` | `bin/start-prod.sh` |
+| **Serveur HTTP** | `runserver` **:8000** (ASGI, sert aussi le WebSocket) | Gunicorn **:8001** |
+| **WebSocket** | le meme `runserver` | Daphne **:8000** |
+| **Celery** | 2 workers (`supervisord-dev.conf`) | 2 workers (`supervisord.conf`) |
+| **Nginx** | tout vers `web:8000` | `/` vers `web:8001`, `/ws/` vers `web:8000` |
 | **Config Nginx** | `NGINX_CONF=dev.conf` dans `.env` | `NGINX_CONF=default.conf` (defaut) |
+
+> **`DEBUG` et `NGINX_CONF` se changent ENSEMBLE.** La configuration de
+> prod avec `DEBUG=true` envoie `/` vers le port 8001, ou aucun process
+> n'ecoute : 502 sur tout le site. L'inverse laisse Gunicorn sans trafic.
+>
+> *Change both together: the production nginx config with `DEBUG=true`
+> targets a port nobody listens on.*
 
 ### Developpement / Development
 
@@ -144,10 +162,10 @@ cp .env.example .env
 
 # Installer tout (dependances, migrations, static, fixtures)
 # / Install everything (dependencies, migrations, static, fixtures)
-bash install.sh
+bash bin/install.sh
 
 # Lancer le serveur / Start server
-uv run python manage.py runserver 0.0.0.0:8123
+python manage.py runserver 0.0.0.0:8000
 
 # (Autre terminal) Lancer Celery pour la transcription audio
 # / (Another terminal) Start Celery for audio transcription
@@ -551,23 +569,33 @@ docker compose down -v
 docker compose build
 docker compose up -d
 
-# En mode dev (DEBUG=true), lancer manuellement :
-# / In dev mode (DEBUG=true), start manually:
-docker exec -it hypostasia_web bash
-bash install.sh                                      # migrations + fixtures
-uv run python manage.py runserver 0.0.0.0:8123       # serveur
+# Le conteneur installe et demarre tout seul, dans les deux modes.
+# Suivre l'operation : / Follow along:
+docker compose logs -f web
 ```
 
-`install.sh` execute dans l'ordre :
+`bin/install.sh` execute dans l'ordre :
 
 1. `uv sync` — dependances Python
 2. `migrate` — schema + migration de normalisation des attributs
 3. `collectstatic` — fichiers CSS/JS
-4. `charger_fixtures_demo` — donnees de demo completes
+4. `charger_fixtures_sample` — les documents etalons de `sample/`, la base de connaissances, le carnet
+5. `charger_extractions_demo` — leurs extractions et commentaires
+6. `charger_fixtures_llm_reel` — deux notes analysees par le **vrai** modele, en file Celery
 
-Resultat : 5 utilisateurs, 1 dossier "Demonstration" avec 4 documents analyses, 33 extractions avec hypostases, 49 commentaires, debat V1 + synthese V2 chainees — pret a l'emploi.
+Resultat : le compte `jonas`, la base « Demonstration », le carnet
+« Documents etalons » et ses six notes couvrant les cinq formes d'entree
+du produit (capture web, fichier ecrit, transcription, audio, deux PDF),
+leurs extractions, et deux notes analysees par le modele configure —
+pret a l'emploi.
 
-*Result: 5 users, 1 "Demonstration" folder with 4 analyzed documents, 33 extractions with hypostases, 49 comments, debate V1 + synthesis V2 chained — ready to use.*
+Les etapes s'appellent aussi une par une : `bash bin/install.sh fixtures`,
+`statiques`, ou `llm`.
+
+*Result: the `jonas` account, the "Demonstration" knowledge base, the
+"Documents etalons" notebook and its six notes covering the product's
+five input forms, their extractions, and two notes analysed by the
+configured model. Steps can be run one at a time.*
 
 ### Fixtures disponibles / Available fixtures
 

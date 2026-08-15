@@ -381,10 +381,31 @@ class Command(BaseCommand):
         leve une CommandError dans ce cas — c'est precisement le cas que
         cette commande doit savoir traiter.
         / A fresh database has no user at all; this must not be fatal.
+
+        UN COMPTE D'ADMINISTRATION D'ABORD, ET POURQUOI
+
+        Les analyses de la demonstration partent dans la file Celery et
+        se suivent depuis le menu des taches — un menu qui ne montre a
+        chacun que SES notes. Le proprietaire decide donc de qui voit
+        l'installation travailler.
+
+        La regle etait « le premier superuser, sinon le premier
+        utilisateur par cle primaire ». Or aucun compte n'est superuser
+        dans ce projet, et le premier par pk est un compte de
+        demonstration : le 15 aout 2026, sur une base reelle, `marie`
+        portait douze notifications et l'administrateur `jonas` n'en
+        voyait aucune. On cherche donc aussi le `is_staff` avant de
+        retomber sur le premier venu.
+        / Ownership decides who sees the install working; a demo account
+        used to own everything while the administrator saw nothing.
         """
         proprietaire_existant = User.objects.filter(
             is_superuser=True,
         ).order_by("pk").first()
+        if proprietaire_existant is None:
+            proprietaire_existant = User.objects.filter(
+                is_staff=True,
+            ).order_by("pk").first()
         if proprietaire_existant is None:
             proprietaire_existant = User.objects.order_by("pk").first()
 

@@ -14,6 +14,12 @@
 {# synthese qui manquaient a la sous-ligne. #}
 {% include "front/corpus/_style_maquette.html" %}
 {% include "front/includes/_lecteur_audio_oob.html" %}
+{% comment %}
+Meme raison que dans `bases_liste.html` : cet ecran n'a pas de fil, donc
+l'OOB y depose un conteneur vide, qui efface celui de l'ecran precedent.
+/ Same as bases_liste.html: an empty OOB clears the stale breadcrumb.
+{% endcomment %}
+{% include "front/corpus/_fil_ariane_oob.html" %}
 <div class="zone-corpus" data-testid="corpus-carnets-liste">
 
     <header class="entete-zone">

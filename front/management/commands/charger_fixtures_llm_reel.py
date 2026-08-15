@@ -50,6 +50,7 @@ from core.models import (
 from core.services.corpus import ranger_une_note_dans_un_carnet
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique,
+    AncrageExtraction,
     CommentaireExtraction,
     ExtractedEntity,
     ExtractionJob,
@@ -132,8 +133,45 @@ class Command(BaseCommand):
             "--reset", action="store_true",
             help="Supprime le carnet et ses notes avant de recommencer.",
         )
+        parser.add_argument(
+            "--si-absent", action="store_true", dest="si_absent",
+            help=(
+                "Ne fait rien si la démonstration porte déjà des "
+                "extractions, ou si une analyse est déjà en file. "
+                "Utilisé par install.sh, que le conteneur rejoue à "
+                "chaque démarrage."
+            ),
+        )
+        parser.add_argument(
+            "--asynchrone", action="store_true", dest="asynchrone",
+            help=(
+                "Envoie les analyses dans la file Celery au lieu de les "
+                "exécuter sur place. L'installation rend la main tout de "
+                "suite et les analyses se suivent depuis le menu des "
+                "tâches. Les commentaires humains ne sont alors PAS "
+                "posés : ils s'ancrent sur des extractions que le modèle "
+                "n'a pas encore produites."
+            ),
+        )
 
     def handle(self, *args, **options):
+        # GARDE DE COUT (15 aout 2026). Cette commande est REJOUABLE par
+        # conception : chaque execution refait de vrais appels factures.
+        # C'est ce qu'on veut a la main. Mais elle est aussi appelee par
+        # `install.sh`, que le conteneur rejoue a CHAQUE demarrage : sans
+        # cette garde, un simple `docker compose restart` refacturerait
+        # deux analyses. L'installation doit TESTER les cles API, pas les
+        # consommer en boucle.
+        # / Cost guard: the command is replayable by design, but
+        # install.sh runs on every container start. The install must TEST
+        # the API keys, not burn them.
+        if options.get("si_absent") and self._la_demonstration_est_deja_analysee():
+            self.stdout.write(
+                "Démonstration déjà analysée par le modèle — rien à "
+                "refaire (--si-absent). Pour tout rejouer : --reset.",
+            )
+            return
+
         configuration = Configuration.get_solo()
         if not configuration.ai_active or not configuration.ai_model:
             raise CommandError(
@@ -151,6 +189,8 @@ class Command(BaseCommand):
         if options["reset"]:
             self._reset(proprietaire)
 
+        self.asynchrone = options.get("asynchrone", False)
+
         carnet = self._creer_le_carnet(proprietaire)
         categories = self._creer_l_axe_et_les_categories(carnet)
 
@@ -159,13 +199,29 @@ class Command(BaseCommand):
         self._ingerer_un_fichier_markdown(page_md, NOTE_MD["markdown"])
         self._analyser_reellement(page_md, analyseur, configuration.ai_model)
         ranger_une_note_dans_un_carnet(page_md, carnet, proprietaire)
-        self._poser_des_commentaires(page_md, NOTE_MD["commentaires"], proprietaire)
 
         # Note 2 : capture web -> Docling -> ELEMENT -> LLM.
         page_web = self._creer_page_web(proprietaire)
         self._ingerer_une_capture(page_web)
         self._analyser_reellement(page_web, analyseur, configuration.ai_model)
         ranger_une_note_dans_un_carnet(page_web, carnet, proprietaire)
+
+        # Les commentaires s'ancrent sur les extractions que le modele
+        # vient de produire : en asynchrone, elles n'existent pas encore.
+        # / Comments anchor onto the extractions the model just produced;
+        # asynchronously, those do not exist yet.
+        if self.asynchrone:
+            self.stdout.write(self.style.SUCCESS(
+                f"\nCarnet « {NOM_DU_CARNET} » monté : 2 notes ingérées, "
+                f"leurs analyses envoyées dans la file Celery et "
+                f"analysées par {configuration.ai_model} en arrière-plan. "
+                f"Suivez-les depuis le menu des tâches de "
+                f"{proprietaire.username}. Les commentaires humains ne "
+                f"sont pas posés en asynchrone.",
+            ))
+            return
+
+        self._poser_des_commentaires(page_md, NOTE_MD["commentaires"], proprietaire)
         self._poser_des_commentaires(page_web, NOTE_WEB["commentaires"], proprietaire)
 
         self.stdout.write(self.style.SUCCESS(
@@ -176,8 +232,60 @@ class Command(BaseCommand):
 
     # ---- briques ----
 
+    def _la_demonstration_est_deja_analysee(self):
+        """
+        Dit si le carnet de demonstration porte deja des extractions.
+        / Says whether the demo notebook already carries extractions.
+
+        LOCALISATION : front/management/commands/charger_fixtures_llm_reel.py
+
+        On regarde les EXTRACTIONS, pas la seule existence du carnet :
+        une premiere installation interrompue — cle absente, appel en
+        erreur — laisse un carnet vide, et il faut alors retenter au
+        demarrage suivant. Sans quoi la demonstration resterait nue pour
+        toujours, et les cles ne seraient jamais testees.
+        / We look at extractions, not at the notebook alone: an
+        interrupted first install leaves an empty notebook, and that must
+        be retried on the next start.
+
+        ET AUSSI LES ANALYSES ENCORE EN FILE
+
+        En asynchrone, les extractions n'existent pas encore tant que le
+        worker n'a pas fini. Un conteneur redemarre entre-temps les
+        renverrait toutes en file — et les refacturerait — puisque rien
+        ne prouverait qu'une analyse est deja partie. Un job `pending` ou
+        `processing` compte donc comme un travail deja lance.
+        / A queued job counts too: otherwise a restart would re-queue and
+        re-bill every analysis still in flight.
+
+        :return: True si une note du carnet porte une extraction, ou si
+            une analyse est deja en attente ou en cours
+        """
+        from hypostasis_extractor.models import ExtractedEntity, ExtractionJob
+
+        notes_du_carnet = {
+            "job__page__appartenances_dossiers__dossier__name": NOM_DU_CARNET,
+        }
+        if ExtractedEntity.objects.filter(**notes_du_carnet).exists():
+            return True
+
+        return ExtractionJob.objects.filter(
+            page__appartenances_dossiers__dossier__name=NOM_DU_CARNET,
+            status__in=["pending", "processing"],
+        ).exists()
+
     def _proprietaire(self):
+        # Meme regle que charger_fixtures_sample : un compte
+        # d'administration d'abord (superuser, puis staff), et seulement
+        # a defaut le premier venu. Les analyses partent dans la file
+        # Celery et se suivent depuis le menu des taches, qui ne montre a
+        # chacun que SES notes : le proprietaire decide donc de qui voit
+        # l'installation travailler.
+        # / Same rule as charger_fixtures_sample: an admin account first,
+        # since ownership decides who sees the install working.
         proprietaire = User.objects.filter(is_superuser=True).order_by("pk").first()
+        if proprietaire is None:
+            proprietaire = User.objects.filter(is_staff=True).order_by("pk").first()
         if proprietaire is None:
             proprietaire = User.objects.order_by("pk").first()
         if proprietaire is None:
@@ -185,7 +293,23 @@ class Command(BaseCommand):
         return proprietaire
 
     def _reset(self, proprietaire):
-        ancien = Dossier.objects.filter(name=NOM_DU_CARNET, owner=proprietaire).first()
+        # Le carnet est cherche par son NOM SEUL, sans filtrer sur le
+        # proprietaire courant : celui-ci peut avoir change entre deux
+        # executions (la regle de choix prefere desormais un compte
+        # d'administration). Filtrer dessus laissait l'ancien carnet en
+        # place et en creait un second, homonyme — constate le 15 aout
+        # 2026. / Searched by name alone: the owner may have changed
+        # between runs, which used to leave a duplicate notebook behind.
+        for ancien in Dossier.objects.filter(name=NOM_DU_CARNET):
+            self._supprimer_le_carnet(ancien)
+
+    def _supprimer_le_carnet(self, ancien):
+        """
+        Supprime un carnet de demonstration et les notes qui n'ont que lui.
+        / Deletes a demo notebook and the notes it alone holds.
+
+        LOCALISATION : front/management/commands/charger_fixtures_llm_reel.py
+        """
         if ancien is None:
             return
         # Les pages rangees UNIQUEMENT dans ce carnet sont a nous : on les
@@ -194,6 +318,19 @@ class Command(BaseCommand):
         for page in Page.objects.filter(appartenances_dossiers__dossier=ancien).distinct():
             autres = page.appartenances_dossiers.exclude(dossier=ancien).exists()
             if not autres:
+                # Defaire l'ancrage AVANT la note. Une analyse produit
+                # des ancrages ; un ancrage protege son ElementDocument,
+                # qui protege sa Page — `page.delete()` seul etait donc
+                # refuse des la premiere execution reussie
+                # (ProtectedError, constate le 15 aout 2026). On defait
+                # dans l'ordre inverse de la construction : ancrages,
+                # elements, puis la note.
+                # / Undo the anchoring before the note: an anchor
+                # protects its element, which protects its page.
+                AncrageExtraction.objects.filter(
+                    element__page=page,
+                ).delete()
+                page.elements.all().delete()
                 page.delete()
         ancien.delete()
         self.stdout.write("Carnet précédent supprimé (--reset).")
@@ -291,6 +428,19 @@ class Command(BaseCommand):
             status="pending",
             raw_result={"analyseur_id": analyseur.pk},
         )
+        # En asynchrone, la tache part dans la file Celery : le worker la
+        # prendra, et l'utilisateur en suit l'avancement depuis le menu
+        # des taches. L'installation n'attend donc pas le modele.
+        # / Asynchronously the task goes to the Celery queue; the install
+        # does not wait on the model.
+        if getattr(self, "asynchrone", False):
+            analyser_une_page_avec_le_moteur_element.delay(job.pk)
+            self.stdout.write(
+                f"  Analyse envoyée dans la file Celery (job {job.pk}, "
+                f"{ai_model}).",
+            )
+            return
+
         self.stdout.write(f"  Appel LLM réel ({ai_model})…")
         analyser_une_page_avec_le_moteur_element.apply(args=[job.pk])
         job.refresh_from_db()
