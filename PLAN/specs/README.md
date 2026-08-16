@@ -30,9 +30,10 @@ décrivent une **couche du produit** et se placent sous l'autorité d'une maquet
 celle-là décrit une **brique d'infrastructure** — remplacer l'API Mistral Voxtral
 par une chaîne locale — et son étalon est une transcription humaine, pas un écran.
 
-Elle est **spécifiée, mesure non faite** : le protocole et le banc d'essai sont
-écrits, aucun chiffre n'a encore été relevé sur notre matériel. Son § 7 dit ce
-qu'il reste à mesurer avant de pouvoir trancher.
+**Son état est écrit dans son propre en-tête, et le chantier est suivi dans
+`PLAN/PASSATION.md § 5.4`** — il n'est pas recopié ici. Deux copies d'un même état
+finissent toujours par diverger, et c'est ce que la ligne précédente faisait
+jusqu'au 16 août 2026.
 
 ## Comment les lire
 

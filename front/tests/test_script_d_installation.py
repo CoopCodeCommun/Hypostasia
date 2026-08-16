@@ -84,6 +84,39 @@ def _contenu_du_makefile():
     return (Path(settings.BASE_DIR) / "Makefile").read_text(encoding="utf-8")
 
 
+def _est_absent_d_un_clone_frais(nom_du_dossier):
+    """
+    Ce dossier est-il exclu du depot, donc absent d'un clone frais ?
+    / Is this directory excluded from the repo, hence missing on a
+    fresh clone?
+
+    LOCALISATION : front/tests/test_script_d_installation.py
+
+    On lit `.gitignore`, et NON le systeme de fichiers : sur une
+    machine de developpement, `media/` est plein depuis des semaines —
+    l'y trouver ne dit rien de ce qu'un clone neuf recevra. C'est
+    justement l'ecart entre les deux qui a produit la panne de
+    production du 16 aout 2026.
+    / We read .gitignore, NOT the filesystem: on a dev machine media/
+    has been full for weeks, which says nothing about a fresh clone.
+
+    On lit le fichier plutot que d'appeler git : les tests tournent
+    dans le conteneur, ou git n'a pas a etre installe.
+    """
+    gitignore = (Path(settings.BASE_DIR) / ".gitignore").read_text(encoding="utf-8")
+    for ligne in gitignore.splitlines():
+        motif = ligne.strip()
+        if not motif or motif.startswith(("#", "!")):
+            continue
+        # `/media/`, `./staticfiles/*`, `/tmp/*` designent tous le meme
+        # dossier a la racine. / All three name the same top directory.
+        nom = motif.removeprefix("./").removeprefix("/")
+        nom = nom.removesuffix("/*").removesuffix("/")
+        if nom == nom_du_dossier:
+            return True
+    return False
+
+
 def _corps_de_la_cible(nom):
     """
     Rend les lignes du corps d'une cible, variables du Makefile resolues.
@@ -114,6 +147,12 @@ def _corps_de_la_cible(nom):
         if dans_la_cible:
             if ligne.startswith("\t"):
                 resolue = ligne.strip()
+                # Les commentaires de recette (`@#`) CITENT des
+                # commandes sans les lancer : les garder ferait passer
+                # un test au vert sur une simple mention.
+                # / Recipe comments name commands without running them.
+                if resolue.startswith("@#") or resolue.startswith("#"):
+                    continue
                 for cle, valeur in variables.items():
                     resolue = resolue.replace(f"$({cle})", valeur)
                 corps.append(resolue)
@@ -364,6 +403,116 @@ class LInstallationFabriqueSonFichierDEnvironnementTest(TestCase):
                         "on peut donc les mettre en desaccord, et le "
                         "site rend 502 sur toutes ses pages."
                     )
+
+    def test_les_dossiers_montes_sont_crees_avant_les_conteneurs(self):
+        """
+        Docker cree un point de montage absent en ROOT.
+        / Docker creates a missing bind-mount source as ROOT.
+
+        LOCALISATION : front/tests/test_script_d_installation.py
+
+        `docker-compose.yml` monte `./staticfiles` et `./media` dans
+        nginx. Ni l'un ni l'autre n'est suivi par git : un clone frais ne
+        les contient pas. Au premier `docker compose up -d`, c'est le
+        DEMON Docker — donc root — qui les cree, en `root:root` 755. Le
+        conteneur web, lui, tourne en uid 1000 (`USER hypostasia`,
+        Dockerfile) : `collectstatic` ne peut plus creer
+        `staticfiles/admin`, `bin/install.sh` s'arrete sous `set -e`, et
+        la politique `restart: unless-stopped` relance le conteneur en
+        boucle.
+
+        Mesure du 16 aout 2026, `docker run -v <chemin absent>:/x` :
+        le dossier apparait en `0 0` (root:root), et un `mkdir` par
+        l'uid 1000 rend « Permission denied ». Panne constatee en
+        production le meme jour, sur un clone neuf.
+
+        Le `mkdir -p` de `bin/install.sh` ne rattrape RIEN : il tourne
+        dans le conteneur, apres coup, et `mkdir -p` reussit sur un
+        dossier existant quel qu'en soit le proprietaire. Les dossiers
+        doivent donc etre crees SUR L'HOTE, avant que Docker n'y pense.
+        / install.sh's mkdir -p catches nothing: it runs inside the
+        container, too late, and mkdir -p succeeds on an existing
+        directory whoever owns it.
+        """
+        corps = _corps_de_la_cible("install")
+
+        rang_des_dossiers = _rang_de(corps, "mkdir -p")
+        rang_du_demarrage = _rang_de(corps, "docker compose up")
+
+        self.assertIsNotNone(
+            rang_des_dossiers,
+            "`make install` ne cree aucun dossier sur l'hote : Docker "
+            "creera staticfiles/ et media/ en root, et le conteneur web "
+            "bouclera sur une PermissionError.",
+        )
+        self.assertLess(
+            rang_des_dossiers,
+            rang_du_demarrage,
+            "Les dossiers sont crees APRES le demarrage des conteneurs : "
+            "Docker les a deja crees, en root.",
+        )
+
+        ligne = corps[rang_des_dossiers]
+        for dossier in ("staticfiles", "media"):
+            with self.subTest(dossier=dossier):
+                self.assertIn(
+                    dossier,
+                    ligne,
+                    f"{dossier}/ est monte par nginx et absent d'un "
+                    f"clone frais : Docker le creera en root.",
+                )
+
+    def test_aucun_montage_hote_n_echappe_a_cette_precaution(self):
+        """
+        Un montage ajoute demain retombera dans le meme piege.
+        / A mount added tomorrow falls into the same trap.
+
+        LOCALISATION : front/tests/test_script_d_installation.py
+
+        Ce test relit `docker-compose.yml` : tout chemin hote monte doit
+        soit exister dans le depot (donc arriver avec le clone), soit
+        etre cree par `make install` avant le demarrage. Sans lui, la
+        panne de production du 16 aout 2026 se rejouerait a la premiere
+        ligne de volume ajoutee.
+        / Every host path mounted must either ship with the clone or be
+        created by make install before startup.
+        """
+        import re
+
+        compose = (Path(settings.BASE_DIR) / "docker-compose.yml").read_text(
+            encoding="utf-8"
+        )
+        chemins_montes = set()
+        for ligne in compose.splitlines():
+            trouve = re.match(r"\s*-\s+\./([A-Za-z0-9_-]+)[/:]", ligne)
+            if trouve:
+                chemins_montes.add(trouve.group(1))
+
+        self.assertTrue(chemins_montes, "Aucun montage hote trouve : test creux.")
+
+        corps_de_l_install = "\n".join(_corps_de_la_cible("install"))
+        montages_absents_du_clone = [
+            chemin for chemin in sorted(chemins_montes)
+            if _est_absent_d_un_clone_frais(chemin)
+        ]
+
+        self.assertIn(
+            "media",
+            montages_absents_du_clone,
+            "media/ n'est plus ignore par git : ce test ne verifie plus "
+            "rien. Le relire avant de le croire.",
+        )
+
+        for chemin in montages_absents_du_clone:
+            with self.subTest(montage=chemin):
+                self.assertIn(
+                    chemin,
+                    corps_de_l_install,
+                    f"`./{chemin}` est monte par docker-compose et "
+                    f"absent d'un clone frais, mais `make install` ne le "
+                    f"cree pas : Docker le creera en root, et le "
+                    f"conteneur web ne pourra pas y ecrire.",
+                )
 
     def test_l_absence_de_terminal_ne_bloque_pas_l_installation(self):
         # Le script tourne aussi quand `make install` est appele depuis

@@ -271,6 +271,38 @@ Donc : **mesurer avant de conclure.** Comparer largeur de colonne de lecture,
 interlignes, tailles de police, hauteurs de bandes, en 1600 px et en mobile.
 S'il n'y a rien, le dire — c'est un résultat.
 
+### 5.4 La transcription audio en local — ouvert le 16 août
+
+Seul chantier de ce fichier qui ne soit pas d'UX/UI : il est ici parce que c'est
+l'endroit prévu pour les chantiers ouverts, et qu'il porte trois décisions en
+attente (§ 6).
+
+**L'état cible et le protocole sont dans `PLAN/specs/SPEC-transcription-audio-locale.md`.**
+Ne pas les recopier ici — cette entrée ne dit que ce qui bouge.
+
+**Où on en est** : rien n'est mesuré. Le banc d'essai est écrit et compile sans
+avertissement (vérifié le 16 août), le matériau de test est choisi, et le § 7 de
+la spec donne les huit étapes à dérouler. La première session s'est arrêtée pendant
+le téléchargement des 2,4 Go de l'encodeur.
+
+**Les trois choses à savoir avant d'y toucher** :
+
+- **Ce n'est pas un changement d'hébergement, c'est un changement d'architecture.**
+  Le modèle Voxtral que nous appelons (`voxtral-mini-latest`, avec `diarize=True`)
+  est le seul de la famille à diariser, et il n'a **pas de poids publics**. En
+  local il faut reconstruire **deux** étages : un ASR *et* un diariseur.
+- **`max_speakers` (défaut 5, `core/models.py:1089`) n'est jamais envoyé à l'API.**
+  Il traverse `tasks.py:623` → `transcription_audio.py:52` et finit dans un
+  `logger.info`. Il dit notre *intention*, pas le comportement actuel. Ça compte,
+  parce que le diariseur candidat (Sortformer) plafonne à **4** locuteurs, et que
+  son mode de panne au-delà est **silencieux** : la sortie reste plausible.
+- **Le banc n'existe que dans les annexes de la spec.** Le scratchpad où il vivait
+  a déjà été purgé une fois. Les annexes A à G sont intégrales et suffisent à tout
+  reconstruire — ne pas les alléger.
+
+**Résultats à consigner** dans un `CHANGELOG/AAAA-MM-JJ-transcription-locale.md`,
+pas ici.
+
 ---
 
 ## 6. Décisions en attente du mainteneur
@@ -282,6 +314,24 @@ rien — c'est une décision de **modèle**, pas de rendu. L'audio a son garde-f
 (`BUDGET_MAXIMUM_PAR_ELEMENT_AUDIO = 1500`, avec découpe en phrases) ; les
 tableaux n'en ont aucun. Découper par ligne à l'ingestion, ou assumer le bloc :
 signalée deux fois, jamais tranchée.
+
+**Combien de voix dans les enregistrements réels ?** (chantier 5.4) C'est la
+question qui commande toute l'architecture de la transcription locale. Le
+diariseur candidat plafonne à **4 locuteurs**, notre `max_speakers` vaut **5**, et
+au-delà de 4 la sortie est fausse **sans le dire**. À 3-4 voix, la pile candidate
+est excellente et gère même la parole superposée ; à 6-8, il faut un autre modèle
+(Ultra-Sortformer) ou un autre diariseur. Tant que ce chiffre n'est pas connu, le
+banc ne peut pas conclure.
+
+**Faut-il un DER sur la diarisation ?** (chantier 5.4) La transcription humaine
+qui sert d'étalon **n'a aucun horodatage** : on peut mesurer le WER du texte, pas
+le taux d'erreur de diarisation. Un vrai DER suppose d'annoter à la main les
+frontières de tours sur un extrait — quelques heures de travail. À arbitrer avant
+de s'y engager, pas après.
+
+**Où ranger le banc d'essai ?** (chantier 5.4) Il n'existe aujourd'hui que dans
+les annexes de sa spec, faute d'un emplacement décidé pour du code qui n'est pas
+du code de production.
 
 ---
 

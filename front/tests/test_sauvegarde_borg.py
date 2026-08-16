@@ -1137,6 +1137,11 @@ class LInstallationVerifieLaProductionTest(TestCase):
                 # / A target's body is tab-indented.
                 if ligne.startswith("\t"):
                     resolue = ligne.strip()
+                    # Les commentaires de recette (`@#`) CITENT des
+                    # commandes sans les lancer.
+                    # / Recipe comments name commands without running them.
+                    if resolue.startswith("@#") or resolue.startswith("#"):
+                        continue
                     for cle, valeur in variables.items():
                         resolue = resolue.replace(f"$({cle})", valeur)
                     corps.append(resolue)

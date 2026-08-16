@@ -174,6 +174,21 @@ install: .verif-docker  ## TOUT : conteneurs + installation + services (idempote
 	@# rien si le fichier existe deja.
 	@# / The .env first: compose reads it.
 	@bash $(SCRIPT_DE_CONFIGURATION)
+	@# LES DOSSIERS MONTES, CREES PAR L'HOTE — sinon c'est le DEMON
+	@# Docker qui les cree, donc root. `staticfiles/` et `media/` sont
+	@# montes dans nginx et absents d'un clone frais (git les ignore) :
+	@# au premier `up -d`, Docker les pose en root:root, et le conteneur
+	@# web — qui tourne en uid 1000 — ne peut plus y ecrire.
+	@# `collectstatic` echoue, `bin/install.sh` s'arrete sous `set -e`,
+	@# et `restart: unless-stopped` relance le conteneur en boucle.
+	@# Constate en production le 16 aout 2026, sur un clone neuf.
+	@#
+	@# Le `mkdir -p` de bin/install.sh ne rattrape rien : il tourne DANS
+	@# le conteneur, apres coup, et `mkdir -p` reussit sur un dossier
+	@# existant quel qu'en soit le proprietaire.
+	@# / Created by the HOST, or the Docker daemon creates them as root
+	@# and the uid-1000 web container can no longer write in them.
+	@mkdir -p staticfiles media logs tmp/audio
 	docker compose up -d
 	@echo "--- attente des services (premiere install : ~3 min, conversions PDF) ---"
 	@socket=$(SOCKET_DU_MODE); \
