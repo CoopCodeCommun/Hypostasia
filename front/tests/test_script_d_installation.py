@@ -49,7 +49,7 @@ SCRIPT_DE_DEMARRAGE_PROD = f"{REPERTOIRE_DES_SCRIPTS}/start-prod.sh"
 
 COMMANDE_DES_DOCUMENTS = "charger_fixtures_sample"
 COMMANDE_DES_EXTRACTIONS = "charger_extractions_demo"
-COMMANDE_DU_LLM = "charger_fixtures_llm_reel"
+COMMANDE_DU_LLM = "analyser_les_notes_etalons"
 
 
 def _lignes_utiles(chemin_relatif):
@@ -120,23 +120,29 @@ class LInstallationChargeLeBonJeuDeDonneesTest(TestCase):
             "ce qu'apporte une analyse par le vrai modele.",
         )
 
-    def test_l_analyse_par_le_llm_ne_se_refacture_pas_a_chaque_demarrage(self):
-        # Le conteneur rejoue l'installation a CHAQUE demarrage. Sans
-        # `--si-absent`, un simple redemarrage renverrait des appels
-        # payants. / Without --si-absent, every restart re-bills.
+    def test_l_analyse_est_lancee_sans_option_de_garde(self):
+        """
+        L'idempotence n'est plus une option, c'est le comportement.
+        / Idempotency is no longer an option but the behaviour.
+
+        LOCALISATION : front/tests/test_script_d_installation.py
+
+        L'ancienne commande, `charger_fixtures_llm_reel`, rejouait de
+        vrais appels payants a chaque execution : il fallait lui passer
+        `--si-absent` et `--asynchrone` pour la rendre supportable dans
+        un script que le conteneur relance a chaque demarrage.
+
+        `analyser_les_notes_etalons` n'analyse par construction que ce
+        qui ne l'est pas encore, et envoie toujours dans la file. Une
+        option de garde ici signalerait un retour en arriere.
+        / The previous command replayed billed calls on every run and
+        needed guard flags; this one is guarded by construction.
+        """
         lignes = _lignes_utiles(SCRIPT_D_INSTALLATION)
         ligne_du_llm = lignes[_rang_de(lignes, COMMANDE_DU_LLM)]
 
-        self.assertIn("--si-absent", ligne_du_llm)
-
-    def test_l_analyse_part_dans_la_file_celery(self):
-        # L'installation ne doit pas attendre le modele : les analyses se
-        # suivent depuis le menu des taches de l'administrateur.
-        # / The install must not wait on the model.
-        lignes = _lignes_utiles(SCRIPT_D_INSTALLATION)
-        ligne_du_llm = lignes[_rang_de(lignes, COMMANDE_DU_LLM)]
-
-        self.assertIn("--asynchrone", ligne_du_llm)
+        self.assertNotIn("--si-absent", ligne_du_llm)
+        self.assertNotIn("--forcer", ligne_du_llm)
 
     def test_l_ordre_des_etapes_est_tenu(self):
         # Les extractions s'ancrent sur des elements que la premiere

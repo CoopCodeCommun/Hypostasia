@@ -4363,15 +4363,38 @@ class DrawerAmelioreEndpointTest(TestCase):
         self.assertIn("typo-citation", contenu)
 
     def test_drawer_contenu_affiche_nom_commentateur(self):
-        """A.8 : le drawer affiche le nom du commentateur (layout Facebook-like
-        avec font-semibold) au lieu de la typo-lecteur-nom (Srisakdi italique).
-        / A.8: drawer shows commenter name (Facebook-like layout with font-semibold)."""
+        """
+        A.8 : le drawer affiche le nom du commentateur EN GRAS, et non
+        dans la typo-lecteur-nom (Srisakdi), trop grande pour une carte.
+        / A.8: the drawer shows the commenter's name in bold, not in the
+        Srisakdi reader face, which is too large for a card.
+
+        CE QUE CE TEST VERIFIE, ET CE QU'IL NE VERIFIE PLUS
+
+        Il exigeait la classe utilitaire `font-semibold`. Le gras vient
+        desormais de la feuille de style (`.carte-commentaire .qui`,
+        maquette.css) : la classe utilitaire a disparu, le gras est
+        reste. Une assertion sur `font-semibold` ne disait donc plus
+        rien de ce que voit le lecteur — elle figeait un MOYEN, quand la
+        decision A.8 porte sur un RESULTAT.
+
+        On verifie donc les deux moities de cette decision : le nom est
+        la, et il n'est PAS passe en Srisakdi.
+        / It used to require the `font-semibold` utility; the boldness
+        now comes from the stylesheet. The assertion pinned a means, not
+        the A.8 outcome — so we check the outcome instead.
+        """
         url = f"/extractions/drawer_contenu/?page_id={self.page_test.pk}"
         reponse = self.client.get(url)
         contenu = reponse.content.decode("utf-8")
-        # Le nom (font-semibold) doit apparaitre en gras dans le bloc commentaires
-        # / Name (font-semibold) must appear bold in comments block
-        self.assertIn("font-semibold", contenu)
+
+        # Le nom du commentateur est ecrit, dans le porteur du gras.
+        # / The name is written, inside the element carrying the bold.
+        self.assertIn('class="qui', contenu)
+        self.assertIn("Alice_Drawer", contenu)
+        # Et il n'a pas repris la typo Srisakdi que A.8 a ecartee.
+        # / And it did not take back the Srisakdi face A.8 ruled out.
+        self.assertNotIn("typo-lecteur-nom", contenu)
 
 
 

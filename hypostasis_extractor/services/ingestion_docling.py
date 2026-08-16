@@ -46,6 +46,19 @@ LABELS_SANS_CONTENU_UTILE = {
     "footnote",
 }
 
+# Les labels qu'on accepte de RECOLLER quand ils se suivent dans un meme
+# groupe inline de Docling — c'est-a-dire quand ils sont les morceaux
+# d'une seule et meme phrase, coupee par une balise de mise en forme.
+#
+# `text` couvre le gras et l'italique ; `code` couvre les backticks
+# simples. Un titre, une puce ou un tableau n'y figurent PAS : ce sont
+# des structures, pas de la mise en forme, et les recoller effacerait
+# une frontiere que l'auteur a posee.
+# / Labels we accept to rejoin inside one Docling inline group: the
+# pieces of a single sentence split by formatting. Headings, list items
+# and tables are structure, never formatting.
+LABELS_RECOLLABLES_EN_LIGNE = {"text", "code"}
+
 # Les extensions que Docling sait convertir en structure (BR-B).
 # Le texte brut (.txt) n'en fait pas partie : il n'a pas de structure a
 # decouper, il reste sur l'ancien pipeline. Le .json de transcription a
@@ -304,7 +317,7 @@ def extraire_les_elements_bruts(document_docling):
             "provenance": _provenance_de_l_element(element_docling),
         }
 
-        # UN GRAS NE COUPE PAS UNE PHRASE.
+        # NI UN GRAS NI UN `code` NE COUPENT UNE PHRASE.
         #
         # Docling range les fragments d'une meme ligne dans un GROUPE
         # INLINE : un `<strong>` au milieu d'un paragraphe produit deux
@@ -314,22 +327,46 @@ def extraire_les_elements_bruts(document_docling):
         # ecrit un. On recolle DANS un groupe, jamais entre deux — et
         # jamais un titre ni une puce, qui sont de la structure, pas de
         # la mise en forme.
-        # / Inline groups are formatting; rejoin them, never lists.
+        #
+        # LE `code` INLINE COMPTE PARMI CES FRAGMENTS, et c'est ce qui
+        # manquait : un backtick au milieu d'une phrase ne produit pas un
+        # item `text` mais un item de label `code`, que la condition
+        # `label == "text"` laissait passer. Chaque nom de fichier cite
+        # devenait donc un BLOC a lui seul — `BALISE_PAR_LABEL["code"]`
+        # vaut `pre` (front/services/rendu_elements.py) — et une phrase
+        # de trois citations se lisait en six blocs empiles, chacun avec
+        # sa gouttiere et son numero. Mesure du 15 aout sur la note
+        # « Presentation Hypostasia V3 » : une phrase etalee sur trois
+        # ecrans.
+        #
+        # DOCLING PORTE LUI-MEME LA DISTINCTION, il n'y a rien a deviner :
+        # un `code` inline a pour parent un groupe `inline`, un VRAI bloc
+        # de code (triples backticks) a pour parent `#/body` et n'a donc
+        # aucun groupe. Aucune heuristique de longueur n'est necessaire.
+        # / Inline groups are formatting; rejoin them, never lists. An
+        # inline `code` is one of those fragments — Docling itself tells
+        # it apart from a real code block by its parent group.
         groupe = _groupe_inline_de_l_element(element_docling, document_docling)
         if (
             groupe is not None
-            and label == "text"
+            and label in LABELS_RECOLLABLES_EN_LIGNE
             and elements_bruts
             and elements_bruts[-1].get("_groupe_inline") == groupe
-            # Le precedent doit etre du TEXTE lui aussi : un titre porte
+            # Le precedent doit etre recollable lui aussi : un titre porte
             # la meme marque de groupe que le paragraphe qui le suit, et
             # sans cette condition le texte se recollait DANS le titre.
             # / A heading shares the group mark; never merge into it.
-            and elements_bruts[-1].get("label") == "text"
+            and elements_bruts[-1].get("label") in LABELS_RECOLLABLES_EN_LIGNE
         ):
             elements_bruts[-1]["texte"] = (
                 elements_bruts[-1]["texte"].rstrip() + " " + texte.lstrip()
             )
+            # LE RESULTAT EST DU TEXTE, meme si le fragment d'ouverture
+            # etait du code : une phrase qui COMMENCE par un nom de
+            # fichier (« `Page` porte le titre… ») garderait sinon le
+            # label `code`, et la phrase entiere partirait en `<pre>`.
+            # / The merged result is prose, even when it opens on code.
+            elements_bruts[-1]["label"] = "text"
             continue
 
         element_brut["_groupe_inline"] = groupe

@@ -18,9 +18,9 @@ docker compose up -d
   └─ bin/start-dev.sh   (DEBUG=true)   |   bin/start-prod.sh  (DEBUG=false)
        └─ bin/install.sh
             ├─ migrate, collectstatic
-            ├─ charger_fixtures_sample      6 documents, la base, le carnet
-            ├─ charger_extractions_demo     extractions + commentaires
-            └─ charger_fixtures_llm_reel    2 notes → VRAI LLM, en file Celery
+            ├─ charger_fixtures_sample       6 documents, la base, le carnet
+            ├─ charger_extractions_demo      extractions à la main (cas limites)
+            └─ analyser_les_notes_etalons    5 notes → VRAI modèle, en file Celery
        └─ supervisord (PID 1)
             dev  : runserver:8000 + 2 workers Celery
             prod : gunicorn:8001 + daphne:8000 + 2 workers Celery
@@ -28,11 +28,15 @@ docker compose up -d
 
 Les scripts sont dans **`bin/`** et s'exécutent **dans le conteneur** —
 c'est ce qui leur permet de tourner au démarrage sans hôte. Le Makefile
-vit sur l'hôte et ne fait que les appeler : `make fixtures` lance
-`bash bin/install.sh fixtures`, il ne recopie aucune commande.
+vit sur l'hôte et ne fait que les appeler ; il ne recopie aucune commande.
 
-Chaque étape est appelable seule :
-`bash bin/install.sh fixtures | statiques | llm`.
+**Pour tout refaire : `docker compose down -v && make install`.** Une
+seule voie, donc aucun doute sur l'état de la base. Les cibles
+`make fixtures` et `make fixtures-llm` ont existé une journée puis ont
+été retirées comme redondantes : un rechargement partiel laisse un
+mélange, moitié données d'avant, moitié d'après. Les étapes restent
+appelables à la main : `docker exec -w /app hypostasia_web bash
+bin/install.sh fixtures` (ou `statiques`, ou `llm`).
 
 Premier passage ~3 min (deux conversions PDF Docling). Passages suivants
 **10 s** : tout est idempotent, rien n'est refait, **rien n'est
@@ -72,8 +76,24 @@ refacturé**.
    doit afficher « Démonstration déjà analysée par le modèle — rien à
    refaire ». Si elle relance des appels, la garde est cassée.
 
-5. **`make fixtures-llm`** (rejoue les analyses, **facturé**, demande
-   confirmation) : vérifie que répondre autre chose que `oui` annule.
+5. **Un seul carnet.** `/carnets/` ne doit montrer que « Documents
+   étalons ». Le carnet « Démonstration — moteur réel » et ses deux
+   textes inventés ont été supprimés le 15 août 2026.
+
+6. **Les extractions viennent bien du modèle.** Ouvre « Débat IA » ou
+   « Présentation des Open Badges » : elles n'avaient **aucune**
+   extraction avant ce chantier, elles en portent maintenant 21 et 30,
+   produites par Gemini. « Badgeons », « Palais César » et « Étude »
+   portent les deux origines — celles écrites à la main (cas limites de
+   design) et celles du modèle.
+
+7. **La Présentation V3 reste sans extraction**, volontairement : 549
+   éléments, 73 % du corpus. Pour l'analyser quand même (**facturé**) :
+   `docker exec -w /app hypostasia_web python manage.py
+   analyser_les_notes_etalons --forcer`.
+
+8. **Rejouer les analyses** (**facturé**) : `--forcer` sur la même
+   commande, ou `down -v` + `make install` pour repartir de zéro.
 
 6. **`reset_demo`.** Sur une base que tu peux perdre uniquement : la
    commande vide **puis** recharge. Avant ce chantier elle vidait sans
@@ -91,16 +111,18 @@ refacturé**.
 8. **`make` sans Docker.** `env PATH=/un/chemin/sans/docker make install`
    doit rendre un message clair, pas un « command not found ».
 
-## Ce qui reste ouvert
+## Les quatre fixtures JSON sont supprimées
 
-**Les quatre fixtures JSON ne sont supprimées.** Tu as validé leur
-suppression, mais je ne l'ai pas faite : les trois `demo_*.json` portent
-la correction du référentiel famille 4 de l'autre session, **non
-committée**. Les supprimer maintenant effacerait ce travail du working
-tree. Commite d'abord, je supprime ensuite — et je retire alors la liste
-`FIXTURES_PORTANT_LE_REFERENTIEL` de
-`hypostasis_extractor/tests/test_referentiel_des_hypostases.py`, sinon ce
-test échouera.
+Fait après ton commit `58d18df` — elles y restent, donc récupérables.
+`front/fixtures/` n'existe plus. La classe qui surveillait leurs douze
+copies du référentiel a été retirée du test, avec la raison inscrite à sa
+place ; les quatre sources de code restent verrouillées.
+
+Un message d'erreur de `front/views.py` disait encore « Chargez la
+fixture demo_ia.json » — il envoyait vers un fichier disparu. Il dit
+maintenant « Lancez `make fixtures` ».
+
+## Ce qui reste ouvert
 
 **Ta base actuelle est mélangée.** Elle porte encore les cinq notes
 fictives de mon premier `make install` (avant correction), et `marie`

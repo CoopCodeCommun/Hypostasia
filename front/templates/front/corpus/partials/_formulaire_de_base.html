@@ -1,0 +1,170 @@
+{% comment %}
+LE FORMULAIRE D'UNE BASE DE CONNAISSANCES — creation ET edition.
+LOCALISATION : front/templates/front/corpus/partials/_formulaire_de_base.html
+
+UN SEUL GABARIT POUR DEUX GESTES. Les champs d'une base doivent se
+presenter pareil qu'on la fabrique ou qu'on la corrige : deux gabarits
+auraient diverge des la premiere retouche, exactement comme la carte de
+base avant son extraction en partial le 12 aout.
+
+Attend dans le contexte :
+  `mode`  — "creation" ou "edition" (le SEUL parametre, passe par
+            l'argument `with mode="..."` de l'include) ;
+  `base`  — en mode edition seulement, la base a modifier ;
+  `niveaux_de_visibilite` — en mode edition seulement, les trois
+            couples (valeur, libelle) poses par la vue.
+
+CE QUE CHAQUE MODE MONTRE, ET POURQUOI CE N'EST PAS LA MEME CHOSE
+
+  creation : le nom, seul.
+  edition  : le nom, la description, la couverture, la visibilite.
+
+La creation vit dans une CELLULE DE LA GRILLE des bases, a cote des
+cartes : un televersement d'image et un bloc de trois choix y feraient
+eclater la maille. Et au moment ou l'on cree une base, on ne sait pas
+encore quoi ecrire dans sa description — on la remplit quand elle a du
+contenu. Un carnet se cree de la meme facon (nom seul, le reste dans
+« Gerer ce carnet ») : les deux objets restent symetriques.
+/ One template, two gestures, so the fields cannot drift apart. Creation
+shows the name only — it lives in a grid cell, and a description written
+before the base has any content is a field everyone skips.
+{% endcomment %}
+
+{% if mode == "creation" %}
+<form class="carte-creation-base"
+      hx-post="/bases/" hx-target="#zone-lecture" hx-swap="innerHTML"
+      data-testid="corpus-base-creer-form">
+
+    {% comment %}
+    UN SEUL TEXTE, qui sert de titre a la carte ET d'etiquette au champ.
+    La cellule ne porte qu'un champ : un titre plus une etiquette y
+    diraient deux fois la meme chose, dans une case large de quelques
+    centimetres. Le carnet, lui, se cree dans un bloc pleine largeur
+    apres la liste, ou les deux textes ont la place de coexister.
+    / One text serving as both card title and field label: the cell
+    holds a single field, so a separate title would say it twice.
+    {% endcomment %}
+    <label class="champ-etiquette" for="creer-base-nom">+ Nouvelle base</label>
+    <input type="text" name="nom" id="creer-base-nom" maxlength="200"
+           class="champ-texte" required
+           placeholder="Réseau des tiers-lieux"
+           data-testid="corpus-base-creer-nom">
+
+    <button type="submit" class="bouton-plat principal"
+            data-testid="corpus-base-creer-bouton">Créer</button>
+</form>
+
+{% else %}
+{% comment %}
+`enctype="multipart/form-data"` ET `hx-encoding` : sans LES DEUX, le
+fichier n'arrive jamais au serveur et l'echec est SILENCIEUX — la
+description passe, l'image non.
+/ Both attributes are required, or the upload fails silently.
+{% endcomment %}
+<form class="formulaire-de-base"
+      enctype="multipart/form-data"
+      hx-post="/bases/{{ base.slug }}/editer/"
+      hx-encoding="multipart/form-data"
+      hx-target="#zone-lecture" hx-swap="innerHTML"
+      data-testid="corpus-base-editer-form">
+
+    {% comment %}
+    LE NOM EST MODIFIABLE depuis le 15 aout. Il ne l'etait nulle part :
+    l'admin Django est ferme, et la creation etait la seule occasion de
+    l'ecrire — une faute de frappe y devenait definitive.
+    Le champ est PRE-REMPLI, jamais vide : on voit le nom actuel pendant
+    qu'on tape le nouveau, comme au renommage d'un carnet.
+    / The name became editable: with the Django admin closed, a typo
+    made at creation used to be permanent. Pre-filled, like a notebook.
+    {% endcomment %}
+    <label class="champ-etiquette" for="editer-nom-{{ base.slug }}">Nom</label>
+    <input type="text" class="champ-texte"
+           id="editer-nom-{{ base.slug }}"
+           name="nom" value="{{ base.nom }}" maxlength="200" required
+           data-testid="corpus-base-editer-nom">
+    <p class="aide-champ">
+        L&rsquo;adresse de la base ne change pas :
+        <code>/bases/{{ base.slug }}/</code> reste valide, et les liens
+        d&eacute;j&agrave; partag&eacute;s continuent d&rsquo;ouvrir cette page.
+    </p>
+
+    <label class="champ-etiquette" for="editer-description-{{ base.slug }}">
+        Description
+    </label>
+    <textarea class="champ-texte" rows="3"
+              id="editer-description-{{ base.slug }}"
+              name="description"
+              placeholder="Ce que cette base rassemble, et pour qui."
+              data-testid="corpus-base-editer-description">{{ base.description }}</textarea>
+
+    <label class="champ-etiquette" for="editer-couverture-{{ base.slug }}">
+        Couverture
+    </label>
+    <input type="file" class="champ-texte"
+           id="editer-couverture-{{ base.slug }}"
+           name="image_de_couverture"
+           accept="image/*"
+           data-testid="corpus-base-editer-couverture">
+    <p class="aide-champ">
+        Facultative. Recadr&eacute;e en 16/9 sur la carte ; sans elle, la
+        carte garde sa cote color&eacute;e.
+    </p>
+
+    {% comment %}
+    LA VISIBILITE EN TROIS RADIOS, pas en menu deroulant : les trois
+    etats sont visibles en meme temps, et celui qui est actif se lit
+    sans ouvrir quoi que ce soit. Le carnet les rend en trois boutons
+    qui postent immediatement ; ici le geste s'enregistre avec le reste
+    du formulaire, donc des radios — un bouton qui part seul au milieu
+    d'un formulaire a bouton « Enregistrer » ferait douter de ce qui est
+    deja pris en compte.
+    Le `fieldset` porte le nom du groupe : sans lui, un lecteur d'ecran
+    annonce trois radios sans dire de quoi elles parlent.
+    / Three radios, not a dropdown: all states readable at once. The
+    notebook posts each choice immediately, but here the change is saved
+    with the rest of the form, so radios avoid ambiguity about what is
+    already applied. The fieldset names the group for screen readers.
+    {% endcomment %}
+    <fieldset class="groupe-visibilite" data-testid="corpus-base-editer-visibilite">
+        <legend class="champ-etiquette">Visibilité</legend>
+        {% for valeur, libelle in niveaux_de_visibilite %}
+        <label class="choix-visibilite">
+            <input type="radio" name="visibilite" value="{{ valeur }}"
+                   {% if base.visibilite == valeur %}checked{% endif %}
+                   data-testid="corpus-base-visibilite-choix-{{ valeur }}">
+            {{ libelle }}
+        </label>
+        {% endfor %}
+        <p class="aide-champ">
+            Priv&eacute;e : vous seul. Partag&eacute;e : les personnes
+            invit&eacute;es. Publique : toute personne qui a le lien.
+        </p>
+    </fieldset>
+
+    <button type="submit" class="bouton-plat"
+            data-testid="corpus-base-editer-bouton">Enregistrer</button>
+</form>
+
+{% comment %}
+SUPPRIMER — HORS DU FORMULAIRE, et volontairement. Un bouton de
+destruction place a l'interieur d'un `<form>` se soumet au clavier comme
+n'importe quel bouton du formulaire ; il est ici un frere, separe par un
+filet, pour qu'aucun geste d'enregistrement ne puisse l'atteindre par
+megarde.
+
+LE LIBELLE DE CONFIRMATION DIT CE QUI SURVIT ET CE QUI PART. « Etes-vous
+sur ? » ne renseigne sur rien : ici la question compte les carnets qui
+ressortiront intacts et les axes qui, eux, disparaissent avec la base.
+Meme facon de faire que la suppression d'un carnet, qui annonce le sort
+de ses notes.
+/ Outside the form, so no keyboard submit can reach it. The confirmation
+counts what survives and what does not, like the notebook's.
+{% endcomment %}
+<div class="rangee-boutons separee-du-formulaire">
+    <button type="button" class="bouton-plat danger"
+            hx-delete="/bases/{{ base.slug }}/"
+            hx-target="#zone-lecture" hx-swap="innerHTML"
+            hx-confirm="Supprimer la base « {{ base.nom }} » ? Ses carnets ne sont pas supprimés : ils ressortent simplement de cette base et restent dans « Carnets ». En revanche, ses axes de classement et leurs catégories disparaissent avec elle."
+            data-testid="corpus-base-supprimer">Supprimer cette base</button>
+</div>
+{% endif %}

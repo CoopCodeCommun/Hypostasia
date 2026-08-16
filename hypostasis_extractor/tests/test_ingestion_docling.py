@@ -495,6 +495,89 @@ class UnParagrapheNEstPasCoupeParUnGrasTest(TestCase):
             elements[0]["texte"], "Le badge permet de reconnaître des apprentissages.",
         )
 
+    def test_un_code_inline_ne_coupe_pas_la_phrase(self):
+        """
+        Un backtick au milieu d'une phrase ne sort PAS en item `text`
+        mais en item de label `code`, qui echappait a la regle de
+        recollage. Chaque nom de fichier cite devenait donc un bloc a lui
+        seul — `BALISE_PAR_LABEL["code"]` vaut `pre` — et une phrase de
+        trois citations se lisait en six blocs empiles, chacun avec sa
+        gouttiere et son numero.
+        / An inline backtick comes out as a `code` item, which escaped
+        the rejoin rule: every quoted filename became a block of its own.
+        """
+        document = _DocumentFeint([
+            _ItemFeint("text", "Le code", parent="#/groups/0"),
+            _ItemFeint("code", "synthetiser_page_task", parent="#/groups/0"),
+            _ItemFeint("text", "créait une nouvelle", parent="#/groups/0"),
+            _ItemFeint("code", "Page", parent="#/groups/0"),
+            _ItemFeint("text", "avec un numéro.", parent="#/groups/0"),
+        ], groupes_inline={"#/groups/0"})
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 1)
+        self.assertEqual(
+            elements[0]["texte"],
+            "Le code synthetiser_page_task créait une nouvelle Page "
+            "avec un numéro.",
+        )
+
+    def test_une_phrase_qui_OUVRE_sur_du_code_reste_du_texte(self):
+        """
+        Sans forcer le label du resultat, une phrase commencant par un
+        nom de fichier garderait le label `code` du premier fragment —
+        et la phrase entiere partirait en `<pre>`.
+        / Without forcing the merged label, a sentence opening on code
+        would keep the `code` label and render as a whole <pre>.
+        """
+        document = _DocumentFeint([
+            _ItemFeint("code", "Page", parent="#/groups/0"),
+            _ItemFeint("text", "porte le titre de la note.", parent="#/groups/0"),
+        ], groupes_inline={"#/groups/0"})
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 1)
+        self.assertEqual(elements[0]["label"], "text")
+
+    def test_un_VRAI_bloc_de_code_reste_un_bloc(self):
+        """
+        LA DISTINCTION EST PORTEE PAR DOCLING, pas par une heuristique de
+        longueur : un `code` inline a pour parent un groupe `inline`, un
+        bloc en triples backticks a pour parent `#/body` et n'a donc
+        aucun groupe. Ce test verrouille le cote qu'il ne faut pas
+        casser — un extrait de programme doit garder son `<pre>`.
+        / Docling itself tells them apart by the parent group; this locks
+        the side that must not break.
+        """
+        document = _DocumentFeint([
+            _ItemFeint("text", "Voici le code :", parent="#/groups/0"),
+            _ItemFeint("code", "def f():\n    return 1", parent=None),
+        ], groupes_inline={"#/groups/0"})
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 2)
+        self.assertEqual(elements[1]["label"], "code")
+        self.assertIn("def f():", elements[1]["texte"])
+
+    def test_un_titre_ne_capture_pas_le_code_qui_le_suit(self):
+        """
+        Un titre porte la meme marque de groupe que ce qui le suit. Sans
+        la garde sur le label du PRECEDENT, le code se recollerait dans
+        le titre. / A heading shares the group mark with what follows.
+        """
+        document = _DocumentFeint([
+            _ItemFeint("section_header", "Un titre", parent="#/groups/0"),
+            _ItemFeint("code", "manage.py", parent="#/groups/0"),
+        ], groupes_inline={"#/groups/0"})
+
+        elements = extraire_les_elements_bruts(document)
+
+        self.assertEqual(len(elements), 2)
+        self.assertEqual(elements[0]["texte"], "Un titre")
+
     def test_deux_groupes_inline_restent_deux_elements(self):
         # Recoller DANS un groupe, jamais ENTRE deux : ce sont deux
         # phrases distinctes. / Join within a group, never across.

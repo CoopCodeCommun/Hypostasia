@@ -1429,14 +1429,22 @@ class BaseViewSet(viewsets.ViewSet):
 
     permission_classes = [permissions.AllowAny]
 
-    def list(self, request):
-        """GET /bases/ — les bases visibles. / Visible bases."""
+    def list(self, request, slug_de_la_base_creee=None):
+        """
+        GET /bases/ — les bases visibles. / Visible bases.
+
+        :param slug_de_la_base_creee: pose par `create()` juste apres une
+            creation, pour que le gabarit sache LAQUELLE des cartes vient
+            d'apparaitre. Vaut None sur une simple consultation.
+            / Set by create() so the template knows which card is new.
+        """
         bases_a_afficher, nombre_total_de_carnets = (
             bases_visibles_avec_leurs_comptes(request.user)
         )
 
         contexte = {
             "bases": bases_a_afficher,
+            "slug_de_la_base_creee": slug_de_la_base_creee,
             "nombre_de_bases": len(bases_a_afficher),
             # DISTINCT : un carnet range dans deux bases ne compte
             # qu'une fois. Additionner les compteurs par base le
@@ -1499,6 +1507,19 @@ class BaseViewSet(viewsets.ViewSet):
             "axes": list(axes),
             "peut_ecrire": peut_ecrire,
             "carnets_disponibles": carnets_disponibles,
+            # Les trois niveaux, ecrits une fois : le gabarit boucle
+            # dessus plutot que de repeter trois blocs presque
+            # identiques. Meme cle et meme forme que le contexte du
+            # carnet (`_contexte_du_detail_du_carnet`), pour que le
+            # partial de formulaire n'ait pas a savoir qui l'appelle.
+            # / The three levels, written once — same key and shape as
+            # the notebook's context, so the shared form partial does
+            # not need to know its caller.
+            "niveaux_de_visibilite": [
+                (VisibiliteDossier.PRIVE, "privé"),
+                (VisibiliteDossier.PARTAGE, "partagé"),
+                (VisibiliteDossier.PUBLIC, "public"),
+            ],
         }
         if request.headers.get("HX-Request"):
             return render(request, "front/corpus/base_detail.html", contexte)
@@ -1514,14 +1535,23 @@ class BaseViewSet(viewsets.ViewSet):
         """
         from django.utils.text import slugify
 
+        from front.serializers import CreationDeBaseSerializer
+
         if not request.user.is_authenticated:
             return _reponse_acces_refuse(request)
 
-        nom_soumis = str(request.data.get("nom", "")).strip()
-        if not nom_soumis:
+        # La validation passe par un serializer, comme partout ailleurs
+        # dans le depot : il nettoie les balises HTML du nom, que la
+        # carte, le fil d'Ariane et le titre de page affichent ensuite.
+        # / Validation goes through a serializer, which strips HTML from
+        # the name displayed by the card, breadcrumb and page title.
+        serializer = CreationDeBaseSerializer(data=request.data)
+        if not serializer.is_valid():
             return render(request, "front/corpus/partials/erreurs_formulaire.html", {
-                "erreurs": {"nom": ["Le nom est obligatoire / Name is required"]},
+                "erreurs": serializer.errors,
             }, status=400)
+
+        nom_soumis = serializer.validated_data["nom"]
 
         # Slug unique : on suffixe si le nom est deja pris.
         # / Unique slug: suffix when the name is taken.
@@ -1535,30 +1565,45 @@ class BaseViewSet(viewsets.ViewSet):
         BaseDeConnaissances.objects.create(
             nom=nom_soumis, slug=slug_candidat, owner=request.user,
         )
-        return self.list(request)
+
+        # ON DIT LAQUELLE VIENT D'ETRE CREEE. La reponse est la grille
+        # ENTIERE, et les bases y sont rangees par nom : la nouvelle
+        # atterrit a sa place alphabetique, pas la ou l'oeil revient
+        # apres avoir clique « Creer ». Sur une dizaine de bases, il faut
+        # la chercher. Le gabarit la marque, et le CSS l'eclaire un
+        # instant.
+        # / The response is the whole grid, sorted by name: the new base
+        # lands at its alphabetical place, not where the eye returns.
+        return self.list(request, slug_de_la_base_creee=slug_candidat)
 
     @action(detail=True, methods=["POST"], url_path="editer")
     def editer(self, request, pk=None):
         """
-        POST /bases/{slug}/editer/ — description et couverture.
-        / Description and cover image.
+        POST /bases/{slug}/editer/ — nom, description, couverture,
+        visibilite. / Name, description, cover image, visibility.
 
         LOCALISATION : front/views_corpus.py
 
         POURQUOI CET ENDPOINT EXISTE
 
-        `description` et `image_de_couverture` existaient en base, et la
-        carte les affiche — mais RIEN ne permettait de les renseigner :
-        l'admin Django est desactive, et le formulaire de creation ne
-        prend que le nom. Deux champs qu'aucun ecran ne remplit sont deux
-        champs morts, et la carte serait restee au substitut
-        typographique faute de porte d'entree, non par choix.
+        AUCUN de ces quatre champs n'etait atteignable. Ils existaient en
+        base et la carte en affiche trois, mais rien ne permettait de les
+        renseigner : l'admin Django est desactive, et la creation d'une
+        base ne prend que le nom — une faute de frappe y devenait donc
+        definitive, et une base restait `prive` a jamais. Un champ
+        qu'aucun ecran ne remplit est un champ mort.
+
+        UNE SOUMISSION PARTIELLE N'EFFACE RIEN : seules les cles
+        REELLEMENT presentes sont ecrites (`update_fields`). Sans cette
+        regle, un formulaire qui ne montre pas tous les champs viderait
+        ceux qu'il tait.
 
         LE 404 PLUTOT QUE LE 403, comme partout dans le corpus : le slug
         EST le nom, et un 403 confirmerait l'existence d'une base privee
         a qui sonde des slugs.
-        / Both fields existed and the card shows them, but no screen
-        could fill them. 404, never 403: the slug is the name.
+        / None of the four fields was reachable anywhere. A partial
+        submission writes only the keys actually present, so a form that
+        hides a field cannot blank it. 404, never 403: the slug is the name.
         """
         from front.serializers import EditionDeBaseSerializer
 
@@ -1584,6 +1629,16 @@ class BaseViewSet(viewsets.ViewSet):
 
         donnees = serializer.validated_data
         champs_modifies = []
+        # LE SLUG NE SUIT PAS LE NOM, et c'est un choix : il est l'adresse
+        # publique de la base. Le regenerer casserait toute URL deja
+        # partagee, sans redirection pour la rattraper — et un lien mort
+        # coute plus cher qu'un slug qui vieillit mal. C'est aussi ce que
+        # fait le carnet, qui s'adresse par son `pk`, insensible au nom.
+        # / The slug stays put: it is the base's public address, and
+        # regenerating it would break every shared link with no redirect.
+        if "nom" in donnees:
+            base.nom = donnees["nom"]
+            champs_modifies.append("nom")
         if "description" in donnees:
             base.description = donnees["description"]
             champs_modifies.append("description")
@@ -1593,10 +1648,82 @@ class BaseViewSet(viewsets.ViewSet):
         if donnees.get("image_de_couverture"):
             base.image_de_couverture = donnees["image_de_couverture"]
             champs_modifies.append("image_de_couverture")
+        if "visibilite" in donnees:
+            base.visibilite = donnees["visibilite"]
+            champs_modifies.append("visibilite")
         if champs_modifies:
             base.save(update_fields=champs_modifies)
 
-        return self.retrieve(request, pk=pk)
+        # UN RETOUR EXPLICITE, sinon l'enregistrement est muet. La reponse
+        # re-rend la page et le panneau se replie : a l'oeil, rien ne
+        # distingue « c'est enregistre » de « le clic n'a pas pris ». Le
+        # carnet annonce deja ses renommages et ses changements de
+        # visibilite de cette facon.
+        # / Without this the save is silent: the panel folds back and
+        # nothing tells success from a click that never landed.
+        import json
+
+        reponse = self.retrieve(request, pk=pk)
+        if champs_modifies:
+            reponse["HX-Trigger"] = json.dumps({
+                "showToast": {"message": f"Base « {base.nom} » enregistrée"},
+            })
+        return reponse
+
+    def destroy(self, request, pk=None):
+        """
+        DELETE /bases/{slug}/ — supprime la base, PAS ses carnets.
+        / Deletes the base, not its notebooks.
+
+        LOCALISATION : front/views_corpus.py
+
+        CE QUI SURVIT, ET CE QUI PART
+
+        Les CARNETS survivent : le niveau « base » est facultatif dans le
+        modele (core/models.py, BaseDeConnaissances), un carnet vit tres
+        bien sans base. Seule leur APPARTENANCE a celle-ci disparait —
+        ils ressortent au niveau plateforme, la ou `/carnets/` les
+        montre. C'est la meme doctrine que le carnet, qui ne detruit pas
+        ses notes.
+
+        Les AXES DE CLASSEMENT de la base partent avec elle, et leurs
+        categories avec eux : ils ne decrivent que cette base, ils
+        n'auraient nulle part ou aller. Le libelle de confirmation dit
+        les deux, sinon la personne decouvre la perte apres coup.
+
+        SEUL LE PROPRIETAIRE supprime. Une base publique se lit, elle ne
+        se detruit pas pour autant — et le 404 plutot que le 403 vaut ici
+        comme partout dans le corpus.
+        / Notebooks survive: the base level is optional in the model, so
+        only the membership goes. The base's own classification axes go
+        with it — the confirmation text says both.
+        """
+        import json
+
+        base = get_object_or_404(BaseDeConnaissances, slug=pk)
+        if not _utilisateur_a_acces_base(request.user, base):
+            from django.http import Http404
+            raise Http404
+
+        if not request.user.is_authenticated or base.owner_id != request.user.pk:
+            return _reponse_acces_refuse(request)
+
+        # Le nom est lu AVANT la suppression : apres, l'objet ne l'a plus
+        # a offrir au message. / Read before deleting: afterwards the
+        # object has no name left to give the message.
+        nom_de_la_base_supprimee = base.nom
+        base.delete()
+
+        # La base n'existe plus : on ne peut plus montrer SA page, on
+        # montre la collection d'ou elle vient.
+        # / The base is gone: show the collection it came from.
+        reponse = self.list(request)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {
+                "message": f"Base « {nom_de_la_base_supprimee} » supprimée",
+            },
+        })
+        return reponse
 
     @action(
         detail=True,

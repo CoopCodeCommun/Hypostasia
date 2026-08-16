@@ -246,10 +246,15 @@ Elles s'appellent directement — le `PATH` de l'image contient deja
 
 ```bash
 make check
-make fixtures        # ou : docker exec -w /app hypostasia_web \
-                     #        python manage.py charger_fixtures_demo
 docker exec -w /app hypostasia_web python manage.py migrate
+docker exec -w /app hypostasia_web bash bin/install.sh fixtures
 ```
+
+**Pour tout refaire : `docker compose down -v && make install`.** Il n'y
+a pas de cible de rechargement partiel, et c'est deliberé — elle
+laisserait une base a moitie ancienne, a moitie neuve, sans qu'on sache
+ce qu'elle porte. Les etapes de `bin/install.sh` restent appelables a la
+main (`fixtures`, `statiques`, `llm`) pour un cas particulier.
 
 `uv run` fonctionne encore mais n'apporte rien : il ajoute un process
 wrapper et une reverification du lock a chaque appel. Sous supervisord,

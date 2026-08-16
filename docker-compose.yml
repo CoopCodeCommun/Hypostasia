@@ -1,25 +1,27 @@
 # =============================================================================
 # Hypostasia — docker-compose unique dev/prod
 #
-# Le comportement est determine par les variables dans .env :
-#   DEBUG=true  → dev  (sleep infinity, ports exposes, volumes locaux)
-#   DEBUG=false → prod (supervisord, reseau interne, volumes Docker)
+# Le comportement est determine par DEBUG dans .env. Le conteneur
+# s'installe et se demarre SEUL dans les deux modes :
+#   DEBUG=true  → bin/start-dev.sh   (runserver:8000, rechargement auto)
+#   DEBUG=false → bin/start-prod.sh  (gunicorn:8001 + daphne:8000)
 #
-# DEV :
-#   docker compose up -d
-#   docker exec hypostasia_web supervisord -c /app/supervisord-dev.conf
-#   docker exec hypostasia_web supervisorctl -c /app/supervisord-dev.conf status
-#   → le site est sur le port 8000 (nginx/dev.conf proxie vers web:8000),
-#     PAS 8123 ; et il y a DEUX workers Celery, dont un dedie a
-#     l'ingestion Docling a concurrence 1.
+# Les deux appellent bin/install.sh, ou vit toute la sequence
+# d'installation. Le site est sur le port 8000 en dev — PAS 8123 — et il
+# y a DEUX workers Celery, dont un dedie a l'ingestion Docling a
+# concurrence 1.
 #
-# PROD — mise a jour rapide :
-#   docker exec -it hypostasia_web bash
-#   cd /app && git pull
-#   uv sync
-#   python manage.py migrate
-#   supervisorctl -c /app/supervisord.conf restart gunicorn daphne \
-#       celery_worker celery_worker_docling
+# TOUT :
+#   make install                        (ou : docker compose up -d)
+#   make logs                           (ou : docker compose logs -f web)
+#   make                                la liste des cibles
+#
+# TOUT REFAIRE DE ZERO :
+#   docker compose down -v && make install
+#   Une seule voie, donc aucun doute sur l'etat de la base.
+#
+# PROD — mise a jour :
+#   make prod-update CONTENEUR=<nom>    (refuse si DEBUG=true dans .env)
 # =============================================================================
 
 services:
@@ -96,6 +98,22 @@ services:
       POSTGRES_HOST: postgres
       CELERY_BROKER_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
+      # Fait taire les avertissements de graph break de torch.compile.
+      # Docling fait compiler son modele de layout (RT-DETRv2) par
+      # transformers ; un `Tensor.item()` casse le graphe, torch retombe
+      # en mode eager et le CRIE sur 35 lignes. La conversion est juste,
+      # seulement plus lente sur ce fragment — le bruit n'apprend rien et
+      # noie la sortie d'installation.
+      #
+      # `-dynamo` monte CE SEUL logger a ERROR : un vrai plantage de
+      # torch.compile resterait visible. Le reste des logs de conversion
+      # (RapidOCR, docling) n'est pas touche.
+      #
+      # Une fois par process, pas par conversion : la 2e conversion d'un
+      # meme worker n'emet plus rien (mesure du 15 aout 2026).
+      # / Silences torch.compile graph-break warnings from Docling's layout
+      # model. Raises only that logger to ERROR; real failures still show.
+      TORCH_LOGS: "-dynamo"
       # Cache uv et home dans /app pour eviter les problemes de permissions
       # / uv cache and home in /app to avoid permission issues
       UV_CACHE_DIR: /app/.cache/uv

@@ -12,34 +12,49 @@
 
 {# === 1. Header : indicateur statut + hypostases + compteur commentaires === #}
 {# / === 1. Header: status indicator + hypostases + comments counter === #}
-<div class="flex items-center gap-2 mb-2">
+<div class="carte-entete">
     {# Indicateur statut binaire — rond gris pour "nouveau", triangle orange pour "commente" #}
     {# La forme est definie en CSS via .indicateur-statut[data-statut="..."] (clip-path) #}
     {# / Binary status indicator — grey circle for "nouveau", orange triangle for "commente" #}
     {# Shape defined in CSS via .indicateur-statut[data-statut="..."] (clip-path) #}
-    <span class="indicateur-statut w-3.5 h-3.5 flex-shrink-0"
+    {# La taille vient du CSS (`.78rem`, etalon § 14) : `w-3.5` valait #}
+    {# 14px pour 12,5 attendus. / Sized by CSS; w-3.5 was 14px for 12.5. #}
+    <span class="indicateur-statut"
           data-statut="{{ entity.statut_debat }}"
           title="{{ entity.get_statut_debat_display }}"></span>
 
-    {# Badges hypostases colores par famille #}
-    {# / Hypostase badges colored by family #}
+    {% comment %}
+    LES BADGES D'HYPOSTASE — EN CONTOUR depuis le 15 aout.
+
+    Ils etaient des pastilles PLEINES : `style="background: …-bg"`. Trois
+    badges cote a cote pesaient alors plus lourd que la phrase qu'ils
+    qualifient. L'etalon les veut en contour et notait l'ecart comme
+    « assume » ; le mainteneur a tranche pour l'etalon.
+
+    LE GABARIT NE POSE PLUS QU'UNE `color`, et c'est deliberé : la teinte
+    depend de la FAMILLE, donc du contenu, et ne peut pas vivre dans une
+    feuille de style. Le trait s'en deduit par `currentColor`
+    (`.badge-hypostase`, maquette.css) — une seule source pour la couleur,
+    aucune chance de voir le fond et le trait diverger.
+    / Outlined since 15 Aug: the template sets only `color` (the family
+    hue is content-dependent); the stroke derives from currentColor.
+    {% endcomment %}
     {% if attr_0 %}
-        <div class="flex flex-wrap gap-0.5 min-w-0 overflow-hidden">
+        <div class="badges">
             {% for tag in attr_0|split_comma %}
-            <span class="typo-hypostase inline-block px-1.5 py-0.5 rounded-full"
-                  style="background: var(--hypostase-{{ tag|hypostase_famille }}-bg); color: var(--hypostase-{{ tag|hypostase_famille }}-text);"
+            <span class="typo-hypostase badge-hypostase"
+                  style="color: var(--hypostase-{{ tag|hypostase_famille }}-text);"
                   title="{{ tag }} — {{ tag|hypostase_definition }}"
                   data-testid="badge-hypostase">{{ tag }}</span>
             {% endfor %}
         </div>
     {% endif %}
 
-    <span class="flex-1"></span>
-
-    {# Compteur commentaires #}
-    {# / Comments counter #}
+    {# Compteur commentaires — `margin-left:auto` le pousse a droite, #}
+    {# l'ancienne cale `<span class="flex-1">` n'a plus lieu d'etre. #}
+    {# / Pushed right by margin-left:auto; the old spacer is gone. #}
     {% if entity.nombre_commentaires %}
-    <span class="inline-flex items-center gap-1 text-[10px] text-amber-600 flex-shrink-0"
+    <span class="compteur-commentaires"
           title="{{ entity.nombre_commentaires }} commentaire{{ entity.nombre_commentaires|pluralize:"s" }}">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round"
@@ -81,9 +96,9 @@
 {# === 3. Mots-clés (attr_3) === #}
 {# / === 3. Keywords (attr_3) === #}
 {% if attr_3 %}
-<div class="flex flex-wrap gap-1 mt-1">
+<div class="mots-cles">
     {% for mc in attr_3|split_comma %}
-    <span class="text-[9px] text-slate-500 bg-slate-50 px-1 rounded">#{{ mc }}</span>
+    <span class="mot-cle">#{{ mc }}</span>
     {% endfor %}
 </div>
 {% endif %}
@@ -95,7 +110,30 @@
 {% for commentaire in entity.commentaires.all %}
 {# Layout Facebook-like : pseudo en haut (gras), commentaire en dessous #}
 {# / Facebook-like layout: username on top (bold), comment below #}
-<div class="px-2 py-1.5 mt-2 bg-slate-50 border-l-2 border-slate-200 rounded
+{% comment %}
+LE COMMENTAIRE SUIT L'ETALON, PAS LA CHARTE SRISAKDI — et c'est un choix
+qu'il faut expliquer, parce qu'il a l'air d'une entorse.
+
+La charte dit « trois polices, trois provenances », et donne Srisakdi
+aux interventions de lecteur. Mais l'etalon, lui, ecrit le commentaire
+d'une carte en gras a .7rem, sans changer de police
+(maquette.html:734-736). Deux raisons tiennent ce choix :
+
+  · une carte de drawer fait quelques centimetres de large, et Srisakdi
+    y arrive a 20px — la seule autre vue qui l'emploie
+    (`vue_questionnaire.html`) le corrige deja a la main par un
+    `style="font-size:14px"`, ce qui dit assez que la taille de la
+    charte ne passe pas dans une liste ;
+  · la provenance est deja portee ici par la FORME : filet gauche, fond
+    creux, nom en gras au-dessus. Le lecteur ne confond pas ce bloc avec
+    le resume machine juste au-dessus, qui est en mono.
+
+/ The card's comment follows the mock (bold, .7rem) rather than the
+charter's Srisakdi: a drawer card is centimetres wide, and the only
+other view using Srisakdi already overrides its size by hand. Provenance
+is carried here by shape — rule, recessed fill, bold name.
+{% endcomment %}
+<div class="carte-commentaire
     {% if contributeurs_actifs %}
         {% if mode_filtre == "exclure" %}
             {% if commentaire.user.pk in contributeurs_actifs %}commentaire-hors-filtre{% endif %}
@@ -103,20 +141,18 @@
             {% if commentaire.user.pk not in contributeurs_actifs %}commentaire-hors-filtre{% endif %}
         {% endif %}
     {% endif %}">
-    <div class="flex flex-col gap-0.5">
-        {# Highlight du nom quand le commentateur est dans les contributeurs filtres #}
-        {# (en mode "exclure", le highlight est applique aux NON-filtres). #}
-        {# / Highlight name when commenter is in filtered contributors #}
-        <span class="font-semibold text-xs text-slate-800
-            {% if contributeurs_actifs %}
-                {% if mode_filtre == "exclure" %}
-                    {% if commentaire.user.pk not in contributeurs_actifs %}contributeur-actif-highlight{% endif %}
-                {% else %}
-                    {% if commentaire.user.pk in contributeurs_actifs %}contributeur-actif-highlight{% endif %}
-                {% endif %}
-            {% endif %}">{{ commentaire.user.first_name|default:commentaire.user.username|title }}</span>
-        <p class="text-sm text-slate-700 leading-relaxed">{{ commentaire.commentaire }}</p>
-    </div>
+    {# Highlight du nom quand le commentateur est dans les contributeurs filtres #}
+    {# (en mode "exclure", le highlight est applique aux NON-filtres). #}
+    {# / Highlight name when commenter is in filtered contributors #}
+    <span class="qui
+        {% if contributeurs_actifs %}
+            {% if mode_filtre == "exclure" %}
+                {% if commentaire.user.pk not in contributeurs_actifs %}contributeur-actif-highlight{% endif %}
+            {% else %}
+                {% if commentaire.user.pk in contributeurs_actifs %}contributeur-actif-highlight{% endif %}
+            {% endif %}
+        {% endif %}">{{ commentaire.user.first_name|default:commentaire.user.username|title }}</span>
+    <p class="quoi">{{ commentaire.commentaire }}</p>
 </div>
 {% endfor %}
 

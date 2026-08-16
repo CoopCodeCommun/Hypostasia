@@ -93,16 +93,7 @@ left by the previous screen instead of stranding a stale trail.
         {# porte d'entree, « + Nouvelle base » ne doit pas passer avant #}
         {# la collection. / Last cell: the collection is read first. #}
         <li class="cellule-creation">
-            <form class="carte-creation-base"
-                  hx-post="/bases/" hx-target="#zone-lecture" hx-swap="innerHTML"
-                  data-testid="corpus-base-creer-form">
-                <label class="champ-etiquette" for="creer-base-nom">+ Nouvelle base</label>
-                <input type="text" name="nom" id="creer-base-nom" maxlength="200"
-                       class="champ-texte"
-                       placeholder="Réseau des tiers-lieux"
-                       data-testid="corpus-base-creer-nom">
-                <button type="submit" class="bouton-plat principal">Créer</button>
-            </form>
+            {% include "front/corpus/partials/_formulaire_de_base.html" with mode="creation" %}
         </li>
         {% endif %}
     </ul>

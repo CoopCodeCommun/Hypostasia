@@ -147,12 +147,19 @@
     {# dans la feuille de style, en un seul endroit.                     #}
     {# / Status moves to a data attribute: the inline left border was    #}
     {# overridden by the Tailwind border-color remap on all four sides.  #}
-    <div class="drawer-carte-compacte mb-2 rounded-lg border border-slate-100 overflow-hidden cursor-pointer hover:border-slate-200 transition-colors group"
+    {# Les utilitaires de PRESENTATION sont partis en CSS (`.carte`, #}
+    {# etalon § 14) : rayon, filet, survol et transition y sont nommes. #}
+    {# `group` reste — c'est lui qui revele le bouton « masquer » au #}
+    {# survol —, et `overflow-hidden` aussi : sans lui, le fond d'un #}
+    {# enfant deborderait du rayon de la carte. #}
+    {# / Presentation utilities moved to CSS; `group` and #}
+    {# `overflow-hidden` stay, they do work no rule replaces. #}
+    <div class="drawer-carte-compacte overflow-hidden group"
          data-extraction-id="{{ entity.pk }}"
          data-page-id="{{ page.pk }}"
          data-statut="{{ entity.statut_debat }}"
          data-testid="drawer-carte">
-        <div class="px-3 py-2">
+        <div class="carte-corps">
             {% if entity.est_detachee %}
             {# Cette idee n'est montree NULLE PART dans le texte : ses      #}
             {# ancres ont ete detachees, ou elle n'en a jamais eu. Sans     #}

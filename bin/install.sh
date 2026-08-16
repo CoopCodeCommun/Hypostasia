@@ -89,22 +89,24 @@ charger_les_fixtures() {
 }
 
 analyser_avec_le_vrai_modele() {
-    # C'est ce qui fait de l'installation un TEST DES CLES API : deux
-    # notes sont analysees par le modele configure, pour de bon. Si la
-    # cle manque ou si l'appel echoue, l'installation le dit.
+    # C'est ce qui fait de l'installation un TEST DES CLES API : les
+    # notes etalons sont analysees par le modele configure, pour de bon.
+    # Si la cle manque ou si l'appel echoue, l'installation le dit.
     #
-    # `--asynchrone` envoie les analyses dans la file Celery : le
-    # demarrage n'attend pas le modele, et l'administrateur suit leur
-    # avancement depuis le menu des taches. Les workers demarrent juste
-    # apres ; les taches patientent dans Redis.
+    # La commande n'analyse QUE ce qui ne l'est pas encore, et saute les
+    # notes trop grosses (la Presentation V3 porte 549 elements a elle
+    # seule, 73 % du corpus). Elle est donc sans effet aux demarrages
+    # suivants : ce script est rejoue a CHAQUE lancement du conteneur, et
+    # rien n'est refacture.
     #
-    # `--si-absent` empeche la facture de se repeter : ce script est
-    # rejoue a CHAQUE demarrage du conteneur. Une analyse deja en file
-    # compte comme faite. Pour tout rejouer : `make fixtures-llm`.
-    # / A real API-key test, queued so startup does not wait, and guarded
-    # so a restart does not re-bill.
-    echo "Analyse par le vrai LLM, en file Celery (test des cles API)..."
-    python manage.py charger_fixtures_llm_reel --si-absent --asynchrone
+    # Les analyses partent dans la file Celery : le demarrage n'attend
+    # pas le modele, et l'administrateur suit leur avancement depuis le
+    # menu des taches. Les workers demarrent juste apres ce script ; les
+    # taches patientent dans Redis en attendant.
+    # / A real API-key test, queued so startup does not wait, and
+    # naturally idempotent so a restart does not re-bill.
+    echo "Analyse des notes etalons par le vrai modele (test des cles API)..."
+    python manage.py analyser_les_notes_etalons
 }
 
 case "$ETAPE" in

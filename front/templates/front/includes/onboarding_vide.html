@@ -11,7 +11,7 @@ meme partial `carte_de_base.html`, sous les memes classes
 (`.grille-bases`, `.carte-base`). Or ces regles sont scopees
 `.zone-corpus` et vivent dans `_style_maquette.html`, que CHAQUE ecran
 du corpus inclut lui-meme (`bases_liste.html`, `base_detail.html`,
-`carnets_liste.html`...). Ce gabarit est la branche `{% templatetag openblock %} else {% templatetag closeblock %}` de la
+`carnets_liste.html`...). Ce gabarit est la branche « sinon » de la
 cascade de `base.html` : sans cet include, il est le seul a montrer des
 cartes de base sans une seule regle pour les dessiner, et elles tombent
 en texte brut.
@@ -20,6 +20,22 @@ en texte brut.
 cards render unstyled.
 {% endcomment %}
 {% include "front/corpus/_style_maquette.html" %}
+
+{% comment %}
+L'ACCUEIL EFFACE LE FIL D'ARIANE. Le logo « Hypostasia » de la barre
+d'outils ne recharge pas la page : il fait un `hx-get="/"` sur
+`#zone-lecture` (base.html). Sans ce depot, le fil du carnet d'ou l'on
+vient reste affiche AU-DESSUS DE L'ACCUEIL — l'ecran le plus haut du
+produit annonce alors un chemin dans lequel on n'est plus.
+
+Sans `fil_carnet` au contexte, `_fil_ariane.html` ne rend rien : l'OOB
+depose donc un conteneur VIDE, ce qui efface le fil precedent et
+escamote la bande entiere
+(`.bande-de-contexte:not(:has(.fil-ariane))`, maquette.css).
+/ The wordmark is an hx-get, not a reload: without this the breadcrumb
+of the notebook you came from stays above the home screen.
+{% endcomment %}
+{% include "front/corpus/_fil_ariane_oob.html" %}
 
 {# === Barre d'onglets accueil — Decouvrir / Bases / Manifeste === #}
 {#                                                                     #}

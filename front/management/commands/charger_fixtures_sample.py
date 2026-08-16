@@ -377,10 +377,11 @@ class Command(BaseCommand):
 
         LOCALISATION : front/management/commands/charger_fixtures_sample.py
 
-        Une base neuve n'a AUCUN utilisateur. `charger_fixtures_llm_reel`
-        leve une CommandError dans ce cas — c'est precisement le cas que
-        cette commande doit savoir traiter.
-        / A fresh database has no user at all; this must not be fatal.
+        Une base neuve n'a AUCUN utilisateur, et cette commande est la
+        premiere a tourner : c'est donc a elle de creer le proprietaire,
+        pas de s'arreter faute d'en trouver un.
+        / A fresh database has no user at all, and this command runs
+        first: creating the owner is its job.
 
         UN COMPTE D'ADMINISTRATION D'ABORD, ET POURQUOI
 

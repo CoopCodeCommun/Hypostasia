@@ -269,8 +269,10 @@ class CaptureWebEtalonTest(TestCase):
         Avec Docling mocké, la tâche ne tourne pas, donc n'écrit pas
         `ingestion_etat` : un test rapide qui l'affirmerait ne
         vérifierait que son propre mock. C'est justement l'écart que
-        `charger_fixtures_llm_reel` a laissé passer — ses pages
-        gardent un état vide alors que l'écran de lecture l'affiche.
+        `charger_fixtures_llm_reel` avait laissé passer — ses pages
+        gardaient un état vide alors que l'écran de lecture l'affiche.
+        (Cette commande a été supprimée le 15 août 2026 ; l'écart
+        qu'elle illustre, lui, reste d'actualité.)
         / A mocked task writes no state; asserting it would test the mock.
         """
         from io import StringIO

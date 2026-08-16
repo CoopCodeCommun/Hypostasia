@@ -608,10 +608,62 @@ class GererCategoriesSerializer(serializers.Serializer):
             )
         return donnees_validees
 
+def _nettoyer_un_nom_saisi(valeur):
+    """
+    Enleve les balises HTML et les espaces autour d'un nom saisi.
+    / Strips HTML tags and surrounding whitespace from a submitted name.
+
+    LOCALISATION : front/serializers.py
+
+    Meme traitement que `DossierRenommerSerializer.validate_nouveau_nom`,
+    dont ce nettoyage est repris : le nom d'une base s'affiche dans la
+    carte, le fil d'Ariane et le titre de page, exactement comme celui
+    d'un carnet.
+    / Same cleaning as the notebook rename serializer.
+    """
+    import bleach
+
+    nom_nettoye = bleach.clean(valeur, tags=[], strip=True).strip()
+    if not nom_nettoye:
+        raise serializers.ValidationError(
+            "Le nom ne peut pas etre vide / Name cannot be empty"
+        )
+    return nom_nettoye
+
+
+class CreationDeBaseSerializer(serializers.Serializer):
+    """
+    Valide la creation d'une base de connaissances (POST /bases/).
+    / Validates creating a knowledge base.
+
+    LOCALISATION : front/serializers.py
+
+    LA CREATION NE PREND QUE LE NOM, et c'est deliberé : elle vit dans
+    une cellule de la grille des bases, a cote des cartes. La
+    description, la couverture et la visibilite se renseignent ensuite
+    depuis « Gerer cette base », par `EditionDeBaseSerializer`. Un
+    carnet se cree de la meme facon — nom seul, le reste dans « Gerer ce
+    carnet » — et les deux objets restent ainsi symetriques.
+    / Creation takes the name only, like a notebook: the rest is filled
+    later from the management panel, keeping both objects symmetric.
+    """
+
+    nom = serializers.CharField(
+        max_length=200,
+        error_messages={
+            "required": "Le nom est obligatoire / Name is required",
+            "blank": "Le nom ne peut pas etre vide / Name cannot be blank",
+        },
+    )
+
+    def validate_nom(self, valeur):
+        return _nettoyer_un_nom_saisi(valeur)
+
+
 class EditionDeBaseSerializer(serializers.Serializer):
     """
-    Valide la description et la couverture d'une base de connaissances.
-    / Validates a knowledge base's description and cover image.
+    Valide les champs modifiables d'une base de connaissances.
+    / Validates a knowledge base's editable fields.
 
     LOCALISATION : front/serializers.py
 
@@ -624,8 +676,21 @@ class EditionDeBaseSerializer(serializers.Serializer):
     jamais de Django Forms.
     / ImageField validates content, not just the extension: a renamed
     arbitrary file is rejected here instead of landing in media/.
+
+    TOUS LES CHAMPS SONT FACULTATIFS, parce qu'un formulaire partiel ne
+    doit jamais effacer ce qu'il ne montre pas. La vue n'ecrit que les
+    cles reellement presentes dans la soumission (`update_fields`).
+    / Every field is optional: a partial form must never erase what it
+    does not display; the view writes only the keys actually submitted.
     """
 
+    # Le nom REJOINT les champs editables (15 aout) : sans lui, une
+    # faute de frappe dans le nom d'une base etait definitive — l'admin
+    # Django est ferme et aucun autre ecran ne l'atteint. Le carnet, lui,
+    # se renomme depuis « Gerer ce carnet » depuis le 12 aout.
+    # / Names became editable: a typo used to be permanent, since the
+    # Django admin is closed and no other screen reaches the field.
+    nom = serializers.CharField(required=False, max_length=200)
     description = serializers.CharField(
         required=False, allow_blank=True, max_length=2000,
     )
@@ -633,3 +698,11 @@ class EditionDeBaseSerializer(serializers.Serializer):
     # couverture absente du formulaire ne doit pas effacer celle qui est
     # deja posee. / An absent cover must not erase the existing one.
     image_de_couverture = serializers.ImageField(required=False)
+    # Les memes trois valeurs que le carnet (`ChangerVisibiliteSerializer`).
+    # / The same three levels as a notebook.
+    visibilite = serializers.ChoiceField(
+        choices=["prive", "partage", "public"], required=False,
+    )
+
+    def validate_nom(self, valeur):
+        return _nettoyer_un_nom_saisi(valeur)

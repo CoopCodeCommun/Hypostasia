@@ -32,68 +32,36 @@ l'OOB y depose un conteneur vide, qui efface celui de l'ecran precedent.
         {% endif %}
 
         {% comment %}
-        GERER CETTE BASE — le seul endroit d'ou l'on peut renseigner sa
-        description et sa couverture.
+        GERER CETTE BASE — le seul endroit d'ou l'on peut renseigner son
+        nom, sa description, sa couverture et sa visibilite.
 
-        Les deux champs existaient en base et la carte les affiche, mais
-        RIEN ne permettait de les remplir : l'admin Django est desactive
-        et le formulaire de creation ne prend que le nom. Deux champs
-        qu'aucun ecran ne remplit sont deux champs morts, et la carte
-        serait restee au substitut typographique faute de porte
-        d'entree — non par choix de conception.
+        Ces champs existaient en base et la carte les affiche, mais RIEN
+        ne permettait de les remplir : l'admin Django est desactive et le
+        formulaire de creation ne prend que le nom. Un champ qu'aucun
+        ecran ne remplit est un champ mort, et la carte serait restee au
+        substitut typographique faute de porte d'entree — non par choix
+        de conception.
 
         REPLIE, comme la gouvernance d'un carnet : on vient sur cette
         page pour LIRE la base, pas pour l'administrer. Ouvert par
         defaut, ce bloc mettrait un formulaire entre l'en-tete et les
         carnets.
 
-        `enctype="multipart/form-data"` et `hx-encoding` : sans les deux,
-        le fichier n'arrive jamais au serveur et l'echec est SILENCIEUX
-        — la description passe, l'image non.
+        LE FORMULAIRE LUI-MEME EST UN PARTIAL PARTAGE avec la creation
+        (`_formulaire_de_base.html`) : les champs d'une base se
+        presentent pareil qu'on la fabrique ou qu'on la corrige.
 
         `peut_ecrire` decide de ce qu'on MONTRE ; l'endpoint refait sa
         propre verification. Montrer un formulaire qu'on ne peut pas
         soumettre est une promesse non tenue.
-        / Both fields existed and the card shows them, but no screen
-        could fill them. Collapsed, as this page is for reading. Without
-        multipart encoding the upload fails silently.
+        / These fields existed and the card shows them, but no screen
+        could fill them. Collapsed, as this page is for reading. The form
+        itself is shared with the creation gesture.
         {% endcomment %}
         {% if peut_ecrire %}
         <details class="gouvernance-carnet" data-testid="corpus-base-gouvernance">
             <summary>G&eacute;rer cette base</summary>
-
-            <form class="rangee-champ"
-                  enctype="multipart/form-data"
-                  hx-post="/bases/{{ base.slug }}/editer/"
-                  hx-encoding="multipart/form-data"
-                  hx-target="#zone-lecture" hx-swap="innerHTML"
-                  data-testid="corpus-base-editer-form">
-
-                <label class="champ-etiquette" for="editer-description-{{ base.slug }}">
-                    Description
-                </label>
-                <textarea class="champ-texte" rows="3"
-                          id="editer-description-{{ base.slug }}"
-                          name="description"
-                          placeholder="Ce que cette base rassemble, et pour qui."
-                          data-testid="corpus-base-editer-description">{{ base.description }}</textarea>
-
-                <label class="champ-etiquette" for="editer-couverture-{{ base.slug }}">
-                    Couverture
-                </label>
-                <input type="file" class="champ-texte"
-                       id="editer-couverture-{{ base.slug }}"
-                       name="image_de_couverture"
-                       accept="image/*"
-                       data-testid="corpus-base-editer-couverture">
-                <p class="aide-champ">
-                    Facultative. Recadr&eacute;e en 16/9 sur la carte ; sans
-                    elle, la carte garde sa cote color&eacute;e.
-                </p>
-
-                <button type="submit" class="bouton-plat"
-                        data-testid="corpus-base-editer-bouton">Enregistrer</button>
-            </form>
+            {% include "front/corpus/partials/_formulaire_de_base.html" with mode="edition" %}
         </details>
         {% endif %}
     </header>
@@ -184,22 +152,44 @@ l'OOB y depose un conteneur vide, qui efface celui de l'ecran precedent.
     {# Cible #zone-lecture : la reponse est le detail ENTIER (jamais #}
     {# d'imbrication du detail dans lui-meme). / ADD A NOTEBOOK; targets #}
     {# #zone-lecture because the response is the whole detail. #}
-    {% if peut_ecrire and carnets_disponibles %}
-    <form class="rangee-champ"
-          hx-post="/bases/{{ base.slug }}/carnets/"
-          hx-target="#zone-lecture" hx-swap="innerHTML"
-          data-testid="corpus-base-ajouter-form">
-        <label class="champ-etiquette" for="ajout-carnet-base-{{ base.pk }}">+ Ajouter un carnet…</label>
-        <select name="carnet_id" id="ajout-carnet-base-{{ base.pk }}"
-                class="champ-select"
-                data-testid="corpus-base-ajouter-select">
-            {% for carnet in carnets_disponibles %}
-            <option value="{{ carnet.pk }}">{{ carnet.name }}</option>
-            {% endfor %}
-        </select>
-        <button type="submit" class="bouton-plat"
-                data-testid="corpus-base-ajouter-bouton">Ajouter</button>
-    </form>
+    {% comment %}
+    LE CAS « PLUS RIEN A AJOUTER » EST DIT, il n'est pas tu. Le geste
+    disparaissait en silence des que tous les carnets etaient deja dans
+    la base : on ne savait pas si la fonction n'existait pas, si elle
+    demandait un droit qu'on n'a pas, ou si l'on avait mal cherche.
+
+    C'est `{% templatetag openblock %} empty {% templatetag closeblock %}` qui porte ce cas — le meme tag que la
+    liste des carnets ci-dessus, qui explique deja ce qu'est une base
+    quand elle est vide.
+    / The gesture used to vanish silently once every notebook was
+    already filed here; {% templatetag openblock %} empty {% templatetag closeblock %} says so, as the list above does.
+    {% endcomment %}
+    {% if peut_ecrire %}
+    {% for carnet in carnets_disponibles %}
+        {% if forloop.first %}
+        <form class="rangee-champ"
+              hx-post="/bases/{{ base.slug }}/carnets/"
+              hx-target="#zone-lecture" hx-swap="innerHTML"
+              data-testid="corpus-base-ajouter-form">
+            <label class="champ-etiquette" for="ajout-carnet-base-{{ base.pk }}">+ Ajouter un carnet…</label>
+            <select name="carnet_id" id="ajout-carnet-base-{{ base.pk }}"
+                    class="champ-select"
+                    data-testid="corpus-base-ajouter-select">
+        {% endif %}
+                <option value="{{ carnet.pk }}">{{ carnet.name }}</option>
+        {% if forloop.last %}
+            </select>
+            <button type="submit" class="bouton-plat"
+                    data-testid="corpus-base-ajouter-bouton">Ajouter</button>
+        </form>
+        {% endif %}
+    {% empty %}
+        <p class="aide-champ" data-testid="corpus-base-aucun-carnet-a-ajouter">
+            Tous vos carnets sont d&eacute;j&agrave; dans cette base.
+            Cr&eacute;ez-en un depuis &laquo;&nbsp;Carnets&nbsp;&raquo;
+            pour pouvoir l&rsquo;ajouter ici.
+        </p>
+    {% endfor %}
     {% endif %}
 
     {# Les axes de la base / The base's axes #}

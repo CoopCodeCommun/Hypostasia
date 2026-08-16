@@ -41,12 +41,23 @@
      boite de lecture se calcule desormais a partir d'elle.
      / The text column width, gutter excluded. */
   --largeur-lecture: 40rem;
-  /* La barre d'outils du produit fait 48px (`h-12`), la ou l'etalon en
-     declare 44. On suit le PRODUIT : ce token sert a poser le haut du
-     panneau juste sous la barre, et 4px d'ecart y feraient un liseré.
-     / The product's toolbar is 48px, not the etalon's 44; the token
-     follows the product because it positions the panel against it. */
-  --barre-outils: 3rem;
+  /* LA BARRE D'OUTILS FAIT 44px, comme l'etalon (§ 1). Elle en faisait
+     48 (`h-12`), et le token suivait le produit pour que le haut du
+     panneau se pose pile dessous. Les deux valeurs etaient donc
+     coherentes entre elles, mais toutes deux a 4px de l'etalon — et ces
+     4px se cumulaient avec les 2px de la bande du fil ci-dessous : le
+     texte commencait 6px plus bas que dans la maquette. Le gabarit
+     porte desormais `h-11`, et ce token le suit.
+     / The toolbar is 44px, as in the etalon: it was 48 (h-12), and with
+     the strip's 2px the text started 6px lower than the mock. */
+  --barre-outils: 44px;
+  /* LA BANDE DU FIL D'ARIANE (etalon § 1). Elle n'etait DECLAREE nulle
+     part : chaque usage tombait sur son repli `var(--barre-fil, 2rem)`,
+     soit 32px pour 30 attendus. Un repli qui sert de valeur reelle est
+     une valeur par accident — nommee ici, elle cesse d'en etre une.
+     / It was never declared: every use fell back to 2rem (32px) where
+     the etalon asks 30. A fallback used as the value is an accident. */
+  --barre-fil: 30px;
   /* LA HAUTEUR DE LA BARRE DU LECTEUR AUDIO (etalon § 19).
      Elle vaut 0 par defaut, et 62px quand `.lecteur` est presente : la
      barre est `fixed`, donc hors du flux, et sans cette reserve elle
@@ -623,20 +634,178 @@ nav.h-12 #btn-user-menu:hover { background: rgba(255, 255, 255, .12) !important;
    qui neutralisait le style inline du gabarit.
    / The card sits on a darker fill than the panel; the left border
    carries the status and must outrank the Tailwind border remap. */
+/* LA BARRE D'OUTILS TIENT SA HAUTEUR DU TOKEN, pas d'un utilitaire.
+   `h-12` reste sur le gabarit parce qu'elle existe dans le build fige —
+   `h-11`, la valeur juste, n'y est pas et serait inerte. Cette regle
+   passe donc apres, et `--barre-outils` devient la seule source : la
+   barre et le haut du panneau qui se pose dessous ne peuvent plus
+   diverger. / The bar's height comes from the token: h-11 is absent
+   from the frozen Tailwind build and would be inert. */
+.barre-outils { height: var(--barre-outils); }
+
 #drawer-overlay .drawer-carte-compacte {
   background: var(--papier);
+  /* Le filet des quatre cotes, ecrit ici plutot qu'en `border-slate-100` :
+     il vaut `--filet` comme dans l'etalon, et ne depend plus du remappage
+     d'une echelle Tailwind. / The four-side rule, named rather than
+     inherited from a remapped Tailwind scale. */
+  border: 1px solid var(--filet);
   border-radius: 5px;
   margin-bottom: .5rem;
   border-left-width: 3px;
   border-left-color: var(--statut-nouveau) !important;
+  cursor: pointer;
+  /* L'etalon anime l'ombre ET le filet, pas « les couleurs » en bloc :
+     `transition-colors` faisait aussi glisser la couleur du TEXTE.
+     / The etalon animates shadow and border, not every colour. */
+  transition: box-shadow .12s, border-color .12s;
 }
+/* LE PADDING DE L'ETALON — il etait a `px-3 py-2` (12/8px) pour
+   10,4/8,8px attendus. Porte par le corps et non par la carte, parce que
+   le bandeau « ancre detachee » vit hors de ce corps et garde le sien.
+   / The etalon's padding, carried by the body: the detached-anchor
+   banner sits outside it and keeps its own. */
+#drawer-overlay .drawer-carte-compacte .carte-corps { padding: .55rem .65rem; }
+
+/* Au survol, l'etalon LEVE la carte ; le produit repeignait son filet.
+   Une ombre dit « cliquable » sans faire clignoter une frontiere.
+   / The etalon lifts the card; the product repainted its border. */
+#drawer-overlay .drawer-carte-compacte:hover { box-shadow: 0 1px 6px rgba(0, 0, 0, .07); }
+
 #drawer-overlay .drawer-carte-compacte[data-statut="commente"] {
   border-left-color: var(--statut-commente) !important;
 }
+/* LA CARTE ACTIVE PORTE UN HALO, elle ne change pas de fond. Le fond
+   `--revelation` peignait toute la carte en ambre pale : la couleur du
+   STATUT y devenait illisible, et deux cartes actives d'affilee se
+   confondaient avec une zone surlignee. L'etalon pose un anneau de 2px
+   a 20 % — la carte reste sur son papier, seul son contour repond.
+   / The active card gets a ring, not a new fill: the amber wash hid the
+   status colour and read like a highlighted region. */
 #drawer-overlay .drawer-carte-compacte.drawer-carte-active {
-  background: var(--revelation) !important;
   border-color: var(--statut-commente) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--statut-commente) 20%, transparent);
 }
+
+/* L'INDICATEUR DE STATUT fait .78rem dans l'etalon ; il etait a `w-3.5`
+   (14px), soit 1,5px de trop pour un objet qui n'en mesure que 12,5.
+   / The status indicator is .78rem; it was 14px. */
+#drawer-overlay .indicateur-statut { width: .78rem; height: .78rem; flex: none; }
+
+/* =========================================================================
+   L'INTERIEUR DE LA CARTE — etalon § 14 « LA CARTE (_card_body.html) »
+   =========================================================================
+
+   La carte elle-meme etait deja portee (bord de statut, rayon, fond) ;
+   son CONTENU restait ecrit en utilitaires Tailwind arbitraires
+   (`text-[10px]`, `bg-slate-50`, `text-slate-500`...). Le rendu etait
+   proche, mais rien ne le tenait : chaque valeur vivait dans le gabarit,
+   sans nom, hors du systeme, et ne suivait le theme que par le
+   remappage des echelles Tailwind.
+
+   `_card_body.html` sert SEPT gabarits — drawer, carte inline, bottom
+   sheet, resultats, previsualisation, test d'analyseur, wrapper. Le
+   nommer ici, c'est le corriger partout a la fois.
+
+   DEUX ECARTS DE L'ETALON SONT CONSERVES, parce qu'ils sont assumes et
+   ecrits dans l'etalon lui-meme :
+     · la CITATION reste toujours visible ; l'etalon la replie au repos
+       (« ECART ASSUME — le produit l'affiche toujours ») ;
+     · la TYPOGRAPHIE suit la charte du projet (B612, B612 Mono, Lora,
+       Srisakdi) et non le `ui-monospace` de l'etalon, qui n'est qu'un
+       substitut pour rester autonome.
+   Ce qui est porté ici, c'est donc la GEOMETRIE et les COULEURS.
+   / The card's shell was ported; its contents stayed in ad-hoc Tailwind.
+   _card_body.html serves seven templates: naming it here fixes all of
+   them. Two documented departures are kept: the citation stays visible,
+   and typography follows the project charter, not the mock's fallback.
+   ========================================================================= */
+
+.carte-entete { display: flex; align-items: center; gap: .4rem; margin-bottom: .4rem; }
+
+/* Les badges ne doivent jamais pousser le compteur hors de la carte :
+   `min-width:0` autorise la boite a retrecir sous son contenu.
+   / min-width:0 lets the box shrink below its content. */
+.carte-entete .badges { display: flex; flex-wrap: wrap; gap: .2rem; min-width: 0; }
+
+/* CONTOUR, PAS PASTILLE PLEINE. La famille d'hypostase se lit a la
+   couleur du TRAIT : trois badges cote a cote ne doivent pas peser plus
+   que la phrase qu'ils qualifient. Le produit les remplissait — l'etalon
+   notait l'ecart comme assume ; il est leve ici a la demande du
+   mainteneur (15 aout).
+
+   `currentColor` fait tout le travail : le gabarit ne pose plus qu'une
+   `color` (la teinte de la famille, qui est dynamique et ne peut donc
+   pas vivre en CSS), et le fond comme le trait s'en deduisent.
+   / Outlined, not filled: the family reads in the stroke. The template
+   sets only `color`; currentColor derives the rest. */
+.badge-hypostase {
+  display: inline-block;
+  padding: .08rem .34rem;
+  border-radius: 2px;
+  white-space: nowrap;
+  cursor: help;
+  background: none;
+  border: 1px solid currentColor;
+  opacity: .85;
+}
+
+/* Le compteur se pousse a droite et ne se comprime jamais : c'est lui
+   qui dit qu'un debat a commence. / Pushed right, never shrunk. */
+.carte-entete .compteur-commentaires {
+  margin-left: auto;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: .15rem;
+  font-size: .6rem;
+  color: var(--statut-commente);
+}
+
+.mots-cles { display: flex; flex-wrap: wrap; gap: .22rem; margin-top: .35rem; }
+.mot-cle {
+  font-size: .57rem;
+  color: var(--encre-douce);
+  background: var(--papier-creux);
+  padding: .05rem .3rem;
+  border-radius: 2px;
+  /* LA HAUTEUR DE LIGNE EST ECRITE, pas heritee. L'etalon ne la declare
+     pas : elle lui vient de son corps de texte, a 1,7. Le drawer, lui,
+     herite du 1,5 de Tailwind — meme police, meme taille, meme padding,
+     et pourtant 15,5px la contre 13,7px ici. Un heritage qui differe
+     entre deux contextes n'est pas une valeur, c'est un hasard.
+     / The mock inherits 1.7 from its body, the drawer 1.5 from Tailwind:
+     same font, same padding, 1.8px apart. Inheritance that differs
+     between contexts is not a value. */
+  line-height: 1.7;
+}
+
+/* UNE INTERVENTION DE LECTEUR, pas une ligne de plus. Le filet gauche et
+   le fond creux la detachent du texte machine au-dessus : sans eux, le
+   commentaire d'une personne se lit comme la suite du resume de l'IA.
+   / The rule and recessed fill separate a human voice from the machine
+   text above it. */
+.carte-commentaire {
+  margin-top: .45rem;
+  padding: .35rem .5rem;
+  background: var(--papier-creux);
+  border-left: 2px solid var(--filet);
+  border-radius: 3px;
+}
+/* Le nom en GRAS et petit, pas en Srisakdi : la police de la charte
+   arrive a 20px, ce qu'une carte large de quelques centimetres ne peut
+   pas porter — la seule autre vue qui l'emploie corrige deja sa taille
+   a la main. La provenance se lit ici a la FORME du bloc.
+   / Bold and small, not Srisakdi: the charter face lands at 20px, which
+   a centimetres-wide card cannot carry. Shape carries provenance here. */
+.carte-commentaire .qui {
+  display: block;
+  margin-bottom: .08rem;
+  font-weight: 700;
+  font-size: .7rem;
+}
+.carte-commentaire .qui.contributeur-actif-highlight { color: var(--statut-commente); }
+.carte-commentaire .quoi { margin: 0; font-size: .8rem; line-height: 1.45; }
 
 /* ---- L'ACCUEIL (onboarding) : le premier ecran d'un visiteur ne
    reste pas a l'ancien design (agent visuel n°1-2). ---- */

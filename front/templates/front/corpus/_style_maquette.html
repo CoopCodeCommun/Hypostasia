@@ -404,6 +404,94 @@
 .zone-corpus .rangee-champ .champ-texte,
 .zone-corpus .rangee-champ .champ-select { width:auto; min-width:12rem; font-size:.8rem; }
 
+/* LE FORMULAIRE D'UNE BASE S'EMPILE, il ne s'aligne pas.
+   `.rangee-champ` est un flex HORIZONTAL, juste pour « etiquette, champ,
+   bouton » sur un rang — c'est ce qu'il faut au renommage d'un carnet,
+   qui n'a qu'un champ. Ce formulaire en a quatre, chacun avec son texte
+   d'aide : sur un rang, les etiquettes se detachent de leurs champs et
+   « Description » finit a l'autre bout de la ligne, loin de sa zone de
+   saisie. Une colonne remet chaque etiquette au-dessus du champ qu'elle
+   nomme.
+   / A four-field form cannot ride the one-row flex used for a notebook's
+   single rename field: labels drift away from the inputs they name. */
+.zone-corpus .formulaire-de-base {
+  display:flex; flex-direction:column; align-items:stretch;
+  gap:0; margin:.8rem 0; max-width:34rem;
+}
+/* Le texte d'aide colle au champ qu'il commente : la marge du haut le
+   detacherait de lui pour le rapprocher du suivant.
+   / Help text hugs the field above it, not the one below. */
+.zone-corpus .formulaire-de-base .aide-champ { margin:.25rem 0 .1rem; }
+.zone-corpus .formulaire-de-base textarea.champ-texte { min-height:5rem; resize:vertical; }
+/* Le bouton ne s'etire pas sur toute la largeur : sa taille dit la
+   portee de son action. / The button keeps its own width. */
+.zone-corpus .formulaire-de-base > .bouton-plat { align-self:flex-start; margin-top:.9rem; }
+
+/* LA CARTE QUI VIENT D'APPARAITRE se signale, puis se tait. La grille
+   est rangee par nom : une base creee atterrit a sa place alphabetique,
+   pas sous les yeux de qui vient de cliquer « Creer ». L'eclat dure le
+   temps de la trouver — un marquage permanent finirait par ne plus rien
+   dire. `prefers-reduced-motion` le remplace par un liseré fixe : le
+   reperage ne doit pas dependre du mouvement.
+   / The new card announces itself, then goes quiet; reduced-motion gets
+   a steady outline instead, since finding it must not require movement. */
+@keyframes eclat-carte-nouvelle {
+  from { box-shadow: 0 0 0 2px var(--accent, #B61601); }
+  to   { box-shadow: 0 0 0 2px transparent; }
+}
+.zone-corpus .carte-base.est-nouvelle {
+  animation: eclat-carte-nouvelle 2.6s ease-out 1 forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .zone-corpus .carte-base.est-nouvelle {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--accent, #B61601);
+  }
+}
+
+/* Le geste destructeur est TENU A DISTANCE du bouton d'enregistrement :
+   un filet et une marge le separent, pour qu'on ne l'atteigne pas en
+   visant « Enregistrer ». / A rule and a gap keep the destructive
+   action away from the save button. */
+.zone-corpus .separee-du-formulaire {
+  margin-top:1.2rem; padding-top:.9rem; border-top:1px solid var(--filet);
+}
+
+/* Les trois choix de visibilite sur un rang : ils sont COMPARABLES, et
+   les lire en colonne obligerait a un aller-retour vertical pour
+   choisir entre trois mots. / The three levels sit on one row: they are
+   meant to be compared at a glance. */
+.zone-corpus .groupe-visibilite {
+  display:flex; align-items:center; flex-wrap:wrap; gap:.2rem;
+  border:none; padding:0; margin:.7rem 0 0; min-width:0;
+}
+.zone-corpus .groupe-visibilite > legend { padding:0; float:left; width:100%; }
+/* Le texte d'aide passe SOUS les trois choix : `float` sur la legende
+   sort celle-ci du flux, il faut donc rendre la ligne au paragraphe.
+   / The help line goes below the three choices. */
+.zone-corpus .groupe-visibilite > .aide-champ { flex-basis:100%; margin:.3rem 0 0; }
+
+/* Un choix de visibilite : le bouton radio et son libelle forment UNE
+   cible, cliquable sur toute sa surface — un radio nu fait 13px de
+   cote, bien en deca des 24px que demande WCAG 2.5.8. Le `label`
+   enveloppe l'input, donc le libelle agrandit la cible au lieu de
+   n'etre qu'une legende posee a cote.
+   / The radio and its text form one target: a bare radio is 13px, far
+   under the 24px WCAG 2.5.8 asks for. The label wraps the input, so the
+   text enlarges the target instead of sitting beside it. */
+.zone-corpus .choix-visibilite {
+  display:inline-flex; align-items:center; gap:.3rem;
+  padding:.35rem .5rem; border-radius:4px; cursor:pointer;
+  font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:.7rem;
+}
+.zone-corpus .choix-visibilite:hover { background:var(--papier-creux); }
+/* Le contour de focus se pose sur l'ETIQUETTE ENTIERE, pas sur le radio
+   seul : au clavier, on doit voir ce qu'on selectionne a la taille ou
+   on le lit. / Focus ring on the whole label, not the tiny radio. */
+.zone-corpus .choix-visibilite:has(input:focus-visible) {
+  outline:2px solid var(--encre); outline-offset:1px;
+}
+
 /* Colonne d'actions d'une ligne (epingler, retirer). Classe distincte
    de .boutons-ordre, dont la regle « .boutons-ordre button » ecraserait
    .bouton-icone (verification T5). */

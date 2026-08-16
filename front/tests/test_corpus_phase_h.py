@@ -227,6 +227,37 @@ class AjouterUnCarnetALaBaseTest(TestCase):
             name="Carnet à ranger H", owner=self.proprietaire,
         )
 
+    def test_quand_tout_est_deja_range_le_geste_s_explique(self):
+        """
+        Le formulaire disparaissait EN SILENCE des que tous les carnets
+        etaient deja dans la base : on ne savait pas si la fonction
+        n'existait pas, si elle demandait un droit qu'on n'a pas, ou si
+        l'on avait mal cherche. C'est le `{% empty %}` qui le dit.
+        / The form used to vanish silently, leaving no way to tell a
+        missing feature from a missing permission.
+        """
+        from core.models import AppartenanceDossierBase
+
+        AppartenanceDossierBase.objects.create(
+            base=self.base, dossier=self.carnet,
+        )
+        self.client.force_login(self.proprietaire)
+
+        contenu = self.client.get(f"/bases/{self.base.slug}/").content.decode()
+
+        self.assertIn("corpus-base-aucun-carnet-a-ajouter", contenu)
+        self.assertNotIn("corpus-base-ajouter-form", contenu)
+
+    def test_tant_qu_il_reste_un_carnet_le_formulaire_est_la(self):
+        """Le pendant : le message vide ne doit pas manger le geste."""
+        self.client.force_login(self.proprietaire)
+
+        contenu = self.client.get(f"/bases/{self.base.slug}/").content.decode()
+
+        self.assertIn("corpus-base-ajouter-form", contenu)
+        self.assertIn("Carnet à ranger H", contenu)
+        self.assertNotIn("corpus-base-aucun-carnet-a-ajouter", contenu)
+
     def test_le_proprietaire_ajoute_un_carnet(self):
         self.client.force_login(self.proprietaire)
         reponse = self.client.post(

@@ -16,7 +16,19 @@ gabarits Django, `{# #}` ne vaut que sur UNE ligne — sur plusieurs, il
 n'est pas reconnu comme commentaire et son texte s'affiche a l'ecran.
 / Extracted so the home tab and /bases/ share one card.
 {% endcomment %}
-<li class="carte-base" data-testid="corpus-base-item"
+{% comment %}
+`est-nouvelle` ne parait qu'au retour d'une creation, sur LA carte qui
+vient d'apparaitre : la grille est rangee par nom, donc la nouvelle base
+atterrit a sa place alphabetique et non sous les yeux de qui vient de
+cliquer « Creer ». Le CSS l'eclaire quelques secondes, puis la rend a
+son calme — un marquage permanent finirait par ne plus rien signaler.
+La classe est absente partout ailleurs : `slug_de_la_base_creee` ne vaut
+quelque chose que dans la reponse au POST.
+/ Only on the card that just appeared: the grid is sorted by name, so a
+new base lands alphabetically rather than where the eye is.
+{% endcomment %}
+<li class="carte-base{% if base.slug == slug_de_la_base_creee %} est-nouvelle{% endif %}"
+    data-testid="corpus-base-item"
     data-base-slug="{{ base.slug }}">
 
     {# LA COUVERTURE est FACULTATIVE et le restera : le champ #}

@@ -2998,7 +2998,17 @@ class LectureViewSet(viewsets.ViewSet):
             reponse_erreur = HttpResponse(status=400)
             reponse_erreur["HX-Trigger"] = json.dumps({
                 "showToast": {
-                    "message": "Aucun analyseur de synthèse actif. Chargez la fixture demo_ia.json.",
+                    # Le message citait `demo_ia.json`, une fixture
+                    # supprimee le 15 aout 2026 : il envoyait l'utilisateur
+                    # vers un fichier qui n'existe plus. Les analyseurs
+                    # sont crees par l'installation, et il n'y a plus de
+                    # rechargement partiel — une seule voie pour tout
+                    # refaire. / It named a deleted fixture; there is no
+                    # partial reload any more.
+                    "message": (
+                        "Aucun analyseur de synthèse actif. Relancez "
+                        "l'installation : docker compose down -v && make install."
+                    ),
                     "icon": "warning",
                 },
             })

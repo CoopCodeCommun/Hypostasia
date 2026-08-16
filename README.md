@@ -85,7 +85,7 @@ qui fait automatiquement :
 3. `collectstatic` — fichiers CSS/JS
 4. `charger_fixtures_sample` — les documents etalons de `sample/`, la base de connaissances et le carnet
 5. `charger_extractions_demo` — leurs extractions et commentaires
-6. `charger_fixtures_llm_reel` — deux notes analysees par le **vrai** modele, ce qui teste les cles API
+6. `analyser_les_notes_etalons` — les notes du carnet analysees par le **vrai** modele, ce qui teste les cles API
 
 `bin/install.sh` est **idempotent** : il peut etre relance sans risque a
 chaque redemarrage. Le premier passage convertit deux PDF avec Docling
@@ -167,12 +167,15 @@ bash bin/install.sh
 # Lancer le serveur / Start server
 python manage.py runserver 0.0.0.0:8000
 
-# (Autre terminal) Lancer Celery pour la transcription audio
-# / (Another terminal) Start Celery for audio transcription
-uv run celery -A hypostasia worker --loglevel=info
+# (Autre terminal) Les DEUX workers Celery — le second est DEDIE a
+# l'ingestion Docling, a concurrence 1 : une conversion a la fois.
+# / (Other terminals) BOTH Celery workers; the second is dedicated to
+# Docling ingestion at concurrency 1.
+celery -A hypostasia worker --loglevel=info --concurrency=2
+celery -A hypostasia worker --loglevel=info --concurrency=1 -Q ingestion_docling
 ```
 
-Acces : http://localhost:8123/ — Se connecter avec `jonas` / `demo1234`
+Acces : http://localhost:8000/ — Se connecter avec `jonas` / `demo1234`
 
 ### Production
 
@@ -186,19 +189,26 @@ POSTGRES_PASSWORD=mot_de_passe_fort
 # Lancer / Start
 docker compose up -d
 
-# Les migrations et collectstatic sont lances automatiquement par start.sh
-# Supervisord demarre gunicorn + celery worker
+# bin/start-prod.sh attend PostgreSQL, lance bin/install.sh (migrations,
+# statiques, documents, analyse), puis supervisord : gunicorn:8001,
+# daphne:8000 et les DEUX workers Celery.
 ```
 
 ### Mise a jour en production / Production update
 
 ```bash
-docker exec -it hypostasia_web bash
-cd /app && git pull
-uv sync
-uv run python manage.py migrate
-supervisorctl -c /app/supervisord.conf restart gunicorn celery_worker
+make prod-update CONTENEUR=hypostasia_dev_web
 ```
+
+Cette cible refuse de tourner si `.env` porte `DEBUG=true` — elle n'a de
+sens que sur la machine de production. Elle enchaine `git pull`, `uv
+sync`, `migrate`, `collectstatic`, puis redemarre les **quatre**
+programmes : `gunicorn`, `daphne`, `celery_worker` et
+`celery_worker_docling`. Le nom du conteneur est a preciser car
+`docker-compose-prod.yml` nomme les siens `hypostasia_dev_web`.
+
+*Refuses to run when `.env` has `DEBUG=true`; restarts all four
+programs, not just two.*
 
 ---
 
@@ -581,7 +591,7 @@ docker compose logs -f web
 3. `collectstatic` — fichiers CSS/JS
 4. `charger_fixtures_sample` — les documents etalons de `sample/`, la base de connaissances, le carnet
 5. `charger_extractions_demo` — leurs extractions et commentaires
-6. `charger_fixtures_llm_reel` — deux notes analysees par le **vrai** modele, en file Celery
+6. `analyser_les_notes_etalons` — les notes du carnet analysees par le **vrai** modele, en file Celery
 
 Resultat : le compte `jonas`, la base « Demonstration », le carnet
 « Documents etalons » et ses six notes couvrant les cinq formes d'entree
@@ -599,16 +609,42 @@ configured model. Steps can be run one at a time.*
 
 ### Fixtures disponibles / Available fixtures
 
-| Fixture | Contenu | Commande |
-|---------|---------|----------|
-| `charger_fixtures_demo` | Tout (users, dossiers, pages, extractions, commentaires, V1+V2) | `uv run python manage.py charger_fixtures_demo` |
-| `demo_ia.json` | Config IA seule (modeles, analyseurs, prompts) | `uv run python manage.py loaddata front/fixtures/demo_ia.json` |
-| `exemple_deliberation.json` | 1 page + 7 extractions + 4 commentaires (demo minimale) | `uv run python manage.py loaddata front/fixtures/exemple_deliberation.json` |
-| `demo_alignement_versions.json` | Debat V1 + Synthese V2 (30 entites, alignement entre versions) | `uv run python manage.py loaddata front/fixtures/demo_alignement_versions.json` |
+Il n'y a plus de fichiers `loaddata` : les donnees de demonstration sont
+produites par des COMMANDES, qui savent ce qui existe deja et ne
+recreent que ce qui manque.
 
-Toutes les fixtures utilisent des cles d'attributs canoniques (`resume`, `hypostases`, `mots_cles`, `statut`).
+*No more `loaddata` files: demo data comes from COMMANDS that only
+create what is missing.*
 
-*All fixtures use canonical attribute keys (`resume`, `hypostases`, `mots_cles`, `statut`).*
+| Commande | Contenu |
+|----------|---------|
+| `charger_fixtures_sample` | Les 6 documents de `sample/` (capture web, markdown, transcription, audio, 2 PDF), la base de connaissances, le carnet, les analyseurs |
+| `charger_extractions_demo` | Leurs extractions et commentaires, ecrits a la main (cas limites : marques imbriquees, ancre sur tableau, cartes a 0/1/2 commentaires) |
+| `analyser_les_notes_etalons` | Envoie a l'analyse par le **vrai** modele les notes du carnet qui ne le sont pas encore. Ne cree ni note ni carnet. Saute celles de plus de 100 elements (cout). |
+| `charger_fixtures_demo` | Un jeu de notes fictives, sans base de connaissances. N'est plus lance par l'installation. |
+
+Les trois premieres sont enchainees par `bin/install.sh`, donc a chaque
+demarrage du conteneur, et chacune saute ce qui existe deja.
+
+**Pour tout refaire, une seule voie** : `docker compose down -v && make
+install`. Il n'existe pas de cible de rechargement partiel — elle
+laisserait un melange, moitie donnees d'avant, moitie d'apres, sans
+qu'on sache ce que porte la base. Les etapes restent appelables a la
+main pour un cas particulier : `docker exec -w /app hypostasia_web bash
+bin/install.sh fixtures` (ou `statiques`, ou `llm`).
+
+*One way to redo everything: `down -v` then `make install`. No partial
+reload, so no doubt about what the database holds.*
+
+Les **quatre fixtures JSON** (`demo_ia.json`, `demo_completes.json`,
+`exemple_deliberation.json`, `demo_alignement_versions.json`) ont ete
+supprimees le 15 aout 2026 : rien ne les chargeait, et trois d'entre
+elles ne se chargeaient plus depuis le 21 mars 2026 — deux migrations
+avaient change le schema sous elles. Elles restent dans l'historique git.
+
+*The four JSON fixtures were removed on 15 August 2026: nothing loaded
+them, and three had been unloadable for five months. They remain in git
+history.*
 
 ---
 

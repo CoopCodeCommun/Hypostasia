@@ -15,7 +15,7 @@
     <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=36">
     {# La couche maquette globale (9 aout 2026) : le design de l'etalon #}
     {# applique au chrome — chargee EN DERNIER, elle re-teinte le reste. #}
-    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=60">
+    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=65">
     {# Le theme 3 etats, applique AVANT le premier rendu (lot T7) : #}
     {# charge plus bas, la page clignoterait du clair vers le sombre. #}
     {# / Three-state theme, applied before first paint. #}
@@ -48,7 +48,22 @@
 
     <!-- Toolbar principale (PHASE-08) -->
     <!-- / Main toolbar (PHASE-08) -->
-    <nav class="h-12 border-b border-slate-200 flex items-center px-3 bg-white shrink-0 z-30 relative gap-1">
+    {% comment %}
+    LA HAUTEUR VIENT DE `.barre-outils` (CSS), PAS D'UN UTILITAIRE.
+
+    L'etalon donne 44px a cette barre ; elle en faisait 48 (`h-12`), et
+    ces 4px se cumulaient avec les 2px de la bande du fil : le texte
+    commencait 6px plus bas que dans la maquette.
+
+    `h-11` (44px) aurait ete la correction evidente — elle ne marche pas.
+    LE BUILD TAILWIND EST FIGE : `.h-12` y est, `.h-11` n'y est pas. La
+    classe est alors inerte, et la barre retombe sur la hauteur de son
+    contenu — mesure : 33px. On garde donc `h-12`, qui existe, et la
+    regle `.barre-outils` de maquette.css pose la vraie hauteur par-dessus.
+    / The height comes from CSS: the Tailwind build is frozen and has no
+    .h-11, so that class would be inert and the bar would collapse to 33px.
+    {% endcomment %}
+    <nav class="barre-outils h-12 border-b border-slate-200 flex items-center px-3 bg-white shrink-0 z-30 relative gap-1">
         <!-- Gauche : hamburger + titre (prend l'espace restant, tronque) -->
         <!-- Sur mobile : pas de mot "Hypostasia", juste le titre du document tronque -->
         <!-- / Left: hamburger + title (takes remaining space, truncated) -->

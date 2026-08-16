@@ -8,8 +8,7 @@ CE QUE CES TESTS PROTEGENT
 
 Les 30 hypostases de la geometrie des debats sont ecrites en de
 nombreux endroits du depot, sous des formes differentes, sans qu'aucun
-lien de code ne relie ces copies. Ce fichier en surveille cinq
-familles :
+lien de code ne relie ces copies. Ce fichier en surveille cinq :
 
   1. `core.models.HypostasisChoices`      — la taxonomie du modele ;
   2. `PIECE_DE_DEFINITIONS_DE_L_EXTRACTION` — le referentiel enseigne au
@@ -17,9 +16,15 @@ familles :
   3. `EXTRACTIONS_DE_L_EXEMPLE_FEW_SHOT`  — les 30 exemples livres, un
      par hypostase, qui montrent au modele ce qu'on attend de lui ;
   4. `front.normalisation.HYPOSTASES_CONNUES` — le FILTRE DE PRODUCTION ;
-  5. `README.md` — la matrice et les 6 familles publiees aux humains ;
-  6. `front/fixtures/demo_*.json` — DOUZE copies, reparties entre des
-     `promptpiece.content` et des `extractionjob.prompt_description`.
+  5. `README.md` — la matrice et les 6 familles publiees aux humains.
+
+UNE SIXIEME A DISPARU, ET C'EST UN GAIN. `front/fixtures/demo_*.json`
+portait DOUZE copies de plus, reparties entre des `promptpiece.content`
+et des `extractionjob.prompt_description`. Ces fixtures ont ete
+supprimees le 15 aout 2026 : rien ne les chargeait, et trois d'entre
+elles ne se chargeaient plus depuis cinq mois. Elles pouvaient prendre le
+pas sur le prompt du code (voir le commentaire en bas de ce fichier).
+/ A sixth source is gone, and that is a gain.
 
 DEUX SOURCES TEXTUELLES RESTENT HORS DE CE FILET : `seed_prompts.py` et
 `benchmarks/extraction_format/prompts.py`. Aucune des deux n'est chargee
@@ -500,190 +505,32 @@ class ReferentielPublieDansLeReadmeTest(SimpleTestCase):
         )
 
 
-class ReferentielDesFixturesJsonTest(SimpleTestCase):
-    """
-    Les fixtures de demo portent-elles le meme referentiel que le code ?
-    / Do the demo fixtures carry the same reference as the code?
-
-    POURQUOI CES FIXTURES COMPTENT AUTANT QUE LE CODE
-
-    `front/fixtures/demo_ia.json` ne contient pas que des donnees
-    d'illustration : il contient des `promptpiece`, et donc un analyseur
-    « Hypostasia » COMPLET, prompt inclus. Charge par `loaddata`, il
-    fabrique un analyseur qui part vraiment analyser des textes.
-
-    Et il prend le pas sur le code. `creer_les_modeles_ia_et_les_analyseurs()`
-    fait un `get_or_create` sur le NOM de l'analyseur, puis ne garnit le
-    prompt que si l'analyseur n'a aucune piece. Une base ou la fixture a
-    ete chargee la premiere garde donc le prompt de la FIXTURE, et le
-    referentiel du code n'y arrivera jamais.
-
-    Une fixture laissee en arriere est donc un referentiel fantome : il ne
-    se voit dans aucun fichier Python, et il est pourtant celui qu'un
-    modele recevra.
-    / These fixtures contain full analyzers, prompt included. Loaded first,
-    they win over the code — a stale fixture is a ghost reference.
-
-    CE QUE CE TEST NE FAIT PAS
-
-    Il n'exige pas que les fixtures aient le MEME TEXTE que le prompt de
-    production : leur forme est differente (« X : non refute par A et non
-    prouve par B », sans les familles ni les definitions). Il exige que
-    la STRUCTURE y soit juste — les 30 hypostases, chacune dans sa case.
-    / It does not require identical text, only a correct structure.
-    """
-
-    # Les fixtures qui portent le referentiel. `exemple_deliberation.json`
-    # n'y figure pas : il ne contient aucun prompt.
-    # / Fixtures carrying the reference; exemple_deliberation.json has none.
-    FIXTURES_PORTANT_LE_REFERENTIEL = [
-        "front/fixtures/demo_ia.json",
-        "front/fixtures/demo_completes.json",
-        "front/fixtures/demo_alignement_versions.json",
-    ]
-
-    # La forme employee dans les fixtures, heritee de seed_prompts.py.
-    # / The form used in fixtures, inherited from seed_prompts.py.
-    MOTIF_D_UNE_HYPOSTASE = (
-        r"- ([a-zéèêàûôîç']+) ?: ?non réfuté par ([a-zé]+ [a-zé]+) "
-        r"et non prouvé par ([a-zé]+ [a-zé]+)"
-    )
-
-    def _referentiels_de_la_fixture(self, chemin_relatif):
-        """
-        Relit CHAQUE copie du referentiel que porte une fixture.
-        / Reads back EVERY copy of the reference a fixture carries.
-
-        Le referentiel n'y vit pas a un seul endroit, et c'est le piege
-        de ce fichier : `demo_ia.json` le porte dans des
-        `promptpiece.content`, `demo_alignement_versions.json` dans des
-        `extractionjob.prompt_description` — le prompt archive d'une
-        analyse passee — et `demo_completes.json` dans les deux a la fois
-        (8 jobs plus une piece). Une premiere version de ce test ne
-        regardait que les pieces de prompt : il rendait une matrice vide
-        pour la fixture d'alignement et l'aurait declaree conforme si
-        l'assertion avait ete moins stricte.
-
-        On balaie donc TOUS les champs texte de TOUS les objets, et on
-        rend une matrice par bloc trouve, pour que chaque copie soit
-        jugee separement : agreger les cases masquerait une copie restee
-        en arriere derriere une copie a jour.
-        / The reference lives in prompt pieces AND in archived job
-        prompts. Each block is returned separately: merging them would
-        hide a stale copy behind an up-to-date one.
-
-        :return: liste de (localisation lisible, matrice {case: {noms}})
-        """
-        from django.conf import settings
-
-        chemin_complet = os.path.join(settings.BASE_DIR, chemin_relatif)
-        objets_de_la_fixture = json.loads(
-            open(chemin_complet, encoding="utf-8").read(),
-        )
-
-        referentiels_trouves = []
-        for numero_de_l_objet, objet in enumerate(objets_de_la_fixture):
-            for nom_du_champ, valeur_du_champ in objet.get("fields", {}).items():
-                if not isinstance(valeur_du_champ, str):
-                    continue
-                lignes_d_hypostases = re.findall(
-                    self.MOTIF_D_UNE_HYPOSTASE, valeur_du_champ,
-                )
-                if not lignes_d_hypostases:
-                    continue
-
-                cases_de_la_matrice = {}
-                for nom, mode_de_non_refutation, mode_de_non_preuve in lignes_d_hypostases:
-                    case = (
-                        _normaliser_texte(mode_de_non_refutation),
-                        _normaliser_texte(mode_de_non_preuve),
-                    )
-                    cases_de_la_matrice.setdefault(case, set()).add(
-                        _normaliser_texte(nom),
-                    )
-                referentiels_trouves.append((
-                    f"objet #{numero_de_l_objet} ({objet.get('model')}."
-                    f"{nom_du_champ})",
-                    cases_de_la_matrice,
-                ))
-
-        self.assertTrue(
-            referentiels_trouves,
-            f"{chemin_relatif} ne contient plus aucun referentiel des 30 "
-            f"hypostases. Si la fixture a ete regeneree sans prompt, la "
-            f"retirer de FIXTURES_PORTANT_LE_REFERENTIEL ; sinon, le "
-            f"referentiel a disparu de la demo.",
-        )
-        return referentiels_trouves
-
-    def test_chaque_fixture_porte_les_trente_hypostases_du_modele(self):
-        for chemin_de_la_fixture in self.FIXTURES_PORTANT_LE_REFERENTIEL:
-            for localisation, cases in self._referentiels_de_la_fixture(
-                chemin_de_la_fixture,
-            ):
-                with self.subTest(fixture=chemin_de_la_fixture, ou=localisation):
-                    hypostases_de_cette_copie = set()
-                    for noms_de_la_case in cases.values():
-                        hypostases_de_cette_copie |= noms_de_la_case
-
-                    self.assertEqual(
-                        hypostases_de_cette_copie, _hypostases_du_modele(),
-                        f"{chemin_de_la_fixture}, {localisation} : les "
-                        f"hypostases ne sont pas celles de "
-                        f"core.models.HypostasisChoices.\n"
-                        f"  absentes : "
-                        f"{sorted(_hypostases_du_modele() - hypostases_de_cette_copie)}\n"
-                        f"  en trop : "
-                        f"{sorted(hypostases_de_cette_copie - _hypostases_du_modele())}",
-                    )
-
-    def test_aucune_fixture_ne_reintroduit_l_anomalie_de_la_famille_4(self):
-        """
-        Le motif tient-il aussi dans les fixtures ?
-
-        C'est le meme controle que sur le prompt de production, applique
-        la ou personne ne pense a regarder. L'anomalie corrigee le 14 aout
-        2026 vivait dans ces trois fichiers autant que dans le code ; une
-        fixture regeneree depuis une vieille base la ramenerait telle
-        quelle, sans qu'aucun test du code ne bronche.
-        / The same check as on the production prompt, applied where nobody
-        thinks to look: a fixture regenerated from an old database would
-        bring the anomaly straight back.
-        """
-        for chemin_de_la_fixture in self.FIXTURES_PORTANT_LE_REFERENTIEL:
-            for localisation, cases in self._referentiels_de_la_fixture(
-                chemin_de_la_fixture,
-            ):
-                with self.subTest(fixture=chemin_de_la_fixture, ou=localisation):
-                    cases_diagonales = {
-                        case for case in cases if case[0] == case[1]
-                    }
-                    self.assertEqual(
-                        cases_diagonales, set(),
-                        f"{chemin_de_la_fixture}, {localisation} : une "
-                        f"hypostase est « non prouvee » par le mode qui ne la "
-                        f"refute deja pas — la case diagonale est interdite. "
-                        f"Cases fautives : {sorted(cases_diagonales)}",
-                    )
-
-                    cases_a_plusieurs_hypostases = {
-                        case: sorted(noms)
-                        for case, noms in cases.items() if len(noms) > 1
-                    }
-                    self.assertEqual(
-                        cases_a_plusieurs_hypostases, {},
-                        f"{chemin_de_la_fixture}, {localisation} : deux "
-                        f"hypostases partagent une meme case, une autre case "
-                        f"est donc vide. {cases_a_plusieurs_hypostases}",
-                    )
-
-                    self.assertEqual(
-                        len(cases), NOMBRE_D_HYPOSTASES_ATTENDU,
-                        f"{chemin_de_la_fixture}, {localisation} : "
-                        f"{len(cases)} cases occupees sur "
-                        f"{NOMBRE_D_HYPOSTASES_ATTENDU}. La matrice n'est pas "
-                        f"complete.",
-                    )
+# LES FIXTURES JSON NE SONT PLUS UNE SOURCE DU REFERENTIEL (15 aout 2026)
+#
+# Une classe surveillait ici les copies du referentiel portees par
+# `front/fixtures/*.json`. Ces quatre fixtures ont ete supprimees : rien
+# ne les chargeait — ni l'installation, ni aucun test — et trois d'entre
+# elles ne se chargeaient plus depuis le 21 mars 2026, deux migrations
+# ayant change le schema sous elles.
+#
+# Leur disparition SUPPRIME le risque que cette classe surveillait. Elles
+# ne portaient pas que des donnees : `demo_ia.json` contenait un
+# analyseur « Hypostasia » complet, prompt inclus. Charge par `loaddata`,
+# il prenait le pas sur le code — `creer_les_modeles_ia_et_les_analyseurs`
+# fait un `get_or_create` sur le NOM et ne garnit le prompt que si
+# l'analyseur n'a aucune piece. Une base ou la fixture etait chargee la
+# premiere gardait donc le prompt de la FIXTURE pour toujours : un
+# referentiel fantome, visible dans aucun fichier Python, et pourtant
+# celui qu'un modele recevait.
+#
+# Le referentiel n'a plus qu'une source vivante, le code, et les classes
+# ci-dessus la verrouillent : le modele, le prompt, l'exemple few-shot et
+# le filtre de production.
+# / A class here watched the reference carried by the JSON fixtures. Those
+# fixtures are gone — nothing loaded them, and three had been unloadable
+# for five months. Their removal REMOVES the risk this class watched: a
+# loaded fixture used to outrank the code's prompt for good. The reference
+# now has a single living source, locked by the classes above.
 
 
 class SynonymesVersLeReferentielTest(SimpleTestCase):
