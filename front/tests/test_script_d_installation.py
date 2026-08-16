@@ -46,6 +46,7 @@ REPERTOIRE_DES_SCRIPTS = "bin"
 SCRIPT_D_INSTALLATION = f"{REPERTOIRE_DES_SCRIPTS}/install.sh"
 SCRIPT_DE_DEMARRAGE_DEV = f"{REPERTOIRE_DES_SCRIPTS}/start-dev.sh"
 SCRIPT_DE_DEMARRAGE_PROD = f"{REPERTOIRE_DES_SCRIPTS}/start-prod.sh"
+SCRIPT_DE_CONFIGURATION = f"{REPERTOIRE_DES_SCRIPTS}/configurer_env.sh"
 
 COMMANDE_DES_DOCUMENTS = "charger_fixtures_sample"
 COMMANDE_DES_EXTRACTIONS = "charger_extractions_demo"
@@ -76,6 +77,49 @@ def _lignes_utiles(chemin_relatif):
 def _rang_de(lignes, motif):
     """Rend l'index de la premiere ligne portant `motif`, ou None."""
     return next((i for i, ligne in enumerate(lignes) if motif in ligne), None)
+
+
+def _contenu_du_makefile():
+    """Rend le Makefile tel quel, indentation comprise."""
+    return (Path(settings.BASE_DIR) / "Makefile").read_text(encoding="utf-8")
+
+
+def _corps_de_la_cible(nom):
+    """
+    Rend les lignes du corps d'une cible, variables du Makefile resolues.
+    / Returns a target's body lines, Makefile variables resolved.
+
+    LOCALISATION : front/tests/test_script_d_installation.py
+
+    Sans la resolution, un test qui cherche `configurer_env.sh`
+    echouerait sur un Makefile qui l'appelle proprement par
+    `$(SCRIPT_DE_CONFIGURATION)` — il PENALISERAIT le style attendu ici,
+    ou chaque chemin de script est nomme une seule fois.
+    / Without it, the test would penalise the very style this project
+    asks for: each script path named once, in a variable.
+    """
+    variables = {}
+    for ligne in _contenu_du_makefile().splitlines():
+        if ligne.startswith(("\t", "#", " ")) or ":=" not in ligne:
+            continue
+        cle, _, valeur = ligne.partition(":=")
+        variables[cle.strip()] = valeur.strip()
+
+    corps = []
+    dans_la_cible = False
+    for ligne in _contenu_du_makefile().splitlines():
+        if ligne.startswith(f"{nom}:"):
+            dans_la_cible = True
+            continue
+        if dans_la_cible:
+            if ligne.startswith("\t"):
+                resolue = ligne.strip()
+                for cle, valeur in variables.items():
+                    resolue = resolue.replace(f"$({cle})", valeur)
+                corps.append(resolue)
+            elif ligne.strip():
+                break
+    return corps
 
 
 class LInstallationChargeLeBonJeuDeDonneesTest(TestCase):
@@ -156,6 +200,185 @@ class LInstallationChargeLeBonJeuDeDonneesTest(TestCase):
 
         self.assertLess(rang_migrations, rang_documents)
         self.assertLess(rang_documents, rang_extractions)
+
+
+class LInstallationFabriqueSonFichierDEnvironnementTest(TestCase):
+    """
+    Une machine neuve n'a pas de `.env`, et sans lui rien ne demarre.
+    / A fresh machine has no .env, and nothing starts without it.
+
+    LOCALISATION : front/tests/test_script_d_installation.py
+
+    `docker compose up -d` lit le `.env` : sans lui, `POSTGRES_PASSWORD`
+    est vide et PostgreSQL refuse de s'initialiser. L'installation
+    commencait donc par une etape non ecrite — « copier .env.example et
+    le remplir » — dont le README seul portait la trace, et dont
+    l'oubli le plus courant est de laisser `CHANGEZ_MOI_EN_PROD` comme
+    SECRET_KEY en production.
+    / The install began with an unwritten step that only the README
+    carried, whose most common outcome is a production SECRET_KEY still
+    reading CHANGEZ_MOI_EN_PROD.
+    """
+
+    def _lignes_du_makefile(self):
+        return _lignes_utiles("Makefile")
+
+    def test_le_script_de_configuration_existe(self):
+        self.assertTrue(
+            (Path(settings.BASE_DIR) / SCRIPT_DE_CONFIGURATION).is_file(),
+            f"{SCRIPT_DE_CONFIGURATION} est absent.",
+        )
+
+    def test_l_installation_configure_avant_de_demarrer_les_conteneurs(self):
+        """
+        L'ordre n'est pas negociable : compose LIT le `.env`.
+        / The order is not negotiable: compose READS the .env.
+        """
+        corps = _corps_de_la_cible("install")
+
+        rang_configuration = _rang_de(corps, "configurer_env.sh")
+        rang_demarrage = _rang_de(corps, "docker compose up")
+
+        self.assertIsNotNone(
+            rang_configuration,
+            "`make install` ne fabrique aucun .env : sur une machine "
+            "neuve, PostgreSQL demarre sans mot de passe et echoue.",
+        )
+        self.assertIsNotNone(rang_demarrage, "`make install` ne demarre rien.")
+        self.assertLess(
+            rang_configuration,
+            rang_demarrage,
+            "Le .env est fabrique APRES le demarrage des conteneurs : "
+            "compose l'a deja lu, vide.",
+        )
+
+    def test_les_secrets_sont_tires_au_hasard_jamais_demandes(self):
+        # Une SECRET_KEY saisie a la main est une SECRET_KEY faible, ou
+        # recopiee d'un autre projet. / A hand-typed SECRET_KEY is a
+        # weak one, or one copied from another project.
+        code = "\n".join(_lignes_utiles(SCRIPT_DE_CONFIGURATION))
+
+        self.assertIn(
+            "openssl rand",
+            code,
+            "Les secrets ne sont pas tires au hasard.",
+        )
+        for secret in ("SECRET_KEY", "POSTGRES_PASSWORD"):
+            with self.subTest(secret=secret):
+                self.assertNotIn(
+                    f'demander "{secret}',
+                    code,
+                    f"{secret} est DEMANDEE a l'utilisateur au lieu "
+                    f"d'etre tiree au hasard.",
+                )
+
+    def test_le_fichier_existant_n_est_jamais_ecrase(self):
+        """
+        Relancer `make install` ne doit pas effacer les cles API.
+        / Re-running `make install` must not wipe the API keys.
+
+        LOCALISATION : front/tests/test_script_d_installation.py
+
+        `make install` est rejoue a CHAQUE demarrage de conteneur.
+        Regenerer le .env y perdrait les cles API, le mot de passe de la
+        base — donc l'acces aux donnees — et la passphrase du depot de
+        sauvegarde, ce qui rendrait toutes les archives illisibles.
+        / Regenerating it would lose the API keys, the database password
+        and the backup passphrase, making every archive unreadable.
+        """
+        lignes = _lignes_utiles(SCRIPT_DE_CONFIGURATION)
+        code = "\n".join(lignes)
+
+        # On vise le garde-fou EXACT. Chercher `-f ` n'importe ou
+        # suffisait : mesure du 16 aout 2026, le bloc d'idempotence
+        # supprime, le test restait vert grace au `[ -f "$FICHIER_MODELE" ]`
+        # qui vient juste apres.
+        # / Measured: with the idempotence block removed, looking for
+        # `-f ` anywhere stayed green thanks to an unrelated check.
+        self.assertIn(
+            '[ -f "$FICHIER_ENV" ]',
+            code,
+            "Rien ne verifie si un .env existe deja avant d'en ecrire "
+            "un : une relance de make install effacerait les cles API "
+            "et la passphrase du depot de sauvegarde.",
+        )
+
+        # Et ce garde-fou SORT, il ne se contente pas de prevenir.
+        # / And that guard exits; it does not merely warn.
+        rang_du_garde = _rang_de(lignes, '[ -f "$FICHIER_ENV" ]')
+        rang_de_l_ecriture = _rang_de(lignes, 'cp "$FICHIER_MODELE" "$FICHIER_ENV"')
+        sortie_avant_ecriture = any(
+            "exit 0" in ligne
+            for ligne in lignes[rang_du_garde:rang_de_l_ecriture]
+        )
+        self.assertTrue(
+            sortie_avant_ecriture,
+            "Le garde-fou constate qu'un .env existe mais n'arrete pas "
+            "le script : le fichier est ecrase quand meme.",
+        )
+
+    def test_debug_et_nginx_sont_ecrits_ensemble(self):
+        """
+        Un seul choix pour deux variables couplees.
+        / One choice for two coupled variables.
+
+        LOCALISATION : front/tests/test_script_d_installation.py
+
+        `DEBUG` et `NGINX_CONF` doivent bouger ENSEMBLE : la conf de
+        prod avec `DEBUG=true` envoie `/` vers le port 8001, ou personne
+        n'ecoute, et tout le site rend 502. Les demander separement,
+        c'est offrir a l'utilisateur la possibilite de se tromper — le
+        script ne pose donc qu'UNE question, « dev ou prod », et ecrit
+        les deux lignes.
+        / Asking for them separately offers the user a chance to get it
+        wrong; one question writes both lines.
+        """
+        lignes = _lignes_utiles(SCRIPT_DE_CONFIGURATION)
+        code = "\n".join(lignes)
+
+        for variable in ("DEBUG", "NGINX_CONF"):
+            with self.subTest(variable=variable):
+                self.assertIn(
+                    f"remplacer_la_ligne {variable}",
+                    code,
+                    f"{variable} n'est jamais ecrite dans le .env.",
+                )
+        self.assertIn(
+            "dev.conf",
+            code,
+            "La configuration nginx de dev n'est jamais ecrite : un "
+            "poste de dev recevrait celle de production, et tout le "
+            "site rendrait 502.",
+        )
+
+        # Et surtout : NGINX_CONF ne fait l'objet d'AUCUNE question.
+        # C'est ce qui rend le couple indeformable — on ne peut pas
+        # repondre « dev » puis « default.conf ».
+        # / And above all: NGINX_CONF is never asked about, which is
+        # what makes the pair impossible to get out of step.
+        for ligne in lignes:
+            if "demander" in ligne and "NGINX" in ligne:
+                with self.subTest(ligne=ligne):
+                    self.fail(
+                        "NGINX_CONF est DEMANDEE separement de DEBUG : "
+                        "on peut donc les mettre en desaccord, et le "
+                        "site rend 502 sur toutes ses pages."
+                    )
+
+    def test_l_absence_de_terminal_ne_bloque_pas_l_installation(self):
+        # Le script tourne aussi quand `make install` est appele depuis
+        # un autre script. Sans terminal, il doit prendre ses valeurs
+        # par defaut, pas attendre une reponse qui ne viendra jamais.
+        # / Without a terminal it must fall back to defaults, not wait
+        # for an answer that will never come.
+        code = "\n".join(_lignes_utiles(SCRIPT_DE_CONFIGURATION))
+
+        self.assertIn(
+            "-t 0",
+            code,
+            "Rien ne detecte l'absence de terminal : `make install` "
+            "lance depuis un script resterait bloque sur une question.",
+        )
 
 
 class LesDeuxDemarragesSontDistinctsTest(TestCase):

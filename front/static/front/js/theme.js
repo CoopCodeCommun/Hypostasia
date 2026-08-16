@@ -2,7 +2,7 @@
  * LE THEME A TROIS ETATS (lot T7 de la bascule CSS, 9 aout 2026).
  * LOCALISATION : front/static/front/js/theme.js
  *
- * Trois etats, comme l'etalon (tmp/maquettes/corpus.html) :
+ * Trois etats, comme l'etalon (front/static/front/maquettes/corpus.html) :
  *   "light"  -> clair force
  *   "dark"   -> sombre force
  *   ""       -> systeme (aucun attribut : le @media decide)

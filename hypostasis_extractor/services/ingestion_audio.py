@@ -20,7 +20,7 @@ L'unite de sens d'un enregistrement, c'est le TOUR DE PAROLE.
 
 POURQUOI LE TOUR DE PAROLE, ET PAS AUTRE CHOSE
 
-C'est la mesure D3 qui tranche (PLAN/mesure-D3-frontiere-audio-2026-08-10),
+C'est la mesure D3 qui tranche (PLAN/archive/mesures-et-recettes/mesure-D3-frontiere-audio-2026-08-10),
 pas une intuition : le changement de locuteur fait une MAUVAISE frontiere
 de chunk — l'imposer coupe des echanges au milieu et gonfle le nombre
 d'appels — mais une EXCELLENTE frontiere d'element, parce qu'un tour de

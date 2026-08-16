@@ -35,7 +35,7 @@
 
 - Chemins absolus : `/mnt/tank/Gits/Hypostasia/` (Hypostasia) et `/mnt/tank/Gits/atomic/` (Atomic, lecture seule)
 - Snippets en Python/Django pour Hypostasia, Rust pour Atomic à titre conceptuel
-- Conventions de code Hypostasia (skill `stack-ccc`) : ViewSet explicite, DRF Serializers,
+- Conventions de code Hypostasia (skill `djc`) : ViewSet explicite, DRF Serializers,
   HTMX, noms verbeux, commentaires bilingues FR/EN
 
 ---
@@ -69,7 +69,7 @@ d'Atomic). Détails section 10.
 ### Pourquoi pas from scratch
 
 - **Dette technique concentrée**, pas systémique. Hypostasia est bien structurée (skill
-  stack-ccc respecté, modèles propres, ~865 tests). La dette se trouve sur le pipeline
+  conventions `djc` respectées, modèles propres, ~865 tests). La dette se trouve sur le pipeline
   d'extraction et la normalisation tardive — ce sont des îlots refactorables.
 - **Capital conservé** : 75% du code reste utile (voir tableau ci-dessous).
 - **Second-system effect** : tendance à sur-ingéniérer la v2 quand on a la liberté de la
@@ -104,7 +104,7 @@ d'Atomic). Détails section 10.
 | Modèles métier (User, Dossier, Page, Commentaire, AIModel, Analyseur, ExtractionJob) | ~85% |
 | Vues HTMX + templates (lecture, drawer, dashboard, alignement, comparaison V1/V2) | ~80% |
 | Tests (~865) | ~70% réutilisables avec adaptations |
-| Conventions stack-ccc | 100% |
+| Conventions `djc` | 100% |
 | PHASE-26b (bibliothèque d'analyseurs admin-only) | 100% |
 | PHASE-26g (drawer hub d'analyse, WS, estimation coût) | 90% |
 
@@ -2064,7 +2064,7 @@ Si tu veux comprendre Atomic en profondeur avant d'implémenter une phase :
   et débats par passage avec statuts évolutifs (consensuel/discutable/discuté/
   controversé/non pertinent/nouveau), seuil 80% consensus → V2 chaînée à V1
 - Stack : Django 6 + DRF + HTMX + Tailwind + PostgreSQL 17 + Redis + Celery
-- Conventions strictes (skill `stack-ccc`) : ViewSet explicite (jamais ModelViewSet),
+- Conventions strictes (skill `djc`) : ViewSet explicite (jamais ModelViewSet),
   Serializers DRF (jamais Forms), HTMX (jamais SPA), noms verbeux, commentaires
   bilingues FR/EN
 - 28+ phases planifiées dans `PLAN/PHASES/`, ~25 livrées
@@ -2075,9 +2075,9 @@ Si tu veux comprendre Atomic en profondeur avant d'implémenter une phase :
 
 - **Pas de `Co-Authored-By`** dans les commits — l'utilisateur veut l'attribution
   entièrement à son nom (cf. `~/.claude/projects/-mnt-tank-Gits-atomic/memory/`)
-- **Pas de commandes git automatiques** (cf. CLAUDE.md section 8 d'Hypostasia) — l'user
+- **Pas de commandes git automatiques** (cf. `AGENTS.md`) — l'user
   gère tout son git manuellement
-- **Stack opinionée à respecter** (cf. GUIDELINES.md sections 1-5)
+- **Stack opinionée à respecter** (skill `djc` + skill `hypostasia`)
 - **FALC autant UX que code** : pas sur-ingéniérer, code lisible, conventions strictes
 - **Refactoring profond préféré au from scratch** (décision validée le 2026-04-26)
 

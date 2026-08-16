@@ -795,5 +795,5 @@ chercher** la configuration existante, exactement le travers déjà corrigé sur
       `TranscriptionJob` en erreur qui dit pourquoi.
 - [ ] Le menu des tâches affiche ce job sans lien mort.
 - [ ] `collectstatic` fait, `?v=` incrémenté, vérifié dans l'onglet réseau.
-- [ ] `CHANGELOG.md` et une fiche `A TESTER et DOCUMENTER/` rédigés.
+- [ ] un fichier `CHANGELOG/AAAA-MM-JJ-slug.md` rédigé (résumé, `---`, comment tester).
 - [ ] Aucune opération git.

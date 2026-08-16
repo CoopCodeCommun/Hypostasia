@@ -5,7 +5,7 @@ Tests du routage de l'analyse selon le moteur de la page (BR-C).
 LOCALISATION : front/tests/test_analyse_routage.py
 
 SPEC-ancrage-par-element-v2 § 9 (double moteur) + cahier
-PLAN/branchement-moteur-ancrage-cahier-des-charges.md, phase BR-C : la
+PLAN/archive/cahiers-des-charges/branchement-moteur-ancrage-cahier-des-charges.md, phase BR-C : la
 vue `analyser` cree toujours le meme ExtractionJob, mais la tache
 lancee ne depend plus du moteur : l'ancien (`analyser_page_task`)
 pour une page ANCIEN, `analyser_une_page_avec_le_moteur_element`

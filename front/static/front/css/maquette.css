@@ -1075,7 +1075,7 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
    blancs, dont trois sticky, plus deux cellules colorees et un onglet
    actif bleu. ---- */
 /* ATTENTION aux noms : `.tableau-alignement` est la classe de
-   l'ETALON (tmp/maquettes/corpus.html:408). Le gabarit Django, lui,
+   l'ETALON (front/static/front/maquettes/corpus.html:408). Le gabarit Django, lui,
    emploie `.alignement-table` et des cellules `.alignement-th-page`
    (sticky haut), `.alignement-th-corner` (coin) et
    `.alignement-td-hypostase` (colonne sticky gauche), dont le
@@ -1246,7 +1246,7 @@ body.bottom-sheet-focus .hl-extraction.hl-focus-actif {
 
 /* =========================================================================
    LE FIL D'ARIANE (lot « architecture de page »)
-   Source : tmp/maquettes/corpus.html:134-163 et :530-541.
+   Source : front/static/front/maquettes/corpus.html:134-163 et :530-541.
    Il vit HORS de .zone-corpus — il coiffe l'ecran, il n'en fait pas
    partie — donc ses regles sont ici et non dans le design system scope.
    Il est colle sous la barre : le conteneur defilant est #zone-lecture,

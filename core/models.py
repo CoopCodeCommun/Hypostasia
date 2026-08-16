@@ -172,7 +172,7 @@ class TypeDeNote(models.TextChoices):
 class Page(models.Model):
     """Représente une page web capturée par l'extension.
 
-    Règles (voir GUIDELINES):
+    Règles (voir AGENTS.md et le skill `hypostasia`) :
     - `html_original` est immuable après création.
     - `content_hash` = SHA256 de `text_readability`.
     - Les `TextBlock` liés ancrent les passages dans le DOM.
@@ -606,7 +606,7 @@ class Argument(models.Model):
     user_edited = models.BooleanField(
         default=False, help_text="Coché si un humain a modifié l’argument"
     )
-    # invalidated = models.BooleanField(default=False)  # À introduire si l’invalidation automatique est activée (voir GUIDELINES §7)
+    # invalidated = models.BooleanField(default=False)  # À introduire si l’invalidation automatique est activée (voir le skill `hypostasia`, § 4 Celery)
     created_at = models.DateTimeField(
         auto_now_add=True, help_text="Horodatage de création"
     )
@@ -1611,8 +1611,12 @@ class SourceLink(models.Model):
     # ancrage_source repond a "DANS QUEL ELEMENT, et a quel endroit exact ?".
     # Les deux cohabitent : le premier donne l'extraction entiere, le second
     # la portion precise dans un element.
-    # Les anciens champs start_char_source / end_char_source restent en place
-    # et ne sont pas touches (section 9 : les deux moteurs coexistent).
+    # Les anciens champs start_char_source / end_char_source restent en base,
+    # mais PLUS AUCUN MOTEUR NE LES LIT : l'ancien moteur d'ancrage est mort le
+    # 10 aout 2026 (R3), son code retire avec le flag `Page.moteur`. Ce sont des
+    # colonnes survivantes, pas un second moteur — ne pas les rebrancher.
+    # / Legacy columns kept in DB; no engine reads them since the old anchoring
+    #   engine was removed on 10 Aug 2026. Survivors, not a second engine.
     # / ancrage_source points to the precise portion within one element.
     ancrage_source = models.ForeignKey(
         "hypostasis_extractor.AncrageExtraction",
@@ -1685,11 +1689,14 @@ class SourceLink(models.Model):
 #
 # LOCALISATION : core/models.py
 #
-# Ces modeles vivent A COTE de l'ancien moteur (ExtractedEntity.start_char /
-# end_char), ils ne le remplacent pas. Les deux moteurs coexistent : aucune
-# donnee existante n'est convertie, aucun ancien champ n'est retire (SPEC v2
-# section 9).
-# / These models live NEXT TO the old engine, they do not replace it.
+# Ces modeles ONT REMPLACE l'ancien moteur. Ecrits a cote de lui (SPEC v2
+# section 9 prevoyait une cohabitation), ils sont devenus le SEUL moteur le
+# 10 aout 2026 : decision de gouvernance, reconversion des 538 pages (R1), puis
+# retrait du code de l'ancien et du flag `Page.moteur` (R3, ~1 100 lignes).
+# Les colonnes `ExtractedEntity.start_char` / `end_char` survivent en base sans
+# lecteur. Toute doc qui decrit un choix entre deux moteurs est perimee.
+# / These models REPLACED the old engine on 10 Aug 2026; its code is gone and
+#   only unread legacy columns remain.
 # =============================================================================
 
 

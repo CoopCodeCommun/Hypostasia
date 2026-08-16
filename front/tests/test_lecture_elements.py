@@ -5,7 +5,7 @@ Tests de l'affichage par elements dans la lecture (BR-D).
 LOCALISATION : front/tests/test_lecture_elements.py
 
 SPEC-ancrage-par-element-v2 § 9 (double moteur) + cahier
-PLAN/branchement-moteur-ancrage-cahier-des-charges.md, phase BR-D :
+PLAN/archive/cahiers-des-charges/branchement-moteur-ancrage-cahier-des-charges.md, phase BR-D :
 pour une page ELEMENT, `lecture_principale` rend les blocs construits
 par `construire_les_blocs_de_lecture` (front/services/rendu_elements.py)
 — les marques sont posees par PORTION (`mark.portion.hl-extraction`,

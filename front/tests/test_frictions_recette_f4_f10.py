@@ -5,7 +5,7 @@ Les frictions F4 à F10 de la recette connectée du 10 août 2026.
 LOCALISATION : front/tests/test_frictions_recette_f4_f10.py
 
 Sept défauts d'expérience relevés en exerçant le produit pour de vrai
-(PLAN/recette-connectee-2026-08-10.md). Ce qu'ils avaient en commun :
+(PLAN/archive/mesures-et-recettes/recette-connectee-2026-08-10.md). Ce qu'ils avaient en commun :
 l'écran en savait plus qu'il n'en disait.
 
 - F4  lire un article ne changeait pas l'URL : F5 ramenait à la liste,

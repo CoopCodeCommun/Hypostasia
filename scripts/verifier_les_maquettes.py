@@ -1,3 +1,25 @@
+"""
+Controle les maquettes de reference avec un vrai navigateur.
+/ Checks the reference mockups in a real browser.
+
+LOCALISATION : scripts/verifier_les_maquettes.py
+
+L'ETALON EST DANS `front/static/front/maquettes/`, ET NULLE PART AILLEURS.
+    C'est le seul exemplaire qui fait foi, et le seul qu'on tienne a jour.
+    Une copie plus ancienne dort dans `tmp/maquettes-archive-2026-08-11/` :
+    ne jamais faire pointer ce script dessus, il validerait un etat du design
+    que le produit a deja depasse.
+    / The reference lives in front/static/front/maquettes/ only; the copy under
+      tmp/maquettes-archive-2026-08-11/ is frozen and must never be checked.
+
+CE QUE CE SCRIPT NE FAIT PAS
+    Il compare la maquette A ELLE-MEME — ses liens, ses facettes, ses
+    ancrages — jamais au rendu Django reel. Un ecart entre le produit et
+    l'etalon ne se voit donc PAS ici : il se voit a l'ecran, ou dans les
+    tests e2e de `front/tests/e2e/`.
+    / It checks the mockup against itself, never against the Django render.
+"""
+
 from playwright.sync_api import sync_playwright
 
 verdicts = []
@@ -11,7 +33,7 @@ with sync_playwright() as p:
     page.on('pageerror', lambda e: erreurs.append(str(e)))
     page.on('console', lambda m: erreurs.append(m.text) if m.type == 'error' else None)
 
-    page.goto('file:///app/tmp/maquettes/corpus.html', wait_until='networkidle')
+    page.goto('file:///app/front/static/front/maquettes/corpus.html', wait_until='networkidle')
     verifier("carnet chargé", page.locator('#liste-notes .ligne-note').count() == 5)
     verifier("guide de rédaction affiché", page.locator('#guide-redaction:visible').count() == 1)
 
@@ -110,7 +132,7 @@ with sync_playwright() as p:
     verifier("alignement suit les facettes", apres < avant, "%d->%d" % (avant, apres))
     verifier("alignement groupé par famille", page.locator('.bandeau-famille').count() >= 1)
 
-    page.goto('file:///app/tmp/maquettes/maquette.html', wait_until='networkidle'); page.wait_for_timeout(300)
+    page.goto('file:///app/front/static/front/maquettes/maquette.html', wait_until='networkidle'); page.wait_for_timeout(300)
     verifier("bloc « Dans N carnets »", page.locator('#bloc-carnets li').count() == 2)
     etiquettes = [li.inner_text() for li in page.locator('#bloc-carnets li').all()]
     verifier("étiquettes différentes selon le carnet",
@@ -119,13 +141,13 @@ with sync_playwright() as p:
     page.locator('#menu-bascule button[data-carnet="c-veille"]').click(); page.wait_for_timeout(300)
     verifier("note : bascule de carnet", page.locator('#fil-carnet-nom').inner_text() == "Veille financement")
 
-    page.goto('file:///app/tmp/maquettes/maquette.html?extraction=604', wait_until='networkidle')
+    page.goto('file:///app/front/static/front/maquettes/maquette.html?extraction=604', wait_until='networkidle')
     page.wait_for_timeout(1500)
     verifier("deep-link : bonne source", page.locator('#choix-source').input_value() == 'audio')
     verifier("deep-link : passage allumé", page.locator('mark.est-active').count() >= 1)
     verifier("deep-link : carte active", page.locator('.carte.est-active').count() >= 1)
     # Aucun lien de preuve ne doit pointer vers une note absente
-    page.goto('file:///app/tmp/maquettes/corpus.html', wait_until='networkidle')
+    page.goto('file:///app/front/static/front/maquettes/corpus.html', wait_until='networkidle')
     page.click('button[data-onglet="wikis"]'); page.wait_for_timeout(250)
     page.locator('#liste-wikis .ligne-note').first.click(); page.wait_for_timeout(350)
     liens_morts = []
@@ -137,7 +159,7 @@ with sync_playwright() as p:
     page2 = nav.new_page()
     casses = []
     for href in set(liens_morts):
-        page2.goto('file:///app/tmp/maquettes/' + href, wait_until='networkidle')
+        page2.goto('file:///app/front/static/front/maquettes/' + href, wait_until='networkidle')
         page2.wait_for_timeout(900)
         if page2.locator('mark.est-active').count() == 0:
             casses.append(href)
@@ -146,7 +168,7 @@ with sync_playwright() as p:
 
     # Etalon : chaque citation doit se retrouver dans le texte de son
     # element, sinon l'ancrage affiche serait faux.
-    page.goto('file:///app/tmp/maquettes/corpus.html', wait_until='networkidle')
+    page.goto('file:///app/front/static/front/maquettes/corpus.html', wait_until='networkidle')
     page.wait_for_timeout(300)
     introuvables = page.evaluate(
         'catalogueDesExtractions().filter(function(e){return e.debut === -1;})'
@@ -154,7 +176,7 @@ with sync_playwright() as p:
     verifier("tous les ancrages sont retrouvés dans le texte",
              not introuvables, str(introuvables))
     # Et la couverture doit etre la jointure qu'elle pretend etre.
-    page.goto('file:///app/tmp/maquettes/selection-preuves.html', wait_until='networkidle')
+    page.goto('file:///app/front/static/front/maquettes/selection-preuves.html', wait_until='networkidle')
     page.wait_for_timeout(300)
     ecarts = page.evaluate('''Object.keys(DOCUMENTS).filter(function (cle) {
         var c = couvertureDuDocument(cle);

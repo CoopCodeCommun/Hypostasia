@@ -1,6 +1,6 @@
 /* =========================================================================
    HYPOSTASIA — LE CORPUS DE REFERENCE, SOURCE UNIQUE
-   LOCALISATION : tmp/maquettes/donnees.js
+   LOCALISATION : front/static/front/maquettes/donnees.js
 
    POURQUOI CE FICHIER EXISTE
    Les trois ecrans (carnet, selection des preuves, note) affichaient

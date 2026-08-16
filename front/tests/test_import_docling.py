@@ -5,7 +5,7 @@ Tests du routage de l'import fichier vers l'ingestion Docling (BR-B).
 LOCALISATION : front/tests/test_import_docling.py
 
 SPEC-ancrage-par-element-v2 § 9 (double moteur) + cahier des charges du
-branchement (PLAN/branchement-moteur-ancrage-cahier-des-charges.md,
+branchement (PLAN/archive/cahiers-des-charges/branchement-moteur-ancrage-cahier-des-charges.md,
 phase BR-B) : quand un fichier importe est d'un type que Docling sait
 convertir, la vue d'import lance la tache `ingerer_un_fichier_avec_docling`
 EN PLUS du pipeline synchrone existant. Le pipeline synchrone continue de

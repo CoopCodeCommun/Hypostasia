@@ -13,7 +13,7 @@ dans le panneau — rien n'a disparu — mais elles y sont INDISCERNABLES
 des autres. Meme classe, aucun badge, aucun mot. L'humain cense trancher
 n'a aucun moyen de savoir lesquelles trancher : la promesse est creuse.
 
-L'etalon `tmp/maquettes/maquette.html` (l. 1671-1682) prevoit une carte
+L'etalon `front/static/front/maquettes/maquette.html` (l. 1671-1682) prevoit une carte
 `est-masquee` portant l'etiquette « ancre detachee » et l'origine
 « aucun element — a replacer ».
 / Nothing vanished, but nothing was labelled either.

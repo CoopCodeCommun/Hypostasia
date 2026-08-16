@@ -9,7 +9,7 @@
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-3776AB?logo=python&logoColor=white)](https://python.org)
 [![Django 6.0](https://img.shields.io/badge/django-6.0-092E20?logo=django&logoColor=white)](https://djangoproject.com)
 [![HTMX](https://img.shields.io/badge/htmx-2.0-3366CC?logo=htmx&logoColor=white)](https://htmx.org)
-[![Tests](https://img.shields.io/badge/tests-865_passed-brightgreen?logo=pytest&logoColor=white)](#tests)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen?logo=pytest&logoColor=white)](#tests)
 [![License](https://img.shields.io/badge/license-AGPLv3-blue)](LICENSE)
 
 </div>
@@ -25,7 +25,8 @@ Hypostasia aide un groupe de lecteurs a **debattre d'un texte** de maniere struc
 1. **Importez** un texte (PDF, audio, page web, Word...)
 2. **L'IA extrait** les passages cles et les classe par type (hypothese, definition, paradoxe...)
 3. **Commentez** chaque passage. Le statut evolue selon le debat.
-4. Quand le groupe est **d'accord sur 80%** du texte, la synthese peut etre lancee.
+4. **Synthetisez** le carnet : un wiki vivant, ou une synthese figee et datee
+   que le collectif adopte. Chaque affirmation reste reliee a ses preuves.
 
 **Tout peut se faire sans IA.** L'extraction de passages, les commentaires, les debats et la redaction de restitutions fonctionnent entierement a la main. L'IA est une option a chaque etape — jamais une obligation.
 
@@ -45,35 +46,39 @@ Quand l'IA est sollicitee, **tout est transparent** : le prompt complet est visi
 ```bash
 git clone https://github.com/CoopCodeCommun/Hypostasia.git
 cd Hypostasia
-
-# Copier le fichier d'environnement / Copy the environment file
-cp .env.example .env
+make install
 ```
 
-Editez `.env` avec vos valeurs :
+`make install` fabrique le `.env` s'il n'existe pas, puis demarre tout.
+Il pose **trois questions** :
 
-```ini
-# --- Obligatoire / Required ---
-DOMAIN=hypo.example.com
-SECRET_KEY=votre_cle_secrete_aleatoire
-POSTGRES_PASSWORD=un_mot_de_passe_fort
+| Question | Ce qu'elle ecrit |
+|---|---|
+| poste de dev, ou machine de production ? | `DEBUG` **et** `NGINX_CONF`, ensemble |
+| le domaine ? | `DOMAIN` (defaut `h.localhost` en dev) |
+| une cle de modele ? (facultative) | `GOOGLE_API_KEY`, `OPENAI_API_KEY`, … |
 
-# --- Dev ou Prod / Dev or Prod ---
-DEBUG=true     # true = mode dev, false = mode prod
+`SECRET_KEY` et `POSTGRES_PASSWORD` ne sont **jamais demandees** : elles
+sont tirees au hasard. Une cle saisie a la main est une cle faible, ou
+recopiee d'un autre projet.
 
-# --- Cles API (optionnel) / API keys (optional) ---
-GOOGLE_API_KEY=
-OPENAI_API_KEY=
-MISTRAL_API_KEY=
-```
+Les deux premieres lignes vont ensemble par construction, et c'est le
+but : `DEBUG=true` avec la conf nginx de production envoie `/` vers un
+port ou personne n'ecoute, et tout le site rend 502. Une seule question,
+deux lignes ecrites.
 
-### 2. Lancer / Start
+Un `.env` deja present n'est **jamais** touche : `make install` est
+rejoue a chaque demarrage de conteneur, et le regenerer perdrait les
+cles API, le mot de passe de la base et la passphrase du depot de
+sauvegarde. Pour le refaire, le supprimer d'abord.
 
-```bash
-docker compose up -d
-```
+*`make install` builds the `.env` if missing — three questions, secrets
+drawn at random — then starts everything. An existing `.env` is never
+touched.*
 
-C'est tout. Au demarrage, le conteneur lance `bin/start-dev.sh` ou
+### 2. Ce que fait l'installation / What the install does
+
+Au demarrage, le conteneur lance `bin/start-dev.sh` ou
 `bin/start-prod.sh` selon `DEBUG` ; les deux appellent `bin/install.sh`,
 qui fait automatiquement :
 
@@ -96,7 +101,10 @@ par le modele ne se refacture pas.
 first run converts two PDFs (~3 min); later runs take about ten seconds
 and no LLM call is re-billed.*
 
-**Comptes crees** : `jonas` (admin), `marie`, `thomas`, `fatima`, `pierre` — mot de passe : `demo1234`
+**Compte cree** : `jonas` (admin) — mot de passe : `admin1234`
+
+*Les quatre comptes de demonstration (`marie`, `thomas`, `fatima`, `pierre`)
+venaient de `charger_fixtures_demo`, qui n'est plus lancee par l'installation.*
 
 ---
 
@@ -175,7 +183,7 @@ celery -A hypostasia worker --loglevel=info --concurrency=2
 celery -A hypostasia worker --loglevel=info --concurrency=1 -Q ingestion_docling
 ```
 
-Acces : http://localhost:8000/ — Se connecter avec `jonas` / `demo1234`
+Acces : http://localhost:8000/ — Se connecter avec `jonas` / `admin1234`
 
 ### Production
 
@@ -210,6 +218,157 @@ programmes : `gunicorn`, `daphne`, `celery_worker` et
 *Refuses to run when `.env` has `DEBUG=true`; restarts all four
 programs, not just two.*
 
+### Ce qu'il reste a poser sur une prod / Production readiness
+
+```bash
+make verif-prod
+```
+
+Un bilan en deux temps : la configuration (secrets restes a la valeur
+d'exemple, `DEBUG` et `NGINX_CONF` coherents, `DOMAIN` renseigne) et la
+sauvegarde (depot borg joignable, age de la derniere archive, ligne de
+cron posee). Il sort en code non nul au moindre probleme — utilisable
+tel quel dans un monitoring.
+
+`make install` l'appelle aussi, avec deux differences : il se **saute
+entierement** sur un poste de dev (`DEBUG=true`), et il n'arrete
+**jamais** l'installation. Le depot de sauvegarde se cree depuis la
+machine installee : exiger qu'il existe deja tiendrait de l'oeuf et de
+la poule.
+
+*Two-part report: configuration and backup. Non-zero on any problem.
+`make install` runs it too, skipped on a dev box and never fatal.*
+
+---
+
+## Sauvegarde et restauration / Backup and restore
+
+La sauvegarde suit le kit [borgwarehouse](https://github.com/CoopCodeCommun/borgwarehouse) :
+depot chiffre distant, une cle SSH dediee, aucun secret dans les
+scripts. Tout vit dans `bin/`, tout se lance **depuis l'hote** — le cron
+et la cle SSH sont sur la machine, pas dans le conteneur.
+
+```bash
+make backup          # sauvegarde ; au 1er lancement, configure tout d'abord
+make backup-check    # la derniere archive est-elle VRAIMENT restaurable ?
+make restore         # ECRASE la base depuis une archive (confirmation exigee)
+make restore ARCHIVE=hypostasia-jonas-FW13-2026-08-16-03-00-12
+```
+
+**Une seule commande a retenir.** Au premier lancement sur une machine,
+`make backup` voit que rien n'est configure et enchaine : cle SSH
+dediee, creation du depot, ecriture du `.env`, cron, puis la premiere
+sauvegarde et sa verification. Les fois suivantes, il sauvegarde
+directement. Il n'y a pas de commande d'initialisation a retrouver le
+jour ou on en a besoin.
+
+Les archives portent le **nom de la machine** :
+`hypostasia-jonas-FW13-2026-08-16-12-05-13`. C'est ce qui permet de
+reconnaitre d'ou vient une sauvegarde quand plusieurs machines
+partagent un serveur — et c'est une question de moins, `hostname` y
+repondant mieux que quiconque.
+
+Le depot se cree tout seul quand la variable `borgwarehouse_ccc_api` est
+exportee (c'est le cas sur les serveurs de production) ; sinon le jeton
+est demande, ou le depot se cree a la main dans l'interface.
+
+*One command: `make backup` configures itself on a fresh machine, then
+backs up.*
+
+### Ce que contient une archive / What an archive holds
+
+| Contenu | Pourquoi |
+|---|---|
+| dump PostgreSQL (`-Fc`) | la base entiere, restaurable par `pg_restore` |
+| `media/` | PDF, audios, transcriptions — hors git, irremplacables |
+| `.env` | cles API et mots de passe |
+
+Le code, `docker-compose.yml`, `nginx/` et `sample/` sont dans git : les
+rearchiver chaque nuit n'apporterait rien qu'un `git clone` ne rende
+deja. Une restauration complete se lit donc :
+
+```bash
+git clone <depot> && cd Hypostasia
+cp <le .env sorti du coffre> .env
+make install     # la stack, vide
+make restore     # les donnees
+```
+
+### `make backup-check` : la seule question qui compte
+
+Verifier qu'une archive *existe* ne dit rien. Cette cible repond a
+*est-ce restaurable ?* — sans rien restaurer :
+
+1. **Fraicheur** — moins de `AGE_MAX_HEURES` (25 h par defaut). Au-dela,
+   le cron est mort et personne ne l'avait remarque.
+2. **Contenu** — le dump, `media/` et le `.env` sont bien dedans.
+3. **Exploitabilite** — le dump est **deroule entierement** dans
+   `pg_restore -f /dev/null`.
+
+Le point 3 est celui qui compte. Mesure du 16 aout 2026 sur ce projet
+(PostgreSQL 17.10, dump de 417 Ko ampute de ses **100 derniers octets**) :
+
+| | dump sain | dump ampute de 100 o |
+|---|---|---|
+| `pg_restore -l` | code 0 | **code 0** — au vert |
+| `pg_restore -f /dev/null` | code 0 | code 1 |
+
+Un dump tronque — disque plein, conteneur tue en plein dump — a une
+taille credible, se trouve bien dans l'archive, et ne se restaure pas.
+Seul le deroulement integral le demasque.
+
+### Ce que la sauvegarde ne peut pas se sauvegarder elle-meme
+
+**Quatre** elements, et il en faut quatre :
+
+| Au coffre | Ce qu'il ouvre |
+|---|---|
+| l'adresse du depot | ou aller |
+| la passphrase | le chiffrement |
+| `borg key export` | le chiffrement |
+| **la cle SSH privee** (`bin/.ssh/<prefixe>_ed25519`) | **l'acces** |
+
+Le premier `make backup` les affiche **tous les quatre, en entier**,
+entre deux lignes `----8<----`, avec la recette de restauration : on
+selectionne, on copie, on colle dans le coffre. Puis il attend un `OUI`.
+Ce que l'on ne voit pas, on ne le copie pas — c'est pourquoi la cle
+privee est affichee, et pas seulement son chemin.
+
+Sur borgwarehouse, le depot n'accepte que la cle publique enregistree
+sur lui : sans la privee, une machine de secours se fait refuser par SSH
+avant meme d'avoir a prouver qu'elle connait la passphrase. A defaut, il
+restera a coller une nouvelle cle publique sur le depot depuis
+l'interface.
+
+> **Le NOM du fichier de cle compte.** Les scripts cherchent
+> `bin/.ssh/<BORG_PREFIX>_ed25519`, et rien d'autre. Une cle reposee sous
+> un autre nom n'est pas vue : ssh se rabat sur la configuration systeme,
+> et le refus parle de permissions, jamais de nom de fichier. Le bloc du
+> coffre porte le nom exact ; `make restore` le rappelle aussi quand la
+> cle manque et que le depot est distant.
+
+### Restaurer sur une autre machine
+
+```bash
+git clone <le depot git> && cd Hypostasia
+make install                     # repond aux 3 questions
+# ajouter au .env les trois lignes BORG_* du coffre
+mkdir -p bin/.ssh && chmod 700 bin/.ssh
+# coller la cle privee dans bin/.ssh/<BORG_PREFIX>_ed25519
+chmod 600 bin/.ssh/<BORG_PREFIX>_ed25519
+make restore
+```
+
+Verifier une fois, **depuis une autre machine**, qu'un `borg list` passe
+avec les elements du coffre — `make backup-check`, lui, utilise le
+`.env` de la machine, pas ta copie.
+
+*Four items, not three: the SSH private key opens the access, the other
+three open the encryption. All four are printed in full, ready to copy.*
+
+*The one link a backup cannot back up: the repository passphrase and
+exported key. Verify them once from another machine.*
+
 ---
 
 ## Architecture
@@ -221,15 +380,15 @@ Hypostasia/
 +-- front/                      # Interface lecture (HTMX partials)
 |   +-- services/               # Transcription audio, conversion fichiers
 |   +-- tasks.py                # Taches Celery asynchrones
-|   +-- management/commands/    # Fixtures de demo (charger_fixtures_demo)
+|   +-- management/commands/    # Fixtures (charger_fixtures_sample, charger_extractions_demo)
 +-- hypostasia/                 # Config Django (settings, urls, celery)
 +-- nginx/                      # Configs Nginx (dev.conf, default.conf)
 +-- Dockerfile
 +-- docker-compose.yml          # Unique dev/prod
-+-- start.sh                    # Demarrage prod (migrations + supervisord)
++-- bin/                        # install.sh, start-dev.sh, start-prod.sh, backup*
 +-- supervisord.conf
-+-- CLAUDE.md                   # Regles pour agents IA
-+-- PLAN/PHASES/                # Plan de developpement par phases
++-- AGENTS.md                   # Regles pour agents IA (CLAUDE.md y pointe)
++-- PLAN/archive/PHASES/        # Historique des phases 1 a 29
 ```
 
 ### Apps Django
@@ -288,100 +447,100 @@ Accessible via l'icone engrenage dans la toolbar ou `/api/analyseurs/`. Permet d
 
 ## Donnees de demonstration / Demo data
 
-La commande `charger_fixtures_demo` cree un jeu de donnees complet :
+**`make install` s'en charge** — il n'y a rien de plus a lancer. Les trois
+commandes ci-dessous sont celles que `bin/install.sh` enchaine, dans cet ordre :
+
+*`make install` handles this. The three commands below are the ones
+`bin/install.sh` runs, in this order.*
 
 ```bash
-# Charger les fixtures (4 pages, 33 extractions, 49 commentaires)
-uv run python manage.py charger_fixtures_demo
+# 1. Les six documents etalons de sample/, la base de connaissances,
+#    le carnet et les analyseurs. Premier passage ~3 min (deux
+#    conversions Docling reelles), 10 s ensuite.
+python manage.py charger_fixtures_sample
 
-# Reset complet et rechargement
-uv run python manage.py charger_fixtures_demo --reset
+# 2. Les extractions et les commentaires, poses A LA MAIN, sans aucun
+#    appel LLM.
+python manage.py charger_extractions_demo
+
+# 3. Une analyse par le VRAI modele configure — c'est ce qui fait de
+#    l'installation un test des cles API. N'analyse que ce qui ne l'est
+#    pas encore : un redemarrage ne refacture rien.
+python manage.py analyser_les_notes_etalons
 ```
 
-Contenu cree :
-- **5 utilisateurs** : jonas (admin), marie, thomas, fatima, pierre
-- **1 dossier** : "Demonstration" (public, partage avec marie)
-- **4 pages** : 3 articles Wikipedia (Ostrom, Alexandre, Sadin) + 1 debat fictif
-- **33 extractions** avec positions exactes dans le texte
-- **49 commentaires** repartis entre les 4 utilisateurs
-- **6 statuts** couverts : nouveau, discutable, discute, consensuel, controverse, non pertinent
-- **Mot de passe** de tous les users demo : `demo1234`
+Ce que ca cree :
+
+- **1 utilisateur** : `jonas` / `admin1234`
+- **6 notes** couvrant les cinq formes d'entree du produit — capture web,
+  fichier ecrit, transcription deja faite, audio brut, deux PDF. Leur decompte
+  exact (elements, coordonnees de page) est dans `PLAN/PASSATION.md` § 3, mesure
+  et date
+- **Des extractions ecrites a la main**, choisies pour couvrir des cas limites
+  qu'un modele ne produit pas a coup sur : les 8 familles d'hypostases, deux
+  idees superposees sur un meme element, une idee qui enjambe deux elements,
+  une ancre portee par un tableau, des cartes a 0, 1 et 2 commentaires
+
+> **Pour tout refaire de zero**, voir « Demarrage depuis zero » plus bas :
+> une seule voie, et pas de rechargement partiel.
+
+> `charger_fixtures_demo` existe encore dans le depot mais **n'est plus
+> appelee par l'installation** : elle ecrit des notes fictives et ne cree
+> aucune base de connaissances. Elle a longtemps ete lancee a la place des
+> trois commandes ci-dessus, ce qui donnait un `/bases/` vide sur une
+> installation neuve (corrige le 15 aout 2026).
 
 ---
 
 ## Tests
 
-Le projet a deux niveaux de tests avec des roles distincts.
+**Tout passe par le `Makefile`, depuis l'hote.** Les commandes ne sont ecrites
+qu'a un seul endroit : une seconde copie finit toujours par mentir sur les
+nombres et les durees.
 
-*The project has two test levels with distinct roles.*
-
-### Tests unitaires (~35s) — apres chaque modification
-
-Tests Django classiques (pas de navigateur). Verifient les modeles, les vues, les taches Celery, la normalisation des donnees et les helpers. Rapides, fiables, a lancer souvent.
-
-*Standard Django tests (no browser). Check models, views, Celery tasks, data normalization and helpers. Fast, reliable, run often.*
+*Everything goes through the Makefile, from the host. Commands live in one
+place only.*
 
 ```bash
-# Verification Django (0 issues attendues) / Django check (0 issues expected)
-docker exec hypostasia_web uv run python manage.py check
-
-# Tous les tests unitaires (~35s, 78 tests)
-# / All unit tests (~35s, 78 tests)
-docker exec hypostasia_web uv run python manage.py test \
-  front.tests.test_phases \
-  front.tests.test_phase27a \
-  front.tests.test_phase27b \
-  front.tests.test_phase28_light \
-  front.tests.test_phase29_normalize \
-  front.tests.test_langextract_overrides \
-  -v2 --keepdb
+make test           # l'aide : les cibles, leur perimetre et leur COUT MESURE
 ```
 
-| Module | Tests | Ce qu'il verifie |
-|--------|-------|------------------|
-| `test_phases` | ~200 | CRUD pages/dossiers, import, extraction, transcription, config IA |
-| `test_phase27a` | 19 | Modele PageEdit, historique, diff de contenu |
-| `test_phase27b` | 24 | Diff side-by-side, alignement hypostases entre versions |
-| `test_phase28_light` | 31 | Synthese deliberative : prompt, tache Celery, anti-doublon, XSS |
-| `test_phase29_normalize` | 23 | Normalisation des attributs LLM (cles, hypostases, fuzzy match) |
-| `test_langextract_overrides` | ~5 | Compatibilite des surcharges LangExtract |
+**`make test` est la seule liste a jour.** Elle est generee par le `Makefile`,
+qui porte les comptes et les durees a cote de chaque cible — les recopier ici
+en ferait une seconde source, qui divergerait. Les cibles : `test-rapide` (le
+geste quotidien), `test-suite S=...`, `test-e2e [S=...]`, `test-docling`,
+`test-llm`, `test-tout`.
 
-### Tests E2E (~8 min) — avant un jalon
+Quatre familles, et elles ne coutent pas la meme chose. **Les tests couteux
+sont opt-in par deux mecanismes a la fois** : une variable d'environnement
+(`TESTS_DOCLING`, `TESTS_LLM_REELS`) **et** un tag Django. Les e2e, eux, sont
+tagues `e2e` par leur classe de base (`front/tests/e2e/base.py`) — c'est ce qui
+permet a `test-rapide` de les exclure.
 
-Tests Playwright dans un vrai navigateur Chromium. Verifient le rendu HTML, les interactions HTMX, les WebSockets et le CSS. Plus lents, necessitent Playwright installe.
+*The expensive suites are opt-in through both an environment variable and a
+Django tag; e2e tests are tagged by their base class.*
 
-*Playwright tests in a real Chromium browser. Check HTML rendering, HTMX interactions, WebSockets and CSS. Slower, require Playwright installed.*
+### Une suite a la fois, jamais `--parallel`
 
-```bash
-# Un module E2E cible (~40s) / A targeted E2E module (~40s)
-docker exec hypostasia_web uv run python manage.py test \
-  front.tests.e2e.test_09_alignement -v2 --keepdb
+La base de test est partagee : deux executions simultanees se la detruisent
+mutuellement en plein vol. C'est deja arrive — 755 erreurs fantomes, sans aucun
+rapport avec le code.
 
-# Tous les tests E2E (~8 min, ~790 tests)
-# / All E2E tests (~8 min, ~790 tests)
-docker exec hypostasia_web uv run python manage.py test \
-  front.tests.e2e -v2 --keepdb
-```
+*One suite at a time. Two concurrent runs destroy the shared test database.*
 
-| Module E2E | Ce qu'il verifie |
-|------------|------------------|
-| `test_01_navigation` | Arbre de dossiers, toolbar, raccourcis clavier |
-| `test_02_lecture` | Zone de lecture, pastilles de marge, surlignage |
-| `test_03_import` | Import PDF, Word, audio, page web |
-| `test_04_extractions` | Cartes d'extraction, extraction manuelle, drawer |
-| `test_05_config_ia` | Toggle IA, selecteur de modele, tarifs |
-| `test_08_curation` | Statuts de debat, commentaires, masquage |
-| `test_09_alignement` | Tableau d'alignement cross-documents |
-| `test_13_auth` | Authentification, permissions, roles |
-| `test_17_filtre_contributeur` | Filtre par contributeur, palette daltonien-safe |
-| `test_20_tracabilite` | Historique, diff versions, comparaison |
+### Ou ecrire un test
 
-### Suite complete (~9 min)
+| Ce qu'on teste | Ou |
+|---|---|
+| du **Python** — modele, serializer, vue, service | `front/tests/`, `core/tests/`, `hypostasis_extractor/tests/` |
+| du **navigateur** — rendu, HTMX, WebSocket, CSS, JS | `front/tests/e2e/` (Playwright) |
+| **les deux** | un test serveur *et* un test e2e |
 
-```bash
-# Tout d'un coup / Everything at once
-docker exec hypostasia_web uv run python manage.py test front.tests -v1 --keepdb
-```
+Detail des conventions et des pieges : `front/tests/README.md`.
+
+**La derniere mesure de la suite complete est dans `PLAN/PASSATION.md` § 7**,
+avec sa date. Elle n'est pas recopiee ici : un chiffre a deux endroits finit
+toujours par differer entre les deux.
 
 ---
 
@@ -403,14 +562,21 @@ L'IA (ou l'utilisateur) extrait les passages cles du texte et les classe par **h
 
 ### 2. Debat
 
-Chaque extraction recoit un statut de debat qui evolue avec les commentaires :
+Chaque extraction porte un statut de debat, et il n'en existe que **deux** :
 
 | Statut | Signification |
 |--------|---------------|
-| **Consensuel** | Accord atteint |
-| **Discutable** | A debattre |
-| **Discute** | Debat en cours |
-| **Controverse** | Desaccord fort |
+| **Nouveau** | personne n'a encore reagi |
+| **Commente** | au moins une intervention humaine |
+
+*Two statuses only: **new** (nobody reacted yet) and **commented** (at least one
+human intervention).*
+
+> Les six statuts d'autrefois — consensuel, discutable, discute, controverse,
+> non pertinent — ont ete fusionnes le 2 mai 2026 : ils demandaient a chaque
+> lecteur de qualifier un debat qu'il venait de decouvrir, et personne ne le
+> faisait. Ce qui porte le debat, ce sont les commentaires eux-memes.
+> Definition : `hypostasis_extractor/models.py:186`.
 
 ### 3. Alignement et comparaison
 
@@ -420,150 +586,57 @@ Entre deux **versions** d'un meme texte, la comparaison affiche :
 - Un **diff side-by-side** mot a mot (ajouts en vert, suppressions en rouge)
 - Un **tableau d'alignement des hypostases** avec deltas (ajoute / supprime / conserve + evolution du statut)
 
-### 4. Synthese deliberative
+### 4. Synthese
 
-Quand le consensus atteint 80%, l'IA peut generer une **nouvelle version** du texte qui integre les ponderations par statut. Le texte produit est une V2 autonome, chainnee a la V1 d'origine.
+Une synthese n'est PAS une nouvelle version du texte : c'est une **note du
+carnet**, en deux genres qui ne se melangent pas.
 
-Le prompt complet est visible, le cout est estime avant l'appel, et la V2 peut etre re-analysee pour relancer un nouveau cycle.
+| Genre | Ce que c'est |
+|---|---|
+| **Wiki** | un article thematique **vivant**, mis a jour par operations de section a mesure que le carnet grossit |
+| **Synthese dirigee** | un **acte date et fige**, qu'un collectif adopte et auquel il peut se referer six mois plus tard |
+
+Chaque affirmation est reliee a ses preuves par un lien persiste, controle
+mecaniquement (verbatim, puis implication). Et la synthese expose **ce qu'elle
+n'a pas repris** et **ce que l'analyse n'a jamais lu** — c'est ce qui la rend
+contestable dans l'outil.
+
+Le prompt complet est visible et le cout estime avant l'appel.
+
+*A synthesis is not a new version of the text but a typed note of the notebook:
+either a living **wiki** or a frozen, dated **directed synthesis**. Every claim
+links to its evidence, and the synthesis shows what it left out.*
+
+> Le modele d'avant — une V2 du document, chainee a la V1 par `parent_page` —
+> a ete abandonne le 9 aout 2026. Le champ existe encore en base mais n'a plus
+> aucun ecrivain en production. Le pourquoi est dans `PRESENTATION-V3.md` § 1 ;
+> le detail dans `SPEC-synthese-carnet.md`.
 
 ---
 
 ## Les 30 hypostases — la geometrie des debats
 
-Une **hypostase** est une maniere d'etre discutable. C'est le concept fondateur du projet — d'ou son nom.
+Une **hypostase** est une maniere d'etre discutable. C'est le concept fondateur
+du projet — d'ou son nom.
 
-*A **hypostasis** is a way of being debatable. It is the founding concept of the project — hence its name.*
+*A **hypostasis** is a way of being debatable. It is the founding concept of the
+project — hence its name.*
 
-### Pourquoi exactement 30
+Le compte de 30 n'est pas arbitraire, il se **deduit** : une idee peut etre mise
+a l'epreuve de 2 manieres (formelle, empirique) selon 3 modes de raisonnement
+(induction, abduction, deduction), soit **6 modes**. Chaque hypostase est alors
+un couple — ce qui ne peut pas la refuter, ce qui ne peut pas la prouver — les
+deux etant distincts : **6 x 5 = 30**.
 
-Le nombre n'est pas arbitraire : il se deduit.
+*The count is derived, not arbitrary: 2 proof devices x 3 reasoning modes = 6;
+each hypostasis is a pair of two distinct modes — 6 x 5 = 30.*
 
-Une idee peut etre mise a l'epreuve de **2 manieres** (les dispositifs de preuve) selon **3 modes de raisonnement** :
+**La matrice complete, les 6 familles epistemiques et le raisonnement qui les
+fonde : [`PRESENTATION-V3.md` § 8](PRESENTATION-V3.md).**
 
-| Dispositif de preuve | Mode de raisonnement |
-|---|---|
-| formel, empirique | induction, abduction, deduction |
-
-**2 × 3 = 6 modes de mise a l'epreuve.**
-
-Chaque hypostase se definit alors par un couple :
-
-1. **ce qui ne peut pas la refuter** — 6 choix ;
-2. **ce qui ne peut pas la prouver** — 5 choix restants.
-
-Le second ne peut pas etre egal au premier : un meme mode ne peut pas a la fois echouer a refuter et echouer a prouver la meme idee sans la vider de son sens.
-
-**6 × 5 = 30 hypostases**, chacune occupant une case unique.
-
-*The count is derived, not arbitrary: 2 proof devices x 3 reasoning modes = 6 modes; each hypostasis is a pair (what cannot refute it, what cannot prove it), the two being distinct — 6 x 5 = 30.*
-
-### La matrice complete
-
-Chaque case hors diagonale contient exactement une hypostase. La diagonale est vide par construction.
-
-| non refutee par ↓ \ non prouvee par → | induction emp. | induction form. | abduction emp. | abduction form. | deduction emp. | deduction form. |
-|---|---|---|---|---|---|---|
-| **induction empirique** | — | formalisme | classification | paradoxe | aporie | approximation |
-| **deduction empirique** | mode | croyance | variation | dimension | — | événement |
-| **induction formelle** | axiome | — | valeur | structure | conjecture | invariant |
-| **deduction formelle** | loi | principe | paradigme | objet | domaine | — |
-| **abduction empirique** | variance | donnée | — | variable | indice | phénomène |
-| **abduction formelle** | hypothèse | théorie | définition | — | problème | méthode |
-
-La matrice se lit aussi par paires symetriques : `valeur` ↔ `donnée`, `conjecture` ↔ `croyance`, `structure` ↔ `théorie`, `principe` ↔ `invariant`... Les 15 paires sont completes.
-
-### Les 6 familles epistemiques
-
-Une **famille** regroupe les 5 hypostases qui partagent le meme « ce qui ne peut pas les refuter ».
-
-*A **family** groups the 5 hypostases sharing the same "what cannot refute them".*
-
-#### Famille 1 — non refutee par induction empirique
-
-*Ce qu'on observe sans pouvoir generaliser.*
-
-| Hypostase | Definition | Non prouvee par |
-|---|---|---|
-| **classification** | distribuer en classes, en catégories | abduction empirique |
-| **aporie** | difficulté d'ordre rationnel apparemment sans issue | déduction empirique |
-| **approximation** | calcul approché d'une grandeur réelle | déduction formelle |
-| **paradoxe** | proposition à la fois vraie et fausse | abduction formelle |
-| **formalisme** | considération de la forme d'un raisonnement | induction formelle |
-
-#### Famille 2 — non refutee par deduction empirique
-
-*Ce qui se produit sans cadre formel.*
-
-| Hypostase | Definition | Non prouvee par |
-|---|---|---|
-| **événement** | ce qui arrive | déduction formelle |
-| **variation** | changement d'un état dans un autre | abduction empirique |
-| **dimension** | grandeur mesurable qui détermine des positions | abduction formelle |
-| **mode** | manière d'être d'un système | induction empirique |
-| **croyance** | certitude ou conviction qui fait croire une chose vraie ou possible | induction formelle |
-
-#### Famille 3 — non refutee par induction formelle
-
-*Ce qu'on formalise sans pouvoir verifier.*
-
-| Hypostase | Definition | Non prouvee par |
-|---|---|---|
-| **invariant** | grandeur, relation ou propriété conservée lors d'une transformation | déduction formelle |
-| **valeur** | mesure d'une grandeur variable | abduction empirique |
-| **structure** | organisation des parties d'un système | abduction formelle |
-| **axiome** | proposition admise au départ d'une théorie | induction empirique |
-| **conjecture** | opinion ou proposition non vérifiée | déduction empirique |
-
-#### Famille 4 — non refutee par deduction formelle
-
-*Ce qu'on deduit formellement.*
-
-| Hypostase | Definition | Non prouvee par |
-|---|---|---|
-| **paradigme** | modèle ou exemple | abduction empirique |
-| **objet** | ce sur quoi porte le discours, la pensée, la connaissance | abduction formelle |
-| **principe** | cause a priori d'une connaissance | induction formelle |
-| **domaine** | champ discerné par des limites, bornes, frontières | déduction empirique |
-| **loi** | corrélation | induction empirique |
-
-#### Famille 5 — non refutee par abduction empirique
-
-*Ce qu'on constate sans pouvoir l'expliquer.*
-
-| Hypostase | Definition | Non prouvee par |
-|---|---|---|
-| **phénomène** | ce qui se manifeste à la connaissance via les sens | déduction formelle |
-| **variable** | ce qui prend différentes valeurs, dont dépend l'état d'un système | abduction formelle |
-| **variance** | dispersion d'une distribution ou d'un échantillon | induction empirique |
-| **indice** | indicateur numérique ou littéral qui sert à distinguer ou classer | déduction empirique |
-| **donnée** | ce qui est admis, donné, qui sert à découvrir ou à raisonner | induction formelle |
-
-#### Famille 6 — non refutee par abduction formelle
-
-*Ce qu'on propose sans pouvoir le confirmer.*
-
-| Hypostase | Definition | Non prouvee par |
-|---|---|---|
-| **méthode** | procédure qui indique ce que l'on doit faire ou comment le faire | déduction formelle |
-| **définition** | détermination, caractérisation du contenu d'un concept | abduction empirique |
-| **hypothèse** | explication ou possibilité d'un événement | induction empirique |
-| **problème** | difficulté à résoudre | déduction empirique |
-| **théorie** | construction intellectuelle explicative, hypothétique et synthétique | induction formelle |
-
-### Ou vit ce referentiel dans le code
-
-Les 30 hypostases sont ecrites a **quatre endroits**, qui doivent rester d'accord :
-
-| Emplacement | Role |
-|---|---|
-| `core/models.py` → `HypostasisChoices` | la taxonomie du modele |
-| `front/services/fixtures_analyseurs.py` | le referentiel enseigne au LLM (le tableau ci-dessus) |
-| `front/services/fixtures_analyseurs.py` | les 30 exemples few-shot, un par hypostase |
-| `front/normalisation.py` → `HYPOSTASES_CONNUES` | **le filtre** : toute hypostase inconnue est supprimee |
-
-`hypostasis_extractor/tests/test_referentiel_des_hypostases.py` verifie que les quatre concordent et que les 6 familles respectent le motif. Toute evolution du referentiel doit donc toucher les quatre ensemble.
-
-> **Correction du 14 aout 2026.** La famille 4 violait le motif depuis l'origine : `principe` et `loi` occupaient la meme case, `domaine` occupait une case diagonale (interdite), et deux cases restaient vides. Le referentiel ne comptait donc reellement que 28 manieres d'etre discutable. `principe` est passe a *induction formelle* et `domaine` a *deduction empirique* ; `loi` n'a pas bouge. Les 30 cases sont desormais toutes occupees, une seule fois chacune.
+> Ne pas confondre les **6 familles epistemiques** (ci-dessus) avec les
+> **8 familles de couleurs** de l'affichage — voir l'encadre de la section
+> « Cycle deliberatif ».
 
 ---
 
@@ -650,9 +723,15 @@ history.*
 
 ## Accessibilite / Accessibility
 
-- **Formes daltonien-safe** : chaque statut de debat a une forme unique (cercle, losange, triangle, carre, anneau, tiret) en plus de la couleur (palette Wong 2011)
-- **WCAG** : pastilles 16px (min 24px au hover), `aria-hidden` sur les icones decoratives, `aria-live` sur les zones dynamiques HTMX
-- **Raccourcis clavier** : `T` bibliotheque, `E` extractions, `J/K` navigation, `A` alignement, `?` aide
+- **Palette daltonien-safe** (Wong 2011) pour les couleurs de locuteurs dans les
+  transcriptions : la meme personne garde la meme couleur dans la gouttiere, les
+  pilules et le lecteur audio.
+- **WCAG** : `aria-hidden` sur les icones decoratives, `aria-live` sur les zones
+  mises a jour par HTMX, contrastes verifies au navigateur en clair et en sombre.
+- **Raccourcis clavier** (`front/static/front/js/keyboard.js`, le seul listener
+  de l'application) : `E` panneau d'extractions, `J`/`K` extraction
+  suivante/precedente, `C` commenter, `X` masquer, `A` alignement, `Z` comparer
+  les versions, `/` recherche, `?` aide.
 
 ---
 

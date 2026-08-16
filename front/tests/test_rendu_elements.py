@@ -583,7 +583,7 @@ class LaGouttiereDUnBlocTest(BaseRenduTestCase):
 
     LOCALISATION : front/tests/test_rendu_elements.py
 
-    L'etalon (`tmp/maquettes/maquette.html`) pose chaque bloc en grille
+    L'etalon (`front/static/front/maquettes/maquette.html`) pose chaque bloc en grille
     « gouttiere | corps », avec un filet d'etat entre les deux. La
     gouttiere porte le numero de l'element, son label, son empreinte —
     et surtout le COMPTEUR D'IDEES, seul element visible en lecture, les

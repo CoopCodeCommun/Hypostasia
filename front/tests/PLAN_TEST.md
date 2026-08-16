@@ -1,21 +1,24 @@
 # Plan de tests — Hypostasia
 
-> Document de reference pour l'architecture, la philosophie et l'inventaire des tests.
-> A relire en debut de session quand on travaille sur les tests ou quand on ajoute une phase.
-> Derniere mise a jour : 2026-03-20
+> Document de reference pour l'ARCHITECTURE et la PHILOSOPHIE des tests :
+> pourquoi ils sont ecrits comme ca, comment fonctionne l'infrastructure
+> Playwright, quelles conventions suivre.
+>
+> **Corps du document ecrit le 2026-03-20 ; en-tete revu le 2026-08-16.**
 
-## Copier-coller rapide
-
-```bash
-# Unitaires rapides (~20s) — a lancer souvent
-docker exec hypostasia_web uv run python manage.py test front.tests.test_phases front.tests.test_phase27a front.tests.test_phase27b front.tests.test_langextract_overrides -v2 --keepdb
-
-# E2E cibles (~40s) — verification ponctuelle
-docker exec hypostasia_web uv run python manage.py test front.tests.e2e.test_20_tracabilite -v2 --keepdb
-
-# E2E complets (~19 min) — avant un jalon
-docker exec hypostasia_web uv run python manage.py test front.tests.e2e -v2 --keepdb
-```
+> ## ⚠️ Deux avertissements avant de lire
+>
+> **1. Ne PAS lancer les commandes qui suivent dans ce document.** Elles datent
+> de mars 2026 et sont perimees : `uv run` n'a plus lieu d'etre, `--keepdb` a
+> ses pieges, et les modules cites ne couvrent plus la suite. **Tout passe par
+> le `Makefile` : `make test` en donne les cibles et leur cout.** Les commandes
+> ne vivent qu'a un seul endroit, sinon la seconde copie finit par mentir —
+> ce document en est la preuve, il a longtemps annonce « ~800 tests en ~20 s ».
+>
+> **2. Les inventaires chiffres des sections 4, 5, 8 sont dates de mars 2026.**
+> Nombres de tests, durees, listes de modules : tous obsoletes. La suite a plus
+> que double depuis. Se fier a ce document pour la METHODE, jamais pour les
+> NOMBRES. L'etat courant est dans `front/tests/README.md`.
 
 ---
 
@@ -133,7 +136,7 @@ docker exec hypostasia_web uv run python manage.py test front -v2 --keepdb
 ```
 front/tests/
 ├── __init__.py                         # Re-exports
-├── README.md                           # Detail par phase (ancien, phases 01-07)
+├── README.md                           # Ou lancer, ou ecrire — l'etat courant
 ├── PLAN_TEST.md                        # CE FICHIER — vue d'ensemble et philosophie
 ├── test_phases.py                      # 209 classes, ~744 tests (phases 01-26h)
 ├── test_phase27a.py                    # 7 classes, 19 tests (tracabilite)
@@ -429,6 +432,6 @@ Les tests E2E creent les donnees en `setUp` via ORM, puis naviguent dans le navi
 5. `setUp` minimal : ne creer que les objets necessaires
 6. Pas d'appels reseau, pas de `time.sleep()`, pas de fixtures Django
 7. Ajouter les tests E2E dans `front/tests/e2e/test_{NN}_{nom}.py`
-8. Mettre a jour `PLAN/PHASES/PHASE-{XX}.md` avec le tableau de suivi des tests
-9. Mettre a jour `PLAN/PHASES/INDEX.md` (section suivi des tests)
+8. Mettre a jour `CHANGELOG/AAAA-MM-JJ-slug.md` (les phases numerotees sont archivees dans `PLAN/archive/PHASES/`) avec le tableau de suivi des tests
+9. Mettre a jour `CHANGELOG/` — le fichier du chantier
 10. Verifier : `docker exec hypostasia_web uv run python manage.py test front.tests.test_phase{XX} -v2`

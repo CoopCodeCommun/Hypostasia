@@ -232,8 +232,8 @@ class Phase02PolicesLocalesTest(TestCase):
 
     REPERTOIRE_FONTS = STATIC_FRONT / "fonts"
 
-    # Polices requises par le CLAUDE.md §0 (3 polices = 3 provenances + Lora)
-    # / Fonts required by CLAUDE.md §0 (3 fonts = 3 provenances + Lora)
+    # Polices requises par la charte typographique (3 polices = 3 provenances + Lora)
+    # / Fonts required by the typographic charter (3 fonts = 3 provenances + Lora)
     POLICES_REQUISES = {
         "B612 regular": "b612-regular.woff2",
         "B612 bold": "b612-bold.woff2",
@@ -1620,11 +1620,11 @@ class Phase09MarginaliaJSContenuTest(TestCase):
         self.contenu_js = chemin_marginalia.read_text(encoding="utf-8")
 
     def test_header_localisation_present(self):
-        """marginalia.js contient le header LOCALISATION stack-ccc."""
+        """marginalia.js contient le header LOCALISATION du skill djc."""
         self.assertIn("LOCALISATION", self.contenu_js)
 
     def test_header_communication_present(self):
-        """marginalia.js contient la section COMMUNICATION stack-ccc."""
+        """marginalia.js contient la section COMMUNICATION du skill djc."""
         self.assertIn("COMMUNICATION", self.contenu_js)
 
     def test_plus_aucune_fabrique_de_pastilles_marginales(self):

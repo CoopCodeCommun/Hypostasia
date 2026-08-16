@@ -5,7 +5,7 @@
  *
  * Le bouton porte aria-expanded : sans lui, un lecteur d'ecran annonce
  * un bouton sans jamais dire s'il a ouvert quelque chose. C'est un des
- * restes d'accessibilite de PLAN/bascule-css-etat-2026-08-09.md.
+ * restes d'accessibilite de PLAN/archive/cahiers-des-charges/bascule-css-etat-2026-08-09.md.
  * / Without aria-expanded a screen reader never learns the menu opened.
  *
  * LOCALISATION : front/static/front/js/user_menu.js

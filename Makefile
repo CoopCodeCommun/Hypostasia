@@ -56,6 +56,18 @@ CONF_PROD := /app/supervisord.conf
 # code is non-zero as soon as one program is down, which would make
 # `make restart` refuse precisely when it is needed.
 SOCKET_DEV := /tmp/supervisor-dev.sock
+SOCKET_PROD := /tmp/supervisor.sock
+
+# LES DEUX SOCKETS NE SONT PAS LA MEME (corrige le 16 aout 2026).
+# `supervisord-dev.conf` ouvre /tmp/supervisor-dev.sock,
+# `supervisord.conf` ouvre /tmp/supervisor.sock. L'attente d'`install`
+# etait codee en dur sur celle de DEV : sur une machine de production,
+# la boucle tournait SANS FIN, et rien dans la sortie ne disait pourquoi
+# — on lisait « attente des services » jusqu'au Ctrl-C.
+# / The two sockets differ; install's wait was hard-coded on the dev
+# one, so it looped forever on a production machine.
+SOCKET_DU_MODE = $$(grep -qiE '^[[:space:]]*DEBUG[[:space:]]*=[[:space:]]*(true|1|yes)' .env 2>/dev/null \
+	&& echo $(SOCKET_DEV) || echo $(SOCKET_PROD))
 
 # Raccourcis : `DANS` execute une commande dans /app du conteneur,
 # `SUPERVISORCTL` pilote les services de dev.
@@ -78,11 +90,28 @@ EXCLUSIONS_RAPIDES := --exclude-tag=e2e --exclude-tag=docling --exclude-tag=llm_
 # / The Makefile calls the scripts in bin/, never duplicates them.
 SCRIPT_D_INSTALLATION := bin/install.sh
 
+# Celui-ci, en revanche, tourne sur l'HOTE et AVANT tout conteneur :
+# `docker compose` lit le .env, il faut donc qu'il existe deja.
+# / This one runs on the HOST and BEFORE any container: compose reads
+# the .env, so it must already exist.
+SCRIPT_DE_CONFIGURATION := bin/configurer_env.sh
+
+# Les scripts de sauvegarde, eux, s'executent sur l'HOTE : ils pilotent
+# Docker et vivent dans le crontab de la machine. Un script enferme dans
+# le conteneur ne saurait faire ni l'un ni l'autre.
+# / The backup scripts run on the HOST: they drive Docker and live in
+# the machine's crontab.
+SCRIPT_DE_SAUVEGARDE := bin/backup.sh
+SCRIPT_DE_VERIFICATION_SAUVEGARDE := bin/check_backup.sh
+SCRIPT_DE_RESTAURATION := bin/restore.sh
+SCRIPT_DE_VERIFICATION_PROD := bin/verifier_prod.sh
+
 .DEFAULT_GOAL := aide
 
 .PHONY: aide install dev status stop restart logs shell check \
         collectstatic test test-rapide test-suite test-e2e test-docling \
-        test-llm test-tout prod-update prod-status .verif-services .verif-docker
+        test-llm test-tout backup backup-check restore verif-prod \
+        prod-update prod-status .verif-services .verif-docker
 
 # Ce Makefile PILOTE Docker, il ne l'installe pas. Sans lui, chaque
 # cible echouerait sur un « command not found » qui ne dit pas quoi
@@ -116,6 +145,7 @@ aide:  ## Affiche cette aide
 	@echo "    S=<nom>          cible un service (restart, logs) ou une suite (tests)"
 	@echo "    CONTENEUR=<nom>  si le conteneur n'est pas $(CONTENEUR)"
 	@echo "    CONFIRME=oui     saute la question des cibles qui coutent de l'argent"
+	@echo "    ARCHIVE=<nom>    quelle archive restaurer (defaut : la derniere)"
 	@echo ""
 	@echo "  \033[1mCe qui coute\033[0m"
 	@echo "    Premiere install : ~3 min (deux conversions PDF). Ensuite : ~10 s."
@@ -139,10 +169,31 @@ install: .verif-docker  ## TOUT : conteneurs + installation + services (idempote
 	@# selon DEBUG), qui enchaine bin/install.sh puis supervisord : il
 	@# n'y a qu'une commande a taper.
 	@# / The container runs bin/start-dev.sh by itself.
+	@# Le .env d'abord : compose le LIT. Sans lui, POSTGRES_PASSWORD
+	@# est vide et la base refuse de s'initialiser. Ce script ne fait
+	@# rien si le fichier existe deja.
+	@# / The .env first: compose reads it.
+	@bash $(SCRIPT_DE_CONFIGURATION)
 	docker compose up -d
 	@echo "--- attente des services (premiere install : ~3 min, conversions PDF) ---"
-	@until docker exec $(CONTENEUR) test -S $(SOCKET_DEV) 2>/dev/null; do sleep 3; done
-	@$(SUPERVISORCTL) status
+	@socket=$(SOCKET_DU_MODE); \
+	 until docker exec $(CONTENEUR) test -S $$socket 2>/dev/null; do sleep 3; done
+	@# Le premier appel vise la conf de dev, le second celle de prod ;
+	@# le `|| true` final evite qu'un programme FATAL arrete
+	@# l'installation AVANT le bilan de production ci-dessous —
+	@# `supervisorctl status` sort en non-nul des qu'un programme n'est
+	@# pas RUNNING. / A FATAL program must not stop the install before
+	@# the production report below.
+	@$(SUPERVISORCTL) status 2>/dev/null \
+		|| docker exec $(CONTENEUR) supervisorctl -c $(CONF_PROD) status \
+		|| true
+	@# Le bilan de production : depot de sauvegarde, cron, secrets encore
+	@# a la valeur d'exemple. Il se saute tout seul sur un poste de dev,
+	@# et n'arrete JAMAIS l'installation — le depot borg se cree DEPUIS
+	@# la machine installee, exiger qu'il existe deja tiendrait de l'oeuf
+	@# et de la poule.
+	@# / Skipped on a dev box, advisory on production.
+	@bash $(SCRIPT_DE_VERIFICATION_PROD) --a-l-installation || true
 	@echo ""
 	@echo "Le site : https://h.localhost/   —   les journaux : make logs"
 
@@ -268,6 +319,45 @@ test-tout:  ## rapide + e2e + docling, dans cet ordre. Sans le LLM payant.
 	@$(MAKE) --no-print-directory test-docling
 	@echo ""
 	@echo "Le LLM reel n'est PAS inclus (il est facture) : make test-llm"
+
+# -----------------------------------------------------------------------------
+# Sauvegarde — borg, vers un depot borgwarehouse
+#
+# Ces cibles tournent sur l'HOTE, comme tout le reste du Makefile, mais
+# pour une raison de plus : le cron et la cle SSH du depot vivent sur la
+# machine, pas dans le conteneur.
+#
+# Ce qui part dans une archive : le dump PostgreSQL, media/ et .env. Le
+# reste est dans git. Une restauration complete se lit donc :
+#     git clone <depot> && cp <.env du coffre> .env && make install
+#     make restore
+#
+# IL N'Y A PAS DE CIBLE D'INITIALISATION, et c'est voulu : au premier
+# lancement sur une machine, `make backup` enchaine lui-meme sur la
+# configuration (cle SSH, depot, .env, cron) avant de sauvegarder. Une
+# cible qu'on ne tape QU'UNE FOIS dans la vie d'une machine est une
+# cible qu'on ne retrouve pas le jour ou on en a besoin.
+# / No init target: `make backup` configures itself on first run.
+#
+# Toute la logique vit dans bin/ : ce Makefile ne recopie aucune
+# commande borg. Deux definitions d'une meme sequence finissent toujours
+# par diverger — et une sauvegarde qui derive ne le signale jamais.
+# / All the logic lives in bin/; no borg command is duplicated here.
+# -----------------------------------------------------------------------------
+
+##@ Sauvegarde (a lancer depuis l'hote)
+
+backup:  ## Sauvegarde : base + media/ + .env (se configure au 1er lancement)
+	@bash $(SCRIPT_DE_SAUVEGARDE)
+
+backup-check:  ## La derniere sauvegarde est-elle VRAIMENT restaurable ?
+	@bash $(SCRIPT_DE_VERIFICATION_SAUVEGARDE)
+
+restore:  ## ECRASE la base depuis une archive : make restore [ARCHIVE=<nom>]
+	@bash $(SCRIPT_DE_RESTAURATION) $(ARCHIVE)
+
+verif-prod:  ## Bilan de prod : depot, cron, secrets, DEBUG/NGINX_CONF
+	@bash $(SCRIPT_DE_VERIFICATION_PROD)
 
 # -----------------------------------------------------------------------------
 # Production

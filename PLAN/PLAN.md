@@ -3326,7 +3326,7 @@ Ces regles s'appliquent a TOUTES les phases :
 3. **Pas de sur-ingenierie** : on resout le probleme pose, rien de plus
 4. **Tests avant merge** : au minimum `uv run python manage.py check` + test manuel du flux modifie. Les tests E2E Playwright sont ecrits au fil des phases, pas dans une phase separee
 5. **Migration explicite** : si un modele change, creer la migration dans la meme etape
-6. **GUIDELINES.md fait foi** : en cas de doute, c'est la spec de reference
+6. **AGENTS.md et le skill `djc` font foi** : en cas de doute, ce sont les references
 7. **Ce fichier est mis a jour** : chaque etape terminee est cochee, chaque nouvelle idee est ajoutee dans la bonne phase
 8. **Export et portabilite des donnees** : chaque fonctionnalite qui stocke des donnees utilisateur doit prevoir un export (Markdown, JSON). Backup de la base SQLite documente. Conformite RGPD (droit a l'effacement, droit a la portabilite)
 9. **Observabilite** : logging structure (django logging existant dans `logs/`), health check endpoint, monitoring des taches Celery (jobs en echec, timeouts)

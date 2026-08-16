@@ -43,21 +43,51 @@ tailwindcss
 # / Local browser NSS profile.
 /.pki/
 
+# Les artefacts d'execution des agents : briefs de taches, rapports,
+# paquets de relecture. Un seul chantier du 11 aout 2026 en a depose 45,
+# soit 1,1 Mo, pour une information durable qui tenait en un fichier.
+# Ce qui merite de survivre a la session se recopie a la main dans
+# CHANGELOG/ — le reste est le brouillon d'un agent, pas la memoire du
+# projet.
+# / Agent run artifacts: task briefs, reports, review packages. What
+#   deserves to outlive the session is copied by hand into CHANGELOG/.
+/.superpowers/
+
 # Le bac a sable des sessions de travail : captures de verification,
 # scripts jetables, sorties JSON. Une seule campagne y depose des
 # dizaines de PNG — 30 Mo au 10 aout 2026.
-# ATTENTION : tmp/ n'est PAS que du brouillon. Il abrite l'ETALON DE
-# DESIGN (tmp/maquettes/), qui est l'autorite du chantier CSS et que
-# scripts/verifier_les_maquettes.py controle, plus des archives et des
-# captures de documentation. Ces repertoires-la sont RE-INCLUS : sans
-# cela, un nouveau fichier d'etalon serait ignore en silence — les
-# fichiers deja suivis, eux, le resteraient, et le piege ne se verrait
-# que le jour ou quelqu'un ajoute une maquette.
-# / tmp/ is a scratch area BUT holds the design reference; those
-# directories are re-included, or a new reference file would be
+# ATTENTION : tmp/ n'est PAS que du brouillon. Il abrite des archives de
+# maquettes et des captures de documentation. Ces repertoires-la sont
+# RE-INCLUS : sans cela, un nouveau fichier y serait ignore en silence —
+# les fichiers deja suivis, eux, le resteraient, et le piege ne se
+# verrait que le jour ou quelqu'un en ajoute un.
+# / tmp/ is a scratch area BUT holds mockup archives and documentation
+# captures; those directories are re-included, or a new file would be
 # silently ignored.
+#
+# L'ETALON DE DESIGN, LUI, N'EST PLUS ICI : il vit dans
+# `front/static/front/maquettes/`, avec le reste des statiques servis.
+# `tmp/maquettes-archive-2026-08-11/` en est une copie GELEE au 11 aout,
+# gardee pour l'historique — ne jamais la reprendre pour reference.
+# / The design reference now lives in front/static/front/maquettes/;
+#   the tmp/ copy is frozen history, never a source of truth.
 /tmp/*
-!/tmp/maquettes/
 !/tmp/maquettes-archive/
+!/tmp/maquettes-archive-2026-08-11/
 !/tmp/captures/
 !/tmp/docling_essai/
+
+# LA CLE PRIVEE DU DEPOT DE SAUVEGARDE. Sur borgwarehouse, une cle
+# publique ouvre UN depot ; la privee poussee sur la forge donnerait
+# acces a toutes les archives qu'elle protege. Elle est generee par
+# `make backup` au premier lancement, et n'a rien a faire dans un depot.
+# / The backup repository's private key: pushing it to the forge would
+# grant access to every archive it protects.
+/bin/.ssh/
+
+# Les traces de travail des sauvegardes : dump en cours d'archivage,
+# verrou de concurrence, dossier d'extraction d'une restauration.
+# / Backup working files: in-flight dump, lock, extraction directory.
+/.dump-pg-*/
+/.backup-*.lock
+/.restauration-*/

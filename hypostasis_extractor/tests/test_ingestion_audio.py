@@ -12,7 +12,7 @@ Elle n'avait jamais ete faite : les 36 pages audio de la base portaient
 une transcription mais aucun element utilisable — leur gouttiere restait
 donc muette, sans locuteur ni minutage, la ou l'etalon en affiche.
 
-LA REGLE VIENT DE LA MESURE D3 (PLAN/mesure-D3-frontiere-audio),
+LA REGLE VIENT DE LA MESURE D3 (PLAN/archive/mesures-et-recettes/mesure-D3-frontiere-audio-2026-08-10),
 pas d'une intuition :
   · UN element par TOUR DE PAROLE — la mesure a montre que le
     changement de locuteur ne fait pas une bonne frontiere de chunk,

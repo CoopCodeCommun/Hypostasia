@@ -1895,7 +1895,7 @@ Rapporter le compte obtenu et la ventilation par label.
 - [ ] `--a-blanc` sur une base vide n'écrit strictement rien.
 - [ ] L'écran de lecture montre une gouttière avec des labels réels sur le
       markdown, et des locuteurs avec minutages sur les deux notes audio.
-- [ ] `CHANGELOG.md` et une fiche `A TESTER et DOCUMENTER/` sont rédigés.
+- [ ] un fichier `CHANGELOG/AAAA-MM-JJ-slug.md` est rédigé (résumé, `---`, comment tester).
 - [ ] Aucune opération git n'a été faite.
 
 ---
