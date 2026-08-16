@@ -296,6 +296,36 @@ procédure de vérification est dans `PLAN/LANGEXTRACT_OVERRIDES.md`.
 | Celery | 2 workers (`supervisord-dev.conf`) | 2 workers (`supervisord.conf`) |
 | Nginx | `NGINX_CONF=dev.conf` → tout vers 8000 | `default.conf` → `/` vers 8001, `/ws/` vers 8000 |
 
+### Cette stack ne prend AUCUN port de l'hôte
+
+Les ports **80 et 443 appartiennent au Traefik partagé** de la machine — celui
+qui détient le réseau `frontend` (déclaré `external: true`) et qui définit le
+résolveur `myresolver` que les labels de `nginx` réclament. Notre `nginx` s'y
+inscrit par ses labels, rien de plus.
+
+**Ce Traefik doit tourner AVANT la stack.** Sans lui, tous les conteneurs
+démarrent parfaitement et **rien ne répond sur le domaine** : personne n'écoute
+sur 80. Aucun message ne le dit.
+
+> Un service `traefik` a vécu dans ce compose jusqu'au 16 août 2026. Il prenait
+> `0.0.0.0:80` et `:443` — donc la place du vrai — et ne définissait **aucun**
+> résolveur de certificats alors que les labels en réclamaient un : le site ne
+> répondait qu'en TLS auto-signé. **Ne pas le remettre.**
+
+### Deux dossiers doivent exister AVANT `docker compose up`
+
+`staticfiles/` et `media/` sont montés dans `nginx` et **ignorés par git** : un
+clone frais ne les a pas. Si Docker les rencontre absents, c'est le **démon**
+qui les crée — donc `root:root` — et le conteneur web, qui tourne en **uid
+1000**, ne peut plus y écrire : `collectstatic` échoue, `bin/install.sh`
+s'arrête sous `set -e`, et `restart: unless-stopped` relance le conteneur en
+boucle. Constaté en production le 16 août 2026, sur un clone neuf.
+
+`make install` les crée donc sur l'hôte, avant tout conteneur. Le `mkdir -p` de
+`bin/install.sh` ne rattrape rien : il tourne **dans** le conteneur, après coup,
+et `mkdir -p` réussit sur un dossier existant quel qu'en soit le propriétaire.
+Verrouillé par `front/tests/test_script_d_installation.py`.
+
 ### Les scripts, tous dans `bin/`
 
 - **`bin/install.sh`** — la séquence d'installation, idempotente. Accepte une

@@ -530,6 +530,91 @@ class LInstallationFabriqueSonFichierDEnvironnementTest(TestCase):
         )
 
 
+class LeReverseProxyEstDehorsTest(TestCase):
+    """
+    Cette stack ne prend AUCUN port de l'hote.
+    / This stack claims NO host port.
+
+    LOCALISATION : front/tests/test_script_d_installation.py
+
+    Les ports 80 et 443 appartiennent au Traefik partage de la machine
+    — celui qui detient le reseau `frontend` (declare `external: true`
+    ici) et qui definit le resolveur `myresolver` que les labels de
+    nginx reclament. Notre compose se contente d'exposer nginx SUR ce
+    reseau, avec ses labels ; le routage et les certificats sont
+    l'affaire du proxy partage.
+
+    Un service traefik embarque ici a deux effets, tous deux constates
+    le 16 aout 2026 en production :
+
+    1. il prend 0.0.0.0:80 et :443, donc il empeche le vrai Traefik de
+       demarrer — ou prend sa place selon l'ordre de lancement ;
+    2. il ne definit AUCUN resolveur de certificats, alors que les
+       labels en reclament un : le site ne repondait qu'en TLS
+       auto-signe (`curl -k`), et un navigateur aurait affiche un
+       avertissement de securite.
+
+    / Ports 80 and 443 belong to the machine's shared Traefik, which
+    owns the `frontend` network and defines the `myresolver` the nginx
+    labels ask for. An embedded traefik steals the ports and serves a
+    self-signed certificate.
+    """
+
+    def _compose(self):
+        return (Path(settings.BASE_DIR) / "docker-compose.yml").read_text(
+            encoding="utf-8"
+        )
+
+    def test_aucun_port_de_l_hote_n_est_pris(self):
+        import re
+
+        for numero, ligne in enumerate(self._compose().splitlines(), start=1):
+            nue = ligne.strip()
+            if nue.startswith("#"):
+                continue
+            # `- "80:80"` ou `- 80:80` : une publication de port hote.
+            # `- "5432"` seul n'en est pas une. / A host port mapping.
+            if re.fullmatch(r'-\s*"?\d+:\d+"?', nue):
+                with self.subTest(ligne=numero):
+                    self.fail(
+                        f"docker-compose.yml publie un port de l'hote "
+                        f"(ligne {numero} : {nue}). Les ports de la "
+                        f"machine appartiennent au Traefik partage."
+                    )
+
+    def test_aucun_service_traefik_n_est_declare_ici(self):
+        compose = self._compose()
+
+        self.assertNotIn(
+            "\n  traefik:",
+            compose,
+            "Un service traefik est declare dans cette stack : il "
+            "prendra les ports 80 et 443 de la machine, et servira un "
+            "certificat auto-signe faute de resolveur.",
+        )
+
+    def test_nginx_reste_expose_au_proxy_partage(self):
+        # Le retrait du traefik embarque ne doit pas emporter avec lui
+        # ce qui permet au vrai proxy de trouver le site.
+        # / Removing the embedded traefik must not remove what lets the
+        # real proxy find the site.
+        compose = self._compose()
+
+        for reglage, role in (
+            ("traefik.enable=true", "l'inscription aupres du proxy"),
+            ("traefik.docker.network=frontend", "le reseau par lequel il joint nginx"),
+            ("certresolver", "le certificat TLS"),
+            ("Host(`${DOMAIN}`)", "la regle de routage par domaine"),
+            ("external: true", "le reseau partage, detenu par le proxy"),
+        ):
+            with self.subTest(reglage=reglage):
+                self.assertIn(
+                    reglage,
+                    compose,
+                    f"{reglage} a disparu : {role} n'est plus declare.",
+                )
+
+
 class LesDeuxDemarragesSontDistinctsTest(TestCase):
     """
     Dev et prod ne lancent pas les memes serveurs.

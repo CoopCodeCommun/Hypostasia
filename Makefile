@@ -210,7 +210,13 @@ install: .verif-docker  ## TOUT : conteneurs + installation + services (idempote
 	@# / Skipped on a dev box, advisory on production.
 	@bash $(SCRIPT_DE_VERIFICATION_PROD) --a-l-installation || true
 	@echo ""
-	@echo "Le site : https://h.localhost/   —   les journaux : make logs"
+	@# Le domaine est LU dans le .env, pas ecrit en dur : sur la
+	@# machine de production, cette ligne annoncait
+	@# « https://h.localhost/ » — l'adresse du poste de dev — juste
+	@# apres avoir installe beta.hypostasia.org (constate le 16 aout
+	@# 2026). / Read from the .env: on production this line announced
+	@# the dev machine's address.
+	@echo "Le site : https://$$(grep -E '^DOMAIN=' .env | cut -d= -f2)/   —   les journaux : make logs"
 
 dev: install  ## Synonyme d'install (le conteneur s'installe et demarre seul)
 	@:

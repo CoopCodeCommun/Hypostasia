@@ -11,6 +11,26 @@
 # y a DEUX workers Celery, dont un dedie a l'ingestion Docling a
 # concurrence 1.
 #
+# CETTE STACK NE PREND AUCUN PORT DE L'HOTE
+#
+# Les ports 80 et 443 appartiennent au **Traefik partage** de la
+# machine : celui qui detient le reseau `frontend` (declare
+# `external: true` en bas de ce fichier) et qui definit le resolveur
+# `myresolver` que les labels de nginx reclament. Notre nginx s'y
+# inscrit par ses labels, et c'est tout.
+#
+# PREREQUIS : ce Traefik doit tourner AVANT cette stack, et le reseau
+# `frontend` doit exister. Sans lui, les conteneurs demarrent tres bien
+# mais rien ne repond sur le domaine : personne n'ecoute sur 80.
+#
+# Un service traefik a vecu ici jusqu'au 16 aout 2026. Il prenait
+# 0.0.0.0:80 et :443 — donc la place du vrai — et ne definissait AUCUN
+# resolveur de certificats alors que les labels en reclamaient un : le
+# site ne repondait qu'en TLS auto-signe.
+# / This stack claims NO host port: 80 and 443 belong to the machine's
+# shared Traefik, which owns the `frontend` network and defines
+# `myresolver`. It must be running first, or nothing answers.
+#
 # TOUT :
 #   make install                        (ou : docker compose up -d)
 #   make logs                           (ou : docker compose logs -f web)
@@ -25,33 +45,6 @@
 # =============================================================================
 
 services:
-  #########
-  # TRAEFIK PROXY
-  #########
-  traefik:
-    image: "traefik:latest"
-    container_name: "traefik"
-    hostname: "traefik"
-    command:
-      - "--log.level=INFO"
-      - "--providers.docker=true"
-      - "--providers.docker.network=frontend"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.entrypoints-https.address=:443"
-      - "--entrypoints.entrypoints-http.address=:80"
-      - "--entrypoints.entrypoints-http.http.redirections.entryPoint.to=entrypoints-https"
-      - "--entrypoints.entrypoints-http.http.redirections.entryPoint.scheme=https"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-    restart: unless-stopped
-    networks:
-      - frontend
-
-
-
   postgres:
     image: postgres:17-alpine
     container_name: hypostasia_postgres
