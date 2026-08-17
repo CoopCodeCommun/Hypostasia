@@ -282,6 +282,48 @@ def _noter_l_etat_d_ingestion(identifiant_de_la_page, etat, detail=""):
         "ingestion_etat": etat, "ingestion_detail": detail,
         "ingestion_maj_le": timezone.now(),
     }
+
+    # LE TEXTE PLAT DEVIENT UNE PROJECTION DES ELEMENTS.
+    #
+    # L'import d'un fichier ecrivait DEUX textes concurrents : celui de la
+    # conversion synchrone (MarkItDown), puis les elements de Docling.
+    # Mesure du 17 aout 2026 : une note portait 58 524 signes de texte
+    # plat ET 189 elements, dont les offsets n'avaient aucun rapport.
+    # C'est pire qu'un champ vide : un lecteur du champ plat y trouve un
+    # texte non vide mais FAUX.
+    #
+    # On ne garde pas deux verites, et on ne supprime pas le champ — il
+    # porte l'empreinte de deduplication et sert de repli aux pages sans
+    # element. On le DERIVE : une seule verite, les elements, dont le
+    # champ plat n'est que la projection.
+    #
+    # SEULEMENT a la reussite, et SEULEMENT s'il y a des elements : un
+    # etat « en cours » qui viderait le champ laisserait la note blanche
+    # a l'ecran pendant la conversion, et une reussite sans element
+    # effacerait le seul texte disponible.
+    # / The flat text becomes a derived projection of the elements — one
+    # truth. Only on success, and only when elements exist.
+    if etat == EtatIngestion.REUSSIE:
+        from core.models import ElementDocument
+
+        # Les MASQUES sont exclus, comme partout ailleurs : le lecteur ne
+        # les montre pas, l'analyse ne les lit pas, l'ancrage les ignore.
+        # Et on reutilise LE separateur du chunking plutot que d'en
+        # recopier la valeur : le jour ou il change, il change ici aussi.
+        # / Masked elements excluded, and THE shared separator reused.
+        from hypostasis_extractor.services.ancrage import (
+            SEPARATEUR_DE_JONCTION,
+        )
+
+        textes_des_elements = list(
+            ElementDocument.objects.filter(
+                page_id=identifiant_de_la_page, masque=False,
+            ).order_by("ordre").values_list("texte", flat=True)
+        )
+        if textes_des_elements:
+            valeurs_a_ecrire["text_readability"] = (
+                SEPARATEUR_DE_JONCTION.join(textes_des_elements)
+            )
     if etat in (EtatIngestion.EN_ATTENTE, EtatIngestion.EN_COURS):
         valeurs_a_ecrire["ingestion_notification_lue"] = False
         NotificationTacheLue.objects.filter(

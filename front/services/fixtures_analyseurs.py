@@ -10,14 +10,15 @@ Sans analyseur en base, le bouton « Lancer une analyse » n'ouvre aucun
 selecteur : il n'a rien a proposer. L'application est alors inutilisable
 pour sa fonction principale, et rien a l'ecran ne dit pourquoi.
 
-Cette definition vivait dans `charger_fixtures_demo`, et seulement la.
+Cette definition vivait dans une commande de fixtures fictives,
+supprimee le 17 aout 2026 — et seulement la.
 `charger_fixtures_sample`, ecrite plus tard pour charger les documents
 etalons sans le debat fictif ni les pages Wikipedia, ne la reprenait pas :
 une installation menee avec elle laissait 0 analyseur, 0 modele IA,
 0 prompt, 0 exemple. Recopier la methode aurait donne deux definitions a
 tenir a jour — c'est exactement ainsi que l'oubli s'est produit. Elle vit
 donc ici, a un seul endroit, et les deux commandes l'appellent.
-/ This definition used to live only in charger_fixtures_demo; the later
+/ This definition used to live only in a since-deleted fixture command;
 charger_fixtures_sample did not repeat it, leaving fresh installs with
 zero analyzers. Copying it would have left two definitions to maintain —
 which is how the omission happened. It lives here now, called by both.
@@ -25,7 +26,7 @@ which is how the omission happened. It lives here now, called by both.
 CE QUE LE SERVICE N'ECRIT PAS
 
 Il n'affiche rien. Les deux commandes appelantes ne parlent pas la meme
-langue — `charger_fixtures_demo` ecrit des lignes indentees et colorees,
+langue — la commande d'origine ecrivait des lignes indentees et colorees,
 `charger_fixtures_sample` un bilan aligne en colonnes. Le service rend
 donc un rapport, et chacune le met en mots a sa facon.
 / It prints nothing: the two callers have different output styles, so it
@@ -60,9 +61,9 @@ MODELES_IA_PAR_CLE_D_ENVIRONNEMENT = [
 ]
 
 DESCRIPTION_DE_L_ANALYSEUR_DE_SYNTHESE = (
-    "Génère une nouvelle version du texte intégrant le débat structuré "
-    "(hypostases + commentaires + statuts). Pondère les passages selon "
-    "leur statut de consensus."
+    "Rédige une note de carnet — wiki vivant ou synthèse dirigée — à "
+    "partir des extractions d'un périmètre, chaque affirmation citant "
+    "ses sources. Tient compte du statut de débat et des commentaires."
 )
 
 # --- Les quatre pieces du prompt d'extraction (approche A, validee par
@@ -233,30 +234,44 @@ EXTRACTIONS_DE_L_EXEMPLE_FEW_SHOT = [
     ("La théorie des communs d'Elinor Ostrom offre un cadre pour penser la gouvernance collective de l'IA comme ressource partagée par une communauté éducative.", "La théorie des communs comme cadre de gouvernance de l'IA.", "théorie, paradigme", "Ostrom, communs, gouvernance"),
 ]
 
+# Ces trois pieces sont enseignees au modele a CHAQUE wiki et a CHAQUE
+# synthese dirigee. Elles ont decrit un produit disparu jusqu'au 16 aout
+# 2026 : les six statuts de debat (fusionnes en DEUX le 2 mai) et la
+# synthese-comme-version-d'un-texte (abandonnee le 9 aout). Sur un appel
+# reel, le modele justifiait ses operations par « avec le statut
+# CONSENSUEL ». Verrouille par front/tests/test_prompt_de_synthese_a_jour.py.
+# / These pieces described an abolished product until 16 Aug 2026.
+
 PIECE_DE_CONTEXTE_DE_LA_SYNTHESE = (
     "Tu es un rédacteur expert en synthèse délibérative. "
-    "Ta mission est de produire une nouvelle version d'un texte "
-    "qui intègre les résultats d'un débat structuré."
+    "Ta mission est de rédiger une note de carnet — un article autonome "
+    "qui restitue ce qu'un corpus de notes établit et ce sur quoi il ne "
+    "s'accorde pas. Tu n'as pas de texte source à réécrire : ton "
+    "matériau est un ensemble d'extractions, chacune ancrée à un "
+    "passage précis d'une note."
 )
 
 PIECE_DE_PONDERATION_DE_LA_SYNTHESE = (
-    "Règles de pondération par statut de débat :\n\n"
-    "- CONSENSUEL : intégrer pleinement, ces points font l'objet d'un accord du groupe.\n"
-    "- DISCUTABLE : mentionner avec nuance, le débat n'a pas encore eu lieu.\n"
-    "- DISCUTÉ : présenter les différents points de vue exprimés dans les commentaires.\n"
-    "- CONTROVERSÉ : expliciter la controverse sans trancher, citer les arguments des deux côtés.\n"
-    "- Les extractions NON PERTINENTES sont exclues du prompt, ignore-les.\n\n"
-    "Le texte produit doit être :\n"
-    "1. Une version autonome et lisible (pas un résumé du débat)\n"
-    "2. Rédigé dans un style cohérent avec le texte original\n"
-    "3. Fidèle aux sources : chaque affirmation doit pouvoir être reliée à une extraction\n"
-    "4. Équilibré : les passages controversés ne doivent pas être supprimés mais contextualisés"
+    "Une extraction porte un statut de débat, et il n'en existe que deux :\n\n"
+    "- NOUVEAU : personne n'a encore réagi. Tu la restitues sans lui "
+    "prêter d'accord collectif — le silence n'est pas un consensus.\n"
+    "- COMMENTÉ : au moins une intervention humaine. Les commentaires "
+    "te sont fournis avec l'extraction : quand ils divergent, expose la "
+    "divergence au lieu de la trancher.\n\n"
+    "L'article produit doit être :\n"
+    "1. Autonome et lisible — un article, pas un résumé du débat\n"
+    "2. Fidèle aux sources : chaque affirmation vient d'une extraction "
+    "fournie, et d'aucune autre\n"
+    "3. Équilibré : une position minoritaire n'est jamais supprimée, "
+    "elle est située\n"
+    "4. Sobre : tu n'inventes rien, et tu n'ajoutes aucune conclusion "
+    "que les extractions ne portent pas"
 )
 
 PIECE_DE_CONSIGNE_DE_LA_SYNTHESE = (
-    "Produis la synthèse délibérative de ce débat en intégrant les pondérations "
-    "par statut définies dans tes instructions. Le texte produit doit être une "
-    "nouvelle version autonome et lisible du document."
+    "Rédige l'article à partir des extractions fournies, en tenant "
+    "compte de leur statut de débat et de leurs commentaires. Le texte "
+    "produit doit être un article autonome et lisible."
 )
 
 

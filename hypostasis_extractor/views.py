@@ -59,7 +59,6 @@ from .serializers import (
     ExtractedEntitySerializer,
     ExtractionExampleSerializer,
     ExtractionValidationSerializer,
-    RunExtractionSerializer,
     AnalyseurSyntaxiqueCreateSerializer,
     AnalyseurSyntaxiqueUpdateSerializer,
     AnalyseurUtilisabiliteSerializer,
@@ -75,7 +74,9 @@ from .serializers import (
     ValidateTestExtractionSerializer,
     RejectTestExtractionSerializer,
 )
-from .services import run_langextract_job, generate_visualization_html
+# `run_langextract_job` et `generate_visualization_html` ont ete supprimes
+# le 17 aout 2026 avec les actions qui les appelaient : c'etait l'etage de
+# l'ancien moteur d'ancrage. / Legacy anchoring layer, removed.
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -162,77 +163,19 @@ class ExtractionJobViewSet(viewsets.ViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    @action(detail=True, methods=['post'])
-    def run(self, request, pk=None):
-        """
-        Action: Lance l'extraction LangExtract pour ce job.
-        """
-        job = get_object_or_404(ExtractionJob, pk=pk)
-        
-        # Valide les parametres d'execution
-        params_serializer = RunExtractionSerializer(data=request.data)
-        params_serializer.is_valid(raise_exception=True)
-        params = params_serializer.validated_data
-        
-        try:
-            # Execute l'extraction
-            entities_count, processing_time = run_langextract_job(
-                job,
-                use_chunking=params['use_chunking'],
-                max_workers=params['max_workers']
-            )
-            
-            # Recharge le job avec les entites
-            job = ExtractionJob.objects.prefetch_related('entities').get(pk=job.pk)
-            
-            if request.headers.get('HX-Request'):
-                # Retourne le partiel avec les resultats
-                return render(request, 'hypostasis_extractor/includes/job_results.html', {
-                    'job': job
-                })
-            
-            return Response({
-                'status': 'success',
-                'entities_count': entities_count,
-                'processing_time': processing_time
-            })
-            
-        except Exception as e:
-            if request.headers.get('HX-Request'):
-                return render(request, 'hypostasis_extractor/includes/job_error.html', {
-                    'job': job,
-                    'error': str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
-            return Response({
-                'status': 'error',
-                'error': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    @action(detail=True, methods=['get'])
-    def visualization(self, request, pk=None):
-        """
-        Action: Genere le HTML de visualisation LangExtract.
-        """
-        job = get_object_or_404(ExtractionJob, pk=pk)
-        
-        if job.status != 'completed':
-            return Response({
-                'error': 'Job not completed yet'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            html_content = generate_visualization_html(job)
-            
-            if hasattr(html_content, 'data'):
-                html_content = html_content.data
-            
-            return Response({'html': html_content})
-            
-        except Exception as e:
-            return Response({
-                'error': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    # Les actions `run` et `visualization` ont ete RETIREES le
+    # 17 aout 2026 : elles appelaient l'etage LangExtract historique
+    # (`run_langextract_job`, `generate_visualization_html`), qui lisait
+    # `Page.text_readability` — vide sur toute note ingeree par Docling.
+    # `run` levait donc une ValueError sur le chemin nominal, et quand
+    # il reussissait il creait des ExtractedEntity SANS AUCUNE
+    # AncrageExtraction : des extractions sans preuve, produites par un
+    # moteur mort depuis le 10 aout. `visualization` rendait 18 637
+    # signes de HTML construits sur un texte vide — faux en silence.
+    # L'analyse passe par `analyser_une_page_avec_le_moteur_element`
+    # (hypostasis_extractor/tasks_element.py), seul chemin qui ancre.
+    # / Both actions removed: they drove the legacy LangExtract layer,
+    # which produced unanchored extractions from an empty text.
 
 
 @method_decorator(csrf_exempt, name='dispatch')

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -r \"$HOME/.claude/skills/djc/SKILL.md\" && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"Projet Hypostasia. AVANT toute lecture ou ecriture de code, invoque le skill djc : Skill(djc). Il porte les conventions de code obligatoires du projet (ViewSets DRF explicites jamais ModelViewSet, serializers DRF jamais Django Forms, DefaultRouter jamais path() manuel, patterns HTMX, i18n, accessibilite, FALC, commentaires bilingues FR/EN). Ne reponds pas a une question de convention de code sans l avoir charge.\"}}' || echo '{\"systemMessage\":\"Le skill djc est introuvable dans ~/.claude/skills/ : les conventions de code ne seront PAS chargees.\"}'",
+            "statusMessage": "Chargement des conventions djc"
+          }
+        ]
+      }
+    ]
+  }
+}

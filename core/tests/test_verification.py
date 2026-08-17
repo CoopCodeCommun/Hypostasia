@@ -119,10 +119,12 @@ class VerificationDesCitationsTest(TestCase):
         self.assertEqual(bilan["verifiees"], 1)
         self.assertEqual(mock_llm.call_count, 1)
 
-    def test_une_citation_dont_le_texte_a_derive_est_faible_sans_nli(self):
+    def test_une_citation_dont_le_texte_a_derive_est_introuvable_sans_nli(self):
         # Le verbatim echoue : la citation exacte n'existe plus dans la
-        # source — inutile de payer un appel NLI (cascade § 7.1).
-        # / Verbatim fails: no LLM call needed.
+        # source — inutile de payer un appel NLI (cascade § 7.1). Et ce
+        # n'est PAS « faible » : la citation est INTROUVABLE, ce qui ne
+        # dit pas la meme chose (voir la classe dediee plus bas).
+        # / Verbatim fails: no LLM call, and the verdict is INTROUVABLE.
         article = self._creer_un_article_qui_cite([self.extraction_seuil])
         ExtractedEntity.objects.filter(pk=self.extraction_seuil.pk).update(
             extraction_text="un texte qui n'apparait nulle part",
@@ -136,7 +138,7 @@ class VerificationDesCitationsTest(TestCase):
 
         lien = self._liens(article).get()
         self.assertEqual(
-            lien.etat_de_verification, EtatDeVerification.FAIBLE,
+            lien.etat_de_verification, EtatDeVerification.INTROUVABLE,
         )
         self.assertFalse(mock_llm.called)
 
@@ -553,8 +555,12 @@ class CorrectifsRelectureGTest(TestCase):
         self._verifier(article, "")
 
         lien = self._lien(article)
+        # INTROUVABLE et non FAIBLE : le texte cite n'est plus NULLE
+        # PART — ni dans la source, ni dans le commentaire edite. La
+        # chaine de preuve est rompue, ce n'est pas un soutien
+        # insuffisant. / The quote is nowhere anymore: broken, not weak.
         self.assertEqual(
-            lien.etat_de_verification, EtatDeVerification.FAIBLE,
+            lien.etat_de_verification, EtatDeVerification.INTROUVABLE,
         )
         self.assertEqual(lien.commentaires_source.count(), 0)
 
@@ -576,4 +582,273 @@ class CorrectifsRelectureGTest(TestCase):
         self.assertEqual(
             self._lien(article).etat_de_verification,
             EtatDeVerification.VERIFIE,
+        )
+
+
+class DeuxRoutesVersLEchecTest(TestCase):
+    """
+    « Citation introuvable » et « faible » sont deux signaux distincts.
+    / "Quote not found" and "weak support" are two distinct signals.
+
+    LOCALISATION : core/tests/test_verification.py
+
+    Les deux echecs se confondaient sous un seul verdict FAIBLE. Ils ne
+    disent pourtant pas la meme chose, et ne se reparent pas pareil :
+
+    - INTROUVABLE — le texte que la citation pretend citer n'est plus
+      dans la source. La CHAINE DE PREUVE est cassee : soit le modele a
+      deforme la citation, soit la source a ete editee depuis
+      l'extraction. C'est un signal d'INTEGRITE, et le controle est
+      deterministe (aucun juge n'intervient).
+    - FAIBLE — le passage existe bel et bien, mais il n'etablit pas ce
+      que l'affirmation avance. C'est un signal d'ATTRIBUTION, et c'est
+      un juge qui le pose.
+
+    L'etat de l'art mesure que 80,6 % des affirmations invérifiables
+    sont des erreurs d'attribution et non des hallucinations : savoir
+    dans laquelle des deux populations on se trouve est precisement ce
+    qui rend le chiffre actionnable.
+    / Integrity vs attribution: different causes, different remedies.
+    """
+
+    def setUp(self):
+        self.modele_ia = AIModel.objects.create(
+            name="Juge de test", model_choice="mock_default", is_active=True,
+        )
+        self.note_source = Page.objects.create(
+            url="http://exemple.local/deux-routes",
+            html_original="<p>o</p>", html_readability="<p>l</p>",
+            text_readability=TEXTE_DE_LA_SOURCE,
+            content_hash="hash-deux-routes", title="Compte rendu",
+        )
+        self.job = ExtractionJob.objects.create(
+            page=self.note_source, name="Analyse", status="completed",
+            ai_model=None,
+        )
+
+    def _extraction(self, texte):
+        return ExtractedEntity.objects.create(
+            job=self.job, extraction_class="donnee",
+            extraction_text=texte, start_char=0, end_char=10,
+        )
+
+    def _article_citant(self, extractions):
+        markdown = "\n\n".join(
+            f"Affirmation numéro {numero}.[[ext:{extraction.pk}]]"
+            for numero, extraction in enumerate(extractions, start=1)
+        ) + "\n"
+        article = Page.objects.create(
+            url="http://exemple.local/deux-routes-article",
+            html_original="<p>a</p>", html_readability="<p>a</p>",
+            text_readability="provisoire",
+            content_hash="hash-deux-routes-article",
+            title="Synthèse", type_de_note=TypeDeNote.SYNTHESE,
+        )
+        bilan = indexer_les_citations(article, markdown, None)
+        article.text_readability = bilan["texte_nettoye"]
+        article.save(update_fields=["text_readability"])
+        return article
+
+    def test_le_bilan_compte_les_deux_routes_separement(self):
+        # Une citation introuvable ET une citation refusee par le juge,
+        # dans le meme article. / One of each, in the same article.
+        introuvable = self._extraction("un texte qui n'existe pas ailleurs")
+        refusee = self._extraction(
+            "le seuil de dix mille euros déclenche le passage en assemblée"
+        )
+        article = self._article_citant([introuvable, refusee])
+
+        from core.services.verification import (
+            verifier_les_citations_d_un_article,
+        )
+        with patch(
+            "core.llm_providers.appeler_llm",
+            return_value="1: ne_soutient_pas",
+        ):
+            bilan = verifier_les_citations_d_un_article(
+                article, self.modele_ia,
+            )
+
+        self.assertEqual(bilan["citations_introuvables"], 1)
+        self.assertEqual(bilan["faibles"], 1)
+
+    def test_les_deux_verdicts_ne_sont_pas_le_meme_etat(self):
+        introuvable = self._extraction("un texte qui n'existe pas ailleurs")
+        refusee = self._extraction(
+            "le seuil de dix mille euros déclenche le passage en assemblée"
+        )
+        article = self._article_citant([introuvable, refusee])
+
+        from core.services.verification import (
+            verifier_les_citations_d_un_article,
+        )
+        with patch(
+            "core.llm_providers.appeler_llm",
+            return_value="1: ne_soutient_pas",
+        ):
+            verifier_les_citations_d_un_article(article, self.modele_ia)
+
+        etats = {
+            lien.extraction_source_id: lien.etat_de_verification
+            for lien in SourceLink.objects.filter(
+                page_cible=article, type_lien=TypeLien.CITE,
+            )
+        }
+        self.assertEqual(
+            etats[introuvable.pk], EtatDeVerification.INTROUVABLE,
+        )
+        self.assertEqual(etats[refusee.pk], EtatDeVerification.FAIBLE)
+
+    def test_la_provenance_dit_laquelle_des_deux_routes(self):
+        # Un verdict sans sa raison est un argument d'autorite : la
+        # provenance doit nommer le controle qui a echoue.
+        # / A verdict must name the check that failed.
+        introuvable = self._extraction("un texte qui n'existe pas ailleurs")
+        article = self._article_citant([introuvable])
+
+        from core.services.verification import (
+            verifier_les_citations_d_un_article,
+        )
+        with patch("core.llm_providers.appeler_llm"):
+            verifier_les_citations_d_un_article(article, self.modele_ia)
+
+        lien = SourceLink.objects.get(
+            page_cible=article, type_lien=TypeLien.CITE,
+        )
+        self.assertIn("verbatim", lien.verifie_par.lower())
+        self.assertIn("Juge de test", lien.verifie_par)
+
+    def test_une_citation_introuvable_ne_coute_aucun_appel(self):
+        introuvable = self._extraction("un texte qui n'existe pas ailleurs")
+        article = self._article_citant([introuvable])
+
+        from core.services.verification import (
+            verifier_les_citations_d_un_article,
+        )
+        with patch("core.llm_providers.appeler_llm") as mock_llm:
+            verifier_les_citations_d_un_article(article, self.modele_ia)
+
+        self.assertFalse(mock_llm.called)
+
+
+class LaSourceEstFaiteDElementsTest(TestCase):
+    """
+    Le verbatim doit chercher dans les ELEMENTS, pas dans text_readability.
+    / The verbatim check must read the elements, not text_readability.
+
+    LOCALISATION : core/tests/test_verification.py
+
+    Le moteur ELEMENT est le SEUL moteur (decision du 10 aout 2026) : la
+    verite du texte d'une note, ce sont ses ElementDocument. Or
+    `Page.text_readability` est VIDE sur toute note ingeree par Docling.
+
+    Chercher le verbatim dedans echouait donc a coup sur, et le verdict
+    accusait la citation d'etre introuvable alors que son passage etait
+    parfaitement present dans la source. Mesure du 17 aout 2026 sur le
+    carnet etalon : 3 notes sur 4 ont un text_readability vide, et leurs
+    81 extractions sont a 100 % dans leurs elements.
+    / text_readability is empty on Docling-ingested notes, so the check
+    failed systematically and blamed the citation.
+    """
+
+    def setUp(self):
+        from core.models import ElementDocument
+
+        self.modele_ia = AIModel.objects.create(
+            name="Juge elements", model_choice="mock_default", is_active=True,
+        )
+        # Une note comme Docling la produit : elements remplis,
+        # text_readability VIDE. / As Docling leaves it.
+        self.note_source = Page.objects.create(
+            url="http://exemple.local/note-docling",
+            html_original="", html_readability="", text_readability="",
+            content_hash="hash-docling", title="Étude ingérée par Docling",
+        )
+        ElementDocument.objects.create(
+            page=self.note_source, ordre=0, label="text",
+            texte="Le seuil de dix mille euros déclenche le passage en "
+                  "assemblée générale.",
+            empreinte_contenu="e0",
+        )
+        ElementDocument.objects.create(
+            page=self.note_source, ordre=1, label="text",
+            texte="L'ajournement répété est présenté comme un coût en soi.",
+            empreinte_contenu="e1",
+        )
+        self.job = ExtractionJob.objects.create(
+            page=self.note_source, name="Analyse", status="completed",
+            ai_model=None,
+        )
+        self.extraction = ExtractedEntity.objects.create(
+            job=self.job, extraction_class="donnee",
+            extraction_text=(
+                "Le seuil de dix mille euros déclenche le passage en "
+                "assemblée générale."
+            ),
+            start_char=0, end_char=70,
+        )
+
+    def _article(self):
+        markdown = f"Une affirmation.[[ext:{self.extraction.pk}]]\n"
+        article = Page.objects.create(
+            url="http://exemple.local/article-docling",
+            html_original="<p>a</p>", html_readability="<p>a</p>",
+            text_readability="provisoire", content_hash="hash-art-docling",
+            title="Synthèse", type_de_note=TypeDeNote.SYNTHESE,
+        )
+        bilan = indexer_les_citations(article, markdown, None)
+        article.text_readability = bilan["texte_nettoye"]
+        article.save(update_fields=["text_readability"])
+        return article
+
+    def test_le_verbatim_trouve_le_passage_dans_les_elements(self):
+        article = self._article()
+
+        from core.services.verification import (
+            verifier_les_citations_d_un_article,
+        )
+        with patch(
+            "core.llm_providers.appeler_llm", return_value="1: soutient",
+        ) as mock_llm:
+            bilan = verifier_les_citations_d_un_article(
+                article, self.modele_ia,
+            )
+
+        lien = SourceLink.objects.get(
+            page_cible=article, type_lien=TypeLien.CITE,
+        )
+        self.assertEqual(
+            lien.etat_de_verification, EtatDeVerification.VERIFIE,
+            "le verbatim n'a pas trouvé le passage dans les éléments",
+        )
+        self.assertEqual(bilan["citations_introuvables"], 0)
+        self.assertTrue(mock_llm.called, "le juge n'a même pas été appelé")
+
+    def test_une_note_sans_element_retombe_sur_text_readability(self):
+        # Une transcription Voxtral n'a pas d'element mais porte son
+        # texte : le repli doit continuer de marcher.
+        # / A note without elements still falls back on its flat text.
+        from core.models import ElementDocument
+
+        ElementDocument.objects.filter(page=self.note_source).delete()
+        self.note_source.text_readability = (
+            "Le seuil de dix mille euros déclenche le passage en "
+            "assemblée générale."
+        )
+        self.note_source.save(update_fields=["text_readability"])
+        article = self._article()
+
+        from core.services.verification import (
+            verifier_les_citations_d_un_article,
+        )
+        with patch(
+            "core.llm_providers.appeler_llm", return_value="1: soutient",
+        ):
+            verifier_les_citations_d_un_article(article, self.modele_ia)
+
+        lien = SourceLink.objects.get(
+            page_cible=article, type_lien=TypeLien.CITE,
+        )
+        self.assertEqual(
+            lien.etat_de_verification, EtatDeVerification.VERIFIE,
         )

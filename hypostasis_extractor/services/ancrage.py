@@ -255,3 +255,111 @@ def construire_la_table_des_offsets(elements_du_chunk):
         position_courante = fin_de_l_element
 
     return "".join(morceaux_de_texte), offsets_des_elements
+
+
+# Substitutions STRICTEMENT 1 caractere -> 1 caractere.
+#
+# SURTOUT PAS DE NFKC ICI. NFKC n'est PAS iso-longueur : « … » devient
+# « ... » (1 -> 3), la ligature « ﬁ » devient « fi » (1 -> 2), « ½ »
+# devient « 1⁄2 », « № » devient « No ». Chercher la position dans une
+# forme normalisee puis la reporter dans le texte REEL decale alors
+# l'ancre de la difference — et une ancre decalee se donne pour une
+# preuve, ce que ce service existe pour empecher.
+#
+# Constate le 17 aout 2026 : une ligature en amont du passage vise
+# rendait la portion « e passage vise, » au lieu de « le passage vise ».
+# Le corpus etalon porte deja 5 caracteres « … ».
+#
+# Chaque entree ci-dessous fait exactement un caractere de chaque cote :
+# la position trouvee dans la forme comparable EST la position dans le
+# texte reel. C'est ce qui rend le report legitime.
+# / Strictly 1:1 substitutions. NEVER NFKC here: it is not
+# length-preserving, and a shifted anchor passes itself off as evidence.
+SUBSTITUTIONS_ISO_LONGUEUR = str.maketrans({
+    # Apostrophes : le presse-papier d'un navigateur rend des courbes la
+    # ou l'element porte des droites. / Curly vs straight apostrophes.
+    "’": "'", "‘": "'", "‛": "'", "ʼ": "'",
+    # Guillemets doubles. / Double quotes.
+    "“": '"', "”": '"', "„": '"', "‟": '"',
+    # Espaces qui n'en sont pas tout a fait. / Space lookalikes.
+    " ": " ", " ": " ", " ": " ", " ": " ",
+    # Trait d'union insecable. / Non-breaking hyphen.
+    "‑": "-",
+})
+
+
+def _forme_comparable(texte):
+    """
+    La forme sous laquelle deux textes se comparent pour l'ancrage.
+    / The form in which two texts compare for anchoring.
+
+    LOCALISATION : hypostasis_extractor/services/ancrage.py
+
+    La LONGUEUR est preservee, caractere par caractere : voir
+    SUBSTITUTIONS_ISO_LONGUEUR et la raison, qui compte.
+    / Length-preserving, character by character.
+    """
+    return (texte or "").translate(SUBSTITUTIONS_ISO_LONGUEUR)
+
+
+def ancrer_un_texte_dans_une_page(page, texte_cherche):
+    """
+    Trouve les portions d'element qui portent un texte choisi a la main.
+    / Finds the element portions carrying a hand-picked text.
+
+    LOCALISATION : hypostasis_extractor/services/ancrage.py
+
+    POUR QUI : la creation d'une extraction MANUELLE et l'action « IA sur
+    la selection ». Toutes deux cherchaient leur position dans
+    `Page.text_readability` — VIDE sur toute note ingeree par Docling.
+    `find()` rendait -1, le code retombait sur `start_char = 0`, et
+    aucune ancre n'etait creee : une extraction sans preuve, qui renvoie
+    en tete de document au clic. C'est l'incident du 13 aout 2026
+    (« neuf extractions sur douze ancrees a start_char = 0 »).
+
+    ON NE DEVINE PAS. Texte introuvable, ou tombant entierement dans un
+    separateur de jonction : on rend une liste VIDE, et l'appelant doit
+    refuser plutot que d'ancrer au hasard. Une ancre fausse est pire
+    qu'une absence d'ancre, parce qu'elle se donne pour une preuve.
+    / Never guess: an empty list means the caller must refuse.
+
+    FLUX :
+    1. On colle les elements VISIBLES de la page, dans l'ordre, avec le
+       meme separateur que le chunking — donc la meme table d'offsets.
+    2. On y cherche le texte, sous sa forme comparable.
+    3. On repasse par `decouper_le_span_en_portions_par_element`, la
+       fonction que le pipeline d'analyse utilise deja. Aucune seconde
+       implementation : le jour ou l'intersection change, elle change
+       pour les deux.
+
+    :param page: la Page dont on lit les elements
+    :param texte_cherche: le texte selectionne par l'utilisateur
+    :return: liste de dicts prets pour AncrageExtraction, ou [] si on
+        n'a rien trouve de sur
+    """
+    elements_visibles = list(
+        page.elements.filter(masque=False).order_by("ordre")
+    )
+    if not elements_visibles:
+        return []
+
+    texte_colle, offsets_des_elements = construire_la_table_des_offsets(
+        elements_visibles,
+    )
+    if not (texte_cherche or "").strip():
+        return []
+
+    # La normalisation preserve la longueur : la position trouvee dans la
+    # forme comparable est la position dans le texte reel.
+    # / Length-preserving, so the position transfers as is.
+    debut = _forme_comparable(texte_colle).find(
+        _forme_comparable(texte_cherche)
+    )
+    if debut == -1:
+        return []
+
+    return decouper_le_span_en_portions_par_element(
+        (debut, debut + len(texte_cherche)),
+        elements_visibles,
+        offsets_des_elements,
+    )

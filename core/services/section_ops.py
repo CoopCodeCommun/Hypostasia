@@ -48,6 +48,7 @@ concurrency, French snake_case operation schema.
 """
 
 import datetime
+import re
 
 from core.services.synthese import MOTIF_DE_MARQUEUR, titre_de_section
 
@@ -108,12 +109,25 @@ def verifier_que_la_proposition_est_fraiche(article, updated_at_de_la_propositio
 
 def _cle_de_titre(titre):
     """
-    La forme sous laquelle deux titres se comparent : nettoyee et
-    tronquee a 200 — la taille de SourceLink.section, que le prompt a
-    pu montrer au modele (relecture F, I3).
-    / Titles compare stripped and truncated at 200 chars.
+    La forme sous laquelle deux titres se comparent : nettoyee, privee
+    de ses dieses de tete, et tronquee a 200 — la taille de
+    SourceLink.section, que le prompt a pu montrer au modele
+    (relecture F, I3).
+    / Titles compare stripped of leading hashes and truncated at 200.
+
+    LES DIESES SONT UNE NOTATION DE NIVEAU, PAS UNE PARTIE DU NOM. Le
+    prompt demande au modele de reprendre « les titres de l'article » ;
+    recopier la ligne entiere (« ## Le seuil ») est une lecture honnete
+    de cette consigne. Les compter dans la comparaison ferait passer
+    une obeissance pour une hallucination, et rejetterait l'operation.
+    / Hashes are level notation, not part of the name: a model copying
+    the whole heading line must still match.
+
+    Ceci n'est PAS une correspondance approximative : une section
+    reellement absente reste rejetee (§ 6.2).
+    / Not fuzzy matching: a truly absent section is still rejected.
     """
-    return (titre or "").strip()[:200]
+    return (titre or "").strip().lstrip("#").strip()[:200]
 
 
 def _decouper_en_sections(texte_markdown):
@@ -270,15 +284,24 @@ def _controler_les_sources(operation, identifiants_du_perimetre):
     return None
 
 
+# TOUT niveau de titre, pas seulement `##`. La garde ne regardait que
+# les `##` ; depuis que l'ecriture promeut les `###` en `##`, un contenu
+# qui glisse un `###` fabriquerait une section APRES l'acceptation
+# humaine — exactement la porte que B1 existe pour fermer.
+# / Any heading level, not just `##`: writing promotes `###` to `##`.
+MOTIF_DE_LIGNE_DE_TITRE = re.compile(r"^[ \t]*#{1,6} +\S")
+
+
 def _contenu_fabrique_une_section(contenu):
     """
-    Vrai si le contenu contient une ligne-titre ## : il fabriquerait
-    une section que l'humain n'a pas approuvee — et un titre duplique
-    rendrait la section ambigue POUR TOUJOURS (relecture F, B1).
-    / True when the content smuggles a section boundary in.
+    Vrai si le contenu contient une ligne-titre, de n'importe quel
+    niveau : il fabriquerait une section que l'humain n'a pas
+    approuvee — et un titre duplique rendrait la section ambigue POUR
+    TOUJOURS (relecture F, B1 ; elargi le 16 aout 2026).
+    / True when the content smuggles a heading of any level in.
     """
     return any(
-        titre_de_section(ligne) is not None
+        MOTIF_DE_LIGNE_DE_TITRE.match(ligne)
         for ligne in contenu.split("\n")
     )
 

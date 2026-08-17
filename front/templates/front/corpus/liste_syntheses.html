@@ -28,9 +28,10 @@
                     par {{ synthese.produite_par.username }}{% endif %} ·
                     {{ synthese.notes_du_perimetre.count }} note{{ synthese.notes_du_perimetre.count|pluralize }} ·
                     {{ synthese.qualite.sources }} source{{ synthese.qualite.sources|pluralize }}{% if synthese.qualite.ecartees is not None %} ·
-                    {{ synthese.qualite.ecartees }} écartée{{ synthese.qualite.ecartees|pluralize }}{% endif %}{% if synthese.qualite.verifiees or synthese.qualite.faibles %} ·
+                    {{ synthese.qualite.ecartees }} écartée{{ synthese.qualite.ecartees|pluralize }}{% endif %}{% if synthese.qualite.verifiees or synthese.qualite.faibles or synthese.qualite.introuvables %} ·
                     {{ synthese.qualite.verifiees }} vérifiée{{ synthese.qualite.verifiees|pluralize }} ·
-                    <span style="color:var(--faible)">{{ synthese.qualite.faibles }} faible{{ synthese.qualite.faibles|pluralize }}</span>{% endif %}
+                    <span style="color:var(--faible)">{{ synthese.qualite.faibles }} faible{{ synthese.qualite.faibles|pluralize }}</span>{% if synthese.qualite.introuvables %} ·
+                    <span style="color:var(--faible)">{{ synthese.qualite.introuvables }} introuvable{{ synthese.qualite.introuvables|pluralize }}</span>{% endif %}{% endif %}
                 </span>
             </span>
         </li>

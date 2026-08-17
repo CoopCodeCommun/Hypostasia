@@ -218,8 +218,15 @@ def verifier_les_citations_d_un_article(article, modele_ia=None):
     )
     provenance = f"{VERSION_DE_LA_METHODE} — {nom_du_juge}"
     maintenant = timezone.now()
+    # « citations_introuvables » et « faibles » comptent DEUX echecs
+    # differents, et c'est le point : le premier dit que la chaine de
+    # preuve est cassee (verbatim), le second que l'attribution est
+    # mauvaise (juge). Un compteur unique ne permettait pas de savoir
+    # laquelle des deux reparations entreprendre.
+    # / Two distinct failure counters: broken evidence vs bad attribution.
     bilan = {
-        "verifiees": 0, "faibles": 0, "sourcees_debat": 0,
+        "verifiees": 0, "faibles": 0, "citations_introuvables": 0,
+        "sourcees_debat": 0,
         "sans_verdict": 0, "contestees_ignorees": 0,
         "sources_absentes": 0, "bornes_perimees": 0, "non_jugeables": 0,
         "erreur_du_juge": "",
@@ -239,11 +246,46 @@ def verifier_les_citations_d_un_article(article, modele_ia=None):
     textes_des_sources = {}
 
     def _texte_de_la_source(extraction):
+        """
+        Le texte de la note source : ses ELEMENTS d'abord.
+        / The source note's text: its elements first.
+
+        Le moteur ELEMENT est le SEUL moteur (10 aout 2026) : la verite
+        du texte d'une note, ce sont ses ElementDocument. Et
+        `Page.text_readability` est VIDE sur toute note ingeree par
+        Docling — y chercher le verbatim echoue a coup sur, et le
+        verdict accuse alors la citation d'etre introuvable alors que
+        son passage est parfaitement present.
+
+        Mesure du 17 aout 2026 sur le carnet etalon : 3 notes sur 4 ont
+        un `text_readability` vide, et leurs 81 extractions sont a
+        100 % dans leurs elements.
+
+        Le repli sur `text_readability` ne sert QUE les pages sans
+        aucun element : des pages anterieures a la bascule, ou une
+        ingestion qui n'a jamais abouti. Il ne sert PLUS les
+        transcriptions audio — elles portent leurs elements depuis
+        `ingerer_une_transcription_diarisee_en_elements` (la note audio
+        de dev en a 12, mesure du 17 aout 2026).
+        / Elements first; the flat-text fallback now serves only pages
+        with no element at all — not audio, which has elements too.
+        """
+        from core.models import ElementDocument
+
         identifiant_de_page = extraction.job.page_id
         if identifiant_de_page not in textes_des_sources:
-            textes_des_sources[identifiant_de_page] = (
-                extraction.job.page.text_readability or ""
+            textes_des_elements = list(
+                ElementDocument.objects.filter(page_id=identifiant_de_page)
+                .order_by("ordre").values_list("texte", flat=True)
             )
+            if textes_des_elements:
+                textes_des_sources[identifiant_de_page] = "\n".join(
+                    textes_des_elements
+                )
+            else:
+                textes_des_sources[identifiant_de_page] = (
+                    extraction.job.page.text_readability or ""
+                )
         return textes_des_sources[identifiant_de_page]
 
     # (lien, affirmation, texte_source_pour_le_juge, etat_si_soutient,
@@ -327,13 +369,20 @@ def verifier_les_citations_d_un_article(article, modele_ia=None):
             )
             continue
 
-        # La citation exacte n'existe plus nulle part : FAIBLE, sans
-        # payer un appel au juge (cascade § 7.1).
-        # / The exact quote exists nowhere: FAIBLE, no judge call.
+        # La citation exacte n'existe nulle part — ni dans la source, ni
+        # dans le debat. La CHAINE DE PREUVE est cassee : ce n'est pas
+        # « faible » (un passage qui existe mais ne suffit pas), c'est
+        # INTROUVABLE. Verdict pose par le verbatim seul, sans payer le
+        # juge (cascade § 7.1), et la provenance nomme le controle qui a
+        # echoue — un verdict sans sa raison est un argument d'autorite.
+        # / The quote exists nowhere: INTROUVABLE, not FAIBLE. Set by the
+        # verbatim check alone; provenance names the failing check.
         _poser_le_verdict(
-            lien, EtatDeVerification.FAIBLE, provenance, maintenant,
+            lien, EtatDeVerification.INTROUVABLE,
+            f"{provenance} (verbatim introuvable dans la source)",
+            maintenant,
         )
-        bilan["faibles"] += 1
+        bilan["citations_introuvables"] += 1
 
     # Le juge NLI, par paquets bornes (relecture G, I5). Une exception
     # sur un paquet ne degrade RIEN : les verdicts precedents des liens

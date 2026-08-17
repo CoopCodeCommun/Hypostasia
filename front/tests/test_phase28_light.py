@@ -156,6 +156,49 @@ def creer_fixtures_synthese():
     }
 
 
+
+def mock_qui_cite_vraiment(corps="Synthese test."):
+    """
+    Une reponse mockee qui CITE, plutot que d'annoncer « aucune ».
+    / A mocked response that actually cites, instead of "none".
+
+    LOCALISATION : front/tests/test_phase28_light.py
+
+    Depuis que `synthetiser_page_task` passe par le tronc commun
+    d'ecriture, un article sans AUCUN marqueur sur un perimetre non
+    vide est REFUSE — un texte sans preuve n'est pas un succes
+    (constat reel du 9 aout 2026). Ces tests-ci n'eprouvent pas cette
+    garde : ils eprouvent le typage de la note, l'echappement XSS et le
+    version_label. Leur reponse doit donc etre CONFORME au contrat.
+
+    Les pk des extractions n'existent pas au moment ou le decorateur
+    @patch est evalue : la reponse relit donc le PREMIER
+    « Identifiant : ext:N » du prompt reellement transmis, et pose son
+    marqueur. Aucun pk code en dur, aucune dependance a l'ordre de
+    creation de la fixture.
+    / The extraction pks do not exist when @patch is evaluated, so the
+    response reads the first id back out of the prompt it receives.
+    """
+    import re as re_module
+
+    def _repondre(_modele_ia, message_complet):
+        correspondance = re_module.search(
+            r"Identifiant : ext:(\d+)", message_complet or "",
+        )
+        if correspondance is None:
+            # Perimetre vide : la garde ne s'applique pas, et annoncer
+            # « aucune » est alors la reponse juste.
+            # / Empty scope: "none" is the correct answer.
+            return f"{corps}\n\nCITATIONS_USED: aucune"
+        identifiant = correspondance.group(1)
+        return (
+            f"{corps}[[ext:{identifiant}]]\n\n"
+            f"CITATIONS_USED: {identifiant}"
+        )
+
+    return _repondre
+
+
 # =============================================================================
 # Tests construction du prompt
 # / Prompt construction tests
@@ -373,7 +416,7 @@ class SynthetiserTaskTest(TestCase):
 
     @patch(
         "core.llm_providers.appeler_llm",
-        return_value="Paragraphe 1.\n\nParagraphe 2.\n\nCITATIONS_USED: aucune",
+        side_effect=mock_qui_cite_vraiment("Paragraphe 1.\n\nParagraphe 2."),
     )
     def test_task_cree_note_typee(self, mock_llm):
         """La tache cree une note typee SYNTHESE avec le texte produit."""
@@ -405,7 +448,7 @@ class SynthetiserTaskTest(TestCase):
 
     @patch(
         "core.llm_providers.appeler_llm",
-        return_value="Synthese test.\n\nCITATIONS_USED: aucune",
+        side_effect=mock_qui_cite_vraiment("Synthese test."),
     )
     def test_task_la_synthese_n_est_plus_une_version(self, mock_llm):
         """Phase C : plus de parent_page, plus de numero incremente."""
@@ -453,9 +496,8 @@ class SynthetiserTaskTest(TestCase):
 
     @patch(
         "core.llm_providers.appeler_llm",
-        return_value=(
-            "Premier.\n\nDeuxieme <script>alert('xss')</script>.\n\n"
-            "CITATIONS_USED: aucune"
+        side_effect=mock_qui_cite_vraiment(
+            "Premier.\n\nDeuxieme <script>alert('xss')</script>."
         ),
     )
     def test_task_html_echappe_xss(self, mock_llm):
@@ -485,7 +527,7 @@ class SynthetiserTaskTest(TestCase):
 
     @patch(
         "core.llm_providers.appeler_llm",
-        return_value="Synthese.\n\nCITATIONS_USED: aucune",
+        side_effect=mock_qui_cite_vraiment("Synthese."),
     )
     def test_task_version_label_correcte(self, mock_llm):
         """La page creee a le version_label = nom de l'analyseur (PHASE-29).

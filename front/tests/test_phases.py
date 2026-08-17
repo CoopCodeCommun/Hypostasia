@@ -751,34 +751,72 @@ class Phase03JobStockeAnalyseurIdTest(TestCase):
         )
 
 
-class Phase03GrepRunLangextractJobTest(TestCase):
-    """Verifie que run_langextract_job n'est pas appele depuis front/.
-    / Verify that run_langextract_job is not called from front/."""
+# Les cinq fonctions de l'etage LangExtract HISTORIQUE, supprimees le
+# 17 aout 2026. Elles lisaient `Page.text_readability` — vide sur toute
+# note ingeree par Docling — et produisaient des ExtractedEntity SANS
+# AUCUNE AncrageExtraction : des extractions sans preuve.
+# / The five legacy LangExtract functions, removed on 17 Aug 2026.
+NOMS_DE_L_ETAGE_HISTORIQUE = (
+    "run_langextract_job",
+    "run_analyseur_on_page",
+    "run_analyseur_test",
+    "generate_visualization_html",
+    "build_langextract_examples",
+)
 
-    def test_front_nappelle_pas_run_langextract_job(self):
-        """Aucun fichier Python de front/ (hors tests) n'importe ou appelle run_langextract_job."""
+
+class EtageLangextractHistoriqueTest(TestCase):
+    """
+    L'etage de l'ancien moteur ne doit JAMAIS revenir.
+    / The legacy engine layer must never come back.
+
+    LOCALISATION : front/tests/test_phases.py
+
+    Ce test remplace un `grep` qui ne cherchait `run_langextract_job` que
+    dans `front/`, et qui est devenu vide de sens le jour ou la fonction a
+    ete supprimee de partout : un test qui traque un nom inexistant passe
+    au vert sans rien garantir.
+
+    Il garde donc l'invariant qui compte vraiment — le moteur ELEMENT est
+    le SEUL moteur — en balayant les TROIS apps. Le seul chemin d'analyse
+    autorise est `analyser_une_page_par_element`, parce que c'est le seul
+    qui produise des `AncrageExtraction`.
+    / Scans all three apps: the ELEMENT engine is the only engine.
+    """
+
+    def test_aucune_fonction_de_l_etage_historique_ne_subsiste(self):
         import os
 
-        repertoire_front = BASE_DIR / "front"
-        fichiers_python_front = []
-        for racine, dossiers, fichiers in os.walk(repertoire_front):
-            # Exclure le repertoire de tests / Exclude test directory
-            if "tests" in racine.split(os.sep):
-                continue
-            for nom_fichier in fichiers:
-                if nom_fichier.endswith(".py"):
-                    fichiers_python_front.append(os.path.join(racine, nom_fichier))
-
         occurrences = []
-        for chemin_fichier in fichiers_python_front:
-            with open(chemin_fichier, "r", encoding="utf-8") as fichier:
-                contenu = fichier.read()
-                if "run_langextract_job" in contenu:
-                    occurrences.append(chemin_fichier)
+        for nom_d_app in ("front", "core", "hypostasis_extractor"):
+            for racine, _dossiers, fichiers in os.walk(BASE_DIR / nom_d_app):
+                morceaux = racine.split(os.sep)
+                # Les tests et les migrations peuvent NOMMER ces fonctions
+                # pour dire qu'elles sont mortes. / Tests and migrations
+                # may name them to record their death.
+                if "tests" in morceaux or "migrations" in morceaux:
+                    continue
+                for nom_fichier in fichiers:
+                    if not nom_fichier.endswith(".py"):
+                        continue
+                    chemin = os.path.join(racine, nom_fichier)
+                    with open(chemin, encoding="utf-8") as fichier:
+                        contenu = fichier.read()
+                    for ligne in contenu.split("\n"):
+                        depouillee = ligne.strip()
+                        # Un commentaire qui explique le retrait est
+                        # legitime ; un APPEL ne l'est pas.
+                        # / A comment recording the removal is fine.
+                        if depouillee.startswith("#"):
+                            continue
+                        for nom in NOMS_DE_L_ETAGE_HISTORIQUE:
+                            if nom in ligne:
+                                occurrences.append(f"{chemin} : {depouillee[:70]}")
 
         self.assertEqual(
             occurrences, [],
-            f"run_langextract_job encore reference dans front/ : {occurrences}",
+            "l'etage LangExtract historique est reintroduit : "
+            + " | ".join(occurrences),
         )
 
     def test_plus_aucune_tache_de_front_ne_fait_d_extraction(self):

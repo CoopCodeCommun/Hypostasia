@@ -104,7 +104,7 @@ and no LLM call is re-billed.*
 **Compte cree** : `jonas` (admin) — mot de passe : `admin1234`
 
 *Les quatre comptes de demonstration (`marie`, `thomas`, `fatima`, `pierre`)
-venaient de `charger_fixtures_demo`, qui n'est plus lancee par l'installation.*
+venaient d'une commande de fixtures fictives, supprimee le 17 aout 2026.*
 
 ---
 
@@ -484,11 +484,14 @@ Ce que ca cree :
 > **Pour tout refaire de zero**, voir « Demarrage depuis zero » plus bas :
 > une seule voie, et pas de rechargement partiel.
 
-> `charger_fixtures_demo` existe encore dans le depot mais **n'est plus
-> appelee par l'installation** : elle ecrit des notes fictives et ne cree
-> aucune base de connaissances. Elle a longtemps ete lancee a la place des
-> trois commandes ci-dessus, ce qui donnait un `/bases/` vide sur une
-> installation neuve (corrige le 15 aout 2026).
+> `charger_fixtures_demo` a ete **supprimee le 17 aout 2026** (1 341
+> lignes), avec `import_demo_debat`. Elle ecrivait des notes fictives sans
+> base de connaissances, et surtout des extractions **sans aucune
+> `AncrageExtraction`** : des extractions sans preuve, que le moteur
+> ELEMENT ne sait pas afficher. Elle avait longtemps ete lancee a la place
+> des trois commandes ci-dessus, ce qui donnait un `/bases/` vide sur une
+> installation neuve (corrige le 15 aout 2026). Elle reste dans
+> l'historique git.
 
 ---
 
@@ -694,7 +697,7 @@ create what is missing.*
 | `charger_fixtures_sample` | Les 6 documents de `sample/` (capture web, markdown, transcription, audio, 2 PDF), la base de connaissances, le carnet, les analyseurs |
 | `charger_extractions_demo` | Leurs extractions et commentaires, ecrits a la main (cas limites : marques imbriquees, ancre sur tableau, cartes a 0/1/2 commentaires) |
 | `analyser_les_notes_etalons` | Envoie a l'analyse par le **vrai** modele les notes du carnet qui ne le sont pas encore. Ne cree ni note ni carnet. Saute celles de plus de 100 elements (cout). |
-| `charger_fixtures_demo` | Un jeu de notes fictives, sans base de connaissances. N'est plus lance par l'installation. |
+| `produire_les_syntheses_etalons` | Le wiki et la synthese dirigee du carnet etalon, par le **vrai** modele. Idempotente sur le RESULTAT : ne produit que ce qui manque. |
 
 Les trois premieres sont enchainees par `bin/install.sh`, donc a chaque
 demarrage du conteneur, et chacune saute ce qui existe deja.

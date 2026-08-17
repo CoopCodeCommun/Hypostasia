@@ -27,9 +27,6 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from core.models import AIModel, Configuration
-from front.management.commands.charger_fixtures_demo import (
-    Command as CommandeDeFixturesDemo,
-)
 from front.management.commands.charger_fixtures_sample import (
     Command as CommandeDeFixturesSample,
 )
@@ -258,24 +255,3 @@ class ServiceDeFixturesDesAnalyseursTest(TestCase):
         )
 
 
-class CommandeDemoDelegueAuServiceTest(TestCase):
-    """`charger_fixtures_demo` doit continuer à produire les analyseurs."""
-
-    def test_la_methode_de_la_commande_demo_rend_un_analyseur_utilisable(self):
-        # On appelle la seule methode concernee, pas toute la commande :
-        # le reste (pages Wikipedia, debat fictif, commentaires) ne dit
-        # rien sur les analyseurs et couterait des secondes pour rien.
-        # / Only the relevant method is called; the rest of the command
-        # says nothing about analyzers and would cost seconds for nothing.
-        commande_demo = CommandeDeFixturesDemo(stdout=StringIO())
-        commande_demo._creer_modeles_ia_et_analyseurs()
-
-        self.assertIn(
-            NOM_DE_L_ANALYSEUR_D_EXTRACTION,
-            [analyseur.name for analyseur in _analyseurs_extraction_utilisables()],
-        )
-        self.assertTrue(
-            AnalyseurSyntaxique.objects.filter(
-                name=NOM_DE_L_ANALYSEUR_DE_SYNTHESE,
-            ).exists(),
-        )

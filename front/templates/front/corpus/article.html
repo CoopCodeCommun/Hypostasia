@@ -57,10 +57,16 @@
         <div class="ligne"><span>Sources citées</span>
             <span data-testid="synthese-nb-citations">{{ nombre_de_citations }} extraction{{ nombre_de_citations|pluralize }}
             ({{ nombre_de_renvois }} renvoi{{ nombre_de_renvois|pluralize }})</span></div>
-        {% if comptes_de_verdicts.verifie or comptes_de_verdicts.faible or comptes_de_verdicts.conteste %}
+{% comment %}
+« introuvable » DOIT figurer dans la condition : sans lui, un article dont
+tous les verdicts seraient des citations introuvables n'aurait aucune ligne
+« Vérification » — le signal serait invisible dans le cas exact ou il compte.
+{% endcomment %}
+        {% if comptes_de_verdicts.verifie or comptes_de_verdicts.faible or comptes_de_verdicts.introuvable or comptes_de_verdicts.conteste %}
         <div class="ligne"><span>Vérification</span>
             <span data-testid="synthese-comptes-verdicts">{{ comptes_de_verdicts.verifie }} vérifiée{{ comptes_de_verdicts.verifie|pluralize }}
-            · {{ comptes_de_verdicts.faible }} faible{{ comptes_de_verdicts.faible|pluralize }}{% if comptes_de_verdicts.conteste %}
+            · {{ comptes_de_verdicts.faible }} faible{{ comptes_de_verdicts.faible|pluralize }}{% if comptes_de_verdicts.introuvable %}
+            · {{ comptes_de_verdicts.introuvable }} introuvable{{ comptes_de_verdicts.introuvable|pluralize }}{% endif %}{% if comptes_de_verdicts.conteste %}
             · {{ comptes_de_verdicts.conteste }} contestée{{ comptes_de_verdicts.conteste|pluralize }}{% endif %}</span></div>
         {% endif %}
     </dl>
@@ -80,7 +86,8 @@
         <span class="legende-portee">Chaque paragraphe porte son verdict le plus faible :</span>
         {% if "verifie" in etats_de_verification_presents %}<span><i style="background:var(--verifie)"></i> vérifié (verbatim + implication)</span>{% endif %}
         {% if "source_debat" in etats_de_verification_presents %}<span><i style="background:var(--source-debat)"></i> source en débat</span>{% endif %}
-        {% if "faible" in etats_de_verification_presents %}<span><i style="background:var(--faible)"></i> faible (la source n'implique pas tout)</span>{% endif %}
+        {% if "faible" in etats_de_verification_presents %}<span><i style="background:var(--faible)"></i> faible (la source existe, mais n'implique pas tout)</span>{% endif %}
+        {% if "introuvable" in etats_de_verification_presents %}<span><i style="border:2px dashed var(--faible); height:0"></i> citation introuvable (le passage cité n'est plus dans la source)</span>{% endif %}
         {% if "conteste" in etats_de_verification_presents %}<span><i style="background:var(--danger)"></i> contesté par un lecteur</span>{% endif %}
         {% if "non_source" in etats_de_verification_presents %}<span><i style="background:var(--non-source)"></i> non sourcé (aucune preuve citée)</span>{% endif %}
         {% if "non_verifie" in etats_de_verification_presents %}<span><i style="border-bottom:2px dotted var(--encre-douce); height:0"></i> pas encore vérifié</span>{% endif %}

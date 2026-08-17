@@ -223,6 +223,17 @@
 .zone-corpus .affirmation[data-verification="verifie"]     { border-left-color:var(--verifie); }
 .zone-corpus .affirmation[data-verification="source_debat"]{ border-left-color:var(--source-debat); }
 .zone-corpus .affirmation[data-verification="faible"]      { border-left-color:var(--faible); }
+{% comment %}
+« introuvable » reprend la COULEUR de « faible », a dessein : le § 3.6
+de PRESENTATION-V3 arbitre pour trois etats visuellement discrets — un
+quatrieme badge de couleur combattrait cette decision (r = -0,96 entre
+precision des citations et utilite percue). Le signal se distingue par
+son LIBELLE et sa provenance, pas par une teinte de plus. Le tirete
+marque une chaine de preuve rompue sans crier.
+{% endcomment %}
+.zone-corpus .affirmation[data-verification="introuvable"] {
+  border-left-color:var(--faible); border-left-style:dashed;
+}
 .zone-corpus .affirmation[data-verification="conteste"]    { border-left-color:var(--danger); }
 /* L'alpha de 70 % faisait tomber ce filet a 2,94:1, a 0,06 du seuil
    de 1.4.11 (verification F4-F10). Un etat n'a pas a etre discret au
@@ -294,6 +305,8 @@
 }
 .etat-verification[data-etat="verifie"]      { color:var(--verifie); }
 .etat-verification[data-etat="faible"]       { color:var(--faible); }
+.etat-verification[data-etat="introuvable"]   { color:var(--faible);
+  border-style:dashed; }
 .etat-verification[data-etat="non_source"]   { color:var(--non-source); }
 .etat-verification[data-etat="source_debat"] { color:var(--source-debat); }
 .etat-verification[data-etat="conteste"]     { color:var(--danger); }

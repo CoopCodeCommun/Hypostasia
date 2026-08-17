@@ -9,6 +9,94 @@ attende encore son code. Aucun template, aucune route, aucune vue : l'écran de
 sélection des preuves n'existe pas. Phases A-G à dérouler.
 **Conventions** : skill `djc`
 
+> **Addendum du 16 août 2026 — le moteur d'embedding est PARTAGÉ, et son § 7
+> est réécrit.**
+>
+> Cette spec et la note d'architecture RAG de la mémoire Atomic (« Hypostasia —
+> architecture cible du moteur de recherche et de synthèse sourcée », 7 août,
+> **mise à jour le 14**) décrivent toutes deux un moteur d'embedding, et elles
+> ne le décrivent pas pareil. Laissées côte à côte, elles produiraient **deux
+> pipelines, deux modèles, deux dimensions** — la divergence que ce dépôt passe
+> son temps à réparer. Les six décisions ci-dessous les réconcilient. Elles ne
+> touchent **que le § 7** : le périmètre humain (§ 2), l'interdiction du
+> centroïde pour représenter (§ 3), l'agglomératif à liaison simple (§ 4), la
+> passe d'oppositions (§ 5) et le tri par le débat (§ 8) sont inchangés.
+>
+> 1. **Deux porteurs de vecteur, UN SEUL moteur.** La tentation était de
+>    trancher « `ExtractedEntity` ou `ElementDocument` ». C'est un faux choix :
+>    ce sont deux objets différents. Une **extraction** est une affirmation qui
+>    enjambe *N* portions ; un **élément** est un passage. Le regroupement d'un
+>    carnet groupe des affirmations ; la recherche retrouve des passages.
+>    Dériver l'un de l'autre par moyenne serait faux — une extraction est
+>    souvent un court fragment dans un long élément. **Les deux tables portent
+>    donc un vecteur**, et c'est la *fabrique* qui est unique : un seul service
+>    d'embedding, un seul modèle, une seule dimension, une seule tâche Celery
+>    par lot. Ce qu'on interdit, c'est deux moteurs — pas deux colonnes.
+> 2. **Le type de colonne est `pgvector`, jamais `ArrayField`.** Le § 7 écartait
+>    pgvector au motif — juste — qu'un cosinus O(n²) suffit à l'échelle d'un
+>    carnet : 300 extractions font 45 000 paires. L'argument tient pour le
+>    *calcul*, pas pour le *stockage*. Un `ArrayField(FloatField())` ne
+>    s'indexe pas en ANN : le jour où la recherche arrive, il faut tout
+>    remigrer, et en attendant les deux couches ont des types différents, donc
+>    deux chemins de code. pgvector ne coûte rien de plus au regroupement et
+>    n'y ferme aucune porte.
+> 3. **La colonne est déclarée SANS dimension**, épinglée au moment de
+>    l'exécution (`atttypmod`) — le geste d'Atomic, vérifié dans son code. Le
+>    § 7 figeait 1536, celle de `text-embedding-3-small`. Figer la dimension,
+>    c'est faire d'un changement de modèle une migration de schéma. Le
+>    `version_embedding` de `RegroupementRun` (§ 6.1) devient alors ce qu'il
+>    aurait toujours dû être : la seule chose à lire pour savoir si un run est
+>    rejouable.
+> 4. **Coût d'infrastructure à assumer, et il est réel** : `docker-compose.yml`
+>    déclare `postgres:17-alpine`, qui n'embarque pas l'extension. Il faut
+>    passer à une image `pgvector/pgvector:pg17` et poser
+>    `CREATE EXTENSION vector` en migration. Le volume reste compatible (même
+>    majeure), mais **la production a été installée le 16 août 2026** : ce
+>    changement se fait avec une sauvegarde vérifiée (`make backup-check`), pas
+>    au fil de l'eau.
+> 5. **L'embedding se calcule dans le prolongement de l'ingestion Docling, pas
+>    dans le chemin d'analyse** (addendum du 14 août de la note RAG). Les deux
+>    chaînes se séparent proprement : Docling produit les éléments →
+>    l'embedding les indexe ; LangExtract les lit → l'ancrage produit les
+>    portions. Corollaire non négociable : **un échec d'embedding ne doit pas
+>    faire échouer une ingestion.** Donc des statuts distincts, jamais un état
+>    unique sur la `Page`.
+> 6. **Le modèle d'embedding reste `[À TRANCHER]`, et la contrainte n'est pas
+>    que technique.** La note RAG rapporte une objection de séance — *« Sur les
+>    captures on voit GPT-4o-mini, donc des LLM américains »* — qui fait
+>    pencher vers un modèle **multilingue auto-hébergeable** (`bge-m3`,
+>    `multilingual-e5-large`, `solon-embeddings`) plutôt qu'un appel API. Le
+>    critère de choix est le rappel **sur notre corpus**, pas un benchmark
+>    générique. La décision n°3 ci-dessus existe précisément pour que ce choix
+>    reste réversible.
+>
+> **Ce que cet addendum ne débloque pas, et qu'il faut savoir avant de le
+> lire comme un feu vert.** Deux préalables :
+>
+> - **`GET /api/pages/` est toujours `AllowAny` sur `Page.objects.all()`**
+>   (`core/views.py:103`, vérifié le 16 août 2026). La note RAG le classe
+>   chantier **0, bloquant**, et elle a raison : une liste expose des titres,
+>   une recherche expose **du contenu** — le passage qui répond, avec son
+>   locuteur et son instant. Aucun endpoint de recherche ne doit être créé
+>   avant cette fermeture.
+> - **Le filtrage doit être un PRÉ-filtre SQL, jamais un post-filtre.** Sur la
+>   couche corpus, la règle d'accès est « au moins un carnet en commun » ; un
+>   index HNSW ne la connaît pas. Post-filtrer laisse fuir par canal auxiliaire
+>   et rend zéro là où des résultats existent (défaut mesuré chez Atomic).
+>   Périmètre vide ⇒ résultat vide, jamais l'inverse.
+>
+> **Enfin, ce que l'état des lieux du 16 août établit et qui borne l'urgence :
+> les wikis et les synthèses dirigées n'ont AUCUN besoin d'embedding.** Chaîne
+> exécutée de bout en bout sur le carnet « Documents étalons » — périmètre par
+> facettes (5 notes, 99 extractions **énumérées**, jamais échantillonnées), un
+> appel LLM, indexation des marqueurs, `SourceLink` écrits, écartées et
+> couverture calculées, opérations de section appliquées et rejetées. `rg` sur
+> `embedding|vector|similarite|centroide` dans `front/tasks.py`,
+> `core/services/synthese.py`, `core/services/section_ops.py` et
+> `front/views_synthese.py` rend **zéro occurrence**. Le moteur d'embedding est
+> le préalable de **cette spec-ci et de la recherche**, pas de la couche
+> synthèse — qui tourne déjà sans lui.
+
 ---
 
 ## 0. Ce que cette spec décide

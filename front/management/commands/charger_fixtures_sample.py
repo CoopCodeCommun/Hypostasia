@@ -224,9 +224,9 @@ DOCUMENTS_ETALONS = [
 # / Without a url, the capture's idempotency key would be empty.
 URL_DE_LA_CAPTURE = "https://badgeons-la-normandie.fr/"
 
-# Memes identifiants que charger_fixtures_demo : un seul mot de passe a
+# Memes identifiants qu'historiquement : un seul mot de passe a
 # retenir, quel que soit l'ordre dans lequel les deux commandes tournent.
-# / Same credentials as charger_fixtures_demo: one password to remember.
+# / Same credentials as before: one password to remember.
 UTILISATEUR_PAR_DEFAUT = {
     "username": "jonas",
     "email": "jonas@demo.hypostasia.org",
@@ -646,7 +646,7 @@ class Command(BaseCommand):
         LA DEFINITION N'EST PAS ICI, ET C'EST VOULU.
 
         Elle vit dans `front/services/fixtures_analyseurs.py`, partagée avec
-        `charger_fixtures_demo`. Recopier ici les quatre pièces de prompt et
+        l'ancienne commande de fixtures fictives. Recopier ici les quatre pièces et
         les trente extractions d'exemple aurait donné une seconde version à
         tenir à jour — l'oubli d'origine vient exactement de là.
         / The definition lives in the shared service: a local copy would be
@@ -943,7 +943,7 @@ class Command(BaseCommand):
 
         C'est la SEULE fixture qui eprouve les labels de structure d'un
         HTML reel : section_header, list_item, text. Les pages « Wikipedia »
-        de charger_fixtures_demo n'ont que des <p> et sortent toutes en
+        des anciennes fixtures fictives n'avaient que des <p> et sortaient en
         `text`. / The only fixture exercising real HTML structure labels.
 
         C'EST AUSSI LA SEULE DES QUATRE A VERIFIER UNE CONTRAINTE GLOBALE

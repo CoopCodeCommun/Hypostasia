@@ -335,13 +335,27 @@ du code de production.
 
 ---
 
-## 7. L'état des tests — mesuré le 13 août
+## 7. L'état des tests — mesuré le 17 août
 
-**1874 tests, tous verts.** La suite complète tourne en **12 min 51 s**
-(`front core hypostasis_extractor`), dont 25 sautés. Elle prenait bien plus
-avant l'optimisation du 13 août — navigateur Playwright partagé entre modules,
-`networkidle` remplacé par des attentes sur l'objet mesuré. Un module e2e de 13
-tests passe désormais en 23 s.
+**1916 tests, tous verts**, dont 14 sautés. La suite tourne en **22 min 00 s**
+(`front core hypostasis_extractor --exclude-tag=e2e`, donc **hors e2e** — c'est
+un périmètre différent de la mesure précédente, ne pas comparer les durées).
+
+> La mesure du 13 août disait **1874 tests en 12 min 51 s**, dont 25 sautés,
+> sur la suite complète e2e comprise. L'optimisation qui l'avait obtenue tient
+> toujours : navigateur Playwright partagé entre modules, `networkidle`
+> remplacé par des attentes sur l'objet mesuré, un module e2e de 13 tests en
+> 23 s.
+
+**Une découverte du 17 août à connaître avant de lancer quoi que ce soit.**
+`CELERY_TASK_ALWAYS_EAGER` n'était pas posé sous test : la suite publiait de
+VRAIS messages dans le Redis partagé, avec des clés primaires de la base de
+test, et le worker de dev les exécutait contre la base de DEV. Constaté sur une
+installation neuve : quatre jobs d'analyse marqués `error` par des tâches
+d'article, et le carnet étalon tombé de 101 à **41** extractions citables — sans
+qu'aucun test n'échoue. C'est fermé (`hypostasia/settings.py`), et vérifié : la
+base de dev ressort **identique** après la suite complète. Détail dans
+`CHANGELOG/2026-08-17-la-suite-de-tests-corrompait-la-base-de-dev.md`.
 
 Les cibles et leur coût : **`make test`**. Elles ne sont pas recopiées ici —
 le `Makefile` les porte avec leurs comptes, et une seconde liste divergerait.

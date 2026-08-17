@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 
 from dotenv import load_dotenv
 # override=False : les variables d'environnement systeme (injectees par docker-compose)
@@ -216,6 +217,32 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes max par tache / 30 min max per task
+
+# SOUS TEST, AUCUNE TACHE NE SORT VERS LE BROKER.
+#
+# Sans ca, un test qui traverse un `.delay()` publie un VRAI message dans
+# le Redis partage — portant une cle primaire de la BASE DE TEST. Le
+# worker de dev le consomme et l'execute contre la base de DEV, ou cette
+# cle designe un tout autre objet.
+#
+# Constate le 17 aout 2026, sur une installation neuve : des taches
+# d'article lancees depuis la suite de tests ont atterri sur les jobs
+# d'ANALYSE 4 et 5 de la base de dev, les ont marques `error`
+# (« KeyError: 'wiki_id' », « Page has no synthese_dirigee »), et rendu
+# leurs 42 extractions NON CITABLES. Le carnet etalon est passe de 101 a
+# 41 extractions citables sans qu'aucun test n'echoue.
+#
+# C'est la meme famille que « une suite de tests a la fois » : deux
+# executions qui partagent une ressource se detruisent mutuellement. Ici
+# la ressource est le broker.
+#
+# ALWAYS_EAGER execute la tache en ligne, dans la transaction du test, et
+# ne publie RIEN. EAGER_PROPAGATES fait remonter l'exception au test
+# plutot que de la ravaler — un echec de tache doit faire echouer le test.
+# / Under test, no task ever reaches the broker: a real message would
+# carry test-database primary keys into the dev database.
+CELERY_TASK_ALWAYS_EAGER = "test" in sys.argv
+CELERY_TASK_EAGER_PROPAGATES = CELERY_TASK_ALWAYS_EAGER
 
 
 # =============================================================================

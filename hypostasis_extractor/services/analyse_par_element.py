@@ -6,12 +6,13 @@ LOCALISATION : hypostasis_extractor/services/analyse_par_element.py
 
 Implemente la section 4 de SPEC-ancrage-par-element-v2.md (phase D).
 
-CE QUI CHANGE PAR RAPPORT AU MOTEUR ANCIEN
+POURQUOI ON DECOUPE NOUS-MEMES
 
-Le moteur ANCIEN (front/tasks.py) envoie la page entiere a LangExtract et
-laisse son ChunkIterator la decouper. Le decoupage se fait donc a
-l'aveugle, au milieu des paragraphes, et les positions rendues sont des
-offsets dans le texte global de la page.
+L'approche ECARTEE — celle de l'ancien moteur d'ancrage, retire le
+10 aout 2026 — envoyait la page entiere a LangExtract et laissait son
+ChunkIterator la decouper. Le decoupage se faisait donc a l'aveugle, au
+milieu des paragraphes, et les positions rendues etaient des offsets
+dans le texte global de la page.
 
 Le moteur ELEMENT fait l'inverse : on decoupe NOUS-MEMES, sur les
 frontieres d'elements (services/chunking.py), puis on envoie chaque chunk
@@ -114,7 +115,6 @@ def analyser_une_page_par_element(page, job_extraction, appeler_le_llm=None):
     # double, et entities_count, ecrit avec le compte de la derniere
     # passe seulement, deviendrait faux.
     #
-    # Le moteur ANCIEN fait la meme chose (front/tasks.py).
     # / Re-running a job would otherwise duplicate every extraction.
     nombre_d_extractions_purgees = job_extraction.entities.count()
     if nombre_d_extractions_purgees:
@@ -224,10 +224,10 @@ def _creer_une_extraction_et_ses_ancres(extraction_brute, chunk, job_extraction)
 
     Si le span rendu ne recoupe aucun element — il tombe entierement dans
     un separateur, ou le LLM a rendu des positions incoherentes — on ne
-    cree rien. Le moteur ANCIEN, lui, persiste ces cas en start=0, end=0 :
+    cree rien. L'approche ECARTEE persistait ces cas en start=0, end=0 :
     une ancre qui pointe le debut du document, donc une ancre fausse que
     rien ne signale. On prefere ne rien ecrire.
-    / The old engine persists unalignable extractions at 0-0, a silently
+    / Unalignable extractions used to be persisted at 0-0, a silently
     wrong anchor. Here, nothing is written at all.
     """
     debut_dans_le_chunk = extraction_brute.get("debut")
@@ -256,10 +256,10 @@ def _creer_une_extraction_et_ses_ancres(extraction_brute, chunk, job_extraction)
 
     # LES ATTRIBUTS SONT NORMALISES AVANT D'ETRE STOCKES.
     #
-    # Le moteur ANCIEN applique normaliser_attributs_entite : elle ramene
-    # les cles a leur forme canonique (« hypostases »), tronque les
-    # valeurs a 500 caracteres et en garde trois au plus — une protection
-    # contre les boucles de repetition que les modeles produisent parfois.
+    # On applique `normaliser_attributs_entite` : elle ramene les cles a
+    # leur forme canonique (« hypostases »), tronque les valeurs a 500
+    # caracteres et en garde trois au plus — une protection contre les
+    # boucles de repetition que les modeles produisent parfois.
     #
     # Sans elle, les attributs arrivent bruts. La vue d'alignement
     # (front/views_alignement.py) lit la cle canonique sans repli : elle

@@ -550,3 +550,107 @@ class ContenuSansRedactionTest(TestCase):
 
         self.assertEqual(len(bilan["operations_appliquees"]), 1)
         self.assertIn("Un passage sourcé et rédigé.", bilan["texte_final"])
+
+
+class TitreRecopieAvecSesDiesesTest(TestCase):
+    """
+    Un modele qui recopie la LIGNE DE TITRE entiere doit etre compris.
+    / A model copying the whole heading line must still match.
+
+    LOCALISATION : core/tests/test_section_ops.py
+
+    Le prompt demande au modele de reprendre « les titres de l'article ».
+    Recopier « ## Le seuil » plutot que « Le seuil » est une lecture
+    honnete de cette consigne : les dieses sont une NOTATION de niveau,
+    pas une partie du nom de la section. Les laisser faire echouer la
+    correspondance transforme une obeissance en hallucination.
+    / The hashes are level notation, not part of the section name.
+    """
+
+    def test_un_titre_recopie_avec_ses_dieses_est_reconnu(self):
+        operations = [{
+            "type": "append_to_section",
+            "section": "## Le seuil",
+            "contenu": "Un ajout sourcé.[[ext:13]]",
+        }]
+
+        bilan = appliquer_les_operations(ARTICLE, operations, PERIMETRE)
+
+        self.assertEqual(len(bilan["operations_rejetees"]), 0)
+        self.assertEqual(len(bilan["operations_appliquees"]), 1)
+        self.assertIn("Un ajout sourcé.", bilan["texte_final"])
+
+    def test_l_ancre_d_insertion_accepte_aussi_les_dieses(self):
+        operations = [{
+            "type": "insert_section",
+            "titre": "Les délais",
+            "apres": "## Le seuil",
+            "contenu": "Une section neuve et sourcée.[[ext:13]]",
+        }]
+
+        bilan = appliquer_les_operations(ARTICLE, operations, PERIMETRE)
+
+        self.assertEqual(len(bilan["operations_rejetees"]), 0)
+        self.assertIn("## Les délais", bilan["texte_final"])
+
+    def test_un_titre_vraiment_absent_reste_rejete(self):
+        # La tolerance aux dieses ne doit pas devenir une correspondance
+        # approximative : une section inexistante reste une
+        # hallucination. / Hash tolerance is not fuzzy matching.
+        operations = [{
+            "type": "append_to_section",
+            "section": "## Une section qui n'existe pas",
+            "contenu": "Un ajout sourcé.[[ext:13]]",
+        }]
+
+        bilan = appliquer_les_operations(ARTICLE, operations, PERIMETRE)
+
+        self.assertEqual(len(bilan["operations_rejetees"]), 1)
+        self.assertEqual(len(bilan["operations_appliquees"]), 0)
+
+
+class ContenuDeContrebandeTest(TestCase):
+    """
+    La garde B1 doit couvrir TOUS les niveaux de titre.
+    / The B1 guard must cover every heading level.
+
+    LOCALISATION : core/tests/test_section_ops.py
+
+    Elle ne detectait que les `##`. Depuis que l'ecriture promeut les
+    `###` en `##`, un contenu qui glisse un `###` fabrique une section
+    APRES l'acceptation humaine — la porte que B1 existe pour fermer.
+    / It only caught `##`; since writing promotes `###`, a smuggled
+    `###` creates a section after human approval.
+    """
+
+    def test_un_sous_titre_de_contrebande_est_rejete(self):
+        operations = [{
+            "type": "append_to_section",
+            "section": "Le seuil",
+            "contenu": (
+                "Un texte sourcé.[[ext:13]]\n"
+                "\n"
+                "### Une section clandestine\n"
+                "\n"
+                "Autre texte.[[ext:13]]"
+            ),
+        }]
+
+        bilan = appliquer_les_operations(ARTICLE, operations, PERIMETRE)
+
+        self.assertEqual(len(bilan["operations_appliquees"]), 0)
+        self.assertEqual(len(bilan["operations_rejetees"]), 1)
+        self.assertIn(
+            "titre", bilan["operations_rejetees"][0]["motif"].lower(),
+        )
+
+    def test_un_titre_de_niveau_quatre_est_rejete_aussi(self):
+        operations = [{
+            "type": "append_to_section",
+            "section": "Le seuil",
+            "contenu": "Un texte.[[ext:13]]\n\n#### Encore plus bas\n",
+        }]
+
+        bilan = appliquer_les_operations(ARTICLE, operations, PERIMETRE)
+
+        self.assertEqual(len(bilan["operations_rejetees"]), 1)

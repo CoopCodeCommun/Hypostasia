@@ -878,7 +878,16 @@ def _construire_prompt_synthese(page, dernier_job_analyse, analyseur_synthese):
     # Bloc TEXTE ORIGINAL — inclus si l'analyseur le demande
     # / TEXT block — included if analyzer requests it
     if analyseur_synthese.inclure_texte_original:
-        texte_original = page.text_readability or ""
+        # Le texte d'une note, ce sont ses ELEMENTS. `text_readability`
+        # est VIDE sur toute note ingeree par Docling : le lire ici
+        # injectait un bloc VIDE, en silence — le drapeau de l'analyseur
+        # etait vivant et sans effet. Mesure du 17 aout 2026.
+        # Repli sur le texte plat pour les pages sans aucun element.
+        # / A note's text is its elements; text_readability is empty on
+        # Docling-ingested notes. Fallback for element-less pages only.
+        from front.views import _texte_de_la_note_depuis_ses_elements
+
+        texte_original = _texte_de_la_note_depuis_ses_elements(page)
         sections_du_prompt.append(f"=== TEXTE ORIGINAL ===\n{texte_original}")
 
     # Bloc HYPOSTASES ET DEBAT — extractions + commentaires si l'analyseur le demande
@@ -1310,45 +1319,17 @@ def synthetiser_page_task(self, job_id):
                 owner=demandeur,
             )
 
-            # Le markdown est la verite, les SourceLink son index : les
-            # marqueurs legitimes deviennent des liens, les hallucines
-            # sont RETIRES du texte et SIGNALES (§ 4.4).
-            # / Markers become links; hallucinated ones are stripped and
-            # reported.
-            bilan_d_indexation = indexer_les_citations(
+            # LE MEME TRONC COMMUN que les articles carnet-niveau. Cette
+            # tache dupliquait son ecriture, et echappait donc a TOUTES
+            # les gardes : normalisation des niveaux de titre, refus des
+            # titres en collision, refus d'un article sans aucune
+            # citation. Une garde qui ne couvre que deux producteurs sur
+            # trois n'est pas une garde.
+            # / The same shared write path as notebook-level articles;
+            # this task used to bypass every guard.
+            bilan_d_indexation = _ecrire_le_corps_d_un_article(
                 page_synthese, texte_brut, identifiants_du_perimetre,
             )
-            texte_definitif = bilan_d_indexation["texte_nettoye"]
-
-            # Rendu HTML : les marqueurs deviennent des renvois [N] (le
-            # numero ne se persiste jamais, § 4.4), puis echappement du
-            # HTML brut (anti-XSS) AVANT le parser markdown : la syntaxe
-            # markdown ne contient pas de < > & donc l'echappement la
-            # preserve, mais tout <script> injecte par le LLM est
-            # neutralise en &lt;script&gt;.
-            # / [N] references for display, HTML-escape THEN markdown.
-            import html
-            import markdown
-            texte_pour_le_rendu = _remplacer_les_marqueurs_par_des_renvois(
-                texte_definitif
-            )
-            html_synthese = _nettoyer_le_html_de_synthese(
-                markdown.markdown(
-                    html.escape(texte_pour_le_rendu),
-                    extensions=["extra", "nl2br"],
-                )
-            )
-
-            page_synthese.text_readability = texte_definitif
-            page_synthese.html_original = html_synthese
-            page_synthese.html_readability = html_synthese
-            page_synthese.content_hash = hashlib.sha256(
-                texte_definitif.encode("utf-8")
-            ).hexdigest()
-            page_synthese.save(update_fields=[
-                "text_readability", "html_original", "html_readability",
-                "content_hash",
-            ])
 
             # Rangement (§ 2.1) : le carnet d'origine de la demande ;
             # a defaut, les carnets de la note source (repli documente
@@ -1612,6 +1593,80 @@ def _prompt_systeme_de_synthese():
     )
 
 
+# `[ \t]*`, jamais `\s*` : en mode MULTILINE, `\s` mange les retours a
+# la ligne, et la ligne vide qui suit un titre disparaitrait — le
+# markdown recollerait le titre a son paragraphe.
+# / `[ \t]*` not `\s*`: in MULTILINE, `\s` would swallow the newline.
+MOTIF_DE_SOUS_TITRE = re.compile(r"^([ \t]*)#{3,} +(.+?)[ \t]*$", re.MULTILINE)
+
+
+def _normaliser_les_niveaux_de_titre(texte_markdown):
+    """
+    Ramene tout titre de niveau 3 ou plus au niveau 2.
+    / Demotes any level-3+ heading to level 2.
+
+    LOCALISATION : front/tasks.py
+
+    L'applieur ne resout QUE les `##` (SPEC-synthese § 6, addendum
+    n°3). Un `###` stocke est donc une zone de l'article que la mise a
+    jour ne peut plus jamais atteindre — et RIEN ne le signale : la
+    proposition part, elle est rejetee, l'article ne bouge pas.
+
+    Le prompt interdit deja les `###`. Ca ne suffit pas : mesure du
+    16 aout 2026, Gemini 2.5 Flash a rendu un wiki a 1 seul `##` et
+    5 `###` malgre la consigne. La garde doit donc etre MECANIQUE —
+    « le LLM propose, le code dispose ».
+    / The prompt already forbids `###`; a real model disobeyed it, so
+    the guard must be mechanical, not merely written.
+
+    Seule la NOTATION du titre change : le texte de la ligne et le
+    corps des sections sont rendus intacts. Un `#` en milieu de phrase
+    (« #gouvernance ») n'est pas une notation de titre et n'est pas
+    touche.
+    / Only heading notation changes; prose is untouched.
+    """
+    return MOTIF_DE_SOUS_TITRE.sub(r"\1## \2", texte_markdown or "")
+
+
+def _refuser_les_titres_en_collision(texte_markdown):
+    """
+    Refuse un article dont deux sections porteraient le meme titre.
+    / Refuses an article whose two sections would share a title.
+
+    LOCALISATION : front/tasks.py
+
+    L'aplatissement des niveaux peut FABRIQUER cette collision :
+    « ## Conclusion » et « ### Conclusion » deviennent deux sections
+    homonymes, et l'applieur les declare alors ambigues TOUTES LES DEUX
+    — elles ne sont plus jamais atteignables par une mise a jour. C'est
+    exactement l'etat que la relecture F interdisait a l'insertion de
+    creer ; il ne doit pas entrer par la porte de derriere.
+
+    Echec BRUYANT, comme la garde « zero citation » : un article qu'on
+    ne pourra plus jamais mettre a jour n'est pas un succes.
+    / Loud failure, like the zero-citation guard.
+
+    :raises ValueError: si deux titres se retrouvent identiques
+    """
+    from core.services.synthese import titre_de_section
+
+    titres_vus = []
+    for ligne in (texte_markdown or "").split("\n"):
+        titre = titre_de_section(ligne)
+        if titre is not None:
+            titres_vus.append(titre.strip()[:200])
+
+    for titre in titres_vus:
+        if titres_vus.count(titre) > 1:
+            raise ValueError(
+                f"L'article porte deux sections intitulées "
+                f"« {titre} » : elles seraient l'une et l'autre "
+                f"impossibles à mettre à jour. L'article n'est pas "
+                f"enregistré — relancez la production. "
+                f"/ Duplicate section title: refused."
+            )
+
+
 def _ecrire_le_corps_d_un_article(page_d_article, texte_brut,
                                   identifiants_du_perimetre):
     """
@@ -1635,6 +1690,13 @@ def _ecrire_le_corps_d_un_article(page_d_article, texte_brut,
     import markdown
 
     from core.services.synthese import indexer_les_citations
+
+    # AVANT l'indexation : c'est elle qui range chaque citation dans SA
+    # section, et elle ne reconnait que les `##`. Normaliser apres
+    # rangerait des liens sous une section qui n'existe pas.
+    # / Before indexing: it files each citation under its `##` section.
+    texte_brut = _normaliser_les_niveaux_de_titre(texte_brut)
+    _refuser_les_titres_en_collision(texte_brut)
 
     bilan_d_indexation = indexer_les_citations(
         page_d_article, texte_brut, identifiants_du_perimetre,
@@ -1709,6 +1771,36 @@ def _echouer_un_job_d_article(job, erreur, tache_type):
     )
 
 
+def _le_job_n_est_pas_le_mien(job, marqueur, tache_type):
+    """
+    Vrai si ce job n'a pas ete produit pour CETTE tache.
+    / True when this job was not produced for THIS task.
+
+    LOCALISATION : front/tasks.py
+
+    Une tache ne doit JAMAIS degrader un job qu'elle n'a pas produit. Un
+    message mal cible — meme cle primaire, tout autre objet — levait
+    jusqu'ici dans le corps de la tache, et le gestionnaire d'erreur
+    marquait le job `error`. Sur un job d'ANALYSE, cela rend ses
+    extractions NON CITABLES : de la donnee valide devient invisible.
+
+    Constate le 17 aout 2026 sur une installation neuve : le carnet
+    etalon est passe de 101 a 41 extractions citables, sans qu'aucun
+    test n'echoue.
+
+    On refuse donc AVANT de toucher a quoi que ce soit, et on journalise
+    en AVERTISSEMENT — le job reste exactement dans l'etat ou il etait.
+    / Refuse before touching anything; the job stays exactly as it was.
+    """
+    if (job.raw_result or {}).get(marqueur):
+        return False
+    logger.warning(
+        "%s: le job %s n'est pas un job de %s (marqueur « %s » absent) — "
+        "la tache s'arrete SANS y toucher.",
+        tache_type, job.pk, tache_type, marqueur,
+    )
+    return True
+
 @shared_task(bind=True)
 def produire_un_wiki_task(self, job_id):
     """
@@ -1726,6 +1818,8 @@ def produire_un_wiki_task(self, job_id):
         job = ExtractionJob.objects.get(pk=job_id)
     except ExtractionJob.DoesNotExist:
         logger.error("produire_un_wiki_task: job=%s introuvable", job_id)
+        return
+    if _le_job_n_est_pas_le_mien(job, "est_wiki", "wiki"):
         return
     try:
         job.status = "processing"
@@ -1785,6 +1879,8 @@ def produire_une_synthese_de_carnet_task(self, job_id):
             "produire_une_synthese_de_carnet_task: job=%s introuvable",
             job_id,
         )
+        return
+    if _le_job_n_est_pas_le_mien(job, "est_synthese_carnet", "synthese"):
         return
     try:
         job.status = "processing"
@@ -1862,6 +1958,8 @@ def proposer_une_maj_de_wiki_task(self, job_id):
             "proposer_une_maj_de_wiki_task: job=%s introuvable", job_id,
         )
         return
+    if _le_job_n_est_pas_le_mien(job, "est_maj_wiki", "maj_wiki"):
+        return
     try:
         job.status = "processing"
         job.save(update_fields=["status"])
@@ -1882,25 +1980,86 @@ def proposer_une_maj_de_wiki_task(self, job_id):
                 f"Identifiant : ext:{extraction.pk}\n"
                 f'Citation : "{extraction.extraction_text}"'
             )
+        # Un article d'avant la garde mecanique peut porter des `###`,
+        # que l'applieur ne resout pas. On le repare AVANT de batir le
+        # prompt : sans ca, le modele verrait des titres condamnes, et
+        # la proposition serait rejetee en bloc (mesure du 16 aout :
+        # 6 operations proposees, 6 rejetees). La reparation ne touche
+        # que la notation des titres, jamais le texte — et le jeton de
+        # fraicheur est pris APRES, donc il reste juste.
+        # / Repair legacy `###` before prompting, so the model never
+        # sees a heading the applier will reject.
+        texte_normalise = _normaliser_les_niveaux_de_titre(
+            article.text_readability or ""
+        )
+        if texte_normalise != (article.text_readability or ""):
+            # PAS un simple save() : chaque `###` ramene a `##` retire
+            # UN caractere, donc decale toutes les bornes des
+            # SourceLink en aval. Sauver le texte seul les perimerait —
+            # et la reindexation suivante ne retrouverait plus la paire
+            # (extraction, paragraphe), donc PERDRAIT les verdicts de
+            # verification en silence. Passer par l'ecriture normale
+            # reindexe, reconcilie les verdicts sur les ANCIENNES
+            # bornes, et regenere le HTML et l'empreinte.
+            # / Not a bare save(): demoting a heading shifts every
+            # downstream bound, and a later reindex would silently drop
+            # the verdicts. The normal write path reconciles them.
+            from core.services.synthese import extractions_du_perimetre
+
+            _ecrire_le_corps_d_un_article(
+                article, texte_normalise,
+                set(
+                    extractions_du_perimetre(article)
+                    .values_list("pk", flat=True)
+                ),
+            )
+            article.refresh_from_db()
+
+        from core.services.synthese import titre_de_section
+
+        titres_adressables = [
+            titre for titre in (
+                titre_de_section(ligne)
+                for ligne in (article.text_readability or "").split("\n")
+            ) if titre is not None
+        ]
+        liste_des_titres = "\n".join(
+            f"- {titre}" for titre in titres_adressables
+        ) or "(l'article n'a aucune section : seule une insertion est possible)"
+
         prompt = (
             _prompt_systeme_de_synthese() + "\n\n"
             "=== ARTICLE ACTUEL ===\n" + article.text_readability + "\n\n"
+            "=== TITRES DE SECTION ADRESSABLES ===\n"
+            "Ce sont les SEULS titres que tu peux viser. Reprends-les "
+            "au mot près, SANS les dièses. Toute opération visant un "
+            "autre titre sera rejetée.\n"
+            + liste_des_titres + "\n\n"
             "=== EXTRACTIONS NON REPRISES ===\n"
             + "\n\n".join(lignes_d_ecartees) + "\n\n"
             "=== CONSIGNE ===\n"
             "Propose des opérations de mise à jour de l'article pour "
             "intégrer ces extractions. Tu ne réécris JAMAIS l'article : "
             "tu proposes des opérations, un humain les acceptera une "
-            "par une.\n\n"
+            "par une.\n"
+            "UNE OPÉRATION PORTE SUR UNE SECTION, JAMAIS SUR UNE "
+            "EXTRACTION. N'émets donc pas une entrée par extraction : "
+            "regroupe dans une même opération toutes les extractions "
+            "qui vont dans la même section, et n'émets AUCUNE entrée "
+            "pour une extraction que tu écartes — ne pas la citer "
+            "suffit. `no_change` est une opération GLOBALE, à émettre "
+            "SEULE et seulement si aucune extraction n'apporte quoi "
+            "que ce soit à l'article.\n\n"
             "=== FORMAT DE SORTIE ===\n"
             "Réponds UNIQUEMENT par un tableau JSON d'opérations, sans "
             "aucun texte autour :\n"
-            '[{"type": "append_to_section", "section": "<titre ## '
-            'exact>", "contenu": "<markdown avec [[ext:N]]>"}, ...]\n'
+            '[{"type": "append_to_section", "section": "<un titre de '
+            'la liste, sans dièses>", "contenu": "<markdown avec '
+            '[[ext:N]]>"}, ...]\n'
             "Types permis : no_change, append_to_section, "
             "replace_section, insert_section (avec \"titre\" et "
-            "\"apres\"). Chaque contenu cite ses sources par [[ext:N]]. "
-            "Les seuls titres valides sont ceux de l'article ci-dessus."
+            "\"apres\"). Chaque contenu cite ses sources par [[ext:N]] "
+            "et ne contient JAMAIS de ligne de titre."
         )
         from core.llm_providers import appeler_llm
         reponse = appeler_llm(job.ai_model, prompt)
@@ -1959,6 +2118,8 @@ def verifier_les_citations_task(self, job_id):
         logger.error(
             "verifier_les_citations_task: job=%s introuvable", job_id,
         )
+        return
+    if _le_job_n_est_pas_le_mien(job, "est_verification", "verification"):
         return
     try:
         job.status = "processing"

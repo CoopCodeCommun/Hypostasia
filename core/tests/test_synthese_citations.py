@@ -993,26 +993,42 @@ class CorrectifsRelectureETest(TestCase):
 
     # ----- B1 : la garde § 4.2 refuse AVANT l'appel LLM -----
 
-    def test_run_langextract_job_refuse_avant_l_appel_llm(self):
+    def test_l_analyse_par_element_refuse_avant_l_appel_llm(self):
+        # Ce test portait sur `run_langextract_job`, supprimee le 17 aout
+        # 2026 avec l'etage de l'ancien moteur. L'INVARIANT, lui, reste
+        # entier et vaut pour le seul chemin d'analyse vivant : le refus
+        # § 4.2 doit tomber AVANT qu'on paie le modele, et avant la purge
+        # des extractions de la passe precedente.
+        # / Re-pointed to the only live analysis path; the invariant holds.
         from unittest.mock import patch
 
-        from hypostasis_extractor.models import ExtractionJob
-        from hypostasis_extractor.services import run_langextract_job
+        from hypostasis_extractor.services.analyse_par_element import (
+            analyser_une_page_par_element,
+        )
 
         job_a_relancer = self.extraction.job
         job_a_relancer.prompt_description = "prompt"
         job_a_relancer.save(update_fields=["prompt_description"])
 
-        with patch("hypostasis_extractor.services.lx.extract") as mock_extract, \
-             patch("hypostasis_extractor.services._check_ia_active"):
+        appels_au_modele = []
+
+        def _juge_espion(texte_du_chunk, job_extraction):
+            appels_au_modele.append(texte_du_chunk)
+            return []
+
+        with patch("core.llm_providers.appeler_llm") as mock_llm:
             try:
-                run_langextract_job(job_a_relancer)
+                analyser_une_page_par_element(
+                    self.extraction.job.page, job_a_relancer,
+                    appeler_le_llm=_juge_espion,
+                )
             except Exception:
                 pass
 
-        # Le refus arrive AVANT de payer l'appel LLM. / Refusal BEFORE
-        # the paid LLM call.
-        self.assertFalse(mock_extract.called)
+        # Le refus arrive AVANT de payer l'appel LLM, et l'extraction
+        # citee est TOUJOURS la. / Refusal BEFORE the paid call.
+        self.assertEqual(appels_au_modele, [])
+        self.assertFalse(mock_llm.called)
         self.assertTrue(
             ExtractedEntity.objects.filter(pk=self.extraction.pk).exists()
         )

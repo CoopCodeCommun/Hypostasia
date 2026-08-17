@@ -174,7 +174,11 @@ class Page(models.Model):
 
     Règles (voir AGENTS.md et le skill `hypostasia`) :
     - `html_original` est immuable après création.
-    - `content_hash` = SHA256 de `text_readability`.
+    - `content_hash` = SHA256 du texte AU MOMENT DE L'IMPORT, qui sert a
+      la deduplication. Il n'est PAS recalcule quand `text_readability`
+      change : depuis le 17 aout 2026 ce champ est une projection des
+      elements, et un hash qui suivrait la projection ne dedupliquerait
+      plus rien.
     - Les `TextBlock` liés ancrent les passages dans le DOM.
     """
 
@@ -290,11 +294,19 @@ class Page(models.Model):
         help_text="HTML simplifié (Readability) pour l'analyse"
     )
     text_readability = models.TextField(
-        help_text="Texte brut extrait de Readability (base de l'analyse)"
+        help_text=(
+            "PROJECTION du texte des elements (moteur ELEMENT), reecrite a "
+            "la reussite de l'ingestion. Ce n'est PLUS la verite du contenu "
+            "d'une note : la verite, ce sont ses ElementDocument."
+        )
     )
     content_hash = models.CharField(
-        max_length=64, blank=True, help_text="SHA256 hex du `text_readability`"
-    )  # SHA256 hex digest
+        max_length=64, blank=True,
+        help_text=(
+            "SHA256 du texte AU MOMENT DE L'IMPORT — empreinte de "
+            "deduplication, jamais recalculee ensuite."
+        ),
+    )
 
     # Fichier source original uploade (audio, document, JSON)
     # / Original uploaded source file (audio, document, JSON)
@@ -1554,6 +1566,16 @@ class EtatDeVerification(models.TextChoices):
     NON_VERIFIE = "non_verifie", "Non vérifié"
     VERIFIE = "verifie", "Vérifié"
     FAIBLE = "faible", "Faible"
+    # La citation exacte n'est PLUS dans la source : la chaine de preuve
+    # est cassee, pas seulement faible. Deux causes possibles — le modele
+    # a deforme la citation, ou la source a ete editee depuis
+    # l'extraction — et deux reparations differentes. C'est un signal
+    # d'INTEGRITE, pose par le VERBATIM seul, sans aucun juge ; « faible »
+    # est un signal d'ATTRIBUTION, pose par le juge sur un passage qui
+    # existe bel et bien. Les confondre rendait le chiffre inactionnable.
+    # / The quote is gone from the source: broken evidence chain, set by
+    # the deterministic verbatim check alone — never by the judge.
+    INTROUVABLE = "introuvable", "Citation introuvable"
     NON_SOURCE = "non_source", "Non sourcé"
     # Pose par un HUMAIN qui refuse le verdict automatique — jamais
     # ecrase par une re-verification (§ 7.2 : l'etat est contestable).

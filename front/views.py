@@ -491,6 +491,37 @@ def _peut_supprimer_extraction(utilisateur, entite):
     return False
 
 
+def _texte_de_la_note_depuis_ses_elements(page):
+    """
+    Le texte d'une note : ses ELEMENTS, et le champ plat en dernier repli.
+    / A note's text: its elements, with the flat field as last resort.
+
+    LOCALISATION : front/views.py
+
+    LE MOTEUR ELEMENT EST LE SEUL MOTEUR. `Page.text_readability` n'est
+    plus la verite du contenu d'une note : il est VIDE sur toute note
+    ingeree par Docling avant la projection du 17 aout 2026, et
+    DIVERGENT sur celles importees par l'interface — deux convertisseurs
+    y ont ecrit deux textes differents.
+
+    Le repli ne sert que les pages qui n'ont AUCUN element : des pages
+    anterieures a la bascule, ou une ingestion qui n'a jamais abouti.
+
+    Les elements MASQUES sont exclus, comme partout ailleurs — le lecteur
+    ne les montre pas, l'analyse ne les lit pas.
+    / Elements first, masked ones excluded; flat text only for pages with
+    no element at all.
+    """
+    textes_des_elements = list(
+        page.elements.filter(masque=False)
+        .order_by("ordre").values_list("texte", flat=True)
+    )
+    if textes_des_elements:
+        return "\n\n".join(textes_des_elements)
+    return page.text_readability or ""
+
+
+
 def _reponse_acces_refuse(request):
     """
     Construit la reponse 403 — toast SweetAlert pour HTMX, template complet sinon.
@@ -1279,7 +1310,22 @@ class LectureViewSet(viewsets.ViewSet):
         # afin de garantir les data attributes PHASE-15 (fonds pales, data-speaker, etc.)
         # / For audio pages with transcription_raw, regenerate diarized HTML
         # to ensure PHASE-15 data attributes (pale backgrounds, data-speaker, etc.)
-        if page.source_type == "audio" and page.transcription_raw:
+        # JAMAIS sur une page passee au moteur ELEMENT.
+        #
+        # Cette regeneration existait pour garantir les attributs de
+        # PHASE-15, dont les trois dispositifs ont ete retires le 14 aout
+        # 2026. Sur une page a elements, le lecteur rend les `.bloc` des
+        # ElementDocument et ne regarde plus ce HTML : la regeneration ne
+        # sert donc rien, et surtout elle ECRASE la projection du texte
+        # plat posee a l'ingestion — un troisieme ecrivain concurrent, sur
+        # un simple GET.
+        # / Never on an element-rendered page: the reader ignores this
+        # HTML, and the write would clobber the flat-text projection.
+        page_rendue_par_ses_elements = page.elements.exists()
+        if (
+            page.source_type == "audio" and page.transcription_raw
+            and not page_rendue_par_ses_elements
+        ):
             from .services.transcription_audio import construire_html_diarise
             html_diarise_regenere, texte_brut_regenere = construire_html_diarise(
                 page.transcription_raw,
@@ -1981,7 +2027,21 @@ class LectureViewSet(viewsets.ViewSet):
         else:
             # Pages web ou documents : export Markdown du texte lisible
             # / Web pages or documents: Markdown export of readable text
-            contenu_markdown = f"# {page.title or 'Document'}\n\n{page.text_readability}"
+            # Les ELEMENTS, comme partout ailleurs : le champ plat est
+            # vide sur une note Docling ingeree avant la projection, et
+            # divergent sur une note importee par l'interface. Un export
+            # doit rendre ce que le lecteur montre.
+            # / Read the elements, like everywhere else.
+            textes_des_elements_a_exporter = list(
+                page.elements.filter(masque=False)
+                .order_by("ordre").values_list("texte", flat=True)
+            )
+            corps_de_l_export = (
+                "\n\n".join(textes_des_elements_a_exporter)
+                if textes_des_elements_a_exporter
+                else (page.text_readability or "")
+            )
+            contenu_markdown = f"# {page.title or 'Document'}\n\n{corps_de_l_export}"
             nom_fichier = f"{page.title or 'document'}.md"
             reponse = HttpResponse(contenu_markdown, content_type="text/markdown; charset=utf-8")
             reponse["Content-Disposition"] = f'attachment; filename="{nom_fichier}"'
@@ -3148,6 +3208,43 @@ class LectureViewSet(viewsets.ViewSet):
         if not _utilisateur_peut_ecrire_page(request.user, page):
             return _reponse_acces_refuse(request)
 
+        # REFUS SUR UNE NOTE PASSEE AU MOTEUR ELEMENT.
+        #
+        # Ce geste appartient a l'ancienne interface, celle du HTML
+        # diarise fige. Il reecrit `transcription_raw`, le HTML et le
+        # texte plat — et le lecteur ne rend AUCUN des trois : il rend
+        # les `ElementDocument`. Sur une note a elements, il annonçait
+        # donc un succes sans rien changer de ce qu'on voit.
+        #
+        # Le corriger demanderait de viser l'element par son pk, pas par
+        # un index de bloc : un BLOC groupe les segments consecutifs d'un
+        # meme locuteur, alors que l'ingestion cree UN ELEMENT PAR
+        # SEGMENT et saute les segments vides. « bloc N = element ordre
+        # N » n'est donc vrai que sur un corpus qui alterne les
+        # locuteurs — la fixture de dev, precisement. Ailleurs, on
+        # ecrirait le texte d'un locuteur dans l'element d'un autre.
+        #
+        # On REFUSE plutot que de deviner : les gestes natifs du moteur
+        # ELEMENT existent (masquage, scission, fusion, reconciliation)
+        # et prennent un element, pas un index. Refus AVANT toute
+        # ecriture, pour ne jamais laisser de demi-etat.
+        # / This gesture belongs to the old frozen-HTML UI; block index
+        # does not map to element order. Refuse rather than guess.
+        if page.elements.exists():
+            reponse_de_refus = HttpResponse(status=409)
+            reponse_de_refus["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": (
+                        "Cette note est lue par éléments : l'édition de "
+                        "transcription ne s'y applique pas encore. Rien "
+                        "n'a été modifié."
+                    ),
+                    "icon": "error",
+                },
+            })
+            return reponse_de_refus
+
+
         # Une analyse en cours lit ce texte et ecrira ses
         # positions dessus : le changer maintenant les rendrait
         # fausses, ou ferait ecraser cette edition a la fin du job.
@@ -3240,6 +3337,19 @@ class LectureViewSet(viewsets.ViewSet):
         page.html_readability = html_reconstruit
         page.text_readability = texte_reconstruit
         page.save()
+
+        elements_a_renommer = []
+        for element_de_la_page in page.elements.all():
+            provenance_de_l_element = element_de_la_page.provenance or {}
+            if provenance_de_l_element.get("locuteur") == ancien_nom_locuteur:
+                provenance_de_l_element["locuteur"] = nouveau_nom_locuteur
+                element_de_la_page.provenance = provenance_de_l_element
+                elements_a_renommer.append(element_de_la_page)
+        if elements_a_renommer:
+            ElementDocument.objects.bulk_update(
+                elements_a_renommer, ["provenance"],
+            )
+
 
         # Enregistrer l'edition dans l'historique (PHASE-27a)
         # / Record the edit in history (PHASE-27a)
@@ -3372,6 +3482,43 @@ class LectureViewSet(viewsets.ViewSet):
         if not _utilisateur_peut_ecrire_page(request.user, page):
             return _reponse_acces_refuse(request)
 
+        # REFUS SUR UNE NOTE PASSEE AU MOTEUR ELEMENT.
+        #
+        # Ce geste appartient a l'ancienne interface, celle du HTML
+        # diarise fige. Il reecrit `transcription_raw`, le HTML et le
+        # texte plat — et le lecteur ne rend AUCUN des trois : il rend
+        # les `ElementDocument`. Sur une note a elements, il annonçait
+        # donc un succes sans rien changer de ce qu'on voit.
+        #
+        # Le corriger demanderait de viser l'element par son pk, pas par
+        # un index de bloc : un BLOC groupe les segments consecutifs d'un
+        # meme locuteur, alors que l'ingestion cree UN ELEMENT PAR
+        # SEGMENT et saute les segments vides. « bloc N = element ordre
+        # N » n'est donc vrai que sur un corpus qui alterne les
+        # locuteurs — la fixture de dev, precisement. Ailleurs, on
+        # ecrirait le texte d'un locuteur dans l'element d'un autre.
+        #
+        # On REFUSE plutot que de deviner : les gestes natifs du moteur
+        # ELEMENT existent (masquage, scission, fusion, reconciliation)
+        # et prennent un element, pas un index. Refus AVANT toute
+        # ecriture, pour ne jamais laisser de demi-etat.
+        # / This gesture belongs to the old frozen-HTML UI; block index
+        # does not map to element order. Refuse rather than guess.
+        if page.elements.exists():
+            reponse_de_refus = HttpResponse(status=409)
+            reponse_de_refus["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": (
+                        "Cette note est lue par éléments : l'édition de "
+                        "transcription ne s'y applique pas encore. Rien "
+                        "n'a été modifié."
+                    ),
+                    "icon": "error",
+                },
+            })
+            return reponse_de_refus
+
+
         # Une analyse en cours lit ce texte et ecrira ses
         # positions dessus : le changer maintenant les rendrait
         # fausses, ou ferait ecraser cette edition a la fin du job.
@@ -3471,6 +3618,15 @@ class LectureViewSet(viewsets.ViewSet):
         page.text_readability = texte_reconstruit
         page.save()
 
+        element_du_bloc = page.elements.filter(
+            ordre=index_bloc_cible,
+        ).first()
+        if element_du_bloc is not None:
+            reconcilier_les_portions_de_l_element(
+                element_du_bloc, nouveau_texte_brut,
+            )
+
+
         # Enregistrer l'edition dans l'historique (PHASE-27a)
         # / Record the edit in history (PHASE-27a)
         description_edition_bloc = f"Bloc {index_bloc_cible} modifié ({nom_locuteur_original})"
@@ -3525,6 +3681,43 @@ class LectureViewSet(viewsets.ViewSet):
         if not _utilisateur_peut_ecrire_page(request.user, page):
             return _reponse_acces_refuse(request)
 
+        # REFUS SUR UNE NOTE PASSEE AU MOTEUR ELEMENT.
+        #
+        # Ce geste appartient a l'ancienne interface, celle du HTML
+        # diarise fige. Il reecrit `transcription_raw`, le HTML et le
+        # texte plat — et le lecteur ne rend AUCUN des trois : il rend
+        # les `ElementDocument`. Sur une note a elements, il annonçait
+        # donc un succes sans rien changer de ce qu'on voit.
+        #
+        # Le corriger demanderait de viser l'element par son pk, pas par
+        # un index de bloc : un BLOC groupe les segments consecutifs d'un
+        # meme locuteur, alors que l'ingestion cree UN ELEMENT PAR
+        # SEGMENT et saute les segments vides. « bloc N = element ordre
+        # N » n'est donc vrai que sur un corpus qui alterne les
+        # locuteurs — la fixture de dev, precisement. Ailleurs, on
+        # ecrirait le texte d'un locuteur dans l'element d'un autre.
+        #
+        # On REFUSE plutot que de deviner : les gestes natifs du moteur
+        # ELEMENT existent (masquage, scission, fusion, reconciliation)
+        # et prennent un element, pas un index. Refus AVANT toute
+        # ecriture, pour ne jamais laisser de demi-etat.
+        # / This gesture belongs to the old frozen-HTML UI; block index
+        # does not map to element order. Refuse rather than guess.
+        if page.elements.exists():
+            reponse_de_refus = HttpResponse(status=409)
+            reponse_de_refus["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": (
+                        "Cette note est lue par éléments : l'édition de "
+                        "transcription ne s'y applique pas encore. Rien "
+                        "n'a été modifié."
+                    ),
+                    "icon": "error",
+                },
+            })
+            return reponse_de_refus
+
+
         # Une analyse en cours lit ce texte et ecrira ses
         # positions dessus : le changer maintenant les rendrait
         # fausses, ou ferait ecraser cette edition a la fin du job.
@@ -3578,6 +3771,19 @@ class LectureViewSet(viewsets.ViewSet):
         page.html_readability = html_reconstruit
         page.text_readability = texte_reconstruit
         page.save()
+
+        element_du_bloc = page.elements.filter(
+            ordre=index_bloc_cible,
+        ).first()
+        if element_du_bloc is not None and not element_du_bloc.masque:
+            masquer_un_element(
+                element_du_bloc,
+                justification="Bloc de transcription retiré par le lecteur",
+                utilisateur=(
+                    request.user if request.user.is_authenticated else None
+                ),
+            )
+
 
         # Re-annoter le HTML avec les barres d'extraction si un job existe
         # / Re-annotate HTML with extraction bars if a job exists
@@ -4445,12 +4651,34 @@ class ExtractionViewSet(viewsets.ViewSet):
         if refus:
             return refus
 
-        # Calculer start_char dans text_readability cote serveur
-        # / Compute start_char in text_readability server-side
-        start_char = page.text_readability.find(validated_text)
+        # LES OFFSETS SONT CALCULES SUR LE TEXTE COLLE DES ELEMENTS.
+        #
+        # Ils l'etaient sur `page.text_readability`, vide sur toute note
+        # ingeree par Docling : `find()` rendait -1 et le code retombait
+        # sur 0. Ces champs servent au TRI des cartes ; a 0 pour tout le
+        # monde, le tri devenait arbitraire.
+        # Ce ne sont PAS eux qui ancrent — l'ancre, c'est
+        # AncrageExtraction, cree plus bas. / Offsets feed card ordering
+        # only; the anchor is AncrageExtraction.
+        from hypostasis_extractor.services.ancrage import (
+            construire_la_table_des_offsets,
+        )
+
+        elements_visibles_de_la_page = list(
+            page.elements.filter(masque=False).order_by("ordre")
+        )
+        if elements_visibles_de_la_page:
+            texte_de_reference, _offsets = construire_la_table_des_offsets(
+                elements_visibles_de_la_page,
+            )
+        else:
+            texte_de_reference = page.text_readability or ""
+
+        start_char = texte_de_reference.find(validated_text)
         if start_char == -1:
-            # Fallback : recherche soft (nbsp → espace)
-            start_char = page.text_readability.replace('\xa0', ' ').find(
+            # Repli souple : espace insecable ramene a l'espace ordinaire.
+            # / Soft retry: non-breaking space to plain space.
+            start_char = texte_de_reference.replace('\xa0', ' ').find(
                 validated_text.replace('\xa0', ' ')
             )
         end_char = start_char + len(validated_text) if start_char != -1 else 0
@@ -4522,15 +4750,56 @@ class ExtractionViewSet(viewsets.ViewSet):
             if cle and valeur:
                 attributs_entite[cle] = valeur
 
-        ExtractedEntity.objects.create(
-            job=job_manuel,
-            extraction_class="",
-            extraction_text=donnees["text"],
-            start_char=donnees["start_char"],
-            end_char=donnees["end_char"],
-            attributes=attributs_entite,
-            cree_par=request.user,
+        # L'ANCRAGE FAIT LA PREUVE, PAS LES OFFSETS.
+        #
+        # Une extraction manuelle etait creee SANS AUCUNE
+        # AncrageExtraction, et ses offsets etaient cherches dans
+        # `page.text_readability` — vide sur toute note ingeree par
+        # Docling, donc `find()` = -1 et repli sur 0. Elle renvoyait en
+        # tete de document au clic. C'est l'incident du 13 aout 2026.
+        #
+        # On ancre desormais dans les ELEMENTS, par la meme fonction que
+        # le pipeline d'analyse. Rien trouve = on REFUSE : une ancre
+        # fausse se donne pour une preuve, une absence d'ancre non.
+        # / The anchor is the evidence: anchor in the elements, or refuse.
+        from hypostasis_extractor.models import AncrageExtraction
+        from hypostasis_extractor.services.ancrage import (
+            ancrer_un_texte_dans_une_page,
         )
+
+        portions = ancrer_un_texte_dans_une_page(page, donnees["text"])
+        if not portions:
+            reponse_de_refus = HttpResponse(status=409)
+            reponse_de_refus["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": (
+                        "Ce passage n'a pas été retrouvé dans le document : "
+                        "l'extraction n'est pas créée. Sélectionnez le texte "
+                        "directement dans la note, sans le retoucher."
+                    ),
+                    "icon": "error",
+                },
+            })
+            return reponse_de_refus
+
+        with transaction.atomic():
+            extraction_creee = ExtractedEntity.objects.create(
+                job=job_manuel,
+                extraction_class="",
+                extraction_text=donnees["text"],
+                # Offsets HERITES, conserves pour le seul TRI des cartes
+                # (front/views.py plus haut) : ils valent desormais la
+                # position dans le texte colle des elements, pas dans un
+                # champ vide. / Legacy offsets, kept for card ordering.
+                start_char=donnees["start_char"],
+                end_char=donnees["end_char"],
+                attributes=attributs_entite,
+                cree_par=request.user,
+            )
+            for portion in portions:
+                AncrageExtraction.objects.create(
+                    extraction=extraction_creee, **portion
+                )
 
         html_complet = self._render_panneau_complet_avec_oob(request, page)
         reponse = HttpResponse(html_complet)
@@ -4824,7 +5093,12 @@ class ExtractionViewSet(viewsets.ViewSet):
         nouvel_exemple = AnalyseurExample.objects.create(
             analyseur=analyseur,
             name=page.title[:200] if page.title else f"Exemple depuis page {page.pk}",
-            example_text=page.text_readability or "",
+            # Le texte source d'un exemple few-shot vient des ELEMENTS :
+            # sur une note Docling, le champ plat etait vide, et
+            # l'analyseur GLOBAL heritait d'un exemple au texte source
+            # vide — il empoisonnait toutes les analyses suivantes.
+            # / A few-shot example needs a real source text.
+            example_text=_texte_de_la_note_depuis_ses_elements(page),
             order=dernier_order_exemple,
         )
 
@@ -4993,15 +5267,31 @@ class ExtractionViewSet(viewsets.ViewSet):
             })
             return reponse
 
-        # Calculer l'offset du texte selectionne dans text_readability
-        # pour que les positions des extractions soient relatives a la page entiere
-        # / Calculate the offset of the selected text in text_readability
-        # / so extraction positions are relative to the full page
-        texte_page_complet = page.text_readability or ""
+        # L'offset de reference se calcule sur le TEXTE COLLE DES
+        # ELEMENTS, jamais sur `page.text_readability` : ce champ est vide
+        # sur toute note ingeree par Docling, donc `find()` rendait -1 et
+        # le code retombait sur 0. Ces offsets ne servent qu'au TRI ;
+        # l'ancre, c'est AncrageExtraction, creee plus bas.
+        # / Offsets are computed on the glued element text and feed card
+        # ordering only; the anchor is AncrageExtraction.
+        from hypostasis_extractor.services.ancrage import (
+            construire_la_table_des_offsets,
+        )
+
+        elements_visibles_de_la_page = list(
+            page.elements.filter(masque=False).order_by("ordre")
+        )
+        if elements_visibles_de_la_page:
+            texte_page_complet, _offsets_ia = construire_la_table_des_offsets(
+                elements_visibles_de_la_page,
+            )
+        else:
+            texte_page_complet = page.text_readability or ""
+
         offset_dans_page = texte_page_complet.find(texte_selectionne)
         if offset_dans_page == -1:
-            # Fallback : essayer avec normalisation des espaces insecables
-            # / Fallback: try with non-breaking space normalization
+            # Repli souple : espace insecable ramene a l'espace ordinaire.
+            # / Soft retry: non-breaking space to plain space.
             texte_page_normalise = texte_page_complet.replace("\xa0", " ")
             texte_selectionne_normalise = texte_selectionne.replace("\xa0", " ")
             offset_dans_page = texte_page_normalise.find(texte_selectionne_normalise)
@@ -5019,7 +5309,13 @@ class ExtractionViewSet(viewsets.ViewSet):
         )
 
         # Creer les entites extraites / Create extracted entities
+        from hypostasis_extractor.models import AncrageExtraction
+        from hypostasis_extractor.services.ancrage import (
+            ancrer_un_texte_dans_une_page,
+        )
+
         nombre_entites_creees = 0
+        nombre_d_extractions_non_ancrables = 0
         for extraction in resultat.extractions or []:
             intervalle_caracteres = extraction.char_interval
 
@@ -5030,14 +5326,40 @@ class ExtractionViewSet(viewsets.ViewSet):
             start_char_dans_page = start_char_dans_selection + offset_dans_page
             end_char_dans_page = end_char_dans_selection + offset_dans_page
 
-            ExtractedEntity.objects.create(
-                job=job_ia_selection,
-                extraction_class=extraction.extraction_class or "",
-                extraction_text=extraction.extraction_text or texte_selectionne,
-                start_char=start_char_dans_page,
-                end_char=end_char_dans_page,
-                attributes=extraction.attributes or {},
+            # L'ANCRAGE FAIT LA PREUVE. Ces entites etaient creees SANS
+            # AUCUNE AncrageExtraction : des extractions payees au
+            # modele, et sans preuve. On les ancre dans les elements, par
+            # la meme fonction que le pipeline d'analyse ; une extraction
+            # qu'on ne sait pas ancrer n'est PAS enregistree.
+            # / These entities were created unanchored, after a paid call.
+            texte_de_l_extraction = (
+                extraction.extraction_text or texte_selectionne
             )
+            portions_de_l_extraction = ancrer_un_texte_dans_une_page(
+                page, texte_de_l_extraction,
+            )
+            if not portions_de_l_extraction:
+                nombre_d_extractions_non_ancrables += 1
+                logger.warning(
+                    "ia (selection): extraction non ancrable, ignoree "
+                    "(page=%s) : %r",
+                    identifiant_page, texte_de_l_extraction[:80],
+                )
+                continue
+
+            with transaction.atomic():
+                entite_creee = ExtractedEntity.objects.create(
+                    job=job_ia_selection,
+                    extraction_class=extraction.extraction_class or "",
+                    extraction_text=texte_de_l_extraction,
+                    start_char=start_char_dans_page,
+                    end_char=end_char_dans_page,
+                    attributes=extraction.attributes or {},
+                )
+                for portion in portions_de_l_extraction:
+                    AncrageExtraction.objects.create(
+                        extraction=entite_creee, **portion
+                    )
             nombre_entites_creees += 1
 
         logger.info(
@@ -5052,7 +5374,17 @@ class ExtractionViewSet(viewsets.ViewSet):
         reponse["HX-Trigger"] = json.dumps({
             "ouvrirPanneauDroit": True,
             "showToast": {
-                "message": f"{nombre_entites_creees} extraction(s) IA cr\u00e9\u00e9e(s)",
+                # Ce qui n'a pas pu etre ancre est DIT : une extraction
+                # ecartee en silence laisserait croire que le modele n'a
+                # rien trouve. / Never silent about what was dropped.
+                "message": (
+                    f"{nombre_entites_creees} extraction(s) IA créée(s)"
+                    + (
+                        f" — {nombre_d_extractions_non_ancrables} écartée(s), "
+                        f"passage introuvable dans le document"
+                        if nombre_d_extractions_non_ancrables else ""
+                    )
+                ),
                 "icon": "success",
             },
         })

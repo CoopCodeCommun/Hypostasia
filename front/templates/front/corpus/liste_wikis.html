@@ -27,9 +27,10 @@
                     tour {{ wiki.tours_de_mise_a_jour }} ·
                     mis à jour le {{ wiki.derniere_mise_a_jour|date:"d/m/Y" }} ·
                     {{ wiki.qualite.sources }} source{{ wiki.qualite.sources|pluralize }}{% if wiki.qualite.ecartees is not None %} ·
-                    {{ wiki.qualite.ecartees }} écartée{{ wiki.qualite.ecartees|pluralize }}{% endif %}{% if wiki.qualite.verifiees or wiki.qualite.faibles %} ·
+                    {{ wiki.qualite.ecartees }} écartée{{ wiki.qualite.ecartees|pluralize }}{% endif %}{% if wiki.qualite.verifiees or wiki.qualite.faibles or wiki.qualite.introuvables %} ·
                     {{ wiki.qualite.verifiees }} vérifiée{{ wiki.qualite.verifiees|pluralize }} ·
-                    <span style="color:var(--faible)">{{ wiki.qualite.faibles }} faible{{ wiki.qualite.faibles|pluralize }}</span>{% endif %}
+                    <span style="color:var(--faible)">{{ wiki.qualite.faibles }} faible{{ wiki.qualite.faibles|pluralize }}</span>{% if wiki.qualite.introuvables %} ·
+                    <span style="color:var(--faible)">{{ wiki.qualite.introuvables }} introuvable{{ wiki.qualite.introuvables|pluralize }}</span>{% endif %}{% endif %}
                 </span>
             </span>
         </li>

@@ -7,9 +7,10 @@
 
 **Les conventions de code — ViewSets explicites, serializers DRF, FALC,
 commentaires bilingues, patterns HTMX, i18n, accessibilité — sont dans le skill
-`djc`**, chargé automatiquement au démarrage de session
-(`.claude/settings.json`). Si ce chargement a échoué, l'invoquer à la main :
-`Skill(djc)`. **Ne recopie jamais ici ce que `djc` dit déjà** : une seconde copie
+`djc`**, dont un hook `SessionStart` (`.claude/settings.json`) ordonne
+l'invocation dès le démarrage. Si cette consigne n'est pas arrivée, l'invoquer à
+la main : `Skill(djc)` — et ne réponds à aucune question de convention de code
+sans l'avoir chargé. **Ne recopie jamais ici ce que `djc` dit déjà** : une seconde copie
 finit toujours par diverger de la première, puis par la contredire. C'est
 exactement ce qui est arrivé au fichier `GUIDELINES.md` que celui-ci remplace —
 il se réclamait d'un skill disparu et se contredisait sur `uv run` à 226 lignes
@@ -24,8 +25,17 @@ d'écart.
 | Les défauts connus non corrigés | `CHANGELOG/DEFAUTS-DIFFERES.md` |
 | L'état cible d'un domaine | `PLAN/specs/` — leurs **encarts datés en tête** font foi, pas leurs sections |
 | Le pourquoi des décisions de conception | `PRESENTATION-V3.md` |
+| Le **mécanisme** du moteur, en diagrammes | `PLAN/Diagrams/` — ingestion → périmètre → article sourcé → vérification. Mermaid, rendu nativement par GitHub |
 | Ce qui est archivé, et pourquoi | `PLAN/README.md` |
-| L'état vivant, hors dépôt | la mémoire persistante : `~/.claude/projects/-home-jonas-Gits-Hypostasia/memory/`, index dans `MEMORY.md` — **à lire en premier** |
+| L'état vivant, hors dépôt | la mémoire persistante : `~/.claude/projects/<chemin-du-dépôt-aplati>/memory/`, index dans `MEMORY.md` — **à lire en premier** |
+
+> Le nom du dossier de mémoire **dépend de la machine** : c'est le chemin du
+> dépôt, aplati (`/home/ubuntu/Hypostasia` → `-home-ubuntu-Hypostasia`). Cette
+> ligne a survécu à un changement de machine en pointant vers l'ancienne, le
+> 16 août 2026 : un agent qui suit la consigne « à lire en premier » lit alors
+> un dossier vide, sans que rien ne le signale. **Ne code jamais un chemin en
+> dur ici** : lister
+> `~/.claude/projects/` le donne en une commande.
 
 **Trois documents seulement tiennent un état d'avancement** : `CHANGELOG/`,
 `PLAN/PASSATION.md` et la mémoire. N'en écris pas un quatrième : il périmera

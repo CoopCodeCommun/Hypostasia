@@ -158,8 +158,10 @@ def _html_avec_renvois(page_d_article):
     # marker = "non_source" in red.
     import re as re_module
 
+    # « introuvable » passe DEVANT « faible » : une preuve cassee est
+    # pire qu'une preuve insuffisante. / Broken beats insufficient.
     gravite = {
-        "faible": 5, "conteste": 4, "non_verifie": 3,
+        "introuvable": 6, "faible": 5, "conteste": 4, "non_verifie": 3,
         "source_debat": 2, "verifie": 1,
     }
 
@@ -192,7 +194,11 @@ def _html_avec_renvois(page_d_article):
 _LIBELLES_DE_VERDICT = {
     "verifie": "Vérifié : la source dit ceci mot pour mot, et l'implique.",
     "source_debat": "Source en débat : elle est contestée par des lecteurs.",
-    "faible": "Faible : la source ne suffit pas à tout ce qui est affirmé.",
+    "faible": "Faible : la source existe mais ne suffit pas à tout ce "
+              "qui est affirmé.",
+    "introuvable": "Citation introuvable : le passage cité n'est plus dans "
+                   "la source. Soit la citation a été déformée, soit la "
+                   "source a été modifiée depuis.",
     "conteste": "Contesté par un lecteur.",
     "non_verifie": "Pas encore vérifié.",
     "non_source": "Non sourcé : ce paragraphe ne cite aucune preuve.",
@@ -216,6 +222,9 @@ def _qualifier_une_ligne_d_article(page_d_article):
         "sources": liens.exclude(extraction_source__isnull=True)
         .values("extraction_source_id").distinct().count(),
         "faibles": liens.filter(etat_de_verification="faible").count(),
+        "introuvables": liens.filter(
+            etat_de_verification="introuvable",
+        ).count(),
         "verifiees": liens.filter(etat_de_verification="verifie").count(),
         "ecartees": nombre_d_ecartees,
     }
@@ -251,6 +260,9 @@ def _contexte_d_article(request, page_d_article):
     comptes_de_verdicts = {
         "verifie": liens.filter(etat_de_verification="verifie").count(),
         "faible": liens.filter(etat_de_verification="faible").count(),
+        "introuvable": liens.filter(
+            etat_de_verification="introuvable",
+        ).count(),
         "conteste": liens.filter(etat_de_verification="conteste").count(),
     }
     # Le compteur d'ecartees vit DANS le pli (confrontation, manque 4) :

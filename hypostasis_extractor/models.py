@@ -138,12 +138,26 @@ class ExtractedEntity(models.Model):
         help_text="Texte exact extrait du document source"
     )
     
-    # Position dans le texte (pour le linking/source grounding)
+    # Offsets HERITES de l'ancien moteur d'ancrage. Ils ne designent PLUS
+    # une position dans `Page.text_readability` : ce champ est vide sur
+    # toute note ingeree par Docling, et le moteur ELEMENT est le seul
+    # moteur depuis le 10 aout 2026. Ce sont des offsets relatifs au
+    # CHUNK analyse, sans referentiel utilisable seul.
+    # L'ancrage qui fait la preuve, c'est `AncrageExtraction` : une ou
+    # plusieurs portions bornees a l'interieur d'un ElementDocument.
+    # / Legacy offsets: chunk-relative, NOT positions in text_readability.
+    # The real anchor is AncrageExtraction.
     start_char = models.PositiveIntegerField(
-        help_text="Position de debut dans text_readability"
+        help_text=(
+            "Offset de debut relatif au chunk analyse (herite de l'ancien "
+            "moteur). L'ancrage reel est AncrageExtraction."
+        )
     )
     end_char = models.PositiveIntegerField(
-        help_text="Position de fin dans text_readability"
+        help_text=(
+            "Offset de fin relatif au chunk analyse (herite de l'ancien "
+            "moteur). L'ancrage reel est AncrageExtraction."
+        )
     )
     
     # Attributs additionnels (JSON flexible)

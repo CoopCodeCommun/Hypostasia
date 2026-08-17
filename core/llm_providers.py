@@ -51,6 +51,25 @@ def appeler_llm(modele_ia, message_complet: str) -> str:
     """
     provider = modele_ia.provider
 
+    # POURQUOI IL N'Y A PAS DE GARDE « PAS D'APPEL REEL SOUS TEST » ICI.
+    #
+    # Une telle garde a ete posee puis RETIREE le 17 aout 2026 : son
+    # critere etait faux. Elle levait des qu'un test employait un
+    # provider non-MOCK — or `Phase24LlmProviders*Test` eprouve
+    # legitimement ce dispatch, SDK moque, sans qu'aucun appel ne sorte.
+    # Impossible de distinguer ici un SDK patche d'un appel accidentel.
+    #
+    # Ce qui protege reellement, et qui tient :
+    # - `AIModel.provider` vaut MOCK par DEFAUT (core/models.py) : un
+    #   modele de test n'appelle personne sans qu'on l'ait voulu ;
+    # - `CELERY_TASK_ALWAYS_EAGER` sous test (settings.py) : aucune tache
+    #   ne sort vers le broker, donc aucune ne s'execute contre une autre
+    #   base que celle du test ;
+    # - les suites LLM reelles sont sous DOUBLE verrou, tag Django et
+    #   variable TESTS_LLM_REELS.
+    # / A "no real call under test" guard was added then removed: its
+    # criterion could not tell a patched SDK from an accidental call.
+
     if provider == Provider.MOCK:
         return _appeler_mock(message_complet)
 

@@ -405,10 +405,17 @@ class ReferentielPublieDansLeReadmeTest(SimpleTestCase):
     Le referentiel montre aux humains est-il celui que le code applique ?
     / Is the reference shown to humans the one the code enforces?
 
-    Le README publie les 30 hypostases : la matrice complete, puis les 6
-    familles avec leurs definitions. C'est la seule presentation lisible
-    du concept fondateur du projet — celle qu'on donne a lire a quelqu'un
-    qui decouvre Hypostasia.
+    `PRESENTATION-V3.md` publie les 30 hypostases : la matrice complete,
+    puis les 6 familles avec leurs definitions. C'est la seule
+    presentation lisible du concept fondateur du projet — celle qu'on
+    donne a lire a quelqu'un qui decouvre Hypostasia.
+
+    L'expose vivait dans le README, ou il occupait un quart du fichier ;
+    il a demenage le 16 aout 2026 (un README sert a installer et lancer).
+    Ce test a continue de lire le README pendant tout ce temps : il etait
+    ROUGE, et le garde-fou anti-derive avait donc lui-meme derive.
+    / The exposition moved out of the README on 16 Aug 2026 and this test
+    kept reading the README — the anti-drift guard had itself drifted.
 
     C'est donc une CINQUIEME copie du referentiel, et elle a le meme
     defaut que les quatre autres : rien ne l'oblige a rester d'accord
@@ -421,21 +428,27 @@ class ReferentielPublieDansLeReadmeTest(SimpleTestCase):
 
     def _section_du_readme(self, titre_de_debut, titre_de_fin):
         """
-        Decoupe une section du README entre deux titres.
-        / Cuts a README section between two headings.
+        Decoupe une section de `PRESENTATION-V3.md` entre deux titres.
+        / Cuts a PRESENTATION-V3.md section between two headings.
         """
         from django.conf import settings
 
-        chemin_du_readme = os.path.join(settings.BASE_DIR, "README.md")
-        contenu_du_readme = open(chemin_du_readme, encoding="utf-8").read()
+        chemin_de_l_expose = os.path.join(
+            settings.BASE_DIR, "PRESENTATION-V3.md",
+        )
+        contenu_de_l_expose = open(
+            chemin_de_l_expose, encoding="utf-8",
+        ).read()
 
         self.assertIn(
-            titre_de_debut, contenu_du_readme,
-            f"Le README n'a plus de section « {titre_de_debut} ». Si elle a "
-            f"ete renommee, mettre a jour ce test ; si elle a ete supprimee, "
-            f"le referentiel n'est plus documente nulle part pour les humains.",
+            titre_de_debut, contenu_de_l_expose,
+            f"`PRESENTATION-V3.md` n'a plus de section « {titre_de_debut} ». "
+            f"Si elle a ete renommee, mettre a jour ce test ; si elle a ete "
+            f"deplacee, faire pointer ce test vers son nouveau fichier ; si "
+            f"elle a ete supprimee, le referentiel n'est plus documente "
+            f"nulle part pour les humains.",
         )
-        return contenu_du_readme.split(titre_de_debut)[1].split(titre_de_fin)[0]
+        return contenu_de_l_expose.split(titre_de_debut)[1].split(titre_de_fin)[0]
 
     def test_les_tableaux_par_famille_listent_les_trente_hypostases(self):
         section_des_familles = self._section_du_readme(

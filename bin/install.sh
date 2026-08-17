@@ -107,6 +107,24 @@ analyser_avec_le_vrai_modele() {
     # naturally idempotent so a restart does not re-bill.
     echo "Analyse des notes etalons par le vrai modele (test des cles API)..."
     python manage.py analyser_les_notes_etalons
+
+    # Le wiki et la synthese dirigee du carnet etalon. Meme discipline
+    # que l'analyse ci-dessus : appels FACTURES, mais la commande ne
+    # produit que ce qui manque, donc un redemarrage ne refacture rien.
+    #
+    # Sans elle, une installation neuve montre deux onglets VIDES et
+    # toute la couche synthese — sourcage [N], panneau de preuve,
+    # ecartees, couverture, verification — reste invisible.
+    #
+    # Elle passe APRES l'analyse : un article ne peut citer que des
+    # extractions qui existent. Au premier demarrage, les analyses sont
+    # encore dans la file Celery, donc le carnet peut n'avoir que les
+    # extractions de charger_extractions_demo — c'est suffisant, et le
+    # demarrage suivant complete ce qui manque.
+    # / Billed but idempotent; runs after analysis since an article can
+    # only cite extractions that already exist.
+    echo "Production du wiki et de la synthese etalons..."
+    python manage.py produire_les_syntheses_etalons
 }
 
 case "$ETAPE" in
