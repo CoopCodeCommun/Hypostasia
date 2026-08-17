@@ -125,6 +125,28 @@ analyser_avec_le_vrai_modele() {
     # only cite extractions that already exist.
     echo "Production du wiki et de la synthese etalons..."
     python manage.py produire_les_syntheses_etalons
+
+    # LA VERIFICATION DES CITATIONS.
+    #
+    # Elle reste un GESTE EXPLICITE — jamais automatique a la production
+    # (SPEC-synthese § 7, question n°3). L'installation la declenche donc
+    # comme un utilisateur le ferait par le bouton « Verifier les
+    # citations », avec le meme endpoint, la meme tache et le meme juge.
+    #
+    # Sans elle, une installation neuve montre des articles dont TOUS les
+    # renvois sont « non verifie » : l'etage qui fait toute la valeur du
+    # produit reste invisible, et le chiffre qui rend la demonstration
+    # convaincante (~88 % de citations verifiees sur les donnees etalons)
+    # n'apparait nulle part.
+    #
+    # Elle ne juge que les paires SANS verdict, donc un redemarrage ne
+    # refacture rien. Et comme les articles partent dans la file Celery,
+    # le premier demarrage n'a encore rien a verifier : c'est le
+    # demarrage suivant qui les juge, sans qu'on ait rien a ordonner.
+    # / Verification stays an explicit act; the install triggers it like
+    # the button does. Only verdict-less pairs are judged.
+    echo "Verification des citations des articles etalons..."
+    python manage.py verifier_les_citations_etalons
 }
 
 case "$ETAPE" in

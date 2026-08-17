@@ -17,6 +17,50 @@ fréquent.
 
 ---
 
+## Qui déclenche, et par où
+
+**La vérification n'est JAMAIS automatique à la production.** C'est la question n°3 de
+`SPEC-synthese-carnet.md`, tranchée le 9 août 2026. Un article fraîchement produit a donc
+**tous** ses renvois en « non vérifié » — ce n'est pas un défaut, c'est un état d'attente,
+et le libellé dit quoi faire.
+
+Deux déclencheurs, **un seul chemin** :
+
+```mermaid
+flowchart TD
+    H(["UN HUMAIN — bouton « Vérifier les citations »<br/>article.html · visible seulement<br/>si le carnet est en ÉCRITURE"])
+    I(["L'INSTALLATION — verifier_les_citations_etalons<br/>bin/install.sh · ne juge que les paires<br/>SANS verdict, donc rien n'est refacturé"])
+
+    EP["POST /wikis/id/verifier/<br/>ou /syntheses/id/verifier/<br/>_lancer_une_verification"]
+    JOB["ExtractionJob<br/>marqueur est_verification"]
+    GARDE{"le job porte-t-il<br/>bien ce marqueur ?"}
+    REFUS["La tâche s'ARRÊTE sans y toucher.<br/>Un job d'analyse marqué en erreur<br/>rendrait ses extractions NON CITABLES"]
+    TACHE["verifier_les_citations_task"]
+    SERVICE["verifier_les_citations_d_un_article<br/>la cascade ci-dessous"]
+
+    H --> EP
+    I --> JOB
+    EP --> JOB --> GARDE
+    GARDE -- non --> REFUS
+    GARDE -- oui --> TACHE --> SERVICE
+
+    classDef humain fill:#f5f3ff,stroke:#6d28d9,color:#3b0764
+    classDef refus fill:#fdecea,stroke:#b91c1c,color:#7f1d1d
+    class H,I humain
+    class REFUS refus
+```
+
+**L'installation ne prend pas de raccourci** : même endpoint, même job, même marqueur, même
+tâche, même juge. Elle déclenche le geste à la place de l'utilisateur, elle n'ouvre pas une
+voie parallèle — sans quoi le chemin de démonstration cesserait d'éprouver le vrai.
+
+> Le garde-fou du marqueur date du 17 août 2026. Il existe parce qu'une tâche arrivée sur le
+> job d'un **autre** producteur levait, et que le gestionnaire d'erreur marquait alors ce job
+> `error` — ce qui rendait ses extractions **non citables**. Le carnet étalon est ainsi passé
+> de 101 à 41 extractions citables, sans qu'aucun test n'échoue.
+
+---
+
 ## La cascade
 
 ```mermaid
