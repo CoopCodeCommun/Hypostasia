@@ -4905,11 +4905,17 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
             status="completed",
         )
 
-        # Creer un modele IA actif
-        # / Create an active AI model
+        # Creer un modele IA actif.
+        # `mock`, et non `mock_default` : « mock » est la VALEUR du choix,
+        # « MOCK_DEFAULT » n'en est que le nom de membre. Seule la valeur
+        # figure dans `TARIFS_PAR_MILLION_TOKENS` — avec le nom de
+        # membre, le tarif est INCONNU, et cet ecran doit alors afficher
+        # « non mesuré » plutot qu'un montant.
+        # / `mock` is the choice's VALUE; the member name is not in the
+        # price table, and an unknown price must read "non mesuré".
         self.modele_ia = AIModel.objects.create(
             name="Mock Previsu",
-            model_choice="mock_default",
+            model_choice="mock",
             is_active=True,
         )
 
@@ -5017,6 +5023,43 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         # both separators because the amount is what matters here.
         self.assertRegex(contenu_html, r"[\d]+[.,][\d]{2} .euro")
 
+    def test_un_tarif_inconnu_s_affiche_non_mesure_et_pas_zero(self):
+        """
+        « gratuit » et « non mesure » ne disent pas la meme chose.
+
+        Un modele servi par une plateforme porte un identifiant
+        (`vendor/modele`) qui n'est dans aucune table de tarifs ecrite a
+        la main. Afficher « ≤ 0,00 € » avant un appel FACTURE serait un
+        chiffre invente — et c'est sur ce chiffre que l'utilisateur
+        decide de lancer.
+        / An unknown price must never read as free before a billed call.
+        """
+        from front.views import LectureViewSet
+        from core.models import AIModel, Configuration, Provider
+
+        modele_de_plateforme = AIModel.objects.create(
+            name="Juge par plateforme",
+            model_choice="mistralai/mistral-small-3.2-24b-instruct",
+            provider=Provider.COMPATIBLE_OPENAI,
+            base_url="https://openrouter.ai/api/v1",
+            variable_de_cle_api="OPENROUTER_API_KEY",
+        )
+        configuration = Configuration.get_solo()
+        configuration.ai_model = modele_de_plateforme
+        configuration.save()
+
+        requete = self.factory.get(
+            f"/lire/{self.page_test.pk}/previsualiser_analyse/",
+            HTTP_HX_REQUEST="true",
+        )
+        requete.user = self.utilisateur
+        vue = LectureViewSet()
+        reponse = vue.previsualiser_analyse(requete, pk=self.page_test.pk)
+        contenu_html = reponse.content.decode("utf-8")
+
+        self.assertIn("cout-non-mesure", contenu_html)
+        self.assertNotRegex(contenu_html, r"0[.,]00 .euro")
+
     def test_reponse_contient_prompt_complet(self):
         """La reponse contient le prompt complet dans une zone cachee."""
         from front.views import LectureViewSet
@@ -5085,14 +5128,26 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
 
 
 class Phase24ProviderChoicesTest(TestCase):
-    """Verifie que Provider contient les 5 valeurs attendues (mock, google, openai, ollama, anthropic).
-    / Verify Provider has the expected 5 values."""
+    """Verifie que Provider contient les 6 valeurs attendues.
+    / Verify Provider has the expected 6 values.
 
-    def test_provider_a_cinq_valeurs(self):
-        """Les 5 providers doivent exister dans l'enum Provider."""
+    `compatible_openai` en porte plusieurs a lui seul : c'est le chemin
+    de TOUTES les plateformes qui exposent `{base_url}/chat/completions`
+    — OpenRouter, Mistral, Scaleway, un serveur local. Une valeur par
+    plateforme obligerait a toucher a cette enum, et au code, pour un
+    chemin d'appel rigoureusement identique.
+    / `compatible_openai` stands for every platform exposing the shared
+    endpoint; one value per platform would mean touching code each time.
+    """
+
+    def test_provider_a_six_valeurs(self):
+        """Les 6 providers doivent exister dans l'enum Provider."""
         from core.models import Provider
 
-        valeurs_attendues = {"mock", "google", "openai", "ollama", "anthropic"}
+        valeurs_attendues = {
+            "mock", "google", "openai", "ollama", "anthropic",
+            "compatible_openai",
+        }
         valeurs_reelles = {choix.value for choix in Provider}
         self.assertEqual(valeurs_reelles, valeurs_attendues)
 
@@ -5195,49 +5250,71 @@ class Phase24LlmProvidersGoogleMockTest(TestCase):
             # Verifie que la cle API a ete configuree depuis .env
             # / Verify API key was configured from .env
             mock_configure.assert_called_once_with(api_key="key-test-google")
-            mock_generative_model.generate_content.assert_called_once_with("Texte source")
+            # Le SDK de Google ne pose AUCUN timeout par defaut : sans
+            # celui-ci, un appel pendu immobilise un worker Celery
+            # jusqu'a la limite de trente minutes de la tache.
+            # / This SDK sets no default timeout.
+            mock_generative_model.generate_content.assert_called_once()
+            arguments_de_l_appel = mock_generative_model.generate_content.call_args
+            self.assertEqual(arguments_de_l_appel[0][0], "Texte source")
+            self.assertIn("timeout", arguments_de_l_appel[1]["request_options"])
             self.assertEqual(resultat, "Reponse de Gemini")
 
 
 class Phase24LlmProvidersOllamaMockTest(TestCase):
-    """Verifie que appeler_llm() avec Ollama fait un POST HTTP vers /api/generate.
-    / Verify appeler_llm() with Ollama makes HTTP POST to /api/generate."""
+    """Verifie qu'Ollama passe par l'endpoint COMPATIBLE `{base_url}/v1`.
+    / Verify Ollama goes through the OpenAI-compatible endpoint.
 
-    def test_ollama_appel_http_correct(self):
-        """L'appel Ollama doit poster vers {base_url}/api/generate avec le bon model."""
-        from unittest.mock import patch, MagicMock
+    Ollama expose DEUX APIs : la sienne (`/api/generate`) et une
+    compatible OpenAI (`/v1/chat/completions`). C'est la seconde qui est
+    utilisee, pour que le serveur local soit un `base_url` comme un
+    autre : meme timeout, memes tentatives, meme detection d'erreur que
+    toutes les plateformes. Passer par la remplace du code specifique
+    par du code partage.
+    / Ollama exposes both its own API and an OpenAI-compatible one; the
+    latter makes a local server just another base_url.
+    """
+
+    def _client_qui_repond(self, texte):
+        from unittest.mock import MagicMock
+
+        message = MagicMock()
+        message.content = texte
+        choix = MagicMock()
+        choix.message = message
+        reponse = MagicMock()
+        reponse.choices = [choix]
+        reponse.error = None
+        client = MagicMock()
+        client.chat.completions.create.return_value = reponse
+        return client
+
+    def test_ollama_appel_compatible_correct(self):
+        """L'appel Ollama vise {base_url}/v1 avec le bon nom de modele."""
+        from unittest.mock import patch
         from core.models import AIModel
         from core.llm_providers import appeler_llm
 
         modele_ollama = AIModel(name="Ollama Llama3", model_choice="llama3", base_url="http://localhost:11434")
         modele_ollama.save()
 
-        # Simuler la reponse HTTP Ollama / Simulate Ollama HTTP response
-        mock_reponse_http = MagicMock()
-        mock_reponse_http.json.return_value = {"response": "Texte reformule par Ollama"}
-        mock_reponse_http.raise_for_status = MagicMock()
-
-        with patch("requests.post", return_value=mock_reponse_http) as mock_post:
+        client = self._client_qui_repond("Texte reformule par Ollama")
+        with patch("openai.OpenAI", return_value=client) as fabrique:
             resultat = appeler_llm(modele_ollama, "Un texte")
 
-            # Verifie que l'URL contient /api/generate
-            # / Verify URL contains /api/generate
-            mock_post.assert_called_once()
-            url_appelee = mock_post.call_args[0][0]
-            self.assertIn("/api/generate", url_appelee)
-
-            # Verifie le payload JSON envoye
-            # / Verify the sent JSON payload
-            payload_envoye = mock_post.call_args[1]["json"]
-            self.assertEqual(payload_envoye["model"], "llama3")
-            self.assertEqual(payload_envoye["prompt"], "Un texte")
-            self.assertFalse(payload_envoye["stream"])
-
+            self.assertEqual(
+                fabrique.call_args[1]["base_url"], "http://localhost:11434/v1",
+            )
+            appel = client.chat.completions.create.call_args[1]
+            self.assertEqual(appel["model"], "llama3")
+            self.assertEqual(
+                appel["messages"], [{"role": "user", "content": "Un texte"}],
+            )
             self.assertEqual(resultat, "Texte reformule par Ollama")
 
     def test_ollama_base_url_custom(self):
         """Un base_url custom doit etre utilise dans l'URL d'appel."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
         from core.models import AIModel
         from core.llm_providers import appeler_llm
 
@@ -5247,16 +5324,14 @@ class Phase24LlmProvidersOllamaMockTest(TestCase):
         )
         modele_ollama_custom.save()
 
-        mock_reponse_http = MagicMock()
-        mock_reponse_http.json.return_value = {"response": "ok"}
-        mock_reponse_http.raise_for_status = MagicMock()
-
-        with patch("requests.post", return_value=mock_reponse_http) as mock_post:
+        client = self._client_qui_repond("ok")
+        with patch("openai.OpenAI", return_value=client) as fabrique:
             appeler_llm(modele_ollama_custom, "test")
-            url_appelee = mock_post.call_args[0][0]
-            # L'URL doit commencer par le base_url custom
-            # / URL must start with custom base_url
-            self.assertTrue(url_appelee.startswith("http://gpu-server:11434"))
+            self.assertTrue(
+                fabrique.call_args[1]["base_url"].startswith(
+                    "http://gpu-server:11434",
+                ),
+            )
 
 
 class Phase24LlmProvidersAnthropicMockTest(TestCase):
@@ -5287,9 +5362,15 @@ class Phase24LlmProvidersAnthropicMockTest(TestCase):
              patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test-123"}):
             resultat = appeler_llm(modele_anthropic, "Un texte")
 
-            # Verifie que le client a ete cree avec la cle API depuis .env
-            # / Verify client was created with API key from .env
-            mock_anthropic_cls.assert_called_once_with(api_key="sk-test-123")
+            # Verifie que le client a ete cree avec la cle API depuis .env,
+            # ET avec un timeout explicite : le defaut du SDK vaut 600 s
+            # en lecture, soit dix minutes de worker Celery immobilise.
+            # / API key from .env, and an explicit timeout: the SDK
+            # default of 600 s would idle a Celery worker.
+            mock_anthropic_cls.assert_called_once()
+            arguments_du_client = mock_anthropic_cls.call_args[1]
+            self.assertEqual(arguments_du_client["api_key"], "sk-test-123")
+            self.assertLess(arguments_du_client["timeout"], 600)
 
             # Verifie les parametres de l'appel messages.create
             # / Verify messages.create call parameters

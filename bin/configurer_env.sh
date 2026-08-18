@@ -128,12 +128,19 @@ if [ -t 0 ]; then
     echo "  documents etalons pour de vrai — c'est ce qui teste la cle."
     echo "  Facultative : elle se renseigne aussi dans l'interface ensuite."
     echo "    1) Google Gemini    2) OpenAI    3) Anthropic    4) Mistral"
-    echo "    5) aucune pour l'instant"
-    case "$(demander "Ton choix" "5")" in
+    echo "    5) OpenRouter       6) aucune pour l'instant"
+    # OpenRouter ne sert PAS l'extraction : LangExtract ne sait piloter
+    # que Google, OpenAI et Ollama. Une cle OpenRouter seule laisse donc
+    # l'IA eteinte a l'installation — elle sert a affecter un modele a un
+    # role (juge, redacteur), par `affecter_un_modele_a_un_role`.
+    # / OpenRouter does not serve extraction: LangExtract only drives
+    # Google, OpenAI and Ollama.
+    case "$(demander "Ton choix" "6")" in
         1) NOM_DE_LA_CLE="GOOGLE_API_KEY" ;;
         2) NOM_DE_LA_CLE="OPENAI_API_KEY" ;;
         3) NOM_DE_LA_CLE="ANTHROPIC_API_KEY" ;;
         4) NOM_DE_LA_CLE="MISTRAL_API_KEY" ;;
+        5) NOM_DE_LA_CLE="OPENROUTER_API_KEY" ;;
         *) NOM_DE_LA_CLE="" ;;
     esac
     if [ -n "$NOM_DE_LA_CLE" ]; then

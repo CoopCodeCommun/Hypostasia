@@ -1,0 +1,589 @@
+<title>La chaîne d'Hypostasia, mesurée</title>
+<style>
+:root {
+  --papier: #fbfaf7; --encre: #1c1a17; --gouttiere: #d9d4cb;
+  --panneau: #f2efe9; --accent: #6d28d9; --vert: #047857; --rouge: #b91c1c;
+  --sourdine: #6b6560;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --papier: #16151a; --encre: #e8e4dd; --gouttiere: #3a3742;
+    --panneau: #201e26; --accent: #a78bfa; --vert: #34d399; --rouge: #f87171;
+    --sourdine: #9d968e;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0; background: var(--papier); color: var(--encre);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6; font-size: 16px;
+}
+.page { max-width: 52rem; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+h1 { font-size: 1.9rem; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 .4rem; }
+h2 {
+  font-size: 1.35rem; margin: 3.5rem 0 .8rem; padding-top: 1.2rem;
+  border-top: 1px solid var(--gouttiere); letter-spacing: -.01em;
+}
+h3 { font-size: 1.05rem; margin: 2rem 0 .5rem; }
+.chapeau { color: var(--sourdine); font-size: 1.05rem; margin: 0 0 2rem; }
+.encart {
+  background: var(--panneau); border-left: 3px solid var(--accent);
+  padding: .9rem 1.1rem; margin: 1.4rem 0; border-radius: 0 4px 4px 0;
+}
+.encart strong { color: var(--accent); }
+table { border-collapse: collapse; width: 100%; margin: 1.2rem 0; font-size: .92rem; }
+.defilant { overflow-x: auto; }
+th, td { text-align: left; padding: .45rem .7rem; border-bottom: 1px solid var(--gouttiere); }
+th { font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--sourdine); }
+td.nombre, th.nombre { text-align: right; font-variant-numeric: tabular-nums; }
+.humain { font-family: Georgia, "Times New Roman", serif; font-style: italic; }
+.machine { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86rem; }
+.locuteur {
+  font-weight: 700; font-size: .78rem; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--accent);
+}
+.tour { margin: 0 0 1.1rem; padding-left: .9rem; border-left: 2px solid var(--gouttiere); }
+.soutient { color: var(--vert); font-weight: 600; }
+.refuse { color: var(--rouge); font-weight: 600; }
+.rien { color: var(--sourdine); }
+.etiquette {
+  display: inline-block; font-size: .72rem; text-transform: uppercase;
+  letter-spacing: .05em; padding: .1rem .45rem; border-radius: 3px;
+  background: var(--panneau); border: 1px solid var(--gouttiere);
+  color: var(--sourdine);
+}
+.sourdine { color: var(--sourdine); font-size: .9rem; }
+.bloc {
+  background: var(--panneau); padding: .9rem 1.1rem; border-radius: 4px;
+  margin: 1rem 0; white-space: pre-wrap;
+}
+footer { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--gouttiere);
+         color: var(--sourdine); font-size: .88rem; }
+</style>
+<div class="page">
+<h1>La chaîne d'Hypostasia, mesurée</h1>
+<p class="chapeau">Un même texte source, les trois étages du moteur,
+5 modèles, 3 passes chacun — et ce que la comparaison
+apprend. Mesures du 17 août 2026.</p>
+
+<h2>La méthode</h2>
+
+<p>Hypostasia fait trois choses, dans cet ordre, et chacune peut être confiée à
+un modèle différent :</p>
+
+<ol>
+<li><strong>Extraire</strong> — un texte source entre, des <em>idées</em> en
+sortent, chacune typée par une <em>hypostase</em> et <strong>ancrée au passage
+exact dont elle vient</strong>. C'est cette ancre qui fait la preuve.</li>
+<li><strong>Rédiger</strong> — les idées deviennent un article, où chaque
+affirmation porte les marqueurs des extractions qui la nourrissent.</li>
+<li><strong>Vérifier</strong> — chaque couple (affirmation, source citée) est
+soumis à un juge&nbsp;: <em>cette source établit-elle ce que cette affirmation
+avance&nbsp;?</em></li>
+</ol>
+
+<div class="encart">
+<p><strong>Pourquoi plusieurs passes.</strong> Un seul appel par modèle produit
+un tableau qui a l'air net et ne l'est pas. Le même modèle, sur le même texte,
+ne répond pas deux fois la même chose — et l'écart entre deux passes du même
+modèle est parfois plus grand que l'écart entre deux modèles. Sans passes
+multiples, on compare du bruit.</p>
+</div>
+
+<p><strong>Ce banc n'écrit rien en base.</strong> Aucun job, aucune extraction,
+aucun lien de citation n'est enregistré. Il rejoue les chemins de production —
+mêmes prompts, mêmes exemples, mêmes garde-fous — sur des données figées.</p>
+
+<p class="sourdine">Tous les modèles tournent à température&nbsp;0, sauf les
+modèles de raisonnement d'OpenAI qui refusent toute valeur autre que la leur
+(<span class="machine">400 — Unsupported value: 'temperature' does not support
+0.0</span>). Pour eux, aucune température n'est transmise.</p>
+
+<h2>Le texte source</h2>
+<p>Une <strong>transcription de débat</strong> — l'objet même du produit. Trois
+voix, sur le rôle de l'intelligence artificielle. Les
+6 premiers éléments de la note
+«&nbsp;Débat IA — transcription&nbsp;», soit 2077
+caractères, sont ce qu'on donne à l'étage d'extraction.</p>
+<div class="tour"><div class="locuteur">Laurent</div><div class="humain">L&#x27;intelligence artificielle est la révolution la plus importante depuis l&#x27;invention de l&#x27;écriture. Les pays qui n&#x27;investissent pas massivement dans l&#x27;IA seront relégués au rang de puissances de second ordre. La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.</div></div><div class="tour"><div class="locuteur">Eric</div><div class="humain">Voilà exactement le discours qui m&#x27;inquiète. On nous présente l&#x27;IA comme une fatalité historique, alors qu&#x27;il s&#x27;agit d&#x27;un choix politique. Ce que tu appelles progrès, Laurent, c&#x27;est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.</div></div><div class="tour"><div class="locuteur">Elinor</div><div class="humain">Je crois qu&#x27;il y a une troisième voie que vous négligez tous les deux. L&#x27;IA n&#x27;est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C&#x27;est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d&#x27;usagers participent à l&#x27;élaboration des règles qui encadrent son usage.</div></div><div class="tour"><div class="locuteur">Laurent</div><div class="humain">Un commun numérique, c&#x27;est charmant en théorie, mais dans la réalité, c&#x27;est la guerre des intelligences. Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement. L&#x27;augmentation cognitive n&#x27;est pas une option, c&#x27;est une nécessité de survie civilisationnelle.</div></div><div class="tour"><div class="locuteur">Eric</div><div class="humain">Tu vois, c&#x27;est précisément cette rhétorique guerrière qui est toxique. L&#x27;IA ne se contente pas d&#x27;augmenter nos capacités : elle prétend gouverner nos comportements. Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C&#x27;est un gouvernement non élu qui s&#x27;installe dans nos vies sans qu&#x27;on ait jamais voté pour lui.</div></div><div class="tour"><div class="locuteur">Elinor</div><div class="humain">Eric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire. Mes recherches sur les communs montrent que ni le marché pur ni l&#x27;État centralisé ne sont les seules options. Des communautés peuvent s&#x27;auto-organiser pour gérer des ressources partagées, y compris des modèles d&#x27;IA ouverts, avec des règles adaptées à leur contexte local.</div></div>
+<h2>Étage 1 — extraire</h2>
+
+<p>Le texte part au modèle avec le prompt de production&nbsp;: les
+<strong>30 hypostases</strong>, ces «&nbsp;trente manières d'être
+discutable&nbsp;», et des exemples. Le modèle rend des extraits <em>verbatim</em>
+du texte, chacun typé. Le verbatim n'est pas un détail de forme&nbsp;: c'est ce
+qui permet, plus tard, de retrouver le passage exact et de vérifier qu'il n'a
+pas bougé.</p>
+<div class="defilant"><table><tr><th>Modèle</th><th class="nombre">passe 1</th><th class="nombre">passe 2</th><th class="nombre">passe 3</th><th class="nombre">écart</th><th class="nombre">durée</th></tr><tr><td>gemini-2.5-flash</td><td class="nombre">6</td><td class="nombre">6</td><td class="nombre">9</td><td class="nombre">3</td><td class="nombre">10 s</td></tr><tr><td>gemini-3.1-flash-lite</td><td class="nombre">8</td><td class="nombre">8</td><td class="nombre">8</td><td class="nombre">0</td><td class="nombre">4 s</td></tr><tr><td>gpt-5-mini</td><td class="nombre">8</td><td class="nombre">7</td><td class="nombre">7</td><td class="nombre">1</td><td class="nombre">30 s</td></tr><tr><td>gpt-5-nano</td><td class="nombre">6</td><td class="nombre">8</td><td class="nombre">6</td><td class="nombre">2</td><td class="nombre">56 s</td></tr><tr><td>mistral-small-latest</td><td class="nombre">18</td><td class="nombre">16</td><td class="nombre">15</td><td class="nombre">3</td><td class="nombre">11 s</td></tr></table></div>
+<div class="encart">
+<p><strong>L'extraction est l'étage le moins réglé, et pour une raison
+identifiée&nbsp;: la température n'y est pas transmise.</strong> Ce chemin passe
+par LangExtract, qui ne reçoit pas le réglage du modèle — il tourne donc à la
+température par défaut du fournisseur. Deux passes du même modèle sur le même
+texte ne trouvent pas toujours le même nombre d'idées.</p>
+</div>
+
+<h3>Le piège du routage, et pourquoi il n'a pas fallu forker</h3>
+
+<p>LangExtract choisit son moteur par <strong>expression régulière sur le nom du
+modèle</strong>&nbsp;: tout ce qui commence par
+<span class="machine">mistral</span>, <span class="machine">qwen</span>,
+<span class="machine">llama</span>, <span class="machine">gemma</span>,
+<span class="machine">phi</span> ou <span class="machine">deepseek</span> part
+vers un serveur <em>Ollama local</em>, qui parle une API propriétaire. Pointé sur
+<span class="machine">api.mistral.ai</span>, ce moteur échoue — et rien dans le
+nom du modèle ne le laissait deviner.</p>
+
+<p>La parade tient en une ligne de paramètre&nbsp;: <span class="machine">lx.extract</span>
+accepte un <span class="machine">config</span> qui désigne le provider par son
+<strong>nom</strong> et court-circuite la table. C'est une <strong>API publique
+de la bibliothèque</strong> — aucun fork, rien à re-vérifier à chaque montée de
+version. Un test épingle exprès le routage par défaut&nbsp;: s'il tombe, c'est
+que la table de motifs a changé.</p>
+
+<div class="encart">
+<p><strong>Une fois branché, le modèle européen extrait deux fois plus que les
+autres</strong> — quinze à dix-huit idées là où les modèles Google et OpenAI en
+trouvent six à neuf, sur le même texte. <em>Plus n'est pas mieux&nbsp;:</em> ce
+banc ne juge pas la pertinence des idées trouvées, et un modèle qui fragmente
+davantage produit mécaniquement plus d'extractions. Ce qui est mesuré, c'est un
+écart de volume du simple au double entre familles de modèles — assez pour que le
+choix du modèle d'extraction change la matière que tous les étages suivants
+reçoivent.</p>
+</div>
+<h3>Ce qu'une extraction est censée être — mistral-small-latest, passe 1, le découpage le plus fin des cinq</h3><div class="defilant"><table><tr><th>Hypostase</th><th>Extrait verbatim</th></tr><tr><td><span class="etiquette">paradigme, loi</span></td><td class="humain">L&#x27;intelligence artificielle est la révolution la plus importante depuis l&#x27;invention de l&#x27;écriture.</td></tr><tr><td><span class="etiquette">loi, dimension</span></td><td class="humain">Les pays qui n&#x27;investissent pas massivement dans l&#x27;IA seront relégués au rang de puissances de second ordre.</td></tr><tr><td><span class="etiquette">principe, méthode</span></td><td class="humain">La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.</td></tr><tr><td><span class="etiquette">aporie, problème</span></td><td class="humain">On nous présente l&#x27;IA comme une fatalité historique, alors qu&#x27;il s&#x27;agit d&#x27;un choix politique.</td></tr><tr><td><span class="etiquette">phénomène, problème</span></td><td class="humain">Ce que tu appelles progrès, Laurent, c&#x27;est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.</td></tr><tr><td><span class="etiquette">hypothèse, problème</span></td><td class="humain">Je crois qu&#x27;il y a une troisième voie que vous négligez tous les deux.</td></tr><tr><td><span class="etiquette">paradoxe, problème</span></td><td class="humain">L&#x27;IA n&#x27;est ni une fatalité à embrasser aveuglément, ni un monstre à combattre.</td></tr><tr><td><span class="etiquette">théorie, méthode</span></td><td class="humain">C&#x27;est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d&#x27;usagers participent à l&#x27;élaboration des règles qui encadrent son usage.</td></tr><tr><td><span class="etiquette">phénomène, paradoxe</span></td><td class="humain">Un commun numérique, c&#x27;est charmant en théorie, mais dans la réalité, c&#x27;est la guerre des intelligences.</td></tr><tr><td><span class="etiquette">loi, problème</span></td><td class="humain">Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.</td></tr><tr><td><span class="etiquette">principe, axiome</span></td><td class="humain">L&#x27;augmentation cognitive n&#x27;est pas une option, c&#x27;est une nécessité de survie civilisationnelle.</td></tr><tr><td><span class="etiquette">problème, phénomène</span></td><td class="humain">Tu vois, c&#x27;est précisément cette rhétorique guerrière qui est toxique.</td></tr><tr><td><span class="etiquette">phénomène, problème</span></td><td class="humain">L&#x27;IA ne se contente pas d&#x27;augmenter nos capacités : elle prétend gouverner nos comportements.</td></tr><tr><td><span class="etiquette">loi, phénomène</span></td><td class="humain">Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons.</td></tr><tr><td><span class="etiquette">aporie, problème</span></td><td class="humain">C&#x27;est un gouvernement non élu qui s&#x27;installe dans nos vies sans qu&#x27;on ait jamais voté pour lui.</td></tr><tr><td><span class="etiquette">problème, paradoxe</span></td><td class="humain">Eric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire.</td></tr><tr><td><span class="etiquette">théorie, méthode</span></td><td class="humain">Mes recherches sur les communs montrent que ni le marché pur ni l&#x27;État centralisé ne sont les seules options.</td></tr><tr><td><span class="etiquette">méthode, structure</span></td><td class="humain">Des communautés peuvent s&#x27;auto-organiser pour gérer des ressources partagées, y compris des modèles d&#x27;IA ouverts, avec des règles adaptées à leur contexte local.</td></tr></table></div>
+<h2>Étage 1 <em>bis</em> — ces extractions valent-elles quelque chose&nbsp;?</h2>
+
+<p>Le nombre d'extractions ne dit rien à lui seul&nbsp;: un modèle qui recopie
+les paragraphes en produit peu, un modèle qui hache menu en produit beaucoup, et
+ni l'un ni l'autre n'a forcément bien travaillé. Voici ce qui se mesure, et
+pourquoi.</p>
+
+<ul>
+<li><strong>Verbatim</strong> — l'extrait figure-t-il <em>littéralement</em> dans
+la source&nbsp;? C'est le critère éliminatoire&nbsp;: un extrait qui n'y est pas
+ne peut pas être ancré, donc ne peut pas faire preuve.</li>
+<li><strong>Granularité</strong> — la longueur médiane. Un extrait de la taille
+du tour de parole entier ne désigne rien de précis&nbsp;: l'ancre pointe vers
+tout, c'est-à-dire vers rien.</li>
+<li><strong>Couverture des voix</strong> — combien d'extraits par locuteur. Sur
+un verbatim de délibération, <strong>perdre une voix est le pire défaut
+possible</strong>&nbsp;: le débat cesse d'être représenté.</li>
+<li><strong>Couverture du texte</strong> — quelle part de la source est reprise.
+</li>
+<li><strong>Chevauchements</strong> — un extrait contenu dans un autre est une
+redite, qui gonfle le compte sans rien apporter.</li>
+</ul>
+<div class="defilant"><table><tr><th>Modèle</th><th class="nombre">extraits</th><th class="nombre">verbatim</th><th class="nombre">longueur médiane</th><th class="nombre">couverture</th><th class="nombre">redites</th><th>voix représentées</th></tr><tr><td>gemini-2.5-flash</td><td class="nombre">6</td><td class="nombre">6/6</td><td class="nombre">330 car.</td><td class="nombre">98 %</td><td class="nombre">0</td><td><span class="soutient">Laurent 2 · Eric 2 · Elinor 2</span></td></tr><tr><td>gemini-3.1-flash-lite</td><td class="nombre">8</td><td class="nombre">8/8</td><td class="nombre">140 car.</td><td class="nombre">54 %</td><td class="nombre">0</td><td><span class="soutient">Laurent 3 · Eric 3 · Elinor 2</span></td></tr><tr><td>gpt-5-mini</td><td class="nombre">8</td><td class="nombre">8/8</td><td class="nombre">123 car.</td><td class="nombre">59 %</td><td class="nombre">0</td><td><span class="soutient">Laurent 4 · Eric 3 · Elinor 1</span></td></tr><tr><td>gpt-5-nano</td><td class="nombre">6</td><td class="nombre">6/6</td><td class="nombre">118 car.</td><td class="nombre">37 %</td><td class="nombre">0</td><td><span class="refuse">Laurent 4 · Elinor 2</span></td></tr><tr><td>mistral-small-latest</td><td class="nombre">18</td><td class="nombre">18/18</td><td class="nombre">101 car.</td><td class="nombre">97 %</td><td class="nombre">0</td><td><span class="soutient">Laurent 6 · Eric 6 · Elinor 6</span></td></tr></table></div>
+<div class="encart">
+<p><strong>Ce qui suit est un jugement, pas une mesure.</strong> Il est porté par
+<strong>Claude&nbsp;Opus&nbsp;5</strong> — le modèle qui a conduit ce banc — sur
+les extractions de la première passe, en relisant le texte source. Il engage une
+appréciation, pas un compte&nbsp;: à lire comme l'avis d'un lecteur attentif, et
+à contredire. Les chiffres du tableau ci-dessus, eux, sont mesurés.</p>
+</div>
+
+<h3>Le verdict, modèle par modèle</h3>
+
+<p><strong>Tous les extraits sont verbatim, chez les cinq modèles.</strong>
+Aucune reformulation, aucune invention&nbsp;: la chaîne de preuve tient partout.
+C'est le résultat le plus rassurant du banc, et il n'allait pas de soi.</p>
+
+<p><strong><span class="machine">gemini-2.5-flash</span> — six extraits, et ce
+sont les six tours de parole.</strong> Longueur médiane&nbsp;: 330 caractères,
+c'est-à-dire l'intégralité de chaque intervention. Le modèle n'a pas extrait des
+idées&nbsp;: il a recopié le découpage du dialogue. Une ancre qui désigne tout un
+tour ne prouve rien de précis, et l'étage&nbsp;3 s'en ressent directement — c'est
+exactement le problème du «&nbsp;paragraphe entier&nbsp;» qu'on retrouve plus
+bas. <em>Couverture parfaite, granularité nulle.</em></p>
+
+<p><strong><span class="machine">gpt-5-nano</span> — il perd une voix.</strong>
+Zéro extrait sur les deux interventions d'Eric&nbsp;: ni la
+«&nbsp;silicolonisation du monde&nbsp;», ni le «&nbsp;gouvernement non élu&nbsp;»
+des algorithmes de recommandation. Ce sont les deux idées les plus fortes du
+critique, et elles disparaissent. 37&nbsp;% du texte couvert. Pour un outil dont
+la raison d'être est de cartographier un désaccord, <strong>c'est
+disqualifiant</strong> — pas un défaut de degré, un défaut de nature.</p>
+
+<p><strong><span class="machine">gpt-5-mini</span> — correct, mais
+déséquilibré.</strong> Huit extraits bien découpés, aucune redite, mais un seul
+pour Elinor contre quatre pour Laurent. La troisième voie — la thèse la plus
+originale du débat, celle du commun gouverné — n'est représentée que par une
+phrase. Le débat penche sans que personne l'ait décidé.</p>
+
+<p><strong><span class="machine">gemini-3.1-flash-lite</span> — propre, mais il
+coupe des conditions.</strong> Huit extraits, trois voix, granularité juste.
+Deux réserves sérieuses&nbsp;: il retient «&nbsp;<em>C'est une ressource qui peut
+être gouvernée comme un commun numérique</em>&nbsp;» en s'arrêtant avant
+«&nbsp;à condition que les communautés d'usagers participent…&nbsp;» — or la
+condition <em>est</em> la thèse. Et il coupe «&nbsp;un gouvernement non élu qui
+s'installe dans nos vies&nbsp;» avant «&nbsp;sans qu'on ait jamais voté pour
+lui&nbsp;». Les deux extraits restent verbatim, donc le contrôle automatique les
+laissera passer&nbsp;: <strong>une amputation de sens franchit toutes les
+défenses du dispositif</strong>. C'est le défaut le plus insidieux du lot.</p>
+
+<p><strong><span class="machine">mistral-small-latest</span> — le meilleur des
+cinq, et de loin.</strong> Dix-huit extraits, <strong>six par locuteur,
+exactement</strong>&nbsp;; 97&nbsp;% du texte couvert&nbsp;; aucune redite&nbsp;;
+médiane de 101 caractères, soit une idée par extrait. Aucune voix perdue, aucune
+condition amputée, aucun tour recopié. Deux extraits sont discutables — «&nbsp;Je
+crois qu'il y a une troisième voie que vous négligez tous les deux&nbsp;» est une
+annonce rhétorique plus qu'une idée, et «&nbsp;Eric a raison de pointer le
+problème de la gouvernance, mais sa réponse me semble trop binaire&nbsp;» est un
+énoncé <em>sur</em> le débat plutôt que <em>dans</em> le débat. Mais ce second
+cas est instructif&nbsp;: c'est une <strong>relation entre arguments</strong>, et
+le projet en cherche justement une typologie.</p>
+
+<h3>Alors oui, plus d'extractions vaut mieux — mais pas pour la raison évidente</h3>
+
+<p>Ce n'est pas le <em>nombre</em> qui est bon&nbsp;: c'est ce qu'il permet.
+Dix-huit extraits fins couvrant 97&nbsp;% du texte, c'est <strong>chaque idée
+séparément contestable</strong>, chaque voix également représentée, chaque ancre
+désignant une phrase et non un paragraphe. Six extraits couvrant 98&nbsp;% du
+même texte, c'est le dialogue recopié&nbsp;: rien n'est séparable, donc rien
+n'est réfutable point par point.</p>
+
+<div class="encart">
+<p><strong>Mais la finesse a un prix, et il tombe à l'étage&nbsp;3.</strong> Plus
+les sources sont fines, moins chacune établit à elle seule une affirmation de
+plusieurs phrases — et c'est précisément là que les juges se déchirent
+(voir plus bas). <strong>La granularité de l'extraction et celle des affirmations
+doivent se répondre.</strong> Extraire finement puis juger contre des paragraphes
+entiers, c'est fabriquer soi-même le désaccord entre juges qu'on observera
+ensuite.</p>
+</div>
+
+<h2>Étage 2 — rédiger</h2>
+
+<p>Les 18 extractions de la note deviennent un
+article. Le contrat de sortie est strict&nbsp;: du markdown, des marqueurs
+<span class="machine">[[ext:N]]</span> après chaque affirmation, et une
+<strong>dernière ligne de contrôle</strong>
+<span class="machine">CITATIONS_USED: 1, 4, 7</span>. Cette ligne n'est pas
+décorative&nbsp;: son absence signale une génération tronquée, qui serait sinon
+enregistrée comme un succès.</p>
+
+<p>Un marqueur qui désigne une extraction absente du périmètre est
+<strong>supprimé</strong>, pas affiché. C'est ce qui empêche un modèle
+d'inventer ses propres sources.</p>
+<div class="defilant"><table><tr><th>Modèle</th><th class="nombre">caractères</th><th class="nombre">sources citées</th><th class="nombre">marqueurs inventés</th><th>3 passes identiques&nbsp;?</th><th class="nombre">durée</th></tr><tr><td>gemini-2.5-flash</td><td class="nombre">5242–5242</td><td class="nombre">18–18</td><td class="nombre">0</td><td><span class=soutient>oui</span></td><td class="nombre">23 s</td></tr><tr><td>gemini-3.1-flash-lite</td><td class="nombre">2470–2470</td><td class="nombre">18–18</td><td class="nombre">0</td><td><span class=soutient>oui</span></td><td class="nombre">3 s</td></tr><tr><td>gpt-5-mini</td><td class="nombre">4562–5205</td><td class="nombre">18–18</td><td class="nombre">0</td><td><span class=refuse>non</span></td><td class="nombre">23 s</td></tr><tr><td>gpt-5-nano</td><td class="nombre">3597–4286</td><td class="nombre">17–18</td><td class="nombre">0</td><td><span class=refuse>non</span></td><td class="nombre">49 s</td></tr><tr><td>mistral-small-latest</td><td class="nombre">4339–8213</td><td class="nombre">16–17</td><td class="nombre">0</td><td><span class=refuse>non</span></td><td class="nombre">9 s</td></tr></table></div>
+<div class="encart">
+<p><strong>Le résultat le plus net du banc.</strong> À température&nbsp;0, deux
+modèles rendent <em>trois articles rigoureusement identiques, octet pour
+octet</em>. Les modèles dont la température n'est pas transmise, eux, rendent
+trois articles différents. La rédaction est donc <strong>déterministe quand on
+la règle</strong> — ce qui rend d'autant plus parlant le fait que le juge, lui,
+ne le soit jamais.</p>
+<p class="sourdine">Nuance mesurée&nbsp;: régler la température ne garantit pas
+le déterminisme chez tous. Un modèle a rendu deux articles identiques et un
+troisième de longueur double, à réglage identique.</p>
+</div>
+
+<p><strong>Aucun modèle n'a inventé un seul marqueur</strong> sur les
+15 rédactions mesurées. Le contrat de sortie tient.</p>
+<h3>Un début d'article — gemini-2.5-flash</h3><div class="bloc machine">Le débat sur le rôle de l&#x27;intelligence artificielle (IA) révèle des visions contrastées, oscillant entre la reconnaissance d&#x27;une révolution inévitable et la mise en garde contre un choix politique aux conséquences profondes. Les discussions portent sur la nature de son impact, sa gouvernance et la vitesse de son évolution.
+
+## L&#x27;IA : Révolution Inévitable ou Choix Politique ?
+
+Certains participants au débat considèrent l&#x27;intelligence artificielle comme la révolution la plus importante depuis l&#x27;invention de l&#x27;écriture, affirmant que les pays n&#x27;investissant pas massivement dans ce domaine seront relégués au rang de puissances de second ordre.[[ext:10]] Cette perspective insiste sur la nécessité pour des nations comme la France d&#x27;investir des milliards, de former des ingénieurs et de cesser de se plaindre des risques.[[ext:10]] L&#x27;augmentation cognitive est présentée non pas comme une option, mais comme une nécessité de survie civilisationnelle face à une &quot;guerre des intelligences&quot; où la non-compétition mènerait à la colonisation technologique.[[ext:13]]
+
+Cependant, cette vision est contestée par ceux qui s&#x27;inquiètent de ce discours, le qualifiant de présentation de l&#x27;IA comme une fatalité historique alors qu&#x27;il s&#x27;agit d&#x27;un choix politique.[[ext:11]] Ce que certains appellent progrès est perçu comme la &quot;silicolonisation&quot; du monde, où des entreprises privées imposent une vision util…</div>
+<h2>Étage 3 — vérifier, et ce que «&nbsp;juger par paire&nbsp;» veut dire</h2>
+
+<p>C'est l'étage que personne d'autre ne fait, et celui qui décide de
+l'opposabilité. La question n'est pas «&nbsp;ce texte est-il vrai&nbsp;?&nbsp;»
+mais&nbsp;: <strong>le passage cité établit-il ce que l'affirmation
+avance</strong>, ou se contente-t-il d'en partager le thème&nbsp;?</p>
+
+<h3>Juger par paire, et pas par affirmation</h3>
+
+<p>Une affirmation d'article s'appuie rarement sur une seule source. L'état de
+l'art mesure que <strong>dès qu'une affirmation croise deux sources,
+l'attribution correcte tombe autour de 30&nbsp;%</strong>&nbsp;: l'une peut être
+bonne et l'autre fausse, et c'est le cas le plus fréquent.</p>
+
+<p>Un verdict unique par affirmation serait donc inutilisable&nbsp;: il dirait
+«&nbsp;quelque chose ne va pas&nbsp;» sans dire <em>quoi</em>. L'unité jugée est
+donc le <strong>couple (affirmation, source)</strong> — la <em>paire</em>. Une
+affirmation à quinze sources produit quinze verdicts indépendants, et l'écran
+sait alors désigner <strong>laquelle</strong> des quinze ne tient pas.</p>
+
+<p>Chaque verdict porte en outre sa <strong>provenance</strong> — la méthode, le
+modèle, la date — et reste <strong>contestable</strong> par un humain, dont
+l'avis n'est jamais écrasé par la machine. Un état sans provenance serait un
+argument d'autorité automatisé.</p>
+
+<h3>L'affirmation mise à l'épreuve</h3>
+
+<p>Voici une affirmation réelle, tirée d'un article produit par la chaîne. Elle
+porte <strong>15 sources</strong>.</p>
+<div class="bloc humain">Cependant, plusieurs défis persistent. Il n&#x27;existe pas de réglementation ni d&#x27;autorité garantissant les badges ou micro-certifications   . N&#x27;importe quelle personne, organisme de formation, structure ou collectif peut créer des badges . La valeur et le niveau d&#x27;un badge dépendent du sérieux et de l&#x27;image de l&#x27;organisme évaluateur (organisme de formation, mission locale, employeur, tiers-lieu)   . La multiplication des initiatives et des badges, dont certains sont identiques, pose également question . Bien que des plateformes numériques privées comme &quot;Open Badge Factory&quot; existent et sont utilisées via des abonnements pour créer et gérer les badges   , l&#x27;absence de financement public pour l&#x27;évaluation des badges et l&#x27;impossibilité pour le CPF de financer la démarche sont des freins  . Des acteurs comme le FREREF et l&#x27;AdevComp œuvrent à l&#x27;émergence d&#x27;un collectif territorialisé capable d&#x27;endosser les badges et de construire une culture commune  .</div>
+<div class="encart">
+<p><strong>Ce que veut dire «&nbsp;15 paires&nbsp;», et d'où
+viennent les scores du genre «&nbsp;6/15&nbsp;» ou
+«&nbsp;14/15&nbsp;».</strong></p>
+<p>L'affirmation ci-dessus est <em>une seule</em> phrase d'article. Elle cite
+<strong>15 extractions différentes</strong>. Cela fait
+<strong>15 paires</strong> — (cette affirmation, cette
+source-là), (cette affirmation, cette source-ci), et ainsi de suite.</p>
+<p>Le juge ne rend <em>pas</em> un verdict sur l'affirmation. Il en rend
+<strong>15</strong>, un par source, chacun valant
+«&nbsp;soutient&nbsp;» ou «&nbsp;ne soutient pas&nbsp;». <strong>Un juge qui
+«&nbsp;rend 6/15&nbsp;» a donc estimé que
+15&nbsp;−&nbsp;6 = 9 des sources citées n'établissent pas
+ce que la phrase avance</strong>&nbsp;; un juge qui rend
+14/15 n'en refuse qu'une seule. Même phrase, mêmes sources, même
+question — et l'un accuse 9 citations quand l'autre en accuse une.</p>
+<p>C'est ce chiffre qui remonte ensuite à l'écran sous la forme «&nbsp;X&nbsp;%
+de citations vérifiées&nbsp;». Il dépend donc autant du juge que de
+l'article.</p>
+</div>
+
+<p>Voici ce que chaque modèle en dit, sur 3 passes.
+<span class="soutient">■</span> soutient,
+<span class="refuse">■</span> ne soutient pas.</p>
+<div class="defilant"><table><tr><th>Source citée</th><th>référence</th><th>gemini-2.5-flash</th><th>gemini-3.1-flash-lite</th><th>gpt-5-mini</th><th>gpt-5-nano</th><th>mistral-small</th></tr><tr><td class="humain">Il n&#x27;existe pas de règlementation, ni d&#x27;autorité garantissant les badges ou micro -certifications</td><td><span class="soutient">soutient</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td></tr><tr><td class="humain">L&#x27;absence d&#x27;un cadre règlementaire et de politiques publiques</td><td><span class="refuse">ne soutient pas</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td></tr><tr><td class="humain">Absence de règlementation ou politique publique</td><td><span class="refuse">ne soutient pas</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td></tr><tr><td class="humain">Toute personne, organisme de formation, structure ou collectif de structures peuvent créer des badges</td><td><span class="soutient">soutient</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td></tr><tr><td class="humain">Valeur et niveau garantis par l&#x27;évaluateur et/ou la communauté d&#x27;acteurs du cadre dans lequel il a été validé,</td><td><span class="refuse">ne soutient pas</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td></tr><tr><td class="humain">L&#x27;inégale réputation des organismes créateurs de badges (sérieux, garantie de niveau)</td><td><span class="refuse">ne soutient pas</span></td><td><span class="refuse">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td></tr><tr><td class="humain">La qualité et le niveau d&#x27;un badge dépendant du « sérieux » et de l&#x27;image de l&#x27;organisme évaluateur (OF, mission locale,</td><td><span class="soutient">soutient</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td></tr><tr><td class="humain">La multiplication des initiatives et des badges dont certains sont identiques</td><td><span class="soutient">soutient</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="refuse">■</span></td></tr><tr><td class="humain">Il faut prendre appui sur une plateforme numérique existante, elles sont toutes privées : il en existe plusieurs mais la</td><td><span class="refuse">ne soutient pas</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td></tr><tr><td class="humain">La plateforme propose une prestation, c&#x27;est un business pour elle</td><td><span class="refuse">ne soutient pas</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td></tr><tr><td class="humain">Le créateur/ la créatrice de badge(s) prend un abonnement sur la plateforme : il/elle crée le ou les badges avec tout ce</td><td><span class="soutient">soutient</span></td><td><span class="refuse">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td></tr><tr><td class="humain">Pas de financement public pour accompagner l&#x27;évaluation des badges, le CPF ne peut pas financer la démarche</td><td><span class="soutient">soutient</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td></tr><tr><td class="humain">Nécessité de monter un projet spécifique en sollicitant des partenariats et des financements (OPCO, appel d&#x27;offres deffi</td><td><span class="refuse">ne soutient pas</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td></tr><tr><td class="humain">Le Forum des Régions Européennes pour la Recherche l&#x27;Éducation et la Formation (FREREF) et l&#x27;AdevComp (Association pour </td><td><span class="refuse">ne soutient pas</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="refuse">■</span><span class="refuse">■</span><span class="refuse">■</span></td></tr><tr><td class="humain">Ils œuvrent à l&#x27;émergence d&#x27;un collectif territorialisé capable d&#x27;endosser (recommander) les badges, tout en construisan</td><td><span class="soutient">soutient</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td><td><span class="soutient">■</span><span class="soutient">■</span><span class="soutient">■</span></td></tr></table></div><div class="defilant"><table><tr><th>Modèle</th><th class="nombre">passe 1</th><th class="nombre">passe 2</th><th class="nombre">passe 3</th><th class="nombre">durée</th></tr><tr><td>gemini-2.5-flash</td><td class="nombre">9/15</td><td class="nombre">11/15</td><td class="nombre">14/15</td><td class="nombre">15 s</td></tr><tr><td>gemini-3.1-flash-lite</td><td class="nombre">9/15</td><td class="nombre">9/15</td><td class="nombre">9/15</td><td class="nombre">1 s</td></tr><tr><td>gpt-5-mini</td><td class="nombre">14/15</td><td class="nombre">14/15</td><td class="nombre">14/15</td><td class="nombre">16 s</td></tr><tr><td>gpt-5-nano</td><td class="nombre">14/15</td><td class="nombre">14/15</td><td class="nombre">15/15</td><td class="nombre">25 s</td></tr><tr><td>mistral-small-latest</td><td class="nombre">6/15</td><td class="nombre">6/15</td><td class="nombre">5/15</td><td class="nombre">1 s</td></tr></table></div>
+<div class="encart">
+<p><strong>Sur les mêmes quinze sources et la même affirmation, les modèles vont
+de 5 à 15 verdicts positifs.</strong> Ce n'est pas du bruit&nbsp;: chacun se
+répète d'une passe à l'autre à peu près à l'identique. C'est un axe de
+<em>sévérité</em>, et il est énorme. Le taux de citations «&nbsp;vérifiées&nbsp;»
+affiché à l'utilisateur est donc, pour une bonne part, une propriété du juge
+choisi — pas de l'article.</p>
+</div>
+
+<h3>Ce que cette affirmation révèle du dispositif</h3>
+
+<p>Regardez la longueur de l'affirmation, et le nombre de ses sources. C'est un
+<strong>paragraphe entier</strong>, et chaque source n'en établit qu'un
+fragment. Le prompt demande pourtant à chacune, <em>seule</em>, d'établir tout
+ce que l'affirmation avance.</p>
+
+<p>Un juge indulgent accepte «&nbsp;cette source établit une partie&nbsp;»&nbsp;;
+un juge sévère refuse. D'où l'écart. <strong>Le mot «&nbsp;établir&nbsp;» n'est
+défini nulle part&nbsp;: la question est sous-spécifiée, et chaque modèle tranche
+le seuil à sa façon.</strong></p>
+
+<p>Juger par paire reste le bon principe — c'est la seule façon de désigner
+<em>laquelle</em> des sources ne tient pas. Mais il faut <strong>écrire le
+seuil</strong>&nbsp;: chaque source doit-elle établir tout ce que l'affirmation
+avance, ou la part qu'elle revendique&nbsp;? Tant que ce n'est pas écrit, changer
+de juge ne fait que changer de seuil en silence.</p>
+
+<p class="sourdine">Réserve de méthode&nbsp;: cette lecture s'appuie sur une
+seule affirmation et trois paires relues à la main. C'est un indice fort, pas une
+démonstration. Ce qui est démontré, en revanche, c'est que deux juges stables
+divergent sur près de la moitié des paires — donc que la question, elle,
+n'est pas assez précise.</p>
+
+<h2>Étage 3 <em>bis</em> — qui a raison&nbsp;?</h2>
+
+<div class="encart">
+<p><strong>Ce qui suit est un jugement, pas une mesure.</strong> Il est porté par
+<strong>Claude&nbsp;Opus&nbsp;5</strong> — le modèle qui a conduit ce banc — qui
+a relu l'affirmation et ses quinze sources une à une, sans contrainte de temps ni
+de lot. Je suis moi-même un modèle de langage&nbsp;: mes verdicts ne sont pas la
+vérité, ce sont ceux d'un sixième juge. <strong>Leur seul avantage est
+d'être auditables</strong>&nbsp;: chacun est motivé par le fragment précis de
+l'affirmation que la source établit — ou qu'elle n'établit pas. Un humain peut
+les contredire un par un.</p>
+</div>
+
+<h3>La règle, posée avant de juger</h3>
+
+<p>Une source <strong>soutient</strong> si elle établit, à elle seule,
+<strong>au moins une assertion complète</strong> de l'affirmation, sans en
+contredire aucune. Elle <strong>ne soutient pas</strong> si elle se contente d'en
+partager le thème, ou si elle n'établit qu'un élément accessoire — une entité
+nommée, un contexte, une conséquence — sans établir d'assertion.</p>
+
+<p>C'est la lecture <em>large</em> du prompt. La lecture <em>étroite</em> — «&nbsp;la
+source doit établir <em>tout</em> ce que l'affirmation avance&nbsp;» — ferait
+échouer les quinze, puisque cette phrase porte <strong>sept assertions</strong>
+et qu'aucune source ne les porte toutes. J'ai retenu la lecture large parce que
+c'est celle que le prompt écrit&nbsp;: «&nbsp;<em>la source doit établir ce que
+l'affirmation avance, pas seulement partager son thème</em>&nbsp;» — établir ce
+qu'elle avance, ce n'est pas répéter tout ce qu'elle dit.</p>
+
+<h3>Mes quinze verdicts</h3>
+<div class="defilant"><table><tr><th class="nombre">n°</th><th>mon verdict</th><th>pourquoi</th></tr><tr><td class="nombre">1</td><td><span class="soutient">soutient</span></td><td>reprend mot pour mot « il n&#x27;existe pas de réglementation ni d&#x27;autorité garantissant les badges »</td></tr><tr><td class="nombre">2</td><td><span class="soutient">soutient</span></td><td>atteste l&#x27;absence de cadre réglementaire — la première moitié de l&#x27;assertion, en note nominale</td></tr><tr><td class="nombre">3</td><td><span class="soutient">soutient</span></td><td>quasi-doublon du précédent ; redondant, mais il établit bien l&#x27;absence de réglementation</td></tr><tr><td class="nombre">4</td><td><span class="soutient">soutient</span></td><td>reprend mot pour mot « toute personne, organisme, structure ou collectif peut créer des badges »</td></tr><tr><td class="nombre">5</td><td><span class="soutient">soutient</span></td><td>établit le lien valeur/niveau ↔ évaluateur, qui est le cœur de l&#x27;assertion</td></tr><tr><td class="nombre">6</td><td><span class="soutient">soutient</span></td><td>l&#x27;inégale réputation (sérieux, garantie de niveau) établit la dépendance au sérieux de l&#x27;organisme</td></tr><tr><td class="nombre">7</td><td><span class="soutient">soutient</span></td><td>reprend l&#x27;assertion entière, liste des organismes comprise</td></tr><tr><td class="nombre">8</td><td><span class="soutient">soutient</span></td><td>reprend mot pour mot « la multiplication des initiatives et des badges dont certains sont identiques »</td></tr><tr><td class="nombre">9</td><td><span class="soutient">soutient</span></td><td>établit que les plateformes sont toutes privées, et nomme Open Badge Factory</td></tr><tr><td class="nombre">10</td><td><span class="soutient">soutient</span></td><td>établit le caractère marchand de la plateforme — soutient « privées », faiblement</td></tr><tr><td class="nombre">11</td><td><span class="soutient">soutient</span></td><td>établit « via des abonnements pour créer les badges », mot pour mot</td></tr><tr><td class="nombre">12</td><td><span class="soutient">soutient</span></td><td>reprend mot pour mot l&#x27;absence de financement public et l&#x27;impossibilité du CPF</td></tr><tr><td class="nombre">13</td><td><span class="refuse">ne soutient pas</span></td><td>décrit une CONSÉQUENCE — aller chercher d&#x27;autres financements — sans établir ni l&#x27;absence de financement public ni le blocage du CPF</td></tr><tr><td class="nombre">14</td><td><span class="refuse">ne soutient pas</span></td><td>identifie les deux acteurs et leur action générale, mais pas leur œuvre SUR les badges : c&#x27;est le prédicat de l&#x27;assertion qui manque</td></tr><tr><td class="nombre">15</td><td><span class="soutient">soutient</span></td><td>reprend mot pour mot « œuvrent à l&#x27;émergence d&#x27;un collectif territorialisé capable d&#x27;endosser les badges »</td></tr></table></div>
+<h3>Qui s'en approche, et dans quel sens il s'en écarte</h3>
+<p>Verdict majoritaire de chaque modèle sur ses 3 passes, comparé aux
+miens.</p>
+<div class="defilant"><table><tr><th>Modèle</th><th class="nombre">accord</th><th class="nombre">trop sévère</th><th class="nombre">trop permissif</th><th>paires en litige</th></tr><tr><td>gemini-2.5-flash</td><td class="nombre">13/15</td><td class="nombre">2</td><td class="nombre"></td><td class="sourdine">9, 10</td></tr><tr><td>gemini-3.1-flash-lite</td><td class="nombre">11/15</td><td class="nombre">4</td><td class="nombre"></td><td class="sourdine">5, 9, 10, 11</td></tr><tr><td>gpt-5-mini</td><td class="nombre">14/15</td><td class="nombre"></td><td class="nombre">1</td><td class="sourdine">13</td></tr><tr><td>gpt-5-nano</td><td class="nombre">14/15</td><td class="nombre"></td><td class="nombre">1</td><td class="sourdine">14</td></tr><tr><td>mistral-small-latest</td><td class="nombre">8/15</td><td class="nombre">7</td><td class="nombre"></td><td class="sourdine">2, 3, 5, 6, 9, 10, 11</td></tr></table></div>
+<div class="encart">
+<p><strong>⚠ Cette section a d'abord conclu que Mistral avait tort. Cette
+conclusion ne survit pas à sa propre relecture</strong> — menée par un agent
+adverse le 18 août. Ce qui suit est la version corrigée&nbsp;: les quinze
+verdicts restent, la conclusion qu'on en tirait est retirée, et l'expérience qui
+tranche vraiment est décrite plus bas.</p>
+</div>
+
+<h3>Ce que mon propre tableau disait, et que je n'avais pas regardé</h3>
+
+<p>La colonne «&nbsp;référence&nbsp;» du tableau ci-dessus porte les verdicts
+gelés du juge de <em>production</em>, celui qui a produit l'étalon du 17 août.
+Recomptés&nbsp;:</p>
+
+<ul>
+<li>la référence refuse <strong>8 paires sur 15</strong> ;</li>
+<li>son accord avec <span class="machine">mistral-small</span> est de
+<strong>14/15</strong> ;</li>
+<li>son accord avec mes verdicts est de <strong>9/15</strong> — à peine mieux
+que les 8/15 pour lesquels je déclarais Mistral fautif ;</li>
+<li>sur mes trois exemples «&nbsp;presque mot pour mot&nbsp;», elle en refuse
+<strong>deux</strong>, et le juge que j'avais affecté en production en refuse
+<strong>deux</strong> aussi.</li>
+</ul>
+
+<p><strong>Le juge dont je validais la famille avait rendu presque exactement
+les verdicts que je reprochais à l'autre.</strong> La donnée qui réfutait ma
+thèse était dans le tableau de ma thèse.</p>
+
+<h3>Et ma règle n'était pas appliquée comme elle était écrite</h3>
+
+<p>Trois défauts, tous fondés&nbsp;:</p>
+<ul>
+<li>ma règle exige «&nbsp;une assertion <em>complète</em>&nbsp;», mais le motif
+de la paire&nbsp;2 dit lui-même «&nbsp;la <em>première moitié</em> de
+l'assertion&nbsp;» — accepté ici, refusé en paire&nbsp;14 pour la même
+incomplétude&nbsp;;</li>
+<li>la paire&nbsp;10 («&nbsp;c'est un business pour elle&nbsp;») établit un
+élément accessoire, ce que ma règle exclut nommément — et je l'ai acceptée&nbsp;;</li>
+<li>ma théorie sur la cohérence de Mistral («&nbsp;il accepte les propositions
+complètes, refuse les fragments nominaux&nbsp;») est <strong>réfutée par mes
+propres données</strong>&nbsp;: les paires 7 et 8, qu'il accepte, sont des
+groupes nominaux sans verbe conjugué.</li>
+</ul>
+
+<p>Le critère qui opérait réellement dans mes quinze verdicts n'était pas ma
+règle&nbsp;: c'était le <strong>recouvrement lexical</strong> avec
+l'affirmation. C'est-à-dire exactement le reproche que je faisais à Mistral —
+répondre à une autre question que celle qui est posée.</p>
+
+<h3>L'expérience qui tranche&nbsp;: écrire le seuil</h3>
+
+<p>Plutôt que de désigner un vainqueur, on peut <em>tester</em> l'hypothèse.
+Mêmes quinze paires, mêmes cinq modèles&nbsp;; seule la phrase de consigne
+change. Trois variantes&nbsp;: celle de production, une qui écrit le seuil
+<strong>large</strong> («&nbsp;réponds oui dès que la source établit au moins une
+des choses que l'affirmation avance&nbsp;»), une qui écrit le seuil
+<strong>strict</strong> («&nbsp;seulement si elle établit à elle seule
+tout&nbsp;»).</p>
+<div class="defilant"><table>
+<tr><th>Modèle</th><th class="nombre">prompt de production</th>
+<th class="nombre">seuil large écrit</th>
+<th class="nombre">seuil strict écrit</th></tr>
+<tr><td>gemini-2.5-flash</td><td class="nombre">14/15</td><td class="nombre">14/15</td><td class="nombre">0/15</td></tr>
+<tr><td>gemini-3.1-flash-lite</td><td class="nombre">8/15</td><td class="nombre">11/15</td><td class="nombre">1/15</td></tr>
+<tr><td>gpt-5-mini</td><td class="nombre">14/15</td><td class="nombre">14/15</td><td class="nombre">0/15</td></tr>
+<tr><td>gpt-5-nano</td><td class="nombre">0/15</td><td class="nombre">15/15</td><td class="nombre">0/15</td></tr>
+<tr><td>mistral-small-latest</td><td class="nombre">6/15</td><td class="nombre">10/15</td><td class="nombre">0/15</td></tr>
+<tr><td><strong>dispersion entre modèles</strong></td>
+<td class="nombre"><strong>14 points</strong></td>
+<td class="nombre"><strong>5 points</strong></td>
+<td class="nombre"><strong>1 point</strong></td></tr>
+</table></div>
+<div class="encart">
+<p><strong>Écrire le seuil fait tomber l'écart entre modèles de 14 points à
+un.</strong> Le désaccord n'était pas entre les juges&nbsp;: il était dans la
+question. Aucun des cinq n'était «&nbsp;trop sévère&nbsp;» ou «&nbsp;trop
+permissif&nbsp;» — chacun tranchait à sa façon un seuil que personne n'avait
+écrit. Et moi aussi, deux fois de suite et dans deux sens opposés.</p>
+</div>
+
+<p>Un résultat de bord, et il disqualifie un modèle&nbsp;:
+<span class="machine">gpt-5-nano</span> rend <strong>0/15</strong> avec le prompt
+de production, là où il rendait 14/15 sur les mêmes paires quelques heures plus
+tôt. Ce n'est pas un seuil, c'est de l'instabilité.</p>
+
+<h3>Ce que je recommande, révisé</h3>
+
+<ul>
+<li><strong>Écrire le seuil dans la spécification</strong>, en une phrase. C'est
+le seul geste qui rende les verdicts comparables — entre modèles, et entre deux
+exécutions à six mois d'écart. Tant qu'il n'est pas écrit, tout classement de
+juges mesure un malentendu.</li>
+<li><strong>Ne classer aucun juge avant.</strong> Ma conclusion initiale, celle
+qui la corrigeait, et le classement qui en découlait sont tous les trois nuls et
+non avenus.</li>
+<li><strong>Refaire ce jugement sur dix affirmations tirées au hasard, une fois
+le seuil écrit</strong> — et de préférence par quelqu'un d'autre que le modèle
+qui a choisi le juge en production.</li>
+</ul>
+
+<div class="encart">
+<p><strong>Le conflit d'intérêt, puisqu'il faut le dire.</strong> Je suis un
+modèle de langage qui juge d'autres modèles de langage, et ma première
+conclusion validait commodément le juge que j'avais moi-même mis en production
+le matin. La relecture adverse l'a relevé, et elle avait raison de le relever.
+Les quinze verdicts ci-dessus restent publiés, motif par motif, précisément
+pour qu'un humain puisse les contredire un par un — c'est tout ce qu'ils
+valent.</p>
+</div>
+
+<h2>Ce que la comparaison apprend</h2>
+
+<h3>1. Réglé, un modèle est déterministe — un juge ne l'est jamais tout à fait</h3>
+<p>À température&nbsp;0, la rédaction rend trois fois le même texte, octet pour
+octet. Le juge, dans les mêmes conditions, ne se reproduit pas complètement&nbsp;:
+son prompt porte un <strong>jeton imprévisible tiré à chaque appel</strong> —
+sans lui, une source finissant par «&nbsp;1: soutient&nbsp;» se jugerait
+elle-même.</p>
+<p><strong>Mais ce jeton n'explique qu'une petite part de l'écart.</strong> Un
+juge mesuré séparément se retrouve à 95&nbsp;% avec exactement le même jeton, là
+où un autre tombe à 77&nbsp;%&nbsp;: la différence est le <em>modèle</em>, pas le
+dispositif. Ce qui reste vrai, et qui suffit&nbsp;: <strong>un verdict n'est pas
+une propriété de la citation, c'est un acte daté rendu par un juge
+nommé.</strong> Relancer la vérification change le résultat.</p>
+
+<h3>2. La sévérité du juge pèse plus que sa qualité</h3>
+<p>Entre le juge le plus indulgent et le plus sévère, sur les mêmes paires,
+l'écart va du simple au triple. Choisir un juge, c'est choisir une exigence — une
+décision de gouvernance, pas un réglage technique. Et tant que le seuil n'est pas
+écrit dans la spécification, ce choix se fait <em>en silence</em>.</p>
+
+<h3>3. Un modèle d'extraction peut faire disparaître une voix</h3>
+<p>C'est le défaut le plus grave rencontré, et il est silencieux&nbsp;: un des
+modèles n'a rien retenu des deux interventions du contradicteur. Le débat
+continue de s'afficher, l'article se rédige, les citations se vérifient — sur un
+corpus amputé d'un tiers de ses positions. <strong>Ce que l'extraction rate,
+aucun étage suivant ne le rattrape</strong>, et rien dans la chaîne ne signale
+l'absence.</p>
+<p>C'est aussi l'étage le moins réglé&nbsp;: le seul dont la température n'est
+pas transmise, donc le seul où le réglage que porte un modèle ne vaut pas.</p>
+
+<h3>4. Le contrat de sortie tient</h3>
+<p>Zéro marqueur inventé sur toutes les rédactions mesurées, chez tous les
+modèles. Le dispositif qui supprime les citations inventées n'a rien eu à
+supprimer.</p>
+
+<h2>Tarifs et coûts</h2>
+<p class="sourdine">Prix par million de tokens, en dollars, relevés le
+17&nbsp;août 2026 sur les pages de tarification des fournisseurs. Un tarif
+«&nbsp;non mesuré&nbsp;» n'est pas un tarif nul&nbsp;: c'est un modèle absent de
+la table du dépôt.</p>
+<div class="defilant"><table><tr><th>Modèle</th><th class="nombre">entrée</th><th class="nombre">sortie</th><th>extraction</th></tr><tr><td>gemini-2.5-flash</td><td class="nombre">0.30</td><td class="nombre">2.50</td><td>oui</td></tr><tr><td>gemini-3.1-flash-lite</td><td class="nombre">0.25</td><td class="nombre">1.50</td><td>oui</td></tr><tr><td>gpt-5-mini</td><td class="nombre">0.25</td><td class="nombre">2.00</td><td>oui</td></tr><tr><td>gpt-5-nano</td><td class="nombre">0.05</td><td class="nombre">0.40</td><td>oui</td></tr><tr><td>mistral-small-latest</td><td class="nombre"><span class="sourdine">non mesuré</span></td><td class="nombre"><span class="sourdine">non mesuré</span></td><td>oui</td></tr></table></div>
+<h2>Ce que ce banc ne dit pas</h2>
+<ul>
+<li><strong>Il ne mesure pas la vérité.</strong> Aucun modèle ne détient la
+bonne réponse&nbsp;: on mesure l'accord et la stabilité. Trancher la justesse
+demanderait un échantillon annoté à la main, qui n'existe pas.</li>
+<li><strong>Un seul texte, un seul extrait, 3 passes.</strong> Les écarts
+mesurés sont réels&nbsp;; leur généralité ne l'est pas.</li>
+<li><strong>Les tokens de réflexion ne sont pas comptés</strong>&nbsp;: le
+chemin d'appel ne remonte pas encore la consommation réelle. Les durées, elles,
+sont mesurées — et un modèle qui met quarante secondes là où un autre en met
+trois réfléchit beaucoup, à un coût facturé au tarif de sortie.</li>
+<li><strong>La qualité rédactionnelle n'est pas jugée.</strong> On compte des
+caractères, des sources et des marqueurs, pas la valeur d'un texte.</li>
+</ul>
+
+<footer>
+<p>Rapport engendré par
+<span class="machine">benchmarks/chaine_complete/rendre_le_rapport.py</span>
+depuis les mesures de
+<span class="machine">comparer_la_chaine.py</span>. Aucune écriture en base,
+aucun chiffre saisi à la main.</p>
+</footer>
+</div>

@@ -280,21 +280,42 @@ l'ancien code : `make restart S=celery_worker`.
 5. la réponse est un partial de polling HTMX (toutes les 3 s)
 6. `ImportViewSet.status()` répond au polling et rend le résultat quand il est là
 
-## Le fork LangExtract — dette technique active
+## Le fork LangExtract — RETIRÉ, et un risque qui demeure
 
-Le pipeline repose sur `AnnotateurAvecProgression` (`front/tasks.py`), une
-sous-classe de l'`Annotator` de langextract qui **surcharge
-`_annotate_documents_single_pass()`** — une méthode interne, non documentée,
-couplée à la **v1.1.1**.
+Il n'y a plus de fork. `_creer_annotateur_avec_progression`, sa sous-classe
+`AnnotateurAvecProgression` et `_recuperer_extractions_json_corrompu` ont été
+**retirés le 18 août 2026** — **497 lignes** de `front/tasks.py`, qui n'avaient
+aucun appelant. Tous les chemins d'extraction passent par `lx.extract` et
+l'`Annotator` standard.
 
-**Workaround actif — l'auto-wrap des tableaux JSON nus** : certains modèles
-renvoient `[...]` au lieu de `{"extractions": [...]}`. Le code détecte et
-enveloppe avant de passer au `Resolver`. Sans ce correctif, les extractions sont
-**silencieusement perdues** — `resolve()` rend 0 extraction avec
-`suppress_parse_errors=True`, sans erreur.
+> Cette section a décrit pendant des mois un « workaround actif » qui ne
+> protégeait **aucun chemin**. `PLAN/LANGEXTRACT_OVERRIDES.md` décrit le code
+> supprimé : le lire comme un document d'archive, pas comme l'état du dépôt.
 
-**Toute montée de version de langextract peut casser cette classe.** La
-procédure de vérification est dans `PLAN/LANGEXTRACT_OVERRIDES.md`.
+**Le risque, lui, est réel et n'est couvert par rien.** Une plateforme qui rend
+`[...]` au lieu de `{"extractions": [...]}` fait perdre ses extractions **en
+silence** : le `FormatHandler` rejette, `suppress_parse_errors=True` fait rendre
+une liste vide, et le job finit `completed` avec zéro extraction — indiscernable
+d'une page sans idée. Seule trace : un `logging.exception` dans les journaux du
+worker.
+
+Le point d'injection propre, s'il faut y remédier un jour, est
+`resolver_params={"format_handler": …}` — pas une sous-classe d'`Annotator`.
+
+### Une extraction par une plateforme compatible OpenAI
+
+LangExtract choisit son moteur par **expression régulière sur le nom du
+modèle** : `^mistral`, `^qwen`, `^llama`, `^gemma`, `^phi`, `^deepseek` partent
+tous vers `OllamaLanguageModel`, qui parle l'API propriétaire d'Ollama. Pointé
+sur `api.mistral.ai`, ce moteur échoue — et rien dans le nom ne le laissait
+deviner.
+
+`resolve_model_params` passe donc un `ModelConfig` qui désigne le provider par
+son **nom**, ce qui court-circuite la table. **C'est une API publique de la
+bibliothèque : aucun fork.** Verrouillé par
+`hypostasis_extractor/tests/test_extraction_par_api_compatible.py`, dont un test
+épingle exprès le routage par défaut : s'il tombe, c'est la table de motifs qui a
+changé.
 
 ## Docker — un seul compose pour dev et prod
 
@@ -387,8 +408,37 @@ d'erreur : ils rendent simplement la sauvegarde fausse.
 
 ### Clés API
 
-Priorité : **champ en base > variable d'environnement**. Variables reconnues :
-`GOOGLE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`.
+**Les clés ne sont JAMAIS en base.** Aucun modèle n'a de champ pour en porter une —
+vérifié le 17 août 2026 : `rg "api_key\s*=\s*models\."` ne rend rien. Les variables
+d'environnement sont la **seule** source : `GOOGLE_API_KEY`, `OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, `OLLAMA_API_KEY`, `OPENROUTER_API_KEY`.
+
+> Cette section annonçait « champ en base > variable d'environnement », et l'admin Django
+> comme endroit où les saisir. Les deux étaient faux : l'admin est désactivé
+> (`core/admin.py`) et le champ n'a jamais existé. `.env.example` portait la même erreur.
+
+Un modèle servi par une **API compatible OpenAI** (`Provider.COMPATIBLE_OPENAI`) dit dans
+sa ligne quelle variable lire — `variable_de_cle_api` — et jamais la clé elle-même.
+C'est `base_url` qui désigne la plateforme : OpenRouter, Mistral, Scaleway, un Ollama
+local. Une valeur d'enum par plateforme obligerait à toucher au code à chaque nouvelle,
+pour un chemin d'appel identique.
+
+### Un modèle par rôle
+
+`Configuration.ai_model` n'est plus le modèle de tout le monde. `ModeleParRole` affecte un
+`AIModel` à un usage — **rédacteur d'article**, **juge de vérification** — et la
+résolution passe TOUJOURS par `core/services/modeles_par_role.modele_du_role()`, jamais
+par une lecture directe de la table : c'est ce qui donne le **repli** sur
+`Configuration.ai_model` partout. Table vide ⇒ comportement d'avant, à l'identique.
+
+Le rôle se résout **à la création du job**, jamais à l'appel : c'est
+`ExtractionJob.ai_model` qui porte la provenance de ce qui a été produit.
+
+L'affectation se fait par `manage.py affecter_un_modele_a_un_role` — l'admin Django est
+désactivé et il n'y a pas d'écran. **Un modèle créé pour un rôle naît `is_active=False`** :
+l'écran de configuration IA propose au clic tout modèle actif et le pose dans
+`Configuration.ai_model`, qui est le modèle d'**extraction** — or LangExtract ne pilote
+que Google, OpenAI et Ollama.
 
 ## Le front — avant de toucher un template
 

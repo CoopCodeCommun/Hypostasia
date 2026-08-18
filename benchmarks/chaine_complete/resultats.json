@@ -1,0 +1,2142 @@
+{
+  "echantillon": {
+    "page_id": 3,
+    "titre": "Débat IA — transcription",
+    "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre. La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.\nVoilà exactement le discours qui m'inquiète. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.\nJe crois qu'il y a une troisième voie que vous négligez tous les deux. L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.\nUn commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences. Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement. L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.\nTu vois, c'est précisément cette rhétorique guerrière qui est toxique. L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements. Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.\nEric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire. Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options. Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+    "elements": [
+      {
+        "ordre": 0,
+        "label": "text",
+        "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre. La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+        "provenance": {
+          "fin": 27.5,
+          "debut": 0.0,
+          "locuteur": "Laurent"
+        }
+      },
+      {
+        "ordre": 1,
+        "label": "text",
+        "texte": "Voilà exactement le discours qui m'inquiète. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+        "provenance": {
+          "fin": 54.5,
+          "debut": 28.0,
+          "locuteur": "Eric"
+        }
+      },
+      {
+        "ordre": 2,
+        "label": "text",
+        "texte": "Je crois qu'il y a une troisième voie que vous négligez tous les deux. L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+        "provenance": {
+          "fin": 79.5,
+          "debut": 55.0,
+          "locuteur": "Elinor"
+        }
+      },
+      {
+        "ordre": 3,
+        "label": "text",
+        "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences. Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement. L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.",
+        "provenance": {
+          "fin": 107.5,
+          "debut": 80.0,
+          "locuteur": "Laurent"
+        }
+      },
+      {
+        "ordre": 4,
+        "label": "text",
+        "texte": "Tu vois, c'est précisément cette rhétorique guerrière qui est toxique. L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements. Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.",
+        "provenance": {
+          "fin": 134.5,
+          "debut": 108.0,
+          "locuteur": "Eric"
+        }
+      },
+      {
+        "ordre": 5,
+        "label": "text",
+        "texte": "Eric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire. Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options. Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+        "provenance": {
+          "fin": 161.5,
+          "debut": 135.0,
+          "locuteur": "Elinor"
+        }
+      }
+    ]
+  },
+  "perimetre_de_redaction": {
+    "identifiants": [
+      10,
+      11,
+      12,
+      13,
+      20,
+      21,
+      22,
+      23,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      43,
+      44,
+      45,
+      46
+    ],
+    "extractions": [
+      {
+        "id": 10,
+        "classe": "hypostase",
+        "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre. La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques."
+      },
+      {
+        "id": 11,
+        "classe": "hypostase",
+        "texte": "Voilà exactement le discours qui m'inquiète. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable."
+      },
+      {
+        "id": 12,
+        "classe": "hypostase",
+        "texte": "Je crois qu'il y a une troisième voie que vous négligez tous les deux. L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage."
+      },
+      {
+        "id": 13,
+        "classe": "hypostase",
+        "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences. Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement. L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle."
+      },
+      {
+        "id": 20,
+        "classe": "hypostase",
+        "texte": "L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements. Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui."
+      },
+      {
+        "id": 21,
+        "classe": "hypostase",
+        "texte": "Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options. Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local."
+      },
+      {
+        "id": 22,
+        "classe": "hypostase",
+        "texte": "Le problème, Elinor, c'est que l'IA évolue à une vitesse qui dépasse nos capacités d'auto-organisation. Dans dix ans, les machines auront une intelligence supérieure à la nôtre. Si nous n'avons pas préparé nos sociétés par l'éducation et l'investissement massif, nous assisterons à une bifurcation entre une élite cognitive augmentée et le reste de l'humanité laissé pour compte."
+      },
+      {
+        "id": 23,
+        "classe": "hypostase",
+        "texte": "Nous avons besoin d'une insurrection civique contre la délégation du jugement aux machines. L'humain n'est pas un profil statistique à optimiser. Il est temps de repolitiser radicalement le débat sur la technologie."
+      },
+      {
+        "id": 31,
+        "classe": "hypostase",
+        "texte": "Je partage ton inquiétude sur la concentration du pouvoir, Eric, mais je refuse le fatalisme. Regardez les logiciels libres, Wikipédia, les coopératives de données : ce sont des preuves vivantes que des communautés peuvent gouverner des ressources numériques de manière démocratique."
+      },
+      {
+        "id": 32,
+        "classe": "hypostase",
+        "texte": "L'enjeu n'est pas de refuser l'IA, mais de construire des institutions polycentriques qui empêchent sa capture par quelques acteurs privés."
+      },
+      {
+        "id": 33,
+        "classe": "hypostase",
+        "texte": "Vous êtes des rêveurs sympathiques, mais pendant que vous débattez de gouvernance et de communs, les laboratoires chinois et américains entraînent des modèles de plus en plus puissants."
+      },
+      {
+        "id": 34,
+        "classe": "hypostase",
+        "texte": "Le transhumanisme n'est pas une idéologie, c'est la description lucide de ce qui arrive. La convergence des nanotechnologies, de la biologie et de l'informatique va transformer l'espèce humaine, que cela nous plaise ou non."
+      },
+      {
+        "id": 35,
+        "classe": "hypostase",
+        "texte": "Et voilà le piège : transformer une idéologie en prophétie auto-réalisatrice. Non, Laurent, le transhumanisme n'est pas une description neutre du réel. C'est un projet politique porté par des intérêts économiques colossaux."
+      },
+      {
+        "id": 36,
+        "classe": "hypostase",
+        "texte": "Et c'est notre responsabilité collective de dire non à cette vision du monde qui réduit l'humanité à un problème d'optimisation."
+      },
+      {
+        "id": 43,
+        "classe": "hypostase",
+        "texte": "l'IA est un outil d'empuissancement formidable si — et seulement si — nous construisons les institutions capables de la gouverner collectivement."
+      },
+      {
+        "id": 44,
+        "classe": "hypostase",
+        "texte": "Ni la course technologique débridée de Laurent, ni le refus radical d'Eric ne suffisent."
+      },
+      {
+        "id": 45,
+        "classe": "hypostase",
+        "texte": "Il faut des règles claires, une participation des usagers aux décisions, et des mécanismes de contrôle gradués."
+      },
+      {
+        "id": 46,
+        "classe": "hypostase",
+        "texte": "C'est possible, et c'est notre responsabilité de le faire."
+      }
+    ]
+  },
+  "affirmation_jugee": {
+    "texte": "Cependant, plusieurs défis persistent. Il n'existe pas de réglementation ni d'autorité garantissant les badges ou micro-certifications   . N'importe quelle personne, organisme de formation, structure ou collectif peut créer des badges . La valeur et le niveau d'un badge dépendent du sérieux et de l'image de l'organisme évaluateur (organisme de formation, mission locale, employeur, tiers-lieu)   . La multiplication des initiatives et des badges, dont certains sont identiques, pose également question . Bien que des plateformes numériques privées comme \"Open Badge Factory\" existent et sont utilisées via des abonnements pour créer et gérer les badges   , l'absence de financement public pour l'évaluation des badges et l'impossibilité pour le CPF de financer la démarche sont des freins  . Des acteurs comme le FREREF et l'AdevComp œuvrent à l'émergence d'un collectif territorialisé capable d'endosser les badges et de construire une culture commune  .",
+    "paires": [
+      {
+        "lien_id": 114,
+        "source": "Il n'existe pas de règlementation, ni d'autorité garantissant les badges ou micro -certifications",
+        "reference": "soutient"
+      },
+      {
+        "lien_id": 115,
+        "source": "L'absence d'un cadre règlementaire et de politiques publiques",
+        "reference": "ne_soutient_pas"
+      },
+      {
+        "lien_id": 116,
+        "source": "Absence de règlementation ou politique publique",
+        "reference": "ne_soutient_pas"
+      },
+      {
+        "lien_id": 117,
+        "source": "Toute personne, organisme de formation, structure ou collectif de structures peuvent créer des badges",
+        "reference": "soutient"
+      },
+      {
+        "lien_id": 118,
+        "source": "Valeur et niveau garantis par l'évaluateur et/ou la communauté d'acteurs du cadre dans lequel il a été validé,",
+        "reference": "ne_soutient_pas"
+      },
+      {
+        "lien_id": 119,
+        "source": "L'inégale réputation des organismes créateurs de badges (sérieux, garantie de niveau)",
+        "reference": "ne_soutient_pas"
+      },
+      {
+        "lien_id": 120,
+        "source": "La qualité et le niveau d'un badge dépendant du « sérieux » et de l'image de l'organisme évaluateur (OF, mission locale, employeur, 1/3 Lieu …)",
+        "reference": "soutient"
+      },
+      {
+        "lien_id": 121,
+        "source": "La multiplication des initiatives et des badges dont certains sont identiques",
+        "reference": "soutient"
+      },
+      {
+        "lien_id": 122,
+        "source": "Il faut prendre appui sur une plateforme numérique existante, elles sont toutes privées : il en existe plusieurs mais la plus ancienne et la plus reconnue en France est « open badge factory »",
+        "reference": "ne_soutient_pas"
+      },
+      {
+        "lien_id": 123,
+        "source": "La plateforme propose une prestation, c'est un business pour elle",
+        "reference": "ne_soutient_pas"
+      },
+      {
+        "lien_id": 124,
+        "source": "Le créateur/ la créatrice de badge(s) prend un abonnement sur la plateforme : il/elle crée le ou les badges avec tout ce qui le ou les composent (visuel, niveaux, critères d'attribution comme l'observation en situation ou l'entretien d'évaluation)",
+        "reference": "soutient"
+      },
+      {
+        "lien_id": 125,
+        "source": "Pas de financement public pour accompagner l'évaluation des badges, le CPF ne peut pas financer la démarche",
+        "reference": "soutient"
+      },
+      {
+        "lien_id": 126,
+        "source": "Nécessité de monter un projet spécifique en sollicitant des partenariats et des financements (OPCO, appel d'offres deffinov' …)",
+        "reference": "ne_soutient_pas"
+      },
+      {
+        "lien_id": 127,
+        "source": "Le Forum des Régions Européennes pour la Recherche l'Éducation et la Formation (FREREF) et l'AdevComp (Association pour l'accompagnement et le Développement des Compétences) : agissent en Région en animant des alliances éducatives pour l'apprentissage tout au long de la vie en lien avec l'emploi.",
+        "reference": "ne_soutient_pas"
+      },
+      {
+        "lien_id": 128,
+        "source": "Ils œuvrent à l'émergence d'un collectif territorialisé capable d'endosser (recommander) les badges, tout en construisant une culture commune.",
+        "reference": "soutient"
+      }
+    ]
+  },
+  "passes": 3,
+  "modeles": [
+    {
+      "choix": "gemini-2.5-flash",
+      "tarif": [
+        0.3,
+        2.5
+      ],
+      "peut_extraire": true,
+      "extractions": [
+        {
+          "passe": 1,
+          "duree": 11.8,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre. La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+              "attributs": {
+                "resume": "L'IA est une révolution majeure nécessitant des investissements massifs pour la puissance nationale, et la France doit agir en conséquence.",
+                "hypostases": "théorie, loi, principe",
+                "mots_cles": "IA, révolution, investissement, puissance"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "L'IA est un choix politique menant à une 'silicolonisation' par des entreprises privées qui exploitent les données humaines.",
+                "hypostases": "problème, théorie, définition",
+                "mots_cles": "choix politique, silicolonisation, entreprises privées, données"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Je crois qu'il y a une troisième voie que vous négligez tous les deux. L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "Une troisième voie propose de gouverner l'IA comme un commun numérique, avec la participation des communautés d'usagers pour définir les règles.",
+                "hypostases": "méthode, hypothèse, théorie",
+                "mots_cles": "troisième voie, commun numérique, gouvernance, communautés"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences. Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement. L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.",
+              "attributs": {
+                "resume": "Les communs numériques sont irréalistes face à la compétition technologique mondiale, où le développement d'IA puissantes est une nécessité de survie.",
+                "hypostases": "théorie, problème, loi",
+                "mots_cles": "commun numérique, guerre des intelligences, survie, compétition"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Tu vois, c'est précisément cette rhétorique guerrière qui est toxique. L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements. Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.",
+              "attributs": {
+                "resume": "La rhétorique guerrière est toxique car l'IA, via ses algorithmes, gouverne nos comportements et pensées, agissant comme un pouvoir non élu.",
+                "hypostases": "phénomène, problème, mode",
+                "mots_cles": "rhétorique guerrière, gouvernance, algorithmes, pouvoir non élu"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Eric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire. Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options. Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "Les recherches sur les communs révèlent que des communautés peuvent s'auto-organiser pour gérer des ressources partagées comme l'IA, au-delà des modèles de marché ou d'État.",
+                "hypostases": "méthode, théorie, structure",
+                "mots_cles": "gouvernance, communs, auto-organisation, ressources partagées"
+              }
+            }
+          ]
+        },
+        {
+          "passe": 2,
+          "duree": 8.8,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre. La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+              "attributs": {
+                "resume": "L'IA est une révolution majeure nécessitant des investissements massifs pour la puissance nationale, et la France doit agir en conséquence.",
+                "hypostases": "théorie, loi, principe",
+                "mots_cles": "IA, révolution, investissement, puissance"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "L'IA est un choix politique menant à une 'silicolonisation' par des entreprises privées qui exploitent les données humaines.",
+                "hypostases": "problème, théorie, définition",
+                "mots_cles": "choix politique, silicolonisation, entreprises privées, données"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Je crois qu'il y a une troisième voie que vous négligez tous les deux. L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "Une troisième voie propose de gouverner l'IA comme un commun numérique, avec la participation des communautés d'usagers pour définir les règles.",
+                "hypostases": "méthode, hypothèse, théorie",
+                "mots_cles": "troisième voie, commun numérique, gouvernance, communautés"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences. Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement. L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.",
+              "attributs": {
+                "resume": "Les communs numériques sont irréalistes face à la compétition technologique mondiale, où le développement d'IA puissantes est une nécessité de survie.",
+                "hypostases": "théorie, problème, loi",
+                "mots_cles": "commun numérique, guerre des intelligences, survie, compétition"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Tu vois, c'est précisément cette rhétorique guerrière qui est toxique. L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements. Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.",
+              "attributs": {
+                "resume": "La rhétorique guerrière est toxique car l'IA, via ses algorithmes, gouverne nos comportements et pensées, agissant comme un pouvoir non élu.",
+                "hypostases": "phénomène, problème, mode",
+                "mots_cles": "rhétorique guerrière, gouvernance, algorithmes, pouvoir non élu"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Eric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire. Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options. Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "Les recherches sur les communs révèlent que des communautés peuvent s'auto-organiser pour gérer des ressources partagées comme l'IA, au-delà des modèles de marché ou d'État.",
+                "hypostases": "méthode, théorie, structure",
+                "mots_cles": "gouvernance, communs, auto-organisation, ressources partagées"
+              }
+            }
+          ]
+        },
+        {
+          "passe": 3,
+          "duree": 10.9,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre. La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+              "attributs": {
+                "resume": "L'IA est une révolution majeure nécessitant des investissements massifs pour maintenir le rang de puissance nationale.",
+                "hypostases": "théorie, loi, principe",
+                "mots_cles": "révolution, investissement, puissance"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "La perception de l'IA comme une fatalité est une construction politique, non une inéluctabilité.",
+                "hypostases": "croyance, problème, définition",
+                "mots_cles": "fatalité, choix politique, discours"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "Le progrès de l'IA est une forme de colonisation par des entreprises privées qui exploitent les données humaines.",
+                "hypostases": "définition, théorie, phénomène",
+                "mots_cles": "silicolonisation, entreprises privées, données"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Je crois qu'il y a une troisième voie que vous négligez tous les deux. L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "Une troisième voie propose de gouverner l'IA comme un commun numérique, avec la participation des communautés d'usagers pour définir les règles.",
+                "hypostases": "méthode, hypothèse, théorie",
+                "mots_cles": "troisième voie, commun numérique, gouvernance"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences.",
+              "attributs": {
+                "resume": "Le concept de commun numérique est théoriquement séduisant mais conduit à une compétition intense dans la réalité.",
+                "hypostases": "théorie, problème, aporie",
+                "mots_cles": "commun numérique, réalité, compétition"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement. L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.",
+              "attributs": {
+                "resume": "Le développement d'IA supérieures est une nécessité pour la survie civilisationnelle face à la colonisation technologique.",
+                "hypostases": "loi, principe, problème",
+                "mots_cles": "survie, colonisation, augmentation cognitive"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Tu vois, c'est précisément cette rhétorique guerrière qui est toxique. L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements.",
+              "attributs": {
+                "resume": "La rhétorique guerrière est dangereuse car l'IA vise à contrôler les comportements plutôt qu'à simplement augmenter les capacités.",
+                "hypostases": "problème, phénomène, croyance",
+                "mots_cles": "rhétorique, gouvernance, comportement"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.",
+              "attributs": {
+                "resume": "Les algorithmes de recommandation agissent comme un gouvernement non élu, influençant nos choix et pensées.",
+                "hypostases": "phénomène, mode, problème",
+                "mots_cles": "algorithmes, gouvernement, contrôle"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Eric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire. Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options. Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "La gouvernance de l'IA n'est pas binaire; les communautés peuvent s'auto-organiser pour gérer des ressources partagées comme les modèles d'IA ouverts.",
+                "hypostases": "méthode, théorie, structure",
+                "mots_cles": "gouvernance, communs, auto-organisation"
+              }
+            }
+          ]
+        }
+      ],
+      "articles": [
+        {
+          "caracteres": 5242,
+          "sections": 3,
+          "marqueurs": 24,
+          "sources_distinctes": 18,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 125,
+          "texte": "Le débat sur le rôle de l'intelligence artificielle (IA) révèle des visions contrastées, oscillant entre la reconnaissance d'une révolution inévitable et la mise en garde contre un choix politique aux conséquences profondes. Les discussions portent sur la nature de son impact, sa gouvernance et la vitesse de son évolution.\n\n## L'IA : Révolution Inévitable ou Choix Politique ?\n\nCertains participants au débat considèrent l'intelligence artificielle comme la révolution la plus importante depuis l'invention de l'écriture, affirmant que les pays n'investissant pas massivement dans ce domaine seront relégués au rang de puissances de second ordre.[[ext:10]] Cette perspective insiste sur la nécessité pour des nations comme la France d'investir des milliards, de former des ingénieurs et de cesser de se plaindre des risques.[[ext:10]] L'augmentation cognitive est présentée non pas comme une option, mais comme une nécessité de survie civilisationnelle face à une \"guerre des intelligences\" où la non-compétition mènerait à la colonisation technologique.[[ext:13]]\n\nCependant, cette vision est contestée par ceux qui s'inquiètent de ce discours, le qualifiant de présentation de l'IA comme une fatalité historique alors qu'il s'agit d'un choix politique.[[ext:11]] Ce que certains appellent progrès est perçu comme la \"silicolonisation\" du monde, où des entreprises privées imposent une vision utilitariste en transformant chaque geste humain en donnée exploitable.[[ext:11]]\n\n## L'Impact de l'IA : Augmentation des Capacités ou Gouvernement des Comportements ?\n\nAu-delà de l'augmentation des capacités humaines, l'IA est également perçue comme prétendant gouverner nos comportements.[[ext:20]] Les algorithmes de recommandation sont cités comme des exemples où l'IA décide ce que nous lisons, achetons ou pensons, instaurant un \"gouvernement non élu\" dans nos vies.[[ext:20]] Face à cette délégation du jugement aux machines, un appel est lancé pour une insurrection civique, soulignant que l'humain n'est pas un profil statistique à optimiser et qu'il est temps de repolitiser radicalement le débat sur la technologie.[[ext:23]]\n\nUne autre perspective avance que le transhumanisme n'est pas une idéologie, mais une description lucide de ce qui est en train d'arriver, avec la convergence des nanotechnologies, de la biologie et de l'informatique qui transformera l'espèce humaine, que cela plaise ou non.[[ext:34]] Cette idée est vivement contredite, arguant qu'il s'agit d'un piège transformant une idéologie en prophétie auto-réalisatrice.[[ext:35]] Le transhumanisme est alors défini comme un projet politique porté par des intérêts économiques colossaux, et il est considéré comme une responsabilité collective de dire non à cette vision du monde qui réduit l'humanité à un problème d'optimisation.[[ext:35]][[ext:36]]\n\n## Gouverner l'IA : Entre Course Technologique et Communs Numériques\n\nUne troisième voie est proposée, suggérant que l'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre, mais une ressource qui peut être gouvernée comme un commun numérique.[[ext:12]] Cette approche est conditionnée par la participation des communautés d'usagers à l'élaboration des règles qui encadrent son usage.[[ext:12]] Des recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options, et que des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.[[ext:21]]\n\nCette vision partage l'inquiétude sur la concentration du pouvoir mais refuse le fatalisme, citant les logiciels libres, Wikipédia et les coopératives de données comme preuves que des communautés peuvent gouverner des ressources numériques de manière démocratique.[[ext:31]] L'enjeu n'est pas de refuser l'IA, mais de construire des institutions polycentriques qui empêchent sa capture par quelques acteurs privés.[[ext:32]] L'IA est ainsi perçue comme un outil d'empuissancement formidable, à condition que des institutions capables de la gouverner collectivement soient construites.[[ext:43]]\n\nCependant, cette approche est confrontée à des défis majeurs. Le problème est que l'IA évolue à une vitesse qui dépasse les capacités d'auto-organisation, avec la perspective que dans dix ans, les machines auront une intelligence supérieure à la nôtre.[[ext:22]] Sans une préparation des sociétés par l'éducation et l'investissement massif, une bifurcation entre une élite cognitive augmentée et le reste de l'humanité est envisagée.[[ext:22]] Certains estiment que pendant que des débats sur la gouvernance et les communs ont lieu, les laboratoires chinois et américains entraînent des modèles de plus en plus puissants, qualifiant ces discussions de \"rêveries sympathiques\".[[ext:33]]\n\nMalgré ces divergences, une position médiane émerge, affirmant que ni la course technologique débridée ni le refus radical ne suffisent.[[ext:44]] Il est jugé nécessaire d'établir des règles claires, d'assurer une participation des usagers aux décisions et de mettre en place des mécanismes de contrôle gradués.[[ext:45]] Cette approche est considérée comme possible et relève de notre responsabilité collective.[[ext:46]]\n",
+          "passe": 1,
+          "duree": 22.3
+        },
+        {
+          "caracteres": 5242,
+          "sections": 3,
+          "marqueurs": 24,
+          "sources_distinctes": 18,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 125,
+          "texte": "Le débat sur le rôle de l'intelligence artificielle (IA) révèle des visions contrastées, oscillant entre la reconnaissance d'une révolution inévitable et la mise en garde contre un choix politique aux conséquences profondes. Les discussions portent sur la nature de son impact, sa gouvernance et la vitesse de son évolution.\n\n## L'IA : Révolution Inévitable ou Choix Politique ?\n\nCertains participants au débat considèrent l'intelligence artificielle comme la révolution la plus importante depuis l'invention de l'écriture, affirmant que les pays n'investissant pas massivement dans ce domaine seront relégués au rang de puissances de second ordre.[[ext:10]] Cette perspective insiste sur la nécessité pour des nations comme la France d'investir des milliards, de former des ingénieurs et de cesser de se plaindre des risques.[[ext:10]] L'augmentation cognitive est présentée non pas comme une option, mais comme une nécessité de survie civilisationnelle face à une \"guerre des intelligences\" où la non-compétition mènerait à la colonisation technologique.[[ext:13]]\n\nCependant, cette vision est contestée par ceux qui s'inquiètent de ce discours, le qualifiant de présentation de l'IA comme une fatalité historique alors qu'il s'agit d'un choix politique.[[ext:11]] Ce que certains appellent progrès est perçu comme la \"silicolonisation\" du monde, où des entreprises privées imposent une vision utilitariste en transformant chaque geste humain en donnée exploitable.[[ext:11]]\n\n## L'Impact de l'IA : Augmentation des Capacités ou Gouvernement des Comportements ?\n\nAu-delà de l'augmentation des capacités humaines, l'IA est également perçue comme prétendant gouverner nos comportements.[[ext:20]] Les algorithmes de recommandation sont cités comme des exemples où l'IA décide ce que nous lisons, achetons ou pensons, instaurant un \"gouvernement non élu\" dans nos vies.[[ext:20]] Face à cette délégation du jugement aux machines, un appel est lancé pour une insurrection civique, soulignant que l'humain n'est pas un profil statistique à optimiser et qu'il est temps de repolitiser radicalement le débat sur la technologie.[[ext:23]]\n\nUne autre perspective avance que le transhumanisme n'est pas une idéologie, mais une description lucide de ce qui est en train d'arriver, avec la convergence des nanotechnologies, de la biologie et de l'informatique qui transformera l'espèce humaine, que cela plaise ou non.[[ext:34]] Cette idée est vivement contredite, arguant qu'il s'agit d'un piège transformant une idéologie en prophétie auto-réalisatrice.[[ext:35]] Le transhumanisme est alors défini comme un projet politique porté par des intérêts économiques colossaux, et il est considéré comme une responsabilité collective de dire non à cette vision du monde qui réduit l'humanité à un problème d'optimisation.[[ext:35]][[ext:36]]\n\n## Gouverner l'IA : Entre Course Technologique et Communs Numériques\n\nUne troisième voie est proposée, suggérant que l'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre, mais une ressource qui peut être gouvernée comme un commun numérique.[[ext:12]] Cette approche est conditionnée par la participation des communautés d'usagers à l'élaboration des règles qui encadrent son usage.[[ext:12]] Des recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options, et que des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.[[ext:21]]\n\nCette vision partage l'inquiétude sur la concentration du pouvoir mais refuse le fatalisme, citant les logiciels libres, Wikipédia et les coopératives de données comme preuves que des communautés peuvent gouverner des ressources numériques de manière démocratique.[[ext:31]] L'enjeu n'est pas de refuser l'IA, mais de construire des institutions polycentriques qui empêchent sa capture par quelques acteurs privés.[[ext:32]] L'IA est ainsi perçue comme un outil d'empuissancement formidable, à condition que des institutions capables de la gouverner collectivement soient construites.[[ext:43]]\n\nCependant, cette approche est confrontée à des défis majeurs. Le problème est que l'IA évolue à une vitesse qui dépasse les capacités d'auto-organisation, avec la perspective que dans dix ans, les machines auront une intelligence supérieure à la nôtre.[[ext:22]] Sans une préparation des sociétés par l'éducation et l'investissement massif, une bifurcation entre une élite cognitive augmentée et le reste de l'humanité est envisagée.[[ext:22]] Certains estiment que pendant que des débats sur la gouvernance et les communs ont lieu, les laboratoires chinois et américains entraînent des modèles de plus en plus puissants, qualifiant ces discussions de \"rêveries sympathiques\".[[ext:33]]\n\nMalgré ces divergences, une position médiane émerge, affirmant que ni la course technologique débridée ni le refus radical ne suffisent.[[ext:44]] Il est jugé nécessaire d'établir des règles claires, d'assurer une participation des usagers aux décisions et de mettre en place des mécanismes de contrôle gradués.[[ext:45]] Cette approche est considérée comme possible et relève de notre responsabilité collective.[[ext:46]]\n",
+          "passe": 2,
+          "duree": 22.8
+        },
+        {
+          "caracteres": 5242,
+          "sections": 3,
+          "marqueurs": 24,
+          "sources_distinctes": 18,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 125,
+          "texte": "Le débat sur le rôle de l'intelligence artificielle (IA) révèle des visions contrastées, oscillant entre la reconnaissance d'une révolution inévitable et la mise en garde contre un choix politique aux conséquences profondes. Les discussions portent sur la nature de son impact, sa gouvernance et la vitesse de son évolution.\n\n## L'IA : Révolution Inévitable ou Choix Politique ?\n\nCertains participants au débat considèrent l'intelligence artificielle comme la révolution la plus importante depuis l'invention de l'écriture, affirmant que les pays n'investissant pas massivement dans ce domaine seront relégués au rang de puissances de second ordre.[[ext:10]] Cette perspective insiste sur la nécessité pour des nations comme la France d'investir des milliards, de former des ingénieurs et de cesser de se plaindre des risques.[[ext:10]] L'augmentation cognitive est présentée non pas comme une option, mais comme une nécessité de survie civilisationnelle face à une \"guerre des intelligences\" où la non-compétition mènerait à la colonisation technologique.[[ext:13]]\n\nCependant, cette vision est contestée par ceux qui s'inquiètent de ce discours, le qualifiant de présentation de l'IA comme une fatalité historique alors qu'il s'agit d'un choix politique.[[ext:11]] Ce que certains appellent progrès est perçu comme la \"silicolonisation\" du monde, où des entreprises privées imposent une vision utilitariste en transformant chaque geste humain en donnée exploitable.[[ext:11]]\n\n## L'Impact de l'IA : Augmentation des Capacités ou Gouvernement des Comportements ?\n\nAu-delà de l'augmentation des capacités humaines, l'IA est également perçue comme prétendant gouverner nos comportements.[[ext:20]] Les algorithmes de recommandation sont cités comme des exemples où l'IA décide ce que nous lisons, achetons ou pensons, instaurant un \"gouvernement non élu\" dans nos vies.[[ext:20]] Face à cette délégation du jugement aux machines, un appel est lancé pour une insurrection civique, soulignant que l'humain n'est pas un profil statistique à optimiser et qu'il est temps de repolitiser radicalement le débat sur la technologie.[[ext:23]]\n\nUne autre perspective avance que le transhumanisme n'est pas une idéologie, mais une description lucide de ce qui est en train d'arriver, avec la convergence des nanotechnologies, de la biologie et de l'informatique qui transformera l'espèce humaine, que cela plaise ou non.[[ext:34]] Cette idée est vivement contredite, arguant qu'il s'agit d'un piège transformant une idéologie en prophétie auto-réalisatrice.[[ext:35]] Le transhumanisme est alors défini comme un projet politique porté par des intérêts économiques colossaux, et il est considéré comme une responsabilité collective de dire non à cette vision du monde qui réduit l'humanité à un problème d'optimisation.[[ext:35]][[ext:36]]\n\n## Gouverner l'IA : Entre Course Technologique et Communs Numériques\n\nUne troisième voie est proposée, suggérant que l'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre, mais une ressource qui peut être gouvernée comme un commun numérique.[[ext:12]] Cette approche est conditionnée par la participation des communautés d'usagers à l'élaboration des règles qui encadrent son usage.[[ext:12]] Des recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options, et que des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.[[ext:21]]\n\nCette vision partage l'inquiétude sur la concentration du pouvoir mais refuse le fatalisme, citant les logiciels libres, Wikipédia et les coopératives de données comme preuves que des communautés peuvent gouverner des ressources numériques de manière démocratique.[[ext:31]] L'enjeu n'est pas de refuser l'IA, mais de construire des institutions polycentriques qui empêchent sa capture par quelques acteurs privés.[[ext:32]] L'IA est ainsi perçue comme un outil d'empuissancement formidable, à condition que des institutions capables de la gouverner collectivement soient construites.[[ext:43]]\n\nCependant, cette approche est confrontée à des défis majeurs. Le problème est que l'IA évolue à une vitesse qui dépasse les capacités d'auto-organisation, avec la perspective que dans dix ans, les machines auront une intelligence supérieure à la nôtre.[[ext:22]] Sans une préparation des sociétés par l'éducation et l'investissement massif, une bifurcation entre une élite cognitive augmentée et le reste de l'humanité est envisagée.[[ext:22]] Certains estiment que pendant que des débats sur la gouvernance et les communs ont lieu, les laboratoires chinois et américains entraînent des modèles de plus en plus puissants, qualifiant ces discussions de \"rêveries sympathiques\".[[ext:33]]\n\nMalgré ces divergences, une position médiane émerge, affirmant que ni la course technologique débridée ni le refus radical ne suffisent.[[ext:44]] Il est jugé nécessaire d'établir des règles claires, d'assurer une participation des usagers aux décisions et de mettre en place des mécanismes de contrôle gradués.[[ext:45]] Cette approche est considérée comme possible et relève de notre responsabilité collective.[[ext:46]]\n",
+          "passe": 3,
+          "duree": 23.2
+        }
+      ],
+      "verdicts": [
+        {
+          "passe": 1,
+          "duree": 22.8,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "soutient",
+            "119": "ne_soutient_pas",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "ne_soutient_pas",
+            "123": "ne_soutient_pas",
+            "124": "ne_soutient_pas",
+            "125": "soutient",
+            "126": "ne_soutient_pas",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        },
+        {
+          "passe": 2,
+          "duree": 12.7,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "soutient",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "ne_soutient_pas",
+            "123": "ne_soutient_pas",
+            "124": "soutient",
+            "125": "soutient",
+            "126": "ne_soutient_pas",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        },
+        {
+          "passe": 3,
+          "duree": 10.5,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "soutient",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "soutient",
+            "123": "soutient",
+            "124": "soutient",
+            "125": "soutient",
+            "126": "soutient",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        }
+      ]
+    },
+    {
+      "choix": "gemini-3.1-flash-lite",
+      "tarif": [
+        0.25,
+        1.5
+      ],
+      "peut_extraire": true,
+      "extractions": [
+        {
+          "passe": 1,
+          "duree": 3.5,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "L'IA est comparée à l'invention de l'écriture par son importance historique.",
+                "hypostases": "théorie, conjecture",
+                "mots_cles": "IA, révolution, écriture"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "L'investissement massif dans l'IA est présenté comme une condition de survie géopolitique.",
+                "hypostases": "loi, hypothèse",
+                "mots_cles": "investissement, géopolitique, puissance"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "L'IA est un choix politique et non une fatalité.",
+                "hypostases": "paradoxe, problème",
+                "mots_cles": "fatalité, politique, choix"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "Le progrès technologique est critiqué comme une forme de colonisation par les données.",
+                "hypostases": "phénomène, définition",
+                "mots_cles": "silicolonisation, données, entreprises"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique",
+              "attributs": {
+                "resume": "L'IA doit être gérée comme un commun numérique par ses usagers.",
+                "hypostases": "méthode, théorie",
+                "mots_cles": "commun numérique, gouvernance, ressource"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "La puissance technologique est une nécessité de survie face à la concurrence internationale.",
+                "hypostases": "conjecture, problème",
+                "mots_cles": "puissance, survie, colonisation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies",
+              "attributs": {
+                "resume": "Les algorithmes exercent une influence politique non élue sur les comportements.",
+                "hypostases": "phénomène, structure",
+                "mots_cles": "algorithmes, gouvernement, influence"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "L'auto-organisation communautaire est une alternative viable à l'État et au marché.",
+                "hypostases": "méthode, paradigme",
+                "mots_cles": "auto-organisation, modèles ouverts, communautés"
+              }
+            }
+          ]
+        },
+        {
+          "passe": 2,
+          "duree": 3.6,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "L'IA est comparée à l'invention de l'écriture en termes d'impact historique.",
+                "hypostases": "théorie, conjecture",
+                "mots_cles": "IA, révolution, écriture"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "L'investissement massif dans l'IA est présenté comme une condition de survie géopolitique.",
+                "hypostases": "loi, hypothèse",
+                "mots_cles": "investissement, géopolitique, puissance"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "L'IA est un choix politique et non une fatalité inéluctable.",
+                "hypostases": "paradoxe, problème",
+                "mots_cles": "fatalité, politique, choix"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "Critique de l'IA comme outil de colonisation technologique et d'exploitation des données.",
+                "hypostases": "phénomène, définition",
+                "mots_cles": "silicolonisation, données, entreprises"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique",
+              "attributs": {
+                "resume": "Proposition d'une troisième voie : l'IA comme commun numérique gouverné par ses usagers.",
+                "hypostases": "méthode, théorie",
+                "mots_cles": "commun numérique, gouvernance, ressource"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "La puissance technologique est présentée comme une nécessité de survie face à la concurrence internationale.",
+                "hypostases": "conjecture, problème",
+                "mots_cles": "puissance, survie, colonisation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies",
+              "attributs": {
+                "resume": "Les algorithmes exercent une influence politique et comportementale non démocratique.",
+                "hypostases": "phénomène, structure",
+                "mots_cles": "algorithmes, recommandation, gouvernement"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "L'auto-organisation communautaire est une alternative viable à l'État et au marché pour gérer l'IA.",
+                "hypostases": "paradigme, méthode",
+                "mots_cles": "auto-organisation, communautés, modèles ouverts"
+              }
+            }
+          ]
+        },
+        {
+          "passe": 3,
+          "duree": 3.6,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "L'IA est comparée à l'invention de l'écriture par son importance historique.",
+                "hypostases": "théorie, conjecture",
+                "mots_cles": "IA, révolution, écriture"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "L'investissement massif dans l'IA est présenté comme une condition de survie géopolitique.",
+                "hypostases": "loi, hypothèse",
+                "mots_cles": "investissement, géopolitique, puissance"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "L'IA est un choix politique et non une fatalité.",
+                "hypostases": "paradoxe, problème",
+                "mots_cles": "fatalité, politique, choix"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "Le progrès technologique est critiqué comme une forme de colonisation par les données.",
+                "hypostases": "phénomène, définition",
+                "mots_cles": "silicolonisation, données, entreprises"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique",
+              "attributs": {
+                "resume": "L'IA doit être gérée comme un commun numérique par ses usagers.",
+                "hypostases": "méthode, théorie",
+                "mots_cles": "commun numérique, gouvernance, ressource"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "La puissance technologique est une nécessité de survie face à la concurrence internationale.",
+                "hypostases": "conjecture, problème",
+                "mots_cles": "puissance, survie, colonisation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies",
+              "attributs": {
+                "resume": "Les algorithmes exercent une influence politique non élue sur les comportements.",
+                "hypostases": "phénomène, structure",
+                "mots_cles": "algorithmes, gouvernement, influence"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "L'auto-organisation communautaire est une alternative viable à l'État et au marché.",
+                "hypostases": "méthode, paradigme",
+                "mots_cles": "auto-organisation, modèles ouverts, communautés"
+              }
+            }
+          ]
+        }
+      ],
+      "articles": [
+        {
+          "caracteres": 2470,
+          "sections": 3,
+          "marqueurs": 21,
+          "sources_distinctes": 18,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 125,
+          "texte": "## La nature du défi technologique\n\nLe rôle de l'intelligence artificielle fait l'objet d'une fracture profonde quant à sa définition même. Pour certains, elle représente une révolution historique majeure, comparable à l'invention de l'écriture, imposant une nécessité de survie civilisationnelle par l'investissement massif et l'augmentation cognitive.[[ext:10]][[ext:13]] Cette vision est contestée par ceux qui y voient une idéologie déguisée en fatalité, transformant l'humain en un profil statistique à optimiser au profit d'intérêts économiques privés.[[ext:11]][[ext:20]][[ext:35]][[ext:36]]\n\nLe débat porte également sur la portée du transhumanisme. Certains le présentent comme une description lucide et inéluctable de la convergence technologique à venir.[[ext:34]] À l'inverse, cette position est dénoncée comme une prophétie auto-réalisatrice visant à masquer un projet politique spécifique.[[ext:35]]\n\n## Gouvernance et souveraineté\n\nLa question de la maîtrise de l'IA divise les perspectives entre la compétition internationale et l'organisation collective. Une position souligne que, face à la puissance des laboratoires américains et chinois, la France doit impérativement accroître ses capacités technologiques pour éviter une colonisation numérique.[[ext:10]][[ext:13]][[ext:33]]\n\nÀ l'opposé, d'autres acteurs rejettent cette course effrénée et prônent une troisième voie : celle des communs numériques.[[ext:12]][[ext:44]] Cette approche suggère que des communautés d'usagers peuvent s'auto-organiser pour gérer des modèles d'IA ouverts, en s'appuyant sur des exemples comme les logiciels libres ou Wikipédia.[[ext:21]][[ext:31]] L'enjeu serait alors de construire des institutions polycentriques capables d'empêcher la capture de ces ressources par des acteurs privés.[[ext:32]]\n\n## L'avenir de l'action humaine\n\nLes avis divergent sur la capacité des sociétés à encadrer cette évolution. Certains craignent que la vitesse de progression des machines ne dépasse nos facultés d'organisation, menant inévitablement à une bifurcation entre une élite augmentée et le reste de l'humanité.[[ext:22]]\n\nFace à ce risque, des voix appellent à une insurrection civique pour refuser la délégation du jugement aux machines.[[ext:23]] D'autres soutiennent que l'IA peut devenir un outil d'empuissancement, à condition de mettre en place des règles claires, une participation active des usagers et des mécanismes de contrôle gradués.[[ext:43]][[ext:45]][[ext:46]]\n",
+          "passe": 1,
+          "duree": 3.0
+        },
+        {
+          "caracteres": 2470,
+          "sections": 3,
+          "marqueurs": 21,
+          "sources_distinctes": 18,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 125,
+          "texte": "## La nature du défi technologique\n\nLe rôle de l'intelligence artificielle fait l'objet d'une fracture profonde quant à sa définition même. Pour certains, elle représente une révolution historique majeure, comparable à l'invention de l'écriture, imposant une nécessité de survie civilisationnelle par l'investissement massif et l'augmentation cognitive.[[ext:10]][[ext:13]] Cette vision est contestée par ceux qui y voient une idéologie déguisée en fatalité, transformant l'humain en un profil statistique à optimiser au profit d'intérêts économiques privés.[[ext:11]][[ext:20]][[ext:35]][[ext:36]]\n\nLe débat porte également sur la portée du transhumanisme. Certains le présentent comme une description lucide et inéluctable de la convergence technologique à venir.[[ext:34]] À l'inverse, cette position est dénoncée comme une prophétie auto-réalisatrice visant à masquer un projet politique spécifique.[[ext:35]]\n\n## Gouvernance et souveraineté\n\nLa question de la maîtrise de l'IA divise les perspectives entre la compétition internationale et l'organisation collective. Une position souligne que, face à la puissance des laboratoires américains et chinois, la France doit impérativement accroître ses capacités technologiques pour éviter une colonisation numérique.[[ext:10]][[ext:13]][[ext:33]]\n\nÀ l'opposé, d'autres acteurs rejettent cette course effrénée et prônent une troisième voie : celle des communs numériques.[[ext:12]][[ext:44]] Cette approche suggère que des communautés d'usagers peuvent s'auto-organiser pour gérer des modèles d'IA ouverts, en s'appuyant sur des exemples comme les logiciels libres ou Wikipédia.[[ext:21]][[ext:31]] L'enjeu serait alors de construire des institutions polycentriques capables d'empêcher la capture de ces ressources par des acteurs privés.[[ext:32]]\n\n## L'avenir de l'action humaine\n\nLes avis divergent sur la capacité des sociétés à encadrer cette évolution. Certains craignent que la vitesse de progression des machines ne dépasse nos facultés d'organisation, menant inévitablement à une bifurcation entre une élite augmentée et le reste de l'humanité.[[ext:22]]\n\nFace à ce risque, des voix appellent à une insurrection civique pour refuser la délégation du jugement aux machines.[[ext:23]] D'autres soutiennent que l'IA peut devenir un outil d'empuissancement, à condition de mettre en place des règles claires, une participation active des usagers et des mécanismes de contrôle gradués.[[ext:43]][[ext:45]][[ext:46]]\n",
+          "passe": 2,
+          "duree": 3.2
+        },
+        {
+          "caracteres": 2470,
+          "sections": 3,
+          "marqueurs": 21,
+          "sources_distinctes": 18,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 125,
+          "texte": "## La nature du défi technologique\n\nLe rôle de l'intelligence artificielle fait l'objet d'une fracture profonde quant à sa définition même. Pour certains, elle représente une révolution historique majeure, comparable à l'invention de l'écriture, imposant une nécessité de survie civilisationnelle par l'investissement massif et l'augmentation cognitive.[[ext:10]][[ext:13]] Cette vision est contestée par ceux qui y voient une idéologie déguisée en fatalité, transformant l'humain en un profil statistique à optimiser au profit d'intérêts économiques privés.[[ext:11]][[ext:20]][[ext:35]][[ext:36]]\n\nLe débat porte également sur la portée du transhumanisme. Certains le présentent comme une description lucide et inéluctable de la convergence technologique à venir.[[ext:34]] À l'inverse, cette position est dénoncée comme une prophétie auto-réalisatrice visant à masquer un projet politique spécifique.[[ext:35]]\n\n## Gouvernance et souveraineté\n\nLa question de la maîtrise de l'IA divise les perspectives entre la compétition internationale et l'organisation collective. Une position souligne que, face à la puissance des laboratoires américains et chinois, la France doit impérativement accroître ses capacités technologiques pour éviter une colonisation numérique.[[ext:10]][[ext:13]][[ext:33]]\n\nÀ l'opposé, d'autres acteurs rejettent cette course effrénée et prônent une troisième voie : celle des communs numériques.[[ext:12]][[ext:44]] Cette approche suggère que des communautés d'usagers peuvent s'auto-organiser pour gérer des modèles d'IA ouverts, en s'appuyant sur des exemples comme les logiciels libres ou Wikipédia.[[ext:21]][[ext:31]] L'enjeu serait alors de construire des institutions polycentriques capables d'empêcher la capture de ces ressources par des acteurs privés.[[ext:32]]\n\n## L'avenir de l'action humaine\n\nLes avis divergent sur la capacité des sociétés à encadrer cette évolution. Certains craignent que la vitesse de progression des machines ne dépasse nos facultés d'organisation, menant inévitablement à une bifurcation entre une élite augmentée et le reste de l'humanité.[[ext:22]]\n\nFace à ce risque, des voix appellent à une insurrection civique pour refuser la délégation du jugement aux machines.[[ext:23]] D'autres soutiennent que l'IA peut devenir un outil d'empuissancement, à condition de mettre en place des règles claires, une participation active des usagers et des mécanismes de contrôle gradués.[[ext:43]][[ext:45]][[ext:46]]\n",
+          "passe": 3,
+          "duree": 3.1
+        }
+      ],
+      "verdicts": [
+        {
+          "passe": 1,
+          "duree": 1.0,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "ne_soutient_pas",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "ne_soutient_pas",
+            "123": "ne_soutient_pas",
+            "124": "ne_soutient_pas",
+            "125": "soutient",
+            "126": "ne_soutient_pas",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        },
+        {
+          "passe": 2,
+          "duree": 0.9,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "ne_soutient_pas",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "ne_soutient_pas",
+            "123": "ne_soutient_pas",
+            "124": "ne_soutient_pas",
+            "125": "soutient",
+            "126": "ne_soutient_pas",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        },
+        {
+          "passe": 3,
+          "duree": 0.9,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "ne_soutient_pas",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "ne_soutient_pas",
+            "123": "ne_soutient_pas",
+            "124": "ne_soutient_pas",
+            "125": "soutient",
+            "126": "ne_soutient_pas",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        }
+      ]
+    },
+    {
+      "choix": "gpt-5-mini",
+      "tarif": [
+        0.25,
+        2.0
+      ],
+      "peut_extraire": true,
+      "extractions": [
+        {
+          "passe": 1,
+          "duree": 31.2,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "Affirmation majeure présentant l'IA comme une transformation historique centrale.",
+                "hypostases": "conjecture, paradigme",
+                "mots_cles": "révolution, IA, histoire"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "Prédiction géopolitique selon laquelle l'investissement en IA détermine la position de puissance d'un État.",
+                "hypostases": "hypothèse, conjecture",
+                "mots_cles": "investissement, puissance, géopolitique"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+              "attributs": {
+                "resume": "Prescription politique appelant à un effort massif de financement et de formation en IA.",
+                "hypostases": "méthode, principe",
+                "mots_cles": "France, financement, formation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "Contestaton du récit fataliste : l'adoption de l'IA serait un choix politique plutôt qu'une inexorabilité.",
+                "hypostases": "croyance, problème",
+                "mots_cles": "fatalité, choix politique, représentation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "Critique selon laquelle le prétendu progrès correspond à une domination privée convertissant la vie sociale en données exploitables.",
+                "hypostases": "paradigme, théorie",
+                "mots_cles": "silicolonisation, entreprises privées, données"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "Proposition normative de gouvernance de l'IA comme commun numérique fondée sur la participation des usagers.",
+                "hypostases": "théorie, méthode",
+                "mots_cles": "commun numérique, gouvernance, participation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "Argument de menace affirmant que le retard en IA conduirait à une forme de colonisation technologique.",
+                "hypostases": "conjecture, hypothèse",
+                "mots_cles": "course technologique, colonisation, Chine, États-Unis"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements. Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.",
+              "attributs": {
+                "resume": "Observation critique selon laquelle les algorithmes exercent un pouvoir normatif et décisionnel comparable à un gouvernement non élu.",
+                "hypostases": "phénomène, problème",
+                "mots_cles": "algorithmes, gouvernance, comportement, recommandation"
+              }
+            }
+          ]
+        },
+        {
+          "passe": 2,
+          "duree": 26.9,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "L'IA est présentée comme une révolution historique d'ampleur comparable à l'invention de l'écriture.",
+                "hypostases": "théorie, paradigme",
+                "mots_cles": "révolution, IA, histoire"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "Ne pas investir massivement dans l'IA mènerait au déclin géopolitique d'un pays.",
+                "hypostases": "conjecture, hypothèse",
+                "mots_cles": "investissement, puissance, géopolitique"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+              "attributs": {
+                "resume": "Prescription politique : financer massivement l'IA et former des ingénieurs plutôt que s'attarder sur les risques.",
+                "hypostases": "méthode",
+                "mots_cles": "France, financement, formation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "Critique de la représentation de l'IA comme inévitable ; l'auteur affirme qu'il s'agit d'une décision politique.",
+                "hypostases": "croyance, problème",
+                "mots_cles": "fatalité, choix politique, représentation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "Proposition normative : gouverner l'IA comme un commun numérique via la participation des communautés d'usagers.",
+                "hypostases": "théorie, méthode",
+                "mots_cles": "commun numérique, gouvernance, participation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "Argument alarmiste selon lequel l'absence de supériorité en IA entraînera une colonisation technologique.",
+                "hypostases": "conjecture",
+                "mots_cles": "compétition, colonisation technologique, Chine, États-Unis"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "Affirmation empirique/organisationnelle : les communautés peuvent s'auto-organiser pour gouverner des modèles d'IA ouverts localement.",
+                "hypostases": "méthode, structure",
+                "mots_cles": "auto-organisation, modèles ouverts, règles locales"
+              }
+            }
+          ]
+        },
+        {
+          "passe": 3,
+          "duree": 31.7,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "L'IA est présentée comme la révolution la plus fondamentale de l'histoire humaine.",
+                "hypostases": "théorie",
+                "mots_cles": "IA, révolution, écriture"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "Ne pas investir massivement en IA condamnerait un pays à perdre en puissance internationale.",
+                "hypostases": "conjecture",
+                "mots_cles": "investissement, puissance, géopolitique"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "La représentation de l'IA comme inéluctable est dénoncée ; c'est en réalité un choix politique.",
+                "hypostases": "croyance",
+                "mots_cles": "fatalité, choix politique, représentation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "Critique du progrès technologique comme domination privée transformant comportements en données exploitables.",
+                "hypostases": "paradigme",
+                "mots_cles": "silicolonisation, entreprises, données"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "Proposition d'une gouvernance de l'IA comme commun numérique impliquant les communautés d'usagers.",
+                "hypostases": "méthode, théorie",
+                "mots_cles": "commun numérique, gouvernance, communautés"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences.",
+              "attributs": {
+                "resume": "Objection réaliste : l'idée du commun numérique est séduisante en théorie mais risque de déboucher sur une compétition féroce.",
+                "hypostases": "aporie",
+                "mots_cles": "commun numérique, guerre des intelligences, réalité"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons.",
+              "attributs": {
+                "resume": "Affirmation que les algorithmes influencent fortement nos lectures, achats et opinions.",
+                "hypostases": "phénomène",
+                "mots_cles": "algorithmes, recommandation, influence"
+              }
+            }
+          ]
+        }
+      ],
+      "articles": [
+        {
+          "caracteres": 5066,
+          "sections": 7,
+          "marqueurs": 35,
+          "sources_distinctes": 18,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 125,
+          "texte": "## Résumé du débat\n\nLe débat oppose des visions contrastées du rôle et de la gouvernance de l'intelligence artificielle, allant d'un impératif d'investissement massif à une critique de sa privatisation, en passant par des propositions de communs numériques et de gouvernance polycentrique [[ext:10]][[ext:11]][[ext:12]].\n\nPlusieurs intervenants insistent sur l'urgence stratégique et géopolitique, d'autres sur la nécessité de repolitiser l'usage des machines, et d'autres encore proposent des voies institutionnelles et communautaires pour encadrer l'IA [[ext:13]][[ext:23]][[ext:21]].\n\n## L'IA comme révolution et impératif stratégique\n\nCertains participants affirment que l'IA constitue « la révolution la plus importante depuis l'invention de l'écriture » et appellent la nation à investir massivement, former des ingénieurs et mobiliser des moyens financiers importants pour ne pas être reléguée au second plan [[ext:10]].\n\nD'autres mettent en garde contre un retard stratégique considéré comme dangereux : ils parlent d'une nécessité d'« augmentation cognitive » pour ne pas subir une domination technologique par des puissances étrangères, et pointent la course aux modèles menée par des laboratoires chinois et américains [[ext:13]][[ext:22]][[ext:33]].\n\n## Critiques : privatisation, surveillance et délégation du jugement\n\nDes voix s'opposent à la présentation de l'IA comme fatalité et dénoncent la « silicolonisation » du monde par des entreprises privées qui transforment les gestes humains en données exploitables [[ext:11]].\n\nL'IA est ainsi décrite comme prétendant « gouverner nos comportements » à travers des algorithmes de recommandation qui influencent ce que nous lisons, achetons ou pensons, ce qui revient, pour certains, à un « gouvernement non élu » s'installant dans nos vies [[ext:20]].\n\nPlusieurs intervenants appellent à résister à la délégation du jugement aux machines et à refuser que l'humain soit réduit à un profil statistique à optimiser, en qualifiant cette vision d'idéologique et en revendiquant une « insurrection civique » [[ext:23]][[ext:36]][[ext:35]].\n\n## Voies alternatives : communs numériques et gouvernance polycentrique\n\nUne position intermédiaire défend l'idée que l'IA peut être gérée comme un commun numérique, à condition d'impliquer les communautés d'usagers dans l'élaboration des règles qui encadrent son usage [[ext:12]].\n\nDes expériences et exemples sont mobilisés pour étayer cette option : logiciels libres, Wikipédia, coopératives de données, et gestion communautaire de ressources numériques sont invoqués comme preuves que des communautés peuvent s'auto-organiser pour gouverner des ressources partagées [[ext:31]][[ext:21]].\n\nÀ partir de ces constats, certains proposent de construire des institutions polycentriques et des mécanismes de contrôle gradués pour prévenir la capture de l'IA par quelques acteurs privés et pour assurer la participation des usagers aux décisions [[ext:32]][[ext:45]][[ext:43]].\n\n## Tensions sur le transhumanisme et la bifurcation cognitive\n\nLe débat comprend une tension marquée autour du transhumanisme : pour certains, il s'agit d'une description lucide d'une convergence technologique inéluctable (nanotechnologies, biologie, informatique) qui transformera l'espèce humaine [[ext:34]].\n\nD'autres contestent cette lecture et dénoncent la transformation d'une idéologie en prophétie auto‑réalisatrice, affirmant que le transhumanisme est un projet politique porté par des intérêts économiques et qu'il faut s'y opposer [[ext:35]][[ext:36]].\n\nParallèlement, des interventions soulignent le risque d'une bifurcation sociale entre une « élite cognitive augmentée » et le reste de l'humanité si l'éducation et l'investissement ne préparent pas les sociétés à ces transformations [[ext:22]].\n\n## Exigences partagées et points de convergence\n\nPlusieurs participants conviennent qu'aucune des réponses extrêmes — course technologique débridée ou refus radical — ne suffit à elle seule, et qu'il faut plutôt des règles, de la participation et des mécanismes institutionnels pour encadrer l'IA [[ext:44]][[ext:45]].\n\nDe manière récurrente, l'IA est aussi présentée comme un outil d'empuissancement potentiel à condition que des institutions capables de la gouverner collectivement soient effectivement construites [[ext:43]][[ext:46]].\n\n## Ce que ce débat dit du rôle de l'intelligence artificielle\n\nLe débat présente l'IA à la fois comme un levier stratégique nécessitant des investissements, comme un vecteur de gouvernance algorithmique susceptible de concentrer le pouvoir, et comme une ressource qui peut être articulée en communs gérés démocratiquement — chaque lecture mobilisée dans la discussion renvoie à l'un ou l'autre de ces rôles [[ext:10]][[ext:20]][[ext:12]].\n\nAu final, la discussion montre que la façon dont les sociétés conçoivent et instituent la gouvernance de l'IA déterminera si elle devient principalement un instrument d'empowerment collectif, un moteur d'inégalités et de domination privée, ou un enjeu stratégique d'État [[ext:43]][[ext:11]][[ext:13]].\n",
+          "passe": 1,
+          "duree": 26.1
+        },
+        {
+          "caracteres": 4562,
+          "sections": 9,
+          "marqueurs": 35,
+          "sources_distinctes": 18,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 53,
+          "texte": "## Contexte du débat\n\nLe débat rassemble des positions contrastées sur le rôle de l'intelligence artificielle, allant de l'appel à un investissement massif à l'alerte contre une captation privée et à la proposition de formes de gouvernance alternatives[[ext:10]] [[ext:11]] [[ext:12]].\n\n## L'IA comme révolution civile et impératif d'investissement\n\nPlusieurs intervenants présentent l'IA comme une révolution historique comparable à l'invention de l'écriture, et estiment que les États doivent investir massivement pour ne pas être relégués au second rang[[ext:10]].\n\nD'autres poussent cette logique jusqu'à parler de \"nécessité de survie civilisationnelle\", arguant que l'augmentation cognitive par des IA plus puissantes est incontournable dans la compétition mondiale[[ext:13]] [[ext:22]].\n\n## L'IA comme mécanisme de capture et de transformation sociale\n\nUne critique récurrente met en garde contre la \"silicolonisation\" et la transformation des gestes humains en données exploitables par des entreprises privées, ce qui, selon cette vision, confond progrès technique et domination économique[[ext:11]].\n\nCe diagnostic se double d'une inquiétude sur la façon dont les algorithmes gouvernent les comportements quotidiens — recommandations qui orientent ce que l'on lit, achète ou pense — et qui sont perçus comme un \"gouvernement non élu\" installé sans consentement démocratique[[ext:20]].\n\n## Gouvernance par les communs et solutions polycentriques\n\nUne position alternative propose de considérer l'IA comme un bien commun numérique gouvernable par les communautés d'usagers, à condition qu'elles participent à l'élaboration des règles encadrant son usage[[ext:12]].\n\nDes exemples évoqués — logiciels libres, Wikipédia, coopératives de données — servent d'illustration que des communautés peuvent effectivement gérer des ressources numériques de façon démocratique[[ext:31]].\n\nD'autres insistent sur la nécessité de construire des institutions polycentriques pour empêcher la capture de l'IA par quelques acteurs privés, plutôt que de la refuser ou de la laisser à la course technologique[[ext:32]] [[ext:44]].\n\n## Les temporalités et l'urgence selon les partisans de la préparation\n\nPlusieurs voix soulignent la vitesse d'évolution de l'IA et la nécessité d'anticiper par l'éducation et l'investissement massif, faute de quoi une fracture entre une élite \"cognitivement augmentée\" et le reste de l'humanité serait plausible[[ext:22]].\n\nD'autres, en contraste, mettent en garde que se concentrer uniquement sur la course à la puissance technique risque de négliger les enjeux de gouvernance et de justice sociale alors que d'autres pays poussent leurs laboratoires à développer des modèles toujours plus puissants[[ext:33]] [[ext:10]].\n\n## Réactions politiques et appel à la repolitisation\n\nPlusieurs intervenants appellent à une réappropriation politique du débat : certains réclament une \"insurrection civique\" pour contester la délégation du jugement aux machines et repolitiser radicalement la technologie[[ext:23]].\n\nEn écho, d'autres affirment qu'il est de la responsabilité collective de dire non à une vision qui réduit l'humain à un problème d'optimisation et de s'opposer à l'idéologie transformatrice qui se présente parfois comme inéluctable[[ext:36]] [[ext:35]].\n\n## Désaccords sur la nature et la portée du transhumanisme\n\nLe transhumanisme apparaît dans le débat à la fois comme une description lucide de transformations technologiques convergentes (nanotechnologies, biologie, informatique) et comme une idéologie ou un projet politique porté par des intérêts économiques, selon les interlocuteurs[[ext:34]] [[ext:35]].\n\n## Points de convergence\n\nMalgré les divergences, plusieurs participants convergent sur l'idée que l'IA peut être un outil d'empuissancement si des institutions adéquates sont construites pour la gouverner collectivement, et sur le besoin de règles claires, de participation des usagers et de mécanismes de contrôle gradués[[ext:43]] [[ext:45]] [[ext:46]].\n\n## Ce que le débat dit du rôle de l'IA\n\nLe débat fait apparaître l'IA tour à tour comme un moteur de puissance nationale, un instrument de captation et de gouvernement social, et un bien potentiel à gouverner collectivement par des communs et des institutions polycentriques; il met également en évidence l'urgence perçue par certains et la nécessité, pour d'autres, de repolitiser et de remettre l'humain au centre des décisions[[ext:10]] [[ext:11]] [[ext:12]] [[ext:13]] [[ext:20]] [[ext:21]] [[ext:22]] [[ext:23]] [[ext:31]] [[ext:32]] [[ext:43]] [[ext:45]].\n",
+          "passe": 2,
+          "duree": 17.6
+        },
+        {
+          "caracteres": 5205,
+          "sections": 8,
+          "marqueurs": 35,
+          "sources_distinctes": 18,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 125,
+          "texte": "## Vue d'ensemble du débat\n\nLe débat oppose des visions contrastées du rôle de l'intelligence artificielle : pour certains, il s'agit d'une révolution historique nécessitant des investissements massifs ; pour d'autres, c'est avant tout un choix politique à repolitiser plutôt qu'une fatalité à subir. [[ext:10]][[ext:11]][[ext:23]]\n\nPlusieurs intervenants esquissent une troisième voie qui cherche à sortir du dilemme entre acceptation technologique et rejet radical en proposant des formes de gouvernance collective. [[ext:12]][[ext:43]]\n\n## Les arguments en faveur d'une mobilisation rapide et ambitieuse\n\nUne partie du débat présente l'IA comme la révolution la plus importante depuis l'écriture et appelle les États à investir lourdement, former des ingénieurs et ne pas laisser d'autres puissances dominer le champ technologique. [[ext:10]]\n\nUn prolongement de cet argument met en garde contre un retard stratégique : sans augmentation cognitive et sans IA plus puissantes, certains prédisent une \"bifurcation\" entre une élite augmentée et le reste de l'humanité, et craignent une colonisation technologique par des puissances étrangères. [[ext:13]][[ext:22]]\n\nDes voix rappellent que pendant que l'on débat de gouvernance, des laboratoires étrangers continuent d'entraîner des modèles de plus en plus puissants, soulignant l'urgence perçue par certains acteurs. [[ext:33]]\n\n## Les critiques du déterminisme et de la captation privée\n\nD'autres participants dénoncent la présentation de l'IA comme une fatalité et attirent l'attention sur le risque de \"siliconisation\" : la transformation des gestes humains en données exploitables par des entreprises privées qui imposent une vision utilitariste. [[ext:11]]\n\nL'IA est aussi décrite comme une force qui prétend gouverner les comportements quotidiens via des algorithmes de recommandation, ce que certains qualifient de \"gouvernement non élu\" s'installant sans consentement démocratique. [[ext:20]]\n\nDes appels se font entendre pour résister à la délégation du jugement aux machines et pour refuser de réduire l'humain à un profil statistique optimisé. [[ext:23]][[ext:36]]\n\n## Débats sur le transhumanisme et la prophétie politique\n\nLa convergence technologique (nanotechnologies, biologie, informatique) est présentée par certains comme une transformation inéluctable de l'espèce humaine, une lecture que certains participants acceptent comme description du réel. [[ext:34]]\n\nD'autres contestent cette lecture et dénoncent le risque de transformer une idéologie en prophétie auto-réalisatrice, en insistant sur le caractère politique et économique du projet transhumaniste et en appelant à dire non à une vision réductrice de l'humanité. [[ext:35]][[ext:36]]\n\n## Gouvernance, communs numériques et institutions polycentriques\n\nPlusieurs intervenants défendent l'idée que l'IA peut être gouvernée comme un commun numérique si les communautés d'usagers participent à l'élaboration des règles et à la gestion des modèles ouverts. [[ext:12]][[ext:21]]\n\nDes exemples cités incluent les logiciels libres, Wikipédia et des coopératives de données comme preuves que des ressources numériques peuvent être gouvernées démocratiquement par des communautés auto-organisées. [[ext:31]]\n\nD'autres insistent sur la nécessité de construire des institutions polycentriques pour empêcher la capture de l'IA par quelques acteurs privés, soulignant que ni la course technologique ni le refus radical ne suffisent. [[ext:32]][[ext:44]]\n\n## Modalités pratiques et exigences de régulation\n\nPlusieurs contributions convergent sur des prescriptions opérationnelles : il faut des règles claires, des mécanismes de participation des usagers et des contrôles gradués pour encadrer l'usage de l'IA. [[ext:45]]\n\nL'argument se complète par un appel à la responsabilité collective : gouverner l'IA, soutenir les communs et bâtir des institutions adaptées n'est pas seulement possible, c'est une responsabilité à assumer. [[ext:46]][[ext:43]]\n\n## Tensions temporelles et d'échelle\n\nLe débat met en lumière une tension entre la vitesse d'évolution technologique — qui inquiète ceux qui craignent un dépassement rapide des capacités humaines — et la capacité d'auto-organisation démocratique qui, selon certains, peut être mise en place mais qui doit faire face à cette rapidité. [[ext:22]][[ext:21]]\n\nCette tension nourrit les désaccords sur la priorité des actions : accélérer les investissements et la formation, ou renforcer dès maintenant la gouvernance et la participation citoyenne. [[ext:10]][[ext:31]]\n\n## Conclusions provisoires dégagées par le débat\n\nLe dialogue reflète au moins trois pôles : la promotion d'une course technologique pour des raisons stratégiques, la critique d'une domination privée et d'une automatisation du jugement, et la proposition d'une gouvernance collective via des communs et des institutions polycentriques. [[ext:10]][[ext:11]][[ext:12]][[ext:32]]\n\nTous ne sont pas d'accord sur la façon de concilier ces pôles, mais plusieurs intervenants s'accordent sur la nécessité de règles, de participation et de responsabilité collective pour que l'IA reste un outil d'empuissancement plutôt qu'un mécanisme d'aliénation. [[ext:45]][[ext:43]][[ext:46]]\n",
+          "passe": 3,
+          "duree": 25.9
+        }
+      ],
+      "verdicts": [
+        {
+          "passe": 1,
+          "duree": 15.0,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "soutient",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "soutient",
+            "123": "soutient",
+            "124": "soutient",
+            "125": "soutient",
+            "126": "soutient",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        },
+        {
+          "passe": 2,
+          "duree": 11.3,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "soutient",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "soutient",
+            "123": "soutient",
+            "124": "soutient",
+            "125": "soutient",
+            "126": "soutient",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        },
+        {
+          "passe": 3,
+          "duree": 20.9,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "soutient",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "soutient",
+            "123": "soutient",
+            "124": "soutient",
+            "125": "soutient",
+            "126": "soutient",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        }
+      ]
+    },
+    {
+      "choix": "gpt-5-nano",
+      "tarif": [
+        0.05,
+        0.4
+      ],
+      "peut_extraire": true,
+      "extractions": [
+        {
+          "passe": 1,
+          "duree": 36.8,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "L'IA est présentée comme la révolution majeure de l'histoire.",
+                "hypostases": "paradigme",
+                "mots_cles": "IA, révolution, écriture"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "L'IA peut être gérée comme un commun numérique avec implication communautaire.",
+                "hypostases": "hypothèse",
+                "mots_cles": "gouvernance, commun, règles"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences.",
+              "attributs": {
+                "resume": "La pratique du commun numérique est confrontée à des conflits entre IA.",
+                "hypostases": "problème",
+                "mots_cles": "commun, guerre, intelligences"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "Manque de puissance IA peut mener à une colonisation technologique.",
+                "hypostases": "hypothèse",
+                "mots_cles": "puissance, colonisation, IA"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.",
+              "attributs": {
+                "resume": "L'augmentation cognitive est présentée comme nécessaire pour la survie.",
+                "hypostases": "principe",
+                "mots_cles": "augmentation, survie, civilisation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "La gouvernance par les commons permet des modèles d'IA ouverts adaptée localement.",
+                "hypostases": "paradigme",
+                "mots_cles": "commons, auto-organisation, IA ouverte"
+              }
+            }
+          ]
+        },
+        {
+          "passe": 2,
+          "duree": 48.6,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "Affirme que l'IA est la plus grande révolution depuis l'écriture.",
+                "hypotheses": "théorie",
+                "mots_cles": "IA, révolution, écriture"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "Prévision géopolitique selon l'investissement dans l'IA.",
+                "hypotheses": "hypothèse",
+                "mots_cles": "IA, géopolitique, investissement"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+              "attributs": {
+                "resume": "Appel politique à financer l'IA.",
+                "hypotheses": "conjecture",
+                "mots_cles": "France, financement, IA"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "Proposition que l'IA peut être gouvernée comme un commun numérique avec participation.",
+                "hypotheses": "théorie",
+                "mots_cles": "commun numérique, gouvernance, règles"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences.",
+              "attributs": {
+                "resume": "Constate un écart entre théorie et pratique (guerre des intelligences).",
+                "hypotheses": "paradoxe",
+                "mots_cles": "commun, théorie, réalité"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "Risque de colonisation technologique si on est dépassé militairement et économiquement.",
+                "hypotheses": "conjecture",
+                "mots_cles": "IA, Chine, États-Unis"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.",
+              "attributs": {
+                "resume": "Affirme que l'augmentation cognitive est nécessaire pour la survie.",
+                "hypotheses": "axiome",
+                "mots_cles": "augmentation cognitive, survie"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements.",
+              "attributs": {
+                "resume": "L'IA est un agent de gouvernance comportementale, pas seulement d'amélioration.",
+                "hypotheses": "phénomène",
+                "mots_cles": "gouvernance, comportements, IA"
+              }
+            }
+          ]
+        },
+        {
+          "passe": 3,
+          "duree": 82.1,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "Affirme que l'IA est la révolution majeure et que l'inaction des pays mènera à un affaiblissement relatif sur la scène internationale.",
+                "hypotheses": "conjecture",
+                "mots_cles": "IA, révolution, puissance, géopolitique"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Voilà exactement le discours qui m'inquiète. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "Présente l'IA comme un choix politique plutôt qu'une fatalité.",
+                "hypotheses": "paradigme",
+                "mots_cles": "fatalité, choix politique, discours"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Je crois qu'il y a une troisième voie que vous négligez tous les deux. L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "Propose une troisième voie fondée sur le governance via des communs numériques.",
+                "hypotheses": "paradigme, hypothèse",
+                "mots_cles": "commun numérique, gouvernance, participation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences.",
+              "attributs": {
+                "resume": "Met en doute l'efficacité pratique du commun numérique et souligne un conflit entre théories et réalités.",
+                "hypotheses": "aporie",
+                "mots_cles": "commun, théorie, réalité, guerre"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "Affirme qu'il faut développer des IA plus puissantes pour éviter la colonisation technologique.",
+                "hypotheses": "conjecture",
+                "mots_cles": "puissance IA, compétition, colonisation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.",
+              "attributs": {
+                "resume": "Affirme que l'augmentation cognitive est nécessaire.",
+                "hypotheses": "axiome",
+                "mots_cles": "augmentation cognitive, nécessité"
+              }
+            }
+          ]
+        }
+      ],
+      "articles": [
+        {
+          "caracteres": 3842,
+          "sections": 7,
+          "marqueurs": 17,
+          "sources_distinctes": 17,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 142,
+          "texte": "## Contexte et enjeux\nPlusieurs interlocuteurs présentent l'IA comme la révolution la plus importante depuis l'invention de l'écriture, appelant à des investissements massifs et à la formation des ingénieurs. [[ext:10]]\n\nUn autre groupe met en garde contre une fatalité historique et une silicolonisation, accusant l'IA d'être imposée par des acteurs privés qui transforment chaque geste humain en donnée exploitable. [[ext:11]]\n\n## Trois visions du rôle de l'IA\nUne troisième voie propose de considérer l'IA comme une ressource pouvant être gouvernée comme un commun numérique, avec une participation active des usagers à l'élaboration des règles. [[ext:12]]\n\nEn revanche, certains pensent que sans IA plus puissantes que celles des États-Unis ou de la Chine, on risque une colonisation technologique, et que l'augmentation cognitive est une nécessité. [[ext:13]]\n\nAutre dimension, la discussion met en évidence que l'IA peut aussi être vue comme une technologie qui influence nos comportements via des algorithmes de recommandation, apparaissant comme un gouvernement non élu s'installant dans nos vies. [[ext:20]]\n\n## Commun et gouvernance numérique\nDes recherches sur les communs indiquent que ni le marché pur ni l'État centralisé ne suffisent: des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des IA ouverts, avec des règles adaptées. [[ext:21]]\n\nDes exemples concrets, tels que les logiciels libres et Wikipédia, sont présentés comme preuves que des formes de gouvernance démocratique des ressources numériques peuvent exister. [[ext:31]]\n\nL'enjeu est aussi de ne pas rester dans une logique de centralisation: les institutions polycentriques sont proposées pour empêcher la capture par quelques acteurs privés. [[ext:32]]\n\n## Défis rapides et compétition\nÀ l'opposé, les laboratoires chinois et américains poursuivent des modèles de plus en plus puissants, ce qui suggère une dynamique compétitive qui peut éclipser le débat démocratique. [[ext:33]]\n\nFace à cela, l'affirmation selon laquelle l'IA évolue à une vitesse qui peut provoquer une bifurcation entre une élite cognitive augmentée et le reste de l'humanité rappelle les préoccupations exprimées sur la nécessité d'éducation et d'investissements massifs. [[ext:22]]\n\n## Démocratie, citoyenneté et contrôle\nUn appel à une insurrection civique appelle à repolitiser le débat et à remettre l'humain au centre plutôt que de le réduire à un profil statistique à optimiser. [[ext:23]]\n\nPour certains, l'IA peut être un outil d'émancipation si des institutions capables de la gouverner collectivement sont construites, avec une participation des usagers et des mécanismes de contrôle. [[ext:43]]\n\nIl faut des règles claires, une participation des usagers aux décisions et des mécanismes de contrôle gradués pour que l'IA serve le bien commun. [[ext:45]]\n\nEt c'est notre responsabilité collective de dire qu'il est possible, et nécessaire, de mettre en œuvre ces cadres. [[ext:46]]\n\n## Transhumanisme et horizons politiques\nLe transhumanisme est décrit comme la convergence des nanotechnologies, de la biologie et de l'informatique qui va transformer l'espèce humaine, que cela nous plaise ou non. [[ext:34]]\n\nLa perspective est aussi contestée: certains voient le transhumanisme comme un projet politique porté par des intérêts économiques colossaux, et non comme une description neutre. [[ext:35]]\n\nEt certains avertissent que transformer une idéologie en prophétie auto-réalisatrice serait un piège, appelant à une distance critique vis-à-vis de cette vision. [[ext:35, ext:36]]\n\n## Conclusion provisoire\nNi la course technologique débridée ni le refus radical ne suffisent. [[ext:44]]\n\nC'est possible, et c'est notre responsabilité de le faire, en s'appuyant sur des mécanismes de gouvernance et des cadres démocratiques. [[ext:46, ext:45]]\n",
+          "passe": 1,
+          "duree": 49.1
+        },
+        {
+          "caracteres": 4286,
+          "sections": 5,
+          "marqueurs": 21,
+          "sources_distinctes": 18,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 142,
+          "texte": "## Cadre général du débat sur le rôle de l'IA\n\nPour certains acteurs du débat, l'IA est une révolution majeure comparable à l'invention de l'écriture et elle exige des investissements publics massifs pour rester compétitive [[ext:10]].\n\nD'autres dénoncent ce discours comme une fatalité historique, arguant que l'IA est surtout un choix politique où des entreprises privées imposent leur vision utilitariste et transforment chaque geste humain en donnée exploitable [[ext:11]].\n\nUne troisième voie est évoquée, proposant de voir l'IA comme un commun numérique governable par les communautés d'usagers, qui participent à l'élaboration des règles qui encadrent son usage [[ext:12]].\n\n## Risques, dynamique et contestation\n\nL'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements via des algorithmes de recommandation qui orientent ce que nous lisons, achetons et pensons [[ext:20]].\n\nLa vitesse d'évolution de l'IA peut conduire à une bifurcation entre une élite cognitive augmentée et le reste de l'humanité si nos sociétés ne s'y préparent pas par l'éducation et l'investissement massif [[ext:22]].\n\nFace à ces dynamiques, certains appellent à une insurrection civique pour repolitiser radicalement le débat sur la technologie et remettre l'humain au centre [[ext:23]].\n\n## Voies de gouvernance et communs\n\nLa proposition d'une troisième voie vise à gouverner l'IA comme un commun numérique, avec la participation des usagers et l'élaboration collective des règles [[ext:12]].\n\nDes communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées au contexte local [[ext:21]].\n\nDes exemples comme les logiciels libres, Wikipédia et les coopératives de données sont cités comme preuves que des communautés peuvent gouverner des ressources numériques de manière démocratique [[ext:31]].\n\nL'enjeu n'est pas de refuser l'IA, mais de construire des institutions polycentriques qui empêchent sa capture par quelques acteurs privés [[ext:32]].\n\nPour certains, l'IA peut devenir un outil d'empuissancement si l'on met en place les structures adéquates : des règles claires, une participation des usagers et des mécanismes de contrôle gradués [[ext:43]].\n\nCette perspective appelle à des mécanismes concrets de gouvernance, notamment le recours à des règles claires et à l'inclusion des usagers dans les décisions [[ext:45]].\n\nEt il est affirmé que cela est possible et relève de notre responsabilité collective [[ext:46]].\n\n## Contexte international et éthique du développement\n\nFace à la compétition mondiale, certains soulignent que les laboratoires chinois et américains entraînent des modèles de plus en plus puissants, accentuant les pressions géopolitiques et technologiques [[ext:33]].\n\nD'autres estiment que sans une accélération des capacités, des pays risquent d'être colonisés technologiquement, mettant en lumière la dimension de survie civilisationnelle associée à l'augmentation cognitive [[ext:13]].\n\nLe transhumanisme est évoqué comme une description lucide de ce qui arrive, indiquant une convergence entre nanotechnologies, biologie et informatique qui pourrait transformer l'espèce humaine, que cela nous plaise ou non [[ext:34]].\n\nPour certains, le transhumanisme ne serait pas une description neutre mais un projet politique porté par des intérêts économiques colossaux [[ext:35]].\n\nD'autres soutiennent qu'il faut dire non à une vision du monde qui réduit l'humanité à un problème d'optimisation, afin de préserver une autre forme de démocratie et d'éthique face à ces transformations [[ext:36]].\n\n## Conclusion provisoire et perspective d'action\n\nNi la course technologique débridée ni le refus radical d'y participer ne suffisent, selon certains intervenants, à embrasser une voie unique mais à chercher des cadres vivants et adaptables [[ext:44]].\n\nIl faut des règles claires, une participation des usagers aux décisions et des mécanismes de contrôle gradués, afin de construire des institutions capables de gouverner collectivement l'IA [[ext:45]].\n\nEt selon cette écoute du débat, il est possible et nécessaire d'assumer la responsabilité collective de construire ces cadres pour que l'IA serve des biens communs plutôt que des intérêts concentrés [[ext:46]].\n",
+          "passe": 2,
+          "duree": 41.1
+        },
+        {
+          "caracteres": 3597,
+          "sections": 5,
+          "marqueurs": 25,
+          "sources_distinctes": 17,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 126,
+          "texte": "## Section 1 — Cadres du débat sur le rôle de l'IA\n\nPour certains, l'IA est une révolution majeure qui nécessitera des investissements massifs et une formation des ingénieurs. [[ext:10]]\n\nPour d'autres, c'est une fatalité historique à contester, une silicolonisation par des entreprises privées imposant leur vision utile à des sociétés entières. [[ext:11]]\n\nUne troisième voie propose de considérer l'IA comme un commun numérique gouverné par des règles élaborées avec la participation des usagers. [[ext:12]]\n\nD'autres avertissent que l'IA évolue à une vitesse qui peut dépasser nos capacités d'auto-organisation. [[ext:22]]\n\nSans éducation et investissement, certains craignent une bifurcation où une élite cognitive s'écarte du reste de l'humanité. [[ext:22]]\n\nCertains évoquent aussi la \"guerre des intelligences\" si nous ne développons pas des IA plus puissantes que celles des grandes puissances. [[ext:13]]\n\n## Section 2 — Gouvernance et pouvoir\n\nL'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements, notamment via les algorithmes de recommandation qui influencent ce que nous lisons et achetons. [[ext:20]]\n\nFace à cette puissance, des penseurs proposent des institutions polycentriques qui empêchent sa capture par quelques acteurs privés. [[ext:32]]\n\nDes exemples comme les logiciels libres, Wikipédia et les coopératives de données montrent que des communautés peuvent gouverner des ressources numériques de manière démocratique. [[ext:31]]\n\nDans ce cadre, on rappelle aussi que la vitesse de l'évolution peut dépasser les capacités actuelles à s'organiser collectivement. [[ext:22]]\n\n## Section 3 — Alternatives et communs\n\nMes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options: des communautés peuvent s'auto-organiser pour gérer des ressources partagées. [[ext:21]]\n\nDes cadres d'IA ouverts peuvent être envisagés afin que les règles s'adaptent au contexte local. [[ext:21]]\n\nNous entendons aussi des appels à une insurrection civique contre la délégation du jugement aux machines. [[ext:23]]\n\nPour éviter la capture par des pouvoirs privés, certains soutiennent la construction d'institutions polycentriques et démocratiques. [[ext:32]]\n\nEt il faut des règles claires, la participation des usagers et des mécanismes de contrôle gradués. [[ext:45]]\n\nC'est possible, et c'est notre responsabilité de le faire. [[ext:46]]\n\n## Section 4 — Transhumanisme et horizon moral\n\nLe transhumanisme est présenté comme une description lucide de ce qui arrive dans la convergence des nanotechnologies, de la biologie et de l'informatique. [[ext:34]]\n\nCertains présentent le transhumanisme comme une description lucide du réel, d'autres dénoncent que c'est un projet politique porté par des intérêts économiques colossaux. [[ext:34]] [[ext:35]]\n\nEt le débat porte sur la manière de gérer l'impact moral et social du progrès technologique. [[ext:36]]\n\n## Section 5 — Vers une gouvernance partagée et responsabilité collective\n\nPlusieurs contributions convergent sur une voie praticable: des institutions polycentriques qui gouverneraient l'IA et ses ressources. [[ext:32]] [[ext:43]]\n\nLes auteurs appellent à des règles claires, à la participation des usagers et à des mécanismes de contrôle gradués. [[ext:45]]\n\nLa discussion rappelle aussi que des voix critiques restent présentes, comme celles qui estiment que des laboratoires avancent pendant que d'autres débattent de gouvernance. [[ext:33]]\n\nEt il est présenté comme possible et nécessaire de prendre collectivement la responsabilité. [[ext:46]]\n",
+          "passe": 3,
+          "duree": 56.6
+        }
+      ],
+      "verdicts": [
+        {
+          "passe": 1,
+          "duree": 22.8,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "soutient",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "soutient",
+            "123": "soutient",
+            "124": "soutient",
+            "125": "soutient",
+            "126": "ne_soutient_pas",
+            "127": "soutient",
+            "128": "soutient"
+          }
+        },
+        {
+          "passe": 2,
+          "duree": 21.4,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "soutient",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "soutient",
+            "123": "soutient",
+            "124": "soutient",
+            "125": "soutient",
+            "126": "ne_soutient_pas",
+            "127": "soutient",
+            "128": "soutient"
+          }
+        },
+        {
+          "passe": 3,
+          "duree": 31.5,
+          "rendus": {
+            "114": "soutient",
+            "115": "soutient",
+            "116": "soutient",
+            "117": "soutient",
+            "118": "soutient",
+            "119": "soutient",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "soutient",
+            "123": "soutient",
+            "124": "soutient",
+            "125": "soutient",
+            "126": "soutient",
+            "127": "soutient",
+            "128": "soutient"
+          }
+        }
+      ]
+    },
+    {
+      "choix": "mistral-small-latest",
+      "tarif": null,
+      "peut_extraire": true,
+      "extractions": [
+        {
+          "passe": 1,
+          "duree": 9.2,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "L'IA est présentée comme une révolution historique majeure.",
+                "hypostases": "paradigme, loi",
+                "mots_cles": "IA, révolution, écriture"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "L'investissement en IA détermine le rang géopolitique.",
+                "hypostases": "loi, dimension",
+                "mots_cles": "investissement, IA, puissances"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+              "attributs": {
+                "resume": "Appel à un investissement massif et à la formation en IA.",
+                "hypostases": "principe, méthode",
+                "mots_cles": "France, milliards, ingénieurs"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "L'IA est un choix politique, non une fatalité.",
+                "hypostases": "aporie, problème",
+                "mots_cles": "IA, fatalité, choix politique"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "Critique de la silicolonisation comme exploitation des données humaines.",
+                "hypostases": "phénomène, problème",
+                "mots_cles": "silicolonisation, données, entreprises"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Je crois qu'il y a une troisième voie que vous négligez tous les deux.",
+              "attributs": {
+                "resume": "Proposition d'une troisième voie pour l'IA.",
+                "hypostases": "hypothèse, problème",
+                "mots_cles": "troisième voie, négligence"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre.",
+              "attributs": {
+                "resume": "L'IA n'est ni une fatalité ni un monstre.",
+                "hypostases": "paradoxe, problème",
+                "mots_cles": "IA, fatalité, monstre"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "L'IA comme commun numérique gouverné par les communautés.",
+                "hypostases": "théorie, méthode",
+                "mots_cles": "commun numérique, gouvernance, règles"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences.",
+              "attributs": {
+                "resume": "Les communs numériques cachent une guerre des intelligences.",
+                "hypostases": "phénomène, paradoxe",
+                "mots_cles": "communs, guerre, intelligences"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "Nécessité de développer des IA plus puissantes pour éviter une colonisation technologique.",
+                "hypostases": "loi, problème",
+                "mots_cles": "IA, puissance, colonisation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.",
+              "attributs": {
+                "resume": "L'augmentation cognitive est une nécessité civilisationnelle.",
+                "hypostases": "principe, axiome",
+                "mots_cles": "augmentation cognitive, survie"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Tu vois, c'est précisément cette rhétorique guerrière qui est toxique.",
+              "attributs": {
+                "resume": "Critique de la rhétorique guerrière autour de l'IA.",
+                "hypostases": "problème, phénomène",
+                "mots_cles": "rhétorique, guerrière, toxique"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements.",
+              "attributs": {
+                "resume": "L'IA prétend gouverner les comportements humains.",
+                "hypostases": "phénomène, problème",
+                "mots_cles": "IA, gouvernance, comportements"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons.",
+              "attributs": {
+                "resume": "Les algorithmes influencent les choix humains.",
+                "hypostases": "loi, phénomène",
+                "mots_cles": "algorithmes, recommandation, choix"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.",
+              "attributs": {
+                "resume": "Critique d'un gouvernement algorithmique non élu.",
+                "hypostases": "aporie, problème",
+                "mots_cles": "gouvernement, algorithmes, non élu"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Eric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire.",
+              "attributs": {
+                "resume": "Critique d'une réponse binaire au problème de gouvernance.",
+                "hypostases": "problème, paradoxe",
+                "mots_cles": "Eric, gouvernance, binaire"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options.",
+              "attributs": {
+                "resume": "Les communs offrent une alternative au marché et à l'État.",
+                "hypostases": "théorie, méthode",
+                "mots_cles": "communs, marché, État"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "Les communautés peuvent auto-organiser la gestion de l'IA ouverte.",
+                "hypostases": "méthode, structure",
+                "mots_cles": "communautés, auto-organisation, IA ouverte"
+              }
+            }
+          ]
+        },
+        {
+          "passe": 2,
+          "duree": 15.8,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "L'IA est présentée comme une révolution majeure.",
+                "hypostases": "paradigme, loi",
+                "mots_cles": "IA, révolution, écriture"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "L'investissement dans l'IA détermine le statut géopolitique.",
+                "hypostases": "loi, principe",
+                "mots_cles": "investissement, IA, puissances"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+              "attributs": {
+                "resume": "Appel à un investissement massif et une formation des ingénieurs.",
+                "hypostases": "principe, méthode",
+                "mots_cles": "France, milliards, ingénieurs"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Voilà exactement le discours qui m'inquiète. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "L'IA est un choix politique, non une fatalité.",
+                "hypostases": "problème, axiome",
+                "mots_cles": "IA, fatalité, choix politique"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "Critique de la silicolonisation comme vision utilitariste privée.",
+                "hypostases": "phénomène, problème",
+                "mots_cles": "silicolonisation, entreprises, données"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Je crois qu'il y a une troisième voie que vous négligez tous les deux. L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre.",
+              "attributs": {
+                "resume": "Existence d'une troisième voie pour l'IA.",
+                "hypostases": "hypothèse, problème",
+                "mots_cles": "troisième voie, IA, fatalité"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "L'IA comme commun numérique gouverné par les communautés.",
+                "hypostases": "théorie, méthode",
+                "mots_cles": "IA, commun numérique, gouvernance"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences.",
+              "attributs": {
+                "resume": "Les communs numériques mènent à une compétition technologique.",
+                "hypostases": "paradoxe, phénomène",
+                "mots_cles": "communs, guerre, intelligences"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "Nécessité de développer des IA plus puissantes pour éviter une colonisation technologique.",
+                "hypostases": "loi, principe",
+                "mots_cles": "IA, puissance, colonisation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.",
+              "attributs": {
+                "resume": "L'augmentation cognitive est une nécessité civilisationnelle.",
+                "hypostases": "axiome, principe",
+                "mots_cles": "augmentation cognitive, survie, civilisation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Tu vois, c'est précisément cette rhétorique guerrière qui est toxique. L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements.",
+              "attributs": {
+                "resume": "Critique de la rhétorique guerrière et de la gouvernance des comportements par l'IA.",
+                "hypostases": "problème, phénomène",
+                "mots_cles": "rhétorique guerrière, gouvernance, comportements"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons.",
+              "attributs": {
+                "resume": "Les algorithmes influencent nos choix et pensées.",
+                "hypostases": "phénomène, loi",
+                "mots_cles": "algorithmes, recommandation, décisions"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.",
+              "attributs": {
+                "resume": "Critique d'un gouvernement algorithmique non élu.",
+                "hypostases": "aporie, problème",
+                "mots_cles": "gouvernement, algorithmes, non élu"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Eric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire.",
+              "attributs": {
+                "resume": "La gouvernance de l'IA ne doit pas être binaire.",
+                "hypostases": "problème, axiome",
+                "mots_cles": "gouvernance, binaire, Eric"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options.",
+              "attributs": {
+                "resume": "Les communs offrent une alternative au marché et à l'État.",
+                "hypostases": "théorie, méthode",
+                "mots_cles": "communs, marché, État"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "Les communautés peuvent gérer des IA ouvertes avec des règles locales.",
+                "hypostases": "théorie, méthode",
+                "mots_cles": "communautés, auto-organisation, IA ouverte"
+              }
+            }
+          ]
+        },
+        {
+          "passe": 3,
+          "duree": 8.1,
+          "trouvees": [
+            {
+              "classe": "hypostase",
+              "texte": "L'intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture.",
+              "attributs": {
+                "resume": "L'IA est présentée comme une révolution majeure.",
+                "hypostases": "paradigme, loi",
+                "mots_cles": "IA, révolution, écriture"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre.",
+              "attributs": {
+                "resume": "Les pays non investisseurs en IA seront marginalisés.",
+                "hypostases": "loi, problème",
+                "mots_cles": "investissement, puissances, marginalisation"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "La France doit mettre des milliards sur la table, former ses ingénieurs, et cesser de pleurnicher sur les risques.",
+              "attributs": {
+                "resume": "Appel à un investissement massif en IA en France.",
+                "hypostases": "principe, méthode",
+                "mots_cles": "France, investissement, ingénieurs"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique.",
+              "attributs": {
+                "resume": "L'IA est un choix politique, pas une fatalité.",
+                "hypostases": "aporie, problème",
+                "mots_cles": "IA, fatalité, choix politique"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable.",
+              "attributs": {
+                "resume": "Critique de la vision utilitariste de l'IA comme ",
+                "hypostases": "paradoxe, phénomène",
+                "mots_cles": "silicolonisation, entreprises, données"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage.",
+              "attributs": {
+                "resume": "L'IA comme ressource gouvernable via des communs numériques.",
+                "hypostases": "théorie, méthode",
+                "mots_cles": "IA, communs numériques, gouvernance"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Un commun numérique, c'est charmant en théorie, mais dans la réalité, c'est la guerre des intelligences.",
+              "attributs": {
+                "resume": "Les communs numériques cachent une compétition technologique.",
+                "hypostases": "paradoxe, problème",
+                "mots_cles": "communs, théorie, guerre"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement.",
+              "attributs": {
+                "resume": "Menace de colonisation technologique sans développement d'IA.",
+                "hypostases": "loi, problème",
+                "mots_cles": "colonisation, IA, puissance"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle.",
+              "attributs": {
+                "resume": "L'augmentation cognitive est une nécessité civilisationnelle.",
+                "hypostases": "principe, axiome",
+                "mots_cles": "augmentation cognitive, survie"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements.",
+              "attributs": {
+                "resume": "L'IA prétend gouverner les comportements humains.",
+                "hypostases": "phénomène, problème",
+                "mots_cles": "IA, gouvernance, comportements"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons.",
+              "attributs": {
+                "resume": "Les algorithmes influencent les choix humains.",
+                "hypostases": "phénomène, loi",
+                "mots_cles": "algorithmes, recommandation, choix"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui.",
+              "attributs": {
+                "resume": "Critique d'un gouvernement algorithmique non élu.",
+                "hypostases": "aporie, problème",
+                "mots_cles": "gouvernement, algorithmes, élection"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Eric a raison de pointer le problème de la gouvernance, mais sa réponse me semble trop binaire.",
+              "attributs": {
+                "resume": "Critique d'une réponse binaire au problème de gouvernance.",
+                "hypostases": "problème, méthode",
+                "mots_cles": "gouvernance, binaire"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Mes recherches sur les communs montrent que ni le marché pur ni l'État centralisé ne sont les seules options.",
+              "attributs": {
+                "resume": "Les communs offrent une alternative au marché et à l'État.",
+                "hypostases": "théorie, méthode",
+                "mots_cles": "communs, marché, État"
+              }
+            },
+            {
+              "classe": "hypostase",
+              "texte": "Des communautés peuvent s'auto-organiser pour gérer des ressources partagées, y compris des modèles d'IA ouverts, avec des règles adaptées à leur contexte local.",
+              "attributs": {
+                "resume": "Les communautés peuvent gérer des IA ouvertes via des règles locales.",
+                "hypostases": "théorie, méthode",
+                "mots_cles": "communautés, IA ouverte, règles locales"
+              }
+            }
+          ]
+        }
+      ],
+      "articles": [
+        {
+          "caracteres": 4339,
+          "sections": 1,
+          "marqueurs": 18,
+          "sources_distinctes": 17,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 118,
+          "texte": "## L’intelligence artificielle comme enjeu de civilisation\n\nL’intelligence artificielle est présentée par certains comme la révolution la plus profonde depuis l’invention de l’écriture, un tournant qui séparerait les nations capables d’investir massivement de celles condamnées à l’obsolescence[[ext:10]]. Pour d’autres, cette vision relève d’un discours alarmiste qui naturalise un choix politique, celui d’une « silicolonisation » du monde où des entreprises privées imposeraient leur vision utilitariste en transformant chaque geste humain en donnée exploitable[[ext:11]]. Entre ces deux positions, une troisième voie émerge : celle d’une ressource à gouverner comme un commun numérique, à condition que les communautés d’usagers participent activement à l’élaboration des règles[[ext:12]].\n\n### Une technologie entre fatalité et projet politique\n\nPour ses défenseurs les plus enthousiastes, l’IA n’est pas une option mais une nécessité de survie civilisationnelle. Sans augmentation cognitive et sans développement d’intelligences artificielles plus puissantes que celles de la Chine ou des États-Unis, le risque serait une colonisation technologique et une bifurcation entre une élite cognitive augmentée et une majorité laissée pour compte[[ext:13]]. Cette urgence se double d’une critique radicale : l’IA ne se contente pas d’augmenter nos capacités, elle prétend gouverner nos comportements en décidant ce que nous lisons, achetons ou pensons, instaurant ainsi un « gouvernement non élu » dans nos vies[[ext:20]].\n\nÀ l’opposé, des voix dénoncent une idéologie transhumaniste présentée comme une description neutre du réel, alors qu’elle serait en réalité un projet politique porté par des intérêts économiques colossaux[[ext:35]]. Pour ces critiques, réduire l’humanité à un problème d’optimisation revient à accepter une vision du monde où l’humain devient un profil statistique, ce qui justifie une « insurrection civique » contre la délégation du jugement aux machines[[ext:23]].\n\n### Les communs numériques : une alternative crédible ?\n\nCertains chercheurs en communs numériques rappellent que ni le marché pur ni l’État centralisé ne sont les seules options viables. Des communautés pourraient s’auto-organiser pour gérer des ressources partagées, y compris des modèles d’IA ouverts, avec des règles adaptées à leur contexte local[[ext:21]]. Les exemples du logiciel libre, de Wikipédia ou des coopératives de données sont cités comme des preuves que des communautés peuvent gouverner des ressources numériques de manière démocratique[[ext:31]]. L’enjeu serait alors de construire des institutions polycentriques capables d’empêcher la capture de l’IA par quelques acteurs privés[[ext:32]].\n\nPourtant, cette approche se heurte à une objection majeure : la vitesse d’évolution de l’IA dépasserait nos capacités d’auto-organisation. Dans dix ans, les machines pourraient atteindre une intelligence supérieure à la nôtre, rendant toute gouvernance collective caduque si elle n’est pas préparée dès aujourd’hui par l’éducation et l’investissement massif[[ext:22]]. Certains y voient même un piège : transformer une idéologie en prophétie auto-réalisatrice, où le transhumanisme deviendrait une réalité parce qu’on aurait renoncé à le contester[[ext:34]].\n\n### Entre course technologique et gouvernance collective\n\nLe débat oppose donc deux impératifs : d’un côté, la nécessité de ne pas se laisser distancer dans une course technologique où les laboratoires chinois et américains dominent[[ext:33]] ; de l’autre, la volonté de ne pas céder à un fatalisme qui présenterait l’IA comme une force incontrôlable[[ext:11]]. Une position médiane émerge, qui refuse à la fois le « tout technologique » et le « tout rejet » : l’IA serait un outil d’empouvoisement formidable, à condition de construire les institutions capables de la gouverner collectivement[[ext:43]]. Cette voie exige des règles claires, une participation des usagers aux décisions et des mécanismes de contrôle gradués[[ext:45]].\n\nPour ses partisans, cette responsabilité collective est le seul moyen d’éviter que l’IA ne devienne un instrument de domination, qu’il soit économique, politique ou cognitif[[ext:46]]. Le défi n’est donc pas de refuser la technologie, mais de s’assurer qu’elle serve l’intérêt général plutôt que quelques intérêts particuliers[[ext:36]].\n",
+          "passe": 1,
+          "duree": 7.6
+        },
+        {
+          "caracteres": 8213,
+          "sections": 5,
+          "marqueurs": 20,
+          "sources_distinctes": 16,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 125,
+          "texte": "## L’intelligence artificielle, entre révolution inéluctable et choix politique\n\nL’intelligence artificielle est présentée par certains comme la rupture la plus profonde depuis l’invention de l’écriture, un tournant qui condamnerait les nations hésitantes à un déclin irréversible. « L’intelligence artificielle est la révolution la plus importante depuis l'invention de l'écriture. Les pays qui n'investissent pas massivement dans l'IA seront relégués au rang de puissances de second ordre. »[[ext:10]] Cette vision, souvent associée à un appel à l’investissement massif et à la formation accélérée des ingénieurs, s’accompagne d’une rhétorique de la nécessité historique : l’IA ne serait pas un choix, mais une fatalité à laquelle il faudrait se soumettre sans délai. « Voilà exactement le discours qui m'inquiète. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un choix politique. »[[ext:11]]\n\nPour d’autres, cette insistance sur la course technologique masque une réalité plus inquiétante : la concentration du pouvoir entre les mains d’acteurs privés qui transforment chaque interaction humaine en donnée exploitable. « Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable. »[[ext:11]] Certains y voient même l’émergence d’un gouvernement non élu, dont les algorithmes dictent ce que nous lisons, achetons ou pensons. « L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverner nos comportements. Les algorithmes de recommandation décident ce que nous lisons, ce que nous achetons, ce que nous pensons. C'est un gouvernement non élu qui s'installe dans nos vies sans qu'on ait jamais voté pour lui. »[[ext:20]]\n\n## Une troisième voie : gouverner l’IA comme un commun\n\nFace à ces visions opposées, une troisième perspective émerge, qui refuse à la fois le fatalisme technologique et le rejet pur et simple. Ses partisans proposent de traiter l’IA comme une ressource collective, gouvernée par les communautés d’usagers plutôt que par des intérêts privés ou des États. « L'IA n'est ni une fatalité à embrasser aveuglément, ni un monstre à combattre. C'est une ressource qui peut être gouvernée comme un commun numérique, à condition que les communautés d'usagers participent à l'élaboration des règles qui encadrent son usage. »[[ext:12]] Cette approche s’appuie sur des exemples concrets, comme les logiciels libres ou les coopératives de données, pour montrer qu’une gouvernance démocratique des technologies numériques est possible. « Je partage ton inquiétude sur la concentration du pouvoir, Eric, mais je refuse le fatalisme. Regardez les logiciels libres, Wikipédia, les coopératives de données : ce sont des preuves vivantes que des communautés peuvent gouverner des ressources numériques de manière démocratique. »[[ext:31]]\n\nPourtant, cette vision se heurte à une objection majeure : l’IA évolue à un rythme qui dépasse les capacités d’auto-organisation des sociétés humaines. « Le problème, Elinor, c'est que l'IA évolue à une vitesse qui dépasse nos capacités d'auto-organisation. Dans dix ans, les machines auront une intelligence supérieure à la nôtre. »[[ext:22]] Certains craignent alors une bifurcation sociale entre une élite cognitive augmentée et une majorité laissée pour compte, rendant toute gouvernance collective illusoire. « Si nous n'avons pas préparé nos sociétés par l'éducation et l'investissement massif, nous assisterons à une bifurcation entre une élite cognitive augmentée et le reste de l'humanité laissé pour compte. »[[ext:22]]\n\n## La course technologique : une nécessité de survie ?\n\nÀ l’inverse, les défenseurs d’une approche compétitive insistent sur l’urgence de ne pas se laisser distancer par les puissances étrangères. Pour eux, l’augmentation cognitive n’est pas une option, mais une condition de survie civilisationnelle. « Si nous ne développons pas des IA plus puissantes que celles de la Chine ou des États-Unis, nous serons colonisés technologiquement. L'augmentation cognitive n'est pas une option, c'est une nécessité de survie civilisationnelle. »[[ext:13]] Cette position s’accompagne parfois d’une description du transhumanisme comme une évolution inéluctable, voire désirable, de l’espèce humaine. « Le transhumanisme n'est pas une idéologie, c'est la description lucide de ce qui arrive. La convergence des nanotechnologies, de la biologie et de l'informatique va transformer l'espèce humaine, que cela nous plaise ou non. »[[ext:34]]\n\nCette vision est vivement contestée par ceux qui y voient une idéologie déguisée en prédiction neutre, un projet politique masqué derrière un discours technoscientifique. « Et voilà le piège : transformer une idéologie en prophétie auto-réalisatrice. Non, Laurent, le transhumanisme n'est pas une description neutre du réel. C'est un projet politique porté par des intérêts économiques colossaux. »[[ext:35]] Pour ces critiques, l’enjeu n’est pas de refuser le progrès technique, mais de s’opposer à une vision du monde qui réduit l’humanité à un problème d’optimisation. « Vous êtes des rêveurs sympathiques, mais pendant que vous débattez de gouvernance et de communs, les laboratoires chinois et américains entraînent des modèles de plus en plus puissants. »[[ext:33]]\n\n## Repolitiser le débat : entre insurrection civique et institutions polycentriques\n\nUne partie des participants appelle à une repolitisation radicale du débat sur l’IA, refusant toute délégation du jugement aux machines. « Nous avons besoin d'une insurrection civique contre la délégation du jugement aux machines. L'humain n'est pas un profil statistique à optimiser. Il est temps de repolitiser radicalement le débat sur la technologie. »[[ext:23]] Pour eux, l’IA ne doit pas devenir un outil de gouvernement non élu, mais rester un instrument au service des sociétés, dont les règles d’usage doivent être négociées démocratiquement.\n\nD’autres, tout en partageant cette méfiance envers la concentration du pouvoir, proposent de construire des institutions capables de limiter les risques sans renoncer aux bénéfices de l’innovation. « L'enjeu n'est pas de refuser l'IA, mais de construire des institutions polycentriques qui empêchent sa capture par quelques acteurs privés. »[[ext:32]] Cette approche suppose de combiner règles claires, participation des usagers et mécanismes de contrôle gradués. « Il faut des règles claires, une participation des usagers aux décisions, et des mécanismes de contrôle gradués. »[[ext:45]] « C'est possible, et c'est notre responsabilité de le faire. »[[ext:46]]\n\n## Ce que ce débat révèle du rôle de l’IA\n\nAu-delà des divergences, une constante émerge : l’IA n’est pas un objet neutre, mais un enjeu de pouvoir. Qu’elle soit présentée comme une révolution inéluctable, un monstre à combattre ou une ressource à gouverner, elle cristallise des visions opposées de la société. « Ni la course technologique débridée de Laurent, ni le refus radical d'Eric ne suffisent. »[[ext:44]] Certains y voient une opportunité d’émancipation collective, à condition de construire les institutions nécessaires. « L'IA est un outil d'empuissancement formidable si — et seulement si — nous construisons les institutions capables de la gouverner collectivement. »[[ext:43]] D’autres mettent en garde contre les risques d’une gouvernance par les algorithmes, qui transformerait les citoyens en simples profils statistiques. « Ce que tu appelles progrès, Laurent, c'est la silicolonisation du monde : des entreprises privées qui imposent leur vision utilitariste à des sociétés entières, en transformant chaque geste humain en donnée exploitable. »[[ext:11]]\n\nCe qui se joue, en définitive, c’est la capacité des sociétés à définir elles-mêmes les conditions de leur coexistence avec les machines. Entre fatalisme technologique et insurrection civique, le débat reste ouvert — et c’est précisément cette ouverture qui pourrait permettre d’éviter que l’IA ne devienne, pour reprendre les termes d’un participant, « un gouvernement non élu qui s’installe dans nos vies sans qu’on ait jamais voté pour lui. »[[ext:20]]\n",
+          "passe": 2,
+          "duree": 12.7
+        },
+        {
+          "caracteres": 4339,
+          "sections": 1,
+          "marqueurs": 18,
+          "sources_distinctes": 17,
+          "marqueurs_hallucines": 0,
+          "trailer_present": true,
+          "citations_annoncees": 118,
+          "texte": "## L’intelligence artificielle comme enjeu de civilisation\n\nL’intelligence artificielle est présentée par certains comme la révolution la plus profonde depuis l’invention de l’écriture, un tournant qui séparerait les nations capables d’investir massivement de celles condamnées à l’obsolescence[[ext:10]]. Pour d’autres, cette vision relève d’un discours alarmiste qui naturalise un choix politique, celui d’une « silicolonisation » du monde où des entreprises privées imposeraient leur vision utilitariste en transformant chaque geste humain en donnée exploitable[[ext:11]]. Entre ces deux positions, une troisième voie émerge : celle d’une ressource à gouverner comme un commun numérique, à condition que les communautés d’usagers participent activement à l’élaboration des règles[[ext:12]].\n\n### Une technologie entre fatalité et projet politique\n\nPour ses défenseurs les plus enthousiastes, l’IA n’est pas une option mais une nécessité de survie civilisationnelle. Sans augmentation cognitive et sans développement d’intelligences artificielles plus puissantes que celles de la Chine ou des États-Unis, le risque serait une colonisation technologique et une bifurcation entre une élite cognitive augmentée et une majorité laissée pour compte[[ext:13]]. Cette urgence se double d’une critique radicale : l’IA ne se contente pas d’augmenter nos capacités, elle prétend gouverner nos comportements en décidant ce que nous lisons, achetons ou pensons, instaurant ainsi un « gouvernement non élu » dans nos vies[[ext:20]].\n\nÀ l’opposé, des voix dénoncent une idéologie transhumaniste présentée comme une description neutre du réel, alors qu’elle serait en réalité un projet politique porté par des intérêts économiques colossaux[[ext:35]]. Pour ces critiques, réduire l’humanité à un problème d’optimisation revient à accepter une vision du monde où l’humain devient un profil statistique, ce qui justifie une « insurrection civique » contre la délégation du jugement aux machines[[ext:23]].\n\n### Les communs numériques : une alternative crédible ?\n\nCertains chercheurs en communs numériques rappellent que ni le marché pur ni l’État centralisé ne sont les seules options viables. Des communautés pourraient s’auto-organiser pour gérer des ressources partagées, y compris des modèles d’IA ouverts, avec des règles adaptées à leur contexte local[[ext:21]]. Les exemples du logiciel libre, de Wikipédia ou des coopératives de données sont cités comme des preuves que des communautés peuvent gouverner des ressources numériques de manière démocratique[[ext:31]]. L’enjeu serait alors de construire des institutions polycentriques capables d’empêcher la capture de l’IA par quelques acteurs privés[[ext:32]].\n\nPourtant, cette approche se heurte à une objection majeure : la vitesse d’évolution de l’IA dépasserait nos capacités d’auto-organisation. Dans dix ans, les machines pourraient atteindre une intelligence supérieure à la nôtre, rendant toute gouvernance collective caduque si elle n’est pas préparée dès aujourd’hui par l’éducation et l’investissement massif[[ext:22]]. Certains y voient même un piège : transformer une idéologie en prophétie auto-réalisatrice, où le transhumanisme deviendrait une réalité parce qu’on aurait renoncé à le contester[[ext:34]].\n\n### Entre course technologique et gouvernance collective\n\nLe débat oppose donc deux impératifs : d’un côté, la nécessité de ne pas se laisser distancer dans une course technologique où les laboratoires chinois et américains dominent[[ext:33]] ; de l’autre, la volonté de ne pas céder à un fatalisme qui présenterait l’IA comme une force incontrôlable[[ext:11]]. Une position médiane émerge, qui refuse à la fois le « tout technologique » et le « tout rejet » : l’IA serait un outil d’empouvoisement formidable, à condition de construire les institutions capables de la gouverner collectivement[[ext:43]]. Cette voie exige des règles claires, une participation des usagers aux décisions et des mécanismes de contrôle gradués[[ext:45]].\n\nPour ses partisans, cette responsabilité collective est le seul moyen d’éviter que l’IA ne devienne un instrument de domination, qu’il soit économique, politique ou cognitif[[ext:46]]. Le défi n’est donc pas de refuser la technologie, mais de s’assurer qu’elle serve l’intérêt général plutôt que quelques intérêts particuliers[[ext:36]].\n",
+          "passe": 3,
+          "duree": 7.6
+        }
+      ],
+      "verdicts": [
+        {
+          "passe": 1,
+          "duree": 1.0,
+          "rendus": {
+            "114": "soutient",
+            "115": "ne_soutient_pas",
+            "116": "ne_soutient_pas",
+            "117": "soutient",
+            "118": "ne_soutient_pas",
+            "119": "ne_soutient_pas",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "ne_soutient_pas",
+            "123": "ne_soutient_pas",
+            "124": "ne_soutient_pas",
+            "125": "soutient",
+            "126": "ne_soutient_pas",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        },
+        {
+          "passe": 2,
+          "duree": 0.9,
+          "rendus": {
+            "114": "soutient",
+            "115": "ne_soutient_pas",
+            "116": "ne_soutient_pas",
+            "117": "soutient",
+            "118": "ne_soutient_pas",
+            "119": "ne_soutient_pas",
+            "120": "soutient",
+            "121": "soutient",
+            "122": "ne_soutient_pas",
+            "123": "ne_soutient_pas",
+            "124": "ne_soutient_pas",
+            "125": "soutient",
+            "126": "ne_soutient_pas",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        },
+        {
+          "passe": 3,
+          "duree": 0.9,
+          "rendus": {
+            "114": "soutient",
+            "115": "ne_soutient_pas",
+            "116": "ne_soutient_pas",
+            "117": "soutient",
+            "118": "ne_soutient_pas",
+            "119": "ne_soutient_pas",
+            "120": "soutient",
+            "121": "ne_soutient_pas",
+            "122": "ne_soutient_pas",
+            "123": "ne_soutient_pas",
+            "124": "ne_soutient_pas",
+            "125": "soutient",
+            "126": "ne_soutient_pas",
+            "127": "ne_soutient_pas",
+            "128": "soutient"
+          }
+        }
+      ]
+    }
+  ]
+}

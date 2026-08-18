@@ -88,9 +88,18 @@
             <span class="font-medium">~{{ nombre_tokens_thinking|floatformat:0 }}</span>
         </div>
         {% endif %}
+        {% comment %}
+        « non mesuré » n'est PAS « gratuit » : un tarif absent de la
+        table ne vaut pas zéro, et c'est sur ce chiffre que l'utilisateur
+        décide de lancer un appel facturé.
+        {% endcomment %}
         <div class="flex justify-between items-center text-amber-900 border-t border-amber-300 pt-2 mt-2">
             <span class="font-bold">Cout estime</span>
+            {% if cout_estime_euros == None %}
+            <span class="font-bold text-lg" data-testid="cout-non-mesure">non mesur&eacute;</span>
+            {% else %}
             <span class="font-bold text-lg">&le; {{ cout_estime_euros|floatformat:2 }} &euro;</span>
+            {% endif %}
         </div>
         {% if nombre_tokens_thinking > 0 %}
         <p class="text-[10px] text-amber-500 mt-1">Inclut les tokens de r&eacute;flexion interne (thinking) factur&eacute;s au tarif output.</p>

@@ -852,3 +852,298 @@ class LaSourceEstFaiteDElementsTest(TestCase):
         self.assertEqual(
             lien.etat_de_verification, EtatDeVerification.VERIFIE,
         )
+
+
+class LeJugeNeDegradeRienTest(TestCase):
+    """
+    Un echec du juge ne touche a AUCUN verdict anterieur.
+    / A judge failure touches no previous verdict.
+
+    LOCALISATION : core/tests/test_verification.py
+
+    Un lot rejete, un verdict manquant, une reponse inexploitable : ce
+    sont des pannes du JUGE, pas des informations sur la CITATION.
+    Ecraser un « verifie » anterieur en « non verifie » ferait passer
+    une panne technique pour un resultat — et l'etalon de 145 paires
+    juge le 17 aout 2026 disparaitrait au premier essai d'un juge
+    candidat qui repond mal.
+
+    Ce que « ne rien degrader » veut dire exactement : ON NE TOUCHE A
+    RIEN. Ni l'etat, ni la provenance, ni la date, ni
+    `commentaires_source` — `_poser_le_verdict` vide ce dernier quand
+    aucun commentaire porteur ne lui est passe, ce qui rendrait la
+    provenance « sourcee par le debat » fausse (relecture G, I7).
+
+    Une paire qui n'avait AUCUN verdict reste « non verifie » : c'est le
+    bon defaut, et il ne change pas.
+    / Nothing at all is touched: state, provenance, date and the
+    debate-comment link all survive a judge failure.
+    """
+
+    def setUp(self):
+        self.modele_ia = AIModel.objects.create(
+            name="Juge défaillant", model_choice="mock_default",
+            is_active=True,
+        )
+        self.note_source = Page.objects.create(
+            url="http://exemple.local/degradation",
+            html_original="<p>o</p>", html_readability="<p>l</p>",
+            text_readability=TEXTE_DE_LA_SOURCE,
+            content_hash="hash-degradation", title="Compte rendu",
+        )
+        self.job = ExtractionJob.objects.create(
+            page=self.note_source, name="Analyse", status="completed",
+            ai_model=None,
+        )
+        self.extraction = ExtractedEntity.objects.create(
+            job=self.job, extraction_class="donnee",
+            extraction_text=(
+                "le seuil de dix mille euros déclenche le passage en assemblée"
+            ),
+            start_char=0, end_char=60,
+        )
+
+    def _article_citant_l_extraction(self, empreinte):
+        markdown = f"Affirmation citée.[[ext:{self.extraction.pk}]]\n"
+        article = Page.objects.create(
+            url=f"http://exemple.local/{empreinte}",
+            html_original="<p>a</p>", html_readability="<p>a</p>",
+            text_readability="provisoire", content_hash=empreinte,
+            title="Synthèse", type_de_note=TypeDeNote.SYNTHESE,
+        )
+        bilan = indexer_les_citations(article, markdown, None)
+        article.text_readability = bilan["texte_nettoye"]
+        article.save(update_fields=["text_readability"])
+        return article
+
+    def _verifier_avec(self, article, reponse_du_juge):
+        from core.services.verification import (
+            verifier_les_citations_d_un_article,
+        )
+
+        with patch(
+            "core.llm_providers.appeler_llm", return_value=reponse_du_juge,
+        ):
+            return verifier_les_citations_d_un_article(article, self.modele_ia)
+
+    def test_un_lot_rejete_ne_touche_pas_un_verdict_anterieur(self):
+        """Un « vérifié » de la veille survit à un lot rejeté aujourd'hui."""
+        article = self._article_citant_l_extraction("hash-degradation-1")
+
+        # Premier passage : un juge qui repond bien.
+        # / First pass: a judge that answers properly.
+        self._verifier_avec(article, "1: soutient")
+        lien = SourceLink.objects.get(
+            page_cible=article, type_lien=TypeLien.CITE,
+        )
+        self.assertEqual(
+            lien.etat_de_verification, EtatDeVerification.VERIFIE,
+        )
+        provenance_du_premier_juge = lien.verifie_par
+        date_du_premier_verdict = lien.verifie_le
+
+        # Second passage : une reponse qui cite un indice HORS DU LOT,
+        # donc rejetee en entier (defense B2).
+        # / Second pass: an out-of-lot index voids the whole batch.
+        bilan = self._verifier_avec(article, "7: ne_soutient_pas")
+
+        lien.refresh_from_db()
+        self.assertEqual(
+            lien.etat_de_verification, EtatDeVerification.VERIFIE,
+        )
+        self.assertEqual(lien.verifie_par, provenance_du_premier_juge)
+        self.assertEqual(lien.verifie_le, date_du_premier_verdict)
+        self.assertEqual(bilan["sans_verdict"], 1)
+
+    def test_une_reponse_vide_ne_touche_pas_un_verdict_anterieur(self):
+        """Un juge muet ne défait pas ce qu'un juge bavard avait établi."""
+        article = self._article_citant_l_extraction("hash-degradation-2")
+
+        self._verifier_avec(article, "1: soutient")
+        lien = SourceLink.objects.get(
+            page_cible=article, type_lien=TypeLien.CITE,
+        )
+        provenance_du_premier_juge = lien.verifie_par
+
+        bilan = self._verifier_avec(article, "")
+
+        lien.refresh_from_db()
+        self.assertEqual(
+            lien.etat_de_verification, EtatDeVerification.VERIFIE,
+        )
+        self.assertEqual(lien.verifie_par, provenance_du_premier_juge)
+        self.assertEqual(bilan["sans_verdict"], 1)
+
+    def test_une_paire_jamais_jugee_reste_non_verifiee(self):
+        """Sans verdict antérieur, le défaut reste « non vérifié »."""
+        article = self._article_citant_l_extraction("hash-degradation-3")
+
+        bilan = self._verifier_avec(article, "réponse inexploitable")
+
+        lien = SourceLink.objects.get(
+            page_cible=article, type_lien=TypeLien.CITE,
+        )
+        self.assertEqual(
+            lien.etat_de_verification, EtatDeVerification.NON_VERIFIE,
+        )
+        self.assertEqual(bilan["sans_verdict"], 1)
+
+    def test_le_lien_vers_le_commentaire_source_survit_a_un_echec(self):
+        """
+        Une paire « sourcée par le débat » garde son commentaire porteur
+        quand le juge échoue — sinon la provenance affichée dans le
+        panneau de preuve désignerait un commentaire disparu.
+        """
+        utilisateur = Utilisateur.objects.create_user(
+            username="commentateur_degradation", password="motdepasse",
+        )
+        commentaire = CommentaireExtraction.objects.create(
+            entity=self.extraction, user=utilisateur,
+            commentaire=(
+                "Je cite : le seuil de dix mille euros déclenche le passage "
+                "en assemblée, et personne ne l'a contesté."
+            ),
+        )
+        # L'extraction ne se retrouve plus dans la note : c'est le
+        # COMMENTAIRE qui porte le verbatim (§ 7.4).
+        # / The quote now lives only in the debate.
+        ExtractedEntity.objects.filter(pk=self.extraction.pk).update(
+            extraction_text=(
+                "le seuil de dix mille euros déclenche le passage en assemblée"
+            ),
+        )
+        Page.objects.filter(pk=self.note_source.pk).update(
+            text_readability="La note ne contient plus ce passage.",
+        )
+        article = self._article_citant_l_extraction("hash-degradation-4")
+
+        self._verifier_avec(article, "1: soutient")
+        lien = SourceLink.objects.get(
+            page_cible=article, type_lien=TypeLien.CITE,
+        )
+        self.assertEqual(
+            lien.etat_de_verification, EtatDeVerification.SOURCE_DEBAT,
+        )
+        self.assertEqual(
+            list(lien.commentaires_source.all()), [commentaire],
+        )
+
+        self._verifier_avec(article, "7: soutient")
+
+        lien.refresh_from_db()
+        self.assertEqual(
+            lien.etat_de_verification, EtatDeVerification.SOURCE_DEBAT,
+        )
+        self.assertEqual(
+            list(lien.commentaires_source.all()), [commentaire],
+        )
+
+
+class LaDichotomieAdaptativeTest(TestCase):
+    """
+    Un paquet inexploitable est recoupe en deux, pas une exception.
+    / An unusable batch is halved; an exception is not.
+
+    LOCALISATION : core/tests/test_verification.py
+
+    Un juge qui cale sur vingt paires en juge parfois cinq. Recouper
+    convertit « vingt paires perdues » en « cinq perdues ».
+
+    MAIS PAS SUR UNE EXCEPTION : une exception, c'est le SERVICE qui
+    refuse — quota, delai, panne. Redecouper multiplierait les appels
+    d'un fournisseur qui dit deja non, et la facture avec.
+    / Halving turns "20 lost" into "5 lost", but never on an exception:
+    that is the provider refusing, and splitting multiplies the bill.
+    """
+
+    def setUp(self):
+        self.modele_ia = AIModel.objects.create(
+            name="Juge qui cale", model_choice="mock_default", is_active=True,
+        )
+        self.note_source = Page.objects.create(
+            url="http://exemple.local/dichotomie",
+            html_original="<p>o</p>", html_readability="<p>l</p>",
+            text_readability=(
+                "Le premier point est acquis. Le deuxième point est "
+                "discuté. Le troisième point est reporté. Le quatrième "
+                "point est financé."
+            ),
+            content_hash="hash-dichotomie", title="Compte rendu",
+        )
+        self.job = ExtractionJob.objects.create(
+            page=self.note_source, name="Analyse", status="completed",
+            ai_model=None,
+        )
+        self.extractions = [
+            ExtractedEntity.objects.create(
+                job=self.job, extraction_class="donnee",
+                extraction_text=texte, start_char=0, end_char=30,
+            )
+            for texte in (
+                "Le premier point est acquis",
+                "Le deuxième point est discuté",
+                "Le troisième point est reporté",
+                "Le quatrième point est financé",
+            )
+        ]
+        markdown = "\n\n".join(
+            f"Affirmation numéro {numero}.[[ext:{extraction.pk}]]"
+            for numero, extraction in enumerate(self.extractions, start=1)
+        ) + "\n"
+        self.article = Page.objects.create(
+            url="http://exemple.local/dichotomie-article",
+            html_original="<p>a</p>", html_readability="<p>a</p>",
+            text_readability="provisoire",
+            content_hash="hash-dichotomie-article",
+            title="Synthèse", type_de_note=TypeDeNote.SYNTHESE,
+        )
+        bilan = indexer_les_citations(self.article, markdown, None)
+        self.article.text_readability = bilan["texte_nettoye"]
+        self.article.save(update_fields=["text_readability"])
+
+    def _verifier(self, reponses):
+        from core.services.verification import (
+            verifier_les_citations_d_un_article,
+        )
+
+        with patch(
+            "core.llm_providers.appeler_llm", side_effect=reponses,
+        ) as appel_du_juge:
+            bilan = verifier_les_citations_d_un_article(
+                self.article, self.modele_ia,
+            )
+        return bilan, appel_du_juge
+
+    def test_un_paquet_inexploitable_est_recoupe_en_deux(self):
+        """Le lot rate, ses deux moitiés passent : rien n'est perdu."""
+        bilan, appel_du_juge = self._verifier([
+            "je ne comprends pas la question",
+            "1: soutient\n2: soutient",
+            "1: soutient\n2: ne_soutient_pas",
+        ])
+
+        self.assertEqual(appel_du_juge.call_count, 3)
+        self.assertEqual(bilan["verifiees"], 3)
+        self.assertEqual(bilan["faibles"], 1)
+        self.assertEqual(bilan["sans_verdict"], 0)
+
+    def test_une_exception_ne_declenche_aucun_recoupage(self):
+        """Un service qui refuse n'est pas rappelé trois fois de plus."""
+        bilan, appel_du_juge = self._verifier(
+            [RuntimeError("429 quota dépassé")],
+        )
+
+        self.assertEqual(appel_du_juge.call_count, 1)
+        self.assertIn("429", bilan["erreur_du_juge"])
+
+    def test_le_recoupage_est_borne(self):
+        """
+        Un juge qui répond toujours de travers ne déclenche pas une
+        dichotomie complète : 7 appels au pire pour 4 paires, pas 2n-1.
+        """
+        bilan, appel_du_juge = self._verifier(
+            ["toujours du charabia"] * 20,
+        )
+
+        self.assertEqual(appel_du_juge.call_count, 7)
+        self.assertEqual(bilan["sans_verdict"], 4)

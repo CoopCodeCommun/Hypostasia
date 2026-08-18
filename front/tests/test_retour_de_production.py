@@ -221,3 +221,83 @@ class RetourDeProductionTest(TestCase):
                          "Le formulaire vise encore un id absent en accès direct")
         self.assertIn("synthese-article", gabarit,
                       "Le formulaire ne vise pas l'article")
+
+
+class LEchecDuJugeSeVoitTest(TestCase):
+    """
+    Un juge qui n'a rien pu juger le DIT sur l'ecran d'article.
+    / A judge that judged nothing says so on the article screen.
+
+    LOCALISATION : front/tests/test_retour_de_production.py
+
+    POURQUOI CE TEST EXISTE. Depuis que l'echec du juge ne degrade plus
+    rien — les verdicts precedents sont laisses intacts —, une
+    verification entierement ratee rendrait un ecran RIGOUREUSEMENT
+    identique a celui d'avant le clic, avec une tache « terminée ».
+    L'utilisateur croirait que son juge a jugé. Une degradation
+    silencieuse est pire qu'une erreur.
+    / Since a judge failure degrades nothing, a fully failed run would
+    look exactly like a success unless the screen says otherwise.
+    """
+
+    def setUp(self):
+        self.proprietaire = Utilisateur.objects.create_user(
+            "proprio_juge", "proprio-juge@exemple.test", "motdepasse123",
+        )
+        self.carnet = Dossier.objects.create(
+            name="Carnet du juge", owner=self.proprietaire,
+            visibilite=VisibiliteDossier.PRIVE,
+        )
+        self.page_d_article = Page.objects.create(
+            title="Wiki — l'échec du juge", text_readability="Texte.",
+            html_readability="", html_original="", content_hash="hash-juge",
+            type_de_note=TypeDeNote.WIKI, owner=self.proprietaire,
+        )
+        ranger_une_note_dans_un_carnet(
+            self.page_d_article, self.carnet, utilisateur=self.proprietaire,
+        )
+        self.wiki = Wiki.objects.create(
+            page=self.page_d_article, dossier=self.carnet, sujet="sujet",
+        )
+        self.client.force_login(self.proprietaire)
+
+    def _etat_apres_verification(self, bilan):
+        job = ExtractionJob.objects.create(
+            page=self.page_d_article, name="Vérification",
+            status=ExtractionJobStatus.COMPLETED,
+            raw_result={
+                "est_verification": True, "bilan_de_verification": bilan,
+            },
+        )
+        return self.client.get(
+            f"/wikis/{self.wiki.pk}/etat/?job_id={job.pk}&apres=article",
+            HTTP_HX_REQUEST="true",
+        ).content.decode()
+
+    def test_des_paires_sans_verdict_sont_annoncees(self):
+        """Le bandeau dit combien de citations n'ont pas été jugées."""
+        html = self._etat_apres_verification({
+            "verifiees": 3, "sans_verdict": 20, "erreur_du_juge": "",
+        })
+
+        self.assertIn("synthese-echec-du-juge", html)
+        self.assertIn("20 citations", html)
+
+    def test_une_panne_du_juge_est_annoncee_avec_son_motif(self):
+        """Le motif rapporté par le juge apparaît, pas seulement un compte."""
+        html = self._etat_apres_verification({
+            "verifiees": 0, "sans_verdict": 0,
+            "erreur_du_juge": "429 quota dépassé",
+        })
+
+        self.assertIn("synthese-echec-du-juge", html)
+        self.assertIn("429 quota dépassé", html)
+
+    def test_une_verification_reussie_n_affiche_aucun_bandeau(self):
+        """Rien à signaler, rien d'affiché."""
+        html = self._etat_apres_verification({
+            "verifiees": 5, "faibles": 1, "sans_verdict": 0,
+            "erreur_du_juge": "",
+        })
+
+        self.assertNotIn("synthese-echec-du-juge", html)

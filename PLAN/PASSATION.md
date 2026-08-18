@@ -335,11 +335,21 @@ du code de production.
 
 ---
 
-## 7. L'état des tests — mesuré le 17 août
+## 7. L'état des tests — remesuré le 17 août, après le chantier des rôles
 
-**1916 tests, tous verts**, dont 14 sautés. La suite tourne en **22 min 00 s**
+**2007 tests, tous verts**, dont 14 sautés. La suite tourne en **22 min 32 s**
 (`front core hypostasis_extractor --exclude-tag=e2e`, donc **hors e2e** — c'est
 un périmètre différent de la mesure précédente, ne pas comparer les durées).
+
+> La mesure du matin disait **1916 tests en 22 min 00 s**, mêmes 14 sautés. Les
+> **91 tests de plus** viennent du chantier « un modèle par rôle » : la table de
+> rôles et son repli, le branchement des six producteurs, le chemin d'appel
+> compatible OpenAI, la non-dégradation du juge, la dichotomie de lot, le gel de
+> l'étalon, la commande d'affectation et ses options, la transmission de la
+> température (y compris son absence, que les modèles de raisonnement exigent),
+> le verrou « tout modèle du référentiel a un tarif », et l'extraction par une
+> plateforme compatible OpenAI. Détail dans
+> `CHANGELOG/2026-08-17-un-modele-par-role-et-un-chemin-partage.md`.
 
 > La mesure du 13 août disait **1874 tests en 12 min 51 s**, dont 25 sautés,
 > sur la suite complète e2e comprise. L'optimisation qui l'avait obtenue tient
@@ -364,9 +374,15 @@ le `Makefile` les porte avec leurs comptes, et une seconde liste divergerait.
 deux exécutions simultanées se la détruisent mutuellement en plein vol (755
 erreurs fantômes constatées).
 
-> **Ce paragraphe est la source de la mesure ci-dessus** (1874 tests,
-> 12 min 51 s). Ni le README ni `AGENTS.md` ne la répètent : ils y renvoient.
-> Si tu remesures, c'est ici que tu écris, et nulle part ailleurs.
+> **Cette section est la source de la mesure** — aujourd'hui **2007 tests en
+> 22 min 32 s**, en tête de section. Ni le README ni `AGENTS.md` ne la
+> répètent : ils y renvoient. Si tu remesures, c'est ici que tu écris, et
+> nulle part ailleurs.
+>
+> Cette note portait encore « 1874 tests, 12 min 51 s » alors que la section
+> annonçait 1916 depuis le matin : le chiffre de rappel avait été oublié à la
+> remesure. Il n'y a qu'un endroit où écrire, et c'est **le premier
+> paragraphe** — cette note ne fait que le désigner.
 
 Le dernier échec trouvé le 13 août vaut d'être lu — c'est le genre de défaut
 qu'un travail d'UX peut créer sans le voir :

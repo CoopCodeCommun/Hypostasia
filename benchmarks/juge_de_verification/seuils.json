@@ -1,0 +1,317 @@
+{
+  "gemini-2.5-flash|production": [
+    14,
+    14,
+    {
+      "1": "soutient",
+      "2": "soutient",
+      "3": "soutient",
+      "4": "soutient",
+      "5": "soutient",
+      "6": "soutient",
+      "7": "soutient",
+      "8": "soutient",
+      "9": "soutient",
+      "10": "soutient",
+      "11": "soutient",
+      "12": "soutient",
+      "13": "soutient",
+      "14": "ne_soutient_pas",
+      "15": "soutient"
+    }
+  ],
+  "gemini-2.5-flash|seuil large": [
+    14,
+    14,
+    {
+      "1": "soutient",
+      "2": "soutient",
+      "3": "soutient",
+      "4": "soutient",
+      "5": "soutient",
+      "6": "soutient",
+      "7": "soutient",
+      "8": "soutient",
+      "9": "soutient",
+      "10": "soutient",
+      "11": "soutient",
+      "12": "soutient",
+      "13": "soutient",
+      "14": "ne_soutient_pas",
+      "15": "soutient"
+    }
+  ],
+  "gemini-2.5-flash|seuil strict": [
+    0,
+    2,
+    {
+      "1": "ne_soutient_pas",
+      "2": "ne_soutient_pas",
+      "3": "ne_soutient_pas",
+      "4": "ne_soutient_pas",
+      "5": "ne_soutient_pas",
+      "6": "ne_soutient_pas",
+      "7": "ne_soutient_pas",
+      "8": "ne_soutient_pas",
+      "9": "ne_soutient_pas",
+      "10": "ne_soutient_pas",
+      "11": "ne_soutient_pas",
+      "12": "ne_soutient_pas",
+      "13": "ne_soutient_pas",
+      "14": "ne_soutient_pas",
+      "15": "ne_soutient_pas"
+    }
+  ],
+  "gemini-3.1-flash-lite|production": [
+    8,
+    10,
+    {
+      "1": "soutient",
+      "2": "soutient",
+      "3": "soutient",
+      "4": "soutient",
+      "5": "ne_soutient_pas",
+      "6": "ne_soutient_pas",
+      "7": "soutient",
+      "8": "soutient",
+      "9": "ne_soutient_pas",
+      "10": "ne_soutient_pas",
+      "11": "ne_soutient_pas",
+      "12": "soutient",
+      "13": "ne_soutient_pas",
+      "14": "ne_soutient_pas",
+      "15": "soutient"
+    }
+  ],
+  "gemini-3.1-flash-lite|seuil large": [
+    11,
+    13,
+    {
+      "1": "soutient",
+      "2": "soutient",
+      "3": "soutient",
+      "4": "soutient",
+      "5": "ne_soutient_pas",
+      "6": "soutient",
+      "7": "soutient",
+      "8": "soutient",
+      "9": "soutient",
+      "10": "ne_soutient_pas",
+      "11": "soutient",
+      "12": "soutient",
+      "13": "ne_soutient_pas",
+      "14": "ne_soutient_pas",
+      "15": "soutient"
+    }
+  ],
+  "gemini-3.1-flash-lite|seuil strict": [
+    1,
+    3,
+    {
+      "1": "soutient",
+      "2": "ne_soutient_pas",
+      "3": "ne_soutient_pas",
+      "4": "ne_soutient_pas",
+      "5": "ne_soutient_pas",
+      "6": "ne_soutient_pas",
+      "7": "ne_soutient_pas",
+      "8": "ne_soutient_pas",
+      "9": "ne_soutient_pas",
+      "10": "ne_soutient_pas",
+      "11": "ne_soutient_pas",
+      "12": "ne_soutient_pas",
+      "13": "ne_soutient_pas",
+      "14": "ne_soutient_pas",
+      "15": "ne_soutient_pas"
+    }
+  ],
+  "gpt-5-mini|production": [
+    14,
+    14,
+    {
+      "1": "soutient",
+      "2": "soutient",
+      "3": "soutient",
+      "4": "soutient",
+      "5": "soutient",
+      "6": "soutient",
+      "7": "soutient",
+      "8": "soutient",
+      "9": "soutient",
+      "10": "soutient",
+      "11": "soutient",
+      "12": "soutient",
+      "13": "soutient",
+      "14": "ne_soutient_pas",
+      "15": "soutient"
+    }
+  ],
+  "gpt-5-mini|seuil large": [
+    14,
+    14,
+    {
+      "1": "soutient",
+      "2": "soutient",
+      "3": "soutient",
+      "4": "soutient",
+      "5": "soutient",
+      "6": "soutient",
+      "7": "soutient",
+      "8": "soutient",
+      "9": "soutient",
+      "10": "soutient",
+      "11": "soutient",
+      "12": "soutient",
+      "13": "soutient",
+      "14": "ne_soutient_pas",
+      "15": "soutient"
+    }
+  ],
+  "gpt-5-mini|seuil strict": [
+    0,
+    2,
+    {
+      "1": "ne_soutient_pas",
+      "2": "ne_soutient_pas",
+      "3": "ne_soutient_pas",
+      "4": "ne_soutient_pas",
+      "5": "ne_soutient_pas",
+      "6": "ne_soutient_pas",
+      "7": "ne_soutient_pas",
+      "8": "ne_soutient_pas",
+      "9": "ne_soutient_pas",
+      "10": "ne_soutient_pas",
+      "11": "ne_soutient_pas",
+      "12": "ne_soutient_pas",
+      "13": "ne_soutient_pas",
+      "14": "ne_soutient_pas",
+      "15": "ne_soutient_pas"
+    }
+  ],
+  "gpt-5-nano|production": [
+    0,
+    2,
+    {
+      "1": "ne_soutient_pas",
+      "2": "ne_soutient_pas",
+      "3": "ne_soutient_pas",
+      "4": "ne_soutient_pas",
+      "5": "ne_soutient_pas",
+      "6": "ne_soutient_pas",
+      "7": "ne_soutient_pas",
+      "8": "ne_soutient_pas",
+      "9": "ne_soutient_pas",
+      "10": "ne_soutient_pas",
+      "11": "ne_soutient_pas",
+      "12": "ne_soutient_pas",
+      "13": "ne_soutient_pas",
+      "14": "ne_soutient_pas",
+      "15": "ne_soutient_pas"
+    }
+  ],
+  "gpt-5-nano|seuil large": [
+    15,
+    13,
+    {
+      "1": "soutient",
+      "2": "soutient",
+      "3": "soutient",
+      "4": "soutient",
+      "5": "soutient",
+      "6": "soutient",
+      "7": "soutient",
+      "8": "soutient",
+      "9": "soutient",
+      "10": "soutient",
+      "11": "soutient",
+      "12": "soutient",
+      "13": "soutient",
+      "14": "soutient",
+      "15": "soutient"
+    }
+  ],
+  "gpt-5-nano|seuil strict": [
+    0,
+    2,
+    {
+      "1": "ne_soutient_pas",
+      "2": "ne_soutient_pas",
+      "3": "ne_soutient_pas",
+      "4": "ne_soutient_pas",
+      "5": "ne_soutient_pas",
+      "6": "ne_soutient_pas",
+      "7": "ne_soutient_pas",
+      "8": "ne_soutient_pas",
+      "9": "ne_soutient_pas",
+      "10": "ne_soutient_pas",
+      "11": "ne_soutient_pas",
+      "12": "ne_soutient_pas",
+      "13": "ne_soutient_pas",
+      "14": "ne_soutient_pas",
+      "15": "ne_soutient_pas"
+    }
+  ],
+  "mistral-small-latest|production": [
+    6,
+    8,
+    {
+      "1": "soutient",
+      "2": "ne_soutient_pas",
+      "3": "ne_soutient_pas",
+      "4": "soutient",
+      "5": "ne_soutient_pas",
+      "6": "ne_soutient_pas",
+      "7": "soutient",
+      "8": "soutient",
+      "9": "ne_soutient_pas",
+      "10": "ne_soutient_pas",
+      "11": "ne_soutient_pas",
+      "12": "soutient",
+      "13": "ne_soutient_pas",
+      "14": "ne_soutient_pas",
+      "15": "soutient"
+    }
+  ],
+  "mistral-small-latest|seuil large": [
+    10,
+    12,
+    {
+      "1": "soutient",
+      "2": "soutient",
+      "3": "soutient",
+      "4": "soutient",
+      "5": "soutient",
+      "6": "soutient",
+      "7": "soutient",
+      "8": "soutient",
+      "9": "ne_soutient_pas",
+      "10": "ne_soutient_pas",
+      "11": "ne_soutient_pas",
+      "12": "soutient",
+      "13": "ne_soutient_pas",
+      "14": "ne_soutient_pas",
+      "15": "soutient"
+    }
+  ],
+  "mistral-small-latest|seuil strict": [
+    0,
+    2,
+    {
+      "1": "ne_soutient_pas",
+      "2": "ne_soutient_pas",
+      "3": "ne_soutient_pas",
+      "4": "ne_soutient_pas",
+      "5": "ne_soutient_pas",
+      "6": "ne_soutient_pas",
+      "7": "ne_soutient_pas",
+      "8": "ne_soutient_pas",
+      "9": "ne_soutient_pas",
+      "10": "ne_soutient_pas",
+      "11": "ne_soutient_pas",
+      "12": "ne_soutient_pas",
+      "13": "ne_soutient_pas",
+      "14": "ne_soutient_pas",
+      "15": "ne_soutient_pas"
+    }
+  ]
+}

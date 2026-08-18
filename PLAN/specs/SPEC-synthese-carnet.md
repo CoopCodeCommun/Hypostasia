@@ -12,6 +12,94 @@ il se lit comme la justification du code livré, pas comme un travail à faire.
 **Conventions** : skill `djc` (ViewSets explicites, serializers DRF, HTMX, FALC,
 commentaires FR/EN)
 
+> ## Addendum du 18 août 2026 — le juge rend un DEGRÉ, le seuil passe à l'affichage
+>
+> **Ce que cet addendum remplace** : au § 7, le juge d'implication rend un verdict
+> binaire (« soutient » / « ne_soutient_pas ») que `verifier_les_citations_d_un_article`
+> convertit en état, `VERIFIE` ou `FAIBLE`. Cet addendum remplace ce **verdict** par un
+> **score**. Le reste du § 7 est inchangé, et notamment : la cascade en deux temps, le
+> verbatim gratuit d'abord, `INTROUVABLE` posé sans juge, `CONTESTE` jamais écrasé, la
+> provenance sur chaque état, le jugement **par paire**, le jeton imprévisible, et le
+> caractère **explicite** du geste — la vérification ne se déclenche jamais à la
+> production.
+>
+> ### Le trou : « établir » n'est défini nulle part
+>
+> Le prompt demande « la source doit **établir** ce que l'affirmation avance, pas
+> seulement partager son thème ». Il ne dit pas si établir veut dire établir **tout** ce
+> que l'affirmation avance, ou **la part que cette source revendique**. Or une
+> affirmation est un paragraphe portant **de 2 à 15 sources** et jusqu'à **sept
+> assertions** : sous la lecture stricte, aucune source ne soutient jamais rien.
+>
+> **Mesuré le 18 août 2026**, quinze paires d'une même affirmation, cinq modèles :
+>
+> | consigne | verdicts positifs, du plus bas au plus haut | dispersion |
+> |---|---|---|
+> | le prompt actuel | de **0/15** à **14/15** | **14 points** |
+> | seuil **large** écrit dans la consigne | de 10/15 à 15/15 | 5 points |
+> | seuil **strict** écrit dans la consigne | de 0/15 à 1/15 | **1 point** |
+>
+> Le désaccord entre juges ne venait pas des juges. **Il venait de la question.** Deux
+> relectures humaines successives ont d'ailleurs placé la barre à deux endroits opposés
+> à vingt-quatre heures d'intervalle, sur les mêmes paires.
+>
+> ### La décision : un degré, pas un verdict
+>
+> **Écrire le seuil dans le prompt ne suffit pas**, pour une raison qui décide : un seuil
+> écrit dans un prompt est **figé au moment du jugement**. En changer signifie tout
+> rejuger — donc repayer, et perdre la mesure précédente. Or c'est précisément un
+> arbitrage que le collectif doit pouvoir refaire.
+>
+> Le juge rend donc **un score de 0 à 100** : *dans quelle mesure cette source établit-elle
+> ce que cette affirmation avance ?* Les repères sont donnés dans le prompt — 100 : elle
+> établit tout ; 70 : elle établit pleinement une part, sans rien contredire ; 40 : elle
+> appuie de loin (contexte, entité nommée, conséquence) ; 0 : elle partage le thème, ou
+> contredit.
+>
+> **Le seuil devient un réglage d'AFFICHAGE.** Il est visible, modifiable, et le changer ne
+> rejuge rien : les scores sont déjà en base.
+>
+> ### Ce que cela change, et ce que cela ne change pas
+>
+> | | Avant | Après |
+> |---|---|---|
+> | `VERIFIE` / `FAIBLE` | deux états stockés | **deux côtés d'un curseur**, calculés à l'affichage depuis le score |
+> | `INTROUVABLE` | posé par le verbatim seul | **inchangé** — déterministe, gratuit, sans juge |
+> | `CONTESTE` | posé par un humain, jamais écrasé | **inchangé** |
+> | `NON_VERIFIE` | défaut restrictif | **inchangé** — pas de score, pas de verdict |
+> | la provenance | méthode + modèle + date | **inchangée, et plus nécessaire que jamais** : un score sans son juge et sa date reste un argument d'autorité |
+>
+> Un renvoi ne se lit plus « faible » mais **« soutenu à 45 sur 100, selon `<modèle>`, le
+> `<date>` »**. C'est plus honnête, et surtout **contestable sur le bon objet** : on
+> discute le seuil, pas le verdict.
+>
+> ### Ce que la mesure autorise à en attendre
+>
+> Un seuil unique à **45/100** sépare parfaitement quinze verdicts relus à la main chez
+> `gemini-2.5-flash` — le modèle que le verdict binaire rendait pourtant le **moins**
+> stable. Demander un degré transforme le pire juge en meilleur.
+>
+> **Deux réserves, mesurées elles aussi.** Les modèles se collent aux repères du prompt :
+> c'est une échelle à **quatre crans**, pas un continuum — n'affichez pas trois décimales
+> sur un chiffre qui n'en porte pas une. Et la voie propre, lire les **logprobs** du token
+> de verdict, est **refusée par les deux API** (« Logprobs are not enabled for this
+> model » chez Mistral, 403 chez OpenAI sur les modèles de raisonnement) ; seul un juge
+> **local** rend un score vraiment calibré.
+>
+> ### Ce qui reste à trancher par le mainteneur
+>
+> 1. **Le seuil par défaut** — 45/100 sur la seule mesure disponible, à confirmer sur
+>    plusieurs affirmations.
+> 2. **Le seuil est-il réglable par carnet, ou global ?** Un collectif plus exigeant qu'un
+>    autre, c'est une propriété du collectif.
+> 3. **Faut-il conserver deux libellés** (« vérifié » / « faible ») de part et d'autre du
+>    curseur, ou n'afficher que le degré ? `PRESENTATION-V3.md § 3.6` rapporte une
+>    corrélation de **r = −0,96** entre la précision des citations et l'utilité perçue :
+>    plus un système est rigoureux, moins on l'aime. Un chiffre nu pourrait aggraver cela.
+>
+> **Mesures détaillées** : `benchmarks/2026-08-18-ce-que-la-journee-a-mesure.md` et
+> `benchmarks/juge_de_verification/comparer_les_scores.py`.
+
 > **Addendum du 8 août 2026 — trous relevés à l'implémentation**, après
 > relecture de la note d'architecture (mémoire Atomic, « architecture cible
 > du moteur de recherche et de synthèse sourcée ») et du code d'Atomic :

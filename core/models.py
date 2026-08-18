@@ -668,6 +668,15 @@ class Provider(models.TextChoices):
     OPENAI = "openai", "OpenAI GPT"
     OLLAMA = "ollama", "Ollama (Local)"
     ANTHROPIC = "anthropic", "Anthropic Claude"
+    # UNE valeur pour TOUTES les plateformes qui exposent
+    # `POST {base_url}/chat/completions` : OpenRouter, Mistral, Scaleway,
+    # un serveur local… C'est `base_url` qui dit laquelle, et
+    # `variable_de_cle_api` ou trouver sa cle. Une valeur d'enum par
+    # plateforme obligerait a toucher au code a chaque nouvelle, pour un
+    # chemin d'appel rigoureusement identique.
+    # / ONE value for every platform exposing the OpenAI-compatible
+    # endpoint; base_url says which one.
+    COMPATIBLE_OPENAI = "compatible_openai", "API compatible OpenAI (base_url)"
 
 
 class AIModelChoices(models.TextChoices):
@@ -681,7 +690,29 @@ class AIModelChoices(models.TextChoices):
     Anthropic for reformulation/restitution only.
     """
 
-    # Google / Gemini
+    # Google / Gemini — generation 3.x
+    # AJOUTES LE 17 AOUT 2026, parce que le referentiel avait pris du
+    # retard sur le catalogue servi : `gemini-2.5-flash-lite` repond
+    # « 404 — no longer available to new users. Please update your code
+    # to use models/gemini-3.5-flash-lite ». Un referentiel fige propose
+    # au clic des modeles qui n'existent plus.
+    # ATTENTION AU PALIER « LITE » : il a change de prix de generation en
+    # generation. `gemini-3.5-flash-lite` coute EXACTEMENT le prix de
+    # `gemini-2.5-flash` (0,30/2,50) — le mot « lite » n'annonce plus une
+    # economie. Le seul moins cher de la liste est `gemini-3.1-flash-lite`.
+    # / Added because the catalogue moved on; and "lite" no longer means
+    # cheaper — 3.5-flash-lite costs exactly what 2.5-flash costs.
+    GOOGLE_GEMINI_3_5_FLASH = "gemini-3.5-flash", "Gemini 3.5 Flash (Google)"
+    GOOGLE_GEMINI_3_5_FLASH_LITE = (
+        "gemini-3.5-flash-lite",
+        "Gemini 3.5 Flash Lite (Google)",
+    )
+    GOOGLE_GEMINI_3_1_FLASH_LITE = (
+        "gemini-3.1-flash-lite",
+        "Gemini 3.1 Flash Lite (Google)",
+    )
+
+    # Google / Gemini — generation 2.5 et anterieures
     GOOGLE_GEMINI_2_5_PRO = "gemini-2.5-pro", "Gemini 2.5 Pro (Google)"
     GOOGLE_GEMINI_2_5_FLASH = "gemini-2.5-flash", "Gemini 2.5 Flash (Google)"
     GOOGLE_GEMINI_2_5_FLASH_LITE = (
@@ -695,6 +726,12 @@ class AIModelChoices(models.TextChoices):
     )
     GOOGLE_GEMINI_1_5_PRO = "gemini-1.5-pro", "Gemini 1.5 Pro (Google)"
     GOOGLE_GEMINI_1_5_FLASH = "gemini-1.5-flash", "Gemini 1.5 Flash (Google)"
+
+    # OpenAI / GPT — generation 5
+    # Ajoutes le 17 aout 2026. `gpt-5-nano` (0,05 / 0,40) est le modele
+    # le moins cher de tous ceux mesures ce jour-la, juge compris.
+    OPENAI_GPT_5_MINI = "gpt-5-mini", "GPT-5 Mini (OpenAI)"
+    OPENAI_GPT_5_NANO = "gpt-5-nano", "GPT-5 Nano (OpenAI)"
 
     # OpenAI / GPT
     OPENAI_GPT_4O = "gpt-4o", "GPT-4o (OpenAI)"
@@ -718,6 +755,30 @@ class AIModelChoices(models.TextChoices):
 
     # Mock (Simulation)
     MOCK_DEFAULT = "mock", "Mock / Simulation"
+
+
+def un_modele_refuse_toute_temperature(valeur_du_choix):
+    """
+    Ce modele refuse-t-il qu'on lui impose une temperature ?
+    / Does this model reject any imposed temperature?
+
+    LOCALISATION : core/models.py
+
+    Les modeles de RAISONNEMENT d'OpenAI rendent un 400 des qu'on leur en
+    passe une, quelle qu'elle soit — mesure du 17 aout 2026 :
+    « Unsupported value: 'temperature' does not support 0.0 with this
+    model. Only the default (1) value is supported. » Une ligne creee
+    avec le defaut du champ (0,7) est donc MORT-NEE, et l'echec n'eclate
+    que plus tard, dans un worker, loin de la commande qui l'a creee.
+
+    La reconnaissance se fait par PREFIXE, faute de mieux : aucune API ne
+    declare cette contrainte. C'est une heuristique, pas une verite — et
+    elle ne fait que poser un DEFAUT, qu'un `--temperature` explicite
+    emporte.
+    / Recognized by prefix, for lack of any API declaring it; it only
+    sets a default, which an explicit --temperature overrides.
+    """
+    return (valeur_du_choix or "").lower().startswith("gpt-5")
 
 
 class AIModel(models.Model):
@@ -764,10 +825,42 @@ class AIModel(models.Model):
         max_length=500,
         blank=True,
         default="",
-        help_text="URL de base du serveur (utilise par Ollama, ex: http://localhost:11434)",
+        help_text="URL de base du serveur (Ollama, OpenRouter, Mistral… ex: https://openrouter.ai/api/v1)",
     )
+    # LES CLES RESTENT DANS L'ENVIRONNEMENT — jamais en base. Cette
+    # ligne dit seulement LAQUELLE lire. Sans ce champ, il faudrait
+    # deviner la variable d'apres l'URL : un piege de plus, et une
+    # regle a rallonger a chaque plateforme.
+    # / Keys stay in the environment; this field only names which one.
+    variable_de_cle_api = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text=(
+            "Nom de la variable d'environnement qui porte la clé "
+            "(ex: OPENROUTER_API_KEY). La clé elle-même n'est JAMAIS "
+            "stockée en base."
+        ),
+    )
+    # `None` VEUT DIRE « NE TRANSMETS RIEN », et ce n'est pas 0.
+    #
+    # Les modeles de raisonnement d'OpenAI REFUSENT toute temperature
+    # autre que leur defaut — mesure du 17 aout 2026, `gpt-5-mini` :
+    # « 400 — Unsupported value: 'temperature' does not support 0.0 with
+    # this model. Only the default (1) value is supported. » Transmettre
+    # le champ systematiquement rendait ces modeles inutilisables.
+    # `None` est donc la seule facon d'exprimer « laisse le fournisseur
+    # decider », et il ne se confond pas avec « je veux zero », qui est
+    # le reglage d'un juge.
+    # / None means "send nothing", which is not 0: OpenAI's reasoning
+    # models reject any temperature but their own default.
     temperature = models.FloatField(
-        default=0.7, help_text="Température d'échantillonnage du LLM"
+        null=True, blank=True, default=0.7,
+        help_text=(
+            "Température d'échantillonnage du LLM. Vide = ne rien "
+            "transmettre, le fournisseur décide (obligatoire pour les "
+            "modèles de raisonnement d'OpenAI)."
+        ),
     )
     is_active = models.BooleanField(
         default=True, help_text="Modèle activé pour sélection"
@@ -782,10 +875,40 @@ class AIModel(models.Model):
         - Quand on choisit un model_choice, les champs legacy sont mis à jour
         - Les anciennes données restent fonctionnelles
         """
+        # UN PROVIDER POSE EXPLICITEMENT GAGNE, et la table de prefixes
+        # ci-dessous ne le voit jamais. Chez Mistral en direct,
+        # l'identifiant technique est `mistral-small-latest` : il matche
+        # le prefixe « mistral » et partirait vers un Ollama local
+        # inexistant, en silence. La table sert les choix FERMES de
+        # `AIModelChoices` ; elle ne sait pas lire un identifiant de
+        # plateforme.
+        # / An explicitly-set provider wins: the prefix table cannot read
+        # a platform's own model id (mistral-small-latest → Ollama).
+        if self.provider == Provider.COMPATIBLE_OPENAI:
+            self.model_name = self.model_name or self.model_choice
+            super().save(*args, **kwargs)
+            return
+
         if self.model_choice:
             # Deduit le provider depuis la VALEUR du model_choice (ex: "gemini-2.5-flash")
             # / Infer provider from model_choice VALUE (e.g. "gemini-2.5-flash")
             choice_value = self.model_choice.lower()
+
+            # Un identifiant de la forme `vendor/modele` designe une
+            # plateforme qui route (OpenRouter et ses semblables). Cette
+            # regle passe AVANT la table : sans elle, `mistralai/…`,
+            # `qwen/…` et `deepseek/…` y matchent leurs prefixes et
+            # partent vers Ollama, tandis que `openai/…` ne matche rien
+            # et reste sur le defaut MOCK — deux degradations, aucune
+            # erreur.
+            # / A `vendor/model` id means a routing platform; this rule
+            # precedes the table, which would silently send three of them
+            # to Ollama and the rest to MOCK.
+            if "/" in choice_value:
+                self.provider = Provider.COMPATIBLE_OPENAI
+                self.model_name = self.model_choice
+                super().save(*args, **kwargs)
+                return
 
             # Mapping des prefixes de valeur vers les providers
             # / Mapping of value prefixes to providers
@@ -843,15 +966,36 @@ class AIModel(models.Model):
     #   https://openai.com/api/pricing/
     # / Pricing updated 2026-03-15 from official sources
     TARIFS_PAR_MILLION_TOKENS = {
+        # Google Gemini generation 3.x — releves le 17 aout 2026 sur
+        # https://ai.google.dev/gemini-api/docs/pricing
+        # Le tarif de SORTIE inclut les tokens de « thinking » : la page
+        # l'ecrit, « Output price (including thinking tokens) ». Le
+        # nombre de tokens de reflexion de cette generation n'est PAS
+        # mesure ici — `MULTIPLICATEUR_THINKING` ne les couvre donc pas,
+        # et l'estimation de ces modeles est un PLANCHER.
+        # / 3.x prices read 2026-08-17; output includes thinking tokens,
+        # whose count we have not measured — estimates are a floor.
+        "gemini-3.5-flash": (1.50, 9.00),
+        "gemini-3.5-flash-lite": (0.30, 2.50),
+        "gemini-3.1-flash-lite": (0.25, 1.50),
         # Google Gemini — prix standard (paid tier) input/output par million de tokens
         # / Google Gemini — standard (paid tier) input/output price per million tokens
         "gemini-2.5-pro": (1.25, 10.00),
         "gemini-2.5-flash": (0.30, 2.50),
-        "gemini-2.5-flash-lite": (0.075, 0.30),
+        # Corrige le 17 aout 2026 : la table portait (0,075 / 0,30),
+        # releve du 15 mars. La page de tarifs annonce desormais
+        # 0,10 / 0,40 — un tarif a AUGMENTE sous un chiffre qu'aucun
+        # test ne surveillait.
+        # / Corrected 2026-08-17: the March figure had gone up.
+        "gemini-2.5-flash-lite": (0.10, 0.40),
         "gemini-2.0-flash": (0.10, 0.40),
         "gemini-2.0-flash-lite": (0.075, 0.30),
         "gemini-1.5-pro": (1.25, 5.00),
         "gemini-1.5-flash": (0.075, 0.30),
+        # OpenAI generation 5 — releves le 17 aout 2026 sur
+        # https://developers.openai.com/api/docs/pricing
+        "gpt-5-mini": (0.25, 2.00),
+        "gpt-5-nano": (0.05, 0.40),
         # OpenAI GPT — prix input/output par million de tokens
         # / OpenAI GPT — input/output price per million tokens
         "gpt-4o": (2.50, 10.00),
@@ -902,22 +1046,41 @@ class AIModel(models.Model):
 
     def cout_par_million_tokens(self):
         """
-        Retourne le tuple (cout_input, cout_output) en USD par million de tokens.
-        Si le modele n'est pas dans la table, retourne (0.0, 0.0).
-        / Returns the (input_cost, output_cost) tuple in USD per million tokens.
-        If the model is not in the table, returns (0.0, 0.0).
+        Retourne le tuple (cout_input, cout_output) en USD par million de
+        tokens, ou None si le tarif de ce modele n'est pas connu.
+        / Returns the (input, output) USD cost per million tokens, or
+        None when this model's price is unknown.
+
+        None ET (0.0, 0.0) NE DISENT PAS LA MEME CHOSE. `(0.0, 0.0)` veut
+        dire GRATUIT — c'est le cas d'un modele local servi par Ollama.
+        `None` veut dire NON MESURE : un identifiant de plateforme
+        (`mistralai/mistral-small-3.2-24b-instruct`) n'est dans aucune
+        table de tarifs ecrite a la main, et annoncer « 0,00 € » pour un
+        appel facture serait un chiffre invente.
+        / None means UNKNOWN; (0.0, 0.0) means FREE. Announcing 0 € for a
+        billed call would be an invented figure.
         """
         nom_technique = self.technical_model_name.lower()
-        return self.TARIFS_PAR_MILLION_TOKENS.get(nom_technique, (0.0, 0.0))
+        return self.TARIFS_PAR_MILLION_TOKENS.get(nom_technique)
 
     def estimer_cout_euros(self, nombre_tokens_input, nombre_tokens_output_estime=0, taux_usd_eur=0.92):
         """
-        Estime le cout en euros pour un nombre de tokens donne.
+        Estime le cout en euros pour un nombre de tokens donne, ou None
+        si le tarif du modele n'est pas connu.
         Le nombre de tokens output est estime a 20% de l'input par defaut si non fourni.
-        / Estimates cost in euros for a given number of tokens.
-        Output token count defaults to 20% of input if not provided.
+        / Estimates cost in euros, or None when the model's price is
+        unknown. Output token count defaults to 20% of input.
+
+        RENDRE None PLUTOT QUE ZERO : un ecran qui annonce « ≤ 0,00 € »
+        avant un appel facture ment, et le mainteneur decide sur ce
+        chiffre. L'appelant affiche « non mesuré ».
+        / None rather than zero: a screen announcing 0 € before a billed
+        call lies, and the maintainer decides on that figure.
         """
-        cout_input_usd, cout_output_usd = self.cout_par_million_tokens()
+        tarifs = self.cout_par_million_tokens()
+        if tarifs is None:
+            return None
+        cout_input_usd, cout_output_usd = tarifs
 
         if nombre_tokens_output_estime == 0:
             nombre_tokens_output_estime = int(nombre_tokens_input * 0.20)
@@ -1014,6 +1177,76 @@ class Configuration(SingletonModel):
 
     def __str__(self):
         return "Configuration"
+
+
+class RoleDeModele(models.TextChoices):
+    """
+    Les usages d'un modele IA, un par metier.
+    / The uses of an AI model, one per job.
+
+    Le redacteur d'article et le juge de verification sont deux metiers
+    OPPOSES : le premier redige un texte long et doit etre bon ; le
+    second repond « soutient / ne_soutient_pas » sur un lot de 20 paires
+    et doit etre petit et peu cher.
+
+    Ajouter un role ici ne demande QUE ce qu'une migration d'etat sait
+    faire : c'est la raison d'etre de la table `ModeleParRole` — un
+    champ de plus sur `Configuration` aurait exige une migration de
+    schema a chaque usage nouveau.
+    / Writer and judge are opposite jobs; the table exists so adding a
+    role costs a state migration, not a schema one.
+    """
+
+    REDACTEUR_D_ARTICLE = "redacteur_d_article", "Rédacteur d'article"
+    JUGE_DE_VERIFICATION = "juge_de_verification", "Juge de vérification"
+
+
+class ModeleParRole(models.Model):
+    """
+    Le modele IA affecte a un usage. Une ligne par role, au plus.
+    / The AI model bound to one use. At most one row per role.
+
+    LOCALISATION : core/models.py
+
+    LA TABLE PEUT ETRE VIDE, et c'est le cas au premier deploiement :
+    un role sans ligne retombe sur `Configuration.ai_model`. C'est ce
+    repli qui garantit qu'aucun comportement ne change tant que
+    personne n'a rien affecte. La resolution passe TOUJOURS par
+    `core/services/modeles_par_role.modele_du_role()`, jamais par une
+    lecture directe de cette table : c'est la seule facon d'avoir le
+    repli partout.
+    / The table may be empty; an unassigned role falls back to
+    Configuration.ai_model. Always resolve through modele_du_role().
+    """
+
+    role = models.CharField(
+        max_length=50,
+        choices=RoleDeModele.choices,
+        unique=True,
+        help_text="L'usage servi par ce modèle / The use this model serves",
+    )
+    # PROTECT, et pas CASCADE : sans lui, supprimer un modele emporterait
+    # l'affectation en silence et le role repartirait sur son repli sans
+    # que personne ne l'ait decide.
+    # / PROTECT: a CASCADE would silently send the role back to fallback.
+    modele = models.ForeignKey(
+        AIModel,
+        on_delete=models.PROTECT,
+        related_name="roles",
+        help_text="Le modèle IA affecté / The assigned AI model",
+    )
+    affecte_le = models.DateTimeField(
+        auto_now=True,
+        help_text="Date de la dernière affectation / Last assignment date",
+    )
+
+    class Meta:
+        verbose_name = "Modèle par rôle"
+        verbose_name_plural = "Modèles par rôle"
+        ordering = ["role"]
+
+    def __str__(self):
+        return f"{self.get_role_display()} → {self.modele}"
 
 
 #### TRANSCRIPTION AUDIO ####

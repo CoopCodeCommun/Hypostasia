@@ -57,6 +57,63 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
         if cle_api_ollama:
             params['api_key'] = cle_api_ollama
 
+    elif ai_model.provider == Provider.COMPATIBLE_OPENAI:
+        # LANGEXTRACT CHOISIT SON MOTEUR PAR EXPRESSION REGULIERE SUR LE
+        # NOM DU MODELE (`providers/patterns.py`), et c'est un piege :
+        # `mistral-small-latest` matche `^mistral` et partirait vers
+        # `OllamaLanguageModel`, qui parle l'API PROPRIETAIRE d'Ollama
+        # (`POST {base}/api/generate`). Pointe sur api.mistral.ai, ce
+        # moteur echoue — et rien dans le nom ne le laissait deviner.
+        # Meme piege pour `^qwen`, `^llama`, `^gemma`, `^phi`,
+        # `^deepseek`.
+        #
+        # `config` resout le provider par son NOM et court-circuite la
+        # table. C'est une API PUBLIQUE de la bibliotheque : aucun fork,
+        # rien a surcharger, contrairement au reste de notre dette
+        # LangExtract.
+        # / LangExtract routes by regex on the model name; ModelConfig
+        # resolves by provider name instead, and is public API.
+        from langextract import factory as fabrique_langextract
+
+        nom_de_la_variable = (ai_model.variable_de_cle_api or "").strip()
+        if not nom_de_la_variable:
+            raise ValueError(
+                f"Le modèle « {ai_model} » ne dit pas quelle variable "
+                f"d'environnement porte sa clé : renseignez "
+                f"`variable_de_cle_api` (ex: MISTRAL_API_KEY)."
+            )
+        cle_api = os.environ.get(nom_de_la_variable, "")
+        if not cle_api:
+            raise ValueError(
+                f"Clé API manquante : la variable {nom_de_la_variable} "
+                f"est vide ou absente du .env."
+            )
+        if not ai_model.base_url:
+            raise ValueError(
+                f"Le modèle « {ai_model} » n'a pas de `base_url` : c'est "
+                f"elle qui désigne la plateforme à appeler."
+            )
+
+        params['config'] = fabrique_langextract.ModelConfig(
+            model_id=ai_model.technical_model_name,
+            # Le nom de CLASSE, pas « openai » : la resolution se fait
+            # par sous-chaine, et un nom exact reste sans ambiguite le
+            # jour ou un autre provider contiendra « openai ».
+            # / The class name: resolution is by substring.
+            provider="OpenAILanguageModel",
+            provider_kwargs={
+                "api_key": cle_api,
+                "base_url": ai_model.base_url,
+            },
+        )
+        # Ce provider n'expose AUCUN schema structure : la contrainte ne
+        # s'appliquerait pas, et la laisser active fait emettre un
+        # avertissement a chaque chunk. La seule contrainte de forme est
+        # le `response_format` que le provider pose lui-meme.
+        # / This provider exposes no structured schema; leaving the
+        # constraint on only emits a warning per chunk.
+        params['use_schema_constraints'] = False
+
     elif ai_model.provider == Provider.ANTHROPIC:
         # Anthropic n'est pas supporte par LangExtract pour l'extraction
         # / Anthropic is not supported by LangExtract for extraction

@@ -104,6 +104,30 @@ tous les verdicts seraient des citations introuvables n'aurait aucune ligne
         « non vérifié ».
     </div>
     {% endif %}
+    {% comment %}
+    L'ECHEC DU JUGE : jamais en silence. Un juge qui ne repond pas ne
+    degrade plus les verdicts precedents — sans ce bandeau, l'ecran
+    serait donc RIGOUREUSEMENT identique a celui d'avant le clic, avec
+    une tache « terminée », et l'utilisateur croirait que son juge a
+    jugé.
+    {% endcomment %}
+    {% if echec_du_juge %}
+    <div class="avertissement" role="alert" data-testid="synthese-echec-du-juge">
+        {% if echec_du_juge.sans_verdict %}
+        <strong>Le juge n'a rendu aucun verdict pour
+        {{ echec_du_juge.sans_verdict }} citation{{ echec_du_juge.sans_verdict|pluralize }}</strong> :
+        leur état précédent est conservé tel quel — un échec technique
+        n'est pas un résultat. Relancez la vérification.
+        {% else %}
+        <strong>Le juge a échoué</strong> : aucun état n'a été modifié.
+        Relancez la vérification.
+        {% endif %}
+        {% if echec_du_juge.erreur %}
+        <br>Motif rapporté : {{ echec_du_juge.erreur }}
+        {% endif %}
+    </div>
+    {% endif %}
+
     {% if operations_rejetees %}
     <div class="avertissement" data-testid="synthese-rejets-appliques">
         <strong>{{ operations_rejetees|length }} opération{{ operations_rejetees|length|pluralize }}

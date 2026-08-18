@@ -19,12 +19,13 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, EtatIngestion, GroupeUtilisateurs, Invitation, NotificationTacheLue, Page, PageEdit, Question, ReponseQuestion, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, TypeDeTache, VisibiliteDossier
+from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, EtatIngestion, GroupeUtilisateurs, Invitation, NotificationTacheLue, Page, PageEdit, Question, ReponseQuestion, RoleDeModele, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, TypeDeTache, VisibiliteDossier
 from core.services.corpus import (
     deplacer_une_note_vers_un_carnet,
     ranger_une_note_dans_un_carnet,
     retirer_une_note_d_un_carnet,
 )
+from core.services.modeles_par_role import modele_du_role
 from hypostasis_extractor.models import (
     AnalyseurSyntaxique, AnalyseurExample, CommentaireExtraction,
     ExampleExtraction, ExtractionAttribute,
@@ -2520,7 +2521,14 @@ class LectureViewSet(viewsets.ViewSet):
         cout_brut_euros = modele_ia_actif.estimer_cout_euros(
             nombre_tokens_input, nombre_tokens_output_total
         )
-        cout_estime_euros = max(0.01, math.ceil(cout_brut_euros * 1.5 * 100) / 100)
+        # None = tarif NON MESURE, pas gratuit. Le gabarit affiche alors
+        # « non mesuré » : annoncer « ≤ 0,01 € » avant un appel facturé
+        # serait un chiffre inventé, et c'est sur lui qu'on décide.
+        # / None means UNKNOWN, not free; the template says so.
+        cout_estime_euros = (
+            None if cout_brut_euros is None
+            else max(0.01, math.ceil(cout_brut_euros * 1.5 * 100) / 100)
+        )
 
         # Compter les entites IA sans commentaires pour proposer le nettoyage
         # avant re-analyse (eviter les doublons)
@@ -2820,9 +2828,13 @@ class LectureViewSet(viewsets.ViewSet):
             is_active=True, type_analyseur="synthetiser",
         ).order_by("-est_par_defaut", "name")
 
-        # Modele IA actif / Active AI model
-        configuration_ia = Configuration.get_solo()
-        modele_ia_actif = configuration_ia.ai_model
+        # Le modele du role REDACTEUR : c'est lui qui produira la
+        # synthese, donc c'est son nom et son tarif que cet ecran de
+        # confirmation doit annoncer. Annoncer un prix pour un modele
+        # qui ne sera pas appele serait un chiffre faux.
+        # / The WRITER's model: this confirmation screen must announce
+        # the name and price of the model that will actually be called.
+        modele_ia_actif = modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE)
         if not modele_ia_actif:
             reponse_erreur = HttpResponse(status=400)
             reponse_erreur["HX-Trigger"] = json.dumps({
@@ -2878,7 +2890,12 @@ class LectureViewSet(viewsets.ViewSet):
         cout_brut_euros = modele_ia_actif.estimer_cout_euros(
             nombre_tokens_input, nombre_tokens_output_total,
         )
-        cout_estime_euros = max(0.01, math.ceil(cout_brut_euros * 1.5 * 100) / 100)
+        # None = tarif NON MESURE, pas gratuit (voir la confirmation
+        # d'analyse). / None means UNKNOWN, not free.
+        cout_estime_euros = (
+            None if cout_brut_euros is None
+            else max(0.01, math.ceil(cout_brut_euros * 1.5 * 100) / 100)
+        )
 
         # Etat du consensus / Consensus state
         donnees_consensus = _calculer_consensus(page)
@@ -3096,10 +3113,10 @@ class LectureViewSet(viewsets.ViewSet):
             })
             return reponse_erreur
 
-        # Utiliser le modele selectionne dans la configuration singleton
-        # / Use the model selected in the singleton configuration
-        configuration_ia = Configuration.get_solo()
-        modele_ia_actif = configuration_ia.ai_model
+        # Le modele du role REDACTEUR — la synthese est une redaction,
+        # pas une extraction. / The WRITER's model: a synthesis is
+        # writing, not extraction.
+        modele_ia_actif = modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE)
         if not modele_ia_actif:
             reponse_erreur = HttpResponse(status=400)
             reponse_erreur["HX-Trigger"] = json.dumps({

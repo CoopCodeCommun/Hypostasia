@@ -37,9 +37,11 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from core.models import (
-    Configuration, Dossier, Page, SyntheseDirigee, TypeDeNote, Wiki,
+    Configuration, Dossier, Page, RoleDeModele, SyntheseDirigee, TypeDeNote,
+    Wiki,
 )
 from core.services.corpus import ranger_une_note_dans_un_carnet
+from core.services.modeles_par_role import modele_du_role
 from core.services.synthese import notes_sources_du_carnet
 from hypostasis_extractor.models import ExtractionJob
 
@@ -78,7 +80,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         configuration = Configuration.get_solo()
-        if not configuration.ai_active or not configuration.ai_model:
+        # Le REDACTEUR : c'est lui qui produit les articles. A defaut
+        # d'affectation, le role retombe sur le modele de la
+        # Configuration. / The WRITER; falls back to the Configuration.
+        modele_de_redaction = modele_du_role(
+            RoleDeModele.REDACTEUR_D_ARTICLE,
+        )
+        if not configuration.ai_active or not modele_de_redaction:
             raise CommandError(
                 "L'IA n'est pas active ou aucun modèle n'est configuré : "
                 "impossible de produire les synthèses étalons.",
@@ -207,7 +215,8 @@ class Command(BaseCommand):
             )
 
         job = ExtractionJob.objects.create(
-            page=wiki.page, ai_model=configuration.ai_model,
+            page=wiki.page,
+            ai_model=modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE),
             name=f"Wiki — {SUJET_DU_WIKI_ETALON}"[:200],
             prompt_description="Wiki étalon (fixtures)",
             status="pending",
@@ -274,7 +283,8 @@ class Command(BaseCommand):
             )
 
         job = ExtractionJob.objects.create(
-            page=page_de_synthese, ai_model=configuration.ai_model,
+            page=page_de_synthese,
+            ai_model=modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE),
             name=TITRE_DE_LA_SYNTHESE_ETALON[:200],
             prompt_description="Synthèse dirigée étalon (fixtures)",
             status="pending",

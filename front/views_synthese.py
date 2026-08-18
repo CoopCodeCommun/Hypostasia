@@ -31,10 +31,11 @@ from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 
 from core.models import (
-    CategorieDossier, Dossier, Page, SourceLink, SyntheseDirigee,
+    CategorieDossier, Dossier, Page, RoleDeModele, SourceLink, SyntheseDirigee,
     TypeDeNote, TypeLien, Wiki,
 )
 from core.services.corpus import ranger_une_note_dans_un_carnet
+from core.services.modeles_par_role import modele_du_role
 from core.services.synthese import (
     MOTIF_DE_MARQUEUR, PerimetreDExtractionsInconnu, extractions_ecartees,
     couverture_de_la_note, notes_du_perimetre_d_un_wiki,
@@ -385,8 +386,39 @@ def _etat_de_la_tache(request, page_d_article, carnet, apres):
     # Termine : on rend ce que l'utilisateur attend.
     if apres == "article":
         contexte = _contexte_d_article(request, page_d_article)
+        contexte["echec_du_juge"] = _echec_du_juge(job)
         return render(request, "front/corpus/article.html", contexte)
     return None  # au caller de rendre la liste : il connait son ViewSet
+
+
+def _echec_du_juge(job):
+    """
+    Ce que le juge n'a PAS pu juger, s'il y a lieu. / What the judge
+    could not judge, if anything.
+
+    LOCALISATION : front/views_synthese.py
+
+    INDISPENSABLE depuis que l'echec du juge ne degrade plus rien. Une
+    verification qui echoue en entier laisse desormais les verdicts
+    precedents INTACTS : sans ce message, l'ecran serait rigoureusement
+    identique a celui d'avant le clic, avec un job « terminé » — et
+    l'utilisateur croirait que son juge a jugé. Une degradation
+    silencieuse est pire qu'une erreur.
+
+    Rend None quand tout s'est bien passe : le gabarit n'affiche alors
+    aucun bandeau.
+    / Since a judge failure no longer degrades anything, it must be said
+    out loud, or the screen looks exactly like a success.
+
+    :param job: l'ExtractionJob de la verification
+    :return: {"sans_verdict": int, "erreur": str} ou None
+    """
+    bilan = (job.raw_result or {}).get("bilan_de_verification") or {}
+    nombre_sans_verdict = bilan.get("sans_verdict", 0)
+    erreur_du_juge = bilan.get("erreur_du_juge", "")
+    if not nombre_sans_verdict and not erreur_du_juge:
+        return None
+    return {"sans_verdict": nombre_sans_verdict, "erreur": erreur_du_juge}
 
 
 _MESSAGES_D_ATTENTE = {
@@ -423,15 +455,19 @@ class WikiViewSet(viewsets.ViewSet):
         )
         for wiki in wikis:
             wiki.qualite = _qualifier_une_ligne_d_article(wiki.page)
-        from core.models import Configuration
         return render(request, "front/corpus/liste_wikis.html", {
             "carnet": carnet,
             "wikis": wikis,
             # Le moteur ne se CHOISIT pas a la creation (recette, F10) :
             # a defaut de le choisir, l'ecran doit au moins le DIRE, et
-            # dire ou il se change. / The engine is not chosen here; the
-            # screen must at least name it.
-            "modele_de_redaction": Configuration.get_solo().ai_model,
+            # dire ou il se change. C'est le modele du role REDACTEUR
+            # qui s'affiche, car c'est lui qui produira l'article.
+            # / The engine is not chosen here; the screen must at least
+            # name it — and it names the WRITER's model, the one that
+            # will actually produce the article.
+            "modele_de_redaction": modele_du_role(
+                RoleDeModele.REDACTEUR_D_ARTICLE,
+            ),
             "nombre_de_notes_sources":
                 notes_sources_du_carnet(carnet).count(),
             "peut_ecrire": (
@@ -479,12 +515,11 @@ class WikiViewSet(viewsets.ViewSet):
                 )
             )
 
-        from core.models import Configuration
         from hypostasis_extractor.models import ExtractionJob
 
         job = ExtractionJob.objects.create(
             page=page_d_article,
-            ai_model=Configuration.get_solo().ai_model,
+            ai_model=modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE),
             name=f"Wiki — {sujet}"[:200],
             prompt_description="Production d'article de wiki (phase H)",
             status="pending",
@@ -557,11 +592,11 @@ class WikiViewSet(viewsets.ViewSet):
         refus = _ecriture_ou_refus(request, wiki.dossier)
         if refus:
             return refus
-        from core.models import Configuration
         from hypostasis_extractor.models import ExtractionJob
 
         job = ExtractionJob.objects.create(
-            page=wiki.page, ai_model=Configuration.get_solo().ai_model,
+            page=wiki.page,
+            ai_model=modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE),
             name=f"Mise à jour — {wiki.sujet}"[:200],
             prompt_description="Proposition d'opérations (phase H)",
             status="pending",
@@ -728,12 +763,14 @@ class WikiViewSet(viewsets.ViewSet):
 
 def _lancer_une_verification(request, page_d_article):
     """Cree le job de verification et lance la tache. / Launches § 7."""
-    from core.models import Configuration
     from hypostasis_extractor.models import ExtractionJob
 
+    # Le JUGE, pas le redacteur : juger « soutient / ne_soutient_pas »
+    # sur un lot de 20 paires n'est pas le meme metier que rediger un
+    # article. / The JUDGE, not the writer: two opposite jobs.
     job = ExtractionJob.objects.create(
         page=page_d_article,
-        ai_model=Configuration.get_solo().ai_model,
+        ai_model=modele_du_role(RoleDeModele.JUGE_DE_VERIFICATION),
         name=f"Vérification — {page_d_article.title}"[:200],
         prompt_description="Vérification des citations (§ 7)",
         status="pending",
@@ -792,13 +829,14 @@ class SyntheseViewSet(viewsets.ViewSet):
                 "categories_de_dossier",
             )
         )
-        from core.models import Configuration
         return render(request, "front/corpus/liste_syntheses.html", {
             "carnet": carnet,
             "syntheses": syntheses,
             "axes": axes,
             # Meme raison que pour le wiki (recette, F10).
-            "modele_de_redaction": Configuration.get_solo().ai_model,
+            "modele_de_redaction": modele_du_role(
+                RoleDeModele.REDACTEUR_D_ARTICLE,
+            ),
             "nombre_de_notes_sources":
                 notes_sources_du_carnet(carnet).count(),
             "peut_ecrire": (
@@ -859,12 +897,11 @@ class SyntheseViewSet(viewsets.ViewSet):
         )
         synthese_dirigee.notes_du_perimetre.set(notes_figees)
 
-        from core.models import Configuration
         from hypostasis_extractor.models import ExtractionJob
 
         job = ExtractionJob.objects.create(
             page=page_de_synthese,
-            ai_model=Configuration.get_solo().ai_model,
+            ai_model=modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE),
             name=titre[:200],
             prompt_description="Synthèse dirigée de carnet (phase H)",
             status="pending",
