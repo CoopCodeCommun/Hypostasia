@@ -337,13 +337,14 @@ du code de production.
 
 ## 7. L'état des tests — remesuré le 19 août
 
-**2073 tests, tous verts**, dont **1** sauté. La suite tourne en **24 min 08 s**
+**2076 tests, tous verts**, dont **1** sauté. La suite tourne en **24 min 09 s**
 (`make test-rapide`, donc **hors e2e / docling / llm**), sous **LangExtract
 1.6.0**.
 
-> Les **14 tests de plus** que la mesure précédente (2059) : 9 pour le repli sur
-> les marqueurs groupés (`core/tests/test_marqueurs_groupes.py`) et 5 pour la
-> route qui sert les mesures (`front/tests/test_route_des_benchmarks.py`).
+> Les **17 tests de plus** que la mesure du 18 août (2059) : 9 pour le repli sur
+> les marqueurs groupés (`core/tests/test_marqueurs_groupes.py`) et 8 pour la
+> route publique qui sert les mesures
+> (`front/tests/test_route_des_benchmarks.py`).
 
 > Les **8 tests de plus** que la mesure précédente (2051) : 4 pour la tolérance
 > à la liste JSON nue que la 1.6.0 apporte
@@ -414,8 +415,8 @@ le `Makefile` les porte avec leurs comptes, et une seconde liste divergerait.
 deux exécutions simultanées se la détruisent mutuellement en plein vol (755
 erreurs fantômes constatées).
 
-> **Cette section est la source de la mesure** — aujourd'hui **2073 tests en
-> 24 min 08 s**, en tête de section. Ni le README ni `AGENTS.md` ne la
+> **Cette section est la source de la mesure** — aujourd'hui **2076 tests en
+> 24 min 09 s**, en tête de section. Ni le README ni `AGENTS.md` ne la
 > répètent : ils y renvoient. Si tu remesures, c'est ici que tu écris, et
 > nulle part ailleurs.
 >

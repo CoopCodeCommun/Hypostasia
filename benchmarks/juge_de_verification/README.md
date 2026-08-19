@@ -166,15 +166,21 @@ Sept modèles de 68 à 608 millions de paramètres, entraînés **pour cette tâ
 qui tournent sur processeur en moins d'une seconde par paire — contre ~24 s pour
 ShieldStral.
 
-| Date | Juge | Paires | Réf. | Meilleur cadrage | AUC | ms/passe |
-|---|---|---|---|---|---|---|
-| 2026-08-19 | `lettucedect-610m-eurobert-fr` | 145 | étalon gelé | `qa` / `couverture` | **0,738** | 1063 |
-| 2026-08-19 | `distilcamembert-base-nli` (68 M) | 145 | idem | `par_phrase` | **0,728** | **48** |
-| 2026-08-19 | `mdeberta-v3-base-mnli-xnli` | 145 | idem | `par_phrase` | 0,723 | 229 |
-| 2026-08-19 | `lettucedect-210m-eurobert-fr` | 145 | idem | `qa` / `couverture` | 0,710 | 266 |
-| 2026-08-19 | `camembertav2-base-xnli` | 145 | idem | `par_phrase` | 0,692 | 179 |
-| 2026-08-19 | `bge-m3-zeroshot` | 145 | idem | `par_phrase` | 0,665 | 338 |
-| 2026-08-19 | `lettucedect-v2-mmbert-base` | 145 | idem | `nu` / `meilleure_phrase` | **0,529** | 280 |
+Toutes les mesures du 19 août 2026, sur les **145 paires gelées**. « orient. » est
+l'écart du contrôle d'orientation ; **une marge de 0,10 est exigée**.
+
+| Juge | Meilleure combinaison | AUC | strat. | orient. | ms/passe |
+|---|---|---|---|---|---|
+| `mdeberta-v3-base-mnli-xnli` | `par_phrase` / `moins_contradiction` | **0,758** | 0,688 | +0,607 | 216 |
+| `lettucedect-610m-eurobert-fr` | `qa` / `couverture` | *0,738* | 0,758 | **refusé, +0,031** | 1102 |
+| `distilcamembert-base-nli` (68 M) | `par_phrase` | 0,728 | 0,703 | +0,933 | **47** |
+| `lettucedect-210m-eurobert-fr` | `qa` / `couverture` | 0,710 | 0,750 | +0,157 | 277 |
+| `camembertav2-base-xnli` | `par_phrase` / `moins_contradiction` | 0,706 | 0,734 | +0,922 | 177 |
+| `bge-m3-zeroshot` | `par_phrase` | 0,665 | 0,750 | +0,983 | 366 |
+| `lettucedect-v2-mmbert-base` | `qa` / `meilleure_phrase` | 0,529 | **0,797** | +0,124 | 275 |
+| *ShieldStral 3B, pour mémoire* | *`separe` / large* | *0,734* | *—* | *—* | *~24 000* |
+| **recouvrement de mots** | — | **0,889** | **0,867** | — | ~0 |
+| *plafond de l'étalon* | — | *0,690* | *—* | *—* | — |
 
 Compte rendu complet, réserves comprises :
 [des encodeurs contre l'étalon](2026-08-19_des-encodeurs-contre-l-etalon.md).

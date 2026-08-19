@@ -7,7 +7,7 @@
 
 **Quoi / What :** `/benchmarks/` liste les comptes rendus de mesure du dossier
 `benchmarks/`, et `/benchmarks/voir/<chemin>.md` en rend un en HTML.
-Authentification exigée.
+**Publiques** — pas d'authentification.
 */ Two routes list and render the `benchmarks/` measurement notes.*
 
 **Pourquoi / Why :** ces comptes rendus sont mis à jour souvent. Un HTML
@@ -23,7 +23,42 @@ lecture** : il n'y a jamais qu'une source.
 | `front/views_benchmarks.py` | **nouveau** — `BenchmarksViewSet` |
 | `front/templates/front/benchmarks/` | **nouveau** — index, mesure, style |
 | `front/urls.py` | routeur + un `re_path` explicite |
-| `front/tests/test_route_des_benchmarks.py` | **nouveau** — 5 tests |
+| `front/templates/front/includes/onboarding_vide.html` | deux liens sur la page d'accueil |
+| `front/tests/test_route_des_benchmarks.py` | **nouveau** — 7 tests |
+
+## Les deux adresses, sur la page d'accueil
+
+`Mesures` → `/benchmarks/` et `Maquettes` →
+`/static/front/maquettes/maquette.html`, en bas du guide « Découvrir ». On les
+cherchait à la main dans le dépôt.
+
+**ET NON DANS LA BARRE D'OUTILS**, où ils avaient d'abord été posés : son
+conteneur gauche est en `overflow-hidden`, et deux liens de plus y étaient
+**rognés sans qu'aucune erreur ne le dise**.
+
+**Sans `hx-get`, délibérément** : ce sont des pages **autonomes**, pas des
+partials. Un swap dans `#zone-lecture` les afficherait sans leur style ni leur
+navigation.
+
+**Un seul lien vers les maquettes**, celui de `maquette.html` : son en-tête est
+l'autorité et renvoie lui-même vers `corpus.html` et `selection-preuves.html`.
+Trois liens ici en feraient trois copies à tenir à jour.
+
+**Visibles par tous, et la route l'est aussi.** Les deux vont ensemble : un lien
+montré à un visiteur anonyme qui le mènerait à un mur de connexion serait une
+promesse cassée.
+
+**Ce que ça rend public** : les tarifs des modèles, les choix techniques, et
+surtout les **défauts mesurés du produit** — 85 % de verbatim à l'extraction,
+14 à 23 % de citations introuvables, un juge qui sous-note. Pour un outil dont
+l'objet est la traçabilité, les cacher serait contradictoire. **Aucune clé,
+aucune donnée d'utilisateur** : seuls les `.md` sous `benchmarks/` sont servis,
+et la garde de chemin reste en place — un test vérifie qu'un anonyme ne peut
+pas plus atteindre `../.env` qu'un connecté.
+
+**Aucune classe Tailwind neuve** : celles employées sont exactement celles du
+lien « Carnets » voisin — le build est figé, une classe absente du bundle est
+inerte et ne lève aucune erreur.
 
 ## Deux décisions
 

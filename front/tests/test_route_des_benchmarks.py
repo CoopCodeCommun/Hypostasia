@@ -67,7 +67,46 @@ class LaRouteDesMesuresTest(TestCase):
 
         self.assertNotEqual(reponse.status_code, 200)
 
-    def test_un_visiteur_anonyme_n_y_accede_pas(self):
+    def test_la_page_d_accueil_porte_les_deux_liens(self):
+        # SANS EUX, on cherchait mesures et maquettes à la main dans le
+        # dépôt. Ils sont sur la page d'accueil et NON dans la barre
+        # d'outils, dont le conteneur gauche est en `overflow-hidden` :
+        # deux liens de plus y étaient rognés sans aucune erreur.
+        # / On the landing page, not the toolbar, whose left container is
+        # overflow-hidden and silently clipped them.
+        contenu = self.client.get(
+            "/", headers={"HX-Request": "true"},
+        ).content.decode()
+
+        self.assertIn('data-testid="onboarding-references"', contenu)
+        self.assertIn('href="/benchmarks/"', contenu)
+        self.assertIn("/static/front/maquettes/maquette.html", contenu)
+
+    def test_un_visiteur_anonyme_voit_les_liens_AUSSI(self):
+        # LE LIEN ET LA ROUTE VONT ENSEMBLE. Montrer un lien à un
+        # visiteur anonyme qui le mènerait à un mur de connexion serait
+        # une promesse cassée : les deux sont publics, ou aucun.
+        # / Link and route go together, or neither.
+        contenu = Client().get(
+            "/", headers={"HX-Request": "true"},
+        ).content.decode()
+
+        self.assertIn('data-testid="onboarding-references"', contenu)
+        self.assertIn('href="/benchmarks/"', contenu)
+
+    def test_un_visiteur_anonyme_lit_les_mesures(self):
+        # Publiques délibérément : ces comptes rendus nomment les DÉFAUTS
+        # mesurés du produit, et pour un outil dont l'objet est la
+        # traçabilité, les cacher serait contradictoire.
+        # / Public on purpose: this tool's subject is traceability.
         reponse = Client().get("/benchmarks/")
 
+        self.assertEqual(reponse.status_code, 200)
+
+    def test_la_traversee_reste_refusee_a_un_anonyme(self):
+        # La route s'ouvre, la garde de chemin NON.
+        # / The route opens; the path guard does not.
+        reponse = Client().get("/benchmarks/voir/../.env")
+
         self.assertNotEqual(reponse.status_code, 200)
+        self.assertNotIn("API_KEY", reponse.content.decode())

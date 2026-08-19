@@ -146,9 +146,60 @@ vraie **0,994** — il les *ordonne* sans les *séparer*.
 
 ---
 
-## Les candidats
+## Les candidats, sur les 145 paires gelées
 
-*(tableau complet ci-dessous, après la seconde campagne)*
+Meilleure combinaison de chacun. Les tableaux complets — 9 combinaisons pour les
+modèles à spans, 4 pour les NLI — sont dans la sortie du banc.
+
+| candidat | meilleure combinaison | AUC | strat. | macro | orientation | ms/passe |
+|---|---|---|---|---|---|---|
+| `mdeberta-v3-base-mnli-xnli` | `par_phrase` / `moins_contradiction` | **0,758** | 0,688 | 0,762 | +0,607 | 216 |
+| `lettucedect-610m-eurobert-fr` | `qa` / `couverture` | *0,738* | 0,758 | 0,825 | **refusé, +0,031** | 1102 |
+| `distilcamembert-base-nli` (68 M) | `par_phrase` | 0,728 | 0,703 | 0,787 | +0,933 | **47** |
+| `lettucedect-210m-eurobert-fr` | `qa` / `couverture` | 0,710 | 0,750 | 0,641 | +0,157 | 277 |
+| `camembertav2-base-xnli` | `par_phrase` / `moins_contradiction` | 0,706 | 0,734 | 0,797 | +0,922 | 177 |
+| `bge-m3-zeroshot` | `par_phrase` | 0,665 | 0,750 | 0,763 | +0,983 | 366 |
+| `lettucedect-v2-mmbert-base` | `qa` / `meilleure_phrase` | 0,529 | **0,797** | **0,835** | +0,124 | 275 |
+| — *ShieldStral 3B (18 août)* | *`separe` / large* | *0,734* | *—* | *—* | *—* | *~24 000* |
+| — **recouvrement de mots** | — | **0,889** | **0,867** | 0,833 | — | ~0 |
+| — *plafond de l'étalon* | — | *0,690* | *—* | *—* | *—* | — |
+
+### Quatre choses que ce tableau dit
+
+**Le signal de contradiction paie, et il était jeté.** Ne lire que P(entailment) revient à
+ignorer la seule information qu'un compteur de mots ne peut pas produire : deux textes qui
+se contredisent partagent leur vocabulaire. En soustrayant P(contradiction), `mdeberta`
+passe de 0,723 à **0,758** et `camembertav2` de 0,692 à 0,706. Il ne coûte **aucune passe
+avant supplémentaire** — les logits sont déjà là.
+
+**Le meilleur score brut est refusé au contrôle d'orientation.** `lettucedect-610m`, le
+candidat n°1 du récap, note la paire fausse 0,964 et la vraie 0,994. Il les *ordonne* sans
+les *séparer*, et sur l'exemple publié par sa propre carte il ne signale **rien**. Ses
+chiffres ne sont **pas concluants** : on ne peut pas départager « modèle peu sensible » de
+« implémentation native divergente », parce que `trust_remote_code=True` échoue sous
+`transformers` 5.14.1 (`KeyError: 'default'`). Le 210m, lui, reproduit l'exemple de sa
+carte au span près.
+
+**Le français déclaré n'est pas le français entraîné — mais la nuance compte.**
+`lettucedect-v2-mmbert-base` revendique `fr`, et son AUC globale est de 0,529. Sa
+stratifiée est de **0,797**, macro **0,835**, jamais sous 0,40 sur aucun groupe : il classe
+correctement les sources **à l'intérieur** d'un paragraphe, mais ses scores ne sont pas
+comparables **entre** paragraphes. Ce n'est pas « au niveau du hasard » : c'est un défaut
+de **calibration**, et c'est exactement ce que la métrique stratifiée existe pour
+distinguer.
+
+**Le rapport qualité/prix n'est pas où on l'attendait.** `distilcamembert-base-nli`, 68
+millions de paramètres, atteint 0,728 à **47 ms la passe** — soit **500 fois moins cher**
+que ShieldStral pour un score équivalent. Sur les 15 paires relues à la main, avec le
+signal de contradiction, il atteint **0,923** : exactement le score de ShieldStral 3B.
+
+### La réserve qui interdit de classer sur la stratifiée
+
+L'AUC stratifiée repose sur **128 couples dans 11 affirmations**, et **56 de ces couples —
+44 % — viennent d'un seul paragraphe**. Son étendue par groupe va de 0,00 à 1,00 chez
+presque tous les candidats. **Un écart inférieur à 0,1 n'y est pas résolu**, et aucun
+classement ne doit s'y appuyer. Elle sert à repérer un décalage franc entre global et
+stratifié — comme celui de mmBERT — pas à départager deux candidats.
 
 ---
 

@@ -200,10 +200,73 @@ of the notebook you came from stays above the home screen.
 
     </div>
 
+    {% comment %}
+    LES DEUX RÉFÉRENCES INTERNES : les mesures et l'étalon visuel.
+    On les cherchait à la main dans le dépôt ; elles ont une adresse.
+
+    ELLES SONT ICI ET PAS DANS LA BARRE D'OUTILS : son conteneur gauche
+    est en `overflow-hidden`, et deux liens de plus y étaient rognés sans
+    qu'aucune erreur ne le dise.
+
+    PAS DE hx-get : ce sont des pages AUTONOMES, pas des partials. Un
+    swap dans #zone-lecture les afficherait sans leur style ni leur
+    navigation. `target="_blank"` parce qu'on y va pour comparer, pas
+    pour quitter son carnet.
+
+    Les maquettes pointent sur `maquette.html` SEULE : son en-tête est
+    l'autorité, et il renvoie lui-même vers `corpus.html` et
+    `selection-preuves.html`. Trois liens ici en feraient trois copies à
+    tenir à jour.
+
+    VISIBLES PAR TOUS, et la route l'est aussi. Un lien montré à un
+    visiteur anonyme qui le mènerait à un mur de connexion serait une
+    promesse cassée : les deux vont ensemble, ou aucun des deux.
+    {% endcomment %}
+    <div class="onboarding-section" data-testid="onboarding-references">
+        <h3 class="onboarding-section-titre">Les références internes</h3>
+        <p class="onboarding-section-desc">
+            Ce sur quoi le produit s&rsquo;appuie, et qu&rsquo;on met &agrave;
+            jour souvent.
+        </p>
+        <div class="onboarding-references-liens">
+            <a href="/benchmarks/" data-testid="lien-mesures">
+                <strong>Mesures</strong>
+                <span>Les comptes rendus de banc d&rsquo;essai, rendus depuis
+                <code>benchmarks/</code> &mdash; jamais une copie &agrave;
+                reg&eacute;n&eacute;rer.</span>
+            </a>
+            <a href="/static/front/maquettes/maquette.html" target="_blank"
+               rel="noopener" data-testid="lien-maquettes">
+                <strong>Maquettes</strong>
+                <span>L&rsquo;&eacute;talon visuel. Son en-t&ecirc;te distingue
+                ce qui est tir&eacute; du code r&eacute;el de ce qui est une
+                cible.</span>
+            </a>
+        </div>
+    </div>
+
 </div>
 
 <style>
 /* === Onboarding page === */
+/* Les références internes : deux cartes, aux mêmes tokens que le reste
+   de l'onboarding. Aucune classe Tailwind neuve — le build est FIGÉ. */
+.onboarding-references-liens {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: .8rem;
+}
+.onboarding-references-liens a {
+    display: block; padding: .7rem .9rem; border-radius: 6px;
+    border: 1px solid var(--filet, #e4e0d8); text-decoration: none;
+    background: var(--papier-creux, #f5f3ef); color: inherit;
+}
+.onboarding-references-liens a:hover { border-color: #2563eb; }
+.onboarding-references-liens strong { display: block; margin-bottom: .2rem; }
+.onboarding-references-liens span {
+    font-size: .82rem; color: var(--encre-douce, #6b6862);
+}
+@media (max-width: 700px) {
+    .onboarding-references-liens { grid-template-columns: 1fr; }
+}
 .onboarding-contenu {
     max-width: 52rem;
     margin: 0 auto;

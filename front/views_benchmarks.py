@@ -85,24 +85,26 @@ def _fichier_de_mesure(chemin_demande):
 
 class BenchmarksViewSet(viewsets.ViewSet):
     """
-    Les mesures, en lecture. / The measurements, read-only.
+    Les mesures, en lecture, PUBLIQUES. / The measurements, public.
 
-    AUTHENTIFICATION EXIGEE, et 404 plutot que 403 (doctrine du projet) :
-    ces comptes rendus nomment des modeles, des tarifs et des defauts du
-    produit. Rien de secret, rien qui doive etre public non plus.
+    PUBLIQUES DELIBEREMENT. Ces comptes rendus nomment des tarifs, des
+    choix techniques et surtout les DEFAUTS MESURES du produit — 85 % de
+    verbatim a l'extraction, 14 a 23 % de citations introuvables, un juge
+    qui sous-note. Pour un outil dont l'objet est la tracabilite, les
+    cacher serait contradictoire.
+
+    CE QU'ELLES NE PEUVENT PAS EXPOSER : seuls les `.md` situes SOUS
+    `benchmarks/` sont servis, et le chemin est resolu puis VERIFIE comme
+    etant a l'interieur. Aucune cle, aucune donnee d'utilisateur.
+    / Public on purpose: this tool's subject is traceability. Only .md
+    files under benchmarks/ are served, containment checked after
+    resolution.
     """
 
     permission_classes = [permissions.AllowAny]
 
-    def _refus(self, request):
-        from front.views import _exiger_authentification
-        return _exiger_authentification(request)
-
     def list(self, request):
         """GET /benchmarks/ — l'index des mesures."""
-        refus = self._refus(request)
-        if refus:
-            return refus
         return render(request, "front/benchmarks/index.html", {
             "mesures": _mesures_disponibles(),
         })
@@ -119,9 +121,6 @@ class BenchmarksViewSet(viewsets.ViewSet):
         / Explicitly routed: a DefaultRouter cannot express a path
         containing slashes.
         """
-        refus = self._refus(request)
-        if refus:
-            return refus
         fichier = _fichier_de_mesure(chemin or "")
         if fichier is None:
             return render(request, "front/benchmarks/index.html", {

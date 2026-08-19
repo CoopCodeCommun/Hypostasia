@@ -737,7 +737,12 @@ def afficher(nom, resultats, paires, duree, nombre_de_passes):
     paragraph rather than the judgement.
     """
     verites = [paire["verite"] for paire in paires]
-    groupes = [paire["affirmation"] for paire in paires]
+    # Le groupe est EXPLICITE quand le jeu en pose un (cas adverse),
+    # sinon c'est l'affirmation : deux sources du meme paragraphe.
+    # / Explicit group when the set defines one, else the claim.
+    groupes = [
+        paire.get("groupe", paire["affirmation"]) for paire in paires
+    ]
 
     if duree is not None:
         print(f"\n  {nom} — {nombre_de_passes} passes avant en {duree:.0f} s "
@@ -938,8 +943,20 @@ def paires_adverses():
         niee = nier_l_affirmation(paire["source"], paire["affirmation"])
         if niee is None:
             continue
-        adverses.append(dict(paire, verite=True))
-        adverses.append(dict(paire, affirmation=niee, verite=False))
+        # LES DEUX VERSIONS PARTAGENT LEUR GROUPE, et c'est ce qui rend
+        # l'AUC stratifiee lisible ici : elle devient une comparaison
+        # APPARIEE — « pour cette paire-ci, le juge note-t-il la version
+        # vraie au-dessus de sa negation ? ». Sans cle explicite, le
+        # regroupement se ferait sur le texte de l'affirmation, qui
+        # DIFFERE entre les deux, et chaque groupe n'aurait qu'une seule
+        # classe : l'AUC stratifiee serait indefinie.
+        # / Both versions share a group key, making the stratified AUC a
+        # paired comparison. Grouping on the claim text would break it.
+        groupe = f"{paire['numero']}"
+        adverses.append(dict(paire, verite=True, groupe=groupe))
+        adverses.append(
+            dict(paire, affirmation=niee, verite=False, groupe=groupe),
+        )
     return adverses
 
 

@@ -47,6 +47,27 @@ un juge d'implication d'un `grep`.
 Le banc imprime donc la baseline **dans chaque tableau**, sans exception. Elle n'est pas
 une curiosité : c'est le comparateur.
 
+### Le jeu adverse — `--adverse`
+
+Puisqu'aucune AUC contre les deux références ne démontre qu'un juge *vérifie*, le banc
+porte un **troisième jeu** conçu pour que le compteur de mots n'y puisse rien : chaque
+paire positive de l'étalon, plus la **même paire dont l'affirmation a été niée**.
+
+La négation frappe la phrase que la source établit — choisie par recouvrement lexical, pas
+au hasard : nier une phrase sans rapport laisserait la paire soutenue au sens large, et
+l'étiquette mentirait. Elle n'enlève aucun mot et n'ajoute que « ne » / « n' » et « pas »,
+tous sous quatre caractères, donc invisibles pour le compteur.
+
+| propriété | valeur |
+|---|---|
+| paires | **228** — 114 positives, 114 négatives, **équilibré** |
+| positives transformables | 114 sur 118 |
+| recouvrement identique avant/après | **114 / 114** |
+| **AUC du compteur de mots** | **0,500** |
+
+**Tout ce qui dépasse 0,5 sur ce jeu est une détection qu'un `grep` ne peut pas produire.**
+C'est la seule affirmation de ce genre que le dossier puisse soutenir.
+
 ### Ce que le banc refuse de faire
 
 - **`--depuis` refuse un JSON mesuré sur l'autre jeu.** Chaque sortie porte l'empreinte du
