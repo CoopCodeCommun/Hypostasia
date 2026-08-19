@@ -1746,7 +1746,7 @@ wheels = [
 
 [[package]]
 name = "langextract"
-version = "1.1.1"
+version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "absl-py" },
@@ -1767,9 +1767,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e7/d9/34ca6eb931591a2871bba8e767cd058c7062b04d27fb1abc8c6ff4d22420/langextract-1.1.1.tar.gz", hash = "sha256:6f80423bbde20eced908afcab20479d2c53afa960145ad0bbd72209567cf6961", size = 115244, upload-time = "2025-11-27T04:50:33.128Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/49/c2/30216c49a53419bf3c124cb3ea6daba95a617a62e5ea4964b9fb11784f1e/langextract-1.6.0.tar.gz", hash = "sha256:ac6412152b173bfb0d6b4e08bf6ace7319b1e734c4f9c6f33d39f0c5915e640d", size = 142637, upload-time = "2026-07-02T06:24:00.632Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/09/16b77c8914ca7a017349124ec8f23209d483e63a9a516a9d475e395d456d/langextract-1.1.1-py3-none-any.whl", hash = "sha256:cc915d3f2880cd3facc50592e8393148446663a7da1eda804d7b4b8deda52c14", size = 124636, upload-time = "2025-11-27T04:50:31.745Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/e0/3475ffd1c7e2a4a49f3d8c186c27869a53c710335742964707dbc499590e/langextract-1.6.0-py3-none-any.whl", hash = "sha256:ffa2d584c29ea25c73a2723cec756f21a76799e8ab76a1d9d92841e27504b057", size = 150147, upload-time = "2026-07-02T06:23:59.25Z" },
 ]
 
 [[package]]
@@ -4140,7 +4140,7 @@ requires-dist = [
     { name = "google-generativeai", specifier = ">=0.8.5" },
     { name = "gunicorn", specifier = ">=21.2.0" },
     { name = "ipdb", specifier = ">=0.13.13" },
-    { name = "langextract", specifier = ">=0.1.0" },
+    { name = "langextract", specifier = ">=1.6.0" },
     { name = "mammoth", specifier = ">=1.8.0" },
     { name = "markdown", specifier = ">=3.10.2" },
     { name = "markitdown", extras = ["all"], specifier = ">=0.1.0" },

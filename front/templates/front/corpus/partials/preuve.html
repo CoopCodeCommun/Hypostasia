@@ -23,6 +23,134 @@
         {% endif %}
     </p>
 
+    {% comment %}
+    LE DEGRE, ET LE SEUIL MARQUE DESSUS.
+
+    Le juge ne rend plus « soutient / ne soutient pas » mais un degre de
+    0 a 100 (addendum du 18 aout 2026). La barre montre DE COMBIEN on est
+    au-dessus ou en dessous du seuil : c'est ce que le libelle seul ne dit
+    pas, et c'est ce qui permet de discuter LE SEUIL plutot que le verdict.
+
+    ELLE NE VIT QUE DANS CE PANNEAU. `PRESENTATION-V3.md § 3.6` a arbitre :
+    trois etats visuellement discrets dans le corps de l'article, pas un
+    score par phrase — « la rigueur est disponible au clic, pas imposee a
+    la lecture ». Ne jamais porter ce chiffre dans le corps.
+
+    Le degre est absent (NULL) pour tout verdict pose SANS juge —
+    citation introuvable, contestation humaine — et pour les verdicts
+    anterieurs a l'addendum. Le bloc ne s'affiche alors pas du tout.
+    {% endcomment %}
+    {% if lien.score_de_verification is not None %}
+    <div class="degre-de-soutien" data-testid="synthese-degre"
+         data-score="{{ lien.score_de_verification|floatformat:0 }}"
+         data-seuil="{{ seuil_de_verification|floatformat:0 }}"
+         role="img"
+         aria-label="Soutenu à {{ lien.score_de_verification|floatformat:0 }} sur 100, pour un seuil de {{ seuil_de_verification|floatformat:0 }} sur 100.">
+        <div class="piste">
+            <span class="remplissage"
+                  data-cote="{% if lien.etat_de_verification == 'faible' %}dessous{% else %}dessus{% endif %}"
+                  style="width:{{ lien.score_de_verification|floatformat:0 }}%"></span>
+            <span class="marque-du-seuil"
+                  style="left:{{ seuil_de_verification|floatformat:0 }}%"></span>
+        </div>
+        <p class="explication" style="margin:.25rem 0 0">
+            Soutenu à <strong>{{ lien.score_de_verification|floatformat:0 }}</strong>
+            sur 100 — seuil {{ seuil_de_verification|floatformat:0 }}.
+            {% comment %}
+            Deux juges n'ont pas la meme echelle : 45 sur 100 chez un juge
+            d'API sollicite par le protocole texte, 38 chez un juge local a
+            logits. Un degre sans le nom de celui qui l'a rendu n'est donc
+            pas comparable — et redevient l'argument d'autorite que le § 7.2
+            interdit.
+            {% endcomment %}
+            {% if lien.verifie_par %}Degré rendu par {{ lien.verifie_par }}.{% endif %}
+        </p>
+        <p class="explication" style="margin:.15rem 0 0">
+            Le seuil est un réglage d'affichage : le déplacer ne rejuge
+            rien.
+        </p>
+    </div>
+    {% endif %}
+
+    {% comment %}
+    LE SECOND AVIS — un second juge tourne À CÔTÉ du juge de production
+    pour être comparé à lui sur des données réelles. IL NE PILOTE RIEN.
+
+    LE TITRE EST L'ACCORD, PAS LES CHIFFRES. Un désaccord entre deux
+    juges est en lui-même l'information : c'est ce qui rend l'état
+    contestable au lieu d'asséné.
+
+    CHAQUE BARRE PORTE SON PROPRE SEUIL. Les deux juges ne sont pas sur
+    la même règle — 45/100 pour un juge d'API sollicité par le protocole
+    texte, ~38/100 pour un juge local lu sur les logits. Aligner 70 et 41
+    sur une règle commune ferait conclure au désaccord là où il y a
+    accord parfait.
+
+    QUATRE ÉTATS, ET ILS NE SE CONFONDENT PAS : les deux avis présents ;
+    la comparaison impossible (le juge de production n'a pas rendu de
+    degré — c'est le cas de toute citation vérifiée avant le 18 août
+    2026) ; le second avis en cours ; le second avis jamais demandé, qui
+    n'affiche rien du tout.
+    {% endcomment %}
+    {% if lien.score_du_second_avis is not None %}
+    <div class="second-avis" data-testid="synthese-second-avis"
+         data-accord="{% if accord_des_juges is None %}incalculable{% elif accord_des_juges %}accord{% else %}desaccord{% endif %}">
+        <p class="titre-de-l-accord">
+            {% if accord_des_juges is None %}
+            Comparaison impossible : le juge de production n’a pas rendu de
+            degré sur cette citation.
+            {% elif accord_des_juges %}
+            Les deux juges sont <strong>d’accord</strong>.
+            {% else %}
+            Les deux juges <strong>divergent</strong>.
+            {% endif %}
+        </p>
+
+        {% comment %}
+        Un verdict HUMAIN n'est jamais écrasé (§ 7.2). L'avis automatique
+        est montré — cacher une information dans un outil de délibération
+        est un choix fort — mais explicitement subordonné.
+        {% endcomment %}
+        {% if lien.etat_de_verification == "conteste" %}
+        <p class="explication" data-testid="synthese-second-avis-subordonne">
+            Verdict humain : l’avis automatique ci-dessous est donné pour
+            information, <strong>il ne le remplace pas</strong>.
+        </p>
+        {% endif %}
+
+        <div class="degre-de-soutien" role="img"
+             data-testid="synthese-barre-second-avis"
+             data-score="{{ lien.score_du_second_avis|floatformat:0 }}"
+             data-seuil="{{ lien.seuil_du_second_avis|floatformat:0 }}"
+             aria-label="Second avis : soutenu à {{ lien.score_du_second_avis|floatformat:0 }} sur 100, pour un seuil de {{ lien.seuil_du_second_avis|floatformat:0 }} sur 100, selon {{ lien.methode_du_second_avis }}.">
+            <div class="piste">
+                <span class="remplissage"
+                      data-cote="{% if lien.score_du_second_avis < lien.seuil_du_second_avis %}dessous{% else %}dessus{% endif %}"
+                      style="width:{{ lien.score_du_second_avis|floatformat:0 }}%"></span>
+                <span class="marque-du-seuil"
+                      style="left:{{ lien.seuil_du_second_avis|floatformat:0 }}%"></span>
+            </div>
+            <p class="explication" style="margin:.25rem 0 0">
+                Second avis : <strong>{{ lien.score_du_second_avis|floatformat:0 }}</strong>
+                sur 100 — seuil {{ lien.seuil_du_second_avis|floatformat:0 }}.
+                Rendu par {{ lien.methode_du_second_avis }}
+                le {{ lien.second_avis_rendu_le|date:"d/m/Y H:i" }}.
+            </p>
+        </div>
+        <p class="explication" style="margin:.15rem 0 0">
+            Ce second juge tourne à côté du premier pour être comparé à
+            lui. <strong>Il ne décide de rien</strong> — et les deux
+            n’ont pas la même échelle, d’où deux seuils.
+        </p>
+    </div>
+    {% elif second_avis_en_cours %}
+    <p class="explication" data-testid="synthese-second-avis-en-cours"
+       aria-live="polite">
+        Second avis en cours… Le juge local tourne sur cette machine, en
+        priorité basse : comptez une vingtaine de secondes par citation.
+    </p>
+    {% endif %}
+
     {% if lien.etat_de_la_source != "presente" %}
     <p class="explication" style="color:var(--faible)" data-testid="synthese-etat-source">
         {% if lien.etat_de_la_source == "supprimee" %}La source de cette

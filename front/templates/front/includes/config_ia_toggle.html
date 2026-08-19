@@ -90,3 +90,70 @@
     </div>
 </div>
 {% endif %}
+
+{% comment %}
+=== SEUIL DE VERIFICATION ===
+/ === Verification threshold ===
+
+LE GESTE QUI REND L'ARBITRAGE REFAISABLE. Le juge rend un degre de 0 a
+100 ; ce seuil decide de quel cote du curseur un renvoi s'affiche. Le
+deplacer NE REJUGE RIEN — les degres sont deja en base, seuls les
+libelles sont recalcules. Aucun appel de modele, aucune facture.
+
+Sans cet ecran, le seuil serait fige dans le code, et on aurait
+simplement deplace le probleme : c'est exactement ce que l'addendum du
+18 aout reproche a un seuil enfoui dans une tournure de prompt.
+
+AUCUNE CLASSE TAILWIND NEUVE ICI : le build est FIGE, une classe absente
+du bundle est inerte et ne leve aucune erreur. Toutes celles employees
+ci-dessous sont deja presentes dans ce fichier.
+{% endcomment %}
+<div class="mt-3 pt-3 border-t border-slate-100" data-testid="config-seuil-zone">
+    <label for="config-seuil-verification"
+           class="text-sm text-slate-600">Seuil de vérification</label>
+    <div class="mt-1 flex items-center gap-2">
+        <input type="number" name="seuil" id="config-seuil-verification"
+               data-testid="config-seuil-input"
+               min="0" max="100" step="1"
+               value="{{ configuration.seuil_de_verification|floatformat:0 }}"
+               aria-describedby="config-seuil-aide"
+               class="w-full text-sm border border-slate-300 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400">
+        <button hx-post="/config-ia/seuil/"
+                hx-include="#config-seuil-verification"
+                hx-target="#config-ia-zone"
+                hx-swap="innerHTML"
+                data-testid="config-seuil-button"
+                class="px-3 py-2 text-sm font-medium text-slate-600 bg-white border-2 border-dashed border-slate-300 hover:border-emerald-400 hover:text-emerald-600 rounded transition-colors">
+            Appliquer
+        </button>
+    </div>
+    <p id="config-seuil-aide" class="mt-1 text-xs text-slate-400">
+        À partir de quel degré sur 100 un renvoi s’affiche « vérifié ».
+        Le déplacer ne rejuge rien.
+    </p>
+
+    {% comment %}
+    LE RESULTAT DU DEPLACEMENT, DIT. Un recalcul qui ne dirait rien
+    laisserait l'ecran identique a celui d'avant le clic — la meme
+    degradation silencieuse que le bandeau d'echec du juge existe pour
+    empecher.
+    {% endcomment %}
+    {% if renvois_changes is not None %}
+    <p class="mt-1 text-xs text-slate-600" role="status" aria-live="polite"
+       data-testid="config-seuil-resultat">
+        Seuil {{ seuil_precedent|floatformat:0 }} &rarr;
+        {{ configuration.seuil_de_verification|floatformat:0 }} :
+        {{ renvois_changes }} renvoi{{ renvois_changes|pluralize }}
+        {{ renvois_changes|pluralize:"a,ont" }} changé d’état.
+        {% if renvois_d_un_autre_juge %}
+        {# Deux juges n'ont pas la meme echelle : relabelliser les degres #}
+        {# de l'un avec le seuil de l'autre serait une mesure fausse. #}
+        {{ renvois_d_un_autre_juge }} degré{{ renvois_d_un_autre_juge|pluralize }}
+        {{ renvois_d_un_autre_juge|pluralize:"vient,viennent" }} d’un autre
+        juge, sur une autre échelle :
+        {{ renvois_d_un_autre_juge|pluralize:"il n’a,ils n’ont" }} pas été
+        touché{{ renvois_d_un_autre_juge|pluralize }}.
+        {% endif %}
+    </p>
+    {% endif %}
+</div>

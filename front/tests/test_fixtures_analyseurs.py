@@ -31,6 +31,7 @@ from front.management.commands.charger_fixtures_sample import (
     Command as CommandeDeFixturesSample,
 )
 from front.services.fixtures_analyseurs import (
+    MODELES_IA_PAR_CLE_D_ENVIRONNEMENT,
     NOM_DE_L_ANALYSEUR_D_EXTRACTION,
     NOM_DE_L_ANALYSEUR_DE_SYNTHESE,
     creer_les_modeles_ia_et_les_analyseurs,
@@ -48,10 +49,20 @@ from hypostasis_extractor.models import (
 # resultat des tests qui parlent d'absence de cle.
 # / The three keys read by the service, neutralized together so a local
 # .env cannot change the outcome of the "no key" tests.
+# TOUTES les cles du referentiel, neutralisees — DERIVEES de la liste,
+# jamais recopiees.
+#
+# POURQUOI PAS UNE LISTE EN DUR. Elle en etait une, avec trois cles. Le
+# jour ou `MODELES_IA_PAR_CLE_D_ENVIRONNEMENT` a gagne Mistral
+# (18 aout 2026), la copie est devenue incomplete : `MISTRAL_API_KEY`
+# etant reellement presente dans l'environnement, deux tests qui
+# croyaient partir SANS AUCUNE cle en avaient une — et ils sont tombes.
+# Deriver la liste rend cette derive impossible.
+# / Derived, never copied: a hardcoded list silently went stale the day
+#   a fourth model was added.
 CLES_API_NEUTRALISEES = {
-    "GOOGLE_API_KEY": "",
-    "OPENAI_API_KEY": "",
-    "ANTHROPIC_API_KEY": "",
+    definition["cle_env"]: ""
+    for definition in MODELES_IA_PAR_CLE_D_ENVIRONNEMENT
 }
 
 
@@ -235,6 +246,110 @@ class ServiceDeFixturesDesAnalyseursTest(TestCase):
         # arriver plus tard dans le .env.
         # / Analyzers are still created: the key may arrive later.
         self.assertTrue(rapport["analyseur_extraction_cree"])
+
+    def test_mistral_est_le_modele_d_extraction_et_porte_sa_plateforme(self):
+        """
+        L'ORDRE DE LA LISTE DECIDE : le premier modele disponible devient
+        celui de la Configuration, donc le modele d'EXTRACTION. Et c'est
+        cette fonction, et elle seule, qui reconstruit le referentiel
+        apres un `docker compose down -v` — un choix pose a la main n'y
+        survit pas.
+        / The list's order decides which model extracts, and this
+        function is what rebuilds the referential after a `down -v`.
+        """
+        cles = dict(CLES_API_NEUTRALISEES)
+        cles["MISTRAL_API_KEY"] = "une-cle-de-test"
+        cles["GOOGLE_API_KEY"] = "une-autre-cle"
+
+        with patch.dict(os.environ, cles):
+            creer_les_modeles_ia_et_les_analyseurs()
+
+        configuration = Configuration.get_solo()
+        self.assertEqual(
+            configuration.ai_model.model_choice, "mistral-small-latest",
+        )
+        modele = configuration.ai_model
+        # La plateforme est designee par `base_url`, et la cle n'est
+        # JAMAIS en base — seul son nom de variable l'est.
+        # / base_url names the platform; the key itself is never stored.
+        self.assertEqual(modele.provider, "compatible_openai")
+        self.assertEqual(modele.base_url, "https://api.mistral.ai/v1")
+        self.assertEqual(modele.variable_de_cle_api, "MISTRAL_API_KEY")
+
+    def test_le_modele_recree_est_a_temperature_zero(self):
+        """
+        TOUS les bancs de `benchmarks/` mesurent a 0 — « a armes
+        egales ». Le defaut du champ vaut 0,7 : sans cette valeur dans
+        les fixtures, une base reconstruite repartirait a 0,7 et AUCUNE
+        mesure ne serait plus comparable aux precedentes, sans qu'un
+        seul message ne le dise.
+        / Every bench measures at 0; the field defaults to 0.7.
+        """
+        cles = dict(CLES_API_NEUTRALISEES)
+        cles["MISTRAL_API_KEY"] = "une-cle-de-test"
+
+        with patch.dict(os.environ, cles):
+            creer_les_modeles_ia_et_les_analyseurs()
+
+        modele = AIModel.objects.get(model_choice="mistral-small-latest")
+        self.assertEqual(modele.temperature, 0.0)
+
+    def test_les_roles_sont_poses_a_l_installation(self):
+        """
+        Sans eux, `ModeleParRole` repart vide apres un `down -v` et
+        chaque role retombe sur la Configuration : le repli fonctionne,
+        mais l'affectation choisie est perdue en silence.
+        / Otherwise the chosen assignment silently vanishes.
+        """
+        from core.models import ModeleParRole, RoleDeModele
+
+        cles = dict(CLES_API_NEUTRALISEES)
+        cles["MISTRAL_API_KEY"] = "une-cle-de-test"
+
+        with patch.dict(os.environ, cles):
+            creer_les_modeles_ia_et_les_analyseurs()
+
+        for role in (RoleDeModele.REDACTEUR_D_ARTICLE,
+                     RoleDeModele.JUGE_DE_VERIFICATION):
+            with self.subTest(role=role):
+                affectation = ModeleParRole.objects.get(role=role)
+                self.assertEqual(
+                    affectation.modele.model_choice, "mistral-small-latest",
+                )
+
+    def test_un_role_choisi_a_la_main_survit_a_une_reinstallation(self):
+        """
+        CETTE FONCTION TOURNE A CHAQUE DEMARRAGE DE CONTENEUR. Avec un
+        `update_or_create`, un role change par
+        `affecter_un_modele_a_un_role` — le geste que la conception
+        prevoit — retomberait sur Mistral au redemarrage suivant, sans
+        un mot. C'est la meme regle que celle deja appliquee a la
+        Configuration : un choix pose a la main survit.
+        / This runs at every container start: a hand-picked role must
+        survive it.
+        """
+        from core.models import ModeleParRole, RoleDeModele
+
+        cles = dict(CLES_API_NEUTRALISEES)
+        cles["MISTRAL_API_KEY"] = "une-cle-de-test"
+        cles["GOOGLE_API_KEY"] = "une-autre-cle"
+
+        with patch.dict(os.environ, cles):
+            creer_les_modeles_ia_et_les_analyseurs()
+
+            # Le mainteneur change le juge a la main.
+            gemini = AIModel.objects.get(model_choice="gemini-2.5-flash")
+            ModeleParRole.objects.filter(
+                role=RoleDeModele.JUGE_DE_VERIFICATION,
+            ).update(modele=gemini)
+
+            # Le conteneur redemarre.
+            creer_les_modeles_ia_et_les_analyseurs()
+
+        affectation = ModeleParRole.objects.get(
+            role=RoleDeModele.JUGE_DE_VERIFICATION,
+        )
+        self.assertEqual(affectation.modele.model_choice, "gemini-2.5-flash")
 
     def test_une_cle_api_cree_le_modele_et_active_la_configuration(self):
         cles_avec_google = dict(CLES_API_NEUTRALISEES)

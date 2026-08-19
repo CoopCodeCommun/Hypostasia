@@ -143,7 +143,7 @@ docker compose up -d
 
 # Tout passe par le Makefile, depuis l'hote / Everything via the Makefile
 make install        # docker compose up -d + install.sh (idempotent)
-make dev            # serveur + les DEUX workers Celery
+make dev            # serveur + les TROIS workers Celery
 make status
 make restart S=runserver
 make logs S=celery_worker_docling
@@ -175,12 +175,16 @@ bash bin/install.sh
 # Lancer le serveur / Start server
 python manage.py runserver 0.0.0.0:8000
 
-# (Autre terminal) Les DEUX workers Celery — le second est DEDIE a
-# l'ingestion Docling, a concurrence 1 : une conversion a la fois.
-# / (Other terminals) BOTH Celery workers; the second is dedicated to
-# Docling ingestion at concurrency 1.
+# (Autres terminaux) Les TROIS workers Celery. Le deuxieme est DEDIE a
+# l'ingestion Docling, a concurrence 1 : une conversion a la fois. Le
+# troisieme porte le SECOND AVIS de verification (juge local), a
+# concurrence 1 et sous `nice -n 19` : il charge 7,7 Go et doit ceder le
+# pas a Docling.
+# / Three Celery workers: default, Docling (concurrency 1), and the
+# local second-opinion judge (concurrency 1, nice 19).
 celery -A hypostasia worker --loglevel=info --concurrency=2
 celery -A hypostasia worker --loglevel=info --concurrency=1 -Q ingestion_docling
+nice -n 19 celery -A hypostasia worker --loglevel=info --concurrency=1 -Q verification_locale
 ```
 
 Acces : http://localhost:8000/ — Se connecter avec `jonas` / `admin1234`
@@ -199,7 +203,7 @@ docker compose up -d
 
 # bin/start-prod.sh attend PostgreSQL, lance bin/install.sh (migrations,
 # statiques, documents, analyse), puis supervisord : gunicorn:8001,
-# daphne:8000 et les DEUX workers Celery.
+# daphne:8000 et les TROIS workers Celery.
 ```
 
 ### Mise a jour en production / Production update

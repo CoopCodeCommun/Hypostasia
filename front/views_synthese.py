@@ -761,6 +761,84 @@ class WikiViewSet(viewsets.ViewSet):
         return _lancer_une_verification(request, wiki.page)
 
 
+def _lancer_un_second_avis(request, page_d_article):
+    """
+    Met en file le SECOND AVIS du juge local. / Queues the local judge's
+    second opinion.
+
+    LOCALISATION : front/views_synthese.py
+
+    LE FAN-OUT VIT ICI, DANS LA VUE, ET SURTOUT PAS DANS LA TACHE — et
+    ce n'est pas un detail de rangement. `bin/install.sh` appelle
+    `verifier_les_citations_etalons` A CHAQUE DEMARRAGE DE CONTENEUR, et
+    cette commande lance `verifier_les_citations_task` DIRECTEMENT. Un
+    fan-out place dans la tache mettrait donc les 145 paires de l'etalon
+    en file a chaque redemarrage — environ une heure de processeur —
+    exactement pendant que Docling convertit les fixtures.
+    Consequence assumee : l'etalon d'installation n'a PAS de second
+    avis ; il faut une commande explicite pour lui en donner un.
+    / The fan-out lives in the VIEW: install.sh calls the task directly
+    at every container start, and would queue an hour of CPU each time.
+
+    LE VERROU DE RE-CLIC. Le juge de production coute des secondes, donc
+    un re-clic y est benin. Le juge local coute des dizaines de minutes :
+    sans ce verrou, chaque re-clic empilerait un lot entier dans une
+    file a concurrence 1.
+    / The re-click lock: seconds for the API judge, tens of minutes here.
+    """
+    from hypostasis_extractor.models import ExtractionJob
+
+    from core.services.juge_local import methode
+
+    # LE VERROU EST BORNE DANS LE TEMPS, et c'est ce qui l'empeche de se
+    # refermer pour toujours. Les taches ne sont PAS en `acks_late` : un
+    # SIGKILL pendant un paquet, un OOM, ou un `docker compose down` qui
+    # vide Redis pendant qu'un job est `pending` laisse ce job dans cet
+    # etat DEFINITIVEMENT. Sans borne, plus aucun second avis ne
+    # repartirait jamais sur cette page — et rien ne le dirait a l'ecran.
+    #
+    # Deux heures : bien au-dela du pire lot realiste (145 paires a 25 s
+    # font une heure), et bien en-deca d'un blocage qu'on veut pouvoir
+    # depasser dans la journee.
+    # / A time-bounded lock: without acks_late, a killed job would hold
+    # it forever and no second opinion would ever run on this page again.
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    deja_en_cours = ExtractionJob.objects.filter(
+        page=page_d_article,
+        status__in=["pending", "processing"],
+        raw_result__contains={"est_second_avis": True},
+        created_at__gte=timezone.now() - timedelta(hours=2),
+    ).exists()
+    if deja_en_cours:
+        return None
+
+    job = ExtractionJob.objects.create(
+        page=page_d_article,
+        # Pas d'`ai_model` : le juge local n'est PAS au referentiel, et
+        # ne doit pas y entrer — il serait alors propose au clic comme
+        # modele d'extraction, que LangExtract ne sait pas piloter.
+        # / No AIModel row on purpose: it would be offered for extraction.
+        ai_model=None,
+        name=f"Second avis — {page_d_article.title}"[:200],
+        prompt_description=f"Second avis de vérification ({methode()})",
+        status="pending",
+        raw_result={
+            # Un marqueur DISTINCT de `est_verification` : le menu des
+            # taches liste ce dernier, et sans distinction chaque geste
+            # y ferait deux lignes « Vérification », dont une d'une
+            # heure. / A DISTINCT marker: the task menu lists the other.
+            "est_second_avis": True,
+            "demandeur_id": request.user.pk,
+        },
+    )
+    from front.tasks import noter_avec_le_juge_local_task
+    noter_avec_le_juge_local_task.delay(job.pk)
+    return job
+
+
 def _lancer_une_verification(request, page_d_article):
     """Cree le job de verification et lance la tache. / Launches § 7."""
     from hypostasis_extractor.models import ExtractionJob
@@ -781,6 +859,9 @@ def _lancer_une_verification(request, page_d_article):
     )
     from front.tasks import verifier_les_citations_task
     verifier_les_citations_task.delay(job.pk)
+
+    _lancer_un_second_avis(request, page_d_article)
+
     # Sans hx_get, ce message restait affiche POUR TOUJOURS : les
     # verdicts n'apparaissaient qu'apres un rechargement manuel que
     # rien ne suggerait (recette du 10 aout, F2).
@@ -1065,8 +1146,36 @@ class CitationViewSet(viewsets.ViewSet):
         if refus:
             return refus
         extraction = lien.extraction_source
+        # LE DEGRE ET SON SEUIL VONT ENSEMBLE, TOUJOURS. Un « soutenu a
+        # 45 sur 100 » ne veut rien dire sans la barre a partir de
+        # laquelle on compte : c'est ce qui rend l'etat CONTESTABLE SUR
+        # LE BON OBJET — on discute le seuil, pas le verdict.
+        # / The degree and its threshold always travel together.
+        from core.services.verification import (
+            accord_des_deux_juges, seuil_de_verification,
+        )
+        from hypostasis_extractor.models import ExtractionJob
+
+        # Le second avis est-il EN COURS ? « En cours » et « jamais
+        # demandé » ne se confondent pas : la doctrine maison veut qu'une
+        # dégradation silencieuse soit pire qu'une erreur, et une barre
+        # absente ne doit pas se lire comme un zéro.
+        # / "Running" and "never asked" must not look alike.
+        second_avis_en_cours = ExtractionJob.objects.filter(
+            page=lien.page_cible,
+            status__in=["pending", "processing"],
+            raw_result__contains={"est_second_avis": True},
+        ).exists()
+
         return render(request, "front/corpus/partials/preuve.html", {
             "lien": lien,
             "extraction": extraction,
             "note_source": extraction.job.page if extraction else None,
+            "seuil_de_verification": seuil_de_verification(),
+            # True (accord), False (désaccord), None (incalculable — et
+            # c'est le cas ORDINAIRE tant qu'un article n'a pas été
+            # revérifié : la base porte 145 citations et zéro degré).
+            # / None is the ordinary case, not an exception.
+            "accord_des_juges": accord_des_deux_juges(lien),
+            "second_avis_en_cours": second_avis_en_cours,
         })

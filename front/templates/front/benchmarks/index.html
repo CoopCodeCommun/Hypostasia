@@ -1,0 +1,23 @@
+{# L'INDEX DES MESURES. / The measurement index. #}
+{# LOCALISATION : front/templates/front/benchmarks/index.html #}
+{% include "front/benchmarks/_style.html" %}
+<main class="mesures" data-testid="benchmarks-index">
+  <h1>Mesures</h1>
+  {% if introuvable %}
+  <p class="alerte" role="alert" data-testid="benchmarks-introuvable">
+    Aucune mesure à ce chemin : <code>{{ introuvable }}</code>
+  </p>
+  {% endif %}
+  <p class="explication">Rendues à la lecture depuis <code>benchmarks/</code> :
+    il n’y a jamais qu’une source, jamais de copie à regénérer.</p>
+  <ul data-testid="benchmarks-liste">
+    {% for mesure in mesures %}
+    <li>
+      <a href="/benchmarks/voir/{{ mesure.chemin }}">{{ mesure.nom }}</a>
+      {% if mesure.dossier != "." %}<span class="dossier">{{ mesure.dossier }}</span>{% endif %}
+    </li>
+    {% empty %}
+    <li class="explication">Aucune mesure pour l’instant.</li>
+    {% endfor %}
+  </ul>
+</main>

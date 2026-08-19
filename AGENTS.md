@@ -87,11 +87,17 @@ Chacun a déjà cassé quelque chose. Aucun ne lève d'erreur explicite.
   envoie `/` vers le port 8001 où personne n'écoute : **502 sur tout le site**.
   L'inverse laisse gunicorn sans trafic. Verrouillé par
   `front/tests/test_script_d_installation.py`.
-- **Deux workers Celery, jamais un seul.** `celery_worker` sert la file par
+- **TROIS workers Celery, jamais moins.** `celery_worker` sert la file par
   défaut à concurrence 2 ; `celery_worker_docling` sert `ingestion_docling` à
   **concurrence 1** — une conversion à la fois (~2 Go et ~83 s de warm-up
   chacune). C'est aussi ce qui rend exacte la position affichée dans la file.
-  Verrouillé par `hypostasis_extractor/tests/test_files_celery_ingestion.py`.
+  `celery_worker_juge_local` sert `verification_locale` à **concurrence 1** et
+  **sous `nice -n 19`** : le second avis charge 7,7 Go et coûte ~25 s de
+  processeur par citation, il doit céder le pas à Docling. Le `nice` remplace
+  une porte « attendre que le CPU baisse », qui aurait affamé la tâche **en
+  silence** sur une machine chargée. Verrouillés par
+  `hypostasis_extractor/tests/test_files_celery_ingestion.py` et
+  `.../test_worker_du_juge_local.py`.
 - **Une suite de tests à la fois, jamais `--parallel`.** La base de test est
   partagée : deux exécutions simultanées se détruisent mutuellement en plein vol
   (755 erreurs fantômes constatées).
@@ -115,7 +121,7 @@ Chacun a déjà cassé quelque chose. Aucun ne lève d'erreur explicite.
 ```bash
 make                 # liste les cibles
 make install         # docker compose up -d + bin/install.sh (idempotent)
-make dev             # runserver + les DEUX workers Celery
+make dev             # runserver + les TROIS workers Celery
 make check
 make test            # l'aide des cibles de test et de leur coût
 make test-rapide     # le geste quotidien — tout sauf e2e/docling/llm

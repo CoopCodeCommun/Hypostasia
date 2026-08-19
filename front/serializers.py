@@ -134,6 +134,32 @@ class SelectModelSerializer(serializers.Serializer):
     )
 
 
+class SeuilDeVerificationSerializer(serializers.Serializer):
+    """
+    Validation du seuil d'affichage des degres de verification.
+    / Validation of the verification-degree display threshold.
+
+    LOCALISATION : front/serializers.py
+
+    Le seuil est un degre de 0 a 100, comme celui que rend le juge. Les
+    bornes sont VALIDEES ICI et nulle part ailleurs : un seuil negatif
+    ferait passer tout en « verifie », y compris les degres nuls —
+    « partage seulement le theme, ou contredit ».
+    / The threshold is a 0-100 degree; bounds are validated here.
+    """
+    seuil = serializers.FloatField(
+        min_value=0,
+        max_value=100,
+        error_messages={
+            "required": "Le seuil est obligatoire / Threshold is required",
+            "min_value": "Le seuil ne peut pas être négatif / "
+                         "Threshold cannot be negative",
+            "max_value": "Le seuil ne peut pas dépasser 100 / "
+                         "Threshold cannot exceed 100",
+        },
+    )
+
+
 class ExtractionSerializer(serializers.Serializer):
     """
     Validation du texte selectionne pour une extraction (manuelle ou IA).

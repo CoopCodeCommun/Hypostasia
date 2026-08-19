@@ -1,7 +1,8 @@
-from django.urls import path, include
+from django.urls import include, path, re_path
 from rest_framework.routers import DefaultRouter
 from . import views
 from .views_alignement import AlignementViewSet
+from .views_benchmarks import BenchmarksViewSet
 from .views_auth import AuthViewSet
 from .views_corpus import BaseViewSet, CarnetViewSet, NoteCorpusViewSet
 from .views_groupes import GroupeViewSet
@@ -23,6 +24,10 @@ router.register(r"dossiers", views.DossierViewSet, basename="dossier")
 router.register(r"pages", views.PageViewSet, basename="page")
 router.register(r"extractions", views.ExtractionViewSet, basename="extraction")
 router.register(r"config-ia", views.ConfigurationIAViewSet, basename="config-ia")
+# Les mesures de `benchmarks/`, rendues a la lecture — jamais un HTML
+# engendre, qui serait une seconde copie a regenerer.
+# / The benchmark notes, rendered on read.
+router.register(r"benchmarks", BenchmarksViewSet, basename="benchmarks")
 router.register(r"import", views.ImportViewSet, basename="import")
 router.register(r"questionnaire", views.QuestionnaireViewSet, basename="questionnaire")
 router.register(r"alignement", AlignementViewSet, basename="alignement")
@@ -69,5 +74,16 @@ urlpatterns = [
 
     # Toutes les autres URLs sont gerees par le router
     # All other URLs are handled by the router
+    # LES MESURES : un `re_path` explicite, exception assumee au routeur
+    # DRF. Le chemin d'une mesure porte des barres obliques
+    # (`redaction/2026-08-19_….md`), qu'un `DefaultRouter` ne sait pas
+    # exprimer. La vue reste un ViewSet DRF, seul le routage est manuel.
+    # / Explicit route: the path contains slashes, which a DefaultRouter
+    #   cannot express. The view is still a DRF ViewSet.
+    re_path(
+        r"^benchmarks/voir/(?P<chemin>.+\.md)$",
+        BenchmarksViewSet.as_view({"get": "voir"}),
+        name="benchmark-mesure",
+    ),
     path("", include(router.urls)),
 ]

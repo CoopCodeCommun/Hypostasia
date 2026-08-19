@@ -324,6 +324,61 @@ from django.db import transaction
 
 MOTIF_DE_MARQUEUR = re.compile(r"\[\[ext:(\d+)\]\]")
 
+# LE FORMAT GROUPE, QU'UN MODELE PRODUIT ALORS QU'ON NE LE DEMANDE PAS.
+#
+# Le prompt de redaction exige des marqueurs CONSECUTIFS et le dit avec
+# un exemple : « Plusieurs sources = plusieurs marqueurs consecutifs
+# (`[[ext:12]][[ext:15]]`) ». `mistral-small-latest` desobeit et ecrit
+# `[[ext:14, ext:15, ext:16]]`.
+#
+# CE QUE CA COUTAIT, mesure le 18 aout 2026 sur deux articles reels :
+# 107 citations perdues sur 142 produites — et le balisage BRUT restait
+# a l'ecran, huit `[[ext:14, ext:15, …]]` en clair dans le HTML du wiki.
+# Rien ne le signalait : l'indexeur denonce bruyamment un marqueur
+# HALLUCINE, mais il etait AVEUGLE a celui-la.
+# / A model disobeys the documented format; 107 of 142 citations were
+#   silently lost, and raw markup reached the screen.
+MOTIF_DE_MARQUEUR_GROUPE = re.compile(
+    r"\[\[ext:\d+(?:\s*,\s*ext:\d+)+\]\]"
+)
+
+
+def normaliser_les_marqueurs_groupes(texte_markdown):
+    """
+    Recrit `[[ext:1, ext:2]]` en `[[ext:1]][[ext:2]]`.
+    / Rewrites grouped markers into consecutive ones.
+
+    LOCALISATION : core/services/synthese.py
+
+    C'EST UN REPLI, PAS UNE BENEDICTION. Un modele qui desobeit au
+    format reste un defaut de ce modele, et le nombre de groupes
+    reecrits est RENDU pour que le bilan le compte : reparer en silence
+    excuserait la desobeissance, et on ne saurait plus quel modele la
+    commet. Mais perdre les trois quarts des preuves d'un article parce
+    qu'une virgule remplace deux crochets n'est pas une sanction
+    proportionnee.
+
+    Le repli est place ICI, en amont de tout : l'indexation, le texte
+    enregistre, la verification et l'affichage voient donc tous la meme
+    forme canonique, et aucun d'eux n'a besoin de connaitre l'existence
+    du format groupe. Une seconde tolerance ailleurs finirait par
+    diverger de celle-ci.
+    / A fallback, not a blessing: the count is returned so the model's
+    disobedience stays visible. Placed upstream of everything, so every
+    consumer sees one canonical form.
+
+    :return: (texte normalise, nombre de groupes reecrits)
+    """
+    groupes_reecrits = 0
+
+    def _eclater(correspondance):
+        nonlocal groupes_reecrits
+        groupes_reecrits += 1
+        identifiants = re.findall(r"ext:(\d+)", correspondance.group(0))
+        return "".join(f"[[ext:{identifiant}]]" for identifiant in identifiants)
+
+    return MOTIF_DE_MARQUEUR_GROUPE.sub(_eclater, texte_markdown), groupes_reecrits
+
 # Seuls les titres de niveau 2 delimitent les sections : c'est aussi le
 # seul niveau que l'applieur (§ 6) sait resoudre, et le seul expose au
 # modele (addendum n°3, regle d'Atomic). / Level-2 headings only.
@@ -402,6 +457,14 @@ def indexer_les_citations(article, texte_markdown,
     # \r\n, qui casserait le decoupage en paragraphes et toutes les
     # bornes (relecture B, N1). / CRLF would break paragraph splitting.
     texte_markdown = texte_markdown.replace("\r\n", "\n").replace("\r", "\n")
+
+    # LE REPLI SUR LE FORMAT GROUPE, en amont de tout le reste : ce qui
+    # suit — indexation, texte enregistre, verification, affichage — ne
+    # voit qu'une seule forme de marqueur.
+    # / The grouped-marker fallback, upstream of everything else.
+    texte_markdown, marqueurs_groupes_normalises = (
+        normaliser_les_marqueurs_groupes(texte_markdown)
+    )
 
     identifiants_cites = [
         int(correspondance.group(1))
@@ -591,6 +654,29 @@ def indexer_les_citations(article, texte_markdown,
             "etat": ancien_lien.etat_de_verification,
             "verifie_par": ancien_lien.verifie_par,
             "verifie_le": ancien_lien.verifie_le,
+            # LE DEGRE ET SA PROVENANCE VOYAGENT AVEC LE VERDICT, et les
+            # oublier ici serait une perte silencieuse : le nouveau lien
+            # garderait « verifie » avec un score NULL, donc sortirait
+            # DEFINITIVEMENT du recalcul au changement de seuil. Un
+            # article vivant — un wiki, mis a jour a chaque tour — y
+            # perdrait sa sensibilite au seuil des la premiere mise a
+            # jour, sans que rien ne le signale.
+            # / The degree travels with the verdict: dropping it here
+            # would silently freeze the link out of every future
+            # threshold change.
+            "score": ancien_lien.score_de_verification,
+            "provenance_du_verbatim": ancien_lien.provenance_du_verbatim,
+            # LE SECOND AVIS VOYAGE AVEC, et c'est la raison pour
+            # laquelle il vit dans des COLONNES et non dans une table
+            # liee : une cle etrangere en CASCADE aurait perdu tous les
+            # avis a chaque tour de wiki, c'est-a-dire exactement les
+            # donnees que la campagne de comparaison accumule.
+            # / The second opinion rides along: that is why it lives in
+            # columns and not in a linked table.
+            "score_du_second_avis": ancien_lien.score_du_second_avis,
+            "methode_du_second_avis": ancien_lien.methode_du_second_avis,
+            "seuil_du_second_avis": ancien_lien.seuil_du_second_avis,
+            "second_avis_rendu_le": ancien_lien.second_avis_rendu_le,
             "commentaires": list(ancien_lien.commentaires_source.all()),
         }
 
@@ -614,8 +700,27 @@ def indexer_les_citations(article, texte_markdown,
             nouveau_lien.etat_de_verification = ancien_verdict["etat"]
             nouveau_lien.verifie_par = ancien_verdict["verifie_par"]
             nouveau_lien.verifie_le = ancien_verdict["verifie_le"]
+            nouveau_lien.score_de_verification = ancien_verdict["score"]
+            nouveau_lien.provenance_du_verbatim = ancien_verdict[
+                "provenance_du_verbatim"
+            ]
+            nouveau_lien.score_du_second_avis = ancien_verdict[
+                "score_du_second_avis"
+            ]
+            nouveau_lien.methode_du_second_avis = ancien_verdict[
+                "methode_du_second_avis"
+            ]
+            nouveau_lien.seuil_du_second_avis = ancien_verdict[
+                "seuil_du_second_avis"
+            ]
+            nouveau_lien.second_avis_rendu_le = ancien_verdict[
+                "second_avis_rendu_le"
+            ]
             nouveau_lien.save(update_fields=[
                 "etat_de_verification", "verifie_par", "verifie_le",
+                "score_de_verification", "provenance_du_verbatim",
+                "score_du_second_avis", "methode_du_second_avis",
+                "seuil_du_second_avis", "second_avis_rendu_le",
             ])
             if ancien_verdict["commentaires"]:
                 nouveau_lien.commentaires_source.set(
@@ -634,6 +739,11 @@ def indexer_les_citations(article, texte_markdown,
         "texte_nettoye": texte_nettoye,
         "liens_crees": len(liens_a_creer),
         "marqueurs_retires": marqueurs_retires,
+        # Combien de marqueurs GROUPES ont du etre reecrits. Compte, et
+        # non tu : un modele qui desobeit au format doit rester visible,
+        # sinon le repli devient une excuse et on ne sait plus lequel le
+        # fait. / Counted, not swallowed: the disobedience stays visible.
+        "marqueurs_groupes_normalises": marqueurs_groupes_normalises,
         "doublons_absorbes": doublons_absorbes,
         "verdicts_reportes": verdicts_reportes,
         "contestations_perdues": contestations_perdues,

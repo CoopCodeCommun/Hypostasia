@@ -6,15 +6,24 @@ LOCALISATION : core/tests/test_verification.py
 
 Deux controles en cascade, PAR PAIRE (affirmation, source) : le
 VERBATIM (deterministe — le texte cite existe-t-il litteralement dans
-la source ?) puis l'IMPLICATION (NLI — la source soutient-elle
-l'affirmation ?), jugee par le LLM configure, EN LOT (question ouverte
-n°3 tranchee le 9 aout). L'etat porte sa provenance (§ 7.2) : un etat
-sans provenance est un argument d'autorite automatise. Un verdict
-humain (CONTESTE) n'est jamais ecrase. Une affirmation qui reprend
-fidelement un COMMENTAIRE n'est pas « faible » : elle est sourcee par
-le debat (§ 7.4).
-/ Verbatim then batched-LLM NLI, per pair, with provenance; human
-verdicts never overwritten; debate-sourced claims recognized.
+la source ?) puis l'IMPLICATION (NLI), jugee par le LLM configure, EN
+LOT (question ouverte n°3 tranchee le 9 aout). L'etat porte sa
+provenance (§ 7.2) : un etat sans provenance est un argument d'autorite
+automatise. Un verdict humain (CONTESTE) n'est jamais ecrase. Une
+affirmation qui reprend fidelement un COMMENTAIRE n'est pas
+« faible » : elle est sourcee par le debat (§ 7.4).
+
+CE QUE LES MOCKS DISENT DEPUIS LE 18 AOUT 2026. Le juge ne repond plus
+« N: soutient » mais « N: <degre> », un entier de 0 a 100 (addendum a
+SPEC-synthese). Les charges utiles de ce fichier valent donc **70** la
+ou elles disaient « soutient », et **40** la ou elles disaient
+« ne_soutient_pas » — de part et d'autre du seuil par defaut, 45. Le
+DEGRE lui-meme et le SEUIL sont couverts par
+`core/tests/test_score_de_verification.py` ; ce fichier-ci couvre la
+CASCADE et ses defenses, qui n'ont pas change.
+/ Verbatim then batched-LLM NLI, per pair, with provenance. Since
+18 Aug 2026 the judge returns a 0-100 degree: payloads here are 70 and
+40, either side of the default threshold of 45.
 """
 
 from unittest.mock import patch
@@ -99,7 +108,7 @@ class VerificationDesCitationsTest(TestCase):
         article = self._creer_un_article_qui_cite([self.extraction_seuil])
 
         with patch(
-            "core.llm_providers.appeler_llm", return_value="1: soutient",
+            "core.llm_providers.appeler_llm", return_value="1: 70",
         ) as mock_llm:
             from core.services.verification import (
                 verifier_les_citations_d_un_article,
@@ -153,7 +162,7 @@ class VerificationDesCitationsTest(TestCase):
         article = self._creer_un_article_qui_cite([self.extraction_seuil])
 
         with patch(
-            "core.llm_providers.appeler_llm", return_value="1: soutient",
+            "core.llm_providers.appeler_llm", return_value="1: 70",
         ):
             from core.services.verification import (
                 verifier_les_citations_d_un_article,
@@ -185,7 +194,7 @@ class VerificationDesCitationsTest(TestCase):
         # AUSSI : le chemin debat passe par le juge NLI.
         # / Debate fidelity is judged too (review G, I4).
         with patch(
-            "core.llm_providers.appeler_llm", return_value="1: soutient",
+            "core.llm_providers.appeler_llm", return_value="1: 70",
         ) as mock_llm:
             from core.services.verification import (
                 verifier_les_citations_d_un_article,
@@ -206,7 +215,7 @@ class VerificationDesCitationsTest(TestCase):
 
         with patch(
             "core.llm_providers.appeler_llm",
-            return_value="1: soutient\n2: ne_soutient_pas",
+            return_value="1: 70\n2: 40",
         ) as mock_llm:
             from core.services.verification import (
                 verifier_les_citations_d_un_article,
@@ -261,7 +270,7 @@ class VerificationDesCitationsTest(TestCase):
         )
 
         with patch(
-            "core.llm_providers.appeler_llm", return_value="1: soutient",
+            "core.llm_providers.appeler_llm", return_value="1: 70",
         ) as mock_llm:
             from core.services.verification import (
                 verifier_les_citations_d_un_article,
@@ -326,7 +335,7 @@ class CorrectifsRelectureGTest(TestCase):
             page_cible=article, type_lien=TypeLien.CITE,
         )
 
-    def _verifier(self, article, reponse_du_juge="1: soutient"):
+    def _verifier(self, article, reponse_du_juge="1: 70"):
         with patch(
             "core.llm_providers.appeler_llm", return_value=reponse_du_juge,
         ) as mock_llm:
@@ -391,7 +400,7 @@ class CorrectifsRelectureGTest(TestCase):
         article = self._creer_un_article_qui_cite(self.extraction)
 
         bilan, _mock = self._verifier(
-            article, "1: ne_soutient_pas\n1: soutient",
+            article, "1: 40\n1: 70",
         )
 
         self.assertEqual(
@@ -404,7 +413,7 @@ class CorrectifsRelectureGTest(TestCase):
         article = self._creer_un_article_qui_cite(self.extraction)
 
         bilan, _mock = self._verifier(
-            article, "1: soutient\n7: soutient",
+            article, "1: 70\n7: 70",
         )
 
         self.assertEqual(
@@ -486,9 +495,10 @@ class CorrectifsRelectureGTest(TestCase):
         )
         article = self._creer_un_article_qui_cite(self.extraction)
 
-        # Le juge dit que le commentaire NE soutient PAS le paragraphe.
-        # / The judge says the comment does not support the claim.
-        bilan, mock_llm = self._verifier(article, "1: ne_soutient_pas")
+        # Le juge note le commentaire SOUS le seuil : il n'etablit pas
+        # assez ce que le paragraphe avance.
+        # / The judge scores the comment below the threshold.
+        bilan, mock_llm = self._verifier(article, "1: 40")
 
         self.assertTrue(mock_llm.called)
         self.assertEqual(
@@ -506,7 +516,7 @@ class CorrectifsRelectureGTest(TestCase):
         )
         article = self._creer_un_article_qui_cite(self.extraction)
 
-        bilan, _mock = self._verifier(article, "1: soutient")
+        bilan, _mock = self._verifier(article, "1: 70")
 
         self.assertEqual(
             self._lien(article).etat_de_verification,
@@ -542,7 +552,7 @@ class CorrectifsRelectureGTest(TestCase):
             commentaire="Précision : un avenant écrit a été chiffré à trois cents euros.",
         )
         article = self._creer_un_article_qui_cite(self.extraction)
-        self._verifier(article, "1: soutient")  # SOURCE_DEBAT + commentaire
+        self._verifier(article, "1: 70")  # SOURCE_DEBAT + commentaire
         self.assertEqual(
             self._lien(article).commentaires_source.count(), 1,
         )
@@ -577,7 +587,7 @@ class CorrectifsRelectureGTest(TestCase):
         self.note_source.save(update_fields=["text_readability"])
         article = self._creer_un_article_qui_cite(self.extraction)
 
-        self._verifier(article, "1: soutient")
+        self._verifier(article, "1: 70")
 
         self.assertEqual(
             self._lien(article).etat_de_verification,
@@ -663,7 +673,7 @@ class DeuxRoutesVersLEchecTest(TestCase):
         )
         with patch(
             "core.llm_providers.appeler_llm",
-            return_value="1: ne_soutient_pas",
+            return_value="1: 40",
         ):
             bilan = verifier_les_citations_d_un_article(
                 article, self.modele_ia,
@@ -684,7 +694,7 @@ class DeuxRoutesVersLEchecTest(TestCase):
         )
         with patch(
             "core.llm_providers.appeler_llm",
-            return_value="1: ne_soutient_pas",
+            return_value="1: 40",
         ):
             verifier_les_citations_d_un_article(article, self.modele_ia)
 
@@ -808,7 +818,7 @@ class LaSourceEstFaiteDElementsTest(TestCase):
             verifier_les_citations_d_un_article,
         )
         with patch(
-            "core.llm_providers.appeler_llm", return_value="1: soutient",
+            "core.llm_providers.appeler_llm", return_value="1: 70",
         ) as mock_llm:
             bilan = verifier_les_citations_d_un_article(
                 article, self.modele_ia,
@@ -842,7 +852,7 @@ class LaSourceEstFaiteDElementsTest(TestCase):
             verifier_les_citations_d_un_article,
         )
         with patch(
-            "core.llm_providers.appeler_llm", return_value="1: soutient",
+            "core.llm_providers.appeler_llm", return_value="1: 70",
         ):
             verifier_les_citations_d_un_article(article, self.modele_ia)
 
@@ -932,7 +942,7 @@ class LeJugeNeDegradeRienTest(TestCase):
 
         # Premier passage : un juge qui repond bien.
         # / First pass: a judge that answers properly.
-        self._verifier_avec(article, "1: soutient")
+        self._verifier_avec(article, "1: 70")
         lien = SourceLink.objects.get(
             page_cible=article, type_lien=TypeLien.CITE,
         )
@@ -945,7 +955,7 @@ class LeJugeNeDegradeRienTest(TestCase):
         # Second passage : une reponse qui cite un indice HORS DU LOT,
         # donc rejetee en entier (defense B2).
         # / Second pass: an out-of-lot index voids the whole batch.
-        bilan = self._verifier_avec(article, "7: ne_soutient_pas")
+        bilan = self._verifier_avec(article, "7: 40")
 
         lien.refresh_from_db()
         self.assertEqual(
@@ -959,7 +969,7 @@ class LeJugeNeDegradeRienTest(TestCase):
         """Un juge muet ne défait pas ce qu'un juge bavard avait établi."""
         article = self._article_citant_l_extraction("hash-degradation-2")
 
-        self._verifier_avec(article, "1: soutient")
+        self._verifier_avec(article, "1: 70")
         lien = SourceLink.objects.get(
             page_cible=article, type_lien=TypeLien.CITE,
         )
@@ -1017,7 +1027,7 @@ class LeJugeNeDegradeRienTest(TestCase):
         )
         article = self._article_citant_l_extraction("hash-degradation-4")
 
-        self._verifier_avec(article, "1: soutient")
+        self._verifier_avec(article, "1: 70")
         lien = SourceLink.objects.get(
             page_cible=article, type_lien=TypeLien.CITE,
         )
@@ -1028,7 +1038,7 @@ class LeJugeNeDegradeRienTest(TestCase):
             list(lien.commentaires_source.all()), [commentaire],
         )
 
-        self._verifier_avec(article, "7: soutient")
+        self._verifier_avec(article, "7: 70")
 
         lien.refresh_from_db()
         self.assertEqual(
@@ -1118,8 +1128,8 @@ class LaDichotomieAdaptativeTest(TestCase):
         """Le lot rate, ses deux moitiés passent : rien n'est perdu."""
         bilan, appel_du_juge = self._verifier([
             "je ne comprends pas la question",
-            "1: soutient\n2: soutient",
-            "1: soutient\n2: ne_soutient_pas",
+            "1: 70\n2: 70",
+            "1: 70\n2: 40",
         ])
 
         self.assertEqual(appel_du_juge.call_count, 3)

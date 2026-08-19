@@ -54,11 +54,58 @@ NOM_DE_L_EXEMPLE_FEW_SHOT = "IA & éducation — 30 hypostases"
 # ne sont PAS stockees en base, elles restent dans l'environnement.
 # / One AI model per API key found in .env. No mock model: a phantom one
 # would fake a working chain. Keys stay in the environment, never in DB.
+# LES MODELES CREES A L'INSTALLATION, un par cle d'API presente.
+#
+# L'ORDRE DECIDE : le PREMIER modele disponible devient celui de la
+# Configuration, donc le modele d'EXTRACTION. Mistral est en tete depuis
+# le 18 aout 2026 — decision « Mistral partout, sauf l'embedding ».
+#
+# POURQUOI CETTE LISTE COMPTE PLUS QU'IL N'Y PARAIT. `docker compose
+# down -v` detruit le referentiel ; c'est cette liste, et elle seule, qui
+# le reconstruit. Un modele choisi a la main dans l'interface et absent
+# d'ici ne survit PAS a une reinstallation : la bascule vers Mistral a
+# ete posee a la main le 18 aout, et elle serait morte au premier
+# `down -v` en laissant l'extraction repartir sur Gemini — sans que rien
+# ne le dise.
+# / This list, and only this list, rebuilds the referential after a
+#   `down -v`. A hand-picked model absent from it does not survive.
 MODELES_IA_PAR_CLE_D_ENVIRONNEMENT = [
+    # Mistral d'abord : c'est lui qui devient le modele d'extraction.
+    # Il passe par une API COMPATIBLE OpenAI, d'ou `base_url` et
+    # `variable_de_cle_api` — la cle elle-meme n'est JAMAIS en base.
+    # / Mistral first: it becomes the extraction model.
+    {
+        "cle_env": "MISTRAL_API_KEY",
+        "model_choice": "mistral-small-latest",
+        "name": "Mistral Small",
+        "extras": {
+            "provider": "compatible_openai",
+            "base_url": "https://api.mistral.ai/v1",
+            "variable_de_cle_api": "MISTRAL_API_KEY",
+            # TEMPERATURE 0, ET CE N'EST PAS UN DETAIL. Tous les bancs
+            # du dossier `benchmarks/` mesurent a 0 — « a armes egales ».
+            # Le defaut du champ vaut 0,7 : sans cette ligne, une base
+            # reconstruite apres un `down -v` repartirait a 0,7 et
+            # AUCUNE mesure ne serait plus comparable aux precedentes,
+            # sans qu'un seul message ne le dise.
+            # / Every bench measures at 0; the field defaults to 0.7, so
+            #   a rebuilt database would silently break comparability.
+            "temperature": 0.0,
+        },
+    },
     {"cle_env": "GOOGLE_API_KEY", "model_choice": "gemini-2.5-flash", "name": "Gemini 2.5 Flash"},
     {"cle_env": "OPENAI_API_KEY", "model_choice": "gpt-4o-mini", "name": "GPT-4o Mini"},
     {"cle_env": "ANTHROPIC_API_KEY", "model_choice": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4"},
 ]
+
+# LES ROLES POSES A L'INSTALLATION. Sans eux, `ModeleParRole` repart vide
+# apres un `down -v` et chaque role retombe sur la Configuration : le
+# repli fonctionne, mais l'affectation choisie est perdue en silence.
+# / Roles are re-applied at install; otherwise they silently vanish.
+ROLES_PAR_DEFAUT = {
+    "redacteur_d_article": "mistral-small-latest",
+    "juge_de_verification": "mistral-small-latest",
+}
 
 DESCRIPTION_DE_L_ANALYSEUR_DE_SYNTHESE = (
     "Rédige une note de carnet — wiki vivant ou synthèse dirigée — à "
@@ -301,9 +348,13 @@ def creer_les_modeles_ia_et_les_analyseurs():
         cle_api_presente = bool(os.environ.get(definition_du_modele["cle_env"]))
         if not cle_api_presente:
             continue
+        valeurs_par_defaut = {
+            "name": definition_du_modele["name"], "is_active": True,
+        }
+        valeurs_par_defaut.update(definition_du_modele.get("extras", {}))
         modele_ia, modele_ia_cree = AIModel.objects.get_or_create(
             model_choice=definition_du_modele["model_choice"],
-            defaults={"name": definition_du_modele["name"], "is_active": True},
+            defaults=valeurs_par_defaut,
         )
         if modele_ia_cree:
             modeles_ia_crees.append(
@@ -332,6 +383,39 @@ def creer_les_modeles_ia_et_les_analyseurs():
         configuration.ai_active = True
         configuration.save()
         configuration_ia_activee = True
+
+    # --- 1 bis. Les roles, reposes a chaque installation ---
+    # / --- 1 bis. Roles, re-applied at every install ---
+    #
+    # `ModeleParRole` est en `unique` sur le role : `update_or_create`
+    # repose l'affectation sans jamais en creer deux. Un role dont le
+    # modele n'existe pas (cle d'API absente) est simplement saute — il
+    # retombe alors sur la Configuration, ce qui est le comportement
+    # voulu du repli.
+    # / update_or_create per role; a missing model just falls back.
+    from core.models import ModeleParRole
+
+    roles_affectes = []
+    for nom_du_role, choix_du_modele in ROLES_PAR_DEFAUT.items():
+        modele_du_role = AIModel.objects.filter(
+            model_choice=choix_du_modele,
+        ).first()
+        if modele_du_role is None:
+            continue
+        # `get_or_create`, PAS `update_or_create` : cette fonction tourne
+        # a CHAQUE demarrage de conteneur. Avec `update_or_create`, un
+        # role change a la main par `affecter_un_modele_a_un_role` — le
+        # geste que la conception prevoit — retomberait sur Mistral au
+        # redemarrage suivant, sans un mot. C'est exactement la regle
+        # deja appliquee a la Configuration quelques lignes plus haut :
+        # un choix pose a la main survit a une reinstallation.
+        # / get_or_create, not update_or_create: this runs at every
+        #   container start, and a hand-picked role must survive.
+        _affectation, affectation_creee = ModeleParRole.objects.get_or_create(
+            role=nom_du_role, defaults={"modele": modele_du_role},
+        )
+        if affectation_creee:
+            roles_affectes.append((nom_du_role, choix_du_modele))
 
     # --- 2. L'analyseur d'extraction ---
     # / --- 2. The extraction analyzer ---
@@ -370,6 +454,7 @@ def creer_les_modeles_ia_et_les_analyseurs():
         "aucune_cle_api_detectee": aucune_cle_api_detectee,
         "configuration_ia_activee": configuration_ia_activee,
         "modele_ia_de_la_configuration": premier_modele_disponible,
+        "roles_affectes": roles_affectes,
         "analyseur_extraction": analyseur_extraction,
         "analyseur_extraction_cree": analyseur_extraction_cree,
         "pieces_de_prompt_creees": pieces_de_prompt_creees,

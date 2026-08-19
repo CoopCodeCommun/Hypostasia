@@ -94,3 +94,107 @@ poser deux questions différentes, et la comparaison ne voudrait plus rien dire.
 | 2026-08-17 | `gemini-2.5-flash-lite` | — | — | — | — | **404 : plus servi aux nouveaux comptes** |
 
 Ranger ici le compte rendu de chaque comparaison, et ajouter sa ligne au tableau.
+
+## Un juge LOCAL, à score continu — et un piège de protocole
+
+`comparer_shieldstral.py` ne se range pas dans le tableau ci-dessus : il ne
+mesure ni stabilité ni accord avec l'étalon, mais **l'AUC** — la probabilité
+qu'une paire vraie reçoive un score plus haut qu'une paire fausse. C'est le
+chiffre à lire ici, parce qu'il **ne dépend d'aucun seuil**, et que le seuil est
+exactement ce que tout ce dossier a montré manquant.
+
+| Date | Juge | Paires | Référence | Cadrage | AUC | Rapport |
+|---|---|---|---|---|---|---|
+| 2026-08-18 | ShieldStral 1.0 3B, local | 15 | relecture humaine | `separe` (correct) | **0,923** | [le cadrage fait tout](2026-08-18_shieldstral-le-cadrage-fait-tout.md) |
+| 2026-08-18 | idem | 15 | idem | `ensemble` (fautif) | **0,538** | idem — ne classe rien |
+| 2026-08-18 | idem | **145** | l'étalon gelé | `separe` | **0,734** | idem — **le 0,923 ne généralise pas** |
+
+⚠️ **Sur l'étalon, ne lisez PAS l'accord.** Il porte 118 « soutient » pour 27
+« ne_soutient_pas » : *accepter tout* donne déjà 118/145, et le « meilleur
+seuil » que rend le banc n'est alors qu'un artefact de métrique. Et la
+« vérité » y est un juge dont la reproductibilité mesurée est de **77 %** : un
+accord parfait avec lui serait suspect, pas rassurant.
+
+**Le piège, et il a coûté une conclusion publiée.** La fiche du modèle décrit un
+triplet `<Instruct>` / `<Query>` / `<Document>` : la question va dans `Query`, le
+texte à évaluer va dans `Document`. Mettre l'affirmation ET la source dans
+`<Document>` fait tomber l'AUC de 0,92 à 0,54 — le modèle ne sait plus lequel des
+deux textes il juge. **Ce n'est pas un réglage de prompt, c'est une erreur de
+protocole**, et rien ne la signale : le modèle répond, simplement de travers.
+
+Le banc rejoue **les deux** cadrages, exprès. Retirer le fautif laisserait le bon
+sans point de comparaison.
+
+> Ce banc n'appelle **aucune API** et ne coûte rien : le modèle (7,7 Go, poids
+> Apache 2.0) tourne sur processeur, depuis le cache local. Compter environ deux
+> minutes de temps processeur par paire.
+
+## Les DEUX BORNES — à lire avant tout chiffre de ce dossier
+
+**Mesurées le 19 août 2026.** Elles encadrent toute AUC produite ici, et les
+ignorer fait conclure l'inverse de la mesure.
+
+| borne | valeur | ce qu'elle est | comment la rejouer |
+|---|---|---|---|
+| **plafond** | **0,690** | `gemini-2.5-flash`, **le modèle qui a produit l'étalon**, rejouant les 145 paires contre ses propres verdicts gelés | `mesurer_le_plafond_de_l_etalon.py 2` — **facturé** |
+| **baseline lexicale** | **0,889** | la part des mots de la source retrouvés dans l'affirmation, sans aucun modèle | imprimée par `comparer_un_encodeur.py` |
+
+**Le plafond est SOUS la baseline.** Il faut donc lire les deux ensemble :
+
+1. **Dépasser 0,690 ne prouve pas grand-chose** — la référence elle-même n'y
+   arrive pas. Et la raison est mécanique : le protocole texte ne rend que
+   **quatre crans**, et sur ces 145 paires **120 reçoivent exactement 70**. Un
+   juge qui donne la même note à 83 % des paires ne peut pas les classer ; son
+   AUC s'effondre sur les ex æquo. C'est une limite du **protocole**, pas de la
+   tâche — et c'est l'argument le plus direct pour un juge à score continu.
+2. **Ne pas dépasser 0,889 est le vrai constat.** Les deux références sont
+   lexicalement **saturées** : le paragraphe a été écrit *à partir* de ses
+   sources et en reprend le vocabulaire. Une AUC calculée contre elles **ne
+   distingue pas un juge d'implication d'un `grep`** — et le `grep` est lui aussi
+   déterministe, ce qui prive au passage la reproductibilité de sa valeur
+   d'argument.
+
+> **Ce qu'il faudrait pour trancher, et qui n'existe pas encore** : un jeu adverse
+> à **recouvrement lexical constant** — les affirmations positives réelles,
+> perturbées mécaniquement (un nombre changé, une négation insérée, deux entités
+> permutées). La vérité y est connue *sans juge*, et seul un modèle qui comprend
+> l'implication peut réussir. C'est déterministe et gratuit.
+
+## Des ENCODEURS comme juges — `comparer_un_encodeur.py`
+
+Sept modèles de 68 à 608 millions de paramètres, entraînés **pour cette tâche**,
+qui tournent sur processeur en moins d'une seconde par paire — contre ~24 s pour
+ShieldStral.
+
+| Date | Juge | Paires | Réf. | Meilleur cadrage | AUC | ms/passe |
+|---|---|---|---|---|---|---|
+| 2026-08-19 | `lettucedect-610m-eurobert-fr` | 145 | étalon gelé | `qa` / `couverture` | **0,738** | 1063 |
+| 2026-08-19 | `distilcamembert-base-nli` (68 M) | 145 | idem | `par_phrase` | **0,728** | **48** |
+| 2026-08-19 | `mdeberta-v3-base-mnli-xnli` | 145 | idem | `par_phrase` | 0,723 | 229 |
+| 2026-08-19 | `lettucedect-210m-eurobert-fr` | 145 | idem | `qa` / `couverture` | 0,710 | 266 |
+| 2026-08-19 | `camembertav2-base-xnli` | 145 | idem | `par_phrase` | 0,692 | 179 |
+| 2026-08-19 | `bge-m3-zeroshot` | 145 | idem | `par_phrase` | 0,665 | 338 |
+| 2026-08-19 | `lettucedect-v2-mmbert-base` | 145 | idem | `nu` / `meilleure_phrase` | **0,529** | 280 |
+
+Compte rendu complet, réserves comprises :
+[des encodeurs contre l'étalon](2026-08-19_des-encodeurs-contre-l-etalon.md).
+
+**Trois choses que ce banc a apprises et qui valent au-delà de lui :**
+
+- **Le français déclaré n'est pas le français entraîné.** `lettucedect-v2-mmbert-base`
+  revendique `fr` dans ses métadonnées, passe le contrôle d'orientation
+  proprement, et **classe au niveau du hasard** (0,529, six combinaisons sur neuf
+  sous 0,5). Les deux EuroBERT entraînés *sur* RAGTruth-FR le battent nettement.
+- **Un tokeniseur peut se dégrader sans lever d'erreur.**
+  `almanach/camembertav2-base-xnli` déclare `RobertaTokenizer` pour un vocabulaire
+  **WordPiece** : `AutoTokenizer` découpe alors **caractère par caractère**, 109
+  tokens au lieu de 11. Correctif : `PreTrainedTokenizerFast`.
+- **Un contrôle d'orientation exige une MARGE, pas un signe.** Le 610m note la
+  paire fausse 0,964 et la vraie 0,994 : il les *ordonne* sans les *séparer*, et
+  passait « ✓ » avec une simple comparaison.
+
+> **Le plancher de bruit des encodeurs est 100 %**, au bit près, sur toutes les
+> combinaisons (jusqu'à 1305 scores comparés). C'est acquis par construction —
+> aucun échantillonnage, aucun jeton imprévisible — et **cela ne les rend pas
+> meilleurs** : le compteur de mots l'est aussi. Le déterminisme supprime un mode
+> de panne, il ne dit rien de la qualité.

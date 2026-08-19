@@ -110,9 +110,16 @@ class Command(BaseCommand):
                     "extraction_id": paire.lien.extraction_source_id,
                     "affirmation": paire.affirmation,
                     "texte_source": paire.texte_source,
-                    "etat_si_soutient": paire.etat_si_soutient,
+                    "provenance_du_verbatim": paire.provenance_du_verbatim,
                     "verdict_de_reference": paire.lien.etat_de_verification,
                     "reponse_de_reference": reponse,
+                    # Le DEGRE, quand le juge en a rendu un. NULL pour
+                    # tout verdict anterieur a l'addendum du 18 aout : ce
+                    # sont deux questions differentes, et l'etalon doit
+                    # dire laquelle a ete posee a chaque paire.
+                    # / The degree, when one was returned; NULL for
+                    # pre-addendum verdicts.
+                    "score_de_reference": paire.lien.score_de_verification,
                     "verifie_par": paire.lien.verifie_par,
                     "verifie_le": (
                         paire.lien.verifie_le.isoformat()

@@ -682,6 +682,25 @@ class Command(BaseCommand):
                 )
             else:
                 self.stdout.write("Modèles IA          : réutilisés")
+            # QUI EXTRAIT, dit a voix haute. Un `down -v` reconstruit le
+            # referentiel depuis les cles d'API presentes, et l'ORDRE de
+            # la liste decide du modele d'extraction : le taire laisserait
+            # croire que le choix pose a la main a survecu.
+            # / Say which model extracts: a `down -v` rebuilds the
+            # referential, and the list's order decides.
+            modele_de_la_configuration = rapport_des_fixtures_ia[
+                "modele_ia_de_la_configuration"
+            ]
+            if modele_de_la_configuration:
+                self.stdout.write(
+                    f"Extraction          : {modele_de_la_configuration}",
+                )
+            roles_affectes = rapport_des_fixtures_ia.get("roles_affectes") or []
+            if roles_affectes:
+                detail_des_roles = ", ".join(
+                    f"{role} → {choix}" for role, choix in roles_affectes
+                )
+                self.stdout.write(f"Rôles               : {detail_des_roles}")
 
         # Le détail « 4 pièces, 1 exemple » n'est pas décoratif : c'est
         # l'exemple few-shot qui rend l'analyseur utilisable, et son absence

@@ -8,7 +8,7 @@
 #
 # Les deux appellent bin/install.sh, ou vit toute la sequence
 # d'installation. Le site est sur le port 8000 en dev — PAS 8123 — et il
-# y a DEUX workers Celery, dont un dedie a l'ingestion Docling a
+# y a TROIS workers Celery, dont un dedie a l'ingestion Docling a
 # concurrence 1.
 #
 # CETTE STACK NE PREND AUCUN PORT DE L'HOTE

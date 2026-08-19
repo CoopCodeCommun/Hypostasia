@@ -64,7 +64,7 @@ depuis l'intérieur du conteneur. `make` seul liste les cibles.
 
 ```bash
 make install                        # docker compose up -d + bin/install.sh
-make dev                            # runserver + les DEUX workers Celery
+make dev                            # runserver + les TROIS workers Celery
 make status
 make restart S=runserver
 make logs S=celery_worker_docling
@@ -79,13 +79,13 @@ exactement la panne que ce Makefile existe pour empêcher.
 serveur écoute sur le **port 8000, pas 8123** (`nginx/dev.conf` proxie vers
 `web:8000` ; sur 8123 on obtient un 502).
 
-**Deux workers Celery, jamais un seul** (mesuré le 14 août) : `celery_worker`
-sert la file par défaut à concurrence 2, `celery_worker_docling` sert
-`ingestion_docling` **à concurrence 1** — une conversion Docling à la fois,
-elles pèsent ~2 Go et ~83 s de warm-up chacune. C'est aussi ce qui rend exacte
-la position affichée dans la file d'attente.
-`hypostasis_extractor/tests/test_files_celery_ingestion.py` verrouille
-l'invariant.
+**TROIS workers Celery, jamais moins.** Le détail de chacun — sa file, sa
+concurrence, et pourquoi le troisième tourne sous `nice -n 19` — est dans
+`AGENTS.md`, section « Les invariants ». **Il n'est pas recopié ici** : cette
+section l'a porté en double jusqu'au 18 août 2026, et la seconde copie est
+devenue fausse le jour où un troisième worker est arrivé. Verrouillé par
+`hypostasis_extractor/tests/test_files_celery_ingestion.py` et
+`.../test_worker_du_juge_local.py`.
 
 **`uv run` n'apporte rien** : le `PATH` de l'image contient déjà
 `/app/.venv/bin` (`Dockerfile:59`), donc `docker exec -w /app hypostasia_web
@@ -335,13 +335,53 @@ du code de production.
 
 ---
 
-## 7. L'état des tests — remesuré le 17 août, après le chantier des rôles
+## 7. L'état des tests — remesuré le 19 août
 
-**2007 tests, tous verts**, dont 14 sautés. La suite tourne en **22 min 32 s**
-(`front core hypostasis_extractor --exclude-tag=e2e`, donc **hors e2e** — c'est
-un périmètre différent de la mesure précédente, ne pas comparer les durées).
+**2073 tests, tous verts**, dont **1** sauté. La suite tourne en **24 min 08 s**
+(`make test-rapide`, donc **hors e2e / docling / llm**), sous **LangExtract
+1.6.0**.
 
-> La mesure du matin disait **1916 tests en 22 min 00 s**, mêmes 14 sautés. Les
+> Les **14 tests de plus** que la mesure précédente (2059) : 9 pour le repli sur
+> les marqueurs groupés (`core/tests/test_marqueurs_groupes.py`) et 5 pour la
+> route qui sert les mesures (`front/tests/test_route_des_benchmarks.py`).
+
+> Les **8 tests de plus** que la mesure précédente (2051) : 4 pour la tolérance
+> à la liste JSON nue que la 1.6.0 apporte
+> (`hypostasis_extractor/tests/test_liste_json_nue.py`), 4 pour ce qu'une
+> réinstallation doit reproduire — Mistral en tête, sa plateforme, **sa
+> température à 0**, les rôles, et un rôle choisi à la main qui **survit** au
+> redémarrage (`front/tests/test_fixtures_analyseurs.py`).
+
+> **Une suite à la fois, et ce n'est pas une formule.** Le 18 août, une commande
+> `make test-suite` lancée pendant un `make test-rapide` a tué ce dernier après
+> neuf minutes : `database "test_hypostasia_opus" does not exist`. Aucun dégât
+> durable — la base de test se recrée — mais la mesure était perdue et l'échec
+> ne ressemblait pas à sa cause.
+
+> Les **30 tests de plus** viennent du chantier « deux juges en parallèle » :
+> le stockage du second avis et sa survie aux mises à jour de wiki (11),
+> l'affichage de l'accord et ses quatre états (11), la topologie du worker
+> dédié — file, concurrence 1, `nice` (8). Le compte tombe juste :
+> 2021 + 30 = 2051. Détail dans
+> `CHANGELOG/2026-08-18-deux-juges-en-parallele.md`.
+
+> **Un écart que je n'ai pas su attribuer, et qu'il faut savoir avant de
+> comparer.** La mesure du 17 août disait **2007 tests dont 14 sautés**. Le
+> chantier du degré en ajoute **27** (`core/tests/test_score_de_verification.py`
+> et `front/tests/test_degre_a_l_ecran.py`), ce qui donnerait 2034 — or on en
+> compte **2021**, et les sautés tombent de 14 à **1**.
+>
+> Trois commits sont tombés entre les deux mesures, dont deux « retrait des
+> fixtures héritées » : ils expliquent vraisemblablement et la baisse de compte
+> et la quasi-disparition des tests sautés. **Vraisemblablement, pas
+> certainement** — l'établir exigerait de rejouer la suite sur l'arbre d'avant,
+> donc une opération git qu'un agent ne fait pas. Le chiffre ci-dessus est
+> mesuré ; son *écart* avec le précédent ne l'est pas.
+
+> La mesure du 17 août disait **2007 tests en 22 min 32 s**, dont 14 sautés,
+> après le chantier « un modèle par rôle ».
+
+> La mesure du 17 août au matin disait **1916 tests en 22 min 00 s**, mêmes 14 sautés. Les
 > **91 tests de plus** viennent du chantier « un modèle par rôle » : la table de
 > rôles et son repli, le branchement des six producteurs, le chemin d'appel
 > compatible OpenAI, la non-dégradation du juge, la dichotomie de lot, le gel de
@@ -374,8 +414,8 @@ le `Makefile` les porte avec leurs comptes, et une seconde liste divergerait.
 deux exécutions simultanées se la détruisent mutuellement en plein vol (755
 erreurs fantômes constatées).
 
-> **Cette section est la source de la mesure** — aujourd'hui **2007 tests en
-> 22 min 32 s**, en tête de section. Ni le README ni `AGENTS.md` ne la
+> **Cette section est la source de la mesure** — aujourd'hui **2073 tests en
+> 24 min 08 s**, en tête de section. Ni le README ni `AGENTS.md` ne la
 > répètent : ils y renvoient. Si tu remesures, c'est ici que tu écris, et
 > nulle part ailleurs.
 >

@@ -1,0 +1,30 @@
+{% comment %}
+Le style des pages de mesure. AUX TOKENS de maquette.css, jamais à des
+classes Tailwind : le build est FIGÉ, une classe absente du bundle est
+inerte et ne lève aucune erreur.
+{% endcomment %}
+<link rel="stylesheet" href="/static/front/css/maquette.css?v=20260819">
+<style>
+  .mesures { max-width:52rem; margin:2rem auto; padding:0 1.2rem;
+    color:var(--encre); background:var(--papier); font-size:.92rem;
+    line-height:1.55; }
+  .mesures h1 { font-size:1.5rem; letter-spacing:-.015em; }
+  .mesures a { color:var(--info); }
+  .mesures .dossier { color:var(--encre-douce); font-size:.78rem;
+    margin-left:.4rem; }
+  .mesures .explication { color:var(--encre-douce); font-size:.82rem; }
+  .mesures .alerte { border-left:3px solid var(--faible);
+    padding:.4rem .6rem; background:var(--papier-creux); }
+  /* Un tableau large ne doit JAMAIS faire défiler la page entière :
+     il défile dans son propre conteneur. */
+  .corps-de-mesure table { width:100%; border-collapse:collapse;
+    margin:.8rem 0; display:block; overflow-x:auto; }
+  .corps-de-mesure th, .corps-de-mesure td {
+    border:1px solid var(--filet); padding:.3rem .5rem; text-align:left; }
+  .corps-de-mesure th { background:var(--papier-creux); }
+  .corps-de-mesure code, .corps-de-mesure pre {
+    background:var(--papier-creux); border-radius:3px; }
+  .corps-de-mesure pre { padding:.6rem; overflow-x:auto; }
+  .corps-de-mesure blockquote { border-left:3px solid var(--encre-douce);
+    margin:.8rem 0; padding:.2rem .8rem; color:var(--encre-douce); }
+</style>

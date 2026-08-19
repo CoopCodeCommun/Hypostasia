@@ -25,6 +25,7 @@ CE SCRIPT N'ECRIT RIEN EN BASE et ne cree aucune ligne.
 
 import json
 import os
+import re
 import sys
 import uuid
 
@@ -38,7 +39,39 @@ django.setup()
 
 from core.llm_providers import appeler_llm  # noqa: E402
 from core.models import AIModel  # noqa: E402
-from core.services.verification import _verdicts_de_la_reponse  # noqa: E402
+
+# LE MOTIF DE LA v2, GELE ICI — ET C'EST VOULU.
+#
+# Ce banc mesure l'effet d'ecrire le seuil dans une consigne BINAIRE :
+# c'est une experience sur la question d'AVANT l'addendum du 18 aout
+# 2026. Il construit d'ailleurs deja ses propres consignes, puisque les
+# faire varier EST l'experience.
+#
+# La production, elle, demande desormais un DEGRE : son parseur ne sait
+# plus lire « soutient ». L'importer rendrait ce banc muet — zero verdict
+# reconnu, et le tableau se remplirait de zeros sans une erreur.
+#
+# La regle « pas de copie du prompt de production » ne s'applique pas
+# ici : ce banc ne compare RIEN a la production, il compare des
+# consignes entre elles. Ce motif est le sien.
+# / The v2 pattern is deliberately frozen here: this bench measures the
+# pre-addendum binary question, and production can no longer read it.
+MOTIF_DE_VERDICT_V2 = re.compile(
+    r"^[-*•`\s]*(?:paire\s+)?(\d+)\s*[:.]\s*"
+    r"(soutient|ne_soutient_pas)[`*\s]*$",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def _verdicts_v2_de_la_reponse(reponse_du_juge, nombre_de_paires):
+    """Les verdicts binaires d'une reponse. / The binary verdicts."""
+    verdicts = {}
+    for correspondance in MOTIF_DE_VERDICT_V2.finditer(reponse_du_juge or ""):
+        numero = int(correspondance.group(1))
+        if numero in verdicts or not 1 <= numero <= nombre_de_paires:
+            return None
+        verdicts[numero] = correspondance.group(2).lower()
+    return verdicts
 
 # Les trois consignes comparees. La premiere est celle de PRODUCTION,
 # recopiee mot pour mot depuis `_construire_le_prompt_du_juge`.
@@ -135,7 +168,7 @@ def main():
                     modele_ia,
                     construire_le_prompt(paires_du_prompt, nonce, consigne),
                 )
-                verdicts = _verdicts_de_la_reponse(
+                verdicts = _verdicts_v2_de_la_reponse(
                     reponse, len(paires_du_prompt),
                 ) or {}
             except Exception as erreur:

@@ -43,9 +43,20 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
         if not cle_api_openai:
             raise ValueError("Clé API OpenAI manquante. Renseignez OPENAI_API_KEY dans .env.")
         params['api_key'] = cle_api_openai
-        # OpenAI necessite des parametres specifiques dans LangExtract
-        # / OpenAI requires specific params in LangExtract
-        params['fence_output'] = True
+        # PAS DE `fence_output` ICI, ET C'EST DELIBERE.
+        #
+        # Cette ligne valait `True` jusqu'a la montee en LangExtract
+        # 1.6.0. Elle etait alors SILENCIEUSEMENT IGNOREE : en 1.1.1,
+        # `OpenAILanguageModel.requires_fence_output` rendait `False` des
+        # que le format etait JSON, quoi que l'appelant demande.
+        #
+        # 1.6.0 honore l'override (`openai.py` : le test porte desormais
+        # sur `_fence_output_override is None`). La laisser demanderait
+        # au modele d'entourer sa reponse de clotures ```json alors que
+        # `response_format={'type':'json_object'}` lui fait rendre du
+        # JSON nu — une consigne qui se contredit elle-meme.
+        # / Silently ignored in 1.1.1, honoured in 1.6.0 — and it would
+        #   contradict the provider's own json_object response format.
         params['use_schema_constraints'] = False
 
     elif ai_model.provider == Provider.OLLAMA:
@@ -106,12 +117,21 @@ def resolve_model_params(ai_model: AIModel) -> Dict:
                 "base_url": ai_model.base_url,
             },
         )
-        # Ce provider n'expose AUCUN schema structure : la contrainte ne
-        # s'appliquerait pas, et la laisser active fait emettre un
-        # avertissement a chaque chunk. La seule contrainte de forme est
-        # le `response_format` que le provider pose lui-meme.
-        # / This provider exposes no structured schema; leaving the
-        # constraint on only emits a warning per chunk.
+        # CONTRAINTE DE SCHEMA DESACTIVEE — mais plus pour la raison
+        # qu'on croyait.
+        #
+        # Ce commentaire disait « ce provider n'expose AUCUN schema
+        # structure ». C'etait vrai en LangExtract 1.1.1 ; c'est FAUX
+        # depuis la 1.6.0, qui apporte `providers/schemas/openai.py` et
+        # sait donc poser un `response_format: json_schema`.
+        #
+        # On la laisse desactivee tant que personne n'a EPROUVE que la
+        # plateforme visee honore ce format — et l'eprouver demande des
+        # appels factures. L'activer fermerait le risque du « JSON nu » a
+        # la source, au lieu de compter sur la tolerance du parseur : a
+        # faire, mesure a l'appui.
+        # / The "no structured schema" claim became false in 1.6.0;
+        #   enabling it would need billed calls to verify, so it waits.
         params['use_schema_constraints'] = False
 
     elif ai_model.provider == Provider.ANTHROPIC:

@@ -86,19 +86,49 @@ commentaires FR/EN)
 > model » chez Mistral, 403 chez OpenAI sur les modèles de raisonnement) ; seul un juge
 > **local** rend un score vraiment calibré.
 >
-> ### Ce qui reste à trancher par le mainteneur
+> ### Les trois questions, tranchées le 18 août 2026 — et CODÉES
 >
-> 1. **Le seuil par défaut** — 45/100 sur la seule mesure disponible, à confirmer sur
->    plusieurs affirmations.
-> 2. **Le seuil est-il réglable par carnet, ou global ?** Un collectif plus exigeant qu'un
->    autre, c'est une propriété du collectif.
-> 3. **Faut-il conserver deux libellés** (« vérifié » / « faible ») de part et d'autre du
->    curseur, ou n'afficher que le degré ? `PRESENTATION-V3.md § 3.6` rapporte une
->    corrélation de **r = −0,96** entre la précision des citations et l'utilité perçue :
->    plus un système est rigoureux, moins on l'aime. Un chiffre nu pourrait aggraver cela.
+> 1. **Le seuil par défaut : 45/100.** Précision apportée par la mesure : les juges
+>    d'API sollicités par le protocole texte ne rendent que `{0, 40, 70, 100}` —
+>    aucune valeur intermédiaire chez aucun des cinq modèles. **Tout seuil de 41 à
+>    70 sépare donc à l'identique** ; 45 est le milieu de ce palier, pas un réglage
+>    fin. Les seuls autres régimes possibles sont 71–100 (n'accepte que « établit
+>    tout ») et 1–40 (accepte tout sauf 0).
+> 2. **Le seuil est GLOBAL**, porté par le modèle solo `Configuration`
+>    (`seuil_de_verification`), et réglable depuis l'écran de configuration IA.
+>    **Limite nommée** : le seuil appartient au couple *(juge, collectif)*, pas au
+>    collectif seul — 45/100 chez un juge d'API et ~38/100 chez un juge local à
+>    logits ne sont pas le même réglage. Le recalcul **refuse de toucher les degrés
+>    d'un autre juge**, et l'écran compte ceux qu'il laisse de côté.
+> 3. **Les deux libellés sont conservés, ET le degré est affiché finement** — mais
+>    **uniquement dans le panneau de preuve**. `PRESENTATION-V3.md § 3.6` avait déjà
+>    arbitré sur la corrélation r = −0,96 : « trois états visuellement discrets, pas
+>    un score par phrase — la rigueur est disponible au clic, pas imposée à la
+>    lecture ». Le corps de l'article garde donc ses trois filets, sans un chiffre ;
+>    le panneau porte une barre 0–100 avec le seuil marqué dessus. Un test verrouille
+>    l'interdit (`front/tests/test_degre_a_l_ecran.py`).
 >
-> **Mesures détaillées** : `benchmarks/2026-08-18-ce-que-la-journee-a-mesure.md` et
-> `benchmarks/juge_de_verification/comparer_les_scores.py`.
+> ### Ce que l'implémentation a ajouté, et qui n'était pas dans l'addendum
+>
+> - **`VERIFIE` / `FAIBLE` / `SOURCE_DEBAT` restent STOCKÉS**, dérivés du degré par un
+>   écrivain unique (`appliquer_le_seuil`). Les rendre calculés à l'affichage aurait
+>   fait tomber à zéro les compteurs de l'écran d'article — une dégradation
+>   silencieuse — et cassé le gel de l'étalon.
+> - **`SourceLink.provenance_du_verbatim`** : le recalcul doit savoir si le verbatim
+>   a été trouvé dans la source ou dans un commentaire, et `commentaires_source` ne
+>   peut pas servir de témoin (`CommentaireExtraction.entity` **et** `.user` sont en
+>   `CASCADE`). Sans ce champ, un commentaire supprimé ferait poser `VERIFIE` sur un
+>   verbatim qui n'a jamais été dans la source. **L'invariant I7 reste donc intact.**
+> - **Colonne flottante, parseur entier.** Un juge répondant « 1: 0.92 » au lieu de
+>   « 1: 92 » rendrait des valeurs *dans* les bornes : tout un lot basculerait en
+>   « faible » sans une erreur.
+> - `VERSION_DE_LA_METHODE` passe à **`verbatim+nli-score v3`** : deux méthodes qui ne
+>   posent pas la même question ne se comparent pas.
+>
+> **Mesures détaillées** : `benchmarks/2026-08-18-ce-que-la-journee-a-mesure.md`,
+> `benchmarks/juge_de_verification/comparer_les_scores.py` et
+> `benchmarks/juge_de_verification/2026-08-18_shieldstral-le-cadrage-fait-tout.md`.
+> **Livré** : `CHANGELOG/2026-08-18-le-juge-rend-un-degre.md`.
 
 > **Addendum du 8 août 2026 — trous relevés à l'implémentation**, après
 > relecture de la note d'architecture (mémoire Atomic, « architecture cible

@@ -38,4 +38,26 @@ celery_app.conf.task_routes = {
     "hypostasis_extractor.tasks_element.ingerer_une_capture_web_avec_docling": {
         "queue": "ingestion_docling",
     },
+    # LE SECOND AVIS a sa propre file, consommee par un worker a
+    # concurrence 1 et lance sous `nice -n 19` (supervisord, programme
+    # celery_worker_juge_local).
+    #
+    # POURQUOI UNE TROISIEME FILE. Le juge local charge 7,7 Go et coute
+    # une vingtaine de secondes de processeur PAR PAIRE. Laisse sur la
+    # file par defaut, qui est a concurrence 2, DEUX inferences
+    # pourraient tourner ensemble — seize threads sur huit coeurs — et
+    # Docling mourrait de faim.
+    #
+    # POURQUOI `nice` PLUTOT QU'UNE PORTE « attendre que le CPU baisse ».
+    # Une porte affame en silence : sur une machine chargee elle ne
+    # s'ouvre jamais, et rien ne le dit. `nice` laisse le noyau arbitrer
+    # en continu, sans scrutation — le juge local prend ce qui est libre
+    # et rend la main des que Docling arrive.
+    # / A third queue: the local judge loads 7.7 GB and costs ~20 s of
+    # CPU per pair. On the default (concurrency 2) queue, two inferences
+    # could run at once and starve Docling. `nice` replaces a "wait for
+    # idle CPU" gate, which would starve silently instead.
+    "front.tasks.noter_avec_le_juge_local_task": {
+        "queue": "verification_locale",
+    },
 }

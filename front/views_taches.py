@@ -316,6 +316,15 @@ class TachesViewSet(viewsets.ViewSet):
                 extraction.page_resultat_id = extraction.page.pk
                 if raw.get("est_verification"):
                     extraction.libelle_de_tache = "Vérification"
+                elif raw.get("est_second_avis"):
+                    # SANS CETTE BRANCHE, une tache qui peut durer une
+                    # heure s'afficherait « Analyse » — le defaut exact
+                    # que la recette F8 a corrige plus haut. Le libelle
+                    # dit aussi POURQUOI c'est long : le juge tourne
+                    # ici, pas chez un fournisseur.
+                    # / Without this, an hour-long task would read
+                    # "Analyse" — the very defect F8 fixed above.
+                    extraction.libelle_de_tache = "Second avis (juge local)"
                 elif raw.get("est_maj_wiki"):
                     extraction.libelle_de_tache = "Mise à jour"
                 elif raw.get("est_wiki"):

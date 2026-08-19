@@ -34,5 +34,5 @@ echo "=== Hypostasia — demarrage DEV ==="
 
 bash bin/install.sh
 
-echo "Demarrage des services (runserver + 2 workers Celery)..."
+echo "Demarrage des services (runserver + 3 workers Celery)..."
 exec supervisord -c /app/supervisord-dev.conf

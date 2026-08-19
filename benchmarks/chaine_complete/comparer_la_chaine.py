@@ -65,7 +65,8 @@ django.setup()
 from core.llm_providers import appeler_llm  # noqa: E402
 from core.models import AIModel, ElementDocument, Page  # noqa: E402
 from core.services.verification import (  # noqa: E402
-    _construire_le_prompt_du_juge, _verdicts_de_la_reponse,
+    _construire_le_prompt_du_juge, _scores_de_la_reponse,
+    seuil_de_verification,
 )
 from hypostasis_extractor.models import (  # noqa: E402
     AnalyseurSyntaxique, ExtractedEntity,
@@ -321,9 +322,23 @@ def juger(modele_ia, paires):
     reponse = appeler_llm(
         modele_ia, _construire_le_prompt_du_juge(paires_du_prompt, nonce),
     )
-    verdicts = _verdicts_de_la_reponse(reponse, len(paires))
+    # LE JUGE REND UN DEGRE (addendum du 18 aout 2026). Ce banc compare
+    # des juges entre eux : il lui faut un verdict comparable, donc une
+    # conversion par le seuil courant. La conversion est nommee dans le
+    # rapport, elle n'est jamais implicite.
+    # / The judge returns a degree; converted by the current threshold so
+    # judges stay comparable, and the conversion is named in the report.
+    scores = _scores_de_la_reponse(reponse, len(paires))
+    seuil = seuil_de_verification()
+
+    def _verdict(numero):
+        score = scores.get(numero) if scores else None
+        if score is None:
+            return None
+        return "soutient" if score >= seuil else "ne_soutient_pas"
+
     return {
-        str(paire["lien_id"]): (verdicts.get(numero) if verdicts else None)
+        str(paire["lien_id"]): _verdict(numero)
         for numero, paire in enumerate(paires, start=1)
     }
 
@@ -340,6 +355,36 @@ def main():
     )
     if "--sortie" in sys.argv:
         chemin_de_sortie = sys.argv[sys.argv.index("--sortie") + 1]
+
+    # ON N'ECRASE PAS `resultats.json` SANS LE VOULOIR.
+    #
+    # Ce fichier n'est pas seulement la sortie de ce banc : c'est aussi
+    # l'ENTREE de `comparer_shieldstral.py`, qui lit ses quinze paires et
+    # les compare a des verdicts relus a la main, INDEXES PAR POSITION
+    # (1 a 15). Le reecrire sur une autre base — d'autres extractions,
+    # un autre modele — detruit cet alignement en silence : l'AUC de
+    # 0,923 publiee le 18 aout deviendrait non rejouable, et rien ne le
+    # dirait.
+    #
+    # Ce banc lit d'ailleurs la BASE VIVANTE (page, elements, analyseur,
+    # extractions du perimetre) : ses trois etages ne se rejouent pas a
+    # l'identique apres un `docker compose down -v`. Seul l'etage
+    # « juger » lit un fichier gele.
+    # / This file is also the INPUT of comparer_shieldstral.py, whose
+    # hand-read verdicts are indexed by position. Overwriting it on a
+    # rebuilt database silently destroys that alignment.
+    if os.path.exists(chemin_de_sortie) and "--forcer" not in sys.argv:
+        raise SystemExit(
+            f"\n{chemin_de_sortie} existe déjà.\n"
+            f"  Il sert aussi d'ENTRÉE à comparer_shieldstral.py, dont "
+            f"les quinze verdicts relus à la main sont indexés par "
+            f"POSITION.\n"
+            f"  L'écraser sur une base reconstruite détruirait cet "
+            f"alignement sans erreur.\n\n"
+            f"  --sortie AUTRE_FICHIER.json  pour écrire ailleurs\n"
+            f"  --forcer                     pour écraser en connaissance "
+            f"de cause\n",
+        )
 
     texte, elements = texte_de_l_echantillon()
     prompt_article, identifiants = prompt_de_redaction()

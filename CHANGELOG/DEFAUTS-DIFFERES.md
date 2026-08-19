@@ -83,6 +83,38 @@ commande écrit réellement.
 | `TranscriptionJob` créé avec `status='pending'` en dur au lieu de `TranscriptionJobStatus.PENDING` | la commande |
 | « Gio » employé au sens décimal de Go dans les commentaires (préexistant) | commentaires |
 
+## LangExtract 1.6.0 : monté — ce qui reste ouvert derrière
+
+*Constaté puis fait le 18 août 2026.*
+
+**La montée EST faite** : `pyproject.toml` demande `langextract>=1.6.0` et
+`uv.lock` l'épingle. Elle s'installe au prochain `uv sync`, c'est-à-dire au
+prochain démarrage de conteneur (`bin/install.sh`, étape 1/6) — **aucune
+reconstruction d'image n'est nécessaire**, le venv vit dans le bind mount du
+dépôt. Détail dans `CHANGELOG/2026-08-18-langextract-1-6.md`.
+
+**Ce qui reste ouvert derrière**, et qui demande des appels facturés :
+
+| Point | Ce qu'il faudrait |
+|---|---|
+| `use_schema_constraints` reste à `False` pour `COMPATIBLE_OPENAI`, alors que 1.6.0 apporte `providers/schemas/openai.py` et sait poser un `response_format: json_schema` | L'activer fermerait le risque du « JSON nu » **à la source** au lieu de compter sur la tolérance du parseur. Éprouver d'abord que Mistral honore ce format |
+| **L'aligneur flou est passé de `difflib` à LCS** — `_DEFAULT_FUZZY_ALGORITHM = "lcs"`, barrière neuve `fuzzy_alignment_min_density = 1/3`, et `fuzzy_alignment_threshold` **change de sens** à défaut identique. Le moteur ELEMENT **jette** toute extraction non alignée | Mesurer avant/après sur un corpus. **Rayon d'action mesuré le 18 août** : 112 extractions stockées, 112 verbatims exacts, 112 ancrées — l'aligneur flou n'avait produit **aucune** ancre. *Réserve : on ne voit que les survivantes* |
+| `suppress_parse_errors=True` continue d'avaler toutes les autres `FormatError` — JSON invalide, items non-mapping, clôtures multiples | Un job peut toujours finir `completed` à zéro extraction. Seul le cas de la **liste nue** est refermé |
+| `providers/gemini.py` gagne 3 tentatives avec backoff jusqu'à 16 s sur 408/429/5xx | En tenir compte dans les mesures de durée |
+
+## Le seuil de vérification n'a pas de journal durable
+
+*Constaté le 18 août 2026, au chantier du score.*
+
+Déplacer `Configuration.seuil_de_verification` laisse une trace dans les
+journaux du serveur (`logger.info` dans `ConfigurationIAViewSet.seuil`) et un
+compte rendu à l'écran, mais **rien en base**. Pour un outil de délibération,
+déplacer le seuil du collectif est un acte de gouvernance : qui l'a fait, quand,
+et de combien à combien devrait survivre à une rotation de journaux.
+
+**Arbitrage attendu du mainteneur** : un modèle d'audit, ou l'acceptation du
+journal seul.
+
 ## Trous de couverture de test
 
 *Constatés le 11 août 2026.*

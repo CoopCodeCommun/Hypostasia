@@ -13,7 +13,7 @@
 #    est idempotent : au deuxieme demarrage, l'etape entiere prend une
 #    dizaine de secondes et ne refacture aucun appel LLM.
 # 3. Demarre supervisord au premier plan : gunicorn (HTTP, port 8001),
-#    daphne (WebSocket, port 8000) et les DEUX workers Celery.
+#    daphne (WebSocket, port 8000) et les TROIS workers Celery.
 #
 # CE QUI DIFFERE DU DEVELOPPEMENT
 #
@@ -43,5 +43,5 @@ bash bin/install.sh
 
 # Supervisord au premier plan (logs vers stdout/stderr)
 # / supervisord in foreground (logs to stdout/stderr)
-echo "Demarrage des services (gunicorn + daphne + 2 workers Celery)..."
+echo "Demarrage des services (gunicorn + daphne + 3 workers Celery)..."
 exec supervisord -c /app/supervisord.conf

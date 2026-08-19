@@ -312,6 +312,74 @@ marque une chaine de preuve rompue sans crier.
 .etat-verification[data-etat="conteste"]     { color:var(--danger); }
 .etat-verification[data-etat="non_verifie"]  { color:var(--encre-douce); }
 
+/* LE DEGRE DE SOUTIEN — la barre 0-100 du panneau de preuve, avec le
+   seuil marque dessus.
+
+   TOUT EST AUX TOKENS, jamais aux classes Tailwind : le build est FIGE,
+   une classe absente du bundle est inerte et ne leve aucune erreur.
+   --verifie et --faible sont definis en clair (maquette.css l. 24-25) et
+   redefinis en sombre (l. 143-144, 181-182), contrastes deja calcules.
+
+   PAS DE <meter> : il n'a aucun marqueur de seuil natif, et son rendu
+   passe par des pseudo-elements proprietaires que ces tokens
+   n'atteindraient pas. D'ou role="img" + aria-label en phrase complete
+   sur le conteneur, cote gabarit.
+   / Tokens only (frozen Tailwind build); no <meter> (no native
+   threshold marker, vendor pseudo-elements ignore our tokens). */
+.degre-de-soutien { margin:.1rem 0 .5rem; }
+/* LE CONTOUR N'EST PAS DECORATIF : c'est lui qui dit OU FINIT LA BARRE,
+   et sans cette borne une longueur de remplissage ne veut rien dire.
+
+   Contrastes calcules, WCAG 1.4.11 (composant non textuel, seuil 3:1) :
+   le contour a pleine force donne 5,24:1 en clair et 5,94:1 en sombre.
+   Le FOND de la piste, lui, ne peut pas porter cette borne : a 22 % il
+   n'est qu'a 1,34:1 du papier, et l'assombrir assez pour atteindre 3:1
+   ferait tomber le remplissage SOUS 3:1 contre la piste — les deux
+   exigences se contredisent sur ces tokens. Le contour les concilie.
+   / The outline carries the boundary: darkening the track instead would
+   push the fill below 3:1 against it. */
+.degre-de-soutien .piste {
+  position:relative; height:8px; border-radius:4px; box-sizing:border-box;
+  border:1px solid var(--encre-douce);
+  background:color-mix(in srgb, var(--encre-douce) 22%, transparent);
+  overflow:visible;
+}
+.degre-de-soutien .remplissage {
+  position:absolute; left:0; top:0; bottom:0; border-radius:3px;
+  background:var(--verifie);
+}
+/* Contrastes calcules du remplissage contre la piste (seuil 3:1) :
+   verifie 3,86:1 en clair, 8,09:1 en sombre ; faible 3,54:1 et 7,39:1. */
+
+/* LE SECOND AVIS — un encadre discret, sous le degre de production.
+   Il ne doit PAS avoir l'air d'un second verdict : c'est un avis qui ne
+   pilote rien. D'ou un filet, pas une couleur d'etat.
+   / A quiet box: it must not look like a second verdict. */
+.second-avis {
+  margin:.5rem 0 .4rem; padding:.45rem .55rem;
+  border:1px solid var(--filet); border-radius:5px;
+  background:var(--papier-creux);
+}
+.second-avis .titre-de-l-accord {
+  margin:0 0 .35rem; font-size:.78rem; color:var(--encre);
+}
+/* L'accord et le desaccord ne se distinguent PAS par la couleur seule :
+   le mot le dit en toutes lettres dans le titre. Le filet ne fait que
+   renforcer. / Never colour alone: the title says it in words. */
+.second-avis[data-accord="desaccord"] { border-left:3px solid var(--faible); }
+.second-avis[data-accord="accord"]    { border-left:3px solid var(--verifie); }
+.second-avis[data-accord="incalculable"] {
+  border-left:3px dotted var(--encre-douce);
+}
+.degre-de-soutien .remplissage[data-cote="dessous"] { background:var(--faible); }
+/* La marque du seuil traverse la piste de part en part : c'est elle
+   qu'on discute, elle doit se voir autant que le remplissage.
+   / The threshold mark is the thing under discussion: make it visible. */
+.degre-de-soutien .marque-du-seuil {
+  position:absolute; top:-3px; bottom:-3px; width:2px;
+  background:var(--encre); transform:translateX(-1px);
+}
+
 .zone-corpus .diff-operations { margin-top:.6rem; }
 .zone-corpus .operation {
   border:1px solid var(--filet); border-left-width:3px; border-radius:0 5px 5px 0;

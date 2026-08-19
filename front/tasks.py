@@ -1243,6 +1243,17 @@ def _terminer_un_job_d_article(job, page_d_article, bilan_d_indexation,
     donnees["page_synthese_id"] = page_d_article.pk
     donnees["citations_creees"] = bilan_d_indexation["liens_crees"]
     donnees["marqueurs_retires"] = bilan_d_indexation["marqueurs_retires"]
+    # LE COMPTE DES GROUPES REECRITS, PERSISTE. Sans cette ligne, le
+    # repli du 19 aout repare en SILENCE : on ne saurait plus quel modele
+    # desobeit au format des marqueurs, et le signal de qualite que le
+    # repli devait preserver serait perdu. `groupes_restants == 0` ne
+    # suffit pas a le deduire — ce serait aussi vrai si personne ne
+    # groupait plus.
+    # / Persisted: otherwise the fallback repairs silently and the
+    #   per-model disobedience signal is lost.
+    donnees["marqueurs_groupes_normalises"] = bilan_d_indexation[
+        "marqueurs_groupes_normalises"
+    ]
     donnees["citations_annoncees"] = citations_annoncees
     job.raw_result = donnees
     job.status = "completed"
@@ -1605,6 +1616,162 @@ def proposer_une_maj_de_wiki_task(self, job_id):
         )
     except Exception as erreur:
         _echouer_un_job_d_article(job, erreur, "maj_wiki")
+
+
+# Combien de paires un paquet de second avis note avant de repasser la
+# main.
+#
+# POURQUOI DES PAQUETS, ET PAS UN SEUL PASSAGE. `CELERY_TASK_TIME_LIMIT`
+# vaut 30 minutes (settings.py). Le juge local coute ~25 s par paire a
+# six threads : la synthese dirigee etalon, avec ses 87 citations,
+# demanderait 37 minutes — le worker recevrait un SIGKILL, le modele de
+# 7,7 Go serait recharge, et le reste du lot n'aurait pas d'avis SANS
+# QUE PERSONNE NE LE SACHE.
+#
+# Dix paires font ~4 min 20 : loin sous le plafond. Et le decoupage rend
+# deux services de plus — un redemarrage ne coute qu'un paquet, et
+# l'avancement se lit tout seul dans le nombre de paires deja notees.
+# / Packets, because the 30-minute task limit would SIGKILL an 87-citation
+# article mid-way, silently.
+TAILLE_DU_PAQUET_DU_JUGE_LOCAL = 10
+
+
+@shared_task(bind=True)
+def noter_avec_le_juge_local_task(self, job_id):
+    """
+    Le SECOND AVIS, paquet par paquet. / The SECOND OPINION, packet by
+    packet.
+
+    LOCALISATION : front/tasks.py
+
+    ELLE NE PILOTE RIEN. Le juge local tourne A COTE du juge de
+    production pour etre compare a lui : il n'ecrit ni l'etat, ni le
+    degre de production, ni le libelle affiche.
+
+    ELLE EST IDEMPOTENTE. Elle recalcule a chaque paquet les paires qui
+    n'ont pas encore d'avis DE CETTE METHODE. Relancee, elle ne refait
+    pas le travail ; interrompue, elle reprend ou elle en etait.
+
+    ELLE SE REPASSE LA MAIN. Tant qu'il reste des paires, elle remet un
+    paquet en file. C'est ce qui la garde loin du plafond de 30 minutes,
+    et ce qui limite la perte d'un redemarrage a un seul paquet.
+
+    UN ECHEC NE COUTE QUE SA PAIRE. Les liens sont re-resolus a chaque
+    paquet : une reindexation de wiki qui survient pendant la tache
+    supprime des SourceLink (core/services/synthese.py), et il ne faut
+    pas que la disparition d'un lien emporte les neuf autres.
+    / Drives nothing, idempotent, self-requeueing, and a failure costs
+    only its own pair.
+    """
+    from core.services.juge_local import (
+        methode, noter_une_paire, seuil_utile,
+    )
+    from core.services.verification import (
+        paires_sans_second_avis, poser_un_second_avis,
+    )
+    from hypostasis_extractor.models import ExtractionJob
+
+    try:
+        job = ExtractionJob.objects.get(pk=job_id)
+    except ExtractionJob.DoesNotExist:
+        logger.error(
+            "noter_avec_le_juge_local_task: job=%s introuvable", job_id,
+        )
+        return
+    # La MEME garde que les quatre autres taches d'article : un message
+    # mal cible ferait passer un job quelconque en `processing` puis
+    # `completed` avec un bilan de second avis.
+    # / The same guard as the four other article tasks.
+    if _le_job_n_est_pas_le_mien(job, "est_second_avis", "second_avis"):
+        return
+
+    nom_de_la_methode = methode()
+    seuil = seuil_utile()
+    try:
+        job.status = "processing"
+        job.save(update_fields=["status"])
+
+        restantes = paires_sans_second_avis(job.page, nom_de_la_methode)
+        paquet = restantes[:TAILLE_DU_PAQUET_DU_JUGE_LOCAL]
+
+        notees = 0
+        sans_avis = 0
+        for paire in paquet:
+            try:
+                score = noter_une_paire(
+                    paire.affirmation, paire.texte_source,
+                )
+                if score is None:
+                    sans_avis += 1
+                    continue
+                poser_un_second_avis(
+                    paire.lien, score=score, methode=nom_de_la_methode,
+                    seuil_utile=seuil,
+                )
+                notees += 1
+            except Exception as erreur_de_la_paire:
+                # Le lien a pu disparaitre (reindexation), ou le modele
+                # caler sur une paire : ca ne doit couter que cette
+                # paire. / A vanished link or a stuck pair costs itself.
+                sans_avis += 1
+                logger.warning(
+                    "noter_avec_le_juge_local_task: paire du lien %s "
+                    "perdue (job %s) : %s",
+                    getattr(paire.lien, "pk", "?"), job_id,
+                    erreur_de_la_paire,
+                )
+
+        donnees = job.raw_result or {}
+        bilan = donnees.get("bilan_du_second_avis") or {
+            "notees": 0, "sans_avis": 0,
+        }
+        bilan["notees"] += notees
+        bilan["sans_avis"] += sans_avis
+        bilan["methode"] = nom_de_la_methode
+        bilan["seuil_utile"] = seuil
+        donnees["bilan_du_second_avis"] = bilan
+        job.raw_result = donnees
+
+        # LA CONDITION DE PROGRES, ET ELLE EST INDISPENSABLE.
+        #
+        # Sans elle, cette tache BOUCLE SANS FIN et en silence : si le
+        # modele ne se charge pas — ou si le juge ne rend `None` pour
+        # toutes les paires — le `try` par paire avale l'echec, `notees`
+        # reste a zero, `restantes` ne decroit jamais, et le paquet se
+        # remet en file indefiniment. Un article de plus de dix
+        # citations brulerait alors du processeur pour toujours, avec un
+        # job « processing » eternel qui tient aussi le verrou de
+        # re-clic.
+        #
+        # On ne repasse donc la main QUE si le paquet a progresse. Sinon
+        # on s'arrete, et le bilan porte le motif — un echec bruyant vaut
+        # mieux qu'une boucle muette.
+        # / Without this, a model that never loads makes the task requeue
+        # itself forever, silently, holding the re-click lock.
+        il_reste_des_paires = len(restantes) > len(paquet)
+        if il_reste_des_paires and notees > 0:
+            job.save(update_fields=["raw_result"])
+            noter_avec_le_juge_local_task.delay(job_id)
+            return
+        if il_reste_des_paires and notees == 0:
+            bilan["arret_sans_progres"] = (
+                f"{len(paquet)} paire(s) tentée(s), aucune notée : le juge "
+                f"local n'a rien rendu. {len(restantes) - len(paquet)} "
+                f"paire(s) restent sans avis."
+            )
+            logger.error(
+                "noter_avec_le_juge_local_task: aucun progrès sur le "
+                "paquet (job %s) — arrêt pour ne pas boucler.", job_id,
+            )
+
+        job.status = "completed"
+        job.save(update_fields=["raw_result", "status"])
+        notifier_tache_terminee(
+            user_pk=(job.raw_result or {}).get("demandeur_id") or None,
+            tache_id=job.pk, tache_type="second_avis", status="completed",
+        )
+    except Exception as erreur:
+        _echouer_un_job_d_article(job, erreur, "second_avis")
 
 
 @shared_task(bind=True)

@@ -1003,6 +1003,30 @@ class AIModel(models.Model):
         "gpt-4-turbo": (10.00, 30.00),
         "gpt-4.1": (2.00, 8.00),
         "gpt-4.1-mini": (0.40, 1.60),
+        # Mistral — releves le 18 aout 2026 sur https://mistral.ai/pricing/api/
+        #
+        # POURQUOI ILS MANQUAIENT, ET POURQUOI C'ETAIT GRAVE. Les modeles
+        # servis par une API COMPATIBLE OpenAI n'etaient dans aucune
+        # table : `cout_par_million_tokens()` rendait `None` pour
+        # `mistral-small-latest` — c'est-a-dire pour le modele qui fait
+        # DESORMAIS l'extraction, la redaction ET le jugement. L'ecran de
+        # configuration IA n'affichait donc aucun cout pour le seul
+        # modele qui en engendre.
+        #
+        # La cle est le NOM TECHNIQUE, celui que la plateforme reconnait
+        # — pas le `model_choice` d'une ligne de referentiel.
+        # / Missing until 18 Aug 2026: the model doing all three jobs had
+        #   no price at all, so the screen showed none.
+        "mistral-small-latest": (0.15, 0.60),
+        "mistral-large-latest": (0.50, 1.50),
+        "mistral-medium-latest": (1.50, 7.50),
+        "ministral-3b-latest": (0.10, 0.10),
+        "ministral-8b-latest": (0.15, 0.15),
+        # L'embedding, pour memoire : il n'est utilise NULLE PART (le RAG
+        # n'existe pas dans le code). Sa sortie n'a pas de tarif : un
+        # embedding ne rend pas de tokens.
+        # / Embedding is used nowhere yet; its output has no token price.
+        "mistral-embed": (0.10, 0.0),
         # Ollama — gratuit (local) / Ollama — free (local)
         "llama3": (0.0, 0.0),
         "llama3.1": (0.0, 0.0),
@@ -1170,6 +1194,34 @@ class Configuration(SingletonModel):
         null=True,
         blank=True,
         help_text="Modele IA actuellement selectionne / Currently selected AI model",
+    )
+    # LE SEUIL DE VERIFICATION — un reglage d'AFFICHAGE, pas de jugement.
+    #
+    # Le juge rend un degre de 0 a 100 ; ce nombre decide de quel cote du
+    # curseur un renvoi s'affiche. Le deplacer NE REJUGE RIEN : les
+    # scores sont deja en base, seuls les libelles sont recalcules.
+    # C'est ce qui rend l'arbitrage refaisable par le collectif, au lieu
+    # d'etre fige dans une tournure de prompt au moment du jugement.
+    #
+    # 45 PAR DEFAUT, et voici ce que ce chiffre vaut. Les juges d'API
+    # sollicites par le protocole texte se collent aux reperes du prompt
+    # et ne rendent que 0, 40, 70 ou 100 : tout seuil de 41 a 70 separe
+    # donc a l'identique. 45 est le milieu de ce palier. Mesure du
+    # 18 aout : ce seuil separe 15/15 les verdicts relus a la main chez
+    # `gemini-2.5-flash`, et 14/15 chez deux autres.
+    #
+    # LE SEUIL EST UNE PROPRIETE DU COUPLE (JUGE, COLLECTIF), pas du
+    # collectif seul : un juge local a logits rend un score continu dont
+    # le seuil utile mesure est 37,8/100. Un seul juge est actif a la
+    # fois — c'est le role qui le designe — donc un seuil global tient ;
+    # mais changer de juge PERIME ce seuil, et le recalcul refuse
+    # d'ailleurs de toucher les scores d'un autre juge.
+    # / A display setting, not a judging one: moving it re-labels without
+    #   re-judging. The threshold belongs to the (judge, collective) pair.
+    seuil_de_verification = models.FloatField(
+        default=45.0,
+        help_text="A partir de quel degre (0-100) un renvoi s'affiche "
+                  "« verifie ». Le changer ne rejuge rien.",
     )
 
     class Meta:
@@ -1820,6 +1872,33 @@ class EtatDeVerification(models.TextChoices):
     SOURCE_DEBAT = "source_debat", "Sourcé par le débat"
 
 
+class ProvenanceDuVerbatim(models.TextChoices):
+    """
+    OU la citation exacte a ete retrouvee — dans la note source, ou dans
+    un COMMENTAIRE du debat (SPEC-synthese § 7.4).
+    / WHERE the exact quote was found: the source note, or a debate comment.
+
+    C'EST UN FAIT, PAS UN VERDICT, et c'est toute la raison de ce champ.
+    Le parcours deterministe le constate avant tout appel de juge ; le
+    juge, lui, ne dit que le DEGRE.
+
+    POURQUOI IL NE SE DEDUIT PAS DE `commentaires_source`. Ce M2M
+    disparait par CASCADE des qu'on supprime l'extraction commentee ou
+    le compte de l'auteur du commentaire
+    (`CommentaireExtraction.entity` et `.user`). Or le recalcul du
+    libelle au changement de seuil doit savoir, longtemps apres le
+    jugement, s'il faut rendre `VERIFIE` ou `SOURCE_DEBAT` au-dessus du
+    seuil. Avec le M2M pour seul temoin, un commentaire supprime entre
+    temps ferait poser `VERIFIE` sur un verbatim qui n'a JAMAIS ete dans
+    la source — un blanchiment par un reglage d'affichage.
+    / The M2M witness is destroyed by CASCADE; this field is not.
+
+    Vide = jamais juge, ou verdict anterieur a l'addendum du 18 aout.
+    """
+    SOURCE = "source", "Dans la note source"
+    DEBAT = "debat", "Dans un commentaire du débat"
+
+
 class SourceLink(models.Model):
     """
     Lien de provenance entre un passage dans une page cible et son origine.
@@ -1913,6 +1992,85 @@ class SourceLink(models.Model):
     verifie_le = models.DateTimeField(
         null=True, blank=True,
         help_text="Quand le verdict a ete pose. NULL = jamais verifie.",
+    )
+    # LE DEGRE, ET POURQUOI IL REMPLACE UN VERDICT (addendum du 18 aout
+    # 2026 a SPEC-synthese).
+    #
+    # Le prompt demandait a la source d'« etablir » ce que l'affirmation
+    # avance, sans dire si cela voulait dire TOUT etablir ou seulement la
+    # part que cette source revendique. Mesure du 18 aout, quinze paires
+    # d'une meme affirmation, cinq modeles : de 0 a 14 verdicts positifs.
+    # Le desaccord ne venait pas des juges, il venait de la QUESTION.
+    #
+    # Le juge rend donc un degre, et le SEUIL devient un reglage
+    # d'affichage (`Configuration.seuil_de_verification`). Le changer ne
+    # rejuge rien — donc ne repaie rien, et ne perd pas la mesure
+    # precedente. C'est precisement l'arbitrage qu'un collectif doit
+    # pouvoir refaire.
+    #
+    # NULL veut dire « pas de degre », et jamais « degre nul » : le
+    # score 0 existe, il est rendu, et il se distingue de l'absence.
+    # Trois cas de NULL : jamais juge ; verdict pose SANS juge
+    # (INTROUVABLE, CONTESTE) ; ou verdict anterieur a l'addendum.
+    # / The judge returns a degree; the threshold becomes a display
+    #   setting. NULL means "no degree", never "degree zero".
+    score_de_verification = models.FloatField(
+        null=True, blank=True,
+        help_text="Dans quelle mesure la source etablit ce que "
+                  "l'affirmation avance, de 0 a 100. NULL = pas de degre "
+                  "(jamais juge, verdict sans juge, ou verdict anterieur "
+                  "au 18 aout 2026).",
+    )
+    provenance_du_verbatim = models.CharField(
+        max_length=10, choices=ProvenanceDuVerbatim.choices,
+        blank=True, default="",
+        help_text="Ou la citation exacte a ete retrouvee. Constate par le "
+                  "parcours deterministe, avant tout appel de juge.",
+    )
+    # LE SECOND AVIS — un second juge tourne A COTE du juge de production
+    # pour etre compare a lui sur des donnees reelles.
+    #
+    # IL NE PILOTE RIEN. Ni `etat_de_verification`, ni
+    # `score_de_verification`, ni le libelle affiche. Il OBSERVE.
+    #
+    # POURQUOI DES COLONNES ET PAS UNE TABLE LIEE. `indexer_les_citations`
+    # DETRUIT et RECREE tous les SourceLink d'un article a chaque mise a
+    # jour de wiki, et le report de verdict ne recopie que des COLONNES.
+    # Une table liee en CASCADE aurait perdu tous les avis a chaque tour —
+    # c'est-a-dire exactement ce que la campagne existe pour accumuler.
+    # Ces quatre colonnes voyagent gratuitement dans le report existant.
+    #
+    # LA LIMITE, ASSUMEE : un seul second juge a la fois. C'est ce que
+    # demande la campagne. Un troisieme exigerait la table, et il faudrait
+    # alors regler le report.
+    # / A second judge runs alongside production and drives nothing.
+    #   Columns, not a linked table: wiki updates recreate every link and
+    #   only columns ride the existing verdict carry-over.
+    score_du_second_avis = models.FloatField(
+        null=True, blank=True,
+        help_text="Le degre rendu par le second juge, de 0 a 100. "
+                  "NULL = pas de second avis.",
+    )
+    methode_du_second_avis = models.CharField(
+        max_length=200, blank=True, default="",
+        help_text="Qui a rendu le second avis : methode + severite + "
+                  "modele. La severite en fait partie : « large » et "
+                  "« strict » ne posent pas la meme question.",
+    )
+    # LE SEUIL EST FIGE SUR L'AVIS, ET C'EST LE POINT. Les deux juges ne
+    # sont pas sur la meme regle : le seuil utile mesure vaut 45/100 pour
+    # un juge d'API sollicite par le protocole texte, et ~38/100 pour un
+    # juge local lu sur les logits. Relire un avis avec le seuil courant
+    # de l'autre juge ferait conclure au desaccord la ou il y a accord.
+    # / Frozen on the opinion: the judges do not share a ruler.
+    seuil_du_second_avis = models.FloatField(
+        null=True, blank=True,
+        help_text="Le seuil propre au second juge, fige au moment de "
+                  "l'avis. Jamais relu depuis la Configuration.",
+    )
+    second_avis_rendu_le = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Quand le second avis a ete rendu.",
     )
     etat_de_la_source = models.CharField(
         max_length=10, choices=EtatDeLaSource.choices,

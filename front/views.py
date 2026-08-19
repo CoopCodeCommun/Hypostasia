@@ -44,7 +44,7 @@ from .serializers import (
     PageClasserSerializer, PromouvoirEntrainementSerializer,
     QuestionSerializer, RenommerLocuteurSerializer, ReponseQuestionSerializer,
     RunAnalyseSerializer,
-    SelectModelSerializer,
+    SelectModelSerializer, SeuilDeVerificationSerializer,
     SupprimerBlocSerializer, SynthetiserSerializer,
     est_fichier_audio, est_fichier_json,
 )
@@ -1107,6 +1107,98 @@ class ConfigurationIAViewSet(viewsets.ViewSet):
         return render(request, "front/includes/config_ia_toggle.html", {
             "configuration": configuration,
             "modeles_actifs": modeles_actifs,
+        })
+
+    @action(detail=False, methods=["POST"], url_path="seuil")
+    def seuil(self, request):
+        """
+        Deplace le seuil d'affichage des degres de verification.
+        / Moves the verification-degree display threshold.
+
+        LOCALISATION : front/views.py
+
+        CE GESTE NE REJUGE RIEN, et c'est tout l'objet de l'addendum du
+        18 aout 2026 : les degres sont deja en base, seuls les libelles
+        sont recalcules. Aucun appel de modele, donc aucune facture, et
+        la mesure precedente n'est pas perdue. C'est ce qui rend cet
+        arbitrage refaisable par le collectif, au lieu d'etre fige dans
+        une tournure de prompt au moment du jugement.
+
+        LE RECALCUL EST FILTRE SUR LE JUGE COURANT. Deux juges n'ont pas
+        la meme echelle — 45 sur 100 chez un juge d'API sollicite par le
+        protocole texte, 38 chez un juge local a logits. Relabelliser
+        les degres d'un juge avec le seuil d'un autre ferait passer pour
+        « verifie » ce que le premier avait note « appuie de loin ».
+        Les liens laisses de cote sont donc COMPTES et dits, jamais
+        ignores en silence.
+
+        FLUX :
+        1. POST depuis l'ecran de configuration IA
+        2. validation des bornes par SeuilDeVerificationSerializer
+        3. ecriture du seuil sur la Configuration (modele solo)
+        4. recalcul des libelles, filtre sur la provenance du juge
+        5. renvoi du partial, qui dit combien de renvois ont change
+        / Moves the threshold and re-labels; never re-judges.
+        """
+        refus = _exiger_authentification(request)
+        if refus:
+            return refus
+
+        from core.models import SourceLink, TypeLien
+        from core.services.verification import (
+            appliquer_le_seuil, provenance_du_juge_courant,
+        )
+
+        serializer = SeuilDeVerificationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        seuil_demande = serializer.validated_data["seuil"]
+
+        configuration = Configuration.get_solo()
+        seuil_precedent = configuration.seuil_de_verification
+        configuration.seuil_de_verification = seuil_demande
+        configuration.save(update_fields=["seuil_de_verification"])
+
+        provenance = provenance_du_juge_courant()
+        renvois_changes = appliquer_le_seuil(
+            SourceLink.objects.filter(type_lien=TypeLien.CITE),
+            seuil=seuil_demande,
+            provenance=provenance,
+        )
+        # Combien de degres restent hors d'atteinte de ce seuil : ceux
+        # d'un autre juge, sur une autre echelle. Le chiffre est le
+        # message — un lien non recalcule doit se voir.
+        # / How many degrees this threshold cannot read: another judge's.
+        renvois_d_un_autre_juge = 0
+        if provenance is not None:
+            renvois_d_un_autre_juge = SourceLink.objects.filter(
+                type_lien=TypeLien.CITE,
+                score_de_verification__isnull=False,
+            ).exclude(verifie_par=provenance).count()
+
+        # LA TRACE. Deplacer le seuil du collectif est un acte de
+        # gouvernance, pas un reglage anonyme : qui, quand, de combien a
+        # combien, et ce que ca a change.
+        # / The trace: moving the collective's threshold is a governance act.
+        logger.info(
+            "seuil de verification : %s -> %s par %s — %s renvoi(s) "
+            "relabellise(s), %s laisse(s) de cote (autre juge)",
+            seuil_precedent, seuil_demande, request.user,
+            renvois_changes, renvois_d_un_autre_juge,
+        )
+
+        modeles_actifs = AIModel.objects.filter(is_active=True)
+        return render(request, "front/includes/config_ia_toggle.html", {
+            "configuration": configuration,
+            "modeles_actifs": modeles_actifs,
+            # Le partial porte AUSSI la ligne audio : sans elle, changer
+            # le seuil la ferait disparaitre de l'ecran.
+            # / The partial also carries the audio line.
+            "config_transcription": TranscriptionConfig.objects.filter(
+                is_active=True,
+            ).first(),
+            "seuil_precedent": seuil_precedent,
+            "renvois_changes": renvois_changes,
+            "renvois_d_un_autre_juge": renvois_d_un_autre_juge,
         })
 
 

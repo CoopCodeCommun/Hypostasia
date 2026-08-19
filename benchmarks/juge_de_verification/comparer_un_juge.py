@@ -53,7 +53,8 @@ django.setup()
 from core.llm_providers import appeler_llm  # noqa: E402
 from core.models import AIModel  # noqa: E402
 from core.services.verification import (  # noqa: E402
-    TAILLE_DE_PAQUET, _construire_le_prompt_du_juge, _verdicts_de_la_reponse,
+    TAILLE_DE_PAQUET, VERSION_DE_LA_METHODE, _construire_le_prompt_du_juge,
+    _scores_de_la_reponse, seuil_de_verification,
 )
 
 CHEMIN_DE_L_ETALON = os.path.join(
@@ -72,10 +73,23 @@ def charger_l_etalon():
         return json.load(fichier)
 
 
-def juger_les_paires(modele_ia, paires_gelees):
+def juger_les_paires(modele_ia, paires_gelees, seuil):
     """
     Fait juger les paires par le candidat, par paquets, sans rien
     ecrire. / Has the candidate judge the pairs, batch by batch.
+
+    LE CANDIDAT REND UN DEGRE, L'ETALON PORTE UN VERDICT. Depuis
+    l'addendum du 18 aout 2026, la production demande « dans quelle
+    mesure » et non « oui ou non » : le candidat rend un entier de 0 a
+    100. L'etalon gele, lui, date de la question precedente et ne
+    connait que « soutient » / « ne_soutient_pas ».
+
+    Le degre est donc converti par le SEUIL pour rester comparable —
+    c'est une conversion, pas une mesure, et `main` le dit a l'ecran.
+    Le seuil devient ainsi une variable du banc : le faire varier montre
+    combien de desaccords venaient de la barre, et non du juge.
+    / The candidate returns a degree, the frozen etalon holds a verdict:
+    the threshold converts one into the other, and main() says so.
 
     :return: {lien_id: "soutient" | "ne_soutient_pas" | None}
     """
@@ -109,10 +123,12 @@ def juger_les_paires(modele_ia, paires_gelees):
                 reponses_du_candidat[paire["lien_id"]] = None
             continue
 
-        verdicts = _verdicts_de_la_reponse(reponse, len(paquet))
+        scores = _scores_de_la_reponse(reponse, len(paquet))
         for numero, paire in enumerate(paquet, start=1):
+            score = scores.get(numero) if scores else None
             reponses_du_candidat[paire["lien_id"]] = (
-                verdicts.get(numero) if verdicts else None
+                None if score is None
+                else ("soutient" if score >= seuil else "ne_soutient_pas")
             )
     return reponses_du_candidat
 
@@ -183,7 +199,7 @@ def main():
     if len(sys.argv) < 2 or not sys.argv[1].isdigit():
         raise SystemExit(
             "Usage : comparer_un_juge.py <id_du_modele> "
-            "[--enregistrer FICHIER] [--reference FICHIER]\n"
+            "[--enregistrer FICHIER] [--reference FICHIER] [--seuil N]\n"
             "Les identifiants : manage.py affecter_un_modele_a_un_role "
             "--lister",
         )
@@ -222,15 +238,40 @@ def main():
         provenances = {paire["verifie_par"] for paire in paires_gelees}
         nom_de_la_reference = ", ".join(sorted(provenances))
 
+    seuil = float(_option("--seuil") or seuil_de_verification())
+
     print(f"\nÉtalon gelé le {etalon['gele_le'][:10]} — "
           f"{len(paires_gelees)} paires")
     print(f"  référence     : {nom_de_la_reference}")
     print(f"  juge candidat : {modele_ia} (id {modele_ia.pk}, "
           f"température {modele_ia.temperature})")
+
+    # LA QUESTION A-T-ELLE CHANGE DEPUIS LE GEL ? Comparer un degre a un
+    # verdict n'est legitime que si on DIT qu'on convertit. Sans cet
+    # avertissement, un taux d'accord melangerait deux questions
+    # differentes sous un seul chiffre — exactement ce que l'etalon gele
+    # existe pour empecher.
+    # / Comparing a degree to a verdict is only honest if said out loud.
+    methode_gelee = etalon.get("methode_de_reference", "inconnue")
+    if methode_gelee != VERSION_DE_LA_METHODE:
+        print(
+            f"\n  ⚠ COMPARAISON CROISÉE. L'étalon a été gelé sous "
+            f"« {methode_gelee} », la production pose aujourd'hui la "
+            f"question « {VERSION_DE_LA_METHODE} ».\n"
+            f"    Le candidat rend un DEGRÉ ; il est converti en verdict "
+            f"au seuil de {seuil:g}/100 pour rester comparable.\n"
+            f"    Ce que ce banc mesure alors est un accord APRÈS "
+            f"conversion, pas un accord de verdicts. Faire varier "
+            f"`--seuil` montre\n    quelle part du désaccord venait de la "
+            f"barre, et non du juge."
+        )
+    else:
+        print(f"  seuil de conversion : {seuil:g}/100")
+
     print("\n  APPELS FACTURÉS. Rien ne sera écrit en base.\n")
 
     debut = time.time()
-    reponses_du_candidat = juger_les_paires(modele_ia, paires_gelees)
+    reponses_du_candidat = juger_les_paires(modele_ia, paires_gelees, seuil)
 
     if fichier_a_enregistrer:
         with open(fichier_a_enregistrer, "w", encoding="utf-8") as fichier:

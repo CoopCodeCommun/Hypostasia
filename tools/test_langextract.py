@@ -464,7 +464,12 @@ def lancer_test(
     # car LangExtract ne supporte pas encore le schema OpenAI natif
     modele_est_openai = "gpt" in identifiant_modele or "openai" in identifiant_modele
     if modele_est_openai:
-        parametres_extraction["fence_output"] = True
+        # RETIRE : ignore en LangExtract 1.1.1, HONORE en 1.6.0 — il
+        # demanderait alors des clotures ```json qu'un
+        # `response_format: json_object` ne rend pas. Meme raison que
+        # dans `hypostasis_extractor/services/__init__.py`.
+        # / Removed: ignored in 1.1.1, honoured in 1.6.0, where it would
+        #   contradict the provider's json_object response format.
         parametres_extraction["use_schema_constraints"] = False
 
     # Si on active le chunking pour les longs textes (plus de 4000 caracteres)

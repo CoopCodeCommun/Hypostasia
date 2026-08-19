@@ -135,11 +135,19 @@ conclusions que j'avais **publiées**.
 | « Mistral avait raison sur les trois paires relues » | Prématuré : j'appliquais une lecture étroite sans l'avoir examinée |
 | « Mistral se trompe sept fois, les permissifs ont raison » | **Réfuté par mon propre tableau** : le juge de référence s'accorde avec Mistral à **14/15**, et mon accord avec lui n'est que de 9/15 |
 | « ShieldStral ne transfère pas à l'implication » | **Faux — corrigé le 18 août**, voir § 4 |
+| « Le seuil optimal de ShieldStral est 0,05 » | **Faux.** Ce chiffre est le meilleur seuil du cadrage **abandonné**. Sous le cadrage correct : **0,378**. Un chiffre recopié sans son cadre survit à la mesure qui l'a produit |
+| Le banc ShieldStral du dépôt portait la mesure qui fonde la § 4 | **Faux.** Il portait le cadrage abandonné, et `shieldstral.json` en était la sortie. La mesure annoncée n'avait **aucun artefact rejouable** — elle en a un depuis le 18 août au soir |
 
 **La leçon de méthode**, et elle vaut plus que le chantier : *quand une mesure
 semble contredire une lecture existante, la tester à conditions égales avant de
-publier la nouvelle.* Deux de ces six erreurs sont des explications trouvées trop
-vite, et deux sont des seuils appliqués sans les avoir écrits.
+publier la nouvelle.* Trois de ces huit erreurs sont des explications trouvées
+trop vite, deux sont des seuils appliqués sans les avoir écrits, et deux sont
+des chiffres publiés sans que le banc qui les produirait existe.
+
+**Le corollaire, qui a coûté deux des huit** : *une conclusion sans artefact
+rejouable n'est pas une mesure.* Le banc doit porter la mesure qu'on cite, pas
+celle qu'on a abandonnée — sinon le prochain qui l'exécute obtient le contraire
+de ce que le texte annonce, et c'est le texte qu'il croira faux.
 
 **Le conflit d'intérêt, nommé** : je suis un modèle de langage qui juge d'autres
 modèles de langage, et ma conclusion validait commodément le juge que j'avais
@@ -157,22 +165,51 @@ Ce n'est pas un classifieur à catégories fixes : l'opérateur écrit sa **prop
 question binaire**, le modèle rend **un seul token**, et on lit ses logits — donc
 **un score continu, vraiment calibré**, là où les API refusent les logprobs.
 
-**Deux cadrages, deux résultats opposés :**
+**Deux cadrages, deux résultats opposés** — rejoué et archivé le 18 août au
+soir, les quatre lignes dans le même passage :
 
-| Cadrage | accord | AUC |
-|---|---|---|
-| affirmation **et** source dans le même `<Document>` | **4/15** | — |
-| `<Document>` = la source seule, `<Query>` portant l'affirmation | **14/15** | **0,92** |
+| Cadrage | sévérité | accord au seuil 0,5 | AUC | meilleur seuil |
+|---|---|---|---|---|
+| affirmation **et** source dans le même `<Document>` | large | **4/15** | **0,538** | 0,000 → 13/15 |
+| idem | strict | 2/15 | 0,500 | 0,000 → 13/15 |
+| `<Document>` = la source seule, `<Query>` portant l'affirmation | **large** | 11/15 | **0,923** | **0,378 → 14/15** |
+| idem | strict | 8/15 | 0,846 | 0,000 → 13/15 |
 
 **Le premier résultat était le mien, pas celui du modèle.** En respectant la
 structure `<Instruct>` / `<Query>` / `<Document>` que sa fiche décrit, il classe
-correctement **24 couples sur 26**. Une conclusion négative écrite après le
-premier essai aurait été fausse — et je l'avais écrite.
+correctement **24 couples sur 26** — c'est l'AUC dite autrement : 13 paires
+positives × 2 négatives = 26 couples, et 0,923 × 26 = 24. Une conclusion
+négative écrite après le premier essai aurait été fausse — et je l'avais écrite.
 
-**Ce qui reste à éprouver** : le seuil optimal (0,05) est choisi *après coup* sur
-quinze points, donc sur-ajusté ; le classement place quelques reprises quasi
-littérales très bas. Il faut refaire la mesure sur plusieurs affirmations avant
-d'en tirer un classement.
+> **Le « seuil optimal 0,05 » que ce paragraphe annonçait était FAUX**, et il
+> l'était d'une façon instructive : il vient du cadrage **abandonné**. Vérifié
+> sur les données rejouées — 0,05 donne bien 13/15 en cadrage `ensemble` et
+> sévérité stricte, et c'est le meilleur qu'on y obtienne. Sous le cadrage
+> correct, le seuil est **0,378**. Un chiffre survit à la mesure qui l'a produit
+> quand on le recopie sans son cadre ; c'est la septième entrée de la § 3.
+
+**Ce qui reste à éprouver** : le seuil 0,378 est choisi *après coup* sur quinze
+points d'**une seule** affirmation, donc sur-ajusté — l'AUC, elle, ne dépend
+d'aucun seuil et c'est le chiffre à lire. Le classement place quelques reprises
+quasi littérales très bas.
+
+> **Éprouvé le soir même, et le résultat tempère celui du dessus.** Le même
+> cadrage, rejoué sur les **145 paires gelées** : **AUC 0,734**, contre 0,923
+> sur les quinze. *Le 0,923 ne généralise pas.* Ce qui est établi deux fois,
+> c'est que le cadrage `separe` est le bon ; ce qui ne l'est pas, c'est le
+> niveau de performance.
+>
+> Sur ce jeu, **l'accord ne se lit pas** : 118 « soutient » pour 27
+> « ne_soutient_pas », donc *accepter tout* donne déjà 118/145. Et la « vérité »
+> y est `gemini-2.5-flash`, dont la reproductibilité mesurée est de **77 %** —
+> un accord parfait avec lui serait suspect, pas rassurant.
+>
+> Détail, distributions et compromis par seuil :
+> [le cadrage fait tout](juge_de_verification/2026-08-18_shieldstral-le-cadrage-fait-tout.md).
+
+**Le banc rejoue les deux cadrages**, et c'est délibéré : retirer le mauvais
+laisserait le bon sans point de comparaison, et la prochaine personne qui doute
+referait l'erreur.
 
 ---
 
@@ -201,21 +238,34 @@ résout le provider par son **nom**. API publique, **aucun fork**.
 
 ## 6. Ce qui reste ouvert
 
-1. **L'addendum de spec sur le seuil** — le geste qui manque depuis le début. Le
-   mot « établir » doit être défini, ou remplacé par un score. Tant qu'il ne l'est
-   pas, aucun classement de juges ne veut dire quoi que ce soit.
-2. **Le passage au score** : `verifie` et `faible` cessent d'être deux états pour
-   devenir deux côtés d'un curseur. `introuvable` reste déterministe, `contesté`
-   reste humain, la provenance reste attachée.
-3. **La capture des tokens réels** — préalable à toute facturation.
+~~1. **L'addendum de spec sur le seuil**~~ — **écrit et codé le 18 août au soir.**
+   Le mot « établir » est remplacé par un degré de 0 à 100 ; le seuil est un
+   réglage porté par `Configuration`, réglable à l'écran, et le déplacer ne
+   rejuge rien. Voir `CHANGELOG/2026-08-18-le-juge-rend-un-degre.md`.
+
+~~2. **Le passage au score**~~ — **fait.** Une précision par rapport à ce que
+   cette ligne annonçait : `verifie` et `faible` **restent stockés**, dérivés du
+   degré par un écrivain unique. Les rendre calculés à l'affichage aurait fait
+   tomber à zéro les compteurs de l'écran d'article — une dégradation
+   silencieuse — et cassé le gel de l'étalon.
+
+3. **La capture des tokens réels** — préalable à toute facturation. **Ouvert.**
+
 4. **Le risque du JSON nu** : une plateforme qui rend `[...]` au lieu de
-   `{"extractions": [...]}` perd ses extractions **en silence**. Le fork censé
-   s'en prémunir était mort ; rien ne le couvre.
-5. **Le référentiel des modèles vieillit sans que rien ne le dise** :
-   `gemini-2.5-flash-lite` y figure encore et répond 404 ; un tarif de mars avait
-   augmenté sans surveillance.
-6. **Refaire le jugement des juges sur dix affirmations**, une fois le seuil
-   écrit, et par quelqu'un d'autre que le modèle qui a choisi le juge.
+   `{"extractions": [...]}` perd ses extractions **en silence**. **Toujours
+   ouvert en 1.1.1** — mais LangExtract 1.6.0 le referme en amont, sans une
+   ligne de notre code. Ce que la montée exige d'abord (dont un changement
+   d'aligneur qui touche l'ancrage) est dans
+   `CHANGELOG/DEFAUTS-DIFFERES.md`.
+
+~~5. **`gemini-2.5-flash-lite` répond 404**~~ — **ligne retirée de la base le
+   18 août** (l'énumération et le tarif sont conservés). La surveillance des
+   tarifs, elle, reste ouverte.
+
+6. **Refaire le jugement des juges sur dix affirmations**, maintenant que le
+   seuil est écrit, et par quelqu'un d'autre que le modèle qui a choisi le juge.
+   **Ouvert, et c'est le plus important des six** : toutes les mesures de degré
+   publiées ici portent sur **une seule** affirmation.
 
 ---
 
