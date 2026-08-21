@@ -1,15 +1,19 @@
 {
     "manifest_version": 3,
     "name": "Hypostasia Extractor",
-    "version": "1.0",
-    "description": "Extract content and send to Hypostasia (Django)",
-    "host_permissions": [
-        "<all_urls>"
-    ],
+    "version": "1.0.0",
+    "description": "Récolte la page que vous lisez et la range dans un carnet de votre instance Hypostasia.",
     "permissions": [
         "activeTab",
         "scripting",
         "storage"
+    ],
+    "host_permissions": [
+        "https://hypostasia.org/*",
+        "https://beta.hypostasia.org/*"
+    ],
+    "optional_host_permissions": [
+        "*://*/*"
     ],
     "action": {
         "default_popup": "popup.html",
@@ -28,28 +32,19 @@
         "48": "icons/icon48.png",
         "128": "icons/icon128.png"
     },
-    "web_accessible_resources": [
-        {
-            "resources": [
-                "lib/Readability.js",
-                "lib/htmx.min.js",
-                "sidebar.html"
-            ],
-            "matches": [
-                "<all_urls>"
-            ]
-        }
-    ],
     "browser_specific_settings": {
         "gecko": {
             "id": "hypostasia@hypostasia.org",
-            "strict_min_version": "109.0",
+            "strict_min_version": "140.0",
             "data_collection_permissions": {
                 "required": [
                     "websiteContent"
                 ],
                 "optional": []
             }
+        },
+        "gecko_android": {
+            "strict_min_version": "142.0"
         }
     }
 }

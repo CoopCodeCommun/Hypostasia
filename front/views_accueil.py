@@ -148,6 +148,41 @@ class AideViewSet(viewsets.ViewSet):
         return Response(status=204)
 
 
+class ConfidentialiteViewSet(viewsets.ViewSet):
+    """
+    GET /confidentialite/ — ce que le service fait des donnees.
+    / GET /confidentialite/ — what the service does with your data.
+
+    LOCALISATION : front/views_accueil.py
+
+    CETTE ADRESSE EST CITEE HORS DU DEPOT. Elle est deposee dans la fiche
+    de l'extension navigateur sur addons.mozilla.org, ou Mozilla exige
+    une politique de confidentialite des lors qu'une extension transmet
+    du contenu de page. La renommer casse un lien que nous ne controlons
+    plus, et fait tomber la conformite de l'extension publiee.
+    / This address is cited outside the repo: it is filed in the
+    extension's addons.mozilla.org listing. Renaming it breaks a link we
+    no longer control.
+
+    En AllowAny, et il le faut : un relecteur de Mozilla la lit sans
+    compte, et un visiteur doit pouvoir savoir ce qu'on ferait de ses
+    donnees AVANT de s'inscrire.
+    / AllowAny on purpose: a reviewer reads it without an account.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def list(self, request):
+        """
+        Requete HTMX -> le partial seul. Acces direct -> la page entiere.
+        / HTMX -> partial only. Direct access -> full page.
+        """
+        if request.headers.get("HX-Request"):
+            return render(request, "front/includes/confidentialite_ecran.html")
+
+        return render(request, "front/base.html", {"confidentialite_preloaded": True})
+
+
 class ManifesteViewSet(viewsets.ViewSet):
     """
     GET /manifeste/ — pourquoi Hypostasia est un commun numerique.

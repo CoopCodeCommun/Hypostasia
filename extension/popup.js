@@ -43,7 +43,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // / Load server URL and token from storage
     const config = await new Promise(resolve => {
         chrome.storage.sync.get({
-            serverUrl: 'http://127.0.0.1:8000/',
+            // LE DEFAUT NE VAUT QUE POUR UNE INSTALLATION NEUVE.
+            // `storage.sync.get` ne rend cette valeur que si RIEN n'est
+            // enregistre. Changer ce defaut un jour ne deplacera donc
+            // personne qui a deja ouvert la popup une seule fois : il
+            // faudra une migration explicite.
+            // / The default applies to fresh installs only.
+            serverUrl: 'https://beta.hypostasia.org/',
             apiKey: '',
             [CLE_DU_SOUVENIR]: {},
         }, resolve);
@@ -78,7 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         var url_nettoyee = url_brute.trim();
 
         if (!url_nettoyee) {
-            return 'http://127.0.0.1:8000/';
+            return 'https://beta.hypostasia.org/';
         }
 
         // Ajouter le protocole si absent / Add protocol if missing
@@ -544,9 +550,54 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     var saveUrlBtn = document.getElementById('saveUrlBtn');
 
+    /**
+     * Demande l'autorisation de parler au serveur saisi.
+     * / Asks permission to talk to the server that was typed in.
+     *
+     * LOCALISATION : extension/popup.js
+     *
+     * Le manifest n'accorde d'office que les deux instances officielles,
+     * hypostasia.org et beta.hypostasia.org. Toute autre adresse — une
+     * instance auto-hebergee, un serveur de developpement — vit dans
+     * `optional_host_permissions` et doit etre autorisee par la personne
+     * qui la saisit.
+     *
+     * L'APPEL PART DIRECTEMENT DU CLIC, SANS AUCUN `await` AVANT LUI.
+     * Le navigateur refuse une demande de permission qui ne descend pas
+     * d'un geste utilisateur, et le premier `await` perd ce geste. Ne
+     * pas ajouter de `permissions.contains()` en amont pour « eviter la
+     * fenetre » : une permission deja accordee est rendue vraie sans
+     * rien afficher, et le detour couterait le geste.
+     * / Called straight from the click, with no prior await: the browser
+     * rejects a permission request that does not descend from a gesture.
+     *
+     * @param {string} url_du_serveur URL normalisee, terminee par un /
+     * @return {Promise<boolean>} vrai si l'autorisation est acquise
+     */
+    function demanderLAutorisationDuServeur(url_du_serveur) {
+        return chrome.permissions.request({ origins: [url_du_serveur + '*'] });
+    }
+
     async function sauvegarderUrlServeur() {
         var url_propre = sanitiserUrlServeur(serverUrlInput.value);
         serverUrlInput.value = url_propre;
+
+        // L'autorisation vient AVANT l'enregistrement. Sans elle, tous
+        // les appels au serveur echoueraient sur une erreur de meme
+        // origine, que le navigateur ne raconte qu'a la console : la
+        // popup afficherait « Serveur injoignable » pour une adresse
+        // pourtant vivante.
+        // / Permission first: without it every call fails on a
+        // same-origin error that only reaches the console.
+        var autorisation_accordee = await demanderLAutorisationDuServeur(url_propre);
+        if (!autorisation_accordee) {
+            afficherLeStatut(
+                'Sans autorisation, l\'extension ne peut pas joindre ce serveur.',
+                'error',
+            );
+            return;
+        }
+
         chrome.storage.sync.set({ serverUrl: url_propre });
 
         // Feedback visuel bref / Brief visual feedback
