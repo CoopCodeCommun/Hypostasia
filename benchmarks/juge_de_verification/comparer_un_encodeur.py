@@ -724,6 +724,18 @@ def mesurer(nom, candidat, paires, cadrages, agregations):
     return resultats, time.time() - debut, nombre_de_passes
 
 
+def _series(scores, verites):
+    """Les couples (score, vérité) exploitables. / The usable couples."""
+    utiles = [
+        (score, verite) for score, verite in zip(scores, verites)
+        if score is not None
+    ]
+    return (
+        [score for score, _v in utiles],
+        [verite for _s, verite in utiles],
+    )
+
+
 def afficher(nom, resultats, paires, duree, nombre_de_passes):
     """
     Le tableau d'un candidat. / One candidate's table.
@@ -805,12 +817,69 @@ def afficher(nom, resultats, paires, duree, nombre_de_passes):
         print(f"  {intitule:30} {auc:>6.3f} {strat:>7.3f} {macro:>6.3f} "
               f"{f'{mini:.2f} – {maxi:.2f}':>17} {amplitude:>7.3f}")
 
+    # LA BASELINE DE NEGATION, POUR LA MEME RAISON. Le recouvrement de
+    # mots ne suffit pas a prouver qu'un jeu est propre : sur le jeu
+    # adverse il vaut 0,500 quand ce compteur-ci monte a 0,789.
+    # / Word overlap alone does not prove a set is clean.
+    baseline_de_negation = une_ligne(
+        "COMPTEUR DE NÉGATIONS",
+        [score_de_negation(paire["source"], paire["affirmation"])
+         for paire in paires],
+    )
+    if baseline_de_negation:
+        intitule, auc, strat, macro, mini, maxi, amplitude, _t = (
+            baseline_de_negation
+        )
+        print(f"  {intitule:30} {auc:>6.3f} {strat:>7.3f} {macro:>6.3f} "
+              f"{f'{mini:.2f} – {maxi:.2f}':>17} {amplitude:>7.3f}")
+
     _a, _m, couples, groupes_utiles, _mi, _ma = auc_stratifiee(
         list(range(len(verites))), verites, groupes,
     )
     print(f"  → l'AUC stratifiée repose sur {couples} couples dans "
           f"{groupes_utiles} affirmations mixtes ; un écart de moins de "
           f"0,1 n'y est pas résolu.")
+
+    # LA VENTILATION PAR TYPE D'ERREUR — le coeur du jeu adverse.
+    # Une AUC globale melangee dirait « ce juge detecte 76 % des
+    # erreurs » sans dire LESQUELLES. Or un modele peut voir une
+    # negation et rester aveugle a un chiffre change : ce sont deux
+    # aptitudes differentes, et c'est la seconde qui fait perdre un
+    # lecteur. On ventile donc, sur la MEILLEURE combinaison.
+    # / A pooled AUC hides which errors are caught. Break it down.
+    types_d_erreur = sorted(
+        {paire.get("perturbation") for paire in paires
+         if paire.get("perturbation") and paire.get("perturbation") != "aucune"}
+    )
+    if types_d_erreur and lignes:
+        meilleure_cle = max(
+            resultats,
+            key=lambda cle: aire_sous_la_courbe(
+                *_series(resultats[cle], verites),
+            ) or 0,
+        )
+        scores = resultats[meilleure_cle]
+        print(f"\n  Par type d'erreur — combinaison « {meilleure_cle} » :")
+        for type_d_erreur in types_d_erreur:
+            gardees = [
+                (score, paire)
+                for score, paire in zip(scores, paires)
+                if score is not None
+                and paire.get("perturbation") in ("aucune", type_d_erreur)
+            ]
+            notes = [score for score, _paire in gardees]
+            verdicts = [paire["verite"] for _score, paire in gardees]
+            appartenances = [
+                paire.get("groupe", paire["affirmation"])
+                for _score, paire in gardees
+            ]
+            auc = aire_sous_la_courbe(notes, verdicts)
+            appariee, _macro, _c, _n, _mi, _ma = auc_stratifiee(
+                notes, verdicts, appartenances,
+            )
+            fausses = sum(1 for verdict in verdicts if not verdict)
+            print(f"    {type_d_erreur:12} {fausses:>3} fausses  "
+                  f"AUC {auc:.3f}  appariée {appariee:.3f}")
 
 
 # LES VERBES QUE LA NEGATION MECANIQUE SAIT TRAITER. Liste volontairement
@@ -917,47 +986,298 @@ def nier_l_affirmation(source, affirmation):
     return None
 
 
-def paires_adverses():
+def perturber_un_nombre(source, affirmation):
     """
-    Le jeu ADVERSE : chaque paire positive, et sa negation.
-    / The ADVERSARIAL set: each positive pair, and its negation.
+    Change un nombre de la phrase que la source etablit.
+    / Alters a number in the sentence the source establishes.
+
+    « 67 millions » devient « 68 millions ». La phrase reste
+    grammaticale, elle reste sur le sujet, et elle devient FAUSSE.
+    C'est l'erreur la plus frequente d'un modele qui resume, et celle
+    qu'un lecteur remarque le moins.
+    / The commonest summarisation error, and the least visible one.
+
+    DEUX CONDITIONS, ET AUCUNE N'EST NEGOCIABLE. Une premiere version de
+    cette fonction changeait n'importe quel nombre de +1. Mesure du
+    19 aout : elle a transforme « 2010 » en « 2011 » sur une source qui
+    disait « En 2011 » — elle a donc CORRIGE l'affirmation au lieu de la
+    fausser, et son etiquette « fausse » mentait. Le resultat proche du
+    hasard qu'elle rendait etait un artefact de ce code, pas une
+    propriete des modeles.
+    / An earlier version turned 2010 into 2011 on a source saying 2011:
+    it CORRECTED the claim. Its near-chance result was an artefact.
+
+    1. **Le nombre doit figurer dans la SOURCE.** Sinon rien ne dit que
+       le changer rend l'affirmation fausse : la source ne se prononce
+       pas.
+    2. **Le remplacant ne doit PAS y figurer**, et le nombre doit tenir
+       en trois caracteres au plus — au-dela, `score_lexical` le compte
+       comme un mot, et le retirer ferait bouger le recouvrement, ce que
+       tout ce jeu s'interdit.
+    / The number must be IN the source, its replacement must not, and it
+    must be short enough that score_lexical ignores it.
+    """
+    nombres_de_la_source = set(re.findall(r"\b\d+\b", source))
+    for debut, fin in _phrases_par_proximite(source, affirmation):
+        phrase = affirmation[debut:fin]
+        for rencontre in re.finditer(r"\b\d+\b", phrase):
+            ecrit = rencontre.group(0)
+            if len(ecrit) > 3 or ecrit not in nombres_de_la_source:
+                continue
+            remplacant = str(int(ecrit) + 1)
+            if len(remplacant) > 3 or remplacant in nombres_de_la_source:
+                continue
+            return (
+                affirmation[:debut] + phrase[:rencontre.start()]
+                + remplacant + phrase[rencontre.end():] + affirmation[fin:]
+            )
+    return None
+
+
+def permuter_deux_entites(source, affirmation):
+    """
+    Echange deux noms propres de l'affirmation.
+    / Swaps two proper nouns within the claim.
+
+    C'est la perturbation la plus PROPRE de toutes : elle ne fait que
+    deplacer des mots deja presents. Le vocabulaire de l'affirmation est
+    donc rigoureusement INCHANGE — pas seulement au filtre des quatre
+    caracteres, mais mot pour mot. Aucun compteur de mots, quel qu'il
+    soit, ne peut la voir.
+    / The cleanest perturbation: the word multiset is untouched.
+
+    En revanche elle change qui fait quoi, donc la verite.
+    """
+    # Un nom propre : une majuscule en milieu de phrase.
+    # / A proper noun: a capital that does not open a sentence.
+    candidats = [
+        rencontre for rencontre in re.finditer(r"\b[A-ZÉÈÀÎÔ][\wéèêàçîô]{3,}", affirmation)
+        if rencontre.start() > 0 and affirmation[rencontre.start() - 1] not in ".!?\n"
+    ]
+    distincts = []
+    for rencontre in candidats:
+        if rencontre.group(0) not in [trouve.group(0) for trouve in distincts]:
+            distincts.append(rencontre)
+        if len(distincts) == 2:
+            break
+    if len(distincts) < 2:
+        return None
+    premier, second = distincts
+    return (
+        affirmation[:premier.start()] + second.group(0)
+        + affirmation[premier.end():second.start()] + premier.group(0)
+        + affirmation[second.end():]
+    )
+
+
+def inverser_un_quantifieur(source, affirmation):
+    """
+    Retourne un quantificateur : « tous » devient « aucun ».
+    / Flips a quantifier: "all" becomes "none".
+
+    Une synthese de deliberation vit de ces mots-la — ils disent si un
+    constat vaut pour tout le monde ou pour une partie. Les retourner
+    change ce que le debat a dit, en laissant la phrase intacte par
+    ailleurs.
+    / Deliberation summaries live on quantifiers.
+    """
+    inversions = {
+        "toujours": "jamais", "jamais": "toujours",
+        "tous": "aucun", "toutes": "aucune",
+        "plusieurs": "aucun", "souvent": "rarement",
+        "beaucoup": "peu", "davantage": "moins",
+        "augmente": "diminue", "augmentent": "diminuent",
+        "renforce": "affaiblit", "renforcent": "affaiblissent",
+        "facilite": "empêche", "facilitent": "empêchent",
+        "permet": "empêche", "permettent": "empêchent",
+    }
+    for debut, fin in _phrases_par_proximite(source, affirmation):
+        phrase = affirmation[debut:fin]
+        for mot, contraire in inversions.items():
+            rencontre = re.search(rf"\b{mot}\b", phrase)
+            if not rencontre:
+                continue
+            return (
+                affirmation[:debut] + phrase[:rencontre.start()] + contraire
+                + phrase[rencontre.end():] + affirmation[fin:]
+            )
+    return None
+
+
+def _phrases_par_proximite(source, affirmation):
+    """
+    Les phrases de l'affirmation, la plus proche de la source d'abord.
+    / The claim's sentences, closest to the source first.
+
+    Toutes les perturbations visent la phrase que la source ETABLIT :
+    perturber une phrase sans rapport laisserait la paire soutenue au
+    sens large, et l'etiquette « fausse » mentirait.
+    / All perturbations target the sentence the source establishes.
+    """
+    def mots_de(texte):
+        return {
+            mot for mot in re.findall(r"\w+", texte.lower()) if len(mot) > 3
+        }
+
+    mots_de_la_source = mots_de(source)
+
+    def proximite(borne):
+        debut, fin = borne
+        mots = mots_de(affirmation[debut:fin])
+        if not mots:
+            return 0.0
+        return len(mots & mots_de_la_source) / len(mots)
+
+    return sorted(phrases_de(affirmation), key=proximite, reverse=True)
+
+
+# LES PERTURBATIONS RETENUES. Chacune fabrique une affirmation FAUSSE a
+# partir d'une vraie, en touchant la phrase que la source etablit.
+#
+# ELLES SONT TROIS, ET UNE QUATRIEME A ETE ECARTEE PAR LA MESURE — voir
+# le bloc sous cette table. Une cinquieme, `nombre`, ne rend que deux
+# paires sur ce corpus : elle est la, elle ne mesure rien.
+# / Three retained; a fourth was measured invalid (see below).
+PERTURBATIONS = {
+    "negation": nier_l_affirmation,
+    "quantifieur": inverser_un_quantifieur,
+    "nombre": perturber_un_nombre,
+}
+
+# `permuter_deux_entites` N'EST PAS DANS CETTE TABLE, ET C'EST UNE
+# CONCLUSION DE MESURE. Le 19 aout, elle a echange « Open » et
+# « Badges » — deux morceaux du MEME nom compose. « Les Open Badges »
+# devenait « Les Badges Open » : une coquille, pas une affirmation
+# fausse. Les sept modeles y etaient donc au hasard, et ce hasard ne
+# disait rien d'eux.
+#
+# Le fond du probleme n'est pas reglable en durcissant la regle : deux
+# entites coordonnees s'echangent sans changer le sens (« Mozilla et
+# MacArthur creent » vaut « MacArthur et Mozilla creent »), et
+# remplacer une entite par une autre retirerait un mot de la source,
+# donc ferait bouger le recouvrement — ce que ce jeu s'interdit.
+# La fonction reste ici pour que la prochaine personne qui y pense
+# trouve la mesure qui l'a ecartee, plutot que de la refaire.
+# / Entity swap is deliberately absent: measured invalid, and not
+# fixable without breaking the overlap invariant.
+
+
+def paires_adverses(perturbations=None):
+    """
+    Le jeu ADVERSE : chaque paire positive, et ses versions FAUSSES.
+    / The ADVERSARIAL set: each positive pair, and its FALSE versions.
 
     LOCALISATION : benchmarks/juge_de_verification/comparer_un_encodeur.py
 
     Construit depuis l'etalon gele — donc depuis de VRAIS paragraphes de
     synthese et de VRAIES sources de debat, jamais depuis du texte
     invente. Seules les paires que la reference declare « soutient »
-    servent de base : nier une paire deja negative ne donnerait pas une
-    verite connue.
+    servent de base : perturber une paire deja negative ne donnerait pas
+    une verite connue.
 
-    Ce jeu est **equilibre par construction** (autant de positives que de
-    negatives), ce qui le distingue de l'etalon et de ses 118 contre 27 :
-    l'accord y redevient lisible, et le « meilleur seuil » cesse d'etre
-    un artefact.
-    / Balanced by construction, unlike the 118/27 etalon.
+    L'INVARIANT EST VERIFIE PAIRE PAR PAIRE, ET LES FAUTIVES SONT
+    JETEES. Une perturbation n'a d'interet que si elle laisse le
+    recouvrement lexical INCHANGE — sinon un compteur de mots la
+    verrait, et le jeu perdrait sa raison d'etre. Plutot que de
+    supposer que chaque regle preserve le recouvrement, on le MESURE, et
+    on ecarte les paires ou il a bouge. Le banc dit alors combien il en
+    a ecarte, et pourquoi.
+    / The invariant is checked per pair, not assumed; violations are
+    dropped and counted.
+
+    :param perturbations: les noms a jouer, ou None pour toutes
+    :return: la liste des paires, chacune portant sa `perturbation`
     """
+    noms = perturbations or list(PERTURBATIONS)
+    positives = [paire for paire in paires_de_l_etalon() if paire["verite"]]
+
     adverses = []
-    for paire in paires_de_l_etalon():
-        if not paire["verite"]:
-            continue
-        niee = nier_l_affirmation(paire["source"], paire["affirmation"])
-        if niee is None:
-            continue
-        # LES DEUX VERSIONS PARTAGENT LEUR GROUPE, et c'est ce qui rend
-        # l'AUC stratifiee lisible ici : elle devient une comparaison
-        # APPARIEE — « pour cette paire-ci, le juge note-t-il la version
-        # vraie au-dessus de sa negation ? ». Sans cle explicite, le
-        # regroupement se ferait sur le texte de l'affirmation, qui
-        # DIFFERE entre les deux, et chaque groupe n'aurait qu'une seule
-        # classe : l'AUC stratifiee serait indefinie.
-        # / Both versions share a group key, making the stratified AUC a
-        # paired comparison. Grouping on the claim text would break it.
-        groupe = f"{paire['numero']}"
-        adverses.append(dict(paire, verite=True, groupe=groupe))
-        adverses.append(
-            dict(paire, affirmation=niee, verite=False, groupe=groupe),
+    ecartees = {nom: 0 for nom in noms}
+    posees = {nom: 0 for nom in noms}
+
+    for paire in positives:
+        recouvrement_vrai = score_lexical(
+            paire["source"], paire["affirmation"],
         )
+        versions_fausses = []
+        for nom in noms:
+            perturbee = PERTURBATIONS[nom](
+                paire["source"], paire["affirmation"],
+            )
+            if perturbee is None or perturbee == paire["affirmation"]:
+                continue
+            # L'INVARIANT, MESURE : le recouvrement doit etre le meme.
+            # / The invariant, measured.
+            if score_lexical(paire["source"], perturbee) != recouvrement_vrai:
+                ecartees[nom] += 1
+                continue
+            posees[nom] += 1
+            versions_fausses.append((nom, perturbee))
+
+        if not versions_fausses:
+            continue
+
+        # LES VERSIONS D'UNE MEME PAIRE PARTAGENT LEUR GROUPE. L'AUC
+        # stratifiee devient alors une comparaison APPARIEE : « pour
+        # cette paire-ci, le juge note-t-il la version vraie au-dessus
+        # de ses versions fausses ? ». C'est la question utile.
+        # / All versions of a pair share a group: a paired comparison.
+        groupe = f"{paire['numero']}"
+        adverses.append(dict(
+            paire, verite=True, groupe=groupe, perturbation="aucune",
+        ))
+        for nom, perturbee in versions_fausses:
+            adverses.append(dict(
+                paire, affirmation=perturbee, verite=False,
+                groupe=groupe, perturbation=nom,
+            ))
+
+    paires_adverses.bilan = {
+        "posees": posees, "ecartees": ecartees,
+        "positives_utilisees": sum(
+            1 for paire in adverses if paire["verite"]
+        ),
+    }
     return adverses
+
+
+MOTIF_DE_NEGATION = re.compile(
+    r"\b(ne|n'|pas|aucun|aucune|jamais|ni|non)\b", re.IGNORECASE,
+)
+
+
+def score_de_negation(source, affirmation):
+    """
+    LA SECONDE BASELINE, ET ELLE DENONCE LA FUITE DU JEU ADVERSE.
+    / The second baseline: it exposes the adversarial set's leak.
+
+    LOCALISATION : benchmarks/juge_de_verification/comparer_un_encodeur.py
+
+    Elle ne regarde QUE l'affirmation, jamais la source : elle compte
+    ses marques de negation, et rend d'autant moins que l'affirmation en
+    porte. Un juge n'est pas cense pouvoir etre imite par ca.
+
+    POURQUOI ELLE EXISTE. Le jeu adverse a ete construit pour que le
+    RECOUVREMENT DE MOTS y vaille 0,500 exactement — et c'est verifie.
+    On en a conclu que tout ce qui depasse 0,5 y etait une detection
+    qu'un comptage de surface ne peut pas produire. C'est faux : la
+    perturbation dominante est une negation, donc **97 % des
+    affirmations fausses portent une marque de negation contre 42 % des
+    vraies**. Ce compteur-ci obtient **0,776 en AUC globale et 0,962 en
+    appariee** — au-dessus du meilleur juge mesure (0,743 / 0,853).
+
+    LA CONSEQUENCE COMMANDE LA LECTURE DU JEU ADVERSE : un candidat qui
+    ne depasse pas CETTE ligne n'a pas montre qu'il verifie ; il peut
+    n'avoir vu qu'un « pas ». Le jeu reste valable pour ECARTER un
+    candidat — echouer quand un indice de surface est a portee est
+    aggravant — jamais pour en consacrer un.
+    / A candidate below this line may have seen only a "not".
+
+    Neutraliser la fuite demanderait des perturbations qui n'ajoutent
+    aucune marque de negation, ou un jeu ou les affirmations vraies en
+    portent autant que les fausses.
+    """
+    return -len(MOTIF_DE_NEGATION.findall(affirmation or ""))
 
 
 def score_lexical(source, affirmation):

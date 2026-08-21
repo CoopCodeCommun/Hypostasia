@@ -309,13 +309,74 @@ class ServiceDeFixturesDesAnalyseursTest(TestCase):
         with patch.dict(os.environ, cles):
             creer_les_modeles_ia_et_les_analyseurs()
 
-        for role in (RoleDeModele.REDACTEUR_D_ARTICLE,
-                     RoleDeModele.JUGE_DE_VERIFICATION):
+        # DEUX ROLES, DEUX MODELES, ET LA DIFFERENCE EST MESUREE.
+        # La campagne des neuf passes du 19 aout 2026 a montre que le
+        # « % de citations verifiees » ne departage pas les redacteurs
+        # (11 points d'amplitude d'un modele avec lui-meme). Ce qui
+        # tranche, c'est la PROSE SANS SOURCE : Medium en laisse 10 %,
+        # Small 18,8 %, Large 26,2 %. Pour un outil dont la promesse est
+        # la tracabilite, c'est ce critere qui decide.
+        # / Nine repeated passes: the verified-rate does not
+        #   discriminate; unsourced prose does. Medium wins there.
+        attendus = {
+            RoleDeModele.REDACTEUR_D_ARTICLE: "mistral-medium-latest",
+            RoleDeModele.JUGE_DE_VERIFICATION: "mistral-small-latest",
+        }
+        for role, model_choice_attendu in attendus.items():
             with self.subTest(role=role):
                 affectation = ModeleParRole.objects.get(role=role)
                 self.assertEqual(
-                    affectation.modele.model_choice, "mistral-small-latest",
+                    affectation.modele.model_choice, model_choice_attendu,
                 )
+
+    def test_le_redacteur_est_cree_meme_s_il_n_est_pas_le_premier(self):
+        """
+        LE PIEGE DE L'ORDRE. Le PREMIER modele de la liste devient celui
+        de la Configuration, donc le modele d'EXTRACTION — c'est Small,
+        et il doit le rester. Medium vient donc APRES, et il faut
+        verifier qu'il est bien cree quand meme : un role qui designe un
+        modele absent est saute en silence, et le redacteur retomberait
+        sur la Configuration sans qu'un mot ne le dise.
+        / Medium comes second on purpose; a role naming an absent model
+        is silently skipped.
+        """
+        from core.models import AIModel, Configuration
+
+        cles = dict(CLES_API_NEUTRALISEES)
+        cles["MISTRAL_API_KEY"] = "une-cle-de-test"
+
+        with patch.dict(os.environ, cles):
+            creer_les_modeles_ia_et_les_analyseurs()
+
+        self.assertTrue(
+            AIModel.objects.filter(
+                model_choice="mistral-medium-latest",
+            ).exists(),
+        )
+        # L'extraction reste sur Small : c'est LangExtract qui l'appelle.
+        # / Extraction stays on Small.
+        self.assertEqual(
+            Configuration.get_solo().ai_model.model_choice,
+            "mistral-small-latest",
+        )
+
+    def test_le_redacteur_recree_est_aussi_a_temperature_zero(self):
+        """
+        Tous les bancs mesurent a 0. Le defaut du champ vaut 0,7 : sans
+        la ligne explicite, une base reconstruite apres un `down -v`
+        repartirait a 0,7 et aucune mesure ne serait plus comparable.
+        / Every bench measures at 0; the field defaults to 0.7.
+        """
+        from core.models import AIModel
+
+        cles = dict(CLES_API_NEUTRALISEES)
+        cles["MISTRAL_API_KEY"] = "une-cle-de-test"
+
+        with patch.dict(os.environ, cles):
+            creer_les_modeles_ia_et_les_analyseurs()
+
+        redacteur = AIModel.objects.get(model_choice="mistral-medium-latest")
+        self.assertEqual(redacteur.temperature, 0.0)
 
     def test_un_role_choisi_a_la_main_survit_a_une_reinstallation(self):
         """

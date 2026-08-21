@@ -1,72 +1,142 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <!--
+    POPUP DE L'EXTENSION — CHOISIR LE CARNET, PUIS RECOLTER
+    / Extension popup — choose the notebook, then harvest
+
+    LOCALISATION : extension/popup.html
+
+    L'ORDRE DES ELEMENTS EST LE SUJET. Le carnet se choisit AVANT le
+    bouton : la capture part directement a sa destination, en une seule
+    requete. Auparavant la note atterrissait dans le fourre-tout et des
+    boutons de rangement apparaissaient apres coup — deux gestes, deux
+    aller-retours, et une note deja rangee ailleurs si l'utilisateur
+    fermait la popup entre les deux.
+    / The notebook is picked BEFORE the button: one request, one
+    destination. The old flow filed into the inbox and offered buttons
+    afterwards — two gestures, and a misfiled note if the popup closed.
+
+    FLUX : popup.js au chargement
+      -> GET /api/pages/me/         (le serveur repond-il, suis-je connecte)
+      -> GET /api/pages/mes_carnets/ (remplit #carnetChoisi)
+      -> clic #recolterBtn
+      -> GET /api/pages/?url=...    (deja capturee ?)
+      -> Readability dans l'onglet
+      -> POST /api/pages/ { ..., dossier_id }
+    -->
     <style>
+        /* Tokens de couleur, clair et sombre. La popup a son propre CSS :
+           elle ne charge ni Tailwind ni maquette.css, qui vivent sur le
+           serveur et ne sont pas accessibles depuis chrome-extension://.
+           / The popup carries its own tokens: the server's stylesheets
+           are not reachable from a chrome-extension:// page. */
+        :root {
+            --papier: #fafafa;
+            --panneau: #ffffff;
+            --encre: #334155;
+            --encre-douce: #64748b;
+            --bordure: #cbd5e1;
+            --accent: #3b82f6;
+            --bouton-fond: #2563eb;
+            --bouton-fond-survol: #3b82f6;
+            --bouton-texte: #ffffff;
+            --succes: #15803d;
+            --alerte: #b45309;
+            --erreur: #dc2626;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --papier: #0f172a;
+                --panneau: #1e293b;
+                --encre: #e2e8f0;
+                --encre-douce: #94a3b8;
+                --bordure: #475569;
+                --accent: #60a5fa;
+                /* Bleu CLAIR et texte SOMBRE, l'inverse du theme clair.
+                   Un bouton bleu fonce avec du texte blanc ne donne que
+                   3,68:1 sur ce fond — insuffisant pour du texte de
+                   13 px, qui n'est pas du « grand texte » au sens WCAG.
+                   Ainsi : 7,02:1 pour le texte, et 7,02:1 du bouton sur
+                   le fond de la popup, donc un bouton nettement delimite.
+                   / Light blue with dark text: the dark-blue-on-white
+                   pairing only reaches 3.68:1 here, below AA for 13px. */
+                --bouton-fond: #60a5fa;
+                --bouton-fond-survol: #93c5fd;
+                --bouton-texte: #0f172a;
+                --succes: #4ade80;
+                --alerte: #fbbf24;
+                --erreur: #f87171;
+            }
+        }
+
         body {
-            width: 240px;
+            width: 260px;
             padding: 10px;
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: #fafafa;
+            background: var(--papier);
+            color: var(--encre);
         }
 
-        #serverUrl {
+        label {
+            display: block;
+            font-size: 10px;
+            color: var(--encre-douce);
+            margin-bottom: 3px;
+        }
+
+        #serverUrl, #carnetChoisi {
             width: 100%;
             padding: 5px 8px;
-            border: 1px solid #cbd5e1;
+            border: 1px solid var(--bordure);
             border-radius: 4px;
             font-size: 11px;
-            color: #334155;
+            color: var(--encre);
+            background: var(--panneau);
             box-sizing: border-box;
-            margin-bottom: 8px;
         }
 
-        #serverUrl:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        #serverUrl:focus, #carnetChoisi:focus, #recolterBtn:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
         }
 
         #recolterBtn {
             width: 100%;
             padding: 8px 12px;
-            background-color: #3b82f6;
-            color: white;
+            background-color: var(--bouton-fond);
+            color: var(--bouton-texte);
             border: none;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
             font-size: 13px;
-            transition: background-color 0.15s;
         }
 
-        #recolterBtn:hover {
-            background-color: #2563eb;
-        }
-
-        #recolterBtn:disabled {
-            background-color: #94a3b8;
-            cursor: not-allowed;
-        }
+        #recolterBtn:hover:not(:disabled) { background-color: var(--bouton-fond-survol); }
+        #recolterBtn:disabled { background-color: var(--encre-douce); color: var(--papier); cursor: not-allowed; }
 
         #status {
             margin-top: 6px;
             font-size: 11px;
-            color: #64748b;
+            color: var(--encre-douce);
             text-align: center;
             min-height: 16px;
         }
 
-        #status.error { color: #ef4444; }
-        #status.success { color: #22c55e; }
+        #status.error { color: var(--erreur); }
+        #status.success { color: var(--succes); }
+        #status.info { color: var(--alerte); }
 
         #serverStatus {
             display: flex;
             align-items: center;
             gap: 6px;
             font-size: 10px;
-            color: #64748b;
+            color: var(--encre-douce);
             margin-bottom: 4px;
         }
 
@@ -74,12 +144,12 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background-color: #94a3b8;
+            background-color: var(--encre-douce);
             flex-shrink: 0;
         }
 
-        #serverStatusDot.online { background-color: #22c55e; }
-        #serverStatusDot.offline { background-color: #ef4444; }
+        #serverStatusDot.online { background-color: var(--succes); }
+        #serverStatusDot.offline { background-color: var(--erreur); }
 
         #authStatus {
             font-size: 10px;
@@ -87,66 +157,72 @@
             min-height: 14px;
         }
 
-        #authStatus.auth-ok { color: #22c55e; }
-        #authStatus.auth-ko { color: #f59e0b; }
+        #authStatus.auth-ok { color: var(--succes); }
+        #authStatus.auth-ko { color: var(--alerte); }
 
-        #dossiersChoix {
-            margin-top: 6px;
+        #zoneCarnet { margin-bottom: 8px; }
+
+        /* L'avertissement de carnet public. Discret par choix : le seul
+           carnet inscriptible d'un compte peut etre public, auquel cas
+           cette ligne s'afficherait a CHAQUE capture — un avertissement
+           permanent n'avertit plus.
+           / Deliberately discreet: a user whose only writable notebook is
+           public would see it on every capture, and a permanent warning
+           stops warning. */
+        #carnetAvertissement {
             display: none;
-        }
-
-        #dossiersChoix .dossier-label {
             font-size: 10px;
-            color: #64748b;
-            margin-bottom: 4px;
+            color: var(--alerte);
+            margin-top: 3px;
         }
 
-        #dossiersListe {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-        }
+        #carnetAvertissement.visible { display: block; }
 
-        .btn-dossier {
-            font-size: 10px;
-            padding: 3px 8px;
-            border: 1px solid #cbd5e1;
-            border-radius: 12px;
-            background: white;
-            color: #334155;
+        .ligne-serveur { display: flex; gap: 4px; margin-bottom: 8px; }
+
+        #saveUrlBtn {
+            width: auto;
+            padding: 5px 8px;
+            font-size: 11px;
+            border: none;
+            border-radius: 4px;
+            background-color: var(--encre-douce);
+            /* Meme raison que le bouton principal : du blanc sur ce gris
+               ne donne que 2,6:1 en theme sombre.
+               / Same reason as the main button: white here is 2.6:1. */
+            color: var(--bouton-texte);
             cursor: pointer;
-            transition: all 0.15s;
-        }
-
-        .btn-dossier:hover {
-            background: #eff6ff;
-            border-color: #3b82f6;
-            color: #2563eb;
-        }
-
-        .btn-dossier.selected {
-            background: #dbeafe;
-            border-color: #3b82f6;
-            color: #1d4ed8;
         }
     </style>
 </head>
 <body>
-    <div style="display: flex; gap: 4px; margin-bottom: 8px;">
-        <input type="text" id="serverUrl" placeholder="http://127.0.0.1:8000/" style="margin-bottom: 0; flex: 1;">
-        <button id="saveUrlBtn" style="width: auto; padding: 5px 8px; font-size: 11px; border-radius: 4px; background-color: #64748b;">OK</button>
+    <div class="ligne-serveur">
+        <label for="serverUrl" class="visually-hidden" style="position:absolute;left:-9999px;">Adresse du serveur Hypostasia</label>
+        <input type="text" id="serverUrl" placeholder="http://127.0.0.1:8000/"
+               data-testid="extension-url-serveur" style="flex: 1;">
+        <button id="saveUrlBtn" data-testid="extension-valider-url">OK</button>
     </div>
-    <div id="serverStatus">
-        <span id="serverStatusDot"></span>
+
+    <div id="serverStatus" aria-live="polite">
+        <span id="serverStatusDot" aria-hidden="true"></span>
         <span id="serverStatusText">Verification...</span>
     </div>
-    <div id="authStatus"></div>
-    <button id="recolterBtn">Recolter</button>
-    <div id="status"></div>
-    <div id="dossiersChoix">
-        <div class="dossier-label">Classer dans :</div>
-        <div id="dossiersListe"></div>
+    <div id="authStatus" aria-live="polite"></div>
+
+    <div id="zoneCarnet">
+        <label for="carnetChoisi">Ranger dans</label>
+        <select id="carnetChoisi" data-testid="extension-choix-carnet"
+                aria-describedby="carnetAvertissement">
+            <option value="">A ranger (le fourre-tout)</option>
+        </select>
+        <div id="carnetAvertissement" role="status">
+            Ce carnet est public : la note y sera visible par tous.
+        </div>
     </div>
+
+    <button id="recolterBtn" data-testid="extension-recolter">Recolter</button>
+    <div id="status" role="status" aria-live="polite"></div>
+
     <script src="popup.js"></script>
 </body>
 </html>

@@ -1,19 +1,22 @@
 /**
  * Logique principale de la popup de l'extension navigateur.
- * Gere la recolte de contenu, l'authentification par token,
- * et le classement dans les dossiers apres recolte.
- * / Main popup logic for the browser extension.
- * Handles content harvesting, token authentication,
- * and folder classification after harvest.
+ * Choix du carnet, recolte du contenu, authentification par token.
+ * / Main popup logic: notebook choice, content harvesting, token auth.
  *
  * LOCALISATION : extension/popup.js
  *
  * COMMUNICATION :
- * - Appelle GET /api/pages/ pour verifier les doublons
- * - Appelle GET /api/pages/me/ pour verifier le token
- * - Appelle POST /api/pages/ pour creer une page
- * - Appelle GET /api/pages/mes_dossiers/ pour lister les dossiers
- * - Appelle POST /api/pages/{id}/classer_depuis_extension/ pour classer
+ * - GET  /api/pages/me/          verifie le serveur ET le token
+ * - GET  /api/pages/mes_carnets/ remplit le menu des carnets
+ * - GET  /api/pages/?url=        cherche un doublon dans MON perimetre
+ * - POST /api/pages/             cree la note dans le carnet choisi
+ *
+ * LE CARNET SE CHOISIT AVANT LA CAPTURE. La note part directement a sa
+ * destination : `dossier_id` voyage avec le POST. L'ancien flux creait
+ * la note dans le fourre-tout puis proposait des boutons de rangement,
+ * ce qui laissait la note mal rangee si la popup se fermait entre les
+ * deux gestes.
+ * / The notebook is chosen before capture and travels with the POST.
  */
 document.addEventListener('DOMContentLoaded', async () => {
     const recolterBtn = document.getElementById('recolterBtn');
@@ -22,8 +25,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const indicateur_point = document.getElementById('serverStatusDot');
     const indicateur_texte = document.getElementById('serverStatusText');
     const zone_auth = document.getElementById('authStatus');
-    const zone_dossiers = document.getElementById('dossiersChoix');
-    const liste_dossiers = document.getElementById('dossiersListe');
+    const menu_des_carnets = document.getElementById('carnetChoisi');
+    const avertissement_carnet = document.getElementById('carnetAvertissement');
+
+    // Cle unique du souvenir de rangement. UN SEUL enregistrement, qui
+    // porte un objet : une cle par couple serveur+compte ferait grossir
+    // le stockage sans limite (chrome.storage.sync plafonne a 512
+    // entrees) et rien ne viendrait jamais la purger.
+    // / A single stored record holding a map: one key per server+account
+    // would grow without bound against a 512-item quota, unpurged.
+    const CLE_DU_SOUVENIR = 'dernierCarnetParCompte';
+    const SOUVENIRS_GARDES = 20;
 
     // Charger l'adresse serveur et le token depuis le storage
     // / Load server URL and token from storage
@@ -31,6 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         chrome.storage.sync.get({
             serverUrl: 'http://127.0.0.1:8000/',
             apiKey: '',
+            [CLE_DU_SOUVENIR]: {},
         }, resolve);
     });
     serverUrlInput.value = config.serverUrl;
@@ -39,15 +52,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     // / Authentication token loaded from storage
     var token_api = config.apiKey || '';
 
+    // Le compte connecte, connu apres /api/pages/me/. Il entre dans la
+    // cle du souvenir : deux comptes sur le meme serveur n'ont pas les
+    // memes carnets, et un identifiant memorise pour l'un ne veut rien
+    // dire pour l'autre.
+    // / The logged-in account, part of the memory key: two accounts on
+    // one server do not share notebooks.
+    var nom_du_compte = '';
+
+    // Les carnets rendus par le serveur, gardes pour la validation du
+    // choix et l'avertissement « public ».
+    // / The notebooks returned by the server.
+    var carnets_recus = [];
+
     /**
      * Nettoie et normalise l'URL serveur :
      * - Ajoute http:// si pas de protocole
      * - Retire tout ce qui depasse le host+port (path, query, fragment)
      * - Garantit un / final
-     * / Sanitize and normalize server URL:
-     * - Add http:// if no protocol
-     * - Strip everything beyond host+port
-     * - Ensure trailing /
+     * / Sanitize and normalize server URL.
      */
     function sanitiserUrlServeur(url_brute) {
         var url_nettoyee = url_brute.trim();
@@ -82,10 +105,14 @@ document.addEventListener('DOMContentLoaded', async () => {
      * - Retire les parametres UTM (utm_source, utm_medium, utm_campaign, etc.)
      * - Retire le fragment (#...)
      * - Retire le trailing slash
-     * / Normalize a page URL for comparison:
-     * - Remove UTM parameters (utm_source, utm_medium, utm_campaign, etc.)
-     * - Remove fragment (#...)
-     * - Remove trailing slash
+     * / Normalize a page URL for comparison.
+     *
+     * Le serveur applique EXACTEMENT la meme normalisation
+     * (`normaliser_url`, core/views.py) : les deux listes de parametres
+     * de suivi doivent rester d'accord, sinon la pre-verification et
+     * l'enregistrement ne parlent pas de la meme URL.
+     * / The server applies the same normalisation; both tracking lists
+     * must stay in agreement.
      */
     function normaliserUrlPage(url_brute) {
         try {
@@ -121,34 +148,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * Calcule le hash SHA-256 d'une chaine de texte.
-     * Utilise l'API Web Crypto disponible dans les extensions Chrome.
-     * / Compute SHA-256 hash of a text string.
-     * / Uses the Web Crypto API available in Chrome extensions.
-     */
-    async function calculerHashContenu(texte) {
-        var donnees_encodees = new TextEncoder().encode(texte);
-        var buffer_hash = await crypto.subtle.digest('SHA-256', donnees_encodees);
-        var tableau_octets = Array.from(new Uint8Array(buffer_hash));
-        var hash_hexadecimal = tableau_octets.map(function(octet) {
-            return octet.toString(16).padStart(2, '0');
-        }).join('');
-        return hash_hexadecimal;
-    }
-
-    /**
-     * Extrait le texte brut depuis du HTML (retire les balises).
-     * Utilise un DOMParser cote extension pour mimer le comportement serveur.
-     * / Extract plain text from HTML (strip tags).
-     * / Uses DOMParser on the extension side to mimic server behavior.
-     */
-    function extraireTexteBrut(html) {
-        var parser = new DOMParser();
-        var document_parse = parser.parseFromString(html, 'text/html');
-        return document_parse.body.textContent || '';
-    }
-
-    /**
      * Construit les headers HTTP avec le token d'authentification si present.
      * / Build HTTP headers with authentication token if available.
      */
@@ -163,88 +162,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return headers;
     }
 
-    // --- Indicateur de statut serveur / Server status indicator ---
-
-    /**
-     * Verifie si le serveur est joignable via un appel GET /api/pages/
-     * et met a jour l'indicateur visuel dans la popup.
-     * / Check if the server is reachable via GET /api/pages/
-     * / and update the visual indicator in the popup.
-     */
-    async function verifierStatutServeur() {
-        try {
-            var reponse = await fetch(getBaseUrl() + 'api/pages/', {
-                headers: construireHeaders(),
-                signal: AbortSignal.timeout(3000),
-            });
-            if (reponse.ok) {
-                indicateur_point.className = 'online';
-                indicateur_texte.textContent = 'Serveur connecte';
-            } else {
-                indicateur_point.className = 'offline';
-                indicateur_texte.textContent = 'Serveur erreur (' + reponse.status + ')';
-            }
-        } catch (erreur) {
-            indicateur_point.className = 'offline';
-            indicateur_texte.textContent = 'Serveur hors ligne';
-        }
-    }
-
-    /**
-     * Verifie l'authentification via /api/pages/me/ et affiche le statut.
-     * / Check authentication via /api/pages/me/ and display status.
-     */
-    async function verifierAuthentification() {
-        if (!token_api) {
-            zone_auth.textContent = 'Non connecte (pas de token)';
-            zone_auth.className = 'auth-ko';
-            return;
-        }
-        try {
-            var reponse = await fetch(getBaseUrl() + 'api/pages/me/', {
-                headers: construireHeaders(),
-                signal: AbortSignal.timeout(3000),
-            });
-            if (reponse.ok) {
-                var donnees = await reponse.json();
-                if (donnees.authenticated) {
-                    zone_auth.textContent = 'Connecte : ' + donnees.username;
-                    zone_auth.className = 'auth-ok';
-                } else {
-                    zone_auth.textContent = 'Non connecte';
-                    zone_auth.className = 'auth-ko';
-                }
-            } else {
-                zone_auth.textContent = 'Token invalide';
-                zone_auth.className = 'auth-ko';
-            }
-        } catch (erreur) {
-            zone_auth.textContent = '';
-        }
-    }
-
-    var saveUrlBtn = document.getElementById('saveUrlBtn');
-
-    // Sanitiser et sauvegarder au clic sur OK
-    // / Sanitize and save on OK click
-    function sauvegarderUrlServeur() {
-        var url_propre = sanitiserUrlServeur(serverUrlInput.value);
-        serverUrlInput.value = url_propre;
-        chrome.storage.sync.set({ serverUrl: url_propre });
-        console.debug('[Hypostasia] serverUrl sauvegarde:', url_propre);
-
-        // Feedback visuel bref / Brief visual feedback
-        saveUrlBtn.textContent = '\u2713';
-        setTimeout(function() { saveUrlBtn.textContent = 'OK'; }, 800);
-
-        // Re-verifier le statut avec la nouvelle URL
-        // / Re-check status with the new URL
-        verifierStatutServeur();
-        verifierAuthentification();
-    }
-
-    saveUrlBtn.addEventListener('click', sauvegarderUrlServeur);
-
     /**
      * Recupere l'URL serveur courante depuis l'input
      * / Get current server URL from input
@@ -253,84 +170,365 @@ document.addEventListener('DOMContentLoaded', async () => {
         return sanitiserUrlServeur(serverUrlInput.value);
     }
 
-    console.debug('[Hypostasia] BASE_URL:', getBaseUrl());
+    /**
+     * Affiche un message sous le bouton, avec son niveau.
+     * / Shows a message under the button, with its level.
+     */
+    function afficherLeStatut(texte, niveau) {
+        statusDiv.textContent = texte;
+        statusDiv.className = niveau || '';
+    }
 
-    // Verifier le statut et l'auth au chargement de la popup
-    // / Check status and auth on popup load
-    verifierStatutServeur();
-    verifierAuthentification();
+    /**
+     * Rend le bouton a son etat de repos.
+     * / Returns the button to its resting state.
+     */
+    function reposerLeBouton() {
+        recolterBtn.disabled = false;
+        recolterBtn.textContent = 'Recolter';
+    }
+
+    // --- Serveur et authentification / Server and authentication ---
+
+    /**
+     * Interroge /api/pages/me/ : c'est LE point qui repond aux deux
+     * questions a la fois — le serveur est-il joignable, et le token
+     * est-il bon.
+     * / Asks /api/pages/me/, which answers both questions at once.
+     *
+     * POURQUOI PAS /api/pages/ : cet endpoint exige desormais un token.
+     * L'indicateur y aurait lu un 401 et affiche « Serveur erreur » en
+     * rouge chez tout utilisateur qui n'a pas encore colle son token —
+     * c'est-a-dire exactement au premier lancement. Le serveur allait
+     * bien ; seule la popup le declarait casse. `me/` est `AllowAny` et
+     * repond `{authenticated: false}` sans jeton : il distingue « pas
+     * de serveur » de « pas de compte ».
+     * / Not /api/pages/: it now requires a token, so the indicator would
+     * read 401 and cry "server error" at first launch. me/ is AllowAny
+     * and tells "no server" apart from "no account".
+     *
+     * @returns {boolean} true si un compte est reconnu
+     */
+    async function verifierServeurEtCompte() {
+        try {
+            var reponse = await fetch(getBaseUrl() + 'api/pages/me/', {
+                headers: construireHeaders(),
+                signal: AbortSignal.timeout(3000),
+            });
+
+            if (!reponse.ok) {
+                indicateur_point.className = 'offline';
+                indicateur_texte.textContent = 'Serveur erreur (' + reponse.status + ')';
+                zone_auth.textContent = '';
+                zone_auth.className = '';
+                return false;
+            }
+
+            indicateur_point.className = 'online';
+            indicateur_texte.textContent = 'Serveur connecte';
+
+            var donnees = await reponse.json();
+            if (donnees.authenticated) {
+                nom_du_compte = donnees.username || '';
+                zone_auth.textContent = 'Connecte : ' + nom_du_compte;
+                zone_auth.className = 'auth-ok';
+                return true;
+            }
+
+            nom_du_compte = '';
+            zone_auth.textContent = token_api
+                ? 'Token invalide — a regenerer sur /auth/token/'
+                : 'Non connecte : collez votre token dans les options';
+            zone_auth.className = 'auth-ko';
+            return false;
+        } catch (erreur) {
+            indicateur_point.className = 'offline';
+            indicateur_texte.textContent = 'Serveur hors ligne';
+            zone_auth.textContent = '';
+            zone_auth.className = '';
+            return false;
+        }
+    }
+
+    // --- Le menu des carnets / The notebook dropdown ---
+
+    /**
+     * La cle du souvenir pour le serveur et le compte courants.
+     * / The memory key for the current server and account.
+     */
+    function cleDuSouvenir() {
+        return getBaseUrl() + '|' + nom_du_compte;
+    }
+
+    /**
+     * Retient le carnet choisi, pour ce serveur et ce compte.
+     * / Remembers the chosen notebook, per server and account.
+     *
+     * On borne le nombre de souvenirs gardes : sans cela, chaque serveur
+     * essaye et chaque compte laisserait une entree pour toujours, et
+     * l'enregistrement finirait par depasser la taille maximale d'un
+     * element de `chrome.storage.sync` — qui echoue alors en silence.
+     * / The map is capped: otherwise every server and account tried would
+     * leave an entry forever, until the record silently exceeds quota.
+     */
+    function retenirLeCarnetChoisi(identifiant_du_carnet) {
+        chrome.storage.sync.get({ [CLE_DU_SOUVENIR]: {} }, function(donnees_stockees) {
+            var souvenirs = donnees_stockees[CLE_DU_SOUVENIR] || {};
+
+            // Reecrire l'entree la remet en derniere position : les cles
+            // d'un objet JS gardent leur ordre d'insertion.
+            // / Re-inserting moves the entry last: JS objects keep
+            // insertion order.
+            delete souvenirs[cleDuSouvenir()];
+            souvenirs[cleDuSouvenir()] = identifiant_du_carnet;
+
+            var cles_gardees = Object.keys(souvenirs).slice(-SOUVENIRS_GARDES);
+            var souvenirs_bornes = {};
+            cles_gardees.forEach(function(cle) {
+                souvenirs_bornes[cle] = souvenirs[cle];
+            });
+
+            chrome.storage.sync.set({ [CLE_DU_SOUVENIR]: souvenirs_bornes });
+        });
+    }
+
+    /**
+     * Le carnet retenu la derniere fois, ou une chaine vide.
+     * / The notebook remembered last time, or an empty string.
+     */
+    async function carnetRetenu() {
+        var donnees_stockees = await new Promise(function(resolve) {
+            chrome.storage.sync.get({ [CLE_DU_SOUVENIR]: {} }, resolve);
+        });
+        var souvenirs = donnees_stockees[CLE_DU_SOUVENIR] || {};
+        var identifiant_retenu = souvenirs[cleDuSouvenir()];
+        return identifiant_retenu === undefined ? '' : String(identifiant_retenu);
+    }
+
+    /**
+     * Remplit le menu des carnets depuis /api/pages/mes_carnets/.
+     * / Fills the notebook dropdown from /api/pages/mes_carnets/.
+     *
+     * LE FOURRE-TOUT EST TOUJOURS EN TETE, ET IL EST LE DEFAUT. Deux
+     * cas se rejoignent la : le compte qui possede deja un carnet
+     * « A ranger », et celui qui n'en a pas encore — le serveur le cree
+     * a la premiere capture qui en a besoin, jamais a l'ouverture de ce
+     * menu. Dans les deux cas l'utilisateur a une destination valide des
+     * la premiere seconde, meme sans avoir jamais cree de carnet.
+     * / The inbox is always first and is the default: it covers both the
+     * account that already owns one and the account that owns none, the
+     * server creating it lazily on first capture.
+     *
+     * IL SE RECONNAIT PAR SON ROLE, JAMAIS PAR SON NOM. La popup
+     * comparait `dossier.name === 'A ranger'` ; un utilisateur qui
+     * renommait son fourre-tout le voyait reapparaitre en double dans la
+     * liste. Le serveur a un champ pour ca — `role_special`.
+     * / Recognised by its ROLE, never its name: a renamed inbox used to
+     * show up twice.
+     */
+    async function remplirLeMenuDesCarnets() {
+        carnets_recus = [];
+
+        try {
+            var reponse = await fetch(getBaseUrl() + 'api/pages/mes_carnets/', {
+                headers: construireHeaders(),
+                signal: AbortSignal.timeout(3000),
+            });
+            if (reponse.ok) {
+                carnets_recus = await reponse.json();
+            }
+        } catch (erreur) {
+            console.debug('[Hypostasia] Carnets indisponibles:', erreur);
+        }
+
+        var carnet_fourre_tout = carnets_recus.find(function(carnet) {
+            return carnet.role_special === 'a_ranger';
+        });
+        var carnets_ordinaires = carnets_recus.filter(function(carnet) {
+            return carnet.role_special !== 'a_ranger';
+        });
+
+        menu_des_carnets.innerHTML = '';
+
+        // Le fourre-tout, avec son vrai nom s'il existe deja. Valeur
+        // vide quand il n'existe pas : le POST part alors sans
+        // `dossier_id` et le serveur s'en charge.
+        // / The inbox, with its real name if it exists; empty value
+        // otherwise, letting the server resolve it.
+        var option_fourre_tout = document.createElement('option');
+        option_fourre_tout.value = carnet_fourre_tout ? String(carnet_fourre_tout.id) : '';
+        option_fourre_tout.textContent = carnet_fourre_tout
+            ? carnet_fourre_tout.nom + ' (fourre-tout)'
+            : 'A ranger (le fourre-tout)';
+        menu_des_carnets.appendChild(option_fourre_tout);
+
+        carnets_ordinaires.forEach(function(carnet) {
+            var option = document.createElement('option');
+            option.value = String(carnet.id);
+            option.textContent = carnet.nom;
+            menu_des_carnets.appendChild(option);
+        });
+
+        // Restaurer le dernier choix, s'il existe TOUJOURS. Un carnet
+        // supprime ou dont le partage a ete retire disparait de la
+        // liste : selectionner un identifiant absent laisserait le menu
+        // sur sa premiere entree en donnant a croire que c'est un choix.
+        // / Restore the last choice only if it still exists: a deleted or
+        // un-shared notebook would silently fall back to the first entry.
+        var identifiant_retenu = await carnetRetenu();
+        var le_choix_existe_encore = Array.from(menu_des_carnets.options).some(
+            function(option) { return option.value === identifiant_retenu; }
+        );
+        if (identifiant_retenu && le_choix_existe_encore) {
+            menu_des_carnets.value = identifiant_retenu;
+        }
+
+        montrerLAvertissementSiCarnetPublic();
+    }
+
+    /**
+     * Montre l'avertissement quand le carnet selectionne est public.
+     * / Shows the warning when the selected notebook is public.
+     *
+     * Ranger dans un carnet public rend la note publique — avec ses
+     * extractions et ses commentaires, nommes. Ca se dit AU MOMENT DU
+     * GESTE, pas dans une page d'aide (SPEC-corpus § 7.3).
+     * / Filing in a public notebook publishes the note, its extractions
+     * and its named comments. Said at gesture time.
+     */
+    function montrerLAvertissementSiCarnetPublic() {
+        var identifiant_choisi = menu_des_carnets.value;
+        var carnet_choisi = carnets_recus.find(function(carnet) {
+            return String(carnet.id) === identifiant_choisi;
+        });
+        var il_est_public = Boolean(carnet_choisi && carnet_choisi.est_public);
+        avertissement_carnet.classList.toggle('visible', il_est_public);
+    }
+
+    menu_des_carnets.addEventListener('change', function() {
+        montrerLAvertissementSiCarnetPublic();
+        retenirLeCarnetChoisi(menu_des_carnets.value);
+    });
+
+    // --- Adresse du serveur / Server address ---
+
+    var saveUrlBtn = document.getElementById('saveUrlBtn');
+
+    async function sauvegarderUrlServeur() {
+        var url_propre = sanitiserUrlServeur(serverUrlInput.value);
+        serverUrlInput.value = url_propre;
+        chrome.storage.sync.set({ serverUrl: url_propre });
+
+        // Feedback visuel bref / Brief visual feedback
+        saveUrlBtn.textContent = '✓';
+        setTimeout(function() { saveUrlBtn.textContent = 'OK'; }, 800);
+
+        // Nouveau serveur : nouveau compte, nouveaux carnets.
+        // / New server: new account, new notebooks.
+        await verifierServeurEtCompte();
+        await remplirLeMenuDesCarnets();
+    }
+
+    saveUrlBtn.addEventListener('click', sauvegarderUrlServeur);
 
     // --- Bouton principal : recolter le contenu de la page ---
     // / Main button: harvest page content
+    //
+    // L'ECOUTE SE POSE AVANT LES APPELS RESEAU, ET C'EST VOULU. Les deux
+    // interrogations du serveur ci-dessous ont chacune trois secondes de
+    // patience : posee apres elles, cette ecoute laisserait le bouton
+    // muet jusqu'a six secondes sur un serveur lent ou injoignable, sans
+    // que rien ne l'indique.
+    // / Registered before the network calls: placed after them, the
+    // button would stay silently dead for up to six seconds.
     recolterBtn.addEventListener('click', async () => {
         recolterBtn.disabled = true;
-        recolterBtn.textContent = "Recolte...";
-        statusDiv.textContent = "";
-        statusDiv.className = "";
-        zone_dossiers.style.display = 'none';
+        recolterBtn.textContent = 'Recolte...';
+        afficherLeStatut('', '');
 
         try {
             await recolterContenuPage();
         } catch (erreur) {
             console.error('[Hypostasia] Erreur recolte:', erreur);
-            statusDiv.textContent = erreur.message;
-            statusDiv.className = "error";
-            recolterBtn.disabled = false;
-            recolterBtn.textContent = "Recolter";
+            afficherLeStatut(erreur.message, 'error');
+            reposerLeBouton();
         }
     });
 
+    // Au chargement : le serveur, le compte, puis les carnets. Les
+    // carnets ont besoin du nom du compte pour retrouver le souvenir,
+    // d'ou l'enchainement et non le parallele.
+    // / On load: server, account, then notebooks — sequential because
+    // the memory key needs the account name.
+    await verifierServeurEtCompte();
+    await remplirLeMenuDesCarnets();
+
     /**
-     * Flux principal de recolte :
-     * 1. Normaliser l'URL et verifier si la page existe deja sur le serveur
-     * 2. Si non, extraire le contenu via Readability, calculer le content_hash et l'envoyer
-     * 3. Le serveur verifie le doublon par URL normalisee et par content_hash
-     * / Main harvesting flow:
-     * 1. Normalize URL and check if page already exists on server
-     * 2. If not, extract content via Readability, compute content_hash and send it
-     * 3. Server checks for duplicates by normalized URL and content_hash
+     * Flux de recolte :
+     * 1. Normaliser l'URL et chercher un doublon dans MON perimetre
+     * 2. Extraire le contenu via Readability
+     * 3. Envoyer, avec le carnet choisi
+     * / Harvest flow: dedup pre-check, Readability, send with notebook.
+     *
+     * L'EMPREINTE DE CONTENU N'EST PLUS CALCULEE ICI. Elle l'etait, et
+     * pas de la meme facon que le serveur : la popup hachait
+     * `body.textContent`, le serveur hachait son propre extracteur de
+     * texte, apres un `.strip()`. Les deux valeurs ne se rejoignaient
+     * pas, donc le refus « contenu identique deja enregistre » ne se
+     * declenchait pas. Une seule implementation, cote serveur.
+     * / The content fingerprint is no longer computed here: the two
+     * implementations disagreed, so content dedup never fired.
      */
     async function recolterContenuPage() {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        const url_courante = tab.url;
-        const url_normalisee = normaliserUrlPage(url_courante);
+        const url_normalisee = normaliserUrlPage(tab.url);
 
-        console.debug('[Hypostasia] URL courante:', url_courante);
-        console.debug('[Hypostasia] URL normalisee:', url_normalisee);
-
-        // 1. Verifier si la page existe deja (par URL normalisee)
-        // / Check if page already exists (by normalized URL)
-        statusDiv.textContent = "Verification...";
+        // 1. Chercher un doublon dans le perimetre du compte
+        // / Look for a duplicate within the account's scope
+        afficherLeStatut('Verification...', '');
         const verification_response = await fetch(
             `${getBaseUrl()}api/pages/?url=${encodeURIComponent(url_normalisee)}`,
             { headers: construireHeaders() }
         );
 
+        // 401 ICI VEUT DIRE « PAS DE COMPTE », PAS « SERVEUR CASSE ». La
+        // pre-verification exige un token depuis que l'endpoint est
+        // ferme. Sans ce cas particulier, la recolte s'arretait sur
+        // « Erreur serveur: 401 » et le message utile — celui qui dit ou
+        // coller son token — vivait plus loin, dans la branche 401 du
+        // POST, que l'on n'atteignait jamais.
+        // / A 401 here means "no account", not "broken server": without
+        // this branch the useful message was unreachable.
+        if (verification_response.status === 401) {
+            afficherLeStatut(
+                'Token manquant ou invalide. Collez-le dans les options de l\'extension.',
+                'error',
+            );
+            reposerLeBouton();
+            return;
+        }
+
         if (!verification_response.ok) {
-            throw new Error("Erreur serveur: " + verification_response.status);
+            throw new Error('Erreur serveur: ' + verification_response.status);
         }
 
         const pages_existantes = await verification_response.json();
-        console.debug('[Hypostasia] Pages existantes:', pages_existantes.length);
 
         if (pages_existantes.length > 0) {
-            // La page existe deja — on informe l'utilisateur
-            // / Page already exists — inform user
-            statusDiv.textContent = "Deja enregistree (id: " + pages_existantes[0].id + ")";
-            statusDiv.className = "success";
-            recolterBtn.disabled = false;
-            recolterBtn.textContent = "Recolter";
+            afficherLeStatut(
+                'Deja enregistree (note ' + pages_existantes[0].id + ')', 'success',
+            );
+            reposerLeBouton();
             return;
         }
 
         // 2. Injecter Readability et extraire le contenu
         // / Inject Readability and extract content
-        statusDiv.textContent = "Extraction...";
-        console.debug('[Hypostasia] Injection Readability');
+        afficherLeStatut('Extraction...', '');
 
         await chrome.scripting.executeScript({
             target: { tabId: tab.id },
-            files: ['lib/Readability.js']
+            files: ['lib/Readability.js'],
         });
 
         // Fonction d'extraction injectee dans la page
@@ -347,167 +545,126 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     return {
-                        url: window.location.href,
                         title: article_readability.title || document.title,
                         html_readability: article_readability.content || '',
-                        html_original: document.documentElement.outerHTML
+                        html_original: document.documentElement.outerHTML,
                     };
                 } catch (e) {
                     return { error: e.message };
                 }
-            }
+            },
         });
 
         const donnees_extraites = resultat_extraction[0].result;
-        console.debug('[Hypostasia] Donnees extraites:', {
-            url: donnees_extraites.url,
-            title: donnees_extraites.title,
-            html_readability_length: donnees_extraites.html_readability?.length,
-            html_original_length: donnees_extraites.html_original?.length,
-        });
 
         if (donnees_extraites.error) {
             throw new Error(donnees_extraites.error);
         }
 
-        // 3. Normaliser l'URL et calculer le content_hash cote extension
-        // / Normalize the URL and compute content_hash on the extension side
-        donnees_extraites.url = url_normalisee;
+        // 3. Envoyer, avec l'URL normalisee et le carnet choisi
+        // / Send, with the normalised URL and the chosen notebook
+        afficherLeStatut('Envoi...', '');
 
-        var texte_brut_pour_hash = extraireTexteBrut(donnees_extraites.html_readability);
-        var content_hash_calcule = await calculerHashContenu(texte_brut_pour_hash);
-        donnees_extraites.content_hash = content_hash_calcule;
+        var corps_de_la_requete = {
+            url: url_normalisee,
+            title: donnees_extraites.title,
+            html_readability: donnees_extraites.html_readability,
+            html_original: donnees_extraites.html_original,
+        };
 
-        console.debug('[Hypostasia] content_hash:', content_hash_calcule.substring(0, 16) + '...');
-
-        // 4. Envoyer au serveur avec le token d'authentification
-        // / Send to server with authentication token
-        statusDiv.textContent = "Envoi...";
-        console.debug('[Hypostasia] POST /api/pages/');
+        // Menu sur le fourre-tout inexistant : on n'envoie rien et le
+        // serveur resout la destination lui-meme.
+        // / Empty value means "let the server resolve the inbox".
+        if (menu_des_carnets.value) {
+            corps_de_la_requete.dossier_id = Number(menu_des_carnets.value);
+        }
 
         const creation_response = await fetch(`${getBaseUrl()}api/pages/`, {
             method: 'POST',
             headers: construireHeaders('application/json'),
-            body: JSON.stringify(donnees_extraites)
+            body: JSON.stringify(corps_de_la_requete),
         });
 
         if (!creation_response.ok) {
-            const texte_erreur = await creation_response.text();
-            console.error('[Hypostasia] Erreur creation:', creation_response.status, texte_erreur);
-
-            // Gerer le cas de doublon detecte par content_hash (409 Conflict)
-            // / Handle duplicate detected by content_hash (409 Conflict)
-            if (creation_response.status === 409) {
-                var donnees_conflit = JSON.parse(texte_erreur);
-                statusDiv.textContent = "Contenu identique deja enregistre (id: " + donnees_conflit.existing_page_id + ")";
-                statusDiv.className = "success";
-                recolterBtn.disabled = false;
-                recolterBtn.textContent = "Recolter";
-                return;
-            }
-
-            // Gerer le 401 (pas authentifie)
-            // / Handle 401 (not authenticated)
-            if (creation_response.status === 401) {
-                statusDiv.textContent = "Token manquant ou invalide. Configurez-le dans les options.";
-                statusDiv.className = "error";
-                recolterBtn.disabled = false;
-                recolterBtn.textContent = "Recolter";
-                return;
-            }
-
-            throw new Error("Erreur creation (" + creation_response.status + ")");
+            await traiterUnEchecDeCreation(creation_response);
+            return;
         }
 
         const page_creee = await creation_response.json();
-        console.debug('[Hypostasia] Page creee:', page_creee.id);
+        var nom_du_carnet = menu_des_carnets.options[menu_des_carnets.selectedIndex].textContent;
+        afficherLeStatut('Enregistree dans « ' + nom_du_carnet + ' »', 'success');
+        reposerLeBouton();
 
-        // Succes / Success
-        statusDiv.textContent = "Page enregistree (id: " + page_creee.id + ")";
-        statusDiv.className = "success";
-        recolterBtn.textContent = "Recolter";
-        recolterBtn.disabled = false;
-
-        // 5. Apres recolte reussie, afficher les dossiers pour classement
-        // / After successful harvest, show folders for classification
-        afficherDossiersPostRecolte(page_creee.id);
+        // Le choix n'est retenu qu'une fois qu'il a servi.
+        // / The choice is remembered only once it has worked.
+        retenirLeCarnetChoisi(menu_des_carnets.value);
     }
 
     /**
-     * Recupere les dossiers de l'utilisateur et les affiche comme boutons.
-     * / Fetch user's folders and display them as buttons.
+     * Traduit un echec de creation en message lisible.
+     * / Turns a creation failure into a readable message.
+     *
+     * TROIS CONFLITS PARTAGENT LE CODE 409, ET ILS NE VEULENT PAS DIRE
+     * LA MEME CHOSE. Deux sont des non-evenements paisibles — la note
+     * est deja chez moi —, le troisieme est un echec : un inconnu a pris
+     * cette URL et l'unicite est globale en base. La popup lisait
+     * autrefois `existing_page_id` sans regarder le motif, et affichait
+     * donc « deja enregistree (id: undefined) » EN VERT pour une capture
+     * qui venait d'echouer. C'est le champ `code` qui les separe.
+     * / Three conflicts share the 409 and do not mean the same thing;
+     * the popup used to paint the failing one green.
      */
-    async function afficherDossiersPostRecolte(page_id) {
-        if (!token_api) return;
-
+    async function traiterUnEchecDeCreation(reponse) {
+        var texte_brut = await reponse.text();
+        var donnees = {};
         try {
-            var reponse = await fetch(getBaseUrl() + 'api/pages/mes_dossiers/', {
-                headers: construireHeaders(),
-                signal: AbortSignal.timeout(3000),
-            });
-            if (!reponse.ok) return;
-
-            var dossiers = await reponse.json();
-            if (!dossiers || dossiers.length === 0) return;
-
-            // Vider et remplir la liste de boutons
-            // / Clear and populate button list
-            liste_dossiers.innerHTML = '';
-            dossiers.forEach(function(dossier) {
-                // Ne pas afficher le dossier "A ranger" car c'est deja le defaut
-                // / Don't show "A ranger" folder since it's already the default
-                if (dossier.name === 'A ranger') return;
-
-                var bouton = document.createElement('button');
-                bouton.className = 'btn-dossier';
-                bouton.textContent = dossier.name;
-                bouton.addEventListener('click', function() {
-                    classerPage(page_id, dossier.id, bouton);
-                });
-                liste_dossiers.appendChild(bouton);
-            });
-
-            // Afficher la zone seulement s'il y a des boutons
-            // / Show zone only if there are buttons
-            if (liste_dossiers.children.length > 0) {
-                zone_dossiers.style.display = 'block';
-            }
+            donnees = JSON.parse(texte_brut);
         } catch (erreur) {
-            console.debug('[Hypostasia] Erreur chargement dossiers:', erreur);
+            donnees = {};
         }
-    }
+        console.error('[Hypostasia] Echec creation:', reponse.status, texte_brut);
 
-    /**
-     * Deplace une page dans un dossier via l'API.
-     * / Move a page into a folder via API.
-     */
-    async function classerPage(page_id, dossier_id, bouton_clique) {
-        try {
-            var reponse = await fetch(
-                getBaseUrl() + 'api/pages/' + page_id + '/classer_depuis_extension/',
-                {
-                    method: 'POST',
-                    headers: construireHeaders('application/json'),
-                    body: JSON.stringify({ dossier_id: dossier_id }),
-                }
+        if (reponse.status === 401) {
+            afficherLeStatut(
+                'Token manquant ou invalide. Collez-le dans les options de l\'extension.',
+                'error',
             );
-            if (reponse.ok) {
-                var donnees = await reponse.json();
-                bouton_clique.className = 'btn-dossier selected';
-                statusDiv.textContent = 'Classee dans "' + donnees.dossier_name + '"';
-
-                // Desactiver tous les boutons apres classement
-                // / Disable all buttons after classification
-                var tous_les_boutons = liste_dossiers.querySelectorAll('.btn-dossier');
-                tous_les_boutons.forEach(function(btn) {
-                    btn.disabled = true;
-                    btn.style.cursor = 'default';
-                });
-            } else {
-                console.error('[Hypostasia] Erreur classement:', reponse.status);
-            }
-        } catch (erreur) {
-            console.error('[Hypostasia] Erreur classement:', erreur);
+            reposerLeBouton();
+            return;
         }
+
+        if (reponse.status === 409) {
+            if (donnees.code === 'url_prise_ailleurs') {
+                // Un echec, pas un doublon paisible : la note n'est pas
+                // enregistree et ne peut pas l'etre sous cette URL.
+                // / A failure, not a peaceful duplicate.
+                afficherLeStatut(
+                    'Cette page est deja capturee sur ce serveur, dans un '
+                    + 'carnet auquel vous n\'avez pas acces.',
+                    'info',
+                );
+            } else {
+                afficherLeStatut(
+                    'Deja enregistree' + (donnees.existing_page_id
+                        ? ' (note ' + donnees.existing_page_id + ')' : ''),
+                    'success',
+                );
+            }
+            reposerLeBouton();
+            return;
+        }
+
+        if (reponse.status === 400 && donnees.dossier_id) {
+            // Le carnet a disparu, ou le partage a ete retire entre
+            // l'ouverture de la popup et le clic.
+            // / The notebook vanished, or the share was revoked.
+            afficherLeStatut(String(donnees.dossier_id[0]), 'error');
+            await remplirLeMenuDesCarnets();
+            reposerLeBouton();
+            return;
+        }
+
+        afficherLeStatut('Erreur creation (' + reponse.status + ')', 'error');
+        reposerLeBouton();
     }
 });

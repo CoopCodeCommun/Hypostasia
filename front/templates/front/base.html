@@ -1,6 +1,14 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="fr" class="h-full">
+{# LE CLAIR EST LE DEFAUT, ECRIT ICI ET PAS SEULEMENT DANS LE JS.      #}
+{# Sans cet attribut, une machine reglee en sombre ouvrait Hypostasia  #}
+{# en sombre — le `@media (prefers-color-scheme: dark)` de la feuille  #}
+{# de style s'appliquait avant meme que `theme.js` ne s'execute, et    #}
+{# sans lui s'il est bloque. `theme.js` remplace cette valeur par le   #}
+{# choix stocke ; passer en sombre reste un GESTE.                     #}
+{# / Light is the default, written here and not only in the JS: the    #}
+{# dark media query applied before theme.js ran, and without it.       #}
+<html lang="fr" class="h-full" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,11 +23,15 @@
     <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=36">
     {# La couche maquette globale (9 aout 2026) : le design de l'etalon #}
     {# applique au chrome — chargee EN DERNIER, elle re-teinte le reste. #}
-    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=65">
+    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=72">
+    {# LE SPINNER AU POINT DE CLIC. Charge apres `maquette.css` : il lit #}
+    {# `--info`, qui y est defini en clair ET en sombre. #}
+    {# / Loaded after maquette.css: it reads --info from there. #}
+    <link rel="stylesheet" href="{% static 'front/css/spinner_au_clic.css' %}?v=1">
     {# Le theme 3 etats, applique AVANT le premier rendu (lot T7) : #}
     {# charge plus bas, la page clignoterait du clair vers le sombre. #}
     {# / Three-state theme, applied before first paint. #}
-    <script src="{% static 'front/js/theme.js' %}?v=1"></script>
+    <script src="{% static 'front/js/theme.js' %}?v=2"></script>
     <script src="{% static 'front/vendor/htmx-2.0.4.min.js' %}"></script>
     <script src="{% static 'front/vendor/sweetalert2-11.min.js' %}"></script>
     {# Les toasts SweetAlert n'etaient annonces par AUCUN lecteur #}
@@ -202,12 +214,13 @@
                 </div>
             </div>
             {% endif %}
-            {# Bascule de theme, 3 etats (lot T7) : ○ clair / ● sombre / #}
-            {# ◑ systeme. Le libelle et le titre sont ecrits par #}
-            {# theme.js — le glyphe seul ne dit rien. #}
-            {# / Three-state theme toggle; label written by theme.js. #}
+            {# Bascule de theme, DEUX etats : ○ clair (le defaut) et #}
+            {# ● sombre. Le libelle et le titre sont ecrits par #}
+            {# theme.js — le glyphe seul ne dit ni l'etat ni le geste. #}
+            {# / Two-state toggle; label written by theme.js. #}
             <button type="button" id="bascule-theme" data-testid="bascule-theme"
-                    aria-label="Changer de thème">◑</button>
+                    aria-label="Thème clair. Passer en sombre."
+                    aria-pressed="false">○</button>
             <!-- Menu utilisateur (PHASE-25) -->
             <!-- / User menu (PHASE-25) -->
             {% if user.is_authenticated %}
@@ -306,15 +319,31 @@
             {% include "front/corpus/_fil_ariane.html" %}
         </div>
 
-        {# Le titre du panneau, a droite de la meme bande. Il ne parait  #}
-        {# que lorsqu'une note est ouverte : c'est le CSS qui l'efface   #}
-        {# ailleurs, en meme temps que le panneau lui-meme.              #}
-        {# / Shown only on a note; CSS hides it with the panel. #}
+        {% comment %}
+        LE TITRE DU PANNEAU, a droite de la meme bande. Il parait la ou un
+        panneau existe — une note (ses analyses) ou un article (ses
+        preuves) — et le CSS l'efface ailleurs, en meme temps que le
+        panneau lui-meme.
+
+        LE BOUTON EST UN INTERRUPTEUR, PAS UNE CROIX. Une croix ferme et
+        ne rouvre pas : le panneau referme, plus rien a l'ecran ne le
+        ramenait. Le bouton garde donc sa place dans les DEUX etats, et
+        c'est le glyphe qui dit ce que le clic fera — la croix quand le
+        panneau est la, le chevron quand il faut le ramener.
+
+        `body.panneau-integre` porte l'etat ouvert. Le glyphe suit cette
+        classe en CSS : aucun JavaScript ne le recopie, donc les deux ne
+        peuvent pas diverger.
+        / Shown wherever a panel exists: a note's analyses or an article's
+        evidence. The button toggles: a cross closes but never reopens.
+        {% endcomment %}
         <div class="bande-titre-panneau" data-testid="bande-titre-panneau">
-            <span id="drawer-titre">Analyses</span>
+            <span id="drawer-titre">{% if article_preloaded %}Preuves · {{ preuves|length }}{% else %}Analyses{% endif %}</span>
             <button id="btn-fermer-drawer" class="fermer"
-                    title="Fermer (Escape)" aria-label="Fermer le panneau"
-                    data-testid="btn-fermer-drawer">&#10005;</button>
+                    title="Masquer le panneau (Échap)"
+                    aria-label="Masquer le panneau"
+                    aria-expanded="false" aria-controls="drawer-overlay"
+                    data-testid="btn-fermer-drawer"><span class="quand-ouvert" aria-hidden="true">&#10005;</span><span class="quand-ferme" aria-hidden="true">&#10094;</span></button>
         </div>
     </div>
 
@@ -367,14 +396,57 @@
     <!-- Overlay drawer vue liste (PHASE-10) -->
     <!-- / Drawer list view overlay (PHASE-10) -->
     <aside id="drawer-overlay" class="fixed top-0 right-0 bottom-0 bg-white shadow-xl translate-x-full pointer-events-none flex flex-col" style="width: min(36rem, 100vw); z-index: 70;" aria-label="Analyses" data-testid="drawer-overlay">
-        <!-- Contenu drawer — zone scrollable chargee via HTMX -->
-        <!-- / Drawer content — scrollable zone loaded via HTMX -->
+        {% comment %}
+        UN SEUL PANNEAU, DEUX CONTENUS — et c'est le point.
+
+        Ce tiroir portait les analyses d'une note. Les preuves d'un
+        article vivaient a cote, dans une grille interne a l'article :
+        centree avec le texte, elle ne touchait donc PAS le bord droit
+        de la fenetre (mesure du 20 aout, 1600px : 1508 au lieu de
+        1600). Deux panneaux, deux geometries, deux seuils, deux
+        controles a tenir d'accord.
+
+        Le panneau des preuves passe donc PAR ICI. Il herite alors de
+        tout ce que la grille `.plateau` sait deja faire : le bord droit
+        exact, le seuil de bascule, le controle de la bande, la touche E,
+        Echap.
+
+        D'OU VIENT LE CONTENU. Une note le demande en HTMX
+        (`/extractions/drawer_contenu/`). Un article, lui, rend ses
+        preuves AVEC l'article : au chargement direct c'est le bloc
+        ci-dessous, et sur une navigation HTMX c'est l'OOB swap
+        d'`article.html` — le meme chemin que le fil d'Ariane, pour la
+        meme raison (HTMX n'applique ses OOB que sur SES reponses).
+        / One panel, two contents: the evidence column used to sit in the
+        article's own grid, so it never reached the window's right edge.
+        {% endcomment %}
         <div id="drawer-contenu" class="overflow-y-auto flex-1 p-3" data-testid="drawer-contenu">
+            {% if article_preloaded %}
+            <aside class="panneau-preuve" id="panneau-preuve"
+                   aria-label="Preuves de l'article"
+                   data-testid="synthese-panneau-preuve">
+                <div class="corps" id="corps-preuve">
+                    {% for preuve in preuves %}
+                    {# UNE BALISE DJANGO TIENT SUR UNE SEULE LIGNE, TOUJOURS : le #}
+                    {# `tag_re` du moteur n'a pas `re.DOTALL`, et une balise a #}
+                    {# cheval sur deux lignes sort en TEXTE dans la page sans #}
+                    {# qu'aucune erreur ne soit levee. #}
+                    {# / A Django tag must fit on one line: tag_re has no DOTALL. #}
+                    {% include "front/corpus/partials/preuve.html" with numero=preuve.numero lien=preuve.lien extraction=preuve.extraction note_source=preuve.note_source passage=preuve.passage avis_locaux=preuve.avis_locaux version_commune=preuve.version_commune accord_local=preuve.accord_local %}
+                    {% empty %}
+                    <p class="explication" data-testid="synthese-aucune-preuve">
+                        Cet article ne cite aucune source.
+                    </p>
+                    {% endfor %}
+                </div>
+            </aside>
+            {% else %}
             <div class="py-8 space-y-3 px-2">
                 <div class="skeleton h-4 w-full"></div>
                 <div class="skeleton h-4 w-3/4"></div>
                 <div class="skeleton h-4 w-5/6"></div>
             </div>
+            {% endif %}
         </div>
     </aside>
 
@@ -451,13 +523,19 @@
     / Bump on every change: nginx serves /static/ as immutable for 30
     days, so a stale browser would keep the old script for a month.
     {% endcomment %}
-    <script src="{% static 'front/js/hypostasia.js' %}?v=38"></script>
+    <script src="{% static 'front/js/hypostasia.js' %}?v=39"></script>
     <script src="{% static 'front/js/marginalia.js' %}?v=27"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
     {# `arbre_overlay.js` et `arbre_context_menu.js` etaient charges ici. #}
     {# Ils sont supprimes avec l'arbre (12 aout 2026). #}
     {# / The two tree scripts were loaded here; deleted with the tree. #}
-    <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=14"></script>
+    <script src="{% static 'front/js/drawer_vue_liste.js' %}?v=16"></script>
+    {# L'ATTENTE DE TOUTE REQUETE HTMX, sans qu'aucun gabarit ait un mot #}
+    {# a dire : ni `hx-indicator` a poser, ni element a prevoir. Un #}
+    {# ecran qui gagne un bouton gagne son attente. #}
+    {# / Every HTMX request gets its wait indicator, with no template #}
+    {# changes at all. #}
+    <script src="{% static 'front/js/spinner_au_clic.js' %}?v=2"></script>
     <script src="{% static 'front/js/transcription_rythme.js' %}?v=15"></script>
     {# `transcription_rythme.js` ci-dessus suit le DEFILEMENT du texte ; #}
     {# celui-ci suit le SON. Les deux coexistent : l'un dit ou l'on lit, #}

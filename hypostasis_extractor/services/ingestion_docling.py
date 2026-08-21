@@ -28,6 +28,7 @@ identifiant_stable, qui ne bouge pas.
 """
 
 import logging
+import re
 from functools import lru_cache
 
 from django.db import transaction
@@ -296,7 +297,9 @@ def extraire_les_elements_bruts(document_docling):
         if label in LABELS_SANS_CONTENU_UTILE:
             continue
 
-        texte = _texte_de_l_element(element_docling, document_docling)
+        texte = recoller_la_ponctuation_detachee(
+            _texte_de_l_element(element_docling, document_docling),
+        )
         if not texte.strip():
             continue
 
@@ -416,6 +419,68 @@ def _groupe_inline_de_l_element(element_docling, document_docling):
         label = str(getattr(groupe, "label", "") or "")
         return reference if label.endswith("inline") else None
     return None
+
+
+# Le point et la virgule, et EUX SEULS. En francais, l'espace avant
+# « ? », « ! », « ; » et « : » est correcte : la recoller serait une
+# faute de typographie, pas une reparation.
+# / Period and comma ONLY: French keeps a space before ? ! ; :
+MOTIF_DE_PONCTUATION_DETACHEE = re.compile(r"([\w)\]»%°])[ \t]+([.,])")
+
+
+def recoller_la_ponctuation_detachee(texte):
+    """
+    Recolle au mot precedent un point ou une virgule que Docling en a
+    separes. / Re-attaches a period or comma Docling detached.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    POURQUOI CE NETTOYAGE EXISTE. Docling rend regulierement
+    « d'un territoire . » ou « par IMS Global , un consortium », la ou
+    le fichier d'origine est propre. Un modele qui cite ce passage
+    recolle spontanement la ponctuation, comme le ferait un humain — et
+    sa citation ne se retrouve alors plus dans la source. Le controle
+    verbatim echoue, le lien part en INTROUVABLE, et la chaine de preuve
+    est declaree cassee pour un espace que nous avons introduit.
+
+    DEUX GARDES, ET AUCUNE N'EST DECORATIVE :
+
+    1. seuls le POINT et la VIRGULE sont recolles. L'espace avant
+       « ? », « ! », « ; » et « : » est la typographie francaise
+       normale ;
+    2. jamais ENTRE DEUX CHIFFRES : « les niveaux 3 , 5 et 8 » recolle
+       donnerait « 3,5 », un decimal que le document n'avance nulle
+       part. Vaut pour les dates, les montants, les versions.
+
+    Le motif ne franchit pas non plus de saut de ligne : une ponctuation
+    en tete de ligne appartient a la mise en forme — une puce, une
+    numerotation — et la recoller souderait deux blocs distincts.
+
+    ET IL N'AGIT QU'APRES UN CARACTERE DE MOT OU UN FERMANT. Coller
+    apres n'importe quel non-espace abime la typographie dans l'autre
+    sens : dans un tableau, « | « ...avec des chutes » deviendrait
+    « | «...avec des chutes », alors que l'espace apres un guillemet
+    OUVRANT est correcte. Mesure sur le corpus : 10 recollages fautifs
+    de cette famille (guillemets ouvrants de tableaux, chemins de
+    fichiers « /carnets/ , /bases/ ») contre ~96 legitimes.
+    / It only fires after a word character or a closing mark: gluing
+      after any non-space breaks tables and opening quotes.
+
+    CE NETTOYAGE NE TOUCHE QUE LES DOCUMENTS INGERES APRES LUI. Les
+    elements deja en base gardent leur texte : le corriger decalerait
+    les ancres des extractions, qui portent des positions absolues.
+    / Only affects newly ingested documents: rewriting stored text would
+    shift the extractions' absolute anchors.
+    """
+    def recoller(correspondance):
+        caractere_precedent, ponctuation = correspondance.groups()
+        suite = correspondance.string[correspondance.end():]
+        caractere_suivant = suite[:1]
+        if caractere_precedent.isdigit() and caractere_suivant.isdigit():
+            return correspondance.group(0)
+        return caractere_precedent + ponctuation
+
+    return MOTIF_DE_PONCTUATION_DETACHEE.sub(recoller, texte)
 
 
 def _texte_de_l_element(element_docling, document_docling):

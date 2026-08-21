@@ -168,7 +168,16 @@
 .zone-corpus .badge-type[data-type="wiki"]     { color:var(--info); }
 .zone-corpus .badge-type[data-type="synthese"] { color:var(--cible); }
 
-.zone-corpus .article-synthese { max-width:44rem; }
+/* LA COLONNE DE LECTURE EST CENTREE, panneau ouvert comme ferme.
+   Elle mesure 44rem dans une `.zone-corpus` qui en fait 64 : sans
+   `margin:auto`, elle se collait a GAUCHE de sa zone. Mesure au
+   navigateur : **136 px hors centre**, dans les deux etats du panneau,
+   alors que la vue de lecture d'une note tombe a 0.
+   L'`auto` horizontal centre la colonne DANS la zone ; la zone, elle,
+   est deja centree dans l'ecran par sa propre marge.
+   / 44rem inside a 64rem zone with no auto margin: measured 136 px off
+   centre, while a note's reading column sits at 0. */
+.zone-corpus .article-synthese { max-width:44rem; margin-left:auto; margin-right:auto; }
 .zone-corpus .article-synthese h2 { font-size:1.25rem; margin:1.8rem 0 .5rem; letter-spacing:-.012em; }
 .zone-corpus .article-synthese h2:first-of-type { margin-top:.5rem; }
 .zone-corpus .article-synthese p { margin:0 0 .9rem; }
@@ -179,6 +188,100 @@
 }
 .zone-corpus .entete-article .ligne { display:flex; justify-content:space-between; gap:1rem; }
 .zone-corpus .entete-article .ligne span:first-child { color:var(--encre-douce); }
+
+/* ---- LES LIGNES QUI FONT QUELQUE CHOSE ----------------------------
+   L'en-tete etait un tableau de bord en LECTURE SEULE, et les deux
+   gestes couteux vivaient plus bas, en boutons pleins, toujours offerts
+   au meme poids. Ils rejoignent l'en-tete : c'est la qu'on lit deja ce
+   que l'article a coute et ce qu'il vaut.
+
+   ILS RESTENT DES LIGNES, pas des boutons : un bouton plein dans un
+   tableau de bord crie plus fort que les chiffres qu'il accompagne. Le
+   survol et le curseur suffisent a dire qu'on peut cliquer.
+   / Header rows, not filled buttons: a filled button in a dashboard
+   shouts louder than the figures beside it. ------------------------ */
+.zone-corpus .entete-article .ligne-depliante,
+.zone-corpus .entete-article .ligne-action {
+  border:0; border-top:1px solid var(--filet); background:none;
+  margin-top:.35rem; padding:.35rem 0 0; width:100%;
+  font-family:inherit; font-size:inherit; line-height:inherit;
+  color:var(--encre); text-align:left;
+}
+/* 24px DE HAUT AU MINIMUM, ligne comprise (WCAG 2.5.8). Mesure au
+   navigateur : ces lignes faisaient **16px** pour le depliant et
+   **23px** pour l'action. Elles sont larges — 676px — donc faciles a
+   viser horizontalement, mais une cible de 16px de haut se rate a la
+   souris comme au doigt.
+   / Measured at 16px and 23px tall: wide targets, but too thin. */
+.zone-corpus .entete-article .ligne-depliante > summary,
+.zone-corpus .entete-article .ligne-action { min-height:1.5rem; align-items:center; }
+.zone-corpus .entete-article .ligne-action { cursor:pointer; display:flex;
+  justify-content:space-between; gap:1rem; }
+.zone-corpus .entete-article .ligne-action > span:first-child { color:var(--encre-douce); }
+.zone-corpus .entete-article .ligne-action:hover > span:first-child,
+.zone-corpus .entete-article .ligne-depliante > summary:hover span:first-child {
+  color:var(--encre);
+}
+.zone-corpus .entete-article .ligne-action:focus-visible,
+.zone-corpus .entete-article .ligne-depliante > summary:focus-visible {
+  outline:2px solid var(--info); outline-offset:2px; border-radius:3px;
+}
+.zone-corpus .entete-article .ligne-depliante > summary {
+  cursor:pointer; list-style:none;
+}
+.zone-corpus .entete-article .ligne-depliante > summary::-webkit-details-marker { display:none; }
+/* Le chevron suit la VALEUR, a droite : c'est elle qu'on deplie.
+   / The chevron follows the value: that is what unfolds. */
+.zone-corpus .entete-article .ligne-depliante > summary .ligne span:last-child::after,
+.zone-corpus .entete-article .ligne-depliante > summary span:last-child::after {
+  content:" ▸"; opacity:.6;
+}
+.zone-corpus .entete-article .ligne-depliante[open] > summary span:last-child::after {
+  content:" ▾";
+}
+.zone-corpus .entete-article .contenu-de-la-ligne { padding:.5rem 0 .2rem; }
+
+/* NE COLORER QUE L'EXCEPTION. Un geste qui a une raison d'etre se
+   signale ; un geste inutile reste gris. Peindre les deux en
+   permanence remettrait deux boutons criards dans le tableau de bord.
+   / Only the exception is coloured: a gesture with a reason announces
+   itself, a pointless one stays grey. */
+.zone-corpus .entete-article .valeur-du-geste[data-neuf="oui"] {
+  color:var(--info); font-weight:700;
+}
+.zone-corpus .entete-article .valeur-du-geste[data-neuf="non"] { color:var(--encre-douce); }
+
+/* ---- LES ECARTEES, DOCUMENT PAR DOCUMENT ---- */
+.zone-corpus .document-ecarte { border-top:1px dashed var(--filet); }
+.zone-corpus .document-ecarte > summary {
+  cursor:pointer; list-style:none; display:flex; justify-content:space-between;
+  gap:.8rem; padding:.3rem 0; align-items:baseline;
+}
+.zone-corpus .document-ecarte > summary::-webkit-details-marker { display:none; }
+.zone-corpus .document-ecarte > summary:hover .titre-du-document { color:var(--encre); }
+.zone-corpus .document-ecarte > summary:focus-visible {
+  outline:2px solid var(--info); outline-offset:2px; border-radius:3px;
+}
+.zone-corpus .document-ecarte .titre-du-document {
+  color:var(--encre-douce); font-size:.68rem;
+}
+.zone-corpus .document-ecarte .titre-du-document::before { content:"▸ "; opacity:.6; }
+.zone-corpus .document-ecarte[open] .titre-du-document::before { content:"▾ "; }
+/* Le compte est le message : c'est lui qui dit ou regarder.
+   / The count is the message: it says where to look. */
+.zone-corpus .document-ecarte .compte-du-document {
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem;
+  color:var(--encre); font-weight:700; flex:none;
+}
+.zone-corpus .document-ecarte .liste-ecartee {
+  list-style:none; margin:0 0 .4rem; padding:0 0 0 1rem;
+  border-left:2px solid var(--filet);
+}
+.zone-corpus .document-ecarte .liste-ecartee li {
+  font-family:'Lora',Georgia,serif; font-style:italic;
+  font-size:.78rem; line-height:1.45; color:var(--encre-douce);
+  padding:.2rem 0;
+}
 .zone-corpus .bandeau-genre {
   display:flex; align-items:center; gap:.4rem; margin-bottom:.5rem;
   font-size:.6rem; text-transform:uppercase; letter-spacing:.08em;
@@ -193,7 +296,11 @@
 @keyframes pulsation { 50% { opacity:.3; } }
 @media (prefers-reduced-motion: reduce) {
   .zone-corpus .bandeau-genre .pastille-vivante { animation:none; }
-  .panneau-preuve { transition:none; }
+  /* Le panneau des preuves n'a plus de transition a lui : il EST le
+     tiroir, qui glisse en 0,25 s (`hypostasia.css`). La promesse porte
+     donc sur le tiroir. / The evidence panel is the drawer now; the
+     promise follows the element that actually animates. */
+  #drawer-overlay { transition:none; }
 }
 .zone-corpus .retour-liste {
   border:1px solid var(--filet-controle); background:var(--papier); cursor:pointer;
@@ -209,6 +316,36 @@
   padding:.3rem .25rem; margin:-.3rem 0; color:var(--info); text-decoration:none;
 }
 .zone-corpus .renvoi:hover, .zone-corpus .renvoi.est-active { text-decoration:underline; font-weight:700; }
+/* LA TENSION ENTRE LES JUGES, portee par la couleur du renvoi.
+   Le renvoi ne dit JAMAIS le degre (interdit du § 3.6) : il dit si les
+   quatre juges locaux confirment le juge de production ou le dementent.
+
+   POURQUOI SEULE LA TENSION EST COLOREE. Mesure du 20 aout 2026 : la
+   contradiction franche touche 16 citations sur 209 — 7,7 %. Colorer
+   aussi l'accord peindrait 92 % des renvois en vert, et un signal qui
+   est partout cesse d'etre un signal. Le defaut reste donc `--info`,
+   comme avant, et l'oeil ne s'arrete que sur ce qui merite un clic.
+
+   ET LA COULEUR NE PORTE JAMAIS SEULE : l'`aria-label` du bouton dit
+   « les controleurs dementent le juge ». Vert/ambre est un axe
+   rouge-vert, aplati en deuteranopie.
+   / Only tension is coloured: colouring agreement would paint 92 % of
+     references green, and a signal that is everywhere stops being one. */
+/* L'AIDE DE LECTURE : discrete au repos, lisible ouverte. Le « ? » est
+   le resume d'un `<details>` natif — focusable au clavier et atteignable
+   au doigt, ce qu'un `title` n'est ni l'un ni l'autre.
+   / Native <details>: keyboard-focusable and touch-reachable. */
+.zone-corpus .aide-de-lecture { margin:.6rem 0 0; font-size:.78rem; }
+.zone-corpus .aide-de-lecture > summary {
+  cursor:pointer; color:var(--encre-douce); display:inline-block;
+  padding:.25rem 0;
+}
+.zone-corpus .aide-de-lecture > summary:hover { color:var(--encre); }
+.zone-corpus .aide-de-lecture .explication p { margin:.4rem 0; max-width:62ch; }
+
+.zone-corpus .renvoi[data-accord-local="tension"] {
+  color:var(--faible); font-weight:700;
+}
 /* LE VERDICT D'UN PARAGRAPHE se lisait comme un trait de SEPARATION :
    un filet pleine largeur sous le texte, pris pour une bordure
    decorative (recette du 10 aout, F6). Dans ce design system, un etat
@@ -250,6 +387,19 @@ marque une chaine de preuve rompue sans crier.
 }
 .zone-corpus .legende-verification span { display:inline-flex; align-items:center; gap:.25rem; }
 .zone-corpus .legende-verification i { width:1.1rem; height:2px; display:inline-block; font-style:normal; }
+/* DANS L'AIDE, LA LEGENDE DEVIENT UNE LISTE. En rangee, sept etats a
+   parenthese passaient a la ligne n'importe ou et l'oeil ne savait plus
+   quel libelle allait avec quel trait. Le depliant a la hauteur qu'il
+   faut : un etat par ligne, les traits alignes.
+   / Inside the help, one state per line: wrapped in a row, seven
+   parenthesised states broke anywhere and label and rule came apart. */
+.zone-corpus .aide-de-lecture .legende-verification {
+  flex-direction:column; gap:.3rem; margin:.4rem 0 .7rem; font-size:.68rem;
+}
+.zone-corpus .aide-de-lecture .legende-verification .legende-portee {
+  margin-bottom:.1rem;
+}
+.zone-corpus .aide-de-lecture .legende-verification i { flex:none; }
 
 .zone-corpus .ecarte { margin-top:1.2rem; border:1px solid var(--filet); border-radius:6px; overflow:hidden; }
 .zone-corpus .ecarte > summary {
@@ -263,40 +413,351 @@ marque une chaine de preuve rompue sans crier.
 .zone-corpus .ecarte .contenu-ecarte { padding:.6rem .7rem; }
 .zone-corpus .ecarte .explication { font-size:.8rem; color:var(--encre-douce); margin:.5rem 0 0; line-height:1.55; }
 
-.zone-corpus .carte-preuve, .panneau-preuve .carte-preuve {
+/* Le panneau est desormais une COLONNE DE `.zone-corpus` : le selecteur
+   portait les deux scopes, qui designent maintenant les memes elements.
+   / The panel is now a column of .zone-corpus: one scope suffices. */
+.panneau-preuve .carte-preuve {
   border:1px solid var(--filet); border-radius:5px; padding:.5rem .6rem;
   margin-bottom:.45rem; background:var(--papier);
 }
-.zone-corpus .citation-exacte, .panneau-preuve .citation-exacte {
-  font-style:italic; font-size:.85rem; line-height:1.5; margin:0 0 .4rem;
-  border-left:2px solid var(--filet); padding-left:.5rem;
-}
+{% comment %}
+`.citation-exacte` N'A PLUS QU'UNE SEULE REGLE, plus bas, dans la
+section de la fiche de preuve. Elle en avait deux : celle-ci posait un
+filet gauche et une police heritee de Georgia, l'autre la vraie. Deux
+regles pour un meme selecteur, c'est la garantie qu'elles divergent —
+et le filet appartient desormais au bloc qui ENTOURE la citation
+(`.citation-en-contexte`), puisqu'il doit englober le contexte aussi.
+/ One rule only: the left border now belongs to the wrapper, which must
+enclose the surrounding context too.
+{% endcomment %}
 .panneau-preuve .debat {
-  margin-top:.4rem; padding-top:.35rem; border-top:1px dashed var(--filet); font-size:.78rem;
+  margin-top:.5rem; padding-top:.4rem; border-top:1px dashed var(--filet); font-size:.78rem;
 }
+.panneau-preuve .debat .titre-du-debat {
+  display:block; font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  text-transform:uppercase; letter-spacing:.06em; color:var(--encre-douce);
+  margin-bottom:.25rem;
+}
+.panneau-preuve .debat .intervention { margin-bottom:.3rem; line-height:1.45; }
 .panneau-preuve .debat .qui { font-weight:700; font-size:.68rem; }
+/* Le tiret est pose par le CSS, jamais par le gabarit : un separateur
+   n'a de sens qu'ENTRE deux choses, et un commentaire anonyme n'a pas
+   de « qui » a separer. / The dash belongs to the rule, not the markup:
+   an anonymous comment has no name to separate from. */
+.panneau-preuve .debat .qui::after { content:" — "; font-weight:400; }
 
+/* =========================================================================
+   LA FICHE DE PREUVE — une CARTE D'EXTRACTION, dans le panneau
+   =========================================================================
+
+   COMMANDE DU MAINTENEUR : « ameliorer la visibilite de la vue des
+   preuves, et la faire ressembler a la vue des extractions sur les
+   textes originaux ».
+
+   CE QU'ON PREND A L'ETALON (`corpus.html`, `htmlDUneCartePreuve`) :
+   la GEOMETRIE et les COULEURS — entete statut + badges + provenance,
+   resume, citation, debat.
+
+   CE QU'ON NE LUI PREND PAS : sa typographie. `maquette.css` l'a deja
+   tranche en portant la carte d'extraction — « la TYPOGRAPHIE suit la
+   charte du projet (B612, B612 Mono, Lora, Srisakdi) et non le
+   `ui-monospace` de l'etalon, qui n'est qu'un substitut pour rester
+   autonome ». L'etalon est un fichier autonome : il ne PEUT pas charger
+   les polices du projet.
+
+   ET C'ETAIT L'ECART N°1. Mesure au navigateur du 20 aout : la carte de
+   lecture rend son resume en B612 Mono 14px et sa citation en Lora
+   16px ; le panneau de preuve rendait TOUT en Georgia, citation
+   comprise. Trois polices = trois provenances — le principe central de
+   la charte ne s'appliquait pas ici.
+   / Measured: the reading card uses B612 Mono and Lora; the proof panel
+   used Georgia throughout. Three faces = three provenances.
+
+   TOUT EST AUX TOKENS, jamais aux classes Tailwind : le build est FIGE,
+   une classe absente du bundle est inerte et ne leve aucune erreur.
+   ========================================================================= */
+
+/* L'ENTETE. `flex-wrap` et non une troncature : deux hypostases longues
+   (PROBLEMATIQUE, CLASSIFICATION) plus la provenance ne tiennent pas sur
+   374px, et une provenance coupee au milieu vaut moins qu'une provenance
+   a la ligne. / Wrap rather than truncate: a cut source name is worse
+   than a wrapped one. */
+.panneau-preuve .entete-preuve {
+  display:flex; align-items:center; gap:.35rem; margin-bottom:.4rem;
+  flex-wrap:wrap;
+}
+/* L'INDICATEUR DE STATUT N'A AUCUNE TAILLE HORS DU DRAWER : `maquette.css`
+   ne pose ses `width`/`height` que sous `#drawer-overlay`. Sans cette
+   regle il est INVISIBLE — en silence, comme une classe Tailwind absente
+   du bundle. Taille de l'etalon (`corpus.html`).
+   / Sized only under #drawer-overlay elsewhere: without this it is
+   silently invisible. */
+.panneau-preuve .indicateur-statut { width:.72rem; height:.72rem; flex:none; }
+/* LE NUMERO DU RENVOI, en tete de la fiche. Il porte la MEME graisse et
+   la MEME famille que le renvoi du texte : c'est ce qui fait reconnaitre
+   les deux comme un seul objet a deux endroits. La couleur, elle, reste
+   l'encre — dans le texte, `--info` dit « cliquable » ; ici, la fiche
+   EST deja la destination. / Same weight and family as the reference in
+   the text; ink, not link blue: this is the destination. */
+.panneau-preuve .numero-de-renvoi {
+  font-family:ui-monospace,Menlo,monospace; font-size:.62rem;
+  font-weight:700; color:var(--encre); flex:none;
+}
+/* Le compteur se pousse a droite et ne se comprime jamais : c'est lui
+   qui dit qu'un debat a commence. Meme jeton que la carte de lecture.
+   / Pushed right, never shrunk: it says a debate has started. */
+.panneau-preuve .compteur-commentaires {
+  flex:none; display:inline-flex; align-items:center; gap:.15rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  color:var(--statut-commente);
+}
+.panneau-preuve .entete-preuve .badges {
+  display:flex; flex-wrap:wrap; gap:.2rem; min-width:0;
+}
+/* Contrastes calcules des huit familles sur `--papier`, le fond de la
+   carte (WCAG 1.4.3, texte : seuil 4,5:1) : de 6,31:1 (problematique) a
+   7,71:1 (epistemique) en clair ; de 9,11:1 a 12,53:1 en sombre. Le
+   trait suit par `currentColor`, donc au meme rapport.
+   / Measured 6.31-7.71:1 light, 9.11-12.53:1 dark. */
+.panneau-preuve .provenance {
+  margin-left:auto; font-family:ui-monospace,Menlo,monospace; font-size:.57rem;
+  color:var(--encre-douce);
+}
+
+/* LE RESUME — texte machine, donc B612 Mono (charte).
+   PLUS PETIT QUE LA CITATION, et c'est le point : `.typo-machine` fait
+   14px quand la citation du panneau en fait 13,6. Poser la classe brute
+   rendrait la voix machine plus grosse que la preuve humaine.
+   / Smaller than the quote on purpose: the raw class is 14px against
+   13.6px, which would outweigh the evidence. */
+.panneau-preuve .resume-machine {
+  font-family:'B612 Mono',ui-monospace,Menlo,monospace;
+  font-size:.75rem; line-height:1.5; color:var(--encre-douce);
+  margin:0 0 .45rem;
+}
+
+/* LA CITATION DANS SON CONTEXTE. */
+.panneau-preuve .citation-en-contexte {
+  margin:0 0 .45rem; padding-left:.55rem;
+  border-left:2px solid var(--filet);
+}
+/* La citation est en LORA, comme dans la carte de lecture : c'est une
+   voix humaine citee. Elle est la seule a pleine encre — le contexte
+   l'entoure, il ne la concurrence pas.
+   / Lora, at full ink: the surroundings must not compete. */
+.panneau-preuve .citation-exacte {
+  font-family:'Lora',Georgia,serif; font-style:italic;
+  font-size:.95rem; line-height:1.55; color:var(--encre);
+}
+/* LE CONTEXTE est du texte source lui aussi : meme police, mais plus
+   petit et en encre douce.
+
+   `pre-line` EST POSE ICI, ET NON SUR LE CONTENEUR, et la nuance se
+   voit a l'oeil. Sur le conteneur, il preservait aussi les retours a la
+   ligne du GABARIT — ceux qui separent deux balises — et la fiche
+   s'ouvrait sur quatre grands blancs. Sur le span, il ne rend plus que
+   le saut de ligne que le SERVICE pose a la jonction de deux elements :
+   sans lui, le paragraphe precedent et la citation se liraient comme un
+   seul, et le contexte mentirait sur la structure du document.
+   / On the span, not the wrapper: on the wrapper it also preserved the
+   template's own newlines, which opened four large gaps. */
+.panneau-preuve .citation-en-contexte .contexte {
+  font-family:'Lora',Georgia,serif; font-style:italic;
+  font-size:.82rem; line-height:1.5; color:var(--encre-douce);
+  white-space:pre-line;
+}
+
+/* L'ACCORDEON DU PASSAGE : cliquer la CITATION ouvre le passage long.
+   Le marqueur natif est retire — la surface cliquable est le texte
+   lui-meme, pas un chevron a cote. Le `…` de la coupe est l'invite.
+   / The quote itself is the click target; the ellipsis is the cue. */
+.panneau-preuve .passage-source > summary {
+  cursor:pointer; list-style:none; display:block;
+}
+.panneau-preuve .passage-source > summary::-webkit-details-marker { display:none; }
+.panneau-preuve .passage-source > summary:focus-visible {
+  outline:2px solid var(--info); outline-offset:3px; border-radius:3px;
+}
+/* AU REPOS, LA CITATION SEULE. Le contexte s'affichait par defaut, en
+   gris, de part et d'autre : trois blocs de texte pour une citation,
+   sur soixante fiches — et la citation, la seule chose qui prouve
+   quelque chose, s'y perdait.
+   / At rest, the quote alone: three blocks of grey text per quote,
+   across sixty cards, drowned the one thing that proves anything. */
+.panneau-preuve .passage-source:not([open]) .contexte { display:none; }
+.panneau-preuve .invite-au-passage {
+  display:block; margin-top:.3rem;
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  color:var(--info); white-space:normal;
+}
+.panneau-preuve .passage-source:not([open]) .invite-au-passage::after {
+  content:"▸ voir ce passage dans la source";
+}
+.panneau-preuve .passage-source[open] .invite-au-passage::after {
+  content:"▾ replier le passage";
+}
+.panneau-preuve .passage-source > summary:hover .invite-au-passage { text-decoration:underline; }
+
+/* LA SOURCE, SOUS LE TEXTE qu'elle a produit. */
+.panneau-preuve .lien-source {
+  display:inline-block; color:var(--info); font-size:.72rem;
+  font-family:ui-monospace,Menlo,monospace; text-decoration:none;
+}
+.panneau-preuve .lien-source:hover { text-decoration:underline; }
+
+/* LA CHAINE DE PREUVE ROMPUE. Jamais dans un pli : c'est la PREUVE qui
+   est atteinte, pas sa verification. / Never filed away. */
+.panneau-preuve .alerte-de-la-source {
+  margin:.45rem 0 0; font-size:.72rem; line-height:1.45;
+  color:var(--faible);
+}
+
+/* `.explication` ETAIT INERTE DANS LE PANNEAU, et c'etait LE defaut de
+   lisibilite de cette fiche. La seule regle qui la portait est
+   `.zone-corpus .ecarte .explication` — or le panneau est HORS de
+   `.zone-corpus`. Mesure au navigateur du 20 aout : la prose
+   explicative rendait a **13,6px en `--encre`**, exactement la taille et
+   la couleur de la citation. La preuve n'avait aucun avantage
+   typographique sur son propre commentaire.
+   / The rule that carried it is scoped to .zone-corpus; the panel is
+   outside it. Measured: 13.6px in --encre, identical to the quote. */
+.panneau-preuve .explication {
+  font-size:.72rem; line-height:1.5; color:var(--encre-douce);
+}
+
+/* LE PLI DE VERIFICATION — son resume EST l'etat.
+
+   « Faible » n'est pas un libelle de plus : c'est le verdict. Le poser
+   en resume garde le signal visible et range le detail, ce que le
+   § 3.6 demande — « la rigueur est disponible au clic, pas imposee a la
+   lecture ». / The state IS the summary. */
+.panneau-preuve .verification { margin-top:.2rem; }
+.panneau-preuve .verification > summary {
+  cursor:pointer; list-style:none; display:flex; align-items:center;
+  gap:.4rem; padding:.15rem 0;
+}
+.panneau-preuve .verification > summary::-webkit-details-marker { display:none; }
+.panneau-preuve .verification > summary:focus-visible {
+  outline:2px solid var(--info); outline-offset:2px; border-radius:3px;
+}
+.panneau-preuve .verification > summary .intitule-du-pli {
+  font-family:ui-monospace,Menlo,monospace; font-size:.6rem;
+  color:var(--encre-douce);
+}
+/* Le chevron est pose en `::after` sur l'intitule : il suit le texte, il
+   ne s'aligne pas a la main. / Follows the label, no hand alignment. */
+.panneau-preuve .verification > summary .intitule-du-pli::after {
+  content:" ▸"; opacity:.7;
+}
+.panneau-preuve .verification[open] > summary .intitule-du-pli::after { content:" ▾"; }
+.panneau-preuve .verification > summary:hover .intitule-du-pli { color:var(--encre); }
+.panneau-preuve .etat-a-plat {
+  display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; margin:.2rem 0 0;
+}
+
+/* LE NOM DU JUGE VIENT EN TETE DE SA BARRE. Les avis sont tries par
+   score decroissant : l'ordre change d'une citation a l'autre, donc la
+   POSITION ne dit rien et le nom est obligatoire. Donne en fin de
+   phrase, il obligeait a lire cinq phrases jusqu'au bout pour savoir
+   qui parle. / Sorted by score: position means nothing, the name leads. */
+.panneau-preuve .nom-du-juge {
+  font-family:ui-monospace,Menlo,monospace; font-size:.63rem;
+  font-weight:700; color:var(--encre); letter-spacing:.01em;
+}
+.panneau-preuve .nom-du-juge[data-role="reference"] { text-transform:uppercase; }
+.panneau-preuve .version-du-juge {
+  font-family:ui-monospace,Menlo,monospace; font-size:.58rem;
+  color:var(--encre-douce);
+}
+/* UN FILET, PAS UN FOND COLORE. Marquer fort la reference a l'interieur
+   d'un bloc dont le resume est l'ACCORD recreerait l'argument d'autorite
+   que le § 7.2 tient a distance : les locaux se lisent A COTE du juge de
+   production, jamais a sa place. / A rule, not a coloured box.
+
+   ET SURTOUT PAS `--filet` : mesure au navigateur, ce filet-la rendait a
+   **1,19:1 en clair et 1,31:1 en sombre** sur le fond creux du bloc des
+   avis. Il etait present dans le DOM — un test aurait pu l'attester — et
+   INVISIBLE a l'ecran. C'est le meme mode de panne qu'une classe
+   Tailwind absente du bundle : rien ne le signale.
+
+   `--filet` est un jeton concu pour etre discret sur `--papier` ; ici il
+   se pose sur `--papier-creux`, qui en est encore plus proche. Ce trait
+   porte une distinction reelle — qui controle, qui est controle — donc
+   il doit atteindre les 3:1 de WCAG 1.4.11.
+   / Measured at 1.19:1 light and 1.31:1 dark: present in the DOM,
+   invisible on screen. This rule carries a real distinction. */
+.panneau-preuve .separateur-des-locaux {
+  border:0; margin:.5rem 0 .45rem;
+  border-top:1px solid color-mix(in srgb, var(--encre-douce) 80%, var(--papier-creux));
+}
+
+/* =========================================================================
+   LA COLONNE DES PREUVES — DANS le tiroir partage, jamais par-dessus
+   =========================================================================
+
+   CE QU'ELLE ETAIT, ET POURQUOI C'ETAIT FAUX. Un `position: fixed` pose
+   sur un voile qui grisait l'article : ouvrir une preuve rendait
+   ILLISIBLE la phrase qu'on etait en train de verifier. Or verifier,
+   c'est comparer l'affirmation et sa source — donc les avoir sous les
+   yeux EN MEME TEMPS.
+
+   ELLE A ENSUITE ETE UNE COLONNE DE L'ARTICLE, et c'etait faux
+   autrement : la grille etait interne a `.zone-corpus`, donc centree
+   sous un `max-width`. Mesure du 20 aout, fenetre de 1600px : le bord
+   droit du panneau tombait a 1508 — 92px avant le bord de la fenetre,
+   la ou le panneau des analyses d'une note tombe a 1600 pile.
+
+   ELLE EST DONC LE PANNEAU DES NOTES. Le meme : `#drawer-overlay`,
+   colonne de la grille `.plateau` (`maquette.css`, « LE PANNEAU VIT
+   DANS LE CORPS DE LA NOTE »). Meme bord droit, meme seuil de bascule,
+   meme controle dans la bande de contexte, meme touche E, meme Echap.
+   Ce fichier ne decrit plus que l'INTERIEUR de la colonne ; sa place
+   dans la page appartient a `maquette.css`.
+   / It was a column of the article's own grid, so it stopped 92px short
+   of the window edge. It is now the note panel itself: same drawer, same
+   threshold, same control. Only its inside is described here.
+   ========================================================================= */
+
+/* L'ARTICLE N'A PLUS DE GRILLE : ses preuves sont parties dans le
+   tiroir. Ce qui reste est une colonne de texte, centree comme tout
+   ecran du corpus. / The article is a single text column again. */
+.zone-corpus-a-preuves { display:block; }
+
+/* LE PANNEAU REMPLIT LE TIROIR, et c'est SON corps qui defile — pas le
+   tiroir. Le defilement vers une fiche (`article.html`) deplace
+   `#corps-preuve` et lui seul : l'en-tete « Preuves » reste en place, et
+   la page ne bouge pas.
+   / The body scrolls, not the drawer: bringing a card up must not move
+   the header or the page. */
 .panneau-preuve {
-  position:fixed; top:0; right:0; bottom:0; width:var(--preuve); max-width:100vw; z-index:88;
-  background:var(--papier-panneau); border-left:1px solid var(--filet);
-  transform:translateX(100%); transition:transform .2s ease;
-  display:flex; flex-direction:column; box-shadow:-4px 0 24px rgba(0,0,0,.14);
+  display:flex; flex-direction:column;
   font-family:Georgia,serif; color:var(--encre);
+  height:100%; min-height:0;
 }
-.panneau-preuve { visibility:hidden; }
-.panneau-preuve.est-ouvert { transform:translateX(0); visibility:visible; }
-.panneau-preuve .entete {
-  padding:.6rem .7rem; border-bottom:1px solid var(--filet); display:flex;
-  align-items:center; gap:.5rem; font-family:ui-monospace,Menlo,monospace; font-size:.65rem;
-  text-transform:uppercase; letter-spacing:.07em; color:var(--encre-douce);
+/* PAS D'EN-TETE ICI : la bande de contexte en porte deja un, et il
+   disait le meme mot. « Preuves · 63 » y vit — avec le controle qui
+   masque et ramene le panneau. / No header here: the context strip
+   already carries one, next to the panel's toggle. */
+.panneau-preuve .corps {
+  padding:.7rem; font-size:.85rem;
+  flex:1; overflow-y:auto; min-height:0;
 }
-.panneau-preuve .entete button { margin-left:auto; border:1px solid var(--filet);
-  background:var(--papier); border-radius:3px; cursor:pointer; padding:.1rem .45rem; }
-.panneau-preuve .corps { flex:1; overflow-y:auto; padding:.7rem; font-size:.85rem; }
-.voile-preuve {
-  position:fixed; inset:0; background:rgba(0,0,0,.18); z-index:87; display:none;
+
+/* LA FICHE VISEE PAR LE RENVOI. Un filet a gauche, comme tout etat dans
+   ce systeme de design — et pas un fond colore, qui donnerait a la
+   fiche marquee l'air d'un verdict. Contraste calcule plus bas.
+   / A left rule, the design system's grammar for a state. */
+.panneau-preuve .carte-preuve.est-active {
+  border-left:3px solid var(--info);
+  background:color-mix(in srgb, var(--info) 6%, var(--papier));
 }
-.voile-preuve.est-visible { display:block; }
+.panneau-preuve .carte-preuve:focus-visible {
+  outline:2px solid var(--info); outline-offset:2px;
+}
+.zone-corpus .renvoi.est-active {
+  background:color-mix(in srgb, var(--info) 18%, transparent);
+  border-radius:3px;
+}
 
 .etat-verification {
   display:inline-flex; align-items:center; gap:.3rem; border-radius:3px;
@@ -361,7 +822,14 @@ marque une chaine de preuve rompue sans crier.
   background:var(--papier-creux);
 }
 .second-avis .titre-de-l-accord {
-  margin:0 0 .35rem; font-size:.78rem; color:var(--encre);
+  margin:0 0 .35rem; font-size:.78rem; color:var(--encre); cursor:pointer;
+}
+/* Ce depliant est le SEUL des trois de la fiche a n'avoir eu aucune
+   marque de focus : au clavier, on le traversait sans savoir qu'on
+   etait dessus. / The only one of the card's three folds with no focus
+   mark: keyboard users crossed it blind. */
+.second-avis > summary:focus-visible {
+  outline:2px solid var(--info); outline-offset:2px; border-radius:3px;
 }
 /* L'accord et le desaccord ne se distinguent PAS par la couleur seule :
    le mot le dit en toutes lettres dans le titre. Le filet ne fait que

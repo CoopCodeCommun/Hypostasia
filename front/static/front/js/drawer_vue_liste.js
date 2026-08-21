@@ -10,7 +10,7 @@
  * LOCALISATION : front/static/front/js/drawer_vue_liste.js
  *
  * COMMUNICATION :
- * Ecoute : clic sur #btn-toolbar-drawer, #btn-fermer-drawer, #drawer-backdrop
+ * Ecoute : clic sur #btn-toolbar-drawer, #btn-fermer-drawer (BASCULE), #drawer-backdrop
  * Ecoute : keydown E (toggle drawer), Escape (ferme drawer si ouvert)
  * Ecoute : clic delegue sur .drawer-carte-compacte (scroll texte + carte inline)
  * Note : .btn-masquer-drawer et .btn-restaurer-drawer sont geres par HTMX (hx-post dans le template)
@@ -49,6 +49,23 @@
 
     var drawerEstOuvert = false;
 
+    // LE TIROIR PORTE DEUX CONTENUS : les analyses d'une note, les
+    // preuves d'un article. La difference se lit sur L'ECRAN, jamais sur
+    // ce que le tiroir contient deja — en quittant un article pour une
+    // note, les fiches y restent une fraction de seconde, et un test
+    // pose sur elles rendrait la mauvaise reponse au pire moment.
+    //
+    // Un article rend ses preuves AVEC lui (base.html au chargement
+    // direct, OOB swap d'article.html en HTMX) : il n'y a donc rien a
+    // aller chercher, et `chargerContenu()` les ecraserait.
+    // / The drawer holds a note's analyses or an article's evidence. Ask
+    // the SCREEN, never the drawer: stale cards outlive a navigation.
+    function ecranEstUnArticle() {
+        return !!document.querySelector(
+            '#zone-lecture [data-testid="synthese-article"]'
+        );
+    }
+
     // FERMER, C'EST UNE DECISION — ON NE LA DEFAIT PAS DANS SON DOS.
     //
     // Corriger, masquer ou scinder un passage rechargent la zone de
@@ -83,10 +100,25 @@
 
     // Recupere le page_id depuis la zone de lecture
     // / Get page_id from reading zone
+    /**
+     * L'identifiant de la note QU'ON LIT, et rien d'autre.
+     * / The id of the note being READ, and nothing else.
+     *
+     * LA PORTEE EST LE CONTENEUR DE LECTURE, jamais la zone entiere.
+     * Un ecran de carnet liste ses notes, et CHAQUE LIGNE porte un
+     * `data-page-id` : la requete large rendait donc l'identifiant de
+     * la premiere ligne, et le panneau chargeait les analyses d'une
+     * note que personne n'avait ouverte — 126 cartes, dans un panneau
+     * qui ne parle que d'une note qu'on ne lit pas.
+     * / A notebook screen lists its notes, and every row carries a
+     * data-page-id: the broad query returned the first row's.
+     */
     function getPageId() {
-        var elementPage = document.querySelector('#zone-lecture [data-page-id]');
-        if (!elementPage) return null;
-        return elementPage.dataset.pageId;
+        var conteneurDeLecture = document.querySelector(
+            '#zone-lecture [data-testid="lecture-zone-principale"]'
+        );
+        if (!conteneurDeLecture) return null;
+        return conteneurDeLecture.dataset.pageId || null;
     }
 
     // Recharge la zone de lecture pour rafraichir les pastilles apres masquer/restaurer
@@ -188,8 +220,8 @@
         if (rechargerLeContenu === undefined) rechargerLeContenu = true;
         if (drawerEstOuvert) return;
 
-        var pageId = getPageId();
-        if (!pageId) {
+        var estUnArticle = ecranEstUnArticle();
+        if (!estUnArticle && !getPageId()) {
             Swal.fire({
                 toast: true,
                 position: 'top-end',
@@ -227,12 +259,14 @@
         // (clic toolbar ou raccourci E, pas HX-Trigger d'un autre flow)
         // / Load drawer-vue-liste content only if requested
         // / (toolbar click or E shortcut, not HX-Trigger from another flow)
-        if (rechargerLeContenu) {
+        if (rechargerLeContenu && !estUnArticle) {
             chargerContenu();
         }
 
-        // Focus sur le bouton fermer pour accessibilite
-        // / Focus close button for accessibility
+        refleterLeControle();
+
+        // Focus sur le bouton du panneau pour accessibilite
+        // / Focus the panel control for accessibility
         boutonFermer.focus();
     }
 
@@ -252,6 +286,7 @@
         overlay.classList.add('pointer-events-none');
         document.body.classList.remove('panneau-integre');
         l_utilisateur_a_ferme_le_panneau = true;
+        refleterLeControle();
 
         // Apres la transition, cache completement le backdrop
         // / After transition, fully hide the backdrop
@@ -263,6 +298,26 @@
         // / Return focus to toolbar button
         var bouton = boutonDuPanneau();
         if (bouton) bouton.focus();
+    }
+
+    // LE BOUTON DE LA BANDE EST UN INTERRUPTEUR, pas une croix : il reste
+    // a sa place dans les deux etats. Le GLYPHE est pose par le CSS, qui
+    // lit `body.panneau-integre` ; ce qu'un lecteur d'ecran entend, lui,
+    // ne se deduit d'aucune classe et s'ecrit donc ici.
+    // / The glyph comes from CSS reading the state class; what a screen
+    // reader hears cannot be derived from a class, so it is written here.
+    function refleterLeControle() {
+        var nom = ecranEstUnArticle() ? 'Preuves' : 'Analyses';
+        if (overlay) overlay.setAttribute('aria-label', nom);
+        if (!boutonFermer) return;
+        boutonFermer.setAttribute('aria-expanded', drawerEstOuvert ? 'true' : 'false');
+        var libelle = drawerEstOuvert
+            ? 'Masquer le panneau'
+            : 'Afficher le panneau';
+        boutonFermer.setAttribute('aria-label', libelle);
+        boutonFermer.setAttribute(
+            'title', libelle + (drawerEstOuvert ? ' (\u00c9chap)' : ' (E)')
+        );
     }
 
     // Bascule ouvert/ferme
@@ -284,9 +339,11 @@
         if (evenement.target.closest('#btn-toolbar-drawer')) basculerDrawer();
     });
 
-    // Clic fermer → ferme
-    // / Close click → close
-    boutonFermer.addEventListener('click', fermerDrawer);
+    // Clic sur le controle de la bande → BASCULE.
+    // Il fermait seulement. Une fois ferme, il disparaissait avec la
+    // bande qui le porte : sur un article, plus rien ne ramenait les
+    // preuves. / It only closed, and then vanished with its strip.
+    boutonFermer.addEventListener('click', basculerDrawer);
 
     // Clic backdrop → ferme
     // / Backdrop click → close
@@ -455,6 +512,7 @@
     // / Reload drawer content via HX-Trigger drawerContenuChange
     // / (emitted by masquer, restaurer server-side)
     document.body.addEventListener('drawerContenuChange', function() {
+        if (ecranEstUnArticle()) return;
         if (drawerEstOuvert) {
             var selectTri = document.getElementById('drawer-select-tri');
             var triActuel = selectTri ? selectTri.value : 'position';
@@ -476,6 +534,17 @@
             // Marquer comme non charge pour forcer le rechargement au prochain open
             // / Mark as not loaded to force reload on next open
             contenuCharge = false;
+            // Un article a depose ses preuves ET son titre par OOB swap :
+            // recharger ecraserait les unes, et le titre resterait faux.
+            // Ailleurs, on remet le titre que ce panneau porte par defaut.
+            // / An article has already delivered both by OOB swap.
+            if (ecranEstUnArticle()) {
+                refleterLeControle();
+                return;
+            }
+            var titre = document.getElementById('drawer-titre');
+            if (titre) titre.textContent = 'Analyses';
+            refleterLeControle();
             if (drawerEstOuvert) {
                 chargerContenu();
             }
@@ -506,15 +575,24 @@
     function ouvrirParDefautSurGrandEcran() {
         if (l_utilisateur_a_ferme_le_panneau) return;
         if (window.innerWidth < LARGEUR_DU_PANNEAU_INTEGRE) return;
-        if (!document.getElementById('readability-content')) return;
+        if (!document.getElementById('readability-content')
+            && !ecranEstUnArticle()) return;
         if (drawerEstOuvert) return;
         ouvrirDrawer(true);
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', ouvrirParDefautSurGrandEcran);
-    } else {
+    function demarrer() {
+        // Le controle porte l'etat FERME tant que rien ne l'a ouvert : il
+        // est ecrit ferme dans le gabarit, mais l'ecran peut n'avoir aucun
+        // panneau du tout. / Reflect the state before anything opens.
+        refleterLeControle();
         ouvrirParDefautSurGrandEcran();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', demarrer);
+    } else {
+        demarrer();
     }
 
     // Une lecture chargee en HTMX (navigation interne) doit se comporter

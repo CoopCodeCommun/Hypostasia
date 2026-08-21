@@ -1,192 +1,312 @@
-{# PANNEAU DE PREUVE d'une citation (phase H, etalon § panneau) #}
+{# LA FICHE DE PREUVE d'une citation (phase H, etalon § carte de preuve) #}
 {# LOCALISATION : front/templates/front/corpus/partials/preuve.html #}
-{# Variables : lien (SourceLink CITE), extraction, note_source #}
+{# Variables : lien (SourceLink CITE), extraction, note_source, #}
+{# contexte_avant, contexte_apres, avis_locaux, version_commune, #}
+{# accord_local, second_avis_en_cours, seuil_de_verification #}
+{% load extractor_tags %}
+{% comment %}
+LA FICHE SE LIT COMME UNE CARTE D'EXTRACTION, et c'est la commande du
+mainteneur : « la faire ressembler a la vue des extractions sur les
+textes originaux ». Elle suit donc `htmlDUneCartePreuve`
+(`front/static/front/maquettes/corpus.html`) — statut, badges,
+provenance, resume, citation, debat.
+
+DEUX POINTS OU L'ETALON NE FAIT PAS FOI, tous deux ecrits dans le
+projet lui-meme :
+
+  · LA TYPOGRAPHIE suit la charte (B612, B612 Mono, Lora) et non le
+    `ui-monospace` de l'etalon, « qui n'est qu'un substitut pour rester
+    autonome » (`maquette.css`, portage de la carte). L'etalon est un
+    fichier autonome : il ne peut pas charger les polices du projet.
+    Ce qu'on lui prend, c'est la GEOMETRIE et les COULEURS ;
+  · AUCUN MOT-CLE. L'etalon enumere ce qu'une carte de preuve contient
+    et n'y met pas de hashtag ; arbitrage du mainteneur, confirme.
+
+ET TOUTE LA VERIFICATION TIENT DANS UN PLI dont le resume est l'ETAT
+lui-meme. La fiche montrait le degre, son seuil, deux paragraphes
+didactiques et cinq juges avant meme qu'on les demande.
+{% endcomment %}
 <div data-testid="synthese-preuve" data-lien-id="{{ lien.pk }}">
-    <h3 class="text-sm font-semibold mb-1">Preuve</h3>
 
     {% if extraction %}
-    <blockquote class="citation-exacte"
-                data-testid="synthese-citation-exacte">
-        « {{ extraction.extraction_text }} »
-    </blockquote>
-
-    {# L'ETAT, AVEC SA PROVENANCE (§ 7.2) : jamais un verdict anonyme. #}
-    <p data-testid="synthese-etat-verification"
-       data-etat="{{ lien.etat_de_verification }}" style="margin:.2rem 0 .4rem">
-        <span class="etat-verification" data-etat="{{ lien.etat_de_verification }}">{{ lien.get_etat_de_verification_display }}</span>
-        {% if lien.verifie_par %}<br>
-        <span class="text-slate-500">par {{ lien.verifie_par }}
-            le {{ lien.verifie_le|date:"d/m/Y H:i" }}</span>
-        {% else %}
-        <span class="text-slate-500">— pas encore vérifié : utilisez
-        « Vérifier les citations »</span>
-        {% endif %}
-    </p>
+    {% entity_json_attrs extraction as attributs_de_l_extraction %}
+    {% with nombre_de_commentaires=extraction.commentaires.all|length %}
 
     {% comment %}
-    LE DEGRE, ET LE SEUIL MARQUE DESSUS.
+    L'`id` EST LA CIBLE DU RENVOI `[N]` : chaque renvoi du texte est un
+    `href="#preuve-<pk>"`, donc le lien mene ici **sans JavaScript**. Le
+    script de l'article n'ajoute que le defilement doux et le surlignage.
+    / The id is the [N] anchor target: the link works without JS.
 
-    Le juge ne rend plus « soutient / ne soutient pas » mais un degre de
-    0 a 100 (addendum du 18 aout 2026). La barre montre DE COMBIEN on est
-    au-dessus ou en dessous du seuil : c'est ce que le libelle seul ne dit
-    pas, et c'est ce qui permet de discuter LE SEUIL plutot que le verdict.
-
-    ELLE NE VIT QUE DANS CE PANNEAU. `PRESENTATION-V3.md § 3.6` a arbitre :
-    trois etats visuellement discrets dans le corps de l'article, pas un
-    score par phrase — « la rigueur est disponible au clic, pas imposee a
-    la lecture ». Ne jamais porter ce chiffre dans le corps.
-
-    Le degre est absent (NULL) pour tout verdict pose SANS juge —
-    citation introuvable, contestation humaine — et pour les verdicts
-    anterieurs a l'addendum. Le bloc ne s'affiche alors pas du tout.
+    L'`id` PORTE LE `pk` DU LIEN, PAS LE NUMERO. Une extraction citee
+    deux fois porte le MEME [N] aux deux endroits — comme une
+    bibliographie — mais DEUX SourceLink, donc deux fiches et deux
+    verdicts. Un `id` sur le numero en ferait deux fois le meme, et le
+    second serait inatteignable.
+    / The id carries the link pk, not the number: one extraction cited
+    twice keeps one number but has two links, two verdicts, two cards.
     {% endcomment %}
-    {% if lien.score_de_verification is not None %}
-    <div class="degre-de-soutien" data-testid="synthese-degre"
-         data-score="{{ lien.score_de_verification|floatformat:0 }}"
-         data-seuil="{{ seuil_de_verification|floatformat:0 }}"
-         role="img"
-         aria-label="Soutenu à {{ lien.score_de_verification|floatformat:0 }} sur 100, pour un seuil de {{ seuil_de_verification|floatformat:0 }} sur 100.">
-        <div class="piste">
-            <span class="remplissage"
-                  data-cote="{% if lien.etat_de_verification == 'faible' %}dessous{% else %}dessus{% endif %}"
-                  style="width:{{ lien.score_de_verification|floatformat:0 }}%"></span>
-            <span class="marque-du-seuil"
-                  style="left:{{ seuil_de_verification|floatformat:0 }}%"></span>
-        </div>
-        <p class="explication" style="margin:.25rem 0 0">
-            Soutenu à <strong>{{ lien.score_de_verification|floatformat:0 }}</strong>
-            sur 100 — seuil {{ seuil_de_verification|floatformat:0 }}.
-            {% comment %}
-            Deux juges n'ont pas la meme echelle : 45 sur 100 chez un juge
-            d'API sollicite par le protocole texte, 38 chez un juge local a
-            logits. Un degre sans le nom de celui qui l'a rendu n'est donc
-            pas comparable — et redevient l'argument d'autorite que le § 7.2
-            interdit.
-            {% endcomment %}
-            {% if lien.verifie_par %}Degré rendu par {{ lien.verifie_par }}.{% endif %}
-        </p>
-        <p class="explication" style="margin:.15rem 0 0">
-            Le seuil est un réglage d'affichage : le déplacer ne rejuge
-            rien.
-        </p>
-    </div>
-    {% endif %}
-
-    {% comment %}
-    LE SECOND AVIS — un second juge tourne À CÔTÉ du juge de production
-    pour être comparé à lui sur des données réelles. IL NE PILOTE RIEN.
-
-    LE TITRE EST L'ACCORD, PAS LES CHIFFRES. Un désaccord entre deux
-    juges est en lui-même l'information : c'est ce qui rend l'état
-    contestable au lieu d'asséné.
-
-    CHAQUE BARRE PORTE SON PROPRE SEUIL. Les deux juges ne sont pas sur
-    la même règle — 45/100 pour un juge d'API sollicité par le protocole
-    texte, ~38/100 pour un juge local lu sur les logits. Aligner 70 et 41
-    sur une règle commune ferait conclure au désaccord là où il y a
-    accord parfait.
-
-    QUATRE ÉTATS, ET ILS NE SE CONFONDENT PAS : les deux avis présents ;
-    la comparaison impossible (le juge de production n'a pas rendu de
-    degré — c'est le cas de toute citation vérifiée avant le 18 août
-    2026) ; le second avis en cours ; le second avis jamais demandé, qui
-    n'affiche rien du tout.
-    {% endcomment %}
-    {% if lien.score_du_second_avis is not None %}
-    <div class="second-avis" data-testid="synthese-second-avis"
-         data-accord="{% if accord_des_juges is None %}incalculable{% elif accord_des_juges %}accord{% else %}desaccord{% endif %}">
-        <p class="titre-de-l-accord">
-            {% if accord_des_juges is None %}
-            Comparaison impossible : le juge de production n’a pas rendu de
-            degré sur cette citation.
-            {% elif accord_des_juges %}
-            Les deux juges sont <strong>d’accord</strong>.
-            {% else %}
-            Les deux juges <strong>divergent</strong>.
-            {% endif %}
-        </p>
+    <article class="carte-preuve" id="preuve-{{ lien.pk }}"
+             data-lien-id="{{ lien.pk }}"
+             tabindex="-1">
 
         {% comment %}
-        Un verdict HUMAIN n'est jamais écrasé (§ 7.2). L'avis automatique
-        est montré — cacher une information dans un outil de délibération
-        est un choix fort — mais explicitement subordonné.
+        L'ENTETE : ce que le lecteur reconnait d'un coup d'oeil.
+
+        L'indicateur de statut garde ses DEUX etats. Le cercle creux
+        gris n'est pas une couleur — c'est une forme, daltonien-safe,
+        et c'est la meme grammaire que l'etalon et que la carte de
+        lecture. Le masquer quand il vaut « nouveau » inventerait une
+        troisieme grammaire dans un chantier dont la commande est la
+        ressemblance.
+
+        LES BADGES N'ONT PAS DE `title`. Dans la carte de lecture il
+        porte la definition de l'hypostase ; ici le resume machine dit
+        deja de quoi il s'agit, et un `title` ne s'atteint ni au clavier
+        ni au doigt — le mainteneur vient de trancher ce point pour
+        l'aide de lecture. On ne reimporte pas le motif dans du code
+        neuf. / No title: unreachable by keyboard and by touch.
         {% endcomment %}
-        {% if lien.etat_de_verification == "conteste" %}
-        <p class="explication" data-testid="synthese-second-avis-subordonne">
-            Verdict humain : l’avis automatique ci-dessous est donné pour
-            information, <strong>il ne le remplace pas</strong>.
+        <div class="entete-preuve">
+            {# LE NUMERO DU RENVOI : c'est par lui que le lecteur relie #}
+            {# la fiche au passage de l'article. Sans lui, une colonne #}
+            {# de soixante fiches ne se raccroche a rien. #}
+            {# / The reference number ties the card back to the text. #}
+            {% if numero %}
+            <span class="numero-de-renvoi" data-testid="synthese-numero-de-renvoi"
+                  aria-label="Source {{ numero }}">[{{ numero }}]</span>
+            {% endif %}
+            <span class="indicateur-statut"
+                  data-statut="{{ extraction.statut_debat }}"
+                  role="img"
+                  aria-label="{{ extraction.get_statut_debat_display }}"></span>
+            {% if attributs_de_l_extraction.0 %}
+            <div class="badges">
+                {% for hypostase in attributs_de_l_extraction.0|split_comma %}
+                <span class="typo-hypostase badge-hypostase"
+                      style="color: var(--hypostase-{{ hypostase|hypostase_famille }}-text);"
+                      data-testid="synthese-badge-hypostase">{{ hypostase }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% comment %}
+            LE COMPTEUR DE COMMENTAIRES compte les commentaires de
+            l'EXTRACTION SOURCE — les memes que le bloc « débat » plus
+            bas, et les memes que la carte de la vue de lecture. C'est
+            aussi ce qui pilote l'indicateur de statut a sa gauche :
+            `statut_debat` est derive de leur existence par un signal,
+            jamais pose a la main (`hypostasis_extractor/models.py`).
+            / The counter counts the SOURCE EXTRACTION's comments — the
+            same ones the debate block lists, and the same ones that
+            derive the status indicator beside it.
+            {% endcomment %}
+            {# Le titre de la note vit ICI, plus dans le lien : celui-ci #}
+            {# annonce desormais le nombre de commentaires. #}
+            {# / The note title lives here now, not in the link. #}
+            {% if note_source %}
+            <span class="provenance">{{ note_source.title|default:"note sans titre"|truncatechars:24 }}</span>
+            {% endif %}
+            {% if nombre_de_commentaires %}
+            <span class="compteur-commentaires"
+                  data-testid="synthese-compteur-commentaires"
+                  aria-label="{{ nombre_de_commentaires }} commentaire{{ nombre_de_commentaires|pluralize }} sur l'extraction source">
+                <span aria-hidden="true">✎</span>{{ nombre_de_commentaires }}
+            </span>
+            {% endif %}
+        </div>
+
+        {# CE QUE L'EXTRACTION PRETEND — texte machine, donc B612 Mono. #}
+        {# / What the extraction claims: machine voice, B612 Mono. #}
+        {% if attributs_de_l_extraction.1 %}
+        <p class="resume-machine" data-testid="synthese-resume-machine">{{ attributs_de_l_extraction.1 }}</p>
+        {% endif %}
+
+        {% comment %}
+        LA CITATION SEULE, ET LE PASSAGE AU CLIC.
+
+        LA FICHE MONTRE LA PREUVE, PAS SON DECOR. Le contexte
+        s'affichait par defaut, en gris, de part et d'autre : trois
+        blocs de texte pour une citation, sur soixante fiches. La
+        citation — la seule chose qui PROUVE quelque chose — s'y
+        perdait. Elle est desormais seule au repos.
+
+        LE PASSAGE VIENT AU CLIC, et largement : puisqu'il faut le
+        demander, ce qu'on ouvre doit valoir le geste.
+
+        TOUT TIENT DANS LE `<summary>`, et c'est ce qui fait que la
+        CITATION ELLE-MEME est la surface cliquable — pas un chevron a
+        cote. Le corps du depliant reste vide ; c'est le CSS qui montre
+        le passage selon `[open]`.
+        / The card shows the evidence, not its setting: three blocks of
+        grey text per quote, across sixty cards, drowned the one thing
+        that proves anything.
+
+        PAS DE DEPLIANT QUAND LE DOCUMENT N'ENTOURE LA CITATION DE RIEN
+        (le service le dit) : promettre un passage et n'en montrer aucun
+        est pire que de ne rien promettre.
+
+        LE PASSAGE EST ABSENT QUAND L'ANCRE EST DETACHEE : ses
+        positions sont perimees, et decouper le texte dessus
+        fabriquerait un decor faux, presente comme une preuve.
+
+        `white-space: pre-line` est pose sur les SPANS de contexte, pas
+        sur ce `<blockquote>` : sur le conteneur, il preservait aussi
+        les retours a la ligne du GABARIT. Ne pas le remonter.
+
+        PAS D'`aria-label` SUR CE `<summary>`. Il REMPLACERAIT le nom
+        accessible, et le nom accessible ici, c'est la CITATION — un
+        lecteur d'ecran ne l'entendrait jamais. L'etat plie/deplie est
+        deja annonce par `<details>` nativement.
+        {% endcomment %}
+        <blockquote class="citation-en-contexte">
+            {% if passage.il_y_a_un_passage %}
+            <details class="passage-source" data-testid="synthese-passage-source">
+                <summary>
+                    <span class="contexte" data-testid="synthese-contexte-avant">{{ passage.avant }}</span>
+                    <span class="citation-exacte" data-testid="synthese-citation-exacte">« {{ extraction.extraction_text }} »</span>
+                    <span class="contexte" data-testid="synthese-contexte-apres">{{ passage.apres }}</span>
+                    <span class="invite-au-passage" aria-hidden="true"></span>
+                </summary>
+            </details>
+            {% else %}
+            <span class="citation-exacte" data-testid="synthese-citation-exacte">« {{ extraction.extraction_text }} »</span>
+            {% endif %}
+        </blockquote>
+
+        {# LA SOURCE, SOUS LE TEXTE : le lecteur sait d'ou vient ce #}
+        {# qu'il lit AU MOMENT ou il le lit. Le lien vivait au dernier #}
+        {# rang, apres douze lignes de verification. #}
+        {# / The source, right under the text it comes from. #}
+        {% comment %}
+        `target="_blank"` : la source s'ouvre A COTE de l'article, pas a
+        sa place. Le lecteur est en train de verifier une synthese —
+        quitter la page pour aller voir la note lui ferait perdre
+        l'endroit ou il en etait, et la colonne de preuves avec.
+
+        `rel="noopener"` VA AVEC, toujours : sans lui, la page ouverte
+        recoit un `window.opener` qui lui permet de rediriger celle-ci.
+        / target=_blank always travels with rel=noopener.
+        {% endcomment %}
+        {% if note_source %}
+        <a class="lien-source"
+           href="/lire/{{ note_source.pk }}/?extraction={{ extraction.pk }}"
+           target="_blank" rel="noopener"
+           data-testid="synthese-lien-source">
+            Voir la source{% if nombre_de_commentaires %},
+            {{ nombre_de_commentaires }} commentaire{{ nombre_de_commentaires|pluralize }}{% endif %}
+            <span aria-hidden="true">↗</span>
+        </a>
+        {% endif %}
+
+        {# LA CHAINE DE PREUVE ROMPUE : jamais en silence, et jamais #}
+        {# dans le pli — c'est la PREUVE qui est atteinte, pas sa #}
+        {# verification. / A broken chain of evidence is never filed away. #}
+        {% if lien.etat_de_la_source != "presente" %}
+        <p class="alerte-de-la-source" data-testid="synthese-etat-source">
+            {% if lien.etat_de_la_source == "supprimee" %}La source de cette
+            citation a été supprimée depuis.{% else %}L'ancre de cette
+            citation s'est détachée : la source existe mais on ne sait plus
+            où elle pointe exactement.{% endif %}
         </p>
         {% endif %}
 
-        <div class="degre-de-soutien" role="img"
-             data-testid="synthese-barre-second-avis"
-             data-score="{{ lien.score_du_second_avis|floatformat:0 }}"
-             data-seuil="{{ lien.seuil_du_second_avis|floatformat:0 }}"
-             aria-label="Second avis : soutenu à {{ lien.score_du_second_avis|floatformat:0 }} sur 100, pour un seuil de {{ lien.seuil_du_second_avis|floatformat:0 }} sur 100, selon {{ lien.methode_du_second_avis }}.">
-            <div class="piste">
-                <span class="remplissage"
-                      data-cote="{% if lien.score_du_second_avis < lien.seuil_du_second_avis %}dessous{% else %}dessus{% endif %}"
-                      style="width:{{ lien.score_du_second_avis|floatformat:0 }}%"></span>
-                <span class="marque-du-seuil"
-                      style="left:{{ lien.seuil_du_second_avis|floatformat:0 }}%"></span>
+        {% comment %}
+        LE DEBAT JOINT (§ 7.3-7.4), dans la grammaire de l'etalon :
+        `.debat` puis un `.qui` par intervention. Cette regle EXISTE
+        dans `_style_maquette.html` et le gabarit ne l'employait pas —
+        il ecrivait `<ul class="list-disc ml-4">`, deux utilitaires
+        Tailwind hors du systeme de design.
+
+        PAS `.carte-commentaire` non plus, qui est la grammaire de la
+        VUE DE LECTURE : la-bas, ces blocs sont toujours suivis d'un
+        bouton « Commenter ». Les reprendre ici promettrait un geste que
+        la fiche n'offre pas.
+        / Not .carte-commentaire either: there it always precedes a
+        "Commenter" button, a gesture this card does not offer.
+        {% endcomment %}
+        {% if nombre_de_commentaires %}
+        <div class="debat" data-testid="synthese-debat">
+            <strong class="titre-du-debat">Débat sur cette extraction
+                ({{ nombre_de_commentaires }})</strong>
+            {% for commentaire in extraction.commentaires.all %}
+            <div class="intervention">
+                {% if commentaire.user %}<span class="qui">{{ commentaire.user.username }}</span>{% endif %}
+                {{ commentaire.commentaire|truncatechars:200 }}
             </div>
-            <p class="explication" style="margin:.25rem 0 0">
-                Second avis : <strong>{{ lien.score_du_second_avis|floatformat:0 }}</strong>
-                sur 100 — seuil {{ lien.seuil_du_second_avis|floatformat:0 }}.
-                Rendu par {{ lien.methode_du_second_avis }}
-                le {{ lien.second_avis_rendu_le|date:"d/m/Y H:i" }}.
-            </p>
-        </div>
-        <p class="explication" style="margin:.15rem 0 0">
-            Ce second juge tourne à côté du premier pour être comparé à
-            lui. <strong>Il ne décide de rien</strong> — et les deux
-            n’ont pas la même échelle, d’où deux seuils.
-        </p>
-    </div>
-    {% elif second_avis_en_cours %}
-    <p class="explication" data-testid="synthese-second-avis-en-cours"
-       aria-live="polite">
-        Second avis en cours… Le juge local tourne sur cette machine, en
-        priorité basse : comptez une vingtaine de secondes par citation.
-    </p>
-    {% endif %}
-
-    {% if lien.etat_de_la_source != "presente" %}
-    <p class="explication" style="color:var(--faible)" data-testid="synthese-etat-source">
-        {% if lien.etat_de_la_source == "supprimee" %}La source de cette
-        citation a été supprimée depuis.{% else %}L'ancre de cette
-        citation s'est détachée : la source existe mais on ne sait plus
-        où elle pointe exactement.{% endif %}
-    </p>
-    {% endif %}
-
-    {# LE DEBAT JOINT : les commentaires de l'extraction (§ 7.3-7.4). #}
-    {% with commentaires=extraction.commentaires.all %}
-    {% if commentaires %}
-    <div class="debat" data-testid="synthese-debat">
-        <strong class="qui">Débat sur cette extraction
-            ({{ commentaires|length }})</strong>
-        <ul class="list-disc ml-4">
-            {% for commentaire in commentaires %}
-            <li>{% if commentaire.user %}{{ commentaire.user.username }} : {% endif %}
-                {{ commentaire.commentaire|truncatechars:200 }}</li>
             {% endfor %}
-        </ul>
-    </div>
+        </div>
+        {% endif %}
+
+    {% comment %}
+    ============================================================
+    LA VERIFICATION, DANS UN PLI DONT LE RESUME EST L'ETAT
+    ============================================================
+
+    POURQUOI. La fiche affichait d'emblee le degre, sa barre, son seuil,
+    deux paragraphes didactiques et cinq juges — avant la citation dans
+    la hauteur utile, et sans que personne les ait demandes. Le § 3.6
+    dit la doctrine : « la rigueur est disponible AU CLIC, pas imposee a
+    la lecture ». Elle s'applique au panneau comme au corps de l'article.
+
+    LE RESUME EST L'ETAT LUI-MEME, pas un libelle de plus : « Faible »
+    est le verdict. Le signal reste visible, le detail est range.
+
+    LE PLI N'EXISTE QUE S'IL Y A QUELQUE CHOSE A PLIER. Sans degre et
+    sans avis, il ne resterait qu'une ligne — « pas encore verifie :
+    utilisez Verifier les citations » — et la cacher derriere un chevron
+    rangerait une CONSIGNE sans rien ranger d'autre.
+    / The fold only exists when there is something to fold.
+    {% endcomment %}
+    {% if lien.score_de_verification is not None or avis_locaux or second_avis_en_cours %}
+    <details class="verification" data-testid="synthese-verification">
+        <summary>
+            <span class="etat-verification"
+                  data-testid="synthese-etat-verification"
+                  data-etat="{{ lien.etat_de_verification }}">{{ lien.get_etat_de_verification_display }}</span>
+            <span class="intitule-du-pli">détail de la vérification</span>
+        </summary>
+
+        {# L'ETAT PORTE SON VERIFICATEUR (§ 7.2) : jamais un verdict #}
+        {# anonyme, sinon c'est un argument d'autorite automatise. #}
+        {# / The verdict always carries who issued it. #}
+        {# La date n'est PAS toujours posee avec le verificateur : un #}
+        {# verdict repris d'un report en garde le nom sans la date. #}
+        {# « le . » se lisait comme une panne. / The date is not always #}
+        {# set alongside the verifier: "le ." read as a failure. #}
+        <p class="explication" data-etat="{{ lien.etat_de_verification }}">{% if lien.verifie_par %}Rendu par {{ lien.verifie_par }}{% if lien.verifie_le %}, le {{ lien.verifie_le|date:"d/m/Y à H:i" }}{% endif %}.{% else %}Pas encore vérifié.{% endif %}</p>
+
+        {% include "front/corpus/partials/_verification_detaillee.html" %}
+    </details>
+    {% else %}
+    {% comment %}
+    RIEN A PLIER : l'etat et ce qui l'accompagne restent a plat.
+
+    ET IL FAUT DISTINGUER DEUX CAS, sans quoi on ment. « Pas encore
+    verifie » et « citation introuvable » tombent tous les deux ici —
+    aucun degre, aucun avis — mais le second A ETE JUGE : lui proposer
+    « utilisez Verifier les citations » ferait relancer un juge qui a
+    deja repondu, et effacerait le fait qu'un verdict existe.
+    Le degre est absent pour tout verdict pose SANS juge : citation
+    introuvable, contestation humaine.
+    / Two cases land here; only one of them is unverified.
+    {% endcomment %}
+    <p class="etat-a-plat">
+        <span class="etat-verification"
+              data-testid="synthese-etat-verification"
+              data-etat="{{ lien.etat_de_verification }}">{{ lien.get_etat_de_verification_display }}</span>
+        {# Les phrases ne sont PAS coupees par un retour a la ligne du #}
+        {# gabarit : « Pas encore vérifié » ecrit sur deux lignes se #}
+        {# rend avec un saut au milieu, et devient introuvable a toute #}
+        {# recherche — celle d'un test comme celle d'un relecteur. #}
+        {# / Never split a sentence across template lines. #}
+        <span class="explication">{% if lien.verifie_par %}Rendu par {{ lien.verifie_par }}{% if lien.verifie_le %}, le {{ lien.verifie_le|date:"d/m/Y à H:i" }}{% endif %}.{% else %}Pas encore vérifié : utilisez « Vérifier les citations ».{% endif %}</span>
+    </p>
     {% endif %}
+    </article>
     {% endwith %}
 
-    {# LE RETOUR A LA SOURCE : le passage exact dans la note. #}
-    {% if note_source %}
-    <a style="color:var(--info); font-size:.78rem"
-       href="/lire/{{ note_source.pk }}/?extraction={{ extraction.pk }}"
-       data-testid="synthese-lien-source">
-        Ouvrir la source : {{ note_source.title|default:"note sans titre"|truncatechars:60 }} →
-    </a>
-    {% endif %}
-
     {% else %}
-    <p class="explication" style="color:var(--faible)" data-testid="synthese-source-supprimee">
+    <p class="explication" data-testid="synthese-source-supprimee">
         La source de cette citation a été <strong>supprimée</strong> :
         la citation est conservée, mais son extraction n'existe plus.
     </p>

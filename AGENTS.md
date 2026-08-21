@@ -23,6 +23,7 @@ d'écart.
 | Les chantiers ouverts, l'environnement, les décisions en attente | `PLAN/PASSATION.md` |
 | Ce qui a changé et comment le tester à la main | `CHANGELOG/` |
 | Les défauts connus non corrigés | `CHANGELOG/DEFAUTS-DIFFERES.md` |
+| Ce qui est **décidé mais pas codé** | `PLAN/TODO/` — une note par intention, supprimée le jour où le code la porte |
 | L'état cible d'un domaine | `PLAN/specs/` — leurs **encarts datés en tête** font foi, pas leurs sections |
 | Le pourquoi des décisions de conception | `PRESENTATION-V3.md` |
 | Le **mécanisme** du moteur, en diagrammes | `PLAN/Diagrams/` — ingestion → périmètre → article sourcé → vérification. Mermaid, rendu nativement par GitHub |
@@ -92,10 +93,17 @@ Chacun a déjà cassé quelque chose. Aucun ne lève d'erreur explicite.
   **concurrence 1** — une conversion à la fois (~2 Go et ~83 s de warm-up
   chacune). C'est aussi ce qui rend exacte la position affichée dans la file.
   `celery_worker_juge_local` sert `verification_locale` à **concurrence 1** et
-  **sous `nice -n 19`** : le second avis charge 7,7 Go et coûte ~25 s de
-  processeur par citation, il doit céder le pas à Docling. Le `nice` remplace
-  une porte « attendre que le CPU baisse », qui aurait affamé la tâche **en
-  silence** sur une machine chargée. Verrouillés par
+  **sous `nice -n 19`**. Depuis le 19 août 2026 il porte **quatre encodeurs NLI**
+  (`core/services/juges_locaux.py`) et non plus ShieldStral. Résidents, ils
+  occupent **5,13 Go de RSS pour 6,01 Go de pic au chargement** (mesuré le
+  19 août) et coûtent **42 à 160 ms** par citation et par juge, contre 7,7 Go et
+  ~25 s pour ShieldStral. **Ce pic de 6 Go décide de l'hébergement** : ajouté à
+  une conversion Docling (~2 Go) et à PostgreSQL, il exclut un VPS de 4 ou 8 Go,
+  et `nice` ne protège pas de l'OOM killer. **La topologie ne change pas pour autant** : la
+  concurrence 1 est ce qui borne la mémoire (les modèles sont chargés une fois,
+  pas une fois par process), et le `nice` remplace une porte « attendre que le
+  CPU baisse » qui aurait affamé la tâche **en silence** sur une machine
+  chargée. Verrouillés par
   `hypostasis_extractor/tests/test_files_celery_ingestion.py` et
   `.../test_worker_du_juge_local.py`.
 - **Une suite de tests à la fois, jamais `--parallel`.** La base de test est

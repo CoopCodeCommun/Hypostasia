@@ -6,23 +6,95 @@ poids en cache. Rejouable : `benchmarks/juge_de_verification/comparer_un_encodeu
 Le plafond, lui, a coûté quelques centimes :
 `benchmarks/juge_de_verification/mesurer_le_plafond_de_l_etalon.py`.
 
+> ## ⚠️ LE JEU ADVERSE FUIT PAR LA NÉGATION — relecture du 19 août au soir
+>
+> Ce rapport présente le jeu adverse comme « la seule mesure qui tranche », au
+> motif que le recouvrement de mots y vaut **0,500 exactement**. C'est vrai, et
+> c'est vérifié. **Mais un autre comptage de surface y réussit très bien.**
+>
+> Mesuré en rejouant le jeu (273 paires, aucun modèle chargé) :
+>
+> | prédicteur trivial | AUC globale | **AUC appariée** |
+> |---|---|---|
+> | **compteur de « ne / n' / pas / aucun / jamais / ni / non »** | **0,776** | **0,962** |
+> | nombre de mots de l'affirmation | 0,545 | 0,904 |
+> | recouvrement de mots source→affirmation | 0,500 | 0,500 |
+> | *(rappel)* meilleur juge, `mdeberta` | 0,743 | 0,853 |
+>
+> **Un compteur de négations bat tous les juges mesurés.** La cause est dans la
+> construction : **97 % des affirmations fausses portent une marque de négation,
+> contre 42 % des vraies** — parce que toutes les paires perturbées sont fausses,
+> toutes les vraies non perturbées, et que la perturbation dominante (114 paires
+> sur 156) est une négation.
+>
+> **Ce qui tombe** : la preuve *positive* que ces quatre juges « vérifient ».
+> Une AUC de 0,74 sur ce jeu est compatible avec le biais NLI bien documenté
+> « marqueur de négation ⇒ contradiction », sans aucune compréhension de la
+> source.
+>
+> **Ce qui tient** : la conclusion *négative*. Écarter les deux LettuceDetect
+> français reste fondé — et l'est même davantage : ils échouent alors qu'un
+> indice de surface exploitable était à leur portée.
+>
+> **Ce qu'il faudrait pour trancher** : des perturbations qui n'ajoutent aucun
+> marqueur de négation (substitution d'entité vérifiée, inversion de relation,
+> changement de portée), ou un jeu où les affirmations vraies en portent autant
+> que les fausses.
+
 ---
 
-## Ce que cette journée établit, en trois phrases
+## Ce que cette journée établit
 
-1. **L'étalon gelé ne peut pas être prédit au-delà de 0,690** — c'est le score de
-   `gemini-2.5-flash`, qui l'a produit, contre ses propres verdicts. Et ce plafond est bas
-   pour une raison de **protocole**, pas de difficulté : le juge texte ne rend que quatre
-   crans, et **120 paires sur 145 reçoivent exactement 70**.
-2. **Un recouvrement de mots obtient 0,889** sur ce même étalon, et **0,981** sur les
-   quinze paires relues à la main. Les deux références sont lexicalement saturées : une
-   AUC calculée contre elles ne distingue pas un juge d'implication d'un `grep`.
-3. **Quatre juges dépassent le plafond, aucun ne dépasse le compteur de mots.** Le
-   meilleur encodeur égale ShieldStral pour **vingt-trois fois moins cher**.
+**1. Les deux références du dossier sont lexicalement saturées.** Un simple recouvrement
+de mots obtient **0,889** sur l'étalon gelé et **0,981** sur les quinze paires relues à la
+main — au-dessus de ShieldStral (0,734 et 0,923) et de tous les encodeurs. Une AUC contre
+elles **ne distingue pas un juge d'implication d'un `grep`**.
 
-**Conclusion de gouvernance : ce banc ne permet de retenir aucun juge.** Il permet de
-savoir ce qu'il faudrait mesurer pour pouvoir en retenir un, et c'est déjà davantage que
-ce que le dossier savait ce matin.
+**2. L'étalon ne peut pas être prédit au-delà de 0,690.** C'est le score de
+`gemini-2.5-flash`, qui l'a produit, contre ses propres verdicts. Le plafond est bas pour
+une raison de **protocole** et non de difficulté : le juge texte ne rend que quatre crans,
+et **120 paires sur 145 reçoivent exactement 70**.
+
+**3. Un jeu adverse à recouvrement rigoureusement constant tranche — et il renverse le
+classement.** Les deux modèles LettuceDetect français, dont le **candidat n°1 du récap**,
+y sont **au niveau du hasard ou en dessous** : leurs bons scores sur l'étalon étaient du
+comptage de mots. Trois modèles NLI y atteignent **0,73 à 0,74**, à condition de lire
+P(contradiction) — le seul signal qu'un compteur de mots ne peut pas imiter.
+
+### Le classement final, sur le jeu adverse corrigé
+
+273 paires, 117 vraies et 156 fausses, **compteur de mots à 0,500 par construction**.
+« appariée » compare les versions d'une **même** paire — c'est la métrique de ce jeu.
+
+| candidat | meilleure combinaison | AUC | **appariée** | négation | quantif. |
+|---|---|---|---|---|---|
+| `mdeberta-v3-base-mnli-xnli` | `directe` / `moins_contradiction` | **0,743** | 0,840 | **0,764** | **0,695** |
+| `bge-m3-zeroshot` | `directe` | 0,737 | 0,801 | 0,760 | 0,662 |
+| `camembertav2-base-xnli` | `directe` / `moins_contradiction` | 0,728 | **0,853** | **0,788** | 0,548 |
+| `distilcamembert-base-nli` | `directe` / `moins_contradiction` | 0,656 | 0,737 | 0,675 | 0,603 |
+| `lettucedect-v2-mmbert-base` | `qa` / `meilleure_phrase` | 0,630 | 0,763 | — | — |
+| `lettucedect-210m-eurobert-fr` | `resume` / `pire_token` | **0,516** | 0,667 | 0,516 | 0,517 |
+| `lettucedect-610m-eurobert-fr` | `qa` / `couverture` | **0,481** | 0,308 | **0,492** | 0,459 |
+| **recouvrement de mots** | — | **0,490** | **0,500** | 0,500 | 0,500 |
+
+### Ce qu'on peut en retenir, et ce qu'on ne peut pas
+
+**Une liste courte est justifiée** : `mdeberta-v3-base-mnli-xnli`, `bge-m3-zeroshot` et
+`camembertav2-base-xnli`, tous en cadrage `directe`, deux d'entre eux avec le signal de
+contradiction. Ils tournent en **145 à 160 ms par paire** en régime établi, contre
+~24 000 ms pour ShieldStral. `distilcamembert` suit, à **42 ms**.
+
+**Ils sont branchés depuis le 19 août** — voir
+`CHANGELOG/2026-08-19-quatre-juges-locaux.md`. Ce qui le justifie n'est pas un score
+élevé dans l'absolu, c'est qu'ils **dépassent le compteur de mots là où l'étalon gelé ne
+permettait pas de le dire**, et qu'ils coûtent deux ordres de grandeur de moins.
+
+**Ce que cela ne démontre toujours pas.** Le jeu adverse n'éprouve que **deux types
+d'erreur** — négation et quantificateur. Il reste à faire ce que le dossier réclame
+depuis le début : une référence humaine à grande échelle.
+
+**Ce qui est en revanche acquis, et qui ne l'était pas ce matin :** on ne retiendra pas
+les deux LettuceDetect français, et on sait pourquoi.
 
 ---
 
@@ -180,13 +252,18 @@ chiffres ne sont **pas concluants** : on ne peut pas départager « modèle peu 
 `transformers` 5.14.1 (`KeyError: 'default'`). Le 210m, lui, reproduit l'exemple de sa
 carte au span près.
 
-**Le français déclaré n'est pas le français entraîné — mais la nuance compte.**
-`lettucedect-v2-mmbert-base` revendique `fr`, et son AUC globale est de 0,529. Sa
+**Une AUC globale basse peut cacher un défaut de CALIBRATION, pas de jugement.**
+`lettucedect-v2-mmbert-base` a une AUC globale de 0,529 — la pire du tableau. Sa
 stratifiée est de **0,797**, macro **0,835**, jamais sous 0,40 sur aucun groupe : il classe
 correctement les sources **à l'intérieur** d'un paragraphe, mais ses scores ne sont pas
-comparables **entre** paragraphes. Ce n'est pas « au niveau du hasard » : c'est un défaut
-de **calibration**, et c'est exactement ce que la métrique stratifiée existe pour
-distinguer.
+comparables **entre** paragraphes. C'est un défaut de **calibration**, et c'est exactement
+ce que la métrique stratifiée existe pour distinguer.
+
+> **L'entraînement français n'a pas décidé, et c'est l'inverse de ce qu'on attendait.** Les
+> deux modèles entraînés *sur* RAGTruth-**FR** dominent ce tableau (0,738 et 0,710) et
+> s'effondrent au hasard sur le jeu adverse ; le modèle **multilingue**, dernier ici,
+> y atteint 0,661. Ce que le tableau ci-dessus classe, c'est l'aptitude à épouser une
+> référence lexicalement saturée — pas l'aptitude à vérifier.
 
 **Le rapport qualité/prix n'est pas où on l'attendait.** `distilcamembert-base-nli`, 68
 millions de paramètres, atteint 0,728 à **47 ms la passe** — soit **500 fois moins cher**
@@ -231,7 +308,79 @@ rigoureusement identique avant et après — donc une AUC de 0,500 exactement.**
 Tout ce qui dépasse 0,5 sur ce jeu est une détection qu'un `grep` ne peut pas produire.
 C'est la seule affirmation de ce genre que le dossier puisse soutenir.
 
-*(résultats des candidats : voir la section suivante)*
+### Deux perturbations sur quatre étaient invalides, et la mesure les a trouvées
+
+Le jeu a d'abord porté **quatre** perturbations. L'inspection des textes produits en a
+écarté deux — et sans elle, deux conclusions fausses auraient été publiées.
+
+| perturbation | verdict | ce que l'inspection a montré |
+|---|---|---|
+| **négation** | ✅ valide | 114 paires |
+| **quantificateur** | ✅ valide | 40 paires — « permettent » → « empêchent » contredit bien la source |
+| ~~entités~~ | ❌ **écartée** | elle échangeait « Open » et « Badges », deux morceaux du **même** nom composé : « Les Badges Open » est une coquille, pas une affirmation fausse. **Tous** les modèles y étaient au hasard, et ce hasard ne disait rien d'eux. Le fond n'est pas réglable : deux entités coordonnées s'échangent sans changer le sens, et en remplacer une ferait bouger le recouvrement — ce que ce jeu s'interdit. |
+| ~~nombre~~ | ⚠️ **non mesurable** | elle changeait « 2010 » en « 2011 » sur une source disant « En 2011 » : elle **corrigeait** l'affirmation au lieu de la fausser. Corrigée — le nombre doit figurer dans la source et son remplaçant non, sous quatre caractères pour rester invisible au compteur — il ne reste que **2 cas sur 118**. Le corpus ne porte pas assez de nombres courts partagés. |
+
+**L'invariant est maintenant vérifié paire par paire**, et les perturbations qui
+déplacent le recouvrement sont écartées et comptées. Ce que le banc mesure repose donc
+sur **deux types d'erreur indépendants**, pas quatre — et il le dit.
+
+### Les trois renversements, et ils tiennent tous
+
+#### 1. Les deux LettuceDetect français ne détectent rien
+
+`lettucedect-610m-eurobert-fr` — le **candidat n°1 du récap**, celui qui « bat
+GPT-4.1-mini de près de 11 points » — obtient **0,481**, donc **sous le hasard**, et
+**0,308** en apparié. Le 210m obtient 0,516. Aucune de leurs neuf combinaisons ne
+dépasse 0,52.
+
+Or ils obtenaient 0,738 et 0,710 sur l'étalon gelé. **Ces scores-là étaient donc
+compatibles avec du comptage de mots, et la mesure adverse montre qu'ils n'étaient rien
+d'autre.** Sans le jeu adverse, on aurait retenu le 610m.
+
+#### 2. Le cadrage gagnant s'inverse entre les deux jeux
+
+| jeu | cadrage gagnant | pourquoi |
+|---|---|---|
+| étalon gelé | `par_phrase` — le maximum sur les phrases | la source n'établit qu'une part du paragraphe |
+| **adverse** | **`directe` — le paragraphe entier** | prendre le maximum laisse une phrase **non perturbée** sauver la paire |
+
+`mdeberta` fait **0,743** en `directe` contre **0,598** en `par_phrase` sur l'adverse,
+et exactement l'inverse sur l'étalon. **L'agrégation qui épouse le mieux une référence
+lexicalement saturée est la mauvaise pour vérifier.**
+
+#### 3. La contradiction fait toute la différence, et elle était jetée
+
+| candidat | `directe` seul | `directe` − P(contradiction) | gain |
+|---|---|---|---|
+| `mdeberta-v3-base-mnli-xnli` | 0,573 | **0,743** | **+0,170** |
+| `camembertav2-base-xnli` | 0,585 | **0,728** | **+0,143** |
+| `distilcamembert-base-nli` | 0,600 | 0,656 | +0,056 |
+
+C'est la prédiction exacte de la relecture adverse : P(contradiction) est le **seul**
+signal qu'un compteur de mots ne peut pas imiter, puisque deux textes qui se
+contredisent partagent leur vocabulaire. Il ne coûte **aucune passe avant
+supplémentaire** — les logits sont déjà là.
+
+**Corollaire de structure** : les modèles à **spans** (LettuceDetect) n'ont pas de
+classe « contradiction » — leur étiquetage « soutenu / non soutenu » confond l'*absence*
+et la *négation*. C'est une limite d'architecture, pas de taille, et elle explique
+vraisemblablement les deux échecs ci-dessus.
+
+### La réserve, et elle est de taille
+
+**Ce jeu n'éprouve que DEUX types d'erreur : la négation et le quantificateur.** Un
+modèle peut les détecter et rester aveugle à un nombre changé ou à deux entités
+permutées — et les deux perturbations qui devaient les couvrir se sont révélées
+invalides. Les 0,743 et 0,728 ne disent pas « ce juge vérifie » : ils disent « ce juge
+détecte une négation et une inversion de quantificateur là où un compteur de mots ne le
+peut pas ». C'est beaucoup plus que ce que le dossier savait, et beaucoup moins qu'une
+validation.
+
+**Et le quantificateur est le plus fragile des deux** : 40 paires seulement, et
+`camembertav2` y tombe à 0,548 alors qu'il est le meilleur sur la négation (0,788). Un
+juge peut donc être excellent sur un type d'erreur et médiocre sur le suivant — c'est
+exactement ce que la ventilation existe pour montrer, et exactement ce qu'un chiffre
+unique aurait caché.
 
 ## Ce qui manque encore
 

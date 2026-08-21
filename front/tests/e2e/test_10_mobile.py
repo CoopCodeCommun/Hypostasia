@@ -125,20 +125,48 @@ class E2EMobileTest(PlaywrightLiveTestCase):
     # / 1. Mobile navbar: truncated title, visible buttons
     # ================================================================
 
-    def test_navbar_titre_tronque_visible(self):
-        """Le titre du document est tronque et visible dans la navbar mobile."""
+    def test_navbar_le_titre_sort_de_la_barre_et_le_fil_le_porte(self):
+        """
+        Le titre du document N'EST PLUS dans la barre sous 640px, et le
+        fil d'Ariane le porte — decision du mainteneur, 20 aout.
+
+        POURQUOI. La barre tient six controles a 390px. Le titre y
+        tombait a **72px** et n'affichait plus que deux lettres — « Ba »
+        pour « Badgeons la Normandie » : de la place prise a des
+        controles qui, eux, ne se lisent nulle part ailleurs. Le fil
+        d'Ariane, juste dessous, donne le nom en entier et avec sa
+        hierarchie.
+        / Two letters are not a title: it was space taken from controls
+        that cannot be read anywhere else.
+        """
         self.page.set_viewport_size(self.VIEWPORT_MOBILE,
         )
         self.naviguer_vers(f"/lire/{self.page_mobile.pk}/")
         # Le titre doit etre visible dans la toolbar
         # / The title must be visible in the toolbar
-        titre = self.page.locator('[data-testid="titre-toolbar"]',
-        )
-        self.assertTrue(titre.is_visible())
-        contenu_titre = titre.text_content()
-        self.assertIn("Eric Sadin", contenu_titre,
+        titre = self.page.locator('[data-testid="titre-toolbar"]')
+        fil = self.page.locator('[data-testid="fil-ariane"]')
 
-    )
+        # LE TITRE EST QUELQUE PART, TOUJOURS — c'est cela l'invariant,
+        # pas l'endroit. La barre le cede au fil d'Ariane QUAND le fil
+        # existe ; une note qui n'appartient a aucun carnet n'en a pas,
+        # et garde alors son titre en barre. Masquer sans condition
+        # troquerait un titre illisible contre pas de titre du tout.
+        # / The invariant is that the title is somewhere, not where: a
+        # note in no notebook has no breadcrumb and keeps its bar title.
+        if fil.count() and fil.is_visible():
+            self.assertFalse(
+                titre.is_visible(),
+                "Le fil porte le titre : la barre doit lui ceder la place.",
+            )
+            self.assertIn("Eric Sadin", fil.text_content())
+        else:
+            self.assertTrue(
+                titre.is_visible(),
+                "Sans fil d'Ariane, la barre est le SEUL endroit qui "
+                "puisse porter le titre du document.",
+            )
+            self.assertIn("Eric Sadin", titre.text_content())
 
     def test_navbar_hypostasia_cache_sur_mobile(self):
         """Le mot 'Hypostasia' est cache sur mobile."""

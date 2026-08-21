@@ -10,6 +10,23 @@ La rédaction a été comparée **sur les mêmes 149 extractions** ; l'extractio
 
 ---
 
+> ## ⚠️ LE VERBATIM A ÉTÉ MESURÉ DEPUIS — cette section se trompe de cause
+>
+> Ce texte conclut que les ~14 % non verbatim sont « un trait Mistral » à
+> corriger par **le prompt d'extraction**. Le typage des écarts, fait le
+> 19 août, dit autre chose :
+>
+> - la concaténation soupçonnée fait **3 cas sur 21** chez Small ;
+> - sur les 60 citations `INTROUVABLE` des articles, **11 seulement (18 %)**
+>   sont un vrai saut de passage ;
+> - la cause dominante est **notre ingestion** : la page 1 porte littéralement
+>   `territoire .`, un point détaché de son mot, que les trois Mistral
+>   recollent et que notre comparaison leur refuse.
+>
+> Le levier « durcir le prompt » vaut **8 liens sur 60**, pas la majorité.
+> Détail et méthode :
+> `benchmarks/extraction_format/2026-08-19_le-mode-d-echec-du-verbatim.md`.
+
 ## 1. L'EXTRACTION — la taille du modèle n'y change presque rien
 
 | modèle | extractions | **verbatim exact** | non verbatim | ancrées |

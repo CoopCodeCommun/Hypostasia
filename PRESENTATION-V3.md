@@ -441,7 +441,7 @@ inspire confiance — à tort.
 On ne cache pas ce résultat, on en fait un arbitrage explicite plutôt qu'un
 arbitrage subi :
 
-- **trois états** visuellement discrets, pas un score par phrase ni une
+- **aucun chiffre dans le corps de l'article**, ni score par phrase ni
   avalanche de badges — la rigueur est disponible au clic (le panneau de preuve
   montre la citation exacte, le débat attaché, le lien vers la source), pas
   imposée à la lecture ;
@@ -451,6 +451,36 @@ arbitrage subi :
   une synthèse en assemblée a un rapport à la vérifiabilité qu'un utilisateur
   de chatbot n'a pas. C'est un pari, il est assumé, et il est dit ici pour que
   le lecteur de 2027 sache que le choix a été fait en connaissance de cause.
+
+#### Révision du 20 août 2026 : le degré devient progressif
+
+**Les trois états discrets sont remplacés par un degré de 0 à 100**, moyenne des
+scores des juges, qui rend la **couleur progressive** au lieu de la choisir
+parmi trois. La gouttière porte ce liseré ; **le texte, lui, ne porte toujours
+aucun chiffre**, et la carte de preuve garde le détail par juge, au clic.
+
+Ce qui change est la **granularité de la couleur**, pas la présence du nombre :
+l'arbitrage ci-dessus tient entièrement. Deux citations « faibles » à 12 et à 44
+sur 100 s'affichaient à l'identique, alors que la seconde bascule au moindre
+déplacement du seuil — c'est cette information-là que le liseré rend, sans rien
+imposer à la lecture.
+
+**Deux états restent hors échelle**, et ce n'est pas un détail :
+`introuvable` — la citation n'est pas dans la source, c'est une rupture de la
+chaîne de preuve et non un degré faible — et `contesté`, verdict humain qu'aucun
+calcul n'écrase (§ 7.2). L'absence d'avis n'est pas un zéro.
+
+Conditions de mise en œuvre, mesures à l'appui :
+`PLAN/TODO/2026-08-20-le-degre-progressif-remplace-les-trois-etats.md`.
+
+#### Une réserve sur le `−0,96` lui-même
+
+**Cette corrélation est extraordinairement forte pour une mesure de sciences
+sociales**, et la revue ne dit ni sur combien de systèmes elle a été établie, ni
+par qui. Sur un échantillon de quatre ou cinq, une telle valeur n'a presque
+aucune portée statistique. L'intuition qu'elle habille — trop de rigueur
+affichée nuit à la lecture — reste raisonnable, et l'arbitrage tient sans elle.
+**Mais elle ne doit pas servir seule à trancher une décision de conception.**
 
 ---
 

@@ -615,7 +615,15 @@ class TroncatureDesEcarteesTest(TestCase):
         # de lignes correspond a la fenetre. / The total is shown, the
         # window announced, the row count matches the window.
         self.assertIn(str(nombre_total), contenu)
-        self.assertIn("200 premières", contenu)
+        # LA FENETRE EST ANNONCEE, et c'est cela qui compte — pas sa
+        # tournure. Le volet groupe desormais les ecartees par document,
+        # et sa phrase dit « dont 200 détaillées ici ». Epingler le
+        # libelle exact ferait tomber ce test a chaque reformulation,
+        # sans qu'aucun invariant n'ait bouge.
+        # / The window is announced; pinning its exact wording would
+        # break on every rephrasing without any invariant moving.
+        self.assertIn("200", contenu)
+        self.assertRegex(contenu, r"dont\s+200\s+détaillées")
         self.assertEqual(
             contenu.count('data-testid="synthese-ecartee"'), 200,
         )

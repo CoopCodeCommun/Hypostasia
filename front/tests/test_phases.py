@@ -5929,13 +5929,27 @@ class Phase25bPageCreateSansTokenTest(TestCase):
 
 
 class Phase25bPageListSansTokenTest(TestCase):
-    """Verifie que GET /api/pages/ est accessible sans token.
-    / Verify GET /api/pages/ is accessible without token."""
+    """
+    `GET /api/pages/` EXIGE un token.
+    / The page list REQUIRES a token.
 
-    def test_list_sans_token_retourne_200(self):
-        """GET sans token → 200."""
+    CE TEST DISAIT L'INVERSE JUSQU'AU 20 AOUT 2026. Il s'appelait
+    « test_list_sans_token_retourne_200 » et verrouillait un endpoint qui
+    rendait `Page.objects.all()` a n'importe qui, avec le texte et le
+    HTML de chaque note, sous `Access-Control-Allow-Origin: *`. Mesure
+    avant correction : 200, 13 notes, 291 840 octets, dont 150 384
+    caracteres de texte lisible. Le detail est dans
+    CHANGELOG/2026-08-20-le-webclipper-choisit-son-carnet.md, et les
+    tests de perimetre vivent desormais dans
+    core/tests/test_extension_api.py.
+    / This test asserted the opposite until 20 August 2026, locking open
+    an endpoint that handed the whole corpus to anyone.
+    """
+
+    def test_list_sans_token_est_refusee(self):
+        """GET sans token → 401."""
         reponse = self.client.get("/api/pages/")
-        self.assertEqual(reponse.status_code, 200)
+        self.assertEqual(reponse.status_code, 401)
 
 
 class Phase25bEndpointMeTest(TestCase):

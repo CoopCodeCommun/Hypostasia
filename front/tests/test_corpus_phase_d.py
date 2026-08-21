@@ -159,18 +159,26 @@ class DedupParLesAppartenancesTest(TestCase):
         # dedup missed it; the membership-based one catches it.
         from rest_framework.authtoken.models import Token
 
+        from front.services.texte_depuis_html import empreinte_d_une_capture
+
         auteur = Utilisateur.objects.create_user(
             username="auteur_dedup_test", password="motdepasse"
         )
         carnet_de_l_auteur = Dossier.objects.create(
             name="Carnet de l'auteur", owner=auteur
         )
+        # L'empreinte est celle que le SERVEUR calcule depuis le HTML
+        # simplifie. Une valeur ecrite a la main ne declenche plus rien :
+        # le client ne fournit plus d'empreinte, la vue la derive du
+        # contenu recu (voir PageCreateSerializer.content_hash).
+        # / The fingerprint is the one the SERVER derives from the
+        # simplified HTML; a hand-written value triggers nothing.
         note_partagee = Page.objects.create(
             url="http://exemple.local/page-de-l-auteur",
             html_original="<p>o</p>",
             html_readability="<p>l</p>",
             text_readability="texte",
-            content_hash="hash-commun-dedup",
+            content_hash=empreinte_d_une_capture("<p>l</p>"),
             owner=auteur,
         )
         # FK -> carnet de l'auteur (premier carnet), puis rangement dans
@@ -187,7 +195,6 @@ class DedupParLesAppartenancesTest(TestCase):
                 "html_original": "<p>o</p>",
                 "html_readability": "<p>l</p>",
                 "text_readability": "texte",
-                "content_hash": "hash-commun-dedup",
             },
             content_type="application/json",
             HTTP_AUTHORIZATION=f"Token {jeton.key}",

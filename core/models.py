@@ -2151,6 +2151,167 @@ def empreinte_du_texte(texte: str) -> str:
     return hashlib.sha256(texte_normalise.encode("utf-8")).hexdigest()
 
 
+class AvisDeVerification(models.Model):
+    """
+    L'avis d'UN juge local sur UNE citation. / One local judge's opinion.
+
+    LOCALISATION : core/models.py
+
+    POURQUOI UNE TABLE, ALORS QUE LE SECOND AVIS TENAIT EN QUATRE
+    COLONNES. Les colonnes ne savaient porter qu'UN juge, et le modele
+    le disait : « un troisieme exigerait la table ». La mesure du
+    19 aout a ecarte le juge unique — ShieldStral, 24 s de processeur
+    par paire — au profit de plusieurs encodeurs a moins d'une
+    demi-seconde. Il en faut donc plusieurs a la fois.
+
+    CE QU'UN AVIS NE FAIT PAS : piloter. Ni `etat_de_verification`, ni
+    `score_de_verification`, ni le libelle affiche ne bougent. Un avis
+    local se lit A COTE du juge de production, jamais a sa place.
+    / An opinion drives nothing; it is read beside production, never
+    instead of it.
+
+    LE PIEGE QUE CETTE TABLE DOIT SURVIVRE. `indexer_les_citations`
+    DETRUIT et RECREE tous les `SourceLink` d'un article a chaque mise a
+    jour de wiki. La cle etrangere est en CASCADE : sans report
+    explicite, chaque tour effacerait tous les avis — c'est-a-dire
+    exactement ce que la campagne accumule. Le report vit dans
+    `core/services/synthese.py`, a cote de celui des verdicts, et
+    `core/tests/test_avis_des_juges_locaux.py` l'exige.
+    / Wiki updates recreate every link: the carry-over must carry these
+    rows too, or each round wipes them.
+    """
+
+    lien = models.ForeignKey(
+        SourceLink, on_delete=models.CASCADE, related_name="avis_locaux",
+        help_text="La citation notee.",
+    )
+    methode = models.CharField(
+        max_length=200,
+        help_text="Qui a rendu l'avis : methode + cadrage + modele. Le "
+                  "cadrage en fait partie — la mesure du 18 aout a montre "
+                  "qu'il fait passer l'AUC de 0,54 a 0,92.",
+    )
+    score = models.FloatField(
+        help_text="Le degre rendu, de 0 a 100, sur l'echelle de CE juge.",
+    )
+    # LE SEUIL EST FIGE SUR L'AVIS, ET C'EST LE POINT. Les juges ne sont
+    # pas sur la meme regle : le seuil utile vaut 45/100 pour le juge de
+    # production, et varie d'un encodeur a l'autre. Relire un avis avec
+    # le seuil d'un autre ferait conclure au desaccord la ou il y a
+    # accord. / Frozen with the opinion: judges do not share a ruler.
+    seuil = models.FloatField(
+        help_text="Le seuil propre a ce juge, fige au moment de l'avis. "
+                  "Jamais relu depuis la Configuration.",
+    )
+    # `default`, JAMAIS `auto_now`, ET C'EST UN CORRECTIF. Avec
+    # `auto_now`, Django reecrit le champ a CHAQUE ecriture, y compris
+    # celle du report : une mise a jour de wiki redatait alors tous les
+    # avis du jour meme, et la fiche de preuve affichait cette fausse
+    # date comme celle du jugement. Le report peut desormais reposer la
+    # date d'origine, et un test l'exige.
+    # / default, never auto_now: auto_now would silently re-date every
+    # opinion at each wiki update, and the proof panel shows that date.
+    rendu_le = models.DateTimeField(
+        default=timezone.now, help_text="Quand cet avis a ete rendu.",
+    )
+
+    class Meta:
+        verbose_name = "avis de vérification"
+        verbose_name_plural = "avis de vérification"
+        # UN SEUL AVIS COURANT PAR JUGE ET PAR CITATION. Un rejeu
+        # remplace, il n'empile pas : deux avis du meme juge sur la meme
+        # paire ne diraient pas lequel fait foi.
+        # / One current opinion per judge and citation.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["lien", "methode"],
+                name="un_seul_avis_par_juge_et_par_citation",
+            ),
+        ]
+        indexes = [models.Index(fields=["lien", "methode"])]
+
+    def __str__(self):
+        return f"{self.methode} : {self.score:.0f}/100 (seuil {self.seuil:.0f})"
+
+    # LA BANDE OU UN JUGE NE TRANCHE PAS, en points sur 100.
+    #
+    # POURQUOI ELLE EXISTE, ET CE QU'ELLE EMPECHE. Mesure du 19 aout sur
+    # les avis reels : **80 % des scores de CamemBERTa tiennent entre
+    # 49,0 et 54,2**, et **la moitie de ceux de mDeBERTa valent
+    # exactement 50,0**. Ce n'est pas une panne — c'est la reponse
+    # honnete du modele : une source de 126 caracteres n'implique ni ne
+    # contredit un paragraphe de 885 qui avance sept choses. Il repond
+    # « neutre ».
+    #
+    # Sans bande, ce « neutre » bascule en « confirme » ou « ne confirme
+    # pas » **sur la troisieme decimale**. Afficher un tirage au sort
+    # comme un verdict, dans un outil dont l'objet est la tracabilite,
+    # est le pire defaut possible : il est invisible.
+    #
+    # 2,5 points de part et d'autre, c'est-a-dire |P(entailment) −
+    # P(contradiction)| < 0,05 : en deca, le modele n'a pas d'avis.
+    # / Real-data measurement: most scores sit within a few points of the
+    # threshold, where the model is simply neutral. Say so.
+    MARGE_DE_NEUTRALITE = 2.5
+
+    # LE SEPARATEUR QUE POSE `juges_locaux.methode()` entre la version du
+    # protocole et le nom du modele : « xnli-directe v1 — bge-m3 ».
+    # / The separator written by juges_locaux.methode().
+    SEPARATEUR_DE_METHODE = " — "
+
+    @property
+    def version(self):
+        """
+        La version du protocole, sans le nom du modele.
+        / The protocol version, without the model name.
+
+        Elle est IDENTIQUE sur les quatre juges locaux d'un meme lot —
+        `methode()` la prefixe a tous. Recopiee sur chaque barre, elle
+        n'identifie personne : elle remplit. La fiche l'ecrit une seule
+        fois, en pied, et seulement quand elle est bien commune.
+        / Identical across a batch: written once, and only when shared.
+        """
+        avant, separateur, _ = self.methode.partition(self.SEPARATEUR_DE_METHODE)
+        return avant if separateur else ""
+
+    @property
+    def libelle(self):
+        """
+        Le nom du modele seul : « bge-m3 », « CamemBERTa v2 ».
+        / The model name alone.
+
+        C'EST LUI QUI IDENTIFIE LE JUGE, et il doit venir EN TETE de la
+        ligne : les avis sont tries par score decroissant, donc l'ordre
+        des barres change d'une citation a l'autre et la position ne
+        veut rien dire. / Bar position means nothing: the name leads.
+        """
+        _, separateur, apres = self.methode.partition(self.SEPARATEUR_DE_METHODE)
+        return apres if separateur else self.methode
+
+    @property
+    def tranche(self):
+        """
+        Ce juge a-t-il un avis ? / Does this judge have an opinion?
+
+        Faux quand le score est dans la bande de neutralite : le modele
+        ne penche ni d'un cote ni de l'autre, et le dire vaut mieux que
+        de trancher a sa place.
+        / False inside the neutral band: better to say so.
+        """
+        return abs(self.score - self.seuil) >= self.MARGE_DE_NEUTRALITE
+
+    @property
+    def confirme(self):
+        """
+        Ce juge confirme-t-il la citation ? / Does this judge confirm?
+
+        Lu avec SON seuil, jamais celui d'un autre. **A ne lire que si
+        `tranche` est vrai** — sinon la reponse est du bruit.
+        / Read with ITS threshold; only meaningful when `tranche`.
+        """
+        return self.score >= self.seuil
+
+
 class EtatElement(models.TextChoices):
     """
     Le regime d'edition d'un element depend de ce qui s'y est attache.

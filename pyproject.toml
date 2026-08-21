@@ -52,4 +52,30 @@ dependencies = [
     # It was present only transitively via docling-parse, pdfplumber and
     # python-pptx: dropping any of them would have broken startup silently.
     "pillow>=11.0",
+    # LES QUATRE JUGES LOCAUX, ET LA MEME LECON QUE PILLOW JUSTE AU-DESSUS.
+    #
+    # `transformers` et `sentencepiece` sont utilises DIRECTEMENT par
+    # `core/services/juges_locaux.py`, mais n'arrivaient ici que par
+    # `docling`. Alleger Docling les aurait fait disparaitre, et la panne
+    # n'aurait nomme ni sa cause ni son declencheur.
+    #
+    # `sentencepiece` n'etait meme pas la : il vivait dans
+    # `/tmp/banc_deps`, atteint par un `PYTHONPATH` que le worker ne
+    # portait pas. `distilcamembert` — dont le depot n'a PAS de
+    # `tokenizer.json` — levait donc `ModuleNotFoundError` a chaque
+    # paquet, notait zero paire, et la garde `arret_sans_progres`
+    # stoppait TOUTE la campagne, y compris pour les trois juges sains.
+    # Le dossier annoncait quatre juges ; il en tournait trois.
+    # / transformers and sentencepiece are used directly by the local
+    #   judges but only arrived transitively via docling. sentencepiece
+    #   was not even in the venv: the fourth judge never scored anything,
+    #   and its failure stopped the whole campaign.
+    # PAS DE BORNE DE VERSION SUR `transformers` : Docling en pose une
+    # haute (`<5.9` sur certaines plateformes) et une borne basse d'ici
+    # rendrait la resolution IMPOSSIBLE pour tout environnement autre que
+    # le notre. On declare l'USAGE DIRECT, on laisse Docling arbitrer la
+    # version. / No version bound: docling caps it, and pinning here
+    # makes the resolution unsatisfiable on other platforms.
+    "transformers",
+    "sentencepiece>=0.2",
 ]

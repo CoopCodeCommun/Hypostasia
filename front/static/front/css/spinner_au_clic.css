@@ -1,0 +1,58 @@
+/* =========================================================================
+   LE SPINNER AU POINT DE CLIC
+   LOCALISATION : front/static/front/css/spinner_au_clic.css
+
+   POURQUOI IL N'EST PAS POSE SUR L'ELEMENT DECLENCHEUR. htmx ajoute la
+   classe `htmx-request` sur l'element qui part en requete, et il serait
+   tentant de lui greffer un `::after`. Mais des dizaines de boutons et
+   de resumes du projet portent DEJA un `::after` — chevrons, fleches,
+   separateurs : le spinner les effacerait pendant la requete, chacun a
+   sa maniere, et personne ne le verrait venir.
+
+   Le spinner est donc un element A PART, pose en `fixed` a l'endroit
+   exact ou le doigt ou la souris a touche. C'est aussi ce qui le rend
+   juste : le regard est deja la.
+
+   IL N'APPARAIT PAS AVANT UN DELAI. Une requete de 40 ms qui allume un
+   spinner produit un clignotement — pire que rien. Le delai vit dans le
+   JS, avec le reste du comportement.
+   / A separate fixed element at the pointer, not a ::after on the
+   trigger: dozens of buttons already own their ::after.
+   ========================================================================= */
+
+.spinner-au-clic {
+  position: fixed;
+  z-index: 9999;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: -0.575rem 0 0 -0.575rem;   /* centre sur le point de clic */
+  pointer-events: none;              /* ne vole jamais un clic */
+  border-radius: 50%;
+
+  /* DEUX ANNEAUX, PAS UN DISQUE : le disque cacherait ce qu'on vient de
+     cliquer. L'anneau clair pose la piste, l'arc colore tourne dessus.
+     `--info` est le bleu des choses actionnables du projet, defini en
+     clair ET en sombre. / Two rings, not a disc: a disc would hide the
+     thing just clicked. */
+  border: 2px solid color-mix(in srgb, var(--info) 22%, transparent);
+  border-top-color: var(--info);
+  animation: rotation-du-spinner .6s linear infinite;
+}
+
+@keyframes rotation-du-spinner {
+  to { transform: rotate(360deg); }
+}
+
+/* Le mouvement peut declencher des troubles vestibulaires. On garde un
+   signal — il faut bien dire qu'on attend — mais en battement, pas en
+   rotation. / Motion can trigger vestibular disorders: keep the signal,
+   drop the spin. */
+@media (prefers-reduced-motion: reduce) {
+  .spinner-au-clic {
+    animation: battement-du-spinner 1.1s ease-in-out infinite;
+    border-color: var(--info);
+  }
+  @keyframes battement-du-spinner {
+    50% { opacity: .25; }
+  }
+}

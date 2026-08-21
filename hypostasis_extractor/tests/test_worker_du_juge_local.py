@@ -6,7 +6,7 @@ LOCALISATION : hypostasis_extractor/tests/test_worker_du_juge_local.py
 
 CE QUE CES TESTS PROTEGENT, ET POURQUOI AUCUN N'EST DECORATIF.
 
-Le juge local charge 7,7 Go et coute une vingtaine de secondes de
+Le juge local charge 5,13 Go (les quatre encodeurs residents, mesure du 19 aout) et coute moins d'une demi-seconde de
 processeur PAR PAIRE. Trois reglages le rendent supportable, et aucun
 des trois ne leve d'erreur s'il disparait :
 
@@ -111,7 +111,7 @@ class LeWorkerDuJugeLocalTest(SimpleTestCase):
 
     def test_l_arret_laisse_finir_un_paquet(self):
         # Les tâches ne sont pas en `acks_late` : un paquet tué à l'arrêt
-        # est perdu. Dix paires durent ~4 min 20 à six threads.
+        # est perdu. Dix paires durent ~5 à 10 s (quatre encodeurs, mesure du 19 août).
         # / Tasks are not acks_late: a packet killed on stop is lost.
         for environnement, chemin in FICHIERS_SUPERVISORD.items():
             with self.subTest(environnement=environnement):

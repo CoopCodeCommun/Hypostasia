@@ -1,0 +1,217 @@
+{# LE DETAIL DE LA VERIFICATION — le contenu du pli « Faible ▸ ». #}
+{# LOCALISATION : front/templates/front/corpus/partials/_verification_detaillee.html #}
+{# Variables : lien, seuil_de_verification, avis_locaux, version_commune, #}
+{# accord_local, second_avis_en_cours #}
+{% comment %}
+POURQUOI CE PARTIEL EXISTE. Il n'est inclus qu'a UN endroit, et ce
+n'est donc pas une factorisation : c'est une frontiere. `preuve.html`
+tient desormais deux objets qui n'ont pas le meme lecteur — la CARTE
+(ce que la citation dit, d'ou elle vient) et la VERIFICATION (ce que
+les juges en pensent). Les separer garde chacun lisible.
+
+LE DEGRE, ET LE SEUIL MARQUE DESSUS.
+
+Le juge ne rend plus « soutient / ne soutient pas » mais un degre de
+0 a 100 (addendum du 18 aout 2026). La barre montre DE COMBIEN on est
+au-dessus ou en dessous du seuil : c'est ce que le libelle seul ne dit
+pas, et c'est ce qui permet de discuter LE SEUIL plutot que le verdict.
+
+CE CHIFFRE NE VIT QUE DANS CE PANNEAU, et desormais DANS UN PLI.
+`PRESENTATION-V3.md` § 3.6 a arbitre : trois etats visuellement
+discrets dans le corps de l'article, pas un score par phrase — « la
+rigueur est disponible au clic, pas imposee a la lecture ». Ne jamais
+porter ce chiffre dans le corps.
+
+Le degre est absent (NULL) pour tout verdict pose SANS juge —
+citation introuvable, contestation humaine — et pour les verdicts
+anterieurs a l'addendum. Le bloc ne s'affiche alors pas du tout.
+{% endcomment %}
+{% if lien.score_de_verification is not None %}
+<div class="degre-de-soutien" data-testid="synthese-degre"
+     data-score="{{ lien.score_de_verification|floatformat:0 }}"
+     data-seuil="{{ seuil_de_verification|floatformat:0 }}"
+     role="img"
+     aria-label="Soutenu à {{ lien.score_de_verification|floatformat:0 }} sur 100, pour un seuil de {{ seuil_de_verification|floatformat:0 }} sur 100.">
+    <div class="piste">
+        <span class="remplissage"
+              data-cote="{% if lien.etat_de_verification == 'faible' %}dessous{% else %}dessus{% endif %}"
+              style="width:{{ lien.score_de_verification|floatformat:0 }}%"></span>
+        <span class="marque-du-seuil"
+              style="left:{{ seuil_de_verification|floatformat:0 }}%"></span>
+    </div>
+    <p class="explication" style="margin:.25rem 0 0">
+        Soutenu à <strong>{{ lien.score_de_verification|floatformat:0 }}</strong>
+        sur 100 — seuil {{ seuil_de_verification|floatformat:0 }}.
+        Le seuil est un réglage d'affichage : le déplacer ne rejuge rien.
+    </p>
+</div>
+{% endif %}
+
+{% comment %}
+LES AVIS DES JUGES LOCAUX — plusieurs juges tournent À CÔTÉ du juge
+de production pour être comparés à lui sur des données réelles.
+AUCUN NE PILOTE QUOI QUE CE SOIT.
+
+LE RÉSUMÉ EST L'ACCORD, PAS LES CHIFFRES. Un désaccord entre juges
+est en lui-même l'information : c'est ce qui rend l'état contestable
+au lieu qu'il soit asséné.
+
+`open` DEPUIS LE 20 AOÛT AU SOIR : ce dépliant était fermé quand la
+fiche montrait tout le reste à plat. Maintenant que TOUTE la
+vérification tient dans le pli « Faible ▸ », un second pli à
+l'intérieur ferait deux clics pour une information qu'on vient de
+demander. Le résumé d'accord reste, comme titre de la section.
+/ Open by default: the whole verification block is already folded.
+
+CHAQUE BARRE PORTE SON PROPRE SEUIL. Les juges ne sont pas sur la
+même règle : 45/100 pour le juge de production sollicité par le
+protocole texte, et une règle propre à chaque encodeur. Aligner
+70 et 41 sur une règle commune ferait conclure au désaccord là où il
+y a accord parfait.
+
+QUATRE ÉTATS, ET ILS NE SE CONFONDENT PAS : des avis présents ; la
+comparaison impossible (le juge de production n'a pas rendu de degré
+— c'est le cas de toute citation vérifiée avant le 18 août 2026) ;
+les avis en cours ; aucun avis jamais demandé, qui n'affiche rien.
+{% endcomment %}
+{% if avis_locaux %}
+<details class="second-avis" open data-testid="synthese-avis-locaux"
+         data-accord="{% if accord_local is None %}incalculable{% elif accord_local.1 == 0 %}sans-avis{% elif accord_local.0 == accord_local.1 %}accord{% elif accord_local.0 == 0 %}desaccord{% else %}partage{% endif %}">
+    <summary class="titre-de-l-accord">
+        {% if accord_local is None %}
+        Comparaison impossible : le juge de production n’a pas rendu de
+        degré sur cette citation.
+        {% elif accord_local.1 == 0 %}
+        {% comment %}
+        AUCUN JUGE NE TRANCHE, ET C'EST UN ÉTAT À PART ENTIÈRE. Les
+        scores sont tous dans la bande de neutralité : les modèles
+        répondent « ni l'un ni l'autre ». Le dire vaut mieux que de
+        trancher à leur place sur la troisième décimale.
+        {% endcomment %}
+        <strong>{{ accord_local.2 }} juge{{ accord_local.2|pluralize }} loc{{ accord_local.2|pluralize:'al,aux' }}</strong> ne tranche{{ accord_local.2|pluralize:'nt' }} pas : leur score est trop proche de leur seuil pour être lu
+        comme un avis.
+        {% elif accord_local.0 == accord_local.1 %}
+        <strong>{{ accord_local.1 }} juge{{ accord_local.1|pluralize }} loc{{ accord_local.1|pluralize:"al,aux" }}
+        sur {{ accord_local.2 }}</strong> tranche{{ accord_local.1|pluralize:"nt" }}, et
+        confirme{{ accord_local.1|pluralize:"nt" }} le juge de production.
+        {% elif accord_local.0 == 0 %}
+        <strong>{{ accord_local.1 }} juge{{ accord_local.1|pluralize }} loc{{ accord_local.1|pluralize:"al,aux" }}
+        sur {{ accord_local.2 }}</strong> tranche{{ accord_local.1|pluralize:"nt" }}, et
+        diverge{{ accord_local.1|pluralize:"nt" }} du juge de production.
+        {% else %}
+        <strong>{{ accord_local.0 }} juge{{ accord_local.0|pluralize }} loc{{ accord_local.0|pluralize:"al,aux" }}
+        sur {{ accord_local.1 }}</strong> confirme{{ accord_local.0|pluralize:"nt" }}
+        le juge de production.
+        {% endif %}
+    </summary>
+
+    {% comment %}
+    Un verdict HUMAIN n'est jamais écrasé (§ 7.2). L'avis automatique
+    est montré — cacher une information dans un outil de délibération
+    est un choix fort — mais explicitement subordonné.
+    {% endcomment %}
+    {% if lien.etat_de_verification == "conteste" %}
+    <p class="explication" data-testid="synthese-avis-locaux-subordonne">
+        Verdict humain : les avis automatiques ci-dessous sont donnés pour
+        information, <strong>ils ne le remplacent pas</strong>.
+    </p>
+    {% endif %}
+
+    {% comment %}
+    LE JUGE DE PRODUCTION ENTRE DANS LA COMPARAISON, en tete.
+
+    Son degre figure deja plus haut, mis en avant — c'est lui qui
+    porte le verdict. Mais le lecteur devait memoriser ce chiffre
+    pour le comparer aux quatre barres du bas. Or c'est la
+    COMPARAISON qui rend la chose verifiable : les juges locaux
+    n'existent que pour le controler.
+
+    Il est NOMME « reference » ET SEPARE des quatre locaux par un
+    filet : cinq barres identiques feraient croire a cinq juges egaux,
+    alors qu'un avis local se lit A COTE du juge de production, JAMAIS
+    a sa place (core/models.py). Un filet, et pas un fond colore —
+    marquer fort la reference a l'interieur d'un bloc dont le resume
+    est l'ACCORD recreerait l'argument d'autorite que le § 7.2 tient a
+    distance. / A rule, not a coloured box.
+    {% endcomment %}
+    {% if lien.score_de_verification is not None %}
+    <div class="degre-de-soutien" role="img"
+         data-testid="synthese-barre-juge-de-production"
+         data-score="{{ lien.score_de_verification|floatformat:0 }}"
+         data-seuil="{{ seuil_de_verification|floatformat:0 }}"
+         aria-label="Juge de référence : soutenu à {{ lien.score_de_verification|floatformat:0 }} sur 100, pour un seuil de {{ seuil_de_verification|floatformat:0 }} sur 100.">
+        <p class="explication" style="margin:0 0 .15rem">
+            <span class="nom-du-juge" data-testid="synthese-nom-du-juge"
+                  data-role="reference">Référence{% if lien.verifie_par %} · {{ lien.verifie_par }}{% endif %}</span>
+        </p>
+        <div class="piste">
+            <span class="remplissage"
+                  data-cote="{% if lien.etat_de_verification == 'faible' %}dessous{% else %}dessus{% endif %}"
+                  style="width:{{ lien.score_de_verification|floatformat:0 }}%"></span>
+            <span class="marque-du-seuil"
+                  style="left:{{ seuil_de_verification|floatformat:0 }}%"></span>
+        </div>
+        <p class="explication" style="margin:.15rem 0 0">
+            <strong>{{ lien.score_de_verification|floatformat:1 }}</strong> sur 100 —
+            seuil {{ seuil_de_verification|floatformat:1 }}.
+        </p>
+    </div>
+    <hr class="separateur-des-locaux" aria-hidden="true">
+    {% endif %}
+
+    {% comment %}
+    LE NOM DU JUGE VIENT EN TETE, ET C'EST OBLIGATOIRE. Les avis sont
+    tries PAR SCORE DECROISSANT (`views_synthese.py`) : l'ordre des
+    barres change d'une citation a l'autre, donc la position ne dit
+    rien. Le nom donne en fin de phrase obligeait a lire cinq phrases
+    jusqu'au bout pour savoir qui parle.
+
+    LA VERSION DU PROTOCOLE N'Y EST PAS quand elle est commune aux
+    quatre : « xnli-directe v1 — » recopie quatre fois n'identifie
+    personne, il remplit. Elle est alors ecrite UNE SEULE FOIS, en
+    pied. Quand elle diffère, chaque ligne garde la sienne — le § 7.2
+    veut que l'etat porte son verificateur, version comprise.
+    {% endcomment %}
+    {% for avis in avis_locaux %}
+    <div class="degre-de-soutien" role="img"
+         data-testid="synthese-barre-avis-local"
+         data-methode="{{ avis.methode }}"
+         data-score="{{ avis.score|floatformat:0 }}"
+         data-seuil="{{ avis.seuil|floatformat:0 }}"
+         aria-label="{{ avis.methode }} : soutenu à {{ avis.score|floatformat:0 }} sur 100, pour un seuil de {{ avis.seuil|floatformat:0 }} sur 100.">
+        <p class="explication" style="margin:0 0 .15rem">
+            <span class="nom-du-juge" data-testid="synthese-nom-du-juge">{{ avis.libelle }}</span>{% if not version_commune and avis.version %}
+            <span class="version-du-juge">{{ avis.version }}</span>{% endif %}
+        </p>
+        <div class="piste">
+            <span class="remplissage"
+                  data-cote="{% if not avis.tranche %}neutre{% elif avis.confirme %}dessus{% else %}dessous{% endif %}"
+                  style="width:{{ avis.score|floatformat:0 }}%"></span>
+            <span class="marque-du-seuil"
+                  style="left:{{ avis.seuil|floatformat:0 }}%"></span>
+        </div>
+        <p class="explication" style="margin:.15rem 0 0">
+            <strong>{{ avis.score|floatformat:1 }}</strong> sur 100 —
+            seuil {{ avis.seuil|floatformat:1 }}.
+            {% if not avis.tranche %}<strong>Ne tranche pas</strong> :
+            l’écart au seuil est sous la barre de lisibilité.{% endif %}
+        </p>
+    </div>
+    {% endfor %}
+
+    <p class="explication" style="margin:.35rem 0 0">
+        Ces juges tournent sur cette machine, à côté du premier, pour
+        être comparés à lui. <strong>Ils ne décident de rien</strong> —
+        et ils n’ont pas la même échelle, d’où un seuil par juge.
+        {% if version_commune %}<br>
+        Tous par <span data-testid="synthese-version-commune">{{ version_commune }}</span>,
+        le {{ avis_locaux.0.rendu_le|date:"d/m/Y à H:i" }}.{% endif %}
+    </p>
+</details>
+{% elif second_avis_en_cours %}
+<p class="explication" data-testid="synthese-avis-locaux-en-cours"
+   aria-live="polite">
+    Avis des juges locaux en cours… Ils tournent sur cette machine, en
+    priorité basse : comptez moins d’une seconde par citation et par juge.
+</p>
+{% endif %}

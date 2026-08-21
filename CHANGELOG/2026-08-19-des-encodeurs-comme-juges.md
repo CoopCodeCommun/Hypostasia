@@ -68,6 +68,12 @@ tous sous quatre caractères, donc invisibles pour le compteur.
 **Tout ce qui dépasse 0,5 sur ce jeu est une détection qu'un `grep` ne peut pas produire.**
 C'est la seule affirmation de ce genre que le dossier puisse soutenir.
 
+**Et ce jeu renverse le classement.** Les deux modèles LettuceDetect français — dont le
+candidat n°1 du récap, qui obtenait le meilleur score brut de l'étalon (0,738) — y sont
+**au niveau du hasard** (0,494 et 0,515) : leurs bons scores étaient du comptage de mots.
+Trois modèles NLI atteignent 0,76 à 0,79, à condition de lire P(contradiction), qui vaut
+**+0,174** d'AUC. Détail dans le compte rendu.
+
 ### Ce que le banc refuse de faire
 
 - **`--depuis` refuse un JSON mesuré sur l'autre jeu.** Chaque sortie porte l'empreinte du

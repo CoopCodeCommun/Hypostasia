@@ -38,17 +38,13 @@
         {# porte deja le formulaire, puis y font defiler. Toute la #}
         {# logique de creation reste celle des onglets. #}
         {# / These buttons open no new path: they activate the tab that #}
-        {# already holds the form and scroll to it. #}
-        {% if peut_ecrire %}
-        <div class="rangee-boutons" data-testid="corpus-actions-carnet">
-            <button type="button" class="bouton-plat"
-                    data-ouvre-onglet="corpus-onglet-wikis"
-                    data-testid="corpus-btn-nouveau-wiki">✦ Nouveau wiki</button>
-            <button type="button" class="bouton-plat"
-                    data-ouvre-onglet="corpus-onglet-syntheses"
-                    data-testid="corpus-btn-nouvelle-synthese">▤ Nouvelle synthèse</button>
-        </div>
-        {% endif %}
+        {# LES DEUX GESTES DE CREATION VIVENT DANS LEURS ONGLETS. Deux #}
+        {# boutons les annoncaient ici, qui ne faisaient qu'activer     #}
+        {# l'onglet portant deja le formulaire : un raccourci vers un   #}
+        {# geste visible deux ecrans plus bas, au prix d'une rangee de  #}
+        {# boutons en tete de carnet.                                   #}
+        {# / The two creation forms live in their own tabs; the buttons #}
+        {# here only activated the tab that already holds them. #}
         {# LA GOUVERNANCE DU CARNET — relogée ici le 12 aout 2026.       #}
         {#                                                              #}
         {# Renommer, changer la visibilite, partager, supprimer : ces   #}

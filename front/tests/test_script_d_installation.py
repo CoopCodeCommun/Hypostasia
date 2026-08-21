@@ -240,6 +240,62 @@ class LInstallationChargeLeBonJeuDeDonneesTest(TestCase):
         self.assertLess(rang_migrations, rang_documents)
         self.assertLess(rang_documents, rang_extractions)
 
+    def test_l_installation_va_jusqu_aux_avis_des_juges_locaux(self):
+        """
+        UNE INSTALLATION NEUVE DOIT MONTRER TOUTE LA CHAINE, jusqu'au
+        second avis. Sans cette etape, la fiche de preuve affiche
+        « aucun avis » sur tout le corpus etalon — une couche entiere du
+        produit reste invisible, et rien ne dit si elle marche.
+
+        Elle est GRATUITE et hors reseau : les quatre encodeurs tournent
+        sur processeur. Il n'y a donc aucune raison de ne pas la poser.
+        / A fresh install must show the whole chain, down to the second
+        opinion. This step is free and offline.
+        """
+        lignes = _lignes_utiles(SCRIPT_D_INSTALLATION)
+
+        self.assertTrue(
+            any("noter_avec_les_juges_locaux" in ligne for ligne in lignes),
+            "L'installation ne fait pas noter les juges locaux : une "
+            "installation neuve montrera « aucun avis » partout.",
+        )
+
+    def test_les_juges_locaux_notent_APRES_la_verification(self):
+        """
+        L'ORDRE EST UNE CONTRAINTE, PAS UN GOUT. Les juges notent des
+        PAIRES (affirmation, source), et une paire n'existe qu'une fois
+        l'article indexe et verifie. Inverser l'ordre ferait noter le
+        vide au premier demarrage.
+        / Judges score PAIRS, which exist only once the article is
+        indexed and verified.
+        """
+        lignes = _lignes_utiles(SCRIPT_D_INSTALLATION)
+
+        rang_synthese = _rang_de(lignes, "produire_les_syntheses_etalons")
+        rang_verification = _rang_de(lignes, "verifier_les_citations_etalons")
+        rang_juges = _rang_de(lignes, "noter_avec_les_juges_locaux")
+
+        self.assertLess(rang_synthese, rang_verification)
+        self.assertLess(rang_verification, rang_juges)
+
+    def test_les_dependances_des_juges_locaux_sont_installees_par_uv_sync(self):
+        """
+        `sentencepiece` ne vivait que dans `/tmp/banc_deps`, atteint par
+        un `PYTHONPATH` que le worker ne portait pas : le quatrieme juge
+        levait `ModuleNotFoundError` a chaque paquet. Declare dans
+        `pyproject.toml`, il est desormais pose par l'etape 1/6.
+        / It lived only in /tmp, outside the venv: the fourth judge
+        never scored anything.
+        """
+        lignes = _lignes_utiles(SCRIPT_D_INSTALLATION)
+        self.assertTrue(any("uv sync" in ligne for ligne in lignes))
+
+        with open("pyproject.toml", "rb") as fichier:
+            import tomllib
+            projet = tomllib.load(fichier)
+        declarees = " ".join(projet["project"]["dependencies"])
+        self.assertIn("sentencepiece", declarees)
+
 
 class LInstallationFabriqueSonFichierDEnvironnementTest(TestCase):
     """

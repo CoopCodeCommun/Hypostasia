@@ -1488,6 +1488,28 @@ document.addEventListener('click', function(evenement) {
             donneesMessage.type === 'file_ingestion_modifiee') {
             rafraichirBoutonTaches();
         }
+        // LE BANDEAU D'ATTENTE APPREND LA FIN PAR LE MEME MESSAGE.
+        //
+        // Il sondait le serveur toutes les 3 secondes pendant 5 minutes
+        // — jusqu'a CENT requetes pour une production — puis renoncait
+        // sur une echeance arbitraire (« rechargez la page »). Or ce
+        // WebSocket dit deja « c'est fini », et il le dit tout de suite.
+        //
+        // On rediffuse le message en evenement DOM : le bandeau porte
+        // `hx-trigger="tacheTerminee from:body"` et va chercher l'etat
+        // AU MOMENT ou la tache se termine, une fois. Le sondage lent
+        // qu'il garde par ailleurs n'est plus qu'un filet — le
+        // WebSocket peut etre coupe, la tache ne doit pas rester
+        // affichee « en cours » pour autant.
+        // / It polled every 3 s for 5 minutes — up to a hundred requests
+        // — then gave up on an arbitrary deadline. This socket already
+        // says "done", and says it at once. The slow poll it keeps is
+        // only a safety net for a dropped socket.
+        if (donneesMessage.type === 'tache_terminee') {
+            document.body.dispatchEvent(new CustomEvent('tacheTerminee', {
+                detail: donneesMessage, bubbles: false,
+            }));
+        }
     });
 
     // Ecoute l'event HTMX 'tachesChanged' (envoye par le serveur via HX-Trigger

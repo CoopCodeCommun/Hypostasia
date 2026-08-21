@@ -34,8 +34,15 @@ from core.models import (
     CategorieDossier, Dossier, Page, RoleDeModele, SourceLink, SyntheseDirigee,
     TypeDeNote, TypeLien, Wiki,
 )
+from core.services.contexte_de_citation import passage_autour_de_la_citation
 from core.services.corpus import ranger_une_note_dans_un_carnet
 from core.services.modeles_par_role import modele_du_role
+from core.services.nouveautes_du_perimetre import (
+    derniere_verification, nouveautes_du_perimetre,
+)
+from core.services.verification import (
+    accord_des_juges_locaux, seuil_de_verification,
+)
 from core.services.synthese import (
     MOTIF_DE_MARQUEUR, PerimetreDExtractionsInconnu, extractions_ecartees,
     couverture_de_la_note, notes_du_perimetre_d_un_wiki,
@@ -76,16 +83,33 @@ def _acces_article_ou_refus(request, page_d_article):
     return None
 
 
-def _html_avec_renvois(page_d_article):
+def _html_avec_renvois(page_d_article, renvois_rendus=None):
     """
     Le HTML de l'article avec des renvois [N] CLIQUABLES : chaque
-    marqueur [[ext:N]] devient une ancre HTMX vers le panneau de preuve
-    de SON SourceLink. Le numero suit l'ordre de premiere apparition —
-    jamais persiste (§ 4.4).
-    / The article HTML with clickable [N] references bound to their
-    SourceLink; numbering by first appearance, never stored.
+    marqueur [[ext:N]] devient une ancre vers la fiche de preuve de SON
+    SourceLink, dans la colonne de droite. Le numero suit l'ordre de
+    premiere apparition — jamais persiste (§ 4.4).
+    / The article HTML with clickable [N] references anchored to their
+    SourceLink card; numbering by first appearance, never stored.
 
     LOCALISATION : front/views_synthese.py
+
+    :param renvois_rendus: une liste OPTIONNELLE que la fonction
+        remplit de couples `(numero, lien)`, dans l'ordre d'apparition
+        des marqueurs.
+
+        POURQUOI UN PARAMETRE DE SORTIE, ET PAS UN SECOND APPEL. La
+        colonne de droite doit lister les preuves **dans l'ordre du
+        texte et avec les memes numeros**. Recalculer cette
+        numerotation ailleurs en ferait une seconde copie — et deux
+        copies d'une meme regle finissent toujours par diverger, ici
+        sur le cas le plus retors : une extraction citee deux fois
+        porte le MEME numero mais DEUX SourceLink distincts.
+        Laisser le defaut a `None` garde la signature d'origine pour
+        les six appelants qui ne veulent que le HTML.
+        / An out-parameter, not a second pass: recomputing the numbering
+        elsewhere would be a second copy of the rule, and the two would
+        drift on the hardest case — one extraction, two links, one number.
     """
     import html as html_module
 
@@ -97,7 +121,25 @@ def _html_avec_renvois(page_d_article):
     liens = list(
         SourceLink.objects.filter(
             page_cible=page_d_article, type_lien=TypeLien.CITE,
-        ).order_by("start_char_cible", "pk")
+        )
+        # Les avis locaux sont lus PAR LIEN pour calculer la tension :
+        # sans ce prefetch, un article de 80 renvois fait 80 requetes de
+        # plus. / Without this, one query per reference.
+        #
+        # LE RESTE SERT LA COLONNE DE DROITE, qui rend une fiche
+        # COMPLETE par renvoi : sans ces jointures, un article de 63
+        # citations en faisait plus de 250 requetes.
+        # / The rest feeds the right-hand column, one full card per
+        # reference: without these joins, 63 citations meant 250+ queries.
+        .select_related(
+            "extraction_source__job__page", "ancrage_source",
+        )
+        .prefetch_related(
+            "avis_locaux",
+            "extraction_source__commentaires__user",
+            "extraction_source__ancrages__element",
+        )
+        .order_by("start_char_cible", "pk")
     )
 
     numero_par_extraction = {}
@@ -120,7 +162,27 @@ def _html_avec_renvois(page_d_article):
              and lien.start_char_cible <= position <= lien.end_char_cible),
             None,
         )
-        jeton = f"RENVOIJETON{numero}X{identifiant}FIN"
+        # LE JETON EST UNIQUE PAR MARQUEUR, PAS PAR EXTRACTION, et c'est
+        # ce rang qui l'y oblige. Sans lui, une extraction citee dans
+        # DEUX paragraphes produisait DEUX FOIS le meme jeton : le
+        # dictionnaire n'en gardait que le dernier lien, et
+        # `str.replace` remplacait les deux occurrences par celui-la. Le
+        # lecteur cliquait le renvoi du premier paragraphe et obtenait
+        # la preuve du second — autres bornes, autre statut — et le
+        # SourceLink du premier n'etait atteignable par AUCUN chemin.
+        #
+        # Mesure du 19 aout 2026 sur la base de demonstration : 4
+        # citations sur 61 n'etaient jamais rendues sur le wiki des open
+        # badges, et 4 autres l'etaient deux fois.
+        #
+        # Le NUMERO, lui, reste celui de l'extraction : une meme source
+        # citee deux fois porte le meme [N] aux deux endroits, comme une
+        # bibliographie. Seule la CIBLE differe.
+        # / One token per marker, not per extraction: a twice-cited
+        # extraction used to render one link twice and strand the other.
+        jeton = (
+            f"RENVOIJETON{numero}X{identifiant}N{len(jetons)}FIN"
+        )
         jetons[jeton] = (numero, lien_du_marqueur)
         return jeton
 
@@ -138,15 +200,75 @@ def _html_avec_renvois(page_d_article):
         # Bouton exposant comme l'etalon (cible cliquable dediee) —
         # injecte APRES bleach, donc hors de son allowlist.
         # / Superscript button like the etalon, injected post-bleach.
+        # LE CORPS DE L'ARTICLE NE PORTE AUCUN CHIFFRE, et c'est un
+        # ARBITRAGE, pas un oubli (`PRESENTATION-V3.md` § 3.6). La revue
+        # d'etat de l'art rapporte une correlation de **-0,96 entre la
+        # precision des citations et l'utilite percue** : plus un
+        # systeme est rigoureux sur ses sources, moins il est utilise.
+        #
+        # D'ou : AUCUN CHIFFRE dans le corps, jamais. La rigueur est
+        # disponible AU CLIC — le panneau de preuve porte le degre, le
+        # seuil, la citation exacte et les avis des juges locaux — pas
+        # imposee a la lecture.
+        #
+        # REVISION DU 20 AOUT 2026 : le degre devient progressif et
+        # colore la gouttiere au lieu de choisir entre trois etats. Ce
+        # qui change est la GRANULARITE DE LA COULEUR, pas la presence
+        # du nombre : le texte reste sans chiffre.
+        # Voir PLAN/TODO/2026-08-20-le-degre-progressif-remplace-les-trois-etats.md
+        #
+        # Verrouille par `test_le_html_de_l_article_ne_contient_pas_le_degre`.
+        # / The article body carries no number: a measured arbitration.
+        # LA TENSION ENTRE LES JUGES, et rien d'autre. Le renvoi ne dit
+        # jamais le DEGRE — c'est l'interdit du § 3.6 — il dit si les
+        # quatre juges locaux confirment le juge de production ou le
+        # dementent franchement.
+        #
+        # Mesure du 20 aout 2026 : la contradiction franche touche
+        # **16 citations sur 209, soit 7,7 %**. C'est le seul signal que
+        # les locaux apportent vraiment : la moitie d'entre eux sort de
+        # la bande neutre, mais 42 % de ce signal CONTREDIT le cran.
+        # / The reference never carries the degree, only whether the
+        #   local judges contradict the production judge.
+        from core.services.degre_agrege import tension_des_juges
+
+        tension = tension_des_juges(
+            list(lien_du_marqueur.avis_locaux.all()),
+            lien_du_marqueur.score_de_verification,
+        )
+        attribut_de_tension = ""
+        libelle_de_tension = ""
+        if tension is not None:
+            attribut_de_tension = f'data-accord-local="{tension}" '
+            # UNE COULEUR NE SE LIT PAS TOUTE SEULE (recette F6), et
+            # vert/ambre est un axe rouge-vert, aplati en deuteranopie.
+            # / A colour alone is unreadable; green/amber is red-green.
+            libelle_de_tension = (
+                ", les contrôleurs démentent le juge"
+                if tension == "tension"
+                else ", les contrôleurs confirment le juge"
+            )
+
+        # UNE ANCRE, PLUS UN BOUTON HTMX. Les fiches de preuve ne sont
+        # plus chargees une par une dans un tiroir : elles sont TOUTES
+        # rendues dans la colonne de droite, cote a cote avec le texte.
+        # Un `href="#preuve-N"` y mene donc **sans JavaScript** ; le
+        # script de l'article ne fait qu'y ajouter le defilement doux et
+        # le surlignage de la fiche visee.
+        # / An anchor, not an HTMX button: every card is already in the
+        # right-hand column, so the link works without JavaScript.
         html_rendu = html_rendu.replace(
             jeton,
-            f'<button type="button" class="renvoi" '
+            f'<a class="renvoi" href="#preuve-{lien_du_marqueur.pk}" '
             f'data-testid="synthese-renvoi" '
+            f'data-lien-id="{lien_du_marqueur.pk}" '
             f'data-etat="{lien_du_marqueur.etat_de_verification}" '
-            f'hx-get="/citations/{lien_du_marqueur.pk}/preuve/" '
-            f'hx-target="#corps-preuve" hx-swap="innerHTML" '
-            f'aria-label="Source {numero}">[{numero}]</button>',
+            f'{attribut_de_tension}'
+            f'aria-label="Source {numero}{libelle_de_tension}">'
+            f'[{numero}]</a>',
         )
+        if renvois_rendus is not None:
+            renvois_rendus.append((numero, lien_du_marqueur))
 
     # LES VERDICTS AU FIL DU TEXTE (confrontation, manque n°1) : chaque
     # paragraphe devient une .affirmation[data-verification] — verte,
@@ -279,7 +401,60 @@ def _contexte_d_article(request, page_d_article):
     # / An article belongs to exactly one notebook: no switcher here.
     from front.views_corpus import contexte_du_fil_d_ariane
     fil = contexte_du_fil_d_ariane(request, carnet=carnet) if carnet else {}
-    html_de_l_article = _html_avec_renvois(page_d_article)
+    # LES PREUVES SONT TOUTES RENDUES, dans l'ordre du texte, dans la
+    # colonne de droite. Elles ne se chargent plus une par une dans un
+    # tiroir qui recouvre l'article : le lecteur doit pouvoir lire le
+    # texte et sa preuve COTE A COTE, comme la vue de lecture montre ses
+    # extractions a cote de la note.
+    # / All evidence cards are rendered, in text order, in the right-hand
+    # column: the reader must be able to read text and proof side by side.
+    renvois_de_l_article = []
+    html_de_l_article = _html_avec_renvois(
+        page_d_article, renvois_de_l_article,
+    )
+    second_avis_en_cours = un_second_avis_est_en_cours(page_d_article)
+    # LE SEUIL EST LU UNE FOIS, pas une fois par fiche : il ne change
+    # pas pendant un rendu, et le relire coutait 59 requetes.
+    # / Read once: it cannot change mid-render.
+    seuil_courant = seuil_de_verification()
+    # Les elements des notes sources sont lus UNE FOIS PAR NOTE, pas
+    # deux fois par fiche : 63 citations tirees de 6 notes coutaient
+    # 65 requetes d'elements. / One read per note, not two per card.
+    memoire_des_elements = {}
+    preuves = [
+        contexte_d_une_preuve(
+            lien, numero, seuil_courant, memoire_des_elements,
+        )
+        for numero, lien in renvois_de_l_article
+    ]
+    # CE QUI EST APPARU DEPUIS, et qui donne — ou non — une raison de
+    # relancer un geste couteux. Les deux lignes d'en-tete restent
+    # cliquables dans tous les cas : c'est la boite de dialogue qui dit
+    # ce qu'il y a, ou ce qu'il n'y a pas.
+    # / What appeared since, and whether relaunching has any point.
+    if enregistrement_de_wiki:
+        notes_du_perimetre = notes_du_perimetre_d_un_wiki(
+            enregistrement_de_wiki,
+        )
+        date_de_l_article = enregistrement_de_wiki.derniere_mise_a_jour
+    elif enregistrement_de_dirigee:
+        # Le perimetre d'une dirigee est FIGE : on interroge celui de
+        # l'acte, jamais un perimetre recalcule aujourd'hui — sans quoi
+        # « ce qui est nouveau » changerait de sens avec le carnet.
+        # / A frozen scope: never recompute it today.
+        notes_du_perimetre = enregistrement_de_dirigee.notes_du_perimetre.all()
+        date_de_l_article = enregistrement_de_dirigee.produite_le
+    else:
+        notes_du_perimetre = Page.objects.none()
+        date_de_l_article = None
+
+    nouveautes_pour_la_maj = nouveautes_du_perimetre(
+        notes_du_perimetre, date_de_l_article,
+    )
+    nouveautes_pour_la_verification = nouveautes_du_perimetre(
+        notes_du_perimetre, derniere_verification(page_d_article),
+    )
+
     # Quels etats de verification l'article porte-t-il REELLEMENT ? La
     # legende les annoncait tous, « non source » compris, avant meme
     # qu'une verification ait eu lieu : elle promettait des couleurs que
@@ -299,10 +474,15 @@ def _contexte_d_article(request, page_d_article):
         "dirigee": enregistrement_de_dirigee,
         "carnet": carnet,
         "html_de_l_article": html_de_l_article,
+        "preuves": preuves,
+        "seuil_de_verification": seuil_courant,
+        "second_avis_en_cours": second_avis_en_cours,
         "nombre_de_renvois": nombre_de_renvois,
         "nombre_de_citations": nombre_de_sources,
         "comptes_de_verdicts": comptes_de_verdicts,
         "nombre_d_ecartees": nombre_d_ecartees,
+        "nouveautes_pour_la_maj": nouveautes_pour_la_maj,
+        "nouveautes_pour_la_verification": nouveautes_pour_la_verification,
         "peut_ecrire": (
             request.user.is_authenticated and carnet is not None
             and _utilisateur_peut_ecrire_dossier(request.user, carnet)
@@ -366,9 +546,14 @@ def _etat_de_la_tache(request, page_d_article, carnet, apres):
     if job.status != ExtractionJobStatus.COMPLETED:
         essais = request.GET.get("essais", "0")
         essais = int(essais) + 1 if str(essais).isdigit() else 1
-        # ~5 minutes a 3 secondes d'intervalle. Au-dela, on cesse
-        # d'interroger et on le dit. / Stop polling and say so.
-        if essais > 100:
+        # L'ECHEANCE SUIT LE RYTHME DU FILET, pas celui de l'ancien
+        # sondage. Le bandeau n'interroge plus toutes les 3 secondes :
+        # il apprend la fin par le WebSocket, et ne repasse de lui-meme
+        # que toutes les 25 secondes, pour le cas ou le socket est
+        # coupe. Garder 100 essais aurait porte l'abandon a 40 minutes.
+        # / The deadline follows the safety net's pace, not the old
+        # 3-second poll: 100 tries would now mean forty minutes.
+        if essais > 24:
             return render(request, "front/corpus/partials/tache_lancee.html", {
                 "message": "Cette production prend plus de temps que "
                            "prévu. Elle continue peut-être en arrière-"
@@ -381,6 +566,10 @@ def _etat_de_la_tache(request, page_d_article, carnet, apres):
             "hx_get": (
                 f"{request.path}?job_id={job.pk}&essais={essais}{suffixe}"
             ),
+            # Une fois finie, cette attente repond par un ARTICLE : il
+            # remplace l'ecran, pas la fente qu'il occupe.
+            # / When it ends this wait answers with a whole article.
+            "hx_target": "#zone-lecture" if apres == "article" else None,
         })
 
     # Termine : on rend ce que l'utilisateur attend.
@@ -761,7 +950,7 @@ class WikiViewSet(viewsets.ViewSet):
         return _lancer_une_verification(request, wiki.page)
 
 
-def _lancer_un_second_avis(request, page_d_article):
+def _lancer_un_second_avis(demandeur_id, page_d_article):
     """
     Met en file le SECOND AVIS du juge local. / Queues the local judge's
     second opinion.
@@ -788,7 +977,7 @@ def _lancer_un_second_avis(request, page_d_article):
     """
     from hypostasis_extractor.models import ExtractionJob
 
-    from core.services.juge_local import methode
+    from core.services.juges_locaux import JUGES
 
     # LE VERROU EST BORNE DANS LE TEMPS, et c'est ce qui l'empeche de se
     # refermer pour toujours. Les taches ne sont PAS en `acks_late` : un
@@ -802,17 +991,14 @@ def _lancer_un_second_avis(request, page_d_article):
     # depasser dans la journee.
     # / A time-bounded lock: without acks_late, a killed job would hold
     # it forever and no second opinion would ever run on this page again.
-    from datetime import timedelta
-
-    from django.utils import timezone
-
-    deja_en_cours = ExtractionJob.objects.filter(
-        page=page_d_article,
-        status__in=["pending", "processing"],
-        raw_result__contains={"est_second_avis": True},
-        created_at__gte=timezone.now() - timedelta(hours=2),
-    ).exists()
-    if deja_en_cours:
+    # LE VERROU ET L'AFFICHAGE POSENT LA MEME QUESTION, donc la meme
+    # fonction : « un second avis tourne-t-il sur cette page ? ». Deux
+    # ecritures du meme predicat auraient fini par diverger — l'une
+    # bornee a deux heures, l'autre pas — et le verrou aurait interdit
+    # de relancer une campagne que la colonne n'annoncait plus.
+    # / One predicate, one function: two copies would have drifted, and
+    # the lock would forbid relaunching a run the column no longer shows.
+    if un_second_avis_est_en_cours(page_d_article):
         return None
 
     job = ExtractionJob.objects.create(
@@ -823,7 +1009,13 @@ def _lancer_un_second_avis(request, page_d_article):
         # / No AIModel row on purpose: it would be offered for extraction.
         ai_model=None,
         name=f"Second avis — {page_d_article.title}"[:200],
-        prompt_description=f"Second avis de vérification ({methode()})",
+        # LES QUATRE JUGES SONT NOMMES DANS LA DESCRIPTION, pas un
+        # seul : un libelle au singulier ferait croire qu'un unique
+        # juge tourne, et le job qui en decoule serait illisible.
+        # / Name all four: a singular label would misdescribe the job.
+        prompt_description=(
+            f"Avis des {len(JUGES)} juges locaux de vérification"
+        ),
         status="pending",
         raw_result={
             # Un marqueur DISTINCT de `est_verification` : le menu des
@@ -831,7 +1023,7 @@ def _lancer_un_second_avis(request, page_d_article):
             # y ferait deux lignes « Vérification », dont une d'une
             # heure. / A DISTINCT marker: the task menu lists the other.
             "est_second_avis": True,
-            "demandeur_id": request.user.pk,
+            "demandeur_id": demandeur_id,
         },
     )
     from front.tasks import noter_avec_le_juge_local_task
@@ -860,7 +1052,7 @@ def _lancer_une_verification(request, page_d_article):
     from front.tasks import verifier_les_citations_task
     verifier_les_citations_task.delay(job.pk)
 
-    _lancer_un_second_avis(request, page_d_article)
+    _lancer_un_second_avis(request.user.pk, page_d_article)
 
     # Sans hx_get, ce message restait affiche POUR TOUJOURS : les
     # verdicts n'apparaissaient qu'apres un rechargement manuel que
@@ -877,6 +1069,7 @@ def _lancer_une_verification(request, page_d_article):
     return render(request, "front/corpus/partials/tache_lancee.html", {
         "message": _MESSAGES_D_ATTENTE["article"],
         "hx_get": f"{racine}/etat/?job_id={job.pk}&apres=article",
+        "hx_target": "#zone-lecture",
     })
 
 
@@ -1075,10 +1268,35 @@ class SyntheseViewSet(viewsets.ViewSet):
             ecartees = []
             nombre_total_d_ecartees = 0
             perimetre_inconnu = True
+
+        # GROUPEES PAR DOCUMENT, et chaque document se deplie.
+        #
+        # POURQUOI. La liste etait plate : 200 lignes ou chaque citation
+        # redisait le nom de sa note en petit, a droite. Sur un perimetre
+        # de six notes, c'etait six noms repetes jusqu'a 200 fois, et
+        # aucun moyen de repondre a la seule question qu'on se pose
+        # vraiment — « qu'est-ce que le modele a laisse de CE
+        # document-la ? ».
+        # / A flat list repeated six note names up to 200 times and
+        # could not answer the only question that matters: what did the
+        # model leave out OF THIS document?
+        groupes = {}
+        for extraction in ecartees:
+            note = extraction.job.page
+            groupes.setdefault(note.pk, {"note": note, "extractions": []})
+            groupes[note.pk]["extractions"].append(extraction)
+        # Le document qui a le plus ete ecarte vient en tete : c'est
+        # celui sur lequel la question se pose.
+        # / The most-skipped document leads: that is where the question is.
+        ecartees_par_document = sorted(
+            groupes.values(),
+            key=lambda groupe: -len(groupe["extractions"]),
+        )
         return render(request, "front/corpus/partials/ecartees.html", {
             "article": page_de_synthese,
-            "ecartees": ecartees,
+            "ecartees_par_document": ecartees_par_document,
             "nombre_total_d_ecartees": nombre_total_d_ecartees,
+            "nombre_affiche": len(ecartees),
             "perimetre_inconnu": perimetre_inconnu,
         })
 
@@ -1122,6 +1340,121 @@ class SyntheseViewSet(viewsets.ViewSet):
         return _lancer_une_verification(request, page_de_synthese)
 
 
+def un_second_avis_est_en_cours(page_d_article):
+    """
+    Une campagne de juges locaux tourne-t-elle sur cet article ?
+    / Is a local-judge run under way on this article?
+
+    LOCALISATION : front/views_synthese.py
+
+    « EN COURS » ET « JAMAIS DEMANDE » NE SE CONFONDENT PAS. La doctrine
+    maison veut qu'une degradation silencieuse soit pire qu'une erreur :
+    une barre absente ne doit pas se lire comme un zero.
+
+    LA BORNE DE DEUX HEURES EST CELLE DU VERROU DE RE-CLIC, et pour la
+    meme raison : les taches ne sont PAS en `acks_late`. Un SIGKILL, un
+    OOM ou un `docker compose down` qui vide Redis laisse un job
+    `pending` DEFINITIVEMENT. Sans borne, la colonne afficherait « avis
+    en cours… » pour toujours, sur toutes les citations de la page, sans
+    que rien ne le dise.
+    / A dead pending job would show "running…" forever, on every card.
+    """
+    from datetime import timedelta
+
+    from hypostasis_extractor.models import ExtractionJob
+
+    return ExtractionJob.objects.filter(
+        page=page_d_article,
+        status__in=["pending", "processing"],
+        created_at__gte=timezone.now() - timedelta(hours=2),
+        raw_result__contains={"est_second_avis": True},
+    ).exists()
+
+
+def contexte_d_une_preuve(lien, numero=None, seuil=None,
+                          memoire_des_elements=None):
+    """
+    Le contexte d'UNE fiche de preuve. / One evidence card's context.
+
+    LOCALISATION : front/views_synthese.py
+
+    UN SEUL ENDROIT POUR DEUX APPELANTS : la colonne de droite, qui en
+    rend une par renvoi, et `CitationViewSet.preuve`, qui en rend une
+    seule. Deux constructions du meme contexte finiraient par diverger,
+    et le lecteur verrait deux fiches differentes pour la meme citation
+    selon le chemin d'acces.
+    / One builder for two callers: otherwise the same citation would
+    render differently depending on how it was reached.
+
+    LE TRI DES AVIS SE FAIT EN MEMOIRE, pas par `order_by` : la colonne
+    prefetch les avis de tous les liens en une requete, et un `order_by`
+    sur le manager relancerait une requete PAR FICHE — ce que le
+    prefetch existait justement pour eviter.
+    / Sorted in memory: an order_by on the related manager would defeat
+    the prefetch and issue one query per card.
+    """
+    extraction = lien.extraction_source
+    # Par score DECROISSANT : le lecteur compare des barres, et des
+    # barres en desordre se comparent mal.
+    # / By descending score: the reader compares bars.
+    avis_locaux = sorted(
+        lien.avis_locaux.all(), key=lambda un_avis: -un_avis.score,
+    )
+    return {
+        "numero": numero,
+        "lien": lien,
+        "extraction": extraction,
+        "note_source": extraction.job.page if extraction else None,
+        # LE TEXTE QUI ENTOURE LA CITATION, en DEUX longueurs :
+        # l'apercu, et ce que le clic sur la citation ouvre. Une
+        # citation sortie de son paragraphe se lit mal, et parfois faux.
+        # Le service rend des chaines vides quand l'ancre est detachee :
+        # ses positions sont perimees, et un contexte decoupe dessus
+        # serait une invention presentee comme une preuve.
+        # / Two lengths; empty when the anchor is stale.
+        "passage": passage_autour_de_la_citation(
+            extraction, memoire_des_elements,
+        ),
+        "avis_locaux": avis_locaux,
+        # LA VERSION DU PROTOCOLE, quand les juges la PARTAGENT — et
+        # None sinon. Recopiee sur chaque barre elle n'identifie
+        # personne, elle remplit ; mais la factoriser quand elle n'est
+        # pas commune mentirait sur les autres juges, et le § 7.2 veut
+        # que l'etat porte son verificateur — version comprise.
+        # / Factored out only when actually shared (§ 7.2).
+        "version_commune": _version_commune_des_avis(avis_locaux),
+        # (combien confirment, combien d'avis), ou None quand la
+        # comparaison est IMPOSSIBLE — et c'est le cas ORDINAIRE tant
+        # qu'un article n'a pas ete reverifie.
+        # / None is the ordinary case, not an exception.
+        "accord_local": accord_des_juges_locaux(lien, seuil),
+    }
+
+
+def _version_commune_des_avis(avis_locaux):
+    """
+    La version de protocole que TOUS les avis partagent, ou None.
+    / The protocol version shared by ALL opinions, or None.
+
+    LOCALISATION : front/views_synthese.py
+
+    POURQUOI CE N'EST PAS UNE CONSTANTE. `methode()` prefixe la version
+    a chaque avis d'un meme lot — « xnli-directe v1 — bge-m3 ». Recopiee
+    sur les quatre barres de la fiche, elle n'identifie personne. Mais
+    deux lots juges a des dates differentes peuvent porter deux
+    versions : la factoriser alors mentirait sur les avis de l'autre
+    lot. On ne la sort de la ligne que si elle est VRAIMENT commune.
+    / Only factored out when genuinely shared: two batches can differ.
+
+    :param avis_locaux: des `AvisDeVerification`.
+    :return: la version, ou None — y compris quand la liste est vide.
+    """
+    versions = {un_avis.version for un_avis in avis_locaux}
+    if len(versions) == 1:
+        return versions.pop() or None
+    return None
+
+
 class CitationViewSet(viewsets.ViewSet):
     """Le panneau de preuve d'une citation. / The evidence panel."""
 
@@ -1133,6 +1466,17 @@ class CitationViewSet(viewsets.ViewSet):
         GET /citations/{id}/preuve/ — la citation exacte, son etat de
         verification AVEC provenance, le debat joint, le retour a la
         source. / Exact quote, provenanced verdict, debate, deep link.
+
+        ⚠️ AUCUN GABARIT N'APPELLE PLUS CETTE ROUTE. Les fiches sont
+        TOUTES rendues dans la colonne de l'article, et le renvoi [N]
+        est une ancre, plus un `hx-get`. Elle reste parce qu'elle rend
+        la MEME fiche par le MEME constructeur de contexte
+        (`contexte_d_une_preuve`) : c'est la couture par laquelle les
+        tests du 20 aout examinent une fiche isolement, sans monter
+        tout un article. Ne pas la lire comme le chemin de l'interface.
+        / No template calls this route any more: every card is rendered
+        in the article's column. It stays as the test seam that renders
+        one card through the same context builder.
         """
         lien = get_object_or_404(
             SourceLink.objects.select_related(
@@ -1145,37 +1489,16 @@ class CitationViewSet(viewsets.ViewSet):
         refus = _acces_article_ou_refus(request, lien.page_cible)
         if refus:
             return refus
-        extraction = lien.extraction_source
+        second_avis_en_cours = un_second_avis_est_en_cours(lien.page_cible)
+
         # LE DEGRE ET SON SEUIL VONT ENSEMBLE, TOUJOURS. Un « soutenu a
         # 45 sur 100 » ne veut rien dire sans la barre a partir de
         # laquelle on compte : c'est ce qui rend l'etat CONTESTABLE SUR
         # LE BON OBJET — on discute le seuil, pas le verdict.
         # / The degree and its threshold always travel together.
-        from core.services.verification import (
-            accord_des_deux_juges, seuil_de_verification,
+        contexte = contexte_d_une_preuve(lien)
+        contexte["seuil_de_verification"] = seuil_de_verification()
+        contexte["second_avis_en_cours"] = second_avis_en_cours
+        return render(
+            request, "front/corpus/partials/preuve.html", contexte,
         )
-        from hypostasis_extractor.models import ExtractionJob
-
-        # Le second avis est-il EN COURS ? « En cours » et « jamais
-        # demandé » ne se confondent pas : la doctrine maison veut qu'une
-        # dégradation silencieuse soit pire qu'une erreur, et une barre
-        # absente ne doit pas se lire comme un zéro.
-        # / "Running" and "never asked" must not look alike.
-        second_avis_en_cours = ExtractionJob.objects.filter(
-            page=lien.page_cible,
-            status__in=["pending", "processing"],
-            raw_result__contains={"est_second_avis": True},
-        ).exists()
-
-        return render(request, "front/corpus/partials/preuve.html", {
-            "lien": lien,
-            "extraction": extraction,
-            "note_source": extraction.job.page if extraction else None,
-            "seuil_de_verification": seuil_de_verification(),
-            # True (accord), False (désaccord), None (incalculable — et
-            # c'est le cas ORDINAIRE tant qu'un article n'a pas été
-            # revérifié : la base porte 145 citations et zéro degré).
-            # / None is the ordinary case, not an exception.
-            "accord_des_juges": accord_des_deux_juges(lien),
-            "second_avis_en_cours": second_avis_en_cours,
-        })

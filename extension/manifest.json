@@ -33,7 +33,6 @@
             "resources": [
                 "lib/Readability.js",
                 "lib/htmx.min.js",
-                "init_htmx_sidebar.js",
                 "sidebar.html"
             ],
             "matches": [
@@ -47,7 +46,7 @@
             "strict_min_version": "109.0",
             "data_collection_permissions": {
                 "required": [
-                    "none"
+                    "websiteContent"
                 ],
                 "optional": []
             }

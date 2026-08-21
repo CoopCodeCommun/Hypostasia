@@ -1,7 +1,6 @@
 import logging
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-from django.db.models import Q
 from django.shortcuts import render
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -11,9 +10,11 @@ from rest_framework.authentication import SessionAuthentication, TokenAuthentica
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Dossier, DossierPartage, EtatIngestion, Page, RoleSpecialDossier
+from .models import Dossier, EtatIngestion, Page, RoleSpecialDossier, VisibiliteDossier
 from .services.corpus import (
+    carnets_ou_ecrire,
     deplacer_une_note_vers_un_carnet,
+    notes_visibles_par,
     ranger_une_note_dans_un_carnet,
 )
 from .serializers import ClasserDepuisExtensionSerializer, PageCreateSerializer, PageListSerializer
@@ -75,20 +76,22 @@ def normaliser_url(url_brute):
         return url_brute
 
 
-def _ids_dossiers_accessibles(utilisateur):
+class CarnetRefuse(Exception):
     """
-    Retourne les IDs des dossiers possedes par l'utilisateur + ceux partages avec lui.
-    Utilise par create() et classer_depuis_extension() pour determiner le perimetre de dedup et d'acces.
-    / Returns IDs of folders owned by the user + those shared with them.
-    Used by create() and classer_depuis_extension() for dedup and access scope.
+    Le carnet demande n'existe pas, ou l'utilisateur ne peut pas y ecrire.
+    / The requested notebook is unknown or not writable by this user.
 
     LOCALISATION : core/views.py
+
+    C'EST UNE EXCEPTION ET NON UN REPLI, ET C'EST TOUT LE SUJET. Avant,
+    un carnet refuse etait remplace EN SILENCE par le fourre-tout : la
+    capture repondait 201, l'utilisateur croyait avoir range dans le
+    carnet de classe, et la note etait ailleurs. Depuis que l'extension
+    fait CHOISIR le carnet avant la capture, detourner ce choix sans le
+    dire est un mensonge.
+    / An exception, not a fallback: a refused notebook used to be
+    silently swapped for the inbox while the capture answered 201.
     """
-    ids_dossiers_owner = Dossier.objects.filter(owner=utilisateur).values_list("pk", flat=True)
-    ids_dossiers_partages = DossierPartage.objects.filter(
-        utilisateur=utilisateur
-    ).values_list("dossier_id", flat=True)
-    return set(ids_dossiers_owner) | set(ids_dossiers_partages)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -104,14 +107,38 @@ class PageViewSet(viewsets.ViewSet):
 
     def list(self, request):
         """
-        Liste les pages, avec filtre optionnel par URL.
-        L'extension utilise ?url=... pour verifier si une page existe deja.
-        La recherche se fait par URL normalisee (sans UTM, sans fragment, sans trailing slash).
-        / Lists pages, with optional URL filter.
-        / The extension uses ?url=... to check if a page already exists.
-        / Search is done by normalized URL (no UTM, no fragment, no trailing slash).
+        Liste les notes du perimetre du porteur du jeton, avec filtre
+        optionnel par URL. L'extension appelle `?url=...` avant de
+        capturer, pour savoir si la page est deja la.
+        / Lists the token holder's notes, with an optional URL filter.
+
+        LOCALISATION : core/views.py
+
+        AUTHENTIFICATION EXIGEE, ET PERIMETRE PAR OBJET. Cet endpoint a
+        rendu `Page.objects.all()` a qui le demandait, sans jeton, avec
+        le HTML complet de chaque note et `Access-Control-Allow-Origin:
+        *` — donc lisible par n'importe quel site visite. Mesure du
+        20 aout 2026 avant correction : 200, 13 notes, 291 840 octets.
+        / Authentication required and per-object scope: this endpoint
+        used to hand the whole corpus to anyone, from any origin.
+
+        Le jeton est exige ICI meme si un carnet public est lisible par
+        un anonyme sur le site : `/api/pages/` n'est pas une surface de
+        consultation, c'est l'API de l'extension — et l'extension a
+        toujours un jeton, sans quoi elle ne peut rien capturer. La
+        consultation publique vit sur `/carnets/`, avec une interface.
+        / The token is required even though public notebooks are
+        anonymously readable on the site: this is the extension's API,
+        not a browsing surface, and the extension always has a token.
         """
-        toutes_les_pages = Page.objects.all().order_by("-created_at")
+        if not request.user or not request.user.is_authenticated:
+            return Response(
+                {"detail": "Authentification requise. Ajoutez votre token API "
+                           "dans les options de l'extension."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        pages_du_perimetre = notes_visibles_par(request.user).order_by("-created_at")
 
         # Filtre par URL si le parametre est present (utilise par l'extension)
         # / Filter by URL if parameter is present (used by extension)
@@ -120,9 +147,9 @@ class PageViewSet(viewsets.ViewSet):
             url_filtre_normalisee = normaliser_url(url_filtre)
             # Chercher par URL exacte et par URL normalisee
             # / Search by exact URL and by normalized URL
-            toutes_les_pages = toutes_les_pages.filter(url=url_filtre_normalisee)
+            pages_du_perimetre = pages_du_perimetre.filter(url=url_filtre_normalisee)
 
-        serializer = PageListSerializer(toutes_les_pages, many=True)
+        serializer = PageListSerializer(pages_du_perimetre, many=True)
         return Response(serializer.data)
 
     def create(self, request):
@@ -139,11 +166,24 @@ class PageViewSet(viewsets.ViewSet):
         FLUX :
         1. Verifier l'authentification (401 si absent)
         2. Normaliser l'URL soumise
-        3. Valider via PageCreateSerializer
-        4. Verifier la dedup par URL dans le perimetre owner + partages
-        5. Verifier la dedup par content_hash dans le meme perimetre
-        6. Resoudre le dossier cible (dossier_id ou "A ranger" par defaut)
-        7. Creer la page avec owner + dossier
+        3. Repondre aux trois conflits AVANT toute validation (voir
+           ci-dessous pourquoi cet ordre n'est pas negociable)
+        4. Valider via PageCreateSerializer
+        5. Resoudre le carnet demande (refus explicite si interdit)
+        6. Creer la page, la ranger, lancer l'ingestion ELEMENT
+
+        LES CONFLITS SE TRAITENT AVANT `is_valid()`, ET C'EST OBLIGATOIRE.
+        `Page.url` porte une contrainte d'unicite en base
+        (`unique_url_si_presente`) ; DRF en deduit tout seul un
+        `UniqueValidator` sur le champ `url` du serializer. Il se
+        declenche donc DANS `is_valid()`, avant qu'on ait pu regarder
+        quoi que ce soit — et rend un 400 « Un objet page avec ce champ
+        url existe deja » que l'extension affichait « Erreur creation
+        (400) ». Placer nos reponses apres la validation les rendrait
+        inatteignables.
+        / The conflict checks run BEFORE is_valid(): DRF derives a
+        UniqueValidator from the model's unique constraint on url, which
+        fires inside is_valid() and would make these answers dead code.
         """
         # Exiger l'authentification pour la creation
         # / Require authentication for creation
@@ -153,6 +193,11 @@ class PageViewSet(viewsets.ViewSet):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        # L'empreinte de contenu se calcule ici avec la MEME fonction que
+        # le serializer : voir le commentaire du controle de doublon.
+        # / Same fingerprint function as the serializer.
+        from front.services.texte_depuis_html import empreinte_d_une_capture
+
         # Normaliser l'URL avant validation
         # / Normalize URL before validation
         donnees_soumises = request.data.copy()
@@ -160,27 +205,10 @@ class PageViewSet(viewsets.ViewSet):
         if url_soumise:
             donnees_soumises["url"] = normaliser_url(url_soumise)
 
-        serializer = PageCreateSerializer(data=donnees_soumises)
-
-        if not serializer.is_valid():
-            logger.warning(
-                "PageViewSet.create: erreurs de validation — %s",
-                serializer.errors,
-            )
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        # Determiner le perimetre de dedup : dossiers owner + partages
-        # / Determine dedup scope: owner folders + shared folders
-        ids_dossiers = _ids_dossiers_accessibles(request.user)
-
-        # Pages accessibles = rangees dans les carnets de l'user (table de
-        # liaison, phase D corpus) + pages sans carnet de l'user
-        # / Accessible pages = filed in the user's notebooks (link table)
-        # + the user's notebook-less pages
-        pages_accessibles = Page.objects.filter(
-            Q(appartenances_dossiers__dossier_id__in=ids_dossiers)
-            | Q(appartenances_dossiers__isnull=True, owner=request.user)
-        ).distinct()
+        # Le perimetre de dedup est celui de la LECTURE : une note qu'on
+        # peut ouvrir est une note qu'on ne veut pas recapturer.
+        # / The dedup scope is the READ scope.
+        pages_accessibles = notes_visibles_par(request.user)
 
         # Verifier le doublon par URL normalisee dans le perimetre de l'user
         # / Check for duplicate by normalized URL within user's scope
@@ -198,38 +226,117 @@ class PageViewSet(viewsets.ViewSet):
                     {
                         "detail": "Page deja enregistree avec cette URL.",
                         "existing_page_id": page_existante_par_url.pk,
+                        # Les trois conflits sortent en 409 : sans un code
+                        # machine, la popup ne peut pas les distinguer et
+                        # affiche un echec comme un succes.
+                        # / Three conflicts share the 409; the code is
+                        # what lets the popup tell them apart.
+                        "code": "deja_dans_mon_perimetre",
                     },
                     status=status.HTTP_409_CONFLICT,
                 )
 
-        # Verifier le doublon par content_hash dans le perimetre de l'user
-        # / Check for duplicate by content_hash within user's scope
-        content_hash_soumis = donnees_soumises.get("content_hash", "")
-        if content_hash_soumis:
+        # Verifier le doublon par contenu, avec l'empreinte QUE LE SERVEUR
+        # CALCULE. Elle ne vient plus du client : le client la calculait
+        # autrement, les deux valeurs ne se rejoignaient pas, et ce
+        # controle-ci ne se declenchait donc jamais (voir
+        # PageCreateSerializer.content_hash).
+        # / Duplicate check by content, using the fingerprint the SERVER
+        # computes; the client's own value never matched, so this check
+        # never fired.
+        html_de_la_capture = donnees_soumises.get("html_readability", "")
+        texte_de_la_capture = donnees_soumises.get("text_readability", "")
+        empreinte_de_la_capture = empreinte_d_une_capture(
+            html_de_la_capture, texte_de_la_capture,
+        )
+        # Une capture SANS CONTENU n'est pas « le meme contenu » qu'une
+        # autre capture sans contenu : ce sont deux vides, pas un
+        # doublon. Sans cette porte, elles se refuseraient l'une l'autre
+        # sur l'empreinte de la chaine vide.
+        # / An EMPTY capture is not "the same content" as another empty
+        # one: two voids are not a duplicate.
+        la_capture_a_du_contenu = bool(
+            (html_de_la_capture or "").strip() or (texte_de_la_capture or "").strip()
+        )
+        page_existante_par_hash = None
+        if la_capture_a_du_contenu:
             page_existante_par_hash = pages_accessibles.filter(
-                content_hash=content_hash_soumis
+                content_hash=empreinte_de_la_capture
             ).first()
-            if page_existante_par_hash:
-                logger.info(
-                    "PageViewSet.create: doublon par content_hash — page existante %d "
-                    "hash=%s url_existante=%s url_soumise=%s (user=%s)",
-                    page_existante_par_hash.pk,
-                    content_hash_soumis[:16],
-                    page_existante_par_hash.url,
-                    url_normalisee,
-                    request.user.username,
-                )
-                return Response(
-                    {
-                        "detail": "Contenu identique deja enregistre.",
-                        "existing_page_id": page_existante_par_hash.pk,
-                    },
-                    status=status.HTTP_409_CONFLICT,
-                )
+        if page_existante_par_hash:
+            logger.info(
+                "PageViewSet.create: doublon par content_hash — page existante %d "
+                "hash=%s url_existante=%s url_soumise=%s (user=%s)",
+                page_existante_par_hash.pk,
+                empreinte_de_la_capture[:16],
+                page_existante_par_hash.url,
+                url_normalisee,
+                request.user.username,
+            )
+            return Response(
+                {
+                    "detail": "Contenu identique deja enregistre.",
+                    "existing_page_id": page_existante_par_hash.pk,
+                    "code": "contenu_deja_enregistre",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
 
-        # Extraire le dossier_id optionnel des donnees soumises
-        # / Extract optional dossier_id from submitted data
-        dossier_id_soumis = donnees_soumises.get("dossier_id")
+        # L'URL est unique GLOBALEMENT en base (`unique_url_si_presente`)
+        # alors que la dedup ci-dessus est scopee au perimetre. Un tiers
+        # a donc pu prendre cette URL dans un carnet qu'on ne peut pas
+        # ouvrir. Sans ce controle, la contrainte remonte en 400
+        # « Un objet page avec ce champ url existe deja », que l'extension
+        # affichait « Erreur creation (400) ». On le dit clairement, avec
+        # un code que la popup sait traduire.
+        # / The URL is globally unique while dedup is scoped: say plainly
+        # that a third party holds it, with a machine-readable code.
+        if url_normalisee and Page.objects.filter(url=url_normalisee).exists():
+            logger.info(
+                "PageViewSet.create: url=%s deja prise hors du perimetre de %s",
+                url_normalisee, request.user.username,
+            )
+            return Response(
+                {
+                    "detail": "Cette page a déjà été capturée sur cette "
+                              "instance, dans un carnet auquel vous n'avez "
+                              "pas accès.",
+                    "code": "url_prise_ailleurs",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        # Les conflits sont ecartes : on peut valider.
+        # / Conflicts are out of the way: validate.
+        serializer = PageCreateSerializer(data=donnees_soumises)
+        if not serializer.is_valid():
+            logger.warning(
+                "PageViewSet.create: erreurs de validation — %s",
+                serializer.errors,
+            )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # Le carnet demande par l'extension. Resolu AVANT la creation :
+        # une destination refusee ne doit pas laisser une note derriere
+        # elle. Le `dossier_id` sort du serializer, donc c'est un entier
+        # ou rien : `Dossier.objects.filter(pk="abc")` leve une
+        # `ValueError` que personne n'attrape — un 500 pour une faute de
+        # frappe du client.
+        # / Resolved BEFORE creation, from the validated data: a raw
+        # payload value would raise ValueError on a non-integer pk.
+        try:
+            carnet_de_destination = _resoudre_dossier(
+                request.user, serializer.validated_data.get("dossier_id"),
+            )
+        except CarnetRefuse as carnet_refuse:
+            logger.warning(
+                "PageViewSet.create: carnet refuse pour %s — %s",
+                request.user.username, carnet_refuse,
+            )
+            return Response(
+                {"dossier_id": [str(carnet_refuse)]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Creer la page avec l'owner, puis la ranger via le service :
         # il pose la FK (premier carnet) ET l'appartenance N-N d'un coup
@@ -238,9 +345,7 @@ class PageViewSet(viewsets.ViewSet):
         # the FK (first notebook) AND the N-N membership at once.
         page_creee = serializer.save(owner=request.user)
         ranger_une_note_dans_un_carnet(
-            page_creee,
-            _resoudre_dossier(request.user, dossier_id_soumis),
-            request.user,
+            page_creee, carnet_de_destination, request.user,
         )
         logger.info(
             "PageViewSet.create: Page %d creee — url=%s owner=%s dossier=%s",
@@ -343,27 +448,65 @@ class PageViewSet(viewsets.ViewSet):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        # Dossiers possedes par l'utilisateur
-        # / Folders owned by user
-        dossiers_owner = Dossier.objects.filter(owner=request.user)
+        # La liste vient du service : les partages par GROUPE y sont, ce
+        # que la version locale de cette regle oubliait.
+        # / From the service: group shares are honoured here.
+        carnets_inscriptibles = carnets_ou_ecrire(request.user).order_by("name")
 
-        # Dossiers partages avec l'utilisateur
-        # / Folders shared with user
-        ids_dossiers_partages = DossierPartage.objects.filter(
-            utilisateur=request.user
-        ).values_list("dossier_id", flat=True)
-        dossiers_partages = Dossier.objects.filter(pk__in=ids_dossiers_partages)
-
-        # Combiner et serialiser en liste de dicts {id, name}
-        # / Combine and serialize as list of {id, name} dicts
-        tous_les_dossiers = (dossiers_owner | dossiers_partages).distinct().order_by("name")
         liste_dossiers = []
-        for dossier_courant in tous_les_dossiers:
+        for dossier_courant in carnets_inscriptibles:
             liste_dossiers.append({
                 "id": dossier_courant.pk,
                 "name": dossier_courant.name,
             })
         return Response(liste_dossiers)
+
+    @action(detail=False, methods=["GET"], url_path="mes_carnets")
+    def mes_carnets(self, request):
+        """
+        Les carnets ou l'utilisateur peut ecrire — ce que la popup met
+        dans son menu avant de capturer.
+        / The notebooks the user may write to, for the popup's dropdown.
+
+        LOCALISATION : core/views.py
+
+        POURQUOI PAS `mes_dossiers` : celui-la ne rend que `{id, name}`,
+        et une extension deja installee continue de l'appeler. La popup
+        a besoin de deux choses de plus — le ROLE, pour reconnaitre le
+        fourre-tout sans comparer son nom (un carnet renomme restait
+        propose en double), et la VISIBILITE, pour avertir au moment du
+        geste qu'un carnet public publie la note (SPEC-corpus § 7.3).
+        / A second endpoint because the old one is a live contract; the
+        popup needs the role and the visibility on top of it.
+
+        CETTE LECTURE N'ECRIT RIEN. Le fourre-tout « A ranger » nait a la
+        premiere capture qui en a besoin, pas a l'ouverture de la popup :
+        ouvrir un menu ne doit pas creer un carnet.
+        / This GET writes nothing: the inbox is born on first capture.
+        """
+        if not request.user or not request.user.is_authenticated:
+            return Response(
+                {"detail": "Authentification requise."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        carnets_inscriptibles = carnets_ou_ecrire(request.user).order_by("name")
+
+        liste_des_carnets = []
+        for carnet_courant in carnets_inscriptibles:
+            liste_des_carnets.append({
+                "id": carnet_courant.pk,
+                "nom": carnet_courant.name,
+                "role_special": carnet_courant.role_special,
+                "visibilite": carnet_courant.visibilite,
+                # Drapeau explicite plutot qu'une comparaison de chaine
+                # cote extension : la valeur de l'enum reste au serveur.
+                # / An explicit flag, so the enum value stays server-side.
+                "est_public": (
+                    carnet_courant.visibilite == VisibiliteDossier.PUBLIC
+                ),
+            })
+        return Response(liste_des_carnets)
 
     @action(detail=True, methods=["POST"], url_path="classer_depuis_extension")
     def classer_depuis_extension(self, request, pk=None):
@@ -411,21 +554,19 @@ class PageViewSet(viewsets.ViewSet):
             return Response(serializer_classement.errors, status=status.HTTP_400_BAD_REQUEST)
         dossier_id_cible = serializer_classement.validated_data["dossier_id"]
 
-        # Verifier que le dossier est accessible par l'utilisateur
-        # / Check that folder is accessible by user
-        ids_accessibles = _ids_dossiers_accessibles(request.user)
-        if dossier_id_cible not in ids_accessibles:
+        # Le carnet doit exister ET etre inscriptible. Le service porte
+        # la regle, partages par GROUPE compris — la version locale les
+        # ignorait, et un membre de groupe se voyait refuser un carnet
+        # que le site lui ouvrait.
+        # / The service carries the rule, group shares included.
+        dossier_cible = carnets_ou_ecrire(request.user).filter(
+            pk=dossier_id_cible
+        ).first()
+        if dossier_cible is None:
             return Response(
-                {"detail": "Dossier inaccessible."},
+                {"detail": "Ce carnet n'existe pas, ou vous n'avez pas le "
+                           "droit d'y écrire."},
                 status=status.HTTP_403_FORBIDDEN,
-            )
-
-        try:
-            dossier_cible = Dossier.objects.get(pk=dossier_id_cible)
-        except Dossier.DoesNotExist:
-            return Response(
-                {"detail": "Dossier introuvable."},
-                status=status.HTTP_404_NOT_FOUND,
             )
 
         # Deplacement via le service : sort du carnet designe par la FK
@@ -447,34 +588,48 @@ class PageViewSet(viewsets.ViewSet):
 
 def _resoudre_dossier(utilisateur, dossier_id_soumis):
     """
-    Resout le dossier pour une page creee par l'extension :
-    - Si dossier_id fourni et valide → l'utiliser
-    - Sinon → auto-creer ou reutiliser un dossier "A ranger" pour l'owner
-    / Resolves folder for a page created by extension:
-    / - If dossier_id provided and valid → use it
-    / - Otherwise → auto-create or reuse an "A ranger" folder for owner
+    Resout le carnet ou ranger une capture :
+    - un `dossier_id` fourni doit exister ET etre inscriptible, sinon on
+      REFUSE ;
+    - aucun `dossier_id` → le fourre-tout de l'utilisateur, cree au
+      besoin.
+    / Resolves the notebook for a capture: a supplied id must exist AND
+    be writable, otherwise it is REFUSED; no id falls back to the inbox.
 
     LOCALISATION : core/views.py
 
-    Appelee par PageViewSet.create() pour determiner dans quel dossier placer la page.
-    / Called by PageViewSet.create() to determine which folder to place the page in.
+    LE REFUS EST LE CHANGEMENT. Cette fonction retombait en silence sur
+    le fourre-tout quand le carnet demande etait inconnu ou interdit.
+    Tant que l'extension ne choisissait rien, personne ne s'en apercevait.
+    Depuis qu'elle fait choisir, ce repli enverrait la note ailleurs que
+    la ou l'utilisateur l'a demandee — en repondant « enregistree ».
+    / Silent fallback was harmless while nothing chose; it is a lie now
+    that the extension makes the user choose.
+
+    :raises CarnetRefuse: carnet inconnu, ou sans droit d'ecriture
+    :return: le Dossier ou ranger la capture
     """
     if dossier_id_soumis:
-        try:
-            dossier_choisi = Dossier.objects.get(pk=dossier_id_soumis)
-            # Verifier que l'utilisateur a acces a ce dossier
-            # / Check user has access to this folder
-            ids_accessibles = _ids_dossiers_accessibles(utilisateur)
-            if dossier_choisi.pk in ids_accessibles:
-                return dossier_choisi
-        except Dossier.DoesNotExist:
-            pass
+        carnet_demande = carnets_ou_ecrire(utilisateur).filter(
+            pk=dossier_id_soumis
+        ).first()
+        if carnet_demande is None:
+            # Un carnet inconnu et un carnet interdit recoivent la MEME
+            # reponse : doctrine du 404, jamais 403 — sinon l'extension
+            # devient un outil pour savoir quels carnets existent.
+            # / Unknown and forbidden get the SAME answer.
+            raise CarnetRefuse(
+                "Ce carnet n'existe pas, ou vous n'avez pas le droit d'y "
+                "écrire. / Unknown notebook, or no write access."
+            )
+        return carnet_demande
 
-    # Fallback : le fourre-tout de l'utilisateur, retrouve par son ROLE
-    # technique et plus par son nom — un carnet renomme reste retrouve
-    # (SPEC-corpus § 6.3). Le nom n'est qu'une valeur d'affichage initiale.
-    # / Fallback: the user's inbox, found by its technical ROLE, no longer
-    # by name — a renamed notebook is still found.
+    # Aucun carnet demande : le fourre-tout de l'utilisateur, retrouve
+    # par son ROLE technique et plus par son nom — un carnet renomme
+    # reste retrouve (SPEC-corpus § 6.3). Le nom n'est qu'une valeur
+    # d'affichage initiale.
+    # / No notebook asked for: the user's inbox, found by its technical
+    # ROLE, no longer by name.
     dossier_a_ranger, _cree = Dossier.objects.get_or_create(
         role_special=RoleSpecialDossier.A_RANGER,
         owner=utilisateur,
@@ -500,29 +655,46 @@ class SidebarViewSet(viewsets.ViewSet):
 
     def list(self, request):
         """
-        Recherche une page par URL (avec normalisation) et renvoie le HTML sidebar.
-        / Look up a page by URL (with normalization) and return sidebar HTML.
+        Recherche une note DU PERIMETRE du visiteur par URL, et renvoie
+        le HTML de la sidebar.
+        / Looks up a note IN THE VISITOR'S SCOPE by URL.
+
+        LOCALISATION : core/views.py
+
+        LA RECHERCHE EST BORNEE AU PERIMETRE, ET LA REPONSE NE DIT PAS
+        POURQUOI. « Rien ici » et « pas pour toi » rendent le meme
+        message : sinon cet endpoint devient un moyen de savoir, URL par
+        URL, ce que l'instance contient. C'est la doctrine du 404, jamais
+        403 (AGENTS.md).
+        / Scoped lookup, and the answer never distinguishes absent from
+        forbidden: otherwise this endpoint tells a stranger, URL by URL,
+        what the instance holds.
         """
         url_recue = request.query_params.get("url", "")
 
-        # Recherche de la page par URL normalisee
-        # / Look up page by normalized URL
+        # Recherche de la page par URL normalisee, DANS le perimetre
+        # / Look up page by normalized URL, WITHIN the scope
+        notes_du_perimetre = notes_visibles_par(request.user)
         page_trouvee = None
         if url_recue:
             url_normalisee = normaliser_url(url_recue)
-            page_trouvee = Page.objects.filter(url=url_normalisee).first()
+            page_trouvee = notes_du_perimetre.filter(url=url_normalisee).first()
 
             # Fallback : recherche par URL exacte si la normalisee n'a rien donne
             # / Fallback: search by exact URL if normalized didn't match
             if not page_trouvee:
-                page_trouvee = Page.objects.filter(url=url_recue).first()
+                page_trouvee = notes_du_perimetre.filter(url=url_recue).first()
 
             # Dernier fallback : avec/sans trailing slash
             # / Last fallback: with/without trailing slash
             if not page_trouvee and url_recue.endswith("/"):
-                page_trouvee = Page.objects.filter(url=url_recue[:-1]).first()
+                page_trouvee = notes_du_perimetre.filter(
+                    url=url_recue[:-1]
+                ).first()
             elif not page_trouvee:
-                page_trouvee = Page.objects.filter(url=url_recue + "/").first()
+                page_trouvee = notes_du_perimetre.filter(
+                    url=url_recue + "/"
+                ).first()
 
         if page_trouvee:
             return render(

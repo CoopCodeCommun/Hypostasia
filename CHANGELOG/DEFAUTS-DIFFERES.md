@@ -136,3 +136,63 @@ les yeux du mainteneur.
 **Une migration doit être appliquée à la base de dev dès que le code la
 référence** — le serveur de dev est permanent, il ne redémarre pas sur un état
 cohérent tout seul.
+
+---
+
+## L'extension navigateur n'est pas soumissible sur les stores
+
+*Constaté le 20 août 2026, audit dédié du paquet `extension/` contre les
+politiques Chrome Web Store et Firefox AMO.*
+
+Deux défauts ont été corrigés le jour même avec le chantier
+`2026-08-20-le-webclipper-choisit-son-carnet.md` : la ressource
+`init_htmx_sidebar.js`, **déclarée dans `web_accessible_resources` et absente du
+paquet**, et la déclaration `data_collection_permissions: {"required":
+["none"]}` — factuellement fausse, l'extension transmettant le HTML complet de
+la page — passée à `["websiteContent"]` (valeur vérifiée sur la documentation
+Mozilla ; la clé est obligatoire pour toute nouvelle soumission depuis le
+3 novembre 2025).
+
+**Ce qui reste ouvert, et qui bloque une soumission :**
+
+1. **`<all_urls>` en `host_permissions` n'est justifié par aucun chemin de code
+   atteignable** (`extension/manifest.json`). Le seul flux vivant — le clic sur
+   « Récolter » — n'agit que sur l'onglet actif, à la suite du geste qui a
+   ouvert la popup : `activeTab` + `scripting`, tous deux déjà déclarés,
+   suffisent. C'est la permission qui déclenche la revue manuelle sur les deux
+   stores, et la politique Chrome renforcée du 1er août 2026 exige de justifier
+   chaque permission par le code réel.
+2. **`lib/sweetalert2.all.min.js` et `lib/sweetalert2.min.css`** (109 Ko) ne sont
+   référencés par **aucun** code atteignable — la CSS n'est appelée que par le
+   `background.js` mort. Mozilla exigera leurs sources non minifiées
+   (« source code submission ») pour une bibliothèque qui ne sert à rien.
+3. **Le sort de la sidebar morte n'est pas tranché.** `manifest.json` ne déclare
+   **aucune** clé `background`, donc `background.js` — son unique déclencheur —
+   n'est jamais chargé ; et `action.default_popup` neutraliserait
+   `chrome.action.onClicked` de toute façon. `content.js`, `sidebar.html` et
+   `sidebar.js` sont donc injoignables. Un relecteur humain lit tout le zip, pas
+   seulement ce que le manifest référence.
+4. **`extension/sidebar.js:28` et `:33` défautent sur `https://beta.hypostasia.org/`**
+   alors que `popup.js` et `options.js` défautent sur `http://127.0.0.1:8000/`.
+   Sans conséquence aujourd'hui (code mort), mais si la sidebar est un jour
+   rebranchée, un utilisateur qui l'ouvre avant configuration enverrait l'URL de
+   sa page courante — et un éventuel jeton déjà stocké — vers le serveur du
+   mainteneur au lieu du sien.
+5. **`hypostasia/settings.py` code en dur
+   `chrome-extension://lmflifaokphpaknpdnmdmhdiaeiieomd`** dans
+   `CSRF_TRUSTED_ORIGINS`. C'est l'identifiant d'une extension chargée en mode
+   développeur ; il **changera** à la publication (aucune clé `key` n'est
+   épinglée dans le manifest). L'extension s'authentifiant par
+   `Authorization: Token`, elle ne dépend probablement pas de cette entrée — à
+   vérifier avant de la retirer ou de la passer en variable d'environnement.
+
+**À rédiger avant toute soumission**, et c'est du travail humain, pas du code :
+politique de confidentialité hébergée (obligatoire côté Chrome dès qu'une
+extension manipule des données utilisateur), formulaire « Data usage / Privacy
+practices » du dashboard, justification écrite de chaque permission, notes au
+relecteur AMO expliquant que le serveur destinataire est **choisi et hébergé par
+l'utilisateur**, et une capture d'écran de fiche.
+
+Le store le plus proche est **Firefox AMO** : `browser_specific_settings`, l'id
+gecko et la structure `data_collection_permissions` sont déjà en place. Chrome
+demande davantage de travail neuf.

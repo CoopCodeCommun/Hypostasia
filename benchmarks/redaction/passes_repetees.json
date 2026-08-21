@@ -1,0 +1,716 @@
+{
+ "small": [
+  [
+   {
+    "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+    "caracteres": 3050,
+    "citations": 37,
+    "distinctes": 36,
+    "etats": {
+     "faible": 22,
+     "verifie": 9,
+     "introuvable": 6
+    },
+    "prose_nue": {
+     "phrases": 17,
+     "phrases_sans_marqueur": 0,
+     "part_des_phrases": 0.0,
+     "paragraphes": 4,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "État des lieux du carnet de démonstration",
+    "caracteres": 12066,
+    "citations": 113,
+    "distinctes": 96,
+    "etats": {
+     "introuvable": 13,
+     "verifie": 39,
+     "faible": 56,
+     "non_verifie": 5
+    },
+    "prose_nue": {
+     "phrases": 61,
+     "phrases_sans_marqueur": 7,
+     "part_des_phrases": 0.11475409836065574,
+     "paragraphes": 15,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — Les limites de l'explicabilité des systèmes d'IA",
+    "caracteres": 8018,
+    "citations": 56,
+    "distinctes": 55,
+    "etats": {
+     "verifie": 25,
+     "faible": 27,
+     "introuvable": 4
+    },
+    "prose_nue": {
+     "phrases": 45,
+     "phrases_sans_marqueur": 6,
+     "part_des_phrases": 0.13333333333333333,
+     "paragraphes": 13,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — La gouvernance collective des outils numériques",
+    "caracteres": 10541,
+    "citations": 80,
+    "distinctes": 52,
+    "etats": {
+     "introuvable": 8,
+     "faible": 55,
+     "verifie": 17
+    },
+    "prose_nue": {
+     "phrases": 66,
+     "phrases_sans_marqueur": 25,
+     "part_des_phrases": 0.3787878787878788,
+     "paragraphes": 21,
+     "paragraphes_sans_marqueur": 7,
+     "part_des_paragraphes": 0.3333333333333333
+    }
+   }
+  ],
+  [
+   {
+    "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+    "caracteres": 4504,
+    "citations": 56,
+    "distinctes": 53,
+    "etats": {
+     "faible": 31,
+     "verifie": 20,
+     "introuvable": 5
+    },
+    "prose_nue": {
+     "phrases": 22,
+     "phrases_sans_marqueur": 1,
+     "part_des_phrases": 0.045454545454545456,
+     "paragraphes": 7,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "État des lieux du carnet de démonstration",
+    "caracteres": 12066,
+    "citations": 113,
+    "distinctes": 96,
+    "etats": {
+     "introuvable": 13,
+     "faible": 63,
+     "verifie": 32,
+     "non_verifie": 5
+    },
+    "prose_nue": {
+     "phrases": 61,
+     "phrases_sans_marqueur": 7,
+     "part_des_phrases": 0.11475409836065574,
+     "paragraphes": 15,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — Les limites de l'explicabilité des systèmes d'IA",
+    "caracteres": 6969,
+    "citations": 46,
+    "distinctes": 46,
+    "etats": {
+     "introuvable": 2,
+     "verifie": 13,
+     "faible": 31
+    },
+    "prose_nue": {
+     "phrases": 39,
+     "phrases_sans_marqueur": 6,
+     "part_des_phrases": 0.15384615384615385,
+     "paragraphes": 9,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — La gouvernance collective des outils numériques",
+    "caracteres": 8943,
+    "citations": 64,
+    "distinctes": 54,
+    "etats": {
+     "faible": 41,
+     "verifie": 20,
+     "introuvable": 2,
+     "non_verifie": 1
+    },
+    "prose_nue": {
+     "phrases": 54,
+     "phrases_sans_marqueur": 19,
+     "part_des_phrases": 0.35185185185185186,
+     "paragraphes": 17,
+     "paragraphes_sans_marqueur": 7,
+     "part_des_paragraphes": 0.4117647058823529
+    }
+   }
+  ],
+  [
+   {
+    "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+    "caracteres": 4120,
+    "citations": 48,
+    "distinctes": 47,
+    "etats": {
+     "introuvable": 4,
+     "faible": 28,
+     "verifie": 16
+    },
+    "prose_nue": {
+     "phrases": 22,
+     "phrases_sans_marqueur": 3,
+     "part_des_phrases": 0.13636363636363635,
+     "paragraphes": 6,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "État des lieux du carnet de démonstration",
+    "caracteres": 8496,
+    "citations": 89,
+    "distinctes": 88,
+    "etats": {
+     "verifie": 10,
+     "faible": 30,
+     "non_verifie": 40,
+     "introuvable": 9
+    },
+    "prose_nue": {
+     "phrases": 46,
+     "phrases_sans_marqueur": 7,
+     "part_des_phrases": 0.15217391304347827,
+     "paragraphes": 9,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — Les limites de l'explicabilité des systèmes d'IA",
+    "caracteres": 8018,
+    "citations": 56,
+    "distinctes": 55,
+    "etats": {
+     "faible": 25,
+     "verifie": 27,
+     "introuvable": 4
+    },
+    "prose_nue": {
+     "phrases": 45,
+     "phrases_sans_marqueur": 6,
+     "part_des_phrases": 0.13333333333333333,
+     "paragraphes": 13,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — La gouvernance collective des outils numériques",
+    "caracteres": 8816,
+    "citations": 74,
+    "distinctes": 67,
+    "etats": {
+     "non_verifie": 40,
+     "introuvable": 6,
+     "faible": 24,
+     "verifie": 4
+    },
+    "prose_nue": {
+     "phrases": 44,
+     "phrases_sans_marqueur": 11,
+     "part_des_phrases": 0.25,
+     "paragraphes": 12,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   }
+  ]
+ ],
+ "medium": [
+  [
+   {
+    "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+    "caracteres": 3830,
+    "citations": 41,
+    "distinctes": 41,
+    "etats": {
+     "verifie": 18,
+     "introuvable": 5,
+     "faible": 18
+    },
+    "prose_nue": {
+     "phrases": 19,
+     "phrases_sans_marqueur": 0,
+     "part_des_phrases": 0.0,
+     "paragraphes": 9,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "État des lieux du carnet de démonstration",
+    "caracteres": 7498,
+    "citations": 76,
+    "distinctes": 68,
+    "etats": {
+     "introuvable": 6,
+     "faible": 45,
+     "verifie": 25
+    },
+    "prose_nue": {
+     "phrases": 38,
+     "phrases_sans_marqueur": 2,
+     "part_des_phrases": 0.05263157894736842,
+     "paragraphes": 12,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — Les limites de l'explicabilité des systèmes d'IA",
+    "caracteres": 2701,
+    "citations": 14,
+    "distinctes": 14,
+    "etats": {
+     "introuvable": 1,
+     "verifie": 5,
+     "faible": 8
+    },
+    "prose_nue": {
+     "phrases": 10,
+     "phrases_sans_marqueur": 0,
+     "part_des_phrases": 0.0,
+     "paragraphes": 4,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — La gouvernance collective des outils numériques",
+    "caracteres": 4836,
+    "citations": 59,
+    "distinctes": 58,
+    "etats": {
+     "verifie": 17,
+     "faible": 38,
+     "introuvable": 4
+    },
+    "prose_nue": {
+     "phrases": 23,
+     "phrases_sans_marqueur": 4,
+     "part_des_phrases": 0.17391304347826086,
+     "paragraphes": 9,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   }
+  ],
+  [
+   {
+    "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+    "caracteres": 4068,
+    "citations": 42,
+    "distinctes": 41,
+    "etats": {
+     "introuvable": 7,
+     "verifie": 13,
+     "faible": 22
+    },
+    "prose_nue": {
+     "phrases": 22,
+     "phrases_sans_marqueur": 0,
+     "part_des_phrases": 0.0,
+     "paragraphes": 9,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "État des lieux du carnet de démonstration",
+    "caracteres": 5879,
+    "citations": 54,
+    "distinctes": 52,
+    "etats": {
+     "verifie": 16,
+     "faible": 33,
+     "introuvable": 5
+    },
+    "prose_nue": {
+     "phrases": 34,
+     "phrases_sans_marqueur": 5,
+     "part_des_phrases": 0.14705882352941177,
+     "paragraphes": 9,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — Les limites de l'explicabilité des systèmes d'IA",
+    "caracteres": 2516,
+    "citations": 13,
+    "distinctes": 13,
+    "etats": {
+     "introuvable": 2,
+     "verifie": 7,
+     "faible": 4
+    },
+    "prose_nue": {
+     "phrases": 10,
+     "phrases_sans_marqueur": 1,
+     "part_des_phrases": 0.1,
+     "paragraphes": 5,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — La gouvernance collective des outils numériques",
+    "caracteres": 6546,
+    "citations": 63,
+    "distinctes": 63,
+    "etats": {
+     "introuvable": 6,
+     "verifie": 27,
+     "faible": 30
+    },
+    "prose_nue": {
+     "phrases": 34,
+     "phrases_sans_marqueur": 4,
+     "part_des_phrases": 0.11764705882352941,
+     "paragraphes": 12,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   }
+  ],
+  [
+   {
+    "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+    "caracteres": 4962,
+    "citations": 46,
+    "distinctes": 46,
+    "etats": {
+     "verifie": 17,
+     "introuvable": 7,
+     "faible": 22
+    },
+    "prose_nue": {
+     "phrases": 29,
+     "phrases_sans_marqueur": 0,
+     "part_des_phrases": 0.0,
+     "paragraphes": 12,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "État des lieux du carnet de démonstration",
+    "caracteres": 6048,
+    "citations": 48,
+    "distinctes": 46,
+    "etats": {
+     "introuvable": 6,
+     "faible": 20,
+     "verifie": 16,
+     "non_verifie": 6
+    },
+    "prose_nue": {
+     "phrases": 31,
+     "phrases_sans_marqueur": 5,
+     "part_des_phrases": 0.16129032258064516,
+     "paragraphes": 10,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — Les limites de l'explicabilité des systèmes d'IA",
+    "caracteres": 2698,
+    "citations": 14,
+    "distinctes": 14,
+    "etats": {
+     "introuvable": 2,
+     "verifie": 6,
+     "faible": 6
+    },
+    "prose_nue": {
+     "phrases": 11,
+     "phrases_sans_marqueur": 2,
+     "part_des_phrases": 0.18181818181818182,
+     "paragraphes": 5,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — La gouvernance collective des outils numériques",
+    "caracteres": 5766,
+    "citations": 65,
+    "distinctes": 65,
+    "etats": {
+     "introuvable": 8,
+     "verifie": 17,
+     "faible": 40
+    },
+    "prose_nue": {
+     "phrases": 29,
+     "phrases_sans_marqueur": 4,
+     "part_des_phrases": 0.13793103448275862,
+     "paragraphes": 12,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   }
+  ]
+ ],
+ "large": [
+  [
+   {
+    "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+    "caracteres": 9382,
+    "citations": 73,
+    "distinctes": 64,
+    "etats": {
+     "introuvable": 7,
+     "verifie": 19,
+     "faible": 47
+    },
+    "prose_nue": {
+     "phrases": 53,
+     "phrases_sans_marqueur": 11,
+     "part_des_phrases": 0.20754716981132076,
+     "paragraphes": 12,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "État des lieux du carnet de démonstration",
+    "caracteres": 8374,
+    "citations": 77,
+    "distinctes": 75,
+    "etats": {
+     "verifie": 21,
+     "faible": 52,
+     "introuvable": 4
+    },
+    "prose_nue": {
+     "phrases": 46,
+     "phrases_sans_marqueur": 34,
+     "part_des_phrases": 0.7391304347826086,
+     "paragraphes": 15,
+     "paragraphes_sans_marqueur": 3,
+     "part_des_paragraphes": 0.2
+    }
+   },
+   {
+    "titre": "Wiki — Les limites de l'explicabilité des systèmes d'IA",
+    "caracteres": 6660,
+    "citations": 36,
+    "distinctes": 35,
+    "etats": {
+     "introuvable": 2,
+     "verifie": 14,
+     "faible": 20
+    },
+    "prose_nue": {
+     "phrases": 29,
+     "phrases_sans_marqueur": 12,
+     "part_des_phrases": 0.41379310344827586,
+     "paragraphes": 7,
+     "paragraphes_sans_marqueur": 1,
+     "part_des_paragraphes": 0.14285714285714285
+    }
+   },
+   {
+    "titre": "Wiki — La gouvernance collective des outils numériques",
+    "caracteres": 7422,
+    "citations": 64,
+    "distinctes": 63,
+    "etats": {
+     "introuvable": 2,
+     "verifie": 15,
+     "faible": 47
+    },
+    "prose_nue": {
+     "phrases": 37,
+     "phrases_sans_marqueur": 7,
+     "part_des_phrases": 0.1891891891891892,
+     "paragraphes": 10,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   }
+  ],
+  [
+   {
+    "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+    "caracteres": 7397,
+    "citations": 67,
+    "distinctes": 66,
+    "etats": {
+     "verifie": 24,
+     "faible": 35,
+     "introuvable": 8
+    },
+    "prose_nue": {
+     "phrases": 43,
+     "phrases_sans_marqueur": 9,
+     "part_des_phrases": 0.20930232558139536,
+     "paragraphes": 11,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "État des lieux du carnet de démonstration",
+    "caracteres": 7798,
+    "citations": 73,
+    "distinctes": 72,
+    "etats": {
+     "verifie": 21,
+     "faible": 45,
+     "introuvable": 7
+    },
+    "prose_nue": {
+     "phrases": 40,
+     "phrases_sans_marqueur": 4,
+     "part_des_phrases": 0.1,
+     "paragraphes": 8,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — Les limites de l'explicabilité des systèmes d'IA",
+    "caracteres": 10670,
+    "citations": 65,
+    "distinctes": 62,
+    "etats": {
+     "verifie": 25,
+     "faible": 35,
+     "introuvable": 5
+    },
+    "prose_nue": {
+     "phrases": 51,
+     "phrases_sans_marqueur": 20,
+     "part_des_phrases": 0.39215686274509803,
+     "paragraphes": 12,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — La gouvernance collective des outils numériques",
+    "caracteres": 10659,
+    "citations": 74,
+    "distinctes": 72,
+    "etats": {
+     "verifie": 33,
+     "introuvable": 5,
+     "faible": 36
+    },
+    "prose_nue": {
+     "phrases": 61,
+     "phrases_sans_marqueur": 18,
+     "part_des_phrases": 0.29508196721311475,
+     "paragraphes": 16,
+     "paragraphes_sans_marqueur": 1,
+     "part_des_paragraphes": 0.0625
+    }
+   }
+  ],
+  [
+   {
+    "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+    "caracteres": 5910,
+    "citations": 47,
+    "distinctes": 46,
+    "etats": {
+     "introuvable": 5,
+     "verifie": 14,
+     "faible": 28
+    },
+    "prose_nue": {
+     "phrases": 30,
+     "phrases_sans_marqueur": 7,
+     "part_des_phrases": 0.23333333333333334,
+     "paragraphes": 8,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "État des lieux du carnet de démonstration",
+    "caracteres": 7783,
+    "citations": 63,
+    "distinctes": 62,
+    "etats": {
+     "introuvable": 5,
+     "verifie": 19,
+     "faible": 39
+    },
+    "prose_nue": {
+     "phrases": 38,
+     "phrases_sans_marqueur": 8,
+     "part_des_phrases": 0.21052631578947367,
+     "paragraphes": 9,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — Les limites de l'explicabilité des systèmes d'IA",
+    "caracteres": 5772,
+    "citations": 43,
+    "distinctes": 43,
+    "etats": {
+     "introuvable": 3,
+     "verifie": 6,
+     "faible": 34
+    },
+    "prose_nue": {
+     "phrases": 29,
+     "phrases_sans_marqueur": 10,
+     "part_des_phrases": 0.3448275862068966,
+     "paragraphes": 7,
+     "paragraphes_sans_marqueur": 0,
+     "part_des_paragraphes": 0.0
+    }
+   },
+   {
+    "titre": "Wiki — La gouvernance collective des outils numériques",
+    "caracteres": 9950,
+    "citations": 72,
+    "distinctes": 70,
+    "etats": {
+     "introuvable": 3,
+     "faible": 43,
+     "verifie": 26
+    },
+    "prose_nue": {
+     "phrases": 49,
+     "phrases_sans_marqueur": 10,
+     "part_des_phrases": 0.20408163265306123,
+     "paragraphes": 11,
+     "paragraphes_sans_marqueur": 1,
+     "part_des_paragraphes": 0.09090909090909091
+    }
+   }
+  ]
+ ]
+}

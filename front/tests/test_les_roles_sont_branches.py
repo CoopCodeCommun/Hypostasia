@@ -87,7 +87,16 @@ class LeRedacteurEstBrancheTest(TestCase):
         self.assertEqual(reponse.status_code, 200)
         job = ExtractionJob.objects.get(raw_result__est_wiki=True)
         self.assertEqual(job.ai_model, self.redacteur)
-        self.assertEqual(appel_du_modele.call_args[0][0], self.redacteur)
+        # LE PREMIER APPEL, pas le dernier. Depuis que la verification
+        # s'enchaine a l'ecriture d'un article, un SECOND appel suit
+        # celui du redacteur — celui du juge — et `call_args` ne rend
+        # que le dernier. Ce test dit « c'est le REDACTEUR qui ecrit » :
+        # c'est donc le premier appel qu'il doit lire.
+        # / The first call, not the last: verification now chains after
+        # the writing, and call_args only returns the latest one.
+        self.assertEqual(
+            appel_du_modele.call_args_list[0][0][0], self.redacteur,
+        )
 
     def test_la_proposition_de_mise_a_jour_demande_le_redacteur(self):
         """Le job de mise à jour estampille le rédacteur."""
@@ -128,7 +137,16 @@ class LeRedacteurEstBrancheTest(TestCase):
         self.assertEqual(reponse.status_code, 200)
         job = ExtractionJob.objects.get(raw_result__est_synthese_carnet=True)
         self.assertEqual(job.ai_model, self.redacteur)
-        self.assertEqual(appel_du_modele.call_args[0][0], self.redacteur)
+        # LE PREMIER APPEL, pas le dernier. Depuis que la verification
+        # s'enchaine a l'ecriture d'un article, un SECOND appel suit
+        # celui du redacteur — celui du juge — et `call_args` ne rend
+        # que le dernier. Ce test dit « c'est le REDACTEUR qui ecrit » :
+        # c'est donc le premier appel qu'il doit lire.
+        # / The first call, not the last: verification now chains after
+        # the writing, and call_args only returns the latest one.
+        self.assertEqual(
+            appel_du_modele.call_args_list[0][0][0], self.redacteur,
+        )
 
 
 class LeJugeEstBrancheTest(TestCase):
@@ -230,7 +248,13 @@ class LaSyntheseParNoteSuitSonJobTest(TestCase):
             from front.tasks import synthetiser_page_task
             synthetiser_page_task(job.pk)
 
-        self.assertEqual(appel_du_modele.call_args[0][0], modele_du_job)
+        # LE PREMIER APPEL, celui de la REDACTION. La verification
+        # s'enchaine desormais a l'ecriture, et son appel — celui du
+        # juge — vient apres : `call_args` ne rend que le dernier.
+        # / The first call, the writing one: verification chains after.
+        self.assertEqual(
+            appel_du_modele.call_args_list[0][0][0], modele_du_job,
+        )
         self.assertNotEqual(
             Configuration.get_solo().ai_model, modele_du_job,
         )

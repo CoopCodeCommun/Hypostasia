@@ -42,8 +42,8 @@ celery_app.conf.task_routes = {
     # concurrence 1 et lance sous `nice -n 19` (supervisord, programme
     # celery_worker_juge_local).
     #
-    # POURQUOI UNE TROISIEME FILE. Le juge local charge 7,7 Go et coute
-    # une vingtaine de secondes de processeur PAR PAIRE. Laisse sur la
+    # POURQUOI UNE TROISIEME FILE. Le juge local charge 5,13 Go (les quatre encodeurs residents, mesure du 19 aout) et coute
+    # moins d'une demi-seconde de processeur PAR PAIRE ET PAR JUGE. Laisse sur la
     # file par defaut, qui est a concurrence 2, DEUX inferences
     # pourraient tourner ensemble — seize threads sur huit coeurs — et
     # Docling mourrait de faim.

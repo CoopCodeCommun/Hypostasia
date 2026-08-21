@@ -1,8 +1,29 @@
 """
-Le juge LOCAL : un second avis, calcule sur cette machine.
-/ The LOCAL judge: a second opinion, computed on this machine.
+ShieldStral — DEBRANCHE DE LA PRODUCTION LE 19 AOUT 2026.
+/ ShieldStral — UNPLUGGED FROM PRODUCTION ON 19 AUGUST 2026.
 
 LOCALISATION : core/services/juge_local.py
+
+⚠ **CE MODULE N'EST PLUS APPELE PAR LA PRODUCTION.** Le second avis est
+rendu depuis le 19 aout 2026 par `core/services/juges_locaux.py` —
+quatre encodeurs a 45-352 ms la paire, contre ~24 000 ms ici, pour un
+pouvoir de detection au moins egal (mesure du 19 aout,
+`benchmarks/juge_de_verification/2026-08-19_des-encodeurs-contre-l-etalon.md`).
+
+**Il n'est PAS supprime, et c'est deliberé.** Il porte le cadrage exact
+avec lequel ShieldStral a ete mesure les 18 et 19 aout, et
+`benchmarks/juge_de_verification/comparer_shieldstral.py` l'importe sans
+copie. Le supprimer rendrait ces mesures irrejouables — et une mesure
+qu'on ne peut plus rejouer n'est plus une mesure.
+
+**Ne le rebranchez pas sans remesurer** : il charge 7,7 Go et coute
+~24 000 ms de temps processeur par paire — le meme chiffre qu'en tete
+de ce fichier, et non les « deux minutes » qu'annoncaient les mesures
+d'avant le 19 aout.
+
+---
+
+Ce qui suit decrit le juge tel qu'il etait branche.
 
 CE QU'IL EST. ShieldStral, modele de moderation de Mistral, poids Apache
 2.0, 3,8 milliards de parametres, 7,7 Go en bf16. L'operateur ecrit sa

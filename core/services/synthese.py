@@ -451,7 +451,9 @@ def indexer_les_citations(article, texte_markdown,
     """
     from hypostasis_extractor.models import ExtractedEntity
 
-    from core.models import EtatDeLaSource, SourceLink, TypeLien
+    from core.models import (
+        AvisDeVerification, EtatDeLaSource, SourceLink, TypeLien,
+    )
 
     # Normalisation des fins de ligne : un textarea navigateur envoie du
     # \r\n, qui casserait le decoupage en paragraphes et toutes les
@@ -640,6 +642,41 @@ def indexer_les_citations(article, texte_markdown,
 
     anciens_verdicts = {}
     contestations_perdues = []
+    avis_perdus = 0
+
+    # LES AVIS LOCAUX SE CAPTURENT A PART, SUR **TOUS** LES LIENS, ET
+    # C'EST UN CORRECTIF, PAS UN CONFORT. Le report des verdicts exclut
+    # les liens NON_VERIFIE — legitime, ils n'ont pas de verdict a
+    # reporter. Mais les juges locaux, eux, NOTENT ces liens-la :
+    # `preparer_les_paires_a_juger` n'ecarte jamais NON_VERIFIE.
+    #
+    # Le scenario, et il est ordinaire : le juge de production echoue
+    # (cle absente, quota, panne) et laisse tout en NON_VERIFIE, tandis
+    # que les juges locaux — hors reseau, robustes — notent l'article
+    # entier. A la premiere mise a jour de wiki, la CASCADE emportait
+    # TOUS ces avis, en silence. C'est exactement la perte que cette
+    # table devait survivre.
+    # / Local judges score NON_VERIFIE links, which the verdict
+    # carry-over excludes: their opinions must be captured separately.
+    anciens_avis = {}
+    tous_les_anciens_liens = SourceLink.objects.filter(
+        page_cible=article, type_lien=TypeLien.CITE,
+    ).prefetch_related("avis_locaux")
+    for lien_quelconque in tous_les_anciens_liens:
+        avis_du_lien = [
+            (avis.methode, avis.score, avis.seuil, avis.rendu_le)
+            for avis in lien_quelconque.avis_locaux.all()
+        ]
+        if not avis_du_lien:
+            continue
+        anciens_avis[_cle_de_paire(
+            lien_quelconque.extraction_source_id,
+            texte_precedent[
+                lien_quelconque.start_char_cible:
+                lien_quelconque.end_char_cible
+            ],
+        )] = avis_du_lien
+
     anciens_liens = SourceLink.objects.filter(
         page_cible=article, type_lien=TypeLien.CITE,
     ).exclude(etat_de_verification=EtatDeVerification.NON_VERIFIE)
@@ -694,6 +731,20 @@ def indexer_les_citations(article, texte_markdown,
                     nouveau_lien.start_char_cible:nouveau_lien.end_char_cible
                 ],
             )
+            # LE REPORT DES AVIS PASSE **AVANT** LE `continue`, et
+            # c'est tout l'objet du correctif : un lien sans verdict a
+            # reporter peut parfaitement avoir des avis locaux.
+            # / Opinions are carried before the verdict `continue`.
+            avis_a_reporter = anciens_avis.pop(cle, None)
+            if avis_a_reporter:
+                AvisDeVerification.objects.bulk_create([
+                    AvisDeVerification(
+                        lien=nouveau_lien, methode=methode,
+                        score=score, seuil=seuil, rendu_le=rendu_le,
+                    )
+                    for methode, score, seuil, rendu_le in avis_a_reporter
+                ])
+
             ancien_verdict = anciens_verdicts.pop(cle, None)
             if ancien_verdict is None:
                 continue
@@ -735,6 +786,18 @@ def indexer_les_citations(article, texte_markdown,
             if verdict["etat"] == EtatDeVerification.CONTESTE:
                 contestations_perdues.append(identifiant)
 
+        # LES AVIS RESTANTS AUSSI, ET POUR LA MEME RAISON. Un avis dont
+        # le paragraphe a change ne vaut plus rien — le perdre est
+        # correct. Le perdre EN SILENCE ne l'est pas : le 19 aout 2026,
+        # une campagne de comparaison de redacteurs a regenere les wikis
+        # neuf fois et detruit les 165 avis des juges locaux sans
+        # qu'une ligne, un compteur ou un ecran ne le dise. La table
+        # etait vide le lendemain, et il a fallu une relecture pour s'en
+        # apercevoir.
+        # / Losing an opinion whose paragraph changed is correct; losing
+        #   it silently is not.
+        avis_perdus = sum(len(avis) for avis in anciens_avis.values())
+
     return {
         "texte_nettoye": texte_nettoye,
         "liens_crees": len(liens_a_creer),
@@ -747,6 +810,7 @@ def indexer_les_citations(article, texte_markdown,
         "doublons_absorbes": doublons_absorbes,
         "verdicts_reportes": verdicts_reportes,
         "contestations_perdues": contestations_perdues,
+        "avis_perdus": avis_perdus,
     }
 
 

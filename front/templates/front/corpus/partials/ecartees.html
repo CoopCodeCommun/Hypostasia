@@ -1,33 +1,53 @@
 {# CE QUI N'A PAS ETE REPRIS (§ 8) — difference d'ensembles, calculee. #}
 {# LOCALISATION : front/templates/front/corpus/partials/ecartees.html #}
-{# Variables : article, ecartees, perimetre_inconnu #}
+{# Variables : article, ecartees_par_document, nombre_total_d_ecartees, #}
+{# nombre_affiche, perimetre_inconnu #}
 <div data-testid="synthese-ecartees">
     {% if perimetre_inconnu %}
-    <p class="text-sm text-slate-600">
+    <p class="explication">
         Cette synthèse date d'avant le figeage du périmètre : ce que le
         modèle a réellement vu n'est pas connu, et une liste calculée
         aujourd'hui serait fausse. On préfère le dire que mentir.
     </p>
-    {% elif ecartees %}
-    <p class="text-sm mb-1"><strong>{{ nombre_total_d_ecartees }}
+    {% elif ecartees_par_document %}
+    {% comment %}
+    GROUPEES PAR DOCUMENT, et chaque document se deplie.
+
+    La liste etait PLATE : jusqu'a 200 lignes ou chaque citation redisait
+    le nom de sa note en petit, a droite. Sur un perimetre de six notes,
+    c'etait six noms repetes deux cents fois — et aucun moyen de repondre
+    a la seule question qu'on se pose vraiment : « qu'est-ce que le
+    modele a laisse de CE document-la ? »
+
+    Le document le plus ecarte vient en tete : c'est la que la question
+    se pose. / The most-skipped document leads.
+    {% endcomment %}
+    <p class="explication" style="margin:0 0 .4rem">
+        <strong>{{ nombre_total_d_ecartees }}
         extraction{{ nombre_total_d_ecartees|pluralize }}</strong> du périmètre
         n'{{ nombre_total_d_ecartees|pluralize:"a,ont" }} pas été
-        citée{{ nombre_total_d_ecartees|pluralize }}{% if nombre_total_d_ecartees > 200 %}
-        — les 200 premières sont affichées{% endif %} :</p>
-    <ul class="text-sm divide-y divide-slate-100">
-        {% for extraction in ecartees %}
-        <li class="py-1" data-testid="synthese-ecartee">
-            « {{ extraction.extraction_text|truncatechars:160 }} »
-            <span class="text-xs text-slate-500">—
-                {{ extraction.job.page.title|default:"note"|truncatechars:40 }}</span>
-        </li>
-        {% endfor %}
-    </ul>
+        citée{{ nombre_total_d_ecartees|pluralize }}{% if nombre_affiche < nombre_total_d_ecartees %},
+        dont {{ nombre_affiche }} détaillées ici{% endif %}.
+    </p>
+    {% for groupe in ecartees_par_document %}
+    <details class="document-ecarte" data-testid="synthese-document-ecarte">
+        <summary>
+            <span class="titre-du-document">{{ groupe.note.title|default:"note sans titre"|truncatechars:52 }}</span>
+            <span class="compte-du-document">{{ groupe.extractions|length }}</span>
+        </summary>
+        <ul class="liste-ecartee">
+            {% for extraction in groupe.extractions %}
+            <li data-testid="synthese-ecartee">
+                « {{ extraction.extraction_text|truncatechars:160 }} »
+            </li>
+            {% endfor %}
+        </ul>
+    </details>
+    {% endfor %}
     {% else %}
-    <p class="text-sm text-slate-600">Toutes les extractions du
-        périmètre sont citées.</p>
+    <p class="explication">Toutes les extractions du périmètre sont citées.</p>
     {% endif %}
-    <p class="text-xs text-slate-500 mt-2">
+    <p class="explication" style="margin-top:.5rem">
         Ceci n'audite que les <strong>citations</strong> : une extraction
         lue par le modèle et utilisée sans être citée passe au travers.
         Borne inférieure de contrôle, pas garantie.

@@ -4,9 +4,46 @@
 **Version de la spec** : 1.1 — 5 août 2026 (corrigée après relecture adverse)
 **Complète** : `SPEC-ancrage-par-element-v2.md` (couche ancrage, en dessous)
 **Complétée par** : `SPEC-synthese-carnet.md` et `SPEC-selection-des-preuves.md` (au-dessus)
-**Statut** : **IMPLÉMENTÉE** — phases A à I codées, migrées et à l'écran.
-Le texte reste celui de la proposition ; il se lit comme la justification du
-code livré, pas comme un travail à faire.
+**Statut** : **IMPLÉMENTÉE — phases A à H.** La **phase I** (extension) est
+partiellement livrée, et sous une forme que ce texte ne décrit pas : voir
+l'addendum du 20 août 2026 ci-dessous. Le reste du texte se lit comme la
+justification du code livré, pas comme un travail à faire.
+
+> **Addendum du 20 août 2026 — la phase I, en mono-carnet**
+>
+> L'en-tête annonçait « phases A à **I** codées » depuis le 8 août. C'était faux
+> sur la phase I, et le dépôt le disait lui-même : `core/services/corpus.py`
+> portait, en commentaire, « le multi-rangement depuis l'extension (cases à
+> cocher, § 7.2) **est** la phase I » — au futur.
+>
+> Ce qui est livré le 20 août, et qui **diverge du § 7** de cette spec :
+>
+> | Ce que le § 7 prévoit | Ce qui est codé | Pourquoi |
+> |---|---|---|
+> | cases à cocher, plusieurs carnets d'un coup, `carnet_ids` | **un `<select>`, un seul carnet** | arbitrage du mainteneur : le geste de capture doit rester d'un seul clic. Le multi reste possible plus tard sans casser le contrat |
+> | le carnet se choisit **après** la capture (`classer_depuis_extension`) | le carnet se choisit **avant**, `dossier_id` voyage avec le `POST` | un choix explicite fait après coup laisse la note dans le fourre-tout si la popup se ferme entre les deux gestes |
+> | `dossier_name` + `carnets_names` dans la réponse de classement | inchangés, mais **plus aucun appelant** | l'endpoint survit sans client ; à retirer ou à rebrancher lors du vrai multi-carnets |
+>
+> Ce que la phase I apporte **conformément** au § 7 : les partages par **groupe**
+> sont enfin honorés par l'API de l'extension (§ 7.1, « bug préexistant à
+> corriger au passage »), et l'avertissement « ce carnet est public » apparaît au
+> moment du geste (§ 7.3).
+>
+> **La question ouverte n°5 est traitée, et son énoncé était en-dessous de la
+> vérité.** Elle dit « url et titre de tout le corpus sont déjà exposés ».
+> Mesuré le 20 août : `GET /api/pages/` sans jeton rendait **291 840 octets pour
+> 13 notes**, dont **150 384 caractères de texte lisible** et le HTML d'origine —
+> et **12 des 13 notes portaient `url: null`**. Ce n'étaient pas les URL qui
+> fuyaient, c'était le contenu. L'endpoint exige désormais un jeton et se borne
+> au périmètre du porteur.
+>
+> **La question ouverte n°4 est tranchée pour l'instant** : l'unicité globale de
+> `Page.url` n'est pas touchée. Quand un tiers détient l'URL, la capture répond
+> `409 {"code": "url_prise_ailleurs"}` et l'extension le dit en clair. La
+> conséquence reste entière : deux collectifs d'une même instance ne peuvent pas
+> capturer la même page.
+>
+> Détail, mesures et recette : `CHANGELOG/2026-08-20-le-webclipper-choisit-son-carnet.md`.
 **Conventions** : skill `djc` (ViewSet explicites, serializers DRF, HTMX, FALC, commentaires FR/EN)
 
 > **Note de dépôt (8 août 2026)** — ce document existait hors du dépôt et y est

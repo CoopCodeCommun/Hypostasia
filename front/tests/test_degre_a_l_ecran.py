@@ -207,11 +207,16 @@ class LeCorpsDeLArticleNePorteAucunChiffreTest(BaseDeLAffichageDuDegre):
     """
     L'INTERDIT DE `PRESENTATION-V3.md § 3.6`, verrouille.
 
-    Le corps garde trois etats visuellement discrets. Le degre vit dans
-    le panneau, disponible au clic. Ce test tombera si quelqu'un porte
-    le chiffre dans le texte — ce qui partirait d'une bonne intention et
+    AUCUN CHIFFRE DANS LE CORPS DE L'ARTICLE. Le degre vit dans le
+    panneau, disponible au clic. Ce test tombera si quelqu'un porte le
+    chiffre dans le texte — ce qui partirait d'une bonne intention et
     deferait un arbitrage pris sur une mesure.
-    / The § 3.6 arbitration, locked.
+
+    CE QUE CE TEST N'INTERDIT PAS, et il faut le savoir avant de le
+    lire de travers : la revision du 20 aout 2026 rend le degre
+    PROGRESSIF et lui fait colorer la gouttiere. Colorer n'est pas
+    chiffrer — le liseré peut porter le degre, le TEXTE non.
+    / The § 3.6 arbitration, locked. Colouring is not numbering.
     """
 
     def test_le_html_de_l_article_ne_contient_pas_le_degre(self):

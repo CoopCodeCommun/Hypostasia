@@ -172,7 +172,27 @@ class PromptDeMiseAJourTest(TestCase):
             proposer_une_maj_de_wiki_task(job.pk)
 
         self.assertTrue(messages_captures, "aucun appel au modèle")
-        return messages_captures[0]
+        # LE PROMPT DE MISE A JOUR, reconnu a sa signature — jamais « le
+        # premier » ni « le dernier ».
+        #
+        # Cette tache ecrit d'abord le corps normalise (elle passe par le
+        # chemin d'ecriture normal pour ne pas perimer les bornes des
+        # citations), et l'ecriture ENCHAINE la verification : le juge
+        # est donc appele, lui aussi, dans le meme bloc. Un test qui
+        # prend un appel par son RANG lit alors le prompt d'un autre
+        # metier, et son assertion parle de ce qu'elle n'examine pas.
+        # / This task writes the normalised body first, and writing
+        # chains the verification: the judge is called in the same block.
+        # Picking a call by rank reads another job's prompt.
+        prompts_de_mise_a_jour = [
+            message for message in messages_captures
+            if "=== ARTICLE ACTUEL ===" in message
+        ]
+        self.assertTrue(
+            prompts_de_mise_a_jour,
+            "aucun prompt de mise à jour parmi les appels au modèle",
+        )
+        return prompts_de_mise_a_jour[0]
 
     def test_le_prompt_liste_les_titres_resolvables(self):
         prompt = self._prompt_envoye()

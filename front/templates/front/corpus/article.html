@@ -1,24 +1,56 @@
 {# L'ARTICLE — wiki vivant ou synthese figee, design MAQUETTE (9 aout). #}
 {# LOCALISATION : front/templates/front/corpus/article.html #}
 {# Variables : article, wiki?, dirigee?, carnet, html_de_l_article, #}
+{# preuves (une par renvoi, dans l'ordre du texte), #}
 {# nombre_de_citations (sources DISTINCTES), nombre_de_renvois, #}
 {# comptes_de_verdicts, nombre_d_ecartees (None = perimetre inconnu), #}
-{# peut_ecrire, perimetre_de_notes?, operations_appliquees?, #}
-{# operations_rejetees?, contestations_perdues? #}
+{# nouveautes_pour_la_maj, nouveautes_pour_la_verification, #}
+{# seuil_de_verification, second_avis_en_cours, #}
+{# peut_ecrire, perimetre_de_notes?, operations_rejetees?, #}
+{# contestations_perdues?, echec_du_juge? #}
 {% include "front/corpus/_style_maquette.html" %}
 {% include "front/corpus/_fil_ariane_oob.html" %}
 {% include "front/includes/_lecteur_audio_oob.html" %}
-<div class="zone-corpus" data-testid="synthese-article"
+{% comment %}
+DEUX COLONNES DANS LA PAGE, PAS UN TIROIR QUI RECOUVRE LE TEXTE.
+
+Le panneau de preuve etait un `position: fixed` pose sur un voile qui
+grisait l'article : ouvrir une preuve rendait illisible la phrase qu'on
+etait en train de verifier. Or verifier, c'est precisement comparer les
+deux — l'affirmation et sa source — donc les avoir SOUS LES YEUX EN
+MEME TEMPS.
+
+C'est LE MEME PANNEAU que celui des analyses d'une note : le tiroir
+`#drawer-overlay`, colonne de la grille `.plateau` (`base.html`,
+`maquette.css` « LE PANNEAU VIT DANS LE CORPS DE LA NOTE »). Au-dela du
+seuil il occupe une colonne collee au bord droit de la fenetre ; en
+deca il redevient un tiroir — sans voile, pour qu'on lise toujours les
+deux.
+
+L'ARTICLE NE PORTE DONC PLUS SA COLONNE : il l'ENVOIE, par OOB swap,
+comme il envoie deja son fil d'Ariane et sa barre de lecteur audio. Au
+chargement direct, c'est `base.html` qui rend les fiches — HTMX
+n'applique ses OOB que sur SES reponses.
+/ Same panel as a note's analyses: the plateau's right column, flush to
+the window edge. The article sends its cards there by OOB swap.
+{% endcomment %}
+<div class="zone-corpus zone-corpus-a-preuves" data-testid="synthese-article"
      data-article-id="{{ article.pk }}">
+<div class="colonne-article">
 
     {# RETOUR A LA LISTE (confrontation, manque n°5). #}
     {% if carnet %}
+    {# LE RETOUR RAMENE AU CARNET ENTIER, dans la zone de lecture. #}
+    {# Il visait l'onglet du carnet — qui n'existe plus une fois #}
+    {# l'article ouvert en plein ecran : le bouton ne faisait plus rien. #}
+    {# / It targeted the notebook tab, which no longer exists once the #}
+    {# article is full-screen: the button did nothing. #}
     <button type="button" class="retour-liste"
-            hx-get="{% if wiki %}/carnets/{{ carnet.pk }}/wikis/{% else %}/carnets/{{ carnet.pk }}/syntheses/{% endif %}"
-            hx-target="#corpus-panneau-onglet" hx-swap="innerHTML"
+            hx-get="/carnets/{{ carnet.pk }}/"
+            hx-target="#zone-lecture" hx-swap="innerHTML"
+            hx-push-url="/carnets/{{ carnet.pk }}/"
             data-testid="synthese-retour-liste">
-        ◀ {% if wiki %}Tous les wikis{% else %}Toutes les synthèses{% endif %}
-        de « {{ carnet.name|truncatechars:40 }} »</button>
+        ◀ Retour à « {{ carnet.name|truncatechars:40 }} »</button>
     {% endif %}
 
     <div class="article-synthese">
@@ -69,29 +101,169 @@ tous les verdicts seraient des citations introuvables n'aurait aucune ligne
             · {{ comptes_de_verdicts.introuvable }} introuvable{{ comptes_de_verdicts.introuvable|pluralize }}{% endif %}{% if comptes_de_verdicts.conteste %}
             · {{ comptes_de_verdicts.conteste }} contestée{{ comptes_de_verdicts.conteste|pluralize }}{% endif %}</span></div>
         {% endif %}
+
+        {% comment %}
+        CE QUI N'A PAS ETE REPRIS (§ 8), DANS L'EN-TETE.
+
+        C'etait un pli isole en bas de page, apres l'article : le seul
+        chiffre de l'audit qui ne vivait pas avec les autres, et celui
+        qu'on trouvait le dernier. Il rejoint la ou on lit deja
+        « sources citees » et « verification » — l'en-tete EST le tableau
+        de bord de l'article.
+
+        LE CHIFFRE EST LE MESSAGE, il reste donc dans le resume, comme
+        les autres lignes. Le detail se charge a l'ouverture du pli, pas
+        avant : une difference d'ensembles sur 458 extractions n'a pas a
+        etre calculee pour quelqu'un qui ne la demande pas.
+        / It was an isolated fold at the foot of the page: the one audit
+        figure that did not live with the others. The header IS the
+        article's dashboard.
+        {% endcomment %}
+        <details class="ligne-depliante" data-testid="synthese-ecartees-bloc">
+            <summary class="ligne">
+                <span>Écartées</span>
+                <span>{% if nombre_d_ecartees is None %}périmètre d'alors inconnu{% else %}{{ nombre_d_ecartees }}
+                non reprise{{ nombre_d_ecartees|pluralize }}{% endif %}</span>
+            </summary>
+            <div class="contenu-de-la-ligne"
+                 hx-get="/syntheses/{{ article.pk }}/ecartees/"
+                 hx-trigger="toggle once from:closest details" hx-swap="innerHTML"
+                 aria-live="polite">
+                <p class="explication">Calcul en cours…</p>
+            </div>
+        </details>
+
+        {% if dirigee %}
+        <details class="ligne-depliante" data-testid="synthese-couverture-bloc">
+            <summary class="ligne">
+                <span>Couverture de l'analyse</span>
+                <span>note par note</span>
+            </summary>
+            <div class="contenu-de-la-ligne"
+                 hx-get="/syntheses/{{ article.pk }}/couverture/"
+                 hx-trigger="toggle once from:closest details" hx-swap="innerHTML"
+                 aria-live="polite">
+                <p class="explication">Calcul en cours…</p>
+            </div>
+        </details>
+        {% endif %}
+
+        {% comment %}
+        LES DEUX GESTES COUTEUX, EN LIGNES D'EN-TETE.
+
+        C'etaient deux boutons pleins, poses sous le titre, toujours
+        offerts au meme poids : rien ne disait s'ils avaient une raison
+        d'etre. Le lecteur relancait a l'aveugle un travail qui ne
+        changerait rien — ou laissait dormir un article que trois
+        extractions neuves auraient enrichi.
+
+        ILS RESTENT CLIQUABLES DANS TOUS LES CAS, et c'est deliberé :
+        griser un geste sans dire pourquoi n'apprend rien. C'est la
+        BOITE DE DIALOGUE qui dit ce qu'il y a — ou ce qu'il n'y a pas —
+        et qui ne propose de relancer que si ca vaut la peine.
+        / They stay clickable in every case: greying a gesture without
+        saying why teaches nothing. The dialog is what explains.
+        {% endcomment %}
+        {% if peut_ecrire %}
+        {% if wiki %}
+        <button type="button" class="ligne ligne-action"
+                data-testid="synthese-ligne-maj"
+                data-geste="mise-a-jour"
+                data-url="/wikis/{{ wiki.pk }}/mise_a_jour/"
+                data-nouveautes="{{ nouveautes_pour_la_maj.total }}"
+                data-extractions="{{ nouveautes_pour_la_maj.extractions }}"
+                data-commentaires="{{ nouveautes_pour_la_maj.commentaires }}"
+                data-depuis="{{ nouveautes_pour_la_maj.depuis|date:'d/m/Y à H:i' }}">
+            <span>Mettre à jour</span>
+            <span class="valeur-du-geste" data-neuf="{% if nouveautes_pour_la_maj.total %}oui{% else %}non{% endif %}">
+                {% if nouveautes_pour_la_maj.total %}{{ nouveautes_pour_la_maj.total }} nouveauté{{ nouveautes_pour_la_maj.total|pluralize }} dans le périmètre{% else %}rien de neuf depuis{% endif %}
+            </span>
+        </button>
+        {% endif %}
+        <button type="button" class="ligne ligne-action"
+                data-testid="synthese-ligne-verifier"
+                data-geste="verification"
+                data-url="{% if wiki %}/wikis/{{ wiki.pk }}/verifier/{% else %}/syntheses/{{ article.pk }}/verifier/{% endif %}"
+                data-nouveautes="{{ nouveautes_pour_la_verification.total }}"
+                data-extractions="{{ nouveautes_pour_la_verification.extractions }}"
+                data-commentaires="{{ nouveautes_pour_la_verification.commentaires }}"
+                data-jamais-verifie="{% if nouveautes_pour_la_verification.depuis %}non{% else %}oui{% endif %}"
+                data-depuis="{{ nouveautes_pour_la_verification.depuis|date:'d/m/Y à H:i' }}">
+            <span>Revérifier les citations</span>
+            <span class="valeur-du-geste" data-neuf="{% if not nouveautes_pour_la_verification.depuis or nouveautes_pour_la_verification.total %}oui{% else %}non{% endif %}">
+                {% if not nouveautes_pour_la_verification.depuis %}jugement en cours ou jamais fait{% elif nouveautes_pour_la_verification.total %}{{ nouveautes_pour_la_verification.total }} nouveauté{{ nouveautes_pour_la_verification.total|pluralize }} depuis{% else %}à jour{% endif %}
+            </span>
+        </button>
+        {% endif %}
     </dl>
 
-    {# LA LEGENDE DES ETATS (confrontation, manque n°2) : le lecteur #}
-    {# apprend ce que les couleurs disent — et ce qu'elles ne disent pas. #}
-    {# La legende n'annonce QUE les etats que le texte porte vraiment : #}
-    {# elle promettait « non source » avant meme la premiere #}
-    {# verification (recette, F7). Et elle dit ce que la couleur #}
-    {# QUALIFIE — le paragraphe, par son verdict le plus faible — parce #}
-    {# qu'un filet colore ne le dit pas tout seul (F6). #}
-    {# / The legend now lists only the states actually present, and #}
-    {# says what the colour qualifies. #}
+    {% comment %}
+    L'AIDE DE LECTURE, EN `<details>` NATIF — et la legende DEDANS.
+
+    LA LEGENDE ETAIT A PLAT, AU-DESSUS DU TEXTE. Sept etats possibles,
+    chacun avec sa parenthese d'explication, poses avant qu'on ait lu la
+    premiere phrase de l'article : un mode d'emploi impose a la lecture,
+    exactement ce que le § 3.6 demande d'eviter. Elle explique les
+    memes couleurs que l'aide juste en dessous — deux blocs pour une
+    seule chose. Elle est desormais LA PREMIERE SECTION de l'aide.
+    / The legend sat flat above the text: a manual imposed before the
+    first sentence, explaining the same colours as the help below it.
+
+    UN `title` HTML ne s'atteint NI au clavier NI au doigt : sur mobile,
+    l'aide n'existerait tout simplement pas. Le depliant natif est
+    focusable, annonce son etat au lecteur d'ecran, et le projet
+    l'emploie deja (fiche de preuve, panneau des ecartees).
+    {% endcomment %}
     {% if etats_de_verification_presents %}
-    <div class="legende-verification" data-testid="synthese-legende"
-         aria-label="Légende des états de vérification">
-        <span class="legende-portee">Chaque paragraphe porte son verdict le plus faible :</span>
-        {% if "verifie" in etats_de_verification_presents %}<span><i style="background:var(--verifie)"></i> vérifié (verbatim + implication)</span>{% endif %}
-        {% if "source_debat" in etats_de_verification_presents %}<span><i style="background:var(--source-debat)"></i> source en débat</span>{% endif %}
-        {% if "faible" in etats_de_verification_presents %}<span><i style="background:var(--faible)"></i> faible (la source existe, mais n'implique pas tout)</span>{% endif %}
-        {% if "introuvable" in etats_de_verification_presents %}<span><i style="border:2px dashed var(--faible); height:0"></i> citation introuvable (le passage cité n'est plus dans la source)</span>{% endif %}
-        {% if "conteste" in etats_de_verification_presents %}<span><i style="background:var(--danger)"></i> contesté par un lecteur</span>{% endif %}
-        {% if "non_source" in etats_de_verification_presents %}<span><i style="background:var(--non-source)"></i> non sourcé (aucune preuve citée)</span>{% endif %}
-        {% if "non_verifie" in etats_de_verification_presents %}<span><i style="border-bottom:2px dotted var(--encre-douce); height:0"></i> pas encore vérifié</span>{% endif %}
-    </div>
+    <details class="aide-de-lecture" data-testid="article-aide-couleurs">
+        <summary aria-label="Comment lire les couleurs de cet article ?">
+            ? Comment lire les couleurs
+        </summary>
+        <div class="explication">
+            {# La legende n'annonce QUE les etats que le texte porte #}
+            {# vraiment : elle promettait « non source » avant meme la #}
+            {# premiere verification (recette, F7). Et elle dit ce que la #}
+            {# couleur QUALIFIE — le paragraphe, par son verdict le plus #}
+            {# faible — parce qu'un filet colore ne le dit pas tout seul. #}
+            {# / Only the states actually present, and what they qualify. #}
+            <div class="legende-verification" data-testid="synthese-legende"
+                 aria-label="Légende des états de vérification">
+                <span class="legende-portee">Chaque paragraphe porte son verdict le plus faible :</span>
+                {% if "verifie" in etats_de_verification_presents %}<span><i style="background:var(--verifie)"></i> vérifié (verbatim + implication)</span>{% endif %}
+                {% if "source_debat" in etats_de_verification_presents %}<span><i style="background:var(--source-debat)"></i> source en débat</span>{% endif %}
+                {% if "faible" in etats_de_verification_presents %}<span><i style="background:var(--faible)"></i> faible (la source existe, mais n'implique pas tout)</span>{% endif %}
+                {% if "introuvable" in etats_de_verification_presents %}<span><i style="border:2px dashed var(--faible); height:0"></i> citation introuvable (le passage cité n'est plus dans la source)</span>{% endif %}
+                {% if "conteste" in etats_de_verification_presents %}<span><i style="background:var(--danger)"></i> contesté par un lecteur</span>{% endif %}
+                {% if "non_source" in etats_de_verification_presents %}<span><i style="background:var(--non-source)"></i> non sourcé (aucune preuve citée)</span>{% endif %}
+                {% if "non_verifie" in etats_de_verification_presents %}<span><i style="border-bottom:2px dotted var(--encre-douce); height:0"></i> pas encore vérifié</span>{% endif %}
+            </div>
+
+            <p><strong>Le trait de couleur à gauche d'un paragraphe</strong>
+            vient du juge principal. Il donne une note à chaque citation, et
+            le paragraphe garde <strong>la plus faible</strong> : une phrase
+            n'est pas plus fiable que sa plus mauvaise preuve.</p>
+
+            <p><strong>Quatre autres juges tournent sur cette machine</strong>
+            pour contrôler le premier. Ils ne décident de rien. Quand ils le
+            démentent franchement, le renvoi
+            <span class="renvoi" data-accord-local="tension"
+                  aria-hidden="true">[N]</span>
+            change de couleur : c'est une invitation à ouvrir la preuve, pas
+            un verdict.</p>
+
+            <p><strong>Les preuves sont à droite</strong>, dans l'ordre du
+            texte : la citation exacte, avec un peu du passage qui l'entoure
+            dans la source. Cliquez un renvoi pour amener sa preuve en haut
+            de la colonne ; cliquez une preuve pour revenir au passage
+            qu'elle justifie ; cliquez la citation pour voir davantage du
+            passage.</p>
+
+            <p><strong>Le détail de la vérification</strong> — les cinq juges,
+            leur note et leur seuil — s'ouvre sous l'état de chaque preuve.
+            Les notes ne s'affichent jamais dans le texte : la rigueur est
+            disponible au clic, pas imposée à la lecture.</p>
+        </div>
+    </details>
     {% endif %}
 
     {# LES CONTESTATIONS PERDUES : jamais en silence (relecture G, B1). #}
@@ -141,122 +313,302 @@ tous les verdicts seraient des citations introuvables n'aurait aucune ligne
     </div>
     {% endif %}
 
-    {# ACTIONS : chaque bouton dit ce qu'il fait ; le bouton interdit #}
-    {# dit POURQUOI (§ 10). #}
-    {% if peut_ecrire %}
-    <div class="rangee-boutons" role="group" aria-label="Actions sur l'article">
-        {% if wiki %}
-        <button class="bouton-plat principal"
-                hx-post="/wikis/{{ wiki.pk }}/mise_a_jour/"
-                hx-target="#synthese-zone-maj" hx-swap="innerHTML"
-                data-testid="synthese-btn-maj">Proposer une mise à jour</button>
-        <button class="bouton-plat"
-                hx-post="/wikis/{{ wiki.pk }}/verifier/"
-                hx-target="#synthese-zone-maj" hx-swap="innerHTML"
-                data-testid="synthese-btn-verifier">Vérifier les citations</button>
-        {% elif dirigee %}
-        <button class="bouton-plat" disabled
-                title="Une synthèse dirigée est figée : elle ne se met pas à jour. Pour un texte qui suit le carnet, créez un wiki ; sinon produisez une nouvelle synthèse."
-                data-testid="synthese-btn-maj-desactive">Mettre à jour</button>
-        <button class="bouton-plat"
-                hx-post="/syntheses/{{ article.pk }}/verifier/"
-                hx-target="#synthese-zone-maj" hx-swap="innerHTML"
-                data-testid="synthese-btn-verifier">Vérifier les citations</button>
-        {% endif %}
-    </div>
-    {% endif %}
+    {# La zone ou atterrit la reponse d'un geste (tache lancee, diff, #}
+    {# erreur). Les gestes eux-memes sont des LIGNES de l'en-tete. #}
+    {# / Where a gesture's response lands; the gestures are header rows. #}
     <div id="synthese-zone-maj" aria-live="polite"></div>
 
     {# LE CORPS : affirmations colorees par verdict, renvois [N] en #}
     {# exposant — cliquer ouvre le panneau LATERAL de preuve. #}
     <article data-testid="synthese-corps">{{ html_de_l_article|safe }}</article>
 
-    {# CE QUI N'A PAS ETE REPRIS (§ 8) : LE CHIFFRE DANS LE PLI #}
-    {# (confrontation, manque n°4). Charge a l'ouverture du pli. #}
-    <details class="ecarte" data-testid="synthese-ecartees-bloc">
-        <summary>
-            {% if nombre_d_ecartees is None %}Ce qui n'a pas été repris —
-            périmètre d'alors inconnu{% else %}{{ nombre_d_ecartees }}
-            extraction{{ nombre_d_ecartees|pluralize }} du périmètre
-            n'{{ nombre_d_ecartees|pluralize:"a,ont" }} pas été
-            reprise{{ nombre_d_ecartees|pluralize }}{% endif %}
-        </summary>
-        <div class="contenu-ecarte"
-             hx-get="/syntheses/{{ article.pk }}/ecartees/"
-             hx-trigger="toggle once from:closest details" hx-swap="innerHTML"
-             aria-live="polite">
-            <p class="explication">Calcul en cours…</p>
-        </div>
-    </details>
-    {% if dirigee %}
-    <details class="ecarte" data-testid="synthese-couverture-bloc">
-        <summary>Couverture de l'analyse, note par note</summary>
-        <div class="contenu-ecarte"
-             hx-get="/syntheses/{{ article.pk }}/couverture/"
-             hx-trigger="toggle once from:closest details" hx-swap="innerHTML"
-             aria-live="polite">
-            <p class="explication">Calcul en cours…</p>
-        </div>
-    </details>
-    {% endif %}
     </div>{# /article-synthese #}
-</div>
+</div>{# /colonne-article #}
+</div>{# /zone-corpus #}
 
-{# LE PANNEAU DE PREUVE LATERAL (etalon) + son voile : rempli par les #}
-{# renvois [N], ouvert/ferme par la classe .est-ouvert. #}
-<div class="voile-preuve" id="voile-preuve"></div>
-<aside class="panneau-preuve" id="panneau-preuve" role="dialog"
-       aria-modal="false" aria-label="Panneau de preuve"
-       data-testid="synthese-panneau-preuve">
-    <div class="entete">
-        <span>Preuve</span>
-        <button type="button" id="fermer-preuve"
-                aria-label="Fermer le panneau de preuve"
-                data-testid="synthese-fermer-preuve">✕</button>
-    </div>
-    <div class="corps" id="corps-preuve" aria-live="polite"></div>
-</aside>
+{% comment %}
+LA COLONNE DES PREUVES : toutes les fiches, dans l'ordre du texte.
+
+ELLES SONT TOUTES RENDUES, et c'est le point. Chargees une par une, il
+fallait un clic pour en voir une, et on perdait la precedente : on ne
+pouvait ni parcourir les preuves d'un article, ni en comparer deux. La
+vue de lecture montre bien toutes ses extractions a cote de la note.
+
+ELLES PARTENT DANS LE TIROIR PARTAGE (`#drawer-contenu`, `base.html`),
+par OOB swap. C'est le chemin du fil d'Ariane et du lecteur audio, et
+c'est la meme raison : le panneau vit au-dessus de `#zone-lecture`, que
+la navigation HTMX remplace. Le `{% templatetag openblock %} if request.htmx {% templatetag closeblock %}` est
+indispensable — HTMX n'applique ses OOB que sur SES reponses, jamais sur
+le HTML initial d'une page, et au chargement direct c'est `base.html`
+qui rend ces memes fiches. Sans lui, elles paraitraient DEUX fois.
+
+LE RENVOI `[N]` EST UNE ANCRE `href="#preuve-<pk>"` : sans JavaScript,
+le navigateur saute a la fiche. Le script ci-dessous n'ajoute que le
+defilement doux, le surlignage de la fiche visee, et le chemin inverse
+— cliquer une fiche ramene au passage qu'elle prouve.
+/ All cards rendered, and sent to the shared drawer by OOB swap — the
+breadcrumb's path, for the same reason.
+{% endcomment %}
+{% if request.htmx %}
+<div id="drawer-contenu" hx-swap-oob="innerHTML:#drawer-contenu">
+    <aside class="panneau-preuve" id="panneau-preuve"
+           aria-label="Preuves de l'article"
+           data-testid="synthese-panneau-preuve">
+        <div class="corps" id="corps-preuve">
+            {% for preuve in preuves %}
+            {# La fiche recoit un contexte PLAT, parce que `CitationViewSet` #}
+            {# lui en donne un aussi : un seul gabarit, deux appelants, et #}
+            {# une seule facon de le nourrir. / Flat context: one template, #}
+            {# two callers, one way to feed it. #}
+            {# UNE BALISE DJANGO TIENT SUR UNE SEULE LIGNE, TOUJOURS. Le  #}
+            {# `tag_re` du moteur n'a pas `re.DOTALL` : une balise qui     #}
+            {# enjambe deux lignes n'est PAS reconnue — elle sort telle    #}
+            {# quelle dans la page, en texte. `get_template()` ne le voit  #}
+            {# pas non plus : rien n'a echoue, ce n'etait plus une balise. #}
+            {# / A Django tag must be on one line: tag_re has no DOTALL, so #}
+            {# a multi-line tag renders as literal text and nothing errors. #}
+            {% include "front/corpus/partials/preuve.html" with numero=preuve.numero lien=preuve.lien extraction=preuve.extraction note_source=preuve.note_source passage=preuve.passage avis_locaux=preuve.avis_locaux version_commune=preuve.version_commune accord_local=preuve.accord_local %}
+            {% empty %}
+            <p class="explication" data-testid="synthese-aucune-preuve">
+                Cet article ne cite aucune source.
+            </p>
+            {% endfor %}
+        </div>
+    </aside>
+</div>
+{# Le titre de la bande dit ce que le panneau porte. `drawer_vue_liste` #}
+{# fait le meme geste pour « Analyses » : un seul ecrivain par etat. #}
+{# / The strip's title says what the panel holds. #}
+<span id="drawer-titre" hx-swap-oob="innerHTML:#drawer-titre">Preuves · {{ preuves|length }}</span>
+{% endif %}
 <script>
-/* Ouverture/fermeture du panneau lateral : HTMX remplit #corps-preuve,
-   ces quelques lignes tiennent la classe .est-ouvert, le voile, le
-   marquage du renvoi actif et le retour du focus a la fermeture.
-   / Side panel open/close, active-reference mark, focus handling. */
+/* LE LIEN DANS LES DEUX SENS entre le texte et sa colonne de preuves.
+   / Two-way link between the text and its evidence column.
+
+   LOCALISATION : front/templates/front/corpus/article.html
+
+   C'EST LE MEME GESTE QUE LE PANNEAU DES ANALYSES d'une note
+   (`drawer_vue_liste.js`) : on clique une carte, le texte defile sur le
+   passage et le marque ; on clique le texte, la carte se surligne. Le
+   lecteur n'a qu'un mecanisme a apprendre pour les deux ecrans.
+
+   IL N'Y A RIEN A CHARGER : toutes les fiches sont deja dans la page.
+   Ce script ne fait que du defilement et du surlignage — sans lui, les
+   renvois restent des ancres HTML qui fonctionnent. */
+/* LES DEUX GESTES COUTEUX : ce qu'on relance, et pourquoi.
+   / The two expensive gestures: what gets relaunched, and why.
+
+   LOCALISATION : front/templates/front/corpus/article.html
+
+   LA LIGNE EST CLIQUABLE DANS TOUS LES CAS, et c'est le point : griser
+   un geste sans dire pourquoi n'apprend rien a personne. C'est la boite
+   de dialogue qui montre ce qu'il y a — ou ce qu'il n'y a pas — et qui
+   ne propose de relancer QUE si ca vaut la peine.
+   / The row is always clickable; the dialog is what explains. */
 (function () {
-    var panneau = document.getElementById("panneau-preuve");
-    var voile = document.getElementById("voile-preuve");
-    var dernier_renvoi = null;
-    if (!panneau || panneau.dataset.branche) { return; }
-    panneau.dataset.branche = "1";
-    document.body.addEventListener("htmx:afterSwap", function (evenement) {
-        if (evenement.detail.target.id !== "corps-preuve") { return; }
-        panneau.classList.add("est-ouvert");
-        voile.classList.add("est-visible");
-        /* Le focus entre dans le panneau (audit a11y I4) : un
-           utilisateur clavier ne reste pas derriere le voile. */
-        document.getElementById("fermer-preuve").focus();
-    });
-    document.body.addEventListener("click", function (evenement) {
-        var renvoi = evenement.target.closest(".renvoi");
-        if (renvoi) {
-            document.querySelectorAll(".renvoi.est-active").forEach(function (r) {
-                r.classList.remove("est-active");
-            });
-            renvoi.classList.add("est-active");
-            dernier_renvoi = renvoi;
+    var article = document.querySelector("[data-testid='synthese-article']");
+    if (!article || article.dataset.gestesBranches) { return; }
+    article.dataset.gestesBranches = "1";
+
+    function phraseDesNouveautes(donnees) {
+        var morceaux = [];
+        if (Number(donnees.extractions) > 0) {
+            morceaux.push(
+                donnees.extractions + " extraction" +
+                (donnees.extractions > 1 ? "s" : "")
+            );
         }
-    });
-    function fermer() {
-        /* Conditionne a l'etat ouvert : un Escape tardif ne vole plus
-           le focus (audit a11y I4). / Only closes when actually open. */
-        if (!panneau.classList.contains("est-ouvert")) { return; }
-        panneau.classList.remove("est-ouvert");
-        voile.classList.remove("est-visible");
-        if (dernier_renvoi) { dernier_renvoi.focus(); dernier_renvoi = null; }
+        if (Number(donnees.commentaires) > 0) {
+            morceaux.push(
+                donnees.commentaires + " commentaire" +
+                (donnees.commentaires > 1 ? "s" : "")
+            );
+        }
+        return morceaux.join(" et ");
     }
-    document.getElementById("fermer-preuve").addEventListener("click", fermer);
-    voile.addEventListener("click", fermer);
-    document.addEventListener("keydown", function (evenement) {
-        if (evenement.key === "Escape") { fermer(); }
+
+    article.addEventListener("click", function (evenement) {
+        var ligne = evenement.target.closest(".ligne-action");
+        if (!ligne) { return; }
+        var estUneMiseAJour = ligne.dataset.geste === "mise-a-jour";
+        var jamaisVerifie = ligne.dataset.jamaisVerifie === "oui";
+        var nombre = Number(ligne.dataset.nouveautes) || 0;
+        var ilYADeQuoi = nombre > 0 || jamaisVerifie;
+
+        var titre = estUneMiseAJour
+            ? "Mettre à jour cet article ?"
+            : "Rejuger toutes les citations ?";
+        var texte;
+        if (jamaisVerifie) {
+            texte = "Aucune citation de cet article ne porte encore de " +
+                "verdict. Le jugement s'enchaîne normalement tout seul, à " +
+                "la production et à chaque mise à jour : s'il manque, c'est " +
+                "qu'il tourne encore, ou qu'aucun juge n'est affecté au rôle.";
+        } else if (ilYADeQuoi) {
+            texte = "Depuis " + ligne.dataset.depuis + ", le périmètre a gagné " +
+                phraseDesNouveautes(ligne.dataset) + "." +
+                (estUneMiseAJour
+                    ? " Une mise à jour peut donc changer l'article."
+                    : " Ces nouveautés ne sont pas encore prises en compte.");
+        } else {
+            texte = "Rien n'a changé dans le périmètre depuis " +
+                ligne.dataset.depuis + " : relancer rendrait le même résultat" +
+                (estUneMiseAJour
+                    ? "."
+                    : ". Les citations neuves sont jugées toutes seules ; " +
+                      "ce bouton rejuge TOUT l'article, ce qui n'a d'intérêt " +
+                      "qu'après un changement de juge ou de seuil.");
+        }
+
+        Swal.fire({
+            title: titre,
+            text: texte,
+            icon: ilYADeQuoi ? "question" : "info",
+            showCancelButton: true,
+            /* LE BOUTON EST GRISE QUAND IL N'Y A RIEN A FAIRE, et la
+               phrase au-dessus dit pourquoi : une action desactivee sans
+               motif est une impasse.
+               / Greyed with the reason stated right above it. */
+            confirmButtonText: ilYADeQuoi ? "Relancer" : "Rien à relancer",
+            cancelButtonText: "Fermer",
+            reverseButtons: true,
+            didOpen: function () {
+                if (ilYADeQuoi) { return; }
+                var bouton = Swal.getConfirmButton();
+                bouton.disabled = true;
+                bouton.setAttribute("aria-disabled", "true");
+                bouton.style.opacity = ".5";
+                bouton.style.cursor = "not-allowed";
+            }
+        }).then(function (choix) {
+            if (!choix.isConfirmed || !ilYADeQuoi) { return; }
+            htmx.ajax("POST", ligne.dataset.url, {
+                target: "#synthese-zone-maj",
+                swap: "innerHTML"
+            });
+        });
+    });
+})();
+
+(function () {
+    var article = document.querySelector("[data-testid='synthese-article']");
+    if (!article || article.dataset.preuvesBranchees) { return; }
+    article.dataset.preuvesBranchees = "1";
+
+    /* LES ECOUTES VIVENT SUR `document.body`, jamais sur la colonne.
+       La colonne est posee dans le tiroir par un OOB swap : au moment ou
+       ce script s'execute, elle peut ne pas encore etre dans le DOM — et
+       une reference prise ici pointerait de toute facon sur une colonne
+       detruite au premier changement d'article.
+       / The column arrives by OOB swap and is replaced on navigation. */
+    function colonne() { return document.getElementById("corps-preuve"); }
+
+    /* Ne marque qu'UNE fiche et qu'UN renvoi a la fois : deux marques
+       simultanees ne designeraient plus rien.
+       / One mark at a time, or it designates nothing. */
+    function marquer(selecteur, element) {
+        document.querySelectorAll(selecteur).forEach(function (autre) {
+            autre.classList.remove("est-active");
+        });
+        if (element) { element.classList.add("est-active"); }
+    }
+
+    /* AMENER UNE FICHE EN TETE DE COLONNE, sans toucher a la page.
+       `scrollIntoView` fait defiler TOUS les ancetres defilables, donc
+       la page — et le panneau etant dans le tiroir, le texte glissait
+       sous les yeux du lecteur alors qu'il voulait voir une fiche.
+       / scrollIntoView scrolls every scrollable ancestor, including the
+       page, which drags the text away. */
+    function amener_la_fiche(fiche) {
+        var boite = colonne();
+        if (!boite) { return; }
+        boite.scrollTo({
+            top: boite.scrollTop + fiche.getBoundingClientRect().top
+                 - boite.getBoundingClientRect().top - 8,
+            behavior: "smooth",
+        });
+    }
+
+    function amener_le_renvoi(renvoi) {
+        if (!renvoi) { return; }
+        renvoi.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    /* UN SEUL GESTE, DEUX EFFETS ENSEMBLE.
+
+       Activer une preuve, c'est OUVRIR SON PASSAGE **et** SURLIGNER SON
+       ANCRE dans le texte. C'etaient deux gestes distincts — cliquer la
+       citation ouvrait le passage, cliquer ailleurs sur la fiche
+       ramenait au texte — et rien ne disait laquelle des deux moities
+       on allait obtenir.
+
+       ET LES PASSAGES PRECEDENTS SE REPLIENT. Sans cela, parcourir dix
+       preuves laissait dix passages ouverts : la colonne devenait un
+       mur, et la fiche qu'on venait d'activer se retrouvait poussee
+       hors de vue par celles d'avant.
+       / One gesture, both effects; and previous passages fold back, or
+       ten browsed proofs leave ten open ones. */
+    function activer(fiche, ramener_au_texte) {
+        var deja_active = fiche.classList.contains("est-active");
+        var pli = fiche.querySelector(".passage-source");
+
+        document.querySelectorAll("#corps-preuve .passage-source[open]")
+            .forEach(function (autre) {
+                if (autre !== pli) { autre.open = false; }
+            });
+
+        /* Re-cliquer la fiche ACTIVE replie son passage : c'est la seule
+           facon de le refermer sans en activer une autre.
+           / Re-clicking the active card folds it back. */
+        if (pli) { pli.open = deja_active ? !pli.open : true; }
+
+        var renvoi = document.querySelector(
+            '.renvoi[data-lien-id="' + fiche.dataset.lienId + '"]'
+        );
+        marquer("#corps-preuve .carte-preuve.est-active", fiche);
+        marquer(".renvoi.est-active", renvoi);
+        if (ramener_au_texte) { amener_le_renvoi(renvoi); }
+    }
+
+    /* Du TEXTE vers la PREUVE. */
+    document.body.addEventListener("click", function (evenement) {
+        var renvoi = evenement.target.closest(".renvoi[data-lien-id]");
+        if (!renvoi) { return; }
+        var fiche = document.getElementById(
+            "preuve-" + renvoi.dataset.lienId
+        );
+        if (!fiche) { return; }
+        /* On prend la main sur l'ancre pour un defilement doux, et on
+           laisse l'ancre faire son travail si la fiche a disparu.
+           / We take over only when the target is actually there. */
+        evenement.preventDefault();
+        activer(fiche, false);
+        amener_la_fiche(fiche);
+        /* Le focus SUIT le geste : un utilisateur clavier doit se
+           retrouver dans la fiche. `tabindex="-1"` le rend possible.
+           / Focus follows the gesture. */
+        fiche.focus({ preventScroll: true });
+    });
+
+    /* De la PREUVE vers le TEXTE. Le lien vers la source garde son sens
+       propre ; les depliants de la VERIFICATION gardent leur bascule
+       native — ils ne parlent pas du passage. Le `<summary>` du passage,
+       LUI, passe par le meme chemin que le reste de la fiche : c'est
+       tout le propos de n'avoir qu'un geste.
+       / The source link and the verification folds keep their own
+       meaning; the passage summary goes through the same path. */
+    document.body.addEventListener("click", function (evenement) {
+        if (!evenement.target.closest("#corps-preuve")) { return; }
+        if (evenement.target.closest("a")) { return; }
+        if (evenement.target.closest(".verification, .second-avis")) { return; }
+        var fiche = evenement.target.closest(".carte-preuve");
+        if (!fiche) { return; }
+        /* On pilote `open` nous-memes : sans cela le `<summary>` du
+           passage basculerait AUSSI de son cote, et les deux se
+           defairaient l'un l'autre.
+           / We drive `open` ourselves, or the summary would toggle too. */
+        evenement.preventDefault();
+        activer(fiche, true);
     });
 })();
 </script>

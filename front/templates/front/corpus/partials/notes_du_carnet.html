@@ -64,6 +64,15 @@
                 {% if appartenance.page.source_type == "audio" %}<span class="marque-source" data-testid="corpus-note-source">audio</span>{% elif appartenance.page.source_type == "web" %}<span class="marque-source" data-testid="corpus-note-source">web</span>{% elif appartenance.page.original_filename %}<span class="marque-source" data-testid="corpus-note-source">fichier</span>{% endif %}
                 {% if appartenance.page.original_filename %}<span class="nom-de-fichier" title="{{ appartenance.page.original_filename }}" data-testid="corpus-note-fichier">{{ appartenance.page.original_filename|truncatechars:34 }}</span>{% endif %}
                 <span>{{ appartenance.nombre_d_extractions }} extraction{{ appartenance.nombre_d_extractions|pluralize }}</span>
+                {# LE DEBAT NE S'AFFICHE QUE S'IL A COMMENCE. « 0 #}
+                {# commentaire » sur chaque ligne d'un carpus qu'on vient #}
+                {# d'importer serait un zero repete cinquante fois — et #}
+                {# le seul cas qui compte, celui ou il y en a, se noierait #}
+                {# dedans. / Only shown once a debate exists: fifty zeros #}
+                {# would drown the one line that matters. #}
+                {% if appartenance.nombre_de_commentaires %}
+                <span data-testid="corpus-note-commentaires">{{ appartenance.nombre_de_commentaires }} commentaire{{ appartenance.nombre_de_commentaires|pluralize }}</span>
+                {% endif %}
                 {% if appartenance.nombre_de_carnets > 1 %}<span data-testid="corpus-note-multi-carnets">dans {{ appartenance.nombre_de_carnets }} carnets</span>{% endif %}
             </span>
             <span class="etiquettes" role="group" aria-label="Catégories">
@@ -97,6 +106,33 @@
                         hx-vals='{"deplacer": "{{ appartenance.page.pk }}", "direction": "descendre"{% if categories_choisies %}, "categorie": "{{ categories_choisies|join:"," }}"{% endif %}}'
                         hx-target="#corpus-notes" hx-swap="innerHTML">▼</button>
             </span>
+            {% comment %}
+            ÉPINGLER — le geste manquait, l'ordre l'attendait déjà.
+
+            `AppartenancePageDossier.epinglee` existe, la liste trie
+            dessus (`-epinglee` en tête de `order_by`), la marque « ✱ »
+            s'affiche dans la colonne de rang, et la route
+            `POST /notes/{id}/carnets/{carnet}/epingler/` répond. Il n'y
+            avait simplement AUCUN bouton pour la déclencher : rien ne
+            pouvait donc jamais être épinglé, et la marque ne
+            s'affichait jamais.
+
+            `ecran=carnet` dit à la vue de renvoyer la liste des notes
+            de CE carnet, avec ses filtres, et non le bloc « Dans N
+            carnets » de la note — c'est ce que `_rendre_selon_l_ecran`
+            attend.
+            / The gesture was missing while the ordering already waited
+            for it: the field, the sort, the mark and the route all
+            existed, but no button ever called it.
+            {% endcomment %}
+            <button type="button" class="bouton-icone"
+                    data-testid="corpus-note-epingler"
+                    aria-label="{% if appartenance.epinglee %}Désépingler « {{ appartenance.page.title|default:appartenance.page.url }} » de ce carnet{% else %}Épingler « {{ appartenance.page.title|default:appartenance.page.url }} » en tête de ce carnet{% endif %}"
+                    aria-pressed="{{ appartenance.epinglee|yesno:'true,false' }}"
+                    title="{% if appartenance.epinglee %}Désépingler{% else %}Épingler en tête{% endif %}"
+                    hx-post="/notes/{{ appartenance.page.pk }}/carnets/{{ carnet.pk }}/epingler/"
+                    hx-vals='{"ecran": "carnet"{% if categories_choisies %}, "categorie": "{{ categories_choisies|join:"," }}"{% endif %}}'
+                    hx-target="#corpus-notes" hx-swap="innerHTML"><span aria-hidden="true">✱</span></button>
             {# SUPPRIMER LA NOTE — relogé ici le 12 aout 2026.          #}
             {#                                                          #}
             {# Ce geste n'existait que dans le menu contextuel de       #}

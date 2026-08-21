@@ -1,28 +1,36 @@
 /**
- * LE THEME A TROIS ETATS (lot T7 de la bascule CSS, 9 aout 2026).
+ * LE THEME A DEUX ETATS, ET LE CLAIR EST LE DEFAUT.
  * LOCALISATION : front/static/front/js/theme.js
  *
- * Trois etats, comme l'etalon (front/static/front/maquettes/corpus.html) :
- *   "light"  -> clair force
- *   "dark"   -> sombre force
- *   ""       -> systeme (aucun attribut : le @media decide)
+ *   "light"  -> clair (le defaut, TOUJOURS)
+ *   "dark"   -> sombre, parce que l'utilisateur l'a demande
  *
- * Ce que l'etalon n'a PAS et qu'on ajoute : la PERSISTANCE. Un theme
- * qu'il faut rechoisir a chaque page n'est pas un theme.
+ * POURQUOI PLUS DE TROISIEME ETAT « systeme ». Il y en avait un, et il
+ * etait le defaut : une machine reglee en sombre ouvrait Hypostasia en
+ * sombre sans que personne ne l'ait choisi. Decision du mainteneur : le
+ * clair est le mode de reference du produit — c'est celui sur lequel la
+ * charte et l'etalon sont calibres — et passer en sombre est un GESTE.
  *
- * Ce fichier est charge dans le <head>, AVANT le rendu : sinon la page
- * s'affiche en clair puis clignote vers le sombre.
+ * L'etalon fait deja exactement cela : ses trois fichiers s'ouvrent sur
+ * `<html lang="fr" data-theme="light">`.
  *
- * / Three-state theme with the persistence the mockup lacks. Loaded in
- * the head, before paint, to avoid a flash of the wrong theme.
+ * LE DEFAUT EST ECRIT DANS LE HTML, pas seulement ici : `base.html`
+ * porte `data-theme="light"` en dur. Sans JavaScript — ou avant qu'il
+ * ne s'execute — la page reste donc claire, au lieu de suivre le
+ * `@media (prefers-color-scheme: dark)` de la feuille de style.
+ * Ce fichier ne fait que remplacer cette valeur par le choix stocke.
+ *
+ * / Two states, light by default: a dark-set machine used to open
+ * Hypostasia in dark without anyone choosing it. The default is written
+ * in the HTML too, so it holds without JavaScript.
  */
 (function () {
     "use strict";
 
     var CLE = "hypostasia-theme";
-    var ETATS = ["", "light", "dark"];
+    var DEFAUT = "light";
+    var ETATS = ["light", "dark"];
     var LIBELLES = {
-        "":      { glyphe: "◑", mot: "système" },
         "light": { glyphe: "○", mot: "clair" },
         "dark":  { glyphe: "●", mot: "sombre" }
     };
@@ -30,42 +38,42 @@
     function lireThemeStocke() {
         try {
             var valeur = window.localStorage.getItem(CLE);
-            return ETATS.indexOf(valeur) === -1 ? "" : valeur;
+            return ETATS.indexOf(valeur) === -1 ? DEFAUT : valeur;
         } catch (erreur) {
-            // Navigation privee, stockage refuse : on retombe sur le systeme.
-            // / Private browsing or storage denied: fall back to system.
-            return "";
+            // Navigation privee, stockage refuse : on reste au defaut.
+            // / Private browsing or storage denied: stay on the default.
+            return DEFAUT;
         }
     }
 
+    /* L'attribut est TOUJOURS pose, jamais retire : c'est lui qui bat le
+       `@media (prefers-color-scheme: dark)` de la feuille de style.
+       / Always set, never removed: it is what beats the media query. */
     function appliquerTheme(theme) {
-        if (theme === "") {
-            document.documentElement.removeAttribute("data-theme");
-        } else {
-            document.documentElement.setAttribute("data-theme", theme);
-        }
+        document.documentElement.setAttribute("data-theme", theme);
     }
 
     function rafraichirBouton(theme) {
         var bouton = document.getElementById("bascule-theme");
         if (!bouton) { return; }
         var libelle = LIBELLES[theme];
+        var vers = theme === "dark" ? LIBELLES.light : LIBELLES.dark;
         bouton.textContent = libelle.glyphe;
-        bouton.title = "Thème : " + libelle.mot + " (cliquer pour changer)";
-        // Le glyphe seul ne dit rien a un lecteur d'ecran.
-        // / The glyph alone means nothing to a screen reader.
-        bouton.setAttribute("aria-label", "Thème : " + libelle.mot + ". Changer de thème.");
+        // Le titre dit l'etat ET le geste : un glyphe seul ne dit ni
+        // l'un ni l'autre. / State and gesture, not just a glyph.
+        bouton.title = "Thème " + libelle.mot + " — passer en " + vers.mot;
+        bouton.setAttribute(
+            "aria-label", "Thème " + libelle.mot + ". Passer en " + vers.mot + "."
+        );
+        // `aria-pressed` dit l'etat aux lecteurs d'ecran sans dependre du
+        // libelle. / aria-pressed states it without relying on wording.
+        bouton.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
     }
 
     function basculerTheme() {
-        var courant = lireThemeStocke();
-        var suivant = ETATS[(ETATS.indexOf(courant) + 1) % ETATS.length];
+        var suivant = lireThemeStocke() === "dark" ? "light" : "dark";
         try {
-            if (suivant === "") {
-                window.localStorage.removeItem(CLE);
-            } else {
-                window.localStorage.setItem(CLE, suivant);
-            }
+            window.localStorage.setItem(CLE, suivant);
         } catch (erreur) {
             // Sans stockage, la bascule ne vaut que pour cette page.
             // / Without storage the toggle only lasts for this page.

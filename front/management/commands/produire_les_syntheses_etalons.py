@@ -151,13 +151,32 @@ class Command(BaseCommand):
         if not (page_d_article.text_readability or "").strip():
             return True
 
-        dernier_job = ExtractionJob.objects.filter(
+        # LE DERNIER JOB QUI A PRODUIT, PAS LE DERNIER JOB TOUT COURT.
+        #
+        # Cette garde lisait `order_by("-pk").first()` — le dernier job
+        # de la page, quel qu'il soit. Depuis que la verification
+        # s'enchaine a l'ecriture d'un article, c'est un job de JUGE qui
+        # arrive en dernier : il ne porte pas `taille_du_perimetre`, la
+        # garde lisait donc None, concluait « on ne sait pas, on ne
+        # refacture pas », et **l'article n'etait plus JAMAIS reproduit**
+        # meme quand le perimetre grossissait. Rien ne le disait.
+        #
+        # On cherche donc le marqueur, pas le rang : n'importe quel type
+        # de job peut desormais s'intercaler.
+        # / The last job that PRODUCED, not the last job at all: a judge
+        # job now lands last and carries no scope size, so the guard read
+        # None and never re-produced again. Look for the marker, not the
+        # rank.
+        taille_a_la_production = None
+        for job_precedent in ExtractionJob.objects.filter(
             page=page_d_article,
-        ).order_by("-pk").first()
-        taille_a_la_production = (
-            (dernier_job.raw_result or {}).get("taille_du_perimetre")
-            if dernier_job else None
-        )
+        ).order_by("-pk"):
+            taille = (job_precedent.raw_result or {}).get(
+                "taille_du_perimetre"
+            )
+            if taille is not None:
+                taille_a_la_production = taille
+                break
         if taille_a_la_production is None:
             # Article produit avant que la taille ne soit consignee : on
             # ne sait pas, donc on ne refacture pas. / Unknown: don't bill.

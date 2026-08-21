@@ -37,6 +37,8 @@ from core.models import (
 )
 from core.serializers import CategoriserUneNoteSerializer
 from core.services.corpus import (
+    carnets_ou_ecrire,
+    carnets_visibles_par,
     ranger_une_note_dans_un_carnet,
     retirer_une_note_d_un_carnet,
 )
@@ -143,6 +145,16 @@ def _appartenances_filtrees_par_facettes(carnet, identifiants_de_categories,
             nombre_d_extractions=models.Count(
                 "page__extraction_jobs__entities", distinct=True,
             ),
+            # LE DEBAT SE COMPTE SUR LA LIGNE, comme les extractions.
+            # Une note tres commentee ne se distinguait en rien d'une
+            # note que personne n'a lue : le compteur existait sur la
+            # CARTE de chaque extraction, jamais sur la note qui les
+            # porte. / A heavily debated note looked exactly like an
+            # unread one: the counter lived on each extraction card only.
+            nombre_de_commentaires=models.Count(
+                "page__extraction_jobs__entities__commentaires",
+                distinct=True,
+            ),
             # « dans N carnets » ne compte que les carnets que le
             # DEMANDEUR peut voir : reveler l'existence d'un carnet prive
             # d'autrui serait une fuite (meme doctrine que le bloc de la
@@ -184,31 +196,14 @@ def _phrase_des_filtres(categories_choisies):
     return "  ET  ".join(morceaux_par_axe)
 
 
-def carnets_visibles_par(utilisateur):
-    """
-    Les carnets qu'un visiteur peut ouvrir : les siens, les orphelins,
-    les publics, ceux qu'on lui a partages. Anonyme : les publics.
-    / The notebooks a visitor may open.
-
-    LOCALISATION : front/views_corpus.py
-
-    Extrait de CarnetViewSet.list pour servir AUSSI au fil d'Ariane :
-    la regle d'acces ne doit exister qu'une fois.
-    / Extracted so the breadcrumb reuses the rule instead of copying it.
-    """
-    if utilisateur.is_authenticated:
-        identifiants_partages = DossierPartage.objects.filter(
-            Q(utilisateur=utilisateur) | Q(groupe__membres=utilisateur)
-        ).values_list("dossier_id", flat=True)
-        filtre = (
-            Q(owner=utilisateur)
-            | Q(owner__isnull=True)
-            | Q(visibilite=VisibiliteDossier.PUBLIC)
-            | Q(pk__in=identifiants_partages)
-        )
-    else:
-        filtre = Q(visibilite=VisibiliteDossier.PUBLIC)
-    return Dossier.objects.filter(filtre).distinct()
+# `carnets_visibles_par` vit desormais dans core/services/corpus.py et
+# est importee en tete de ce fichier. Elle a demenage le 20 aout 2026
+# parce que l'API de l'extension (core/views.py) en a besoin elle aussi :
+# `core` ne peut pas importer `front`, et une seconde copie de la regle
+# d'acces aurait diverge de celle-ci — c'est exactement ce qui etait
+# arrive aux partages par groupe.
+# / It moved to core/services/corpus.py: the extension API needs it too,
+# core cannot import front, and a second copy would diverge.
 
 
 def _filtre_des_bases_visibles(utilisateur):
@@ -974,22 +969,17 @@ class NoteCorpusViewSet(viewsets.ViewSet):
             # Les miens, les legacy, ET les partages avec moi (direct ou
             # groupe) : l'eleve doit pouvoir ranger dans le carnet de
             # classe (relecture G, meme regle que l'extension § 10).
-            # / Mine, legacy, AND shared with me: same rule as the
-            # extension.
-            identifiants_partages = DossierPartage.objects.filter(
-                Q(utilisateur=request.user) | Q(groupe__membres=request.user)
-            ).values_list("dossier_id", flat=True)
-            candidats = Dossier.objects.filter(
-                Q(owner=request.user)
-                | Q(owner__isnull=True)
-                | Q(pk__in=identifiants_partages)
-            ).exclude(pk__in=identifiants_deja_la).select_related(
-                "owner"
-            ).distinct().order_by("name")
-            carnets_disponibles = [
-                carnet for carnet in candidats
-                if _utilisateur_peut_ecrire_dossier(request.user, carnet)
-            ]
+            # La regle vient du service ; ce bloc la recopiait mot pour
+            # mot, puis refiltrait le resultat par le predicat — un
+            # troisieme exemplaire de la meme condition.
+            # / The rule comes from the service; this block used to copy
+            # it verbatim and then re-filter the result by the predicate.
+            carnets_disponibles = list(
+                carnets_ou_ecrire(request.user)
+                .exclude(pk__in=identifiants_deja_la)
+                .select_related("owner")
+                .order_by("name")
+            )
 
         return render(request, "front/corpus/partials/carnets_de_la_note.html", {
             "note": note,

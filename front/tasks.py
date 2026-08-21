@@ -358,6 +358,42 @@ def _extractions_pour_la_synthese(page):
     )
 
 
+# LE CONTRAT DE CITATION (SPEC-synthese § 4.4).
+#
+# LA FORMULATION EST LE FOND, PAS LA FORME. Cette consigne a longtemps
+# dit « chaque affirmation TIREE D'UNE HYPOSTASE se termine par le
+# marqueur de sa source ». Elle conditionnait le marqueur a l'origine de
+# la phrase — et une phrase de synthese generale n'est, du point de vue
+# du modele, tiree d'aucune extraction EN PARTICULIER. Elle echappait
+# donc a la regle sans la violer : `mistral-large` ecrivait UNE PHRASE
+# SUR DEUX sans marqueur, dont des affirmations factuelles. Une phrase
+# sans marqueur ne porte aucune source — le juge ne la voit pas, et rien
+# ne la verifie.
+#
+# La contrepartie est necessaire : exiger un marqueur PARTOUT, titres
+# compris, produirait des titres balises et un texte sans charpente.
+# / The wording IS the substance: conditioning the marker on the claim's
+#   origin let half a text go unsourced without breaking the rule.
+CONSIGNE_DE_SOURCAGE = (
+    "TOUTE AFFIRMATION que porte ton article se termine par le marqueur "
+    "de sa source, accolé à la fin de la phrase : `[[ext:N]]` où N est "
+    "le nombre donné par « Identifiant : ext:N ». Plusieurs sources = "
+    "plusieurs marqueurs consécutifs (`[[ext:12]][[ext:15]]`).\n\n"
+    "Tu n'écris AUCUNE affirmation qui ne vienne d'une extraction "
+    "fournie. Si une phrase que tu voulais écrire ne peut porter aucun "
+    "marqueur, c'est qu'elle n'a pas sa place dans l'article : "
+    "supprime-la. Cela vaut aussi pour les phrases d'ouverture, de "
+    "contexte et de conclusion — une mise en perspective non sourcée "
+    "reste une affirmation non sourcée.\n\n"
+    "Deux exceptions, et deux seulement : les TITRES de section, qui ne "
+    "portent jamais de marqueur ; et les phrases de LIAISON purement "
+    "structurelles, qui annoncent ce qui suit sans rien affirmer "
+    "(« Trois points ressortent : »).\n\n"
+    "Ne cite JAMAIS un identifiant qui n'apparaît pas dans la section "
+    "HYPOSTASES ET DEBAT."
+)
+
+
 def _construire_prompt_synthese(page, dernier_job_analyse, analyseur_synthese):
     """
     Construit le prompt utilisateur pour la synthese deliberative.
@@ -477,15 +513,7 @@ def _construire_prompt_synthese(page, dernier_job_analyse, analyseur_synthese):
     # line is ALWAYS required.
     consignes_de_sourcage = []
     if analyseur_synthese.inclure_extractions and dernier_job_analyse is not None:
-        consignes_de_sourcage.append(
-            "Chaque affirmation tirée d'une hypostase se termine par le "
-            "marqueur de sa source, accolé à la fin de la phrase : "
-            "`[[ext:N]]` où N est le nombre donné par « Identifiant : "
-            "ext:N ». Plusieurs sources = plusieurs marqueurs consécutifs "
-            "(`[[ext:12]][[ext:15]]`). Ne cite JAMAIS un identifiant qui "
-            "n'apparaît pas dans la section HYPOSTASES ET DEBAT. Jamais "
-            "de marqueur dans un titre."
-        )
+        consignes_de_sourcage.append(CONSIGNE_DE_SOURCAGE)
     consignes_de_sourcage.append(
         "Termine IMPÉRATIVEMENT ta réponse par une DERNIÈRE ligne de "
         "contrôle, seule sur sa ligne :\n"
@@ -1233,6 +1261,24 @@ def _ecrire_le_corps_d_un_article(page_d_article, texte_brut,
         "text_readability", "html_original", "html_readability",
         "content_hash", "updated_at",
     ])
+
+    # UN ARTICLE ECRIT EST UN ARTICLE JUGE. C'est le SEUL endroit ou un
+    # corps d'article s'ecrit et ou ses citations s'indexent — creation
+    # comme mise a jour appliquee passent ici. Y accrocher la
+    # verification, c'est la garantir aux deux, sans la demander deux
+    # fois ailleurs.
+    #
+    # Seules les citations SANS VERDICT sont jugees : celles qu'un
+    # paragraphe intact porte encore gardent le leur, et ne coutent rien.
+    # / The one place an article body is written and its citations
+    # indexed: creation and applied update both come through here.
+    # LE DESTINATAIRE EST LE PROPRIETAIRE DE L'ARTICLE, et non le
+    # demandeur de la production : les cinq appelants de cette fonction
+    # ne connaissent pas tous un utilisateur, et l'article, lui, en a
+    # toujours un. / The article always has an owner; its five callers
+    # do not all know a user.
+    enchainer_la_verification(page_d_article, page_d_article.owner_id)
+
     return bilan_d_indexation
 
 
@@ -1663,11 +1709,11 @@ def noter_avec_le_juge_local_task(self, job_id):
     / Drives nothing, idempotent, self-requeueing, and a failure costs
     only its own pair.
     """
-    from core.services.juge_local import (
-        methode, noter_une_paire, seuil_utile,
+    from core.services.juges_locaux import (
+        JUGES, methode, noter_une_paire, seuil_du_juge,
     )
     from core.services.verification import (
-        paires_sans_second_avis, poser_un_second_avis,
+        paires_sans_avis, poser_un_avis_local,
     )
     from hypostasis_extractor.models import ExtractionJob
 
@@ -1685,28 +1731,57 @@ def noter_avec_le_juge_local_task(self, job_id):
     if _le_job_n_est_pas_le_mien(job, "est_second_avis", "second_avis"):
         return
 
-    nom_de_la_methode = methode()
-    seuil = seuil_utile()
     try:
         job.status = "processing"
         job.save(update_fields=["status"])
 
-        restantes = paires_sans_second_avis(job.page, nom_de_la_methode)
-        paquet = restantes[:TAILLE_DU_PAQUET_DU_JUGE_LOCAL]
+        # UN JUGE A LA FOIS, MAIS **A TOUR DE ROLE**, ET C'EST UN
+        # CORRECTIF. Prendre systematiquement « le premier qui a du
+        # reste » AFFAMAIT les trois autres : si le premier juge echoue
+        # a chaque fois — modele qui ne charge pas, tokeniseur casse —
+        # chaque execution le re-choisit, echoue, s'arrete, et les trois
+        # suivants ne notent JAMAIS rien. Sans que rien ne le dise.
+        #
+        # Le tour de role part du juge qui suit celui du paquet
+        # precedent : un juge en panne coute un paquet, pas la campagne.
+        # / Round-robin, not first-with-backlog: a failing first judge
+        # used to starve the other three silently.
+        restes_par_juge = {
+            nom: paires_sans_avis(job.page, methode(nom)) for nom in JUGES
+        }
+        noms = list(JUGES)
+        precedent = (job.raw_result or {}).get("dernier_juge")
+        depart = (noms.index(precedent) + 1) if precedent in noms else 0
+        juge_courant = None
+        restantes = []
+        for decalage in range(len(noms)):
+            nom_du_juge = noms[(depart + decalage) % len(noms)]
+            if restes_par_juge[nom_du_juge]:
+                juge_courant = nom_du_juge
+                restantes = restes_par_juge[nom_du_juge]
+                break
 
-        notees = 0
-        sans_avis = 0
+        if juge_courant is None:
+            restantes, paquet, notees, sans_avis = [], [], 0, 0
+            nom_de_la_methode, seuil = "", None
+        else:
+            nom_de_la_methode = methode(juge_courant)
+            seuil = seuil_du_juge(juge_courant)
+            paquet = restantes[:TAILLE_DU_PAQUET_DU_JUGE_LOCAL]
+            notees = 0
+            sans_avis = 0
+
         for paire in paquet:
             try:
                 score = noter_une_paire(
-                    paire.affirmation, paire.texte_source,
+                    juge_courant, paire.affirmation, paire.texte_source,
                 )
                 if score is None:
                     sans_avis += 1
                     continue
-                poser_un_second_avis(
+                poser_un_avis_local(
                     paire.lien, score=score, methode=nom_de_la_methode,
-                    seuil_utile=seuil,
+                    seuil=seuil,
                 )
                 notees += 1
             except Exception as erreur_de_la_paire:
@@ -1729,6 +1804,15 @@ def noter_avec_le_juge_local_task(self, job_id):
         bilan["sans_avis"] += sans_avis
         bilan["methode"] = nom_de_la_methode
         bilan["seuil_utile"] = seuil
+        # LES QUATRE JUGES SONT NOMMES DANS LE BILAN, pas seulement
+        # celui du paquet courant : un bilan qui ne citerait que le
+        # dernier ferait croire qu'un seul a tourne.
+        # / Name all four, not just the current packet's judge.
+        bilan["juges"] = [methode(nom) for nom in JUGES]
+        # LE JUGE DU PAQUET, POUR QUE LE SUIVANT PRENNE LE TOUR D'APRES.
+        # / Remembered so the next packet takes the next judge.
+        if juge_courant:
+            donnees["dernier_juge"] = juge_courant
         donnees["bilan_du_second_avis"] = bilan
         job.raw_result = donnees
 
@@ -1748,22 +1832,46 @@ def noter_avec_le_juge_local_task(self, job_id):
         # mieux qu'une boucle muette.
         # / Without this, a model that never loads makes the task requeue
         # itself forever, silently, holding the re-click lock.
-        il_reste_des_paires = len(restantes) > len(paquet)
+        # IL RESTE DU TRAVAIL SI CE JUGE N'A PAS FINI, **OU** SI UN
+        # AUTRE EN A. Les restes des quatre juges ont ete calcules en
+        # une seule passe plus haut : les recalculer ici couterait un
+        # second parcours deterministe complet par paquet.
+        # / Work remains if THIS judge has more, OR another has any;
+        # reuse the single pass computed above.
+        un_autre_juge_a_du_reste = any(
+            restes for nom, restes in restes_par_juge.items()
+            if nom != juge_courant
+        )
+        il_reste_des_paires = (
+            len(restantes) > len(paquet) or un_autre_juge_a_du_reste
+        )
         if il_reste_des_paires and notees > 0:
             job.save(update_fields=["raw_result"])
             noter_avec_le_juge_local_task.delay(job_id)
             return
         if il_reste_des_paires and notees == 0:
+            reste_total = sum(len(r) for r in restes_par_juge.values())
             bilan["arret_sans_progres"] = (
-                f"{len(paquet)} paire(s) tentée(s), aucune notée : le juge "
-                f"local n'a rien rendu. {len(restantes) - len(paquet)} "
-                f"paire(s) restent sans avis."
+                f"{len(paquet)} paire(s) tentée(s) par « {juge_courant} », "
+                f"aucune notée. {reste_total} paire(s) restent sans avis, "
+                f"tous juges confondus."
             )
             logger.error(
                 "noter_avec_le_juge_local_task: aucun progrès sur le "
                 "paquet (job %s) — arrêt pour ne pas boucler.", job_id,
             )
 
+        # LES ECHECS DU DERNIER PAQUET NE SE RETENTENT PAS TOUT SEULS,
+        # et il faut donc les DIRE. Un paquet final ou la moitie des
+        # paires echoue laisse `il_reste_des_paires` a faux : la tache
+        # finit « completed » sans que rien ne signale les manquantes.
+        # Elles restent notables — un nouveau geste les reprendra — mais
+        # un compte muet aurait fait passer un lot a moitie fait pour un
+        # lot fini.
+        # / Last-packet failures are not auto-retried: say so.
+        if sans_avis:
+            bilan["paires_sans_avis_au_dernier_paquet"] = sans_avis
+        job.raw_result = donnees
         job.status = "completed"
         job.save(update_fields=["raw_result", "status"])
         notifier_tache_terminee(
@@ -1772,6 +1880,87 @@ def noter_avec_le_juge_local_task(self, job_id):
         )
     except Exception as erreur:
         _echouer_un_job_d_article(job, erreur, "second_avis")
+
+
+def enchainer_la_verification(page_d_article, demandeur_id=None):
+    """
+    Met en file le jugement des citations SANS VERDICT de cet article.
+    / Queues the judging of this article's unverified citations.
+
+    LOCALISATION : front/tasks.py
+
+    QUAND. A la production d'un article et a chaque mise a jour
+    appliquee — les deux moments ou des citations apparaissent ou
+    changent. Le lecteur n'a plus a demander une verification pour
+    savoir ce que vaut ce qu'il vient de lire.
+
+    CE QUI EST JUGE, ET SEULEMENT CELA : les citations `non_verifie`.
+    Une citation portee par un paragraphe intact garde son verdict et ne
+    coute rien ; une citation neuve ou dont le passage a change repart
+    sans verdict, et c'est elle qu'on juge.
+
+    ⚠️ CELA APPELLE UN VRAI MODELE, ET C'EST FACTURE. Un article produit
+    est un article juge : c'est le prix de ne plus avoir a le demander.
+    Sans juge affecte au role, on ne met rien en file — un job qui
+    echouerait faute de modele ferait un bandeau d'erreur a chaque
+    production. / This calls a real, billed model. With no judge
+    assigned to the role, nothing is queued.
+
+    :param page_d_article: la Page (wiki ou synthese) qu'on vient d'ecrire
+    :param demandeur_id: qui recevra la notification, s'il y a quelqu'un
+    :return: le job cree, ou None
+    """
+    from core.models import RoleDeModele
+    from core.services.modeles_par_role import modele_du_role
+    from hypostasis_extractor.models import ExtractionJob
+
+    juge = modele_du_role(RoleDeModele.JUGE_DE_VERIFICATION)
+    if juge is None:
+        logger.warning(
+            "enchainer_la_verification: aucun juge affecte, page=%s",
+            page_d_article.pk,
+        )
+        return None
+
+    job = ExtractionJob.objects.create(
+        page=page_d_article,
+        ai_model=juge,
+        name=f"Vérification — {page_d_article.title}"[:200],
+        prompt_description="Vérification des citations (§ 7), enchaînée",
+        status="pending",
+        raw_result={
+            "est_verification": True,
+            "seulement_les_non_jugees": True,
+            "demandeur_id": demandeur_id,
+        },
+    )
+    verifier_les_citations_task.delay(job.pk)
+
+    # LES QUATRE JUGES LOCAUX PARTENT AVEC, et c'est ce qui rend la
+    # colonne complete. Sans eux, un article fraichement produit porte
+    # des verdicts mais AUCUN controleur : le renvoi ne peut jamais
+    # s'ambrer, la fiche annonce « comparaison impossible », et tout le
+    # signal de tension pose le 20 aout reste mort sur les articles
+    # neufs — sur les seuls, justement, qu'on vient de lire.
+    #
+    # Ils ne coutent RIEN a la facture : ils tournent sur cette machine,
+    # sur leur propre worker a concurrence 1 et sous `nice -n 19`.
+    #
+    # LE FAN-OUT RESTE HORS DE `verifier_les_citations_task`, et c'est
+    # la contrainte a ne pas defaire : `bin/install.sh` appelle cette
+    # tache DIRECTEMENT a chaque demarrage de conteneur, et un fan-out
+    # place dedans remettrait l'etalon entier en file a chaque fois.
+    # Ici, on est accroche a l'ECRITURE d'un article, qui n'arrive
+    # qu'une fois par production.
+    # / The four local judges go with it: without them a fresh article
+    # has verdicts but no controllers, and the whole tension signal is
+    # dead on the very articles one has just read. They cost nothing —
+    # local, concurrency 1, niced. The fan-out stays out of the task
+    # itself, which install.sh calls at every container start.
+    from front.views_synthese import _lancer_un_second_avis
+
+    _lancer_un_second_avis(demandeur_id, page_d_article)
+    return job
 
 
 @shared_task(bind=True)
@@ -1798,7 +1987,18 @@ def verifier_les_citations_task(self, job_id):
         job.status = "processing"
         job.save(update_fields=["status"])
 
-        bilan = verifier_les_citations_d_un_article(job.page, job.ai_model)
+        # LE REGIME EST INSCRIT DANS LE JOB, pas devine ici : le bilan
+        # est relu apres coup, et « 3 vérifiées » ne veut pas dire la
+        # meme chose selon qu'on a juge tout l'article ou seulement ses
+        # citations neuves.
+        # / The regime is recorded in the job: the same count means two
+        # different things depending on it.
+        seulement_les_non_jugees = bool(
+            (job.raw_result or {}).get("seulement_les_non_jugees")
+        )
+        bilan = verifier_les_citations_d_un_article(
+            job.page, job.ai_model, seulement_les_non_jugees,
+        )
 
         donnees = job.raw_result or {}
         donnees["bilan_de_verification"] = bilan

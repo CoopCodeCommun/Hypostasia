@@ -35,7 +35,15 @@
      / The etalon's geometry tokens. The panel width was written twice —
      inline, and again inside the compensation expression. The copies
      agreed; the token removes the duplication, not a drift. */
-  --panneau: 23rem;
+  /* UNE SEULE LARGEUR POUR LES DEUX PANNEAUX. Celui des analyses
+     mesurait 23rem quand celui des preuves en fait 26 : deux panneaux
+     qui vivent au meme endroit, se basculent du meme bouton et se
+     lisent l'un apres l'autre n'ont aucune raison d'avoir deux
+     largeurs — le bord de la zone de lecture sautait de 48px en
+     passant d'une note a un article.
+     / One width for both panels: they share a place and a toggle, so
+     the reading zone's edge must not jump by 48px between them. */
+  --panneau: var(--preuve);
   /* La largeur de la COLONNE DE TEXTE, hors gouttiere (etalon § 1).
      Elle vit ici et non dans `.lecture-zone-conteneur` parce que la
      boite de lecture se calcule desormais a partir d'elle.
@@ -257,13 +265,54 @@
   color: color-mix(in srgb, var(--barre-texte) 78%, transparent);
 }
 #bascule-theme:hover { background: rgba(255, 255, 255, .12); color: var(--barre-texte); }
-/* Sur mobile la barre est deja pleine et ce bouton mangeait la largeur
-   du titre du document, jusqu'a le faire disparaitre (test
-   test_10_mobile). Le titre est plus utile ici : la bascule reste
-   accessible depuis la page de reglages et les pages nues.
-   / On mobile the toggle squeezed the document title out of the bar. */
+/* SUR MOBILE AUSSI, ET C'EST UNE DECISION DU MAINTENEUR (20 aout) :
+   « le bouton doit etre bien visible, sur desktop comme sur mobile ».
+   Il etait `display: none` sous 640px depuis que la bascule avait
+   trois etats et que le theme suivait le systeme — on pouvait donc s'en
+   passer. Le clair est desormais le defaut TOUJOURS : sans bouton
+   visible, un utilisateur de telephone n'a plus aucun moyen de passer
+   en sombre.
+   Il se resserre au lieu de disparaitre, et c'est le TITRE qui cede —
+   il est deja tronque par construction sur cette largeur.
+   / Hidden below 640px back when the theme followed the system, so it
+   was dispensable. Light is now always the default: without a visible
+   toggle, a phone user has no way to reach dark mode at all. */
 @media (max-width: 640px) {
-  nav.h-12 #bascule-theme { display: none; }
+  nav.h-12 #bascule-theme { padding: .3rem .3rem; }
+  /* IL FALLAIT PRENDRE CES PIXELS QUELQUE PART. La barre porte six
+     controles a 390px ; en ajoutant la bascule, le titre du document
+     tombait a ZERO — mesure au navigateur, et c'est ce que le test
+     `test_navbar_titre_tronque_visible` interdit.
+     On les prend sur les DEUX liens de navigation (« Bases »,
+     « Carnets »), qui sont deja repris juste dessous par le fil
+     d'Ariane et dans le menu utilisateur : ils se resserrent, le titre
+     garde un minimum lisible.
+     / Six controls at 390px squeezed the title to zero. The two nav
+     links are repeated by the breadcrumb right below and by the user
+     menu; they give the room back. */
+  nav.h-12 [data-testid="lien-nav-bases"],
+  nav.h-12 [data-testid="lien-nav-carnets"] { font-size: .75rem; }
+  /* LE TITRE DU DOCUMENT SORT DE LA BARRE, et le fil d'Ariane le porte.
+     A 390px, la barre tient six controles ; le titre y tombait a 72px
+     et n'affichait plus que deux lettres — « Ba » pour « Badgeons la
+     Normandie ». Le fil d'Ariane, juste dessous, le donne en entier et
+     avec sa hierarchie.
+     Deux lettres ne sont pas un titre : c'est de la place prise a des
+     controles qui, eux, ne peuvent pas se lire ailleurs.
+     / Two letters are not a title: it was space taken from controls
+     that cannot be read anywhere else, while the breadcrumb right
+     below gives the name in full. */
+  /* MAIS SEULEMENT SI LE FIL D'ARIANE EST LA POUR LE PORTER. Une note
+     qui n'appartient a aucun carnet n'en a pas : masquer le titre sans
+     condition la laisserait SANS AUCUN titre, nulle part — on aurait
+     troque un titre illisible contre pas de titre du tout. Le test
+     mobile l'a trouve avant l'utilisateur.
+     / Only when the breadcrumb is there to carry it: a note in no
+     notebook has none, and hiding unconditionally would trade an
+     unreadable title for no title at all. */
+  body:has(#fil-ariane) nav.h-12 [data-testid="titre-toolbar"] {
+    display: none;
+  }
 }
 /* Hors de la barre (pages nues), il vit sur du papier. */
 .zone-corpus #bascule-theme { color: var(--encre-douce); border-color: var(--filet-controle); }
@@ -2215,6 +2264,35 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
   display: block;
 }
 
+/* LE PASSAGE QUI ENTOURE LA CITATION, sur la carte ACTIVE elle aussi.
+   C'est le meme geste que sur la fiche de preuve : on clique, et le
+   document s'ouvre autour de ce qu'on cite. Une citation sortie de son
+   paragraphe se lit mal — et parfois faux.
+
+   IL EST GRIS, ET PLUS PETIT QUE LA CITATION. La carte existe pour
+   montrer ce qui est CITE ; le passage l'eclaire, il ne le concurrence
+   pas. Contraste de `--encre-douce` sur le fond de la carte : 4,74:1 en
+   clair et 6,55:1 en sombre — au-dessus des 4,5:1 d'un texte courant,
+   alors qu'il n'est ici que du decor.
+
+   `pre-line` REND LE SAUT DE LIGNE que le service pose a la jonction de
+   deux elements. Sans lui, le paragraphe precedent et la citation se
+   liraient comme un seul, et le passage mentirait sur la structure du
+   document. / The newline at the element join is load-bearing. */
+#drawer-contenu .contexte-de-la-citation {
+  display: block;
+  color: var(--encre-douce);
+  font-size: .92em;
+  white-space: pre-line;
+}
+/* La citation reste la seule a pleine encre : c'est elle qu'on cite.
+   / The quote alone keeps full ink: it is the thing being cited. */
+#drawer-contenu .citation-de-la-carte {
+  display: block;
+  color: var(--typo-citation-color);
+  margin: .15rem 0;
+}
+
 /* ================================================================== */
 /* LA COLONNE DE LECTURE EST CENTREE (etalon § 5 « DISPOSITION »)     */
 /*                                                                     */
@@ -2340,11 +2418,12 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
 }
 
 /* ================================================================== */
-/* LE PANNEAU N'EXISTE QUE SUR UNE NOTE                               */
+/* LE PANNEAU N'EXISTE QUE LA OU IL A QUELQUE CHOSE A MONTRER         */
 /*                                                                     */
 /* Le panneau vit dans `base.html`, donc dans le DOM de tous les       */
-/* ecrans. Mais il ne parle que d'une note : sur les carnets ou les    */
-/* bases, il n'a rien a montrer.                                       */
+/* ecrans. Mais il ne parle que de DEUX choses : les analyses d'une    */
+/* note, les preuves d'un article. Sur les carnets ou les bases, il    */
+/* n'a rien a montrer.                                                 */
 /*                                                                     */
 /* POURQUOI EN CSS ET NON PAR UN `{% if %}`                            */
 /* La navigation est HTMX : elle ne remplace que `#zone-lecture`,      */
@@ -2355,7 +2434,8 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
 /* / HTMX only swaps #zone-lecture, so a template condition would      */
 /* never re-evaluate. The reading container's presence does.           */
 /* ================================================================== */
-.plateau:not(:has([data-testid="lecture-zone-principale"])) > #drawer-overlay {
+.plateau:not(:has([data-testid="lecture-zone-principale"],
+                  [data-testid="synthese-article"])) > #drawer-overlay {
   display: none;
 }
 /* Et la grille redevient une seule colonne : sans cela, elle          */
@@ -2363,9 +2443,93 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
 /* / Otherwise the grid keeps 23rem for a hidden panel.                */
 @media (min-width: 1400px) {
   body.panneau-integre
-    .plateau:not(:has([data-testid="lecture-zone-principale"])) {
+    .plateau:not(:has([data-testid="lecture-zone-principale"],
+                      [data-testid="synthese-article"])) {
     grid-template-columns: 1fr;
   }
+}
+
+/* ================================================================== */
+/* LE MEME TIROIR PORTE LES PREUVES D'UN ARTICLE                      */
+/*                                                                     */
+/* Les preuves etaient une colonne de la grille INTERNE de l'article.  */
+/* Cette grille est centree sous un `max-width` : mesure du 20 aout,   */
+/* fenetre de 1600px, le bord droit du panneau tombait a 1508 — 92px   */
+/* avant le bord de la fenetre, la ou le panneau d'une note tombe a    */
+/* 1600 pile. Un panneau qui flotte au milieu de la page ne se lit pas */
+/* comme un panneau.                                                   */
+/*                                                                     */
+/* Les preuves passent donc par `#drawer-overlay`, qui est une colonne */
+/* de `.plateau` : le bord droit devient exact par construction, et il */
+/* n'y a plus qu'un panneau, un seuil et un controle a tenir.          */
+/* / The evidence sat in the article's own centred grid and stopped    */
+/* 92px short of the window edge. It now uses the plateau's column.    */
+/* ================================================================== */
+
+/* AUCUN VOILE, A AUCUNE LARGEUR, SUR AUCUN DES DEUX PANNEAUX.        */
+/*                                                                     */
+/* Le motif est le meme des deux cotes : le panneau existe pour qu'on  */
+/* lise le texte ET ce qui s'y rapporte EN MEME TEMPS. Une preuve se   */
+/* compare a l'affirmation qu'elle porte ; une extraction se compare   */
+/* au passage dont elle est tiree. Griser le texte pendant qu'on lit   */
+/* la carte retire precisement ce qu'on est venu comparer.             */
+/*                                                                     */
+/* La regle ne visait que l'article : les analyses gardaient leur      */
+/* voile sous 1400px, alors que les deux panneaux partagent desormais  */
+/* une place, un interrupteur et une largeur. Deux comportements pour  */
+/* un meme objet, c'est un objet qu'on n'apprend pas.                  */
+/* / Same reason on both sides: the panel exists so that text and what */
+/* refers to it can be read together. The rule targeted only articles, */
+/* while both panels now share a place, a toggle and a width.          */
+#drawer-backdrop {
+  display: none !important;
+}
+
+/* ================================================================== */
+/* EN REGIME TIROIR, LE PANNEAU SE POSE SOUS LA BANDE DE CONTEXTE     */
+/*                                                                     */
+/* Le tiroir est `fixed top-0 bottom-0` a z-index 70 ; la bande, elle, */
+/* est a 66. Ouvert sous le seuil, il RECOUVRAIT donc la bande — et    */
+/* avec elle son propre interrupteur. Mesure du 20 aout, 1279px :      */
+/* le clic sur le bouton etait intercepte par une fiche de preuve.     */
+/* Sans voile a cliquer, le panneau ne se refermait plus qu'au clavier.*/
+/*                                                                     */
+/* Il commence donc ou commence le plateau, et les deux regimes se     */
+/* posent au meme endroit. Le calcul est celui de `.plateau` plus bas, */
+/* et pour la meme raison : la bande n'existe pas sur tous les ecrans. */
+/*                                                                     */
+/* LE VOILE SUIT LA MEME REGLE. Il est `fixed inset-0` a z-index 68 :  */
+/* il grisait la barre d'outils et la bande, donc l'interrupteur avec. */
+/* Il ne recouvre plus que ce qu'il a a griser — le texte.             */
+/* / Fixed at z-index 70 over a strip at 66, the open drawer covered   */
+/* its own toggle. Both it and its veil now start where the plateau    */
+/* starts.                                                             */
+/* ================================================================== */
+#drawer-overlay,
+#drawer-backdrop { top: var(--barre-outils); }
+body:has(.bande-de-contexte .fil-ariane) #drawer-overlay,
+body:has(.bande-de-contexte .fil-ariane) #drawer-backdrop {
+  top: calc(var(--barre-outils) + var(--barre-fil, 2rem));
+}
+
+/* LE PANNEAU DES PREUVES REMPLIT LE TIROIR. C'est SON corps qui       */
+/* defile (`_style_maquette.html`), parce que le defilement vers une   */
+/* fiche ne doit deplacer que la liste. Laisser au tiroir son          */
+/* rembourrage et son propre defilement ferait un cadre dans le cadre  */
+/* et deux barres de defilement imbriquees.                            */
+/* / The panel's own body scrolls, so bringing a card up moves only    */
+/* the list.                                                           */
+#drawer-contenu:has(.panneau-preuve) {
+  padding: 0;
+  overflow: hidden;
+}
+/* La pastille de statut garde la taille de la FICHE (.72rem) et non   */
+/* celle de la carte d'analyse (.78rem) : la regle `#drawer-overlay    */
+/* .indicateur-statut` l'emporterait sinon par son identifiant.        */
+/* / The card's own dot size, which the id-based rule would outrank.   */
+#drawer-overlay .panneau-preuve .indicateur-statut {
+  width: .72rem;
+  height: .72rem;
 }
 
 /* ================================================================== */
@@ -2641,12 +2805,25 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
   letter-spacing: 0;
   font-size: .8rem;
   line-height: 1;
-  padding: .1rem .25rem;
   background: none;
   border: 1px solid transparent;
   border-radius: 4px;
   color: var(--encre-douce);
   cursor: pointer;
+
+  /* 24 x 24 AU MINIMUM (WCAG 2.5.8, niveau AA). Mesure au navigateur :
+     ce bouton faisait **18 x 18**, et l'exception « cible prise dans une
+     phrase » ne le couvre pas — il vit seul dans une bande.
+     C'est le SEUL moyen de rouvrir le panneau une fois ferme : le rater
+     au doigt, c'est perdre l'acces aux preuves ou aux analyses.
+     / Measured at 18 x 18; the inline exception does not apply, and this
+     is the only way to reopen the panel once closed. */
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  padding: .2rem .35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .bande-de-contexte .bande-titre-panneau .fermer:hover {
   border-color: var(--filet-controle);
@@ -2660,18 +2837,55 @@ nav.h-12 :focus-visible { outline-color: var(--barre-texte); }
   display: none;
 }
 
-/* Le titre du panneau suit le panneau : meme seuil, meme condition.
-   Ailleurs, la bande n'est que le fil. / The panel title follows the
-   panel: same threshold, same condition. */
+/* LE CONTROLE DU PANNEAU EST TOUJOURS LA OU UN PANNEAU EXISTE.
+
+   Il ne paraissait qu'avec `body.panneau-integre`, c'est-a-dire panneau
+   OUVERT : le refermer effacait le seul bouton capable de le rouvrir.
+   Il parait donc des que l'ecran a un panneau — une note ou un article
+   — ouvert ou ferme, et a toutes les largeurs : sous le seuil, le
+   tiroir n'avait aucun controle du tout sur un article.
+
+   `body:has(...)` et non un combinateur : la bande PRECEDE le plateau
+   dans le document, et CSS n'a pas de « frere precedent ».
+
+   ET UN DESCENDANT, JAMAIS UN `:has()` DANS UN `:has()` : la
+   specification l'interdit, et un selecteur invalide fait tomber TOUTE
+   la regle — en silence. Ecrit `.plateau:has([data-testid=...])`, ce
+   bloc n'a jamais rien affiche (mesure du 20 aout : `display: none` a
+   1600px, panneau ouvert).
+   / The control only appeared while the panel was open, so closing it
+   removed the only way to reopen. The strip precedes the plateau, hence
+   :has() on the body — and a descendant inside it, because :has() may
+   not nest and an invalid selector drops the whole rule silently. */
+body:has(.plateau [data-testid="lecture-zone-principale"])
+  .bande-de-contexte .bande-titre-panneau,
+body:has(.plateau [data-testid="synthese-article"])
+  .bande-de-contexte .bande-titre-panneau {
+  display: flex;
+}
+
+/* OUVERT ET INTEGRE, l'en-tete coiffe la colonne : meme largeur, donc
+   la separation verticale des deux colonnes se prolonge dans la bande.
+   Ferme, ou en regime tiroir, il se reduit a son bouton et le fil
+   reprend toute la place. / Open and integrated, the header caps the
+   column; closed, it shrinks to its button. */
 @media (min-width: 1400px) {
-  body.panneau-integre
-    .plateau:has([data-testid="lecture-zone-principale"])
-    ~ .bande-de-contexte .bande-titre-panneau,
   body.panneau-integre .bande-de-contexte .bande-titre-panneau {
-    display: flex;
     width: var(--panneau);
     flex: none;
   }
+}
+
+/* LE GLYPHE DIT CE QUE LE CLIC FERA, et il le lit dans l'etat porte par
+   le corps : la croix retire le panneau, le chevron le ramene. Aucun
+   JavaScript ne recopie cet etat, donc les deux ne peuvent pas
+   diverger. / The glyph reads the state class; nothing copies it. */
+.bande-titre-panneau .fermer .quand-ferme { display: none; }
+body:not(.panneau-integre) .bande-titre-panneau .fermer .quand-ouvert {
+  display: none;
+}
+body:not(.panneau-integre) .bande-titre-panneau .fermer .quand-ferme {
+  display: inline;
 }
 
 /* La hauteur du plateau se calcule a partir de CE QUI LE SURPLOMBE : la

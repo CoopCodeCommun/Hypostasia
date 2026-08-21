@@ -30,13 +30,23 @@ class PageListSerializer(serializers.ModelSerializer):
     L'extension l'utilise pour verifier si une page existe deja via ?url=...
     / Lightweight serializer for the page list (GET /api/pages/).
     / The extension uses it to check if a page already exists via ?url=...
+
+    LOCALISATION : core/serializers.py
+
+    IL NE PORTE PLUS LE CONTENU DES NOTES. Repondre « cette URL est deja
+    la » demande un identifiant et une URL ; livrer en plus
+    `text_readability`, `html_readability` et `html_original` de chaque
+    note du perimetre est hors de proportion avec la question posee.
+    Mesure du 20 aout 2026 sur le depot : la reponse pesait 291 840
+    octets pour 13 notes, dont 150 384 caracteres de texte lisible.
+    / It no longer carries note content: answering "is this URL already
+    here?" needs an id and a URL, not the full text of every note.
     """
     class Meta:
         model = Page
         fields = [
             "id", "url", "title", "domain", "status",
             "error_message", "created_at",
-            "text_readability", "html_readability", "html_original",
         ]
 
 
@@ -55,25 +65,55 @@ class PageCreateSerializer(serializers.ModelSerializer):
         required=False, allow_blank=True, default=""
     )
     blocks = TextBlockSerializer(many=True, required=False)
-    content_hash = serializers.CharField(required=False, allow_blank=True, default="")
+    # LECTURE SEULE, ET C'EST LE POINT. L'empreinte a longtemps eu DEUX
+    # implementations : l'extension hachait `body.textContent` (sans
+    # `.strip()`), le serveur hachait `extraire_texte_depuis_html()`
+    # (avec). Mesure du 20 aout 2026 : sur les 10 notes du depot ayant un
+    # `html_readability`, 2 donnaient deux empreintes differentes — donc
+    # le doublon par contenu ne se declenchait pas. Une seule
+    # implementation supprime la classe de bug au lieu de la corriger.
+    # / Read-only on purpose: the hash had two implementations that
+    # disagreed on 2 of 10 measured notes, so content dedup never fired.
+    content_hash = serializers.CharField(read_only=True)
+    # Le carnet demande par l'extension. Il ne va pas sur le modele — il
+    # est retire dans create() et rendu a la vue, qui verifie le droit
+    # d'ecriture. Il passe ICI et non par le payload brut pour qu'un
+    # `dossier_id` non entier rende un 400 lisible : lu du brut, il
+    # arrivait tel quel dans un `filter(pk=...)` et levait une
+    # `ValueError` — donc un 500 pour une faute de frappe.
+    # / The notebook the extension asks for: validated here so a
+    # non-integer value yields a readable 400 instead of a 500.
+    dossier_id = serializers.IntegerField(
+        required=False, allow_null=True, write_only=True,
+        error_messages={
+            "invalid": "dossier_id doit être un entier / must be an integer",
+        },
+    )
 
     class Meta:
         model = Page
         fields = [
             "id", "url", "title",
             "html_original", "html_readability", "text_readability",
-            "content_hash", "blocks",
+            "content_hash", "blocks", "dossier_id",
         ]
 
     def create(self, validated_data):
-        import hashlib
         import logging
 
-        from front.services.texte_depuis_html import extraire_texte_depuis_html
+        from front.services.texte_depuis_html import (
+            empreinte_d_une_capture,
+            extraire_texte_depuis_html,
+        )
 
         logger = logging.getLogger("core")
 
         blocks_data = validated_data.pop("blocks", [])
+        # La destination n'est pas un champ du modele : la vue s'en est
+        # deja servie pour resoudre le carnet, et le rangement passe par
+        # `ranger_une_note_dans_un_carnet`.
+        # / Not a model field: the view already resolved the notebook.
+        validated_data.pop("dossier_id", None)
 
         url_page = validated_data.get("url", "(pas d'url)")
         logger.debug(
@@ -97,12 +137,13 @@ class PageCreateSerializer(serializers.ModelSerializer):
                 len(validated_data["text_readability"]),
             )
 
-        # Calculer le hash du contenu pour detecter les modifications futures
-        # / Compute content hash to detect future modifications
+        # L'empreinte de deduplication, par la fonction que la vue appelle
+        # elle aussi : une seule implementation, deux appelants.
+        # / The dedup fingerprint, through the function the view calls too.
         texte_pour_hash = validated_data.get("text_readability", "")
-        validated_data["content_hash"] = hashlib.sha256(
-            texte_pour_hash.encode("utf-8")
-        ).hexdigest()
+        validated_data["content_hash"] = empreinte_d_une_capture(
+            html_readability, texte_pour_hash,
+        )
 
         logger.debug(
             "PageCreateSerializer.create: content_hash=%s — creation Page en base",

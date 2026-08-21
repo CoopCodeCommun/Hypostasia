@@ -147,6 +147,25 @@ analyser_avec_le_vrai_modele() {
     # the button does. Only verdict-less pairs are judged.
     echo "Verification des citations des articles etalons..."
     python manage.py verifier_les_citations_etalons
+
+    # LE SECOND AVIS — les quatre juges locaux.
+    #
+    # GRATUIT ET HORS RESEAU, contrairement aux trois etapes ci-dessus :
+    # les quatre encodeurs tournent sur processeur, dans le conteneur.
+    # Il n'y a donc aucune raison de ne pas le poser a l'installation.
+    #
+    # Sans lui, une installation neuve affiche « aucun avis » sur TOUTE
+    # la fiche de preuve : le second avis — une couche entiere du
+    # produit — reste invisible, et rien ne dit si elle marche.
+    #
+    # Elle passe APRES la verification : les juges notent les paires,
+    # et une paire n'existe qu'une fois l'article indexe. Idempotente —
+    # un article dont chaque citation porte deja les quatre avis est
+    # saute, donc un redemarrage ne recalcule rien.
+    # / Free and offline, unlike the three steps above. Without it a
+    # fresh install shows "no opinion" across the whole proof panel.
+    echo "Notation par les quatre juges locaux (gratuit, hors reseau)..."
+    python manage.py noter_avec_les_juges_locaux
 }
 
 case "$ETAPE" in

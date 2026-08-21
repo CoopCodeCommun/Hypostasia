@@ -1,0 +1,72 @@
+{
+ "modele": "medium_prompt_corrige",
+ "articles": [
+  {
+   "genre": "wiki",
+   "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+   "texte": "## Origines et définition des Open Badges\n\nLes Open Badges ont été créés en 2011 par la fondation Mozilla et la fondation MacArthur pour répondre à un besoin de reconnaissance des apprentissages informels.[[ext:13]] Un Open Badge est une image numérique contenant des métadonnées structurées : le récepteur, l’émetteur, les critères de validation, et les preuves associées.[[ext:14]][[ext:15]][[ext:16]][[ext:17]][[ext:18]] L’infrastructure technique garantit l’intégrité des données et permet, si nécessaire, de masquer l’identité du récepteur, ce qui peut faciliter des usages comme les CV anonymes.[[ext:19]]\n\nUn Open Badge incarne une expérience, une compétence ou un savoir, et peut reconnaître des apprentissages, des participations, des réalisations ou des rôles.[[ext:20]][[ext:84]] Il permet de valider des compétences non couvertes par les diplômes ou certifications traditionnelles, comme des savoir-faire, des savoir-être ou des engagements.[[ext:85]][[ext:87]]\n\n## Fonctionnalités et usages\n\nLes Open Badges peuvent être utilisés pour construire des profils individuels, établir des parcours d’apprentissage ou cartographier les talents d’un territoire.[[ext:22]] Ils connectent des informations variées, comme des compétences, des personnes, des ressources pédagogiques ou des lieux.[[ext:23]] Leur simplicité technique permet une mise en œuvre à différentes échelles : individuelle, pédagogique, institutionnelle ou territoriale.[[ext:34]]\n\nLes badges sont souvent validés via des modalités simples (observation en situation, entretien d’évaluation) et peuvent être endossés par d’autres organismes pour renforcer leur crédibilité.[[ext:88]][[ext:130]][[ext:131]] Ils sont accessibles via des liens intégrés à des CV numériques ou des passeports dédiés, comme l’Open Badge Passport.[[ext:129]][[ext:40]]\n\n## Écosystème et gouvernance\n\nLe standard Open Badges est aujourd’hui porté par IMS Global, un consortium international, après avoir été soutenu par la Badge Alliance.[[ext:35]] Cette évolution offre des garanties de pérennité et d’interopérabilité.[[ext:36]] Des initiatives comme *Badgeons la Normandie* illustrent son déploiement territorial, avec des objectifs comme la valorisation des apprentissages tout au long de la vie ou la construction de parcours connectés.[[ext:102]][[ext:103]]\n\nLa communauté autour des Open Badges joue un rôle clé, en fournissant un réseau de soutien et d’opportunités.[[ext:89]] Des projets comme *Coop’ Compétences* montrent comment des acteurs locaux (organismes de formation, tiers-lieux) collaborent pour créer et endosser des badges adaptés à des publics éloignés de l’emploi.[[ext:113]][[ext:115]]\n\n## Enjeux et limites\n\nL’absence de réglementation ou d’autorité centrale signifie que toute personne ou organisme peut créer des badges, sans garantie uniforme de qualité ou de niveau.[[ext:124]][[ext:125]] La valeur d’un badge dépend ainsi de la réputation de son émetteur et de la confiance accordée par la communauté ou les endosseurs.[[ext:140]][[ext:146]] Les plateformes utilisées pour héberger les badges sont majoritairement privées, comme Open Badge Factory, ce qui pose la question de la dépendance à des acteurs commerciaux.[[ext:126]][[ext:127]]\n\nLa multiplication des initiatives et des badges similaires, couplée à l’absence de cadre politique public, peut générer de la confusion ou des inégalités de reconnaissance.[[ext:138]][[ext:139]][[ext:148]] Certains territoires, comme la Région Auvergne-Rhône-Alpes, intègrent déjà les badges dans leurs critères d’évaluation des organismes de formation, mais ces pratiques restent isolées.[[ext:142]]\n\n## Historique et adoption\n\nLa norme Open Badge émerge en 2010 avec un premier projet présenté par Mozilla à Barcelone, suivi d’un lancement officiel en 2012.[[ext:119]][[ext:120]] Le Collège de Rosemont (Québec) a été pionnier en 2014, suivi en France par l’Université de Caen-Normandie en 2016, puis par des collectifs comme *Badgeons la Normandie*.[[ext:121]][[ext:122]] Depuis 2017, leur adoption progresse en France et dans le monde, bien que des défis persistent, comme le financement de l’évaluation ou l’absence de soutien public systématique.[[ext:123]][[ext:147]][[ext:149]]\n",
+   "caracteres": 4205,
+   "etats": {
+    "verifie": 12,
+    "faible": 20,
+    "introuvable": 7,
+    "non_verifie": 4
+   },
+   "degres": {
+    "0.0": 2,
+    "40.0": 18,
+    "70.0": 12
+   },
+   "prose_nue": {
+    "phrases": 23,
+    "phrases_sans_marqueur": 0,
+    "part_des_phrases": 0.0,
+    "paragraphes": 9,
+    "paragraphes_sans_marqueur": 0,
+    "part_des_paragraphes": 0.0
+   }
+  },
+  {
+   "genre": "synthese",
+   "titre": "État des lieux du carnet de démonstration",
+   "texte": "## État des lieux du carnet de démonstration\n\n## Les Open Badges : un outil de reconnaissance des compétences\nLes Open Badges, lancés en 2011 par les fondations Mozilla et MacArthur, visent à combler un manque dans la reconnaissance des apprentissages informels[[ext:13]]. Ces badges numériques ouverts sont des images contenant des métadonnées précises : récepteur, émetteur, critères de validation, et preuves associées[[ext:14]][[ext:15]][[ext:16]][[ext:17]][[ext:18]]. Leur infrastructure garantit l’intégrité des données et permet une reconnaissance anonyme, utile pour des CV ou des processus de sélection[[ext:19]].\n\nIls permettent de certifier des apprentissages, des compétences, des participations, des réalisations, des rôles ou des personnes, que ce soit de manière formelle (certifications) ou informelle (endossements)[[ext:20]][[ext:22]]. Une collection de badges peut ainsi servir à construire des profils individuels, des parcours d’apprentissage institutionnels, ou une cartographie des talents d’un territoire. Leur simplicité technique permet une mise en œuvre à différents niveaux : individuel, enseignant, établissement, réseau ou territoire[[ext:34]].\n\nLe standard Open Badges, initialement porté par la Badge Alliance, est désormais développé par IMS Global, un consortium international, assurant pérennité et interopérabilité[[ext:35]][[ext:36]]. En Normandie, le projet « Badgeons la Normandie » illustre cette dynamique, avec des objectifs comme la création d’une culture partagée sur les badges, l’identification des apprentissages informels, ou la mise en place d’une plateforme de valorisation (Open Badge Passport)[[ext:37]][[ext:38]][[ext:40]]. Le comité de pilotage, composé de représentants de chaque organisation membre, se réunit deux fois par an, avec une animation assurée par François Millet (Le Dôme) et Eden Jean-Marie (CIBC)[[ext:57]][[ext:58]][[ext:59]].\n\n## Un écosystème en développement, mais sans cadre réglementaire\nLes Open Badges incarnent une expérience, une compétence ou un savoir, et peuvent valider des aptitudes non reconnues par des diplômes formels[[ext:84]][[ext:85]]. Leur création est ouverte à tous (individus, organismes, collectifs), sans réglementation ni autorité centrale de garantie[[ext:124]][[ext:125]]. Les plateformes utilisées, comme Open Badge Factory, sont privées et fonctionnent sur un modèle économique d’abonnement[[ext:126]][[ext:127]]. Les badges, une fois créés, sont déposés sur ces plateformes et peuvent être endossés par d’autres organismes pour renforcer leur crédibilité[[ext:128]][[ext:130]].\n\nCependant, plusieurs défis persistent : multiplication d’initiatives redondantes, absence de cadre réglementaire ou de politiques publiques, et inégalité de réputation entre les émetteurs de badges[[ext:138]][[ext:139]][[ext:140]]. La qualité d’un badge dépend ainsi de la crédibilité de l’organisme évaluateur, et son financement repose sur des partenariats ou des appels à projets, sans soutien public systématique[[ext:146]][[ext:147]][[ext:149]]. Malgré cela, des initiatives territoriales, comme en Normandie ou en Auvergne-Rhône-Alpes, montrent une adoption croissante, avec des acteurs comme le FREREF ou l’AdevComp qui animent des alliances éducatives pour l’apprentissage tout au long de la vie[[ext:102]][[ext:143]][[ext:144]].\n\n## L’intelligence artificielle : entre révolution technologique et enjeux de gouvernance\nL’IA est perçue par certains comme la révolution la plus importante depuis l’invention de l’écriture, avec un impératif d’investissement massif pour éviter un retard géopolitique[[ext:21]][[ext:24]]. Cette vision s’accompagne d’un appel à former des ingénieurs et à cesser de se focaliser sur les risques, au risque de voir des puissances comme la Chine ou les États-Unis dominer le champ[[ext:25]][[ext:32]]. D’autres y voient une fatalité historique imposée par des acteurs privés, transformant chaque geste humain en donnée exploitable, une forme de « silicolonisation » du monde[[ext:26]][[ext:27]].\n\nUne troisième voie émerge : l’IA comme commun numérique, gouverné collectivement par des communautés d’usagers qui élaborent des règles adaptées à leur contexte[[ext:28]][[ext:29]][[ext:30]]. Cette approche s’appuie sur des exemples concrets comme les logiciels libres ou Wikipédia, démontrant que des ressources numériques peuvent être gérées démocratiquement[[ext:66]]. Cependant, des critiques soulignent que cette gouvernance polycentrique se heurte à la rapidité d’évolution de l’IA, qui dépasse les capacités d’auto-organisation des sociétés[[ext:50]][[ext:51]]. Certains y voient même une course inévitable vers une intelligence artificielle supérieure à l’humaine, avec le risque d’une bifurcation entre une élite cognitive augmentée et le reste de l’humanité[[ext:52]].\n\nD’autres voix dénoncent la rhétorique guerrière autour de l’IA, qui réduit l’humain à un profil statistique à optimiser, et appellent à une insurrection civique contre la délégation du jugement aux machines[[ext:44]][[ext:45]][[ext:46]][[ext:54]][[ext:55]]. Le transhumanisme, présenté comme une description neutre du réel par ses partisans, est critiqué comme un projet politique porté par des intérêts économiques, réduisant l’humanité à un problème d’optimisation[[ext:69]][[ext:70]][[ext:71]][[ext:72]][[ext:73]].\n\n## Une approche épistémologique et technique pour encadrer l’IA\nLes architectures d’IA contemporaines (Chain-of-Thought, apprentissage par renforcement non déductif) sont structurellement irréductibles aux six formes canoniques de raisonnement de l’épistémologie classique[[ext:74]]. Leur traitement de l’information repose sur des espaces vectoriels à haute dimension, régis par des treillis orthomodulaires non commutatifs et non distributifs, rendant impossible une explicabilité interne fiable (XAI)[[ext:75]][[ext:76]]. Le contrôle humain doit donc s’exercer à l’extérieur du substrat informatique, via des cadres dialectiques comme les modèles de Dung ou de Lakatos[[ext:77]].\n\nLe dispositif Hypostasia opérationnalise cette approche en projetant des énoncés discursifs sur une matrice de 30 hypostases logiques discrètes, ouvrant la voie à une gouvernance polycentrique de l’IA conçue comme un commun de connaissance[[ext:78]][[ext:79]]. Cependant, des lacunes persistent, comme l’absence de surveillance continue de l’application réelle des chartes, identifiée comme une faiblesse par l’audit des principes d’Ostrom[[ext:116]][[ext:118]]. Par ailleurs, des phénomènes comme le *reward hacking* ou le désalignement émergent naturel soulignent les limites des approches actuelles[[ext:97]].\n\n## Autres éléments contextuels\nLe projet « Palais César » semble être un échange anecdotique sans lien direct avec les thèmes principaux, où il est précisé que le lieu en question n’est pas le vrai palais de César[[ext:61]][[ext:63]].\n",
+   "caracteres": 6848,
+   "etats": {
+    "introuvable": 6,
+    "faible": 36,
+    "verifie": 27
+   },
+   "degres": {
+    "0.0": 7,
+    "40.0": 29,
+    "70.0": 27
+   },
+   "prose_nue": {
+    "phrases": 18,
+    "phrases_sans_marqueur": 1,
+    "part_des_phrases": 0.05555555555555555,
+    "paragraphes": 6,
+    "paragraphes_sans_marqueur": 0,
+    "part_des_paragraphes": 0.0
+   }
+  }
+ ],
+ "couverture": [
+  {
+   "titre": "Wiki — Les open badges et la reconnaissance des compétences",
+   "citations": 43,
+   "distinctes": 43,
+   "hors_perimetre": 0,
+   "perimetre": 137,
+   "couverture": 0.31386861313868614
+  },
+  {
+   "titre": "État des lieux du carnet de démonstration",
+   "citations": 69,
+   "distinctes": 69,
+   "hors_perimetre": 0,
+   "perimetre": 137,
+   "couverture": 0.5036496350364964
+  }
+ ]
+}

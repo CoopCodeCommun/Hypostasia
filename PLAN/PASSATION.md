@@ -333,13 +333,125 @@ de s'y engager, pas après.
 les annexes de sa spec, faute d'un emplacement décidé pour du code qui n'est pas
 du code de production.
 
+**La marge de neutralité des juges locaux, à revoir.** (mesure du 20 août, sur
+836 avis réels) `MARGE_DE_NEUTRALITE = 2,5` est appliquée uniformément à des
+échelles différentes : **CamemBERTa v2 et mDeBERTa v3 — les deux MEILLEURS
+juges par AUC appariée — sont muets 85 % du temps**, contre 4 % pour `bge-m3`.
+Les juges à contradiction rendent `(P(ent) − P(contra) + 1)/2`, concentré autour
+de 50 ; `bge-m3` rend `P(entailment)` brut, étalé de 0,3 à 99,2.
+
+**L'accord affiché repose donc de fait sur `bge-m3`** — le seul juge SANS classe
+contradiction, c'est-à-dire sans le signal que tout le dossier défend. Une marge
+par juge, ou une échelle commune : à trancher.
+
+**Faut-il assouplir la comparaison du verbatim ?** (mesure du 19 août,
+`benchmarks/extraction_format/2026-08-19_le-mode-d-echec-du-verbatim.md`) Sur
+les 60 citations `INTROUVABLE` en base, **34 (57 %)** ne tiennent qu'à une
+retouche de forme : un espace de ponctuation (20), un point ajouté (8), une
+majuscule d'amorce (6). **11 seulement (18 %) sont un vrai saut de passage.**
+
+Trois règles les récupéreraient, et aucune n'ajoute ni ne retire de contenu.
+Mais **c'est un arbitrage, pas un correctif** : ça déplace ce que « verbatim »
+veut dire dans la chaîne de preuve, et le produit tout entier repose dessus.
+
+Et la cause dominante n'est pas le modèle : **la page 1 porte littéralement
+`territoire .`**, un point détaché de son mot par l'ingestion, que les trois
+Mistral recollent et que notre comparaison leur refuse. Corriger l'ingestion
+traiterait la cause — au prix d'une réingestion. **Trois voies, aucune
+tranchée.**
+
+**Le banc des rédacteurs a tourné, et il a mesuré son propre bruit.** Neuf
+passes (3 modèles × 3 répétitions × 4 articles, températures à 0, périmètre
+figé à 137 extractions) :
+`benchmarks/redaction/2026-08-19_trois-redacteurs-a-un-seul-extracteur.md` § 9.
+
+**Le « % de citations vérifiées » ne discrimine pas les rédacteurs.**
+`mistral-large` rend 29,4 %, 40,6 % puis 31,1 % sur trois passes identiques —
+onze points d'amplitude avec lui-même, pour 7,8 points d'écart entre modèles.
+**Tout classement fondé sur ce taux, dans ce dépôt, est du bruit** — y compris
+ceux des campagnes du 18 et du 19 août au matin.
+
+Ce qui tranche : le nombre de citations (Small 279 contre Medium 173), la
+longueur (Medium 19 k caractères contre Small 32 k), et — de justesse — la
+prose sans marqueur (Medium 10 %, Small 18,8 %, Large 26,2 %).
+
+**Large n'est premier sur aucun critère et il est le plus instable des trois.**
+**Entre Small et Medium, la mesure ne tranche pas** : articles différents, pas
+meilleurs. L'arbitrage est un arbitrage de prix — Small coûte dix fois moins.
+
+**L'effet du SUJET égale celui du modèle** : Small va de 4,5 % de prose non
+sourcée sur « open badges » à 35,2 % sur « gouvernance collective », le sujet
+que le corpus couvre le moins. Un article sur un sujet mal couvert se dégrade
+en prose non sourcée, et changer de modèle n'y change rien. **C'est un
+arbitrage produit qui n'a jamais été posé.**
+
 ---
 
-## 7. L'état des tests — remesuré le 19 août
+## 7. L'état des tests — remesuré le 20 août, après la tension sur le renvoi
 
-**2076 tests, tous verts**, dont **1** sauté. La suite tourne en **24 min 09 s**
-(`make test-rapide`, donc **hors e2e / docling / llm**), sous **LangExtract
-1.6.0**.
+**2200 tests, tous verts**, dont **1** sauté. La suite tourne en **24 min 18 s**
+(`Ran 2200 tests in 1458.065s`, `make test-rapide`, donc **hors e2e / docling /
+llm**), sous **LangExtract 1.6.0**. Suite lancée **seule**, aucune mesure
+concurrente.
+
+> **Les 50 tests de plus que la mesure de 2098 ci-dessous ne sont pas tous les
+> miens, et je ne les attribue pas.** Le chantier des juges locaux en ajoute
+> **20**, comptés : 14 pour la table `AvisDeVerification`, son report et l'accord
+> (`core/tests/test_avis_des_juges_locaux.py`), 3 pour une extraction citée dans
+> deux paragraphes (`front/tests/test_une_extraction_citee_deux_fois.py`), et 3
+> de plus dans `front/tests/test_second_avis_a_l_ecran.py`, passé de 11 à 14. Les
+> **30 restants** viennent d'un travail mené en parallèle le même jour : je les
+> compte, je ne dis pas d'où ils sortent.
+
+> ⚠️ **Deux mesures ont été perdues aujourd'hui pour la même raison, et il faut
+> le savoir avant de croire un chiffre.** Une suite complète lancée pendant
+> qu'une autre tournait a rendu **299 erreurs** en `real_ensure_connection` —
+> puis, une heure plus tard, deux sessions ont lancé la leur en même temps. La
+> base de test est partagée : la seconde détruit la première en plein vol, et
+> **l'échec ne ressemble pas à sa cause**. La vérification tient en une commande,
+> à faire AVANT de lancer :
+>
+> ```bash
+> docker exec hypostasia_web sh -c "ps -eo args | grep -c '[m]anage.py test'"
+> ```
+>
+> Zéro, ou on ne lance pas.
+
+> **Les 16 tests de plus** que la mesure de 2082 ci-dessous sont ceux du typage
+> du mode d'échec du verbatim
+> (`hypostasis_extractor/tests/test_typage_des_non_verbatim.py`, **22 tests** au
+> total). Contrairement au chantier des encodeurs, celui-ci **ajoute** des tests :
+> l'outil de banc vit bien dans `benchmarks/`, mais ses fonctions de typage et de
+> réparation sont pures, et **cinq d'entre elles verrouillent un cas qui ne doit
+> JAMAIS passer** — un décimal blanchi par une énumération, une question devenue
+> affirmation, un point que la source portait déjà. Le test est chargé par son
+> chemin, ce qui permet de le collecter depuis une app.
+>
+> **Aucun fichier de `core/`, `front/` ou `hypostasis_extractor/` n'a été
+> modifié** — seul un fichier de test y a été ajouté.
+
+> **Le chantier des encodeurs n'ajoute AUCUN test, et c'est délibéré.** Tout ce
+> qu'il livre vit dans `benchmarks/juge_de_verification/`, que `manage.py test`
+> **ne collecte pas** — le dossier n'est pas une app Django et n'a pas
+> d'`__init__.py`. Même précédent et mêmes raisons que `comparer_un_juge.py` et
+> `comparer_shieldstral.py` ; c'est écrit en tête du README de ce dossier. Aucun
+> fichier de `core/`, `front/` ou `hypostasis_extractor/` n'a été touché.
+>
+> **Les 6 tests de plus que la mesure de 2076 ci-dessous ne sont donc pas les
+> miens** — ils viennent du travail mené en parallèle le même jour. Je les compte,
+> je ne les attribue pas.
+
+*(Le compte de 2082 ci-dessus était celui du 19 août avant le typage du
+verbatim ; il est conservé pour que la chaîne des écarts reste lisible.)*
+
+> ⚠️ **Le `Makefile` et cette section ont divergé, et cette section prétend que
+> c'est impossible.** L'aide de `make test` annonce `test-rapide` à **1748 tests,
+> ~7 min 30 (mesure du 15 août 2026)** ; la mesure ci-dessus en compte **2082 en
+> 24 minutes**. Or le bas de cette section renvoie au `Makefile` « qui les porte
+> avec leurs comptes » précisément pour éviter deux listes qui divergent — et
+> les deux ont divergé de 334 tests et 16 minutes. À trancher par le mainteneur :
+> soit le `Makefile` cesse d'annoncer un compte, soit il est remis à jour à
+> chaque mesure.
 
 > Les **17 tests de plus** que la mesure du 18 août (2059) : 9 pour le repli sur
 > les marqueurs groupés (`core/tests/test_marqueurs_groupes.py`) et 8 pour la
@@ -415,8 +527,8 @@ le `Makefile` les porte avec leurs comptes, et une seconde liste divergerait.
 deux exécutions simultanées se la détruisent mutuellement en plein vol (755
 erreurs fantômes constatées).
 
-> **Cette section est la source de la mesure** — aujourd'hui **2076 tests en
-> 24 min 09 s**, en tête de section. Ni le README ni `AGENTS.md` ne la
+> **Cette section est la source de la mesure** — aujourd'hui **2148 tests en
+> 24 min 21 s**, en tête de section. Ni le README ni `AGENTS.md` ne la
 > répètent : ils y renvoient. Si tu remesures, c'est ici que tu écris, et
 > nulle part ailleurs.
 >

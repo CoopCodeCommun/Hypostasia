@@ -89,8 +89,30 @@
 <p class="typo-machine text-xs leading-relaxed text-slate-600 mb-1">{{ attr_1 }}</p>
 {% endif %}
 
+{% comment %}
+LA CITATION, ET LE PASSAGE QUI L'ENTOURE.
+
+Le passage vient du document source, de part et d'autre de la citation :
+sortie de son paragraphe, une citation se lit mal — et parfois faux.
+« ce n'est pas suffisant » ne veut rien dire sans la phrase d'avant.
+
+NI L'UN NI L'AUTRE NE S'AFFICHE AU REPOS. Une liste ou chaque carte
+deroule son extrait n'est plus une liste : c'est un mur de texte qui
+redit ce que la page dit deja a cote (etalon § 14). C'est le CSS qui
+les ouvre sur la carte ACTIVE, celle qu'on vient de cliquer.
+
+`entity.passage` N'EST POSE QUE PAR LE PANNEAU DES ANALYSES. Ce gabarit
+sert SEPT ecrans, et les six autres n'ont pas de document a lire autour
+d'une citation — un test d'analyseur juge un texte colle a la main. Le
+`{% if %}` n'est donc pas une precaution : c'est la regle.
+/ Neither shows at rest: a list where every card unrolls its excerpt is
+a wall of text. Only the analyses panel sets `passage`; this template
+serves seven screens.
+{% endcomment %}
 <p class="typo-citation text-xs leading-relaxed text-slate-500 italic">
-    [{{ entity.extraction_text|truncatechars:120 }}]
+    {% if entity.passage.avant %}<span class="contexte-de-la-citation">{{ entity.passage.avant }}</span>{% endif %}
+    <span class="citation-de-la-carte">[{{ entity.extraction_text|truncatechars:120 }}]</span>
+    {% if entity.passage.apres %}<span class="contexte-de-la-citation">{{ entity.passage.apres }}</span>{% endif %}
 </p>
 
 {# === 3. Mots-clés (attr_3) === #}

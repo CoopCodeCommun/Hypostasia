@@ -22,6 +22,7 @@ from rest_framework.response import Response
 from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, EtatIngestion, GroupeUtilisateurs, Invitation, NotificationTacheLue, Page, PageEdit, Question, ReponseQuestion, RoleDeModele, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, TypeDeTache, VisibiliteDossier
 from core.services.corpus import (
     deplacer_une_note_vers_un_carnet,
+    peut_ecrire_dans_le_carnet,
     ranger_une_note_dans_un_carnet,
     retirer_une_note_d_un_carnet,
 )
@@ -215,39 +216,22 @@ def _utilisateur_peut_ecrire_dossier(utilisateur, dossier):
     / A public folder is readable by all but writable only by owner and invitees.
 
     LOCALISATION : front/views.py
+
+    LA REGLE N'EST PAS ICI : elle est dans `core/services/corpus.py`,
+    sous deux formes voisines — `carnets_ou_ecrire` (QuerySet, dont
+    l'API de l'extension a besoin) et `peut_ecrire_dans_le_carnet` (un
+    seul carnet, appelee ici). Deux ecritures d'une meme regle finissent
+    toujours par differer ; c'est deja arrive trois fois sur celle-ci.
+    / The rule lives in core/services/corpus.py, in two adjacent forms.
+
+    ATTENTION A LA DISSYMETRIE AVEC LA LECTURE : `_utilisateur_a_acces_dossier`
+    a un contournement superuser, PAS celle-ci. Lire tout n'est pas
+    ecrire partout, et en ajouter un ici serait un changement de
+    gouvernance jamais discute.
+    / Note the asymmetry with reading: the read rule has a superuser
+    bypass, this one deliberately has none.
     """
-    if not utilisateur or not utilisateur.is_authenticated:
-        return False
-    if dossier is None:
-        return False
-
-    # Owner du dossier → toujours ecriture
-    # / Folder owner → always write
-    if dossier.owner == utilisateur:
-        return True
-
-    # Legacy (owner=None) → tout utilisateur authentifie peut ecrire
-    # / Legacy (owner=None) → any authenticated user can write
-    if dossier.owner is None:
-        return True
-
-    # Partage direct (DossierPartage.utilisateur)
-    # / Direct share (DossierPartage.utilisateur)
-    partage_direct_existe = DossierPartage.objects.filter(
-        dossier=dossier, utilisateur=utilisateur,
-    ).exists()
-    if partage_direct_existe:
-        return True
-
-    # Partage via groupe (DossierPartage.groupe.membres)
-    # / Share via group (DossierPartage.groupe.membres)
-    partage_groupe_existe = DossierPartage.objects.filter(
-        dossier=dossier, groupe__membres=utilisateur,
-    ).exists()
-    if partage_groupe_existe:
-        return True
-
-    return False
+    return peut_ecrire_dans_le_carnet(utilisateur, dossier)
 
 
 # ---------------------------------------------------------------------------
@@ -5660,6 +5644,12 @@ class ExtractionViewSet(viewsets.ViewSet):
                 "commentaires",
                 queryset=CommentaireExtraction.objects.select_related("user"),
             ),
+            # LE PASSAGE DE CHAQUE CARTE se lit sur ses ancres. Sans ce
+            # prefetch, un panneau de 126 cartes ferait 126 requetes de
+            # plus — et il faut `.all()` cote service pour que le cache
+            # serve, jamais `.order_by()`, qui reconstruit un queryset.
+            # / Without this, a 126-card panel means 126 more queries.
+            "ancrages__element",
         ).annotate(
             nombre_commentaires=Count("commentaires"),
         )
@@ -5768,8 +5758,26 @@ class ExtractionViewSet(viewsets.ViewSet):
         # / Separate visible and hidden (non_pertinent) for the template
         entites_visibles = []
         entites_masquees = []
+        # LE PASSAGE QUI ENTOURE CHAQUE CITATION, comme sur la fiche de
+        # preuve. La carte montre la citation seule ; le passage n'est
+        # visible que sur la carte ACTIVE, celle qu'on vient de cliquer.
+        #
+        # La memoire est creee ICI et jetee avec la reponse : les
+        # elements de la note sont lus UNE FOIS, pas deux par carte.
+        # Un cache global survivrait a la requete et rendrait un document
+        # perime apres une edition.
+        # / The passage around each quote, as on the proof card, visible
+        # only on the active one. The memo is read once per note.
+        from core.services.contexte_de_citation import (
+            passage_autour_de_la_citation,
+        )
+
+        memoire_des_elements = {}
         for entite in toutes_les_entites:
             entite.est_detachee = entite.pk not in identifiants_ancres
+            entite.passage = passage_autour_de_la_citation(
+                entite, memoire_des_elements,
+            )
             if entite.masquee:
                 entites_masquees.append(entite)
             else:

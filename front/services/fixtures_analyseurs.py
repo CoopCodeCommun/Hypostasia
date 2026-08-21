@@ -93,6 +93,32 @@ MODELES_IA_PAR_CLE_D_ENVIRONNEMENT = [
             "temperature": 0.0,
         },
     },
+    # Mistral Medium ARRIVE APRES SMALL, ET C'EST DELIBERE : le premier
+    # modele disponible devient celui de la Configuration, donc le
+    # modele d'EXTRACTION — et c'est Small qui doit le rester.
+    #
+    # Il est ici parce qu'il est le REDACTEUR (voir ROLES_PAR_DEFAUT).
+    # Un role qui designe un modele absent est saute en silence et
+    # retombe sur la Configuration : sans cette ligne, l'affectation du
+    # redacteur ne survivrait pas a un `down -v`, et les articles
+    # repartiraient sur Small sans qu'un mot ne le dise.
+    # / Medium comes after Small on purpose: the FIRST model becomes the
+    #   extraction model. It is listed because it is the WRITER, and a
+    #   role naming an absent model is silently skipped.
+    {
+        "cle_env": "MISTRAL_API_KEY",
+        "model_choice": "mistral-medium-latest",
+        "name": "Mistral Medium",
+        "extras": {
+            "provider": "compatible_openai",
+            "base_url": "https://api.mistral.ai/v1",
+            "variable_de_cle_api": "MISTRAL_API_KEY",
+            # Meme raison que pour Small : tous les bancs mesurent a 0,
+            # et le defaut du champ vaut 0,7.
+            # / Same reason as Small: every bench measures at 0.
+            "temperature": 0.0,
+        },
+    },
     {"cle_env": "GOOGLE_API_KEY", "model_choice": "gemini-2.5-flash", "name": "Gemini 2.5 Flash"},
     {"cle_env": "OPENAI_API_KEY", "model_choice": "gpt-4o-mini", "name": "GPT-4o Mini"},
     {"cle_env": "ANTHROPIC_API_KEY", "model_choice": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4"},
@@ -102,8 +128,27 @@ MODELES_IA_PAR_CLE_D_ENVIRONNEMENT = [
 # apres un `down -v` et chaque role retombe sur la Configuration : le
 # repli fonctionne, mais l'affectation choisie est perdue en silence.
 # / Roles are re-applied at install; otherwise they silently vanish.
+# DEUX ROLES, DEUX MODELES, ET LA DIFFERENCE EST MESUREE.
+#
+# La campagne des neuf passes du 19 aout 2026 (3 modeles x 3
+# repetitions x 4 articles, temperature 0) a montre que le « % de
+# citations verifiees » NE DEPARTAGE PAS les redacteurs : `mistral-large`
+# rend 29,4 %, 40,6 % puis 31,1 % sur trois passes identiques — onze
+# points d'amplitude avec lui-meme, pour moins de huit points d'ecart
+# entre modeles.
+#
+# Ce qui tranche, c'est la PROSE SANS SOURCE : Medium en laisse 10 %,
+# Small 18,8 %, Large 26,2 %. Pour un outil dont la promesse est la
+# tracabilite, une prose integralement sourcee vaut mieux qu'un taux
+# flatteur sur la moitie d'un texte.
+#
+# Le JUGE reste Small : son metier est d'etre petit, rapide et bon
+# marche — 145 paires en 9 s.
+# / Nine repeated passes: the verified-rate does not discriminate;
+#   unsourced prose does, and Medium wins there. The judge stays Small.
+# Mesure : benchmarks/redaction/2026-08-19_trois-redacteurs-a-un-seul-extracteur.md
 ROLES_PAR_DEFAUT = {
-    "redacteur_d_article": "mistral-small-latest",
+    "redacteur_d_article": "mistral-medium-latest",
     "juge_de_verification": "mistral-small-latest",
 }
 

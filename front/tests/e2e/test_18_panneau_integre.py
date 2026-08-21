@@ -31,7 +31,15 @@ SEUIL_DU_PANNEAU_EN_COLONNE = 1400
 
 # 23rem a 16px/rem (maquette.html § 1 « JETONS », `--panneau: 23rem`).
 # / 23rem at 16px/rem.
-LARGEUR_ATTENDUE_DU_PANNEAU = 368
+# 416px — `--preuve`, 26rem. UNE SEULE LARGEUR POUR LES DEUX PANNEAUX
+# (decision du mainteneur, 20 aout) : celui des analyses mesurait 368px
+# quand celui des preuves en faisait 416, et le bord de la zone de
+# lecture sautait de 48px en passant d'une note a un article. Deux
+# panneaux qui vivent au meme endroit, se basculent du meme bouton et se
+# lisent l'un apres l'autre n'ont aucune raison d'avoir deux largeurs.
+# / One width for both panels: the reading zone's edge jumped by 48px
+# between a note and an article.
+LARGEUR_ATTENDUE_DU_PANNEAU = 416
 
 # La mesure d'un navigateur reel n'est pas au pixel : bordures,
 # arrondis de sous-pixel. / Real-browser measurements are not pixel-exact.
@@ -605,10 +613,18 @@ class E2EPanneauIntegreTest(PlaywrightLiveTestCase):
             SEUIL_DU_PANNEAU_EN_COLONNE - 200,
             "Le tiroir est resté hors de l'écran malgré l'ouverture.",
         )
-        # Et son voile revient : sous le seuil, le tiroir EST modal.
-        # / And its scrim returns: below the threshold the drawer is modal.
-        self.assertTrue(
+        # AUCUN VOILE, A AUCUNE LARGEUR — decision du mainteneur, 20 aout.
+        #
+        # Il en revenait un sous le seuil : le tiroir y etait modal, et
+        # grisait le texte. Or le panneau existe pour qu'on lise le texte
+        # ET ce qui s'y rapporte EN MEME TEMPS — une preuve se compare a
+        # l'affirmation qu'elle porte, une extraction au passage dont
+        # elle est tiree. Griser le texte pendant qu'on lit la carte
+        # retire precisement ce qu'on est venu comparer.
+        # / No scrim at any width: the panel exists so that text and what
+        # refers to it can be read together.
+        self.assertFalse(
             voile["visible"],
-            "Le voile manque : sous le seuil, le tiroir recouvre le texte "
-            "et doit le signaler.",
+            "Un voile grise le texte : le panneau existe pour qu'on lise "
+            "les deux en même temps.",
         )

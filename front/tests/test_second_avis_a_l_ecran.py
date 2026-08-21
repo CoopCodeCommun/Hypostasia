@@ -26,7 +26,7 @@ from django.test import Client, TestCase
 
 from core.models import Page, SourceLink, TypeDeNote, TypeLien
 from core.services.synthese import indexer_les_citations
-from core.services.verification import poser_un_second_avis
+from core.services.verification import poser_un_avis_local
 from hypostasis_extractor.models import AIModel, ExtractedEntity, ExtractionJob
 
 Utilisateur = get_user_model()
@@ -35,7 +35,15 @@ TEXTE_DE_LA_SOURCE = (
     "Le compte rendu note que le seuil de dix mille euros déclenche le "
     "passage en assemblée."
 )
-METHODE_LOCALE = "shieldstral-logits v1 (large) — ShieldStral 1.0 3B"
+# DEUX JUGES, PAS UN. Depuis le 19 août 2026 le second avis est
+# PLURIEL : quatre encodeurs à moins d'une demi-seconde ont remplacé
+# ShieldStral (24 s la paire). Ces tests en jouent deux, ce qui suffit à
+# éprouver le pluriel — un seul ne distinguerait pas « tous d'accord »
+# de « partagés ».
+# / The second opinion is plural since 19 August; two judges suffice to
+# exercise the plural.
+METHODE_LOCALE = "xnli-directe v1 — CamemBERTa v2"
+AUTRE_METHODE = "xnli-directe v1 — mDeBERTa v3"
 
 
 class BaseDuSecondAvisAffiche(TestCase):
@@ -103,52 +111,111 @@ class LePanneauMontreLesDeuxAvisTest(BaseDuSecondAvisAffiche):
         # LA RÈGLE QUI EMPÊCHE UNE COMPARAISON FAUSSE : chaque juge est
         # lu avec SON seuil. / Each judge read with ITS threshold.
         self._juger_en_production("1: 70")
-        poser_un_second_avis(
-            self._lien(), score=41.0, methode=METHODE_LOCALE,
-            seuil_utile=38.0,
+        poser_un_avis_local(
+            self._lien(), score=41.0, methode=METHODE_LOCALE, seuil=38.0,
         )
 
         contenu = self._preuve()
 
         self.assertIn('data-testid="synthese-degre"', contenu)
-        self.assertIn('data-testid="synthese-barre-second-avis"', contenu)
+        self.assertIn('data-testid="synthese-barre-avis-local"', contenu)
         self.assertIn('data-seuil="45"', contenu)
         self.assertIn('data-seuil="38"', contenu)
 
     def test_deux_juges_au_dessus_de_leur_seuil_sont_annonces_d_accord(self):
         self._juger_en_production("1: 70")
-        poser_un_second_avis(
-            self._lien(), score=41.0, methode=METHODE_LOCALE,
-            seuil_utile=38.0,
+        poser_un_avis_local(
+            self._lien(), score=41.0, methode=METHODE_LOCALE, seuil=38.0,
         )
 
         contenu = self._preuve()
 
         self.assertIn('data-accord="accord"', contenu)
-        self.assertIn("d’accord", contenu)
+        # Le radical, pas la forme flechie : le gabarit accorde le verbe
+        # au nombre de juges qui tranchent, et ce nombre varie.
+        # / The stem, not the inflected form: the template agrees in number.
+        self.assertIn("confirme", contenu)
 
     def test_un_desaccord_est_annonce_en_toutes_lettres(self):
         # Le mot, pas seulement la couleur : un filet coloré ne se lit
         # pas tout seul. / The word, not just the colour.
         self._juger_en_production("1: 70")
-        poser_un_second_avis(
-            self._lien(), score=12.0, methode=METHODE_LOCALE,
-            seuil_utile=38.0,
+        poser_un_avis_local(
+            self._lien(), score=12.0, methode=METHODE_LOCALE, seuil=38.0,
         )
 
         contenu = self._preuve()
 
         self.assertIn('data-accord="desaccord"', contenu)
-        self.assertIn("divergent", contenu)
+        self.assertIn("diverge", contenu)
+
+    def test_des_juges_partages_sont_comptes_et_non_arrondis(self):
+        """
+        CE QUE LES COLONNES NE SAVAIENT PAS DIRE. Avec un seul second
+        juge, l'accord etait binaire. Avec plusieurs, « deux sur quatre »
+        est une information en soi — et l'arrondir a « d'accord » ou
+        « divergent » effacerait exactement ce que la campagne cherche.
+        / With several judges, "two out of four" is the information.
+        """
+        self._juger_en_production("1: 70")
+        poser_un_avis_local(
+            self._lien(), score=81.0, methode=METHODE_LOCALE, seuil=50.0,
+        )
+        poser_un_avis_local(
+            self._lien(), score=12.0, methode=AUTRE_METHODE, seuil=50.0,
+        )
+
+        contenu = self._preuve()
+
+        self.assertIn('data-accord="partage"', contenu)
+        self.assertIn("sur 2", contenu)
+
+    def test_chaque_juge_a_sa_propre_barre(self):
+        self._juger_en_production("1: 70")
+        poser_un_avis_local(
+            self._lien(), score=81.0, methode=METHODE_LOCALE, seuil=50.0,
+        )
+        poser_un_avis_local(
+            self._lien(), score=12.0, methode=AUTRE_METHODE, seuil=55.0,
+        )
+
+        contenu = self._preuve()
+
+        self.assertEqual(
+            contenu.count('data-testid="synthese-barre-avis-local"'), 2,
+        )
+        self.assertIn('data-seuil="50"', contenu)
+        self.assertIn('data-seuil="55"', contenu)
+
+    def test_un_juge_qui_ne_tranche_pas_est_dit_tel_quel(self):
+        """
+        LE DEFAUT QUE CET ETAT EMPECHE. Mesure du 19 août sur les avis
+        réels : la moitié des scores tombent à moins de deux points du
+        seuil. Les afficher comme « confirme » ou « diverge » ferait
+        passer la troisième décimale pour un verdict.
+        / Half the real scores sit within two points of the threshold.
+        """
+        self._juger_en_production("1: 70")
+        poser_un_avis_local(
+            self._lien(), score=50.1, methode=METHODE_LOCALE, seuil=50.0,
+        )
+
+        contenu = self._preuve()
+
+        self.assertIn('data-accord="sans-avis"', contenu)
+        # Le radical : le gabarit accorde le verbe au nombre de juges.
+        # / The stem: the template agrees in number.
+        self.assertIn("ne tranche", contenu)
+        self.assertIn("Ne tranche pas", contenu)
+        self.assertIn('data-cote="neutre"', contenu)
 
     def test_le_second_avis_nomme_son_juge(self):
         self._juger_en_production("1: 70")
-        poser_un_second_avis(
-            self._lien(), score=41.0, methode=METHODE_LOCALE,
-            seuil_utile=38.0,
+        poser_un_avis_local(
+            self._lien(), score=41.0, methode=METHODE_LOCALE, seuil=38.0,
         )
 
-        self.assertIn("ShieldStral 1.0 3B", self._preuve())
+        self.assertIn("CamemBERTa v2", self._preuve())
 
 
 class LesEtatsQuiNeSeConfondentPasTest(BaseDuSecondAvisAffiche):
@@ -161,9 +228,7 @@ class LesEtatsQuiNeSeConfondentPasTest(BaseDuSecondAvisAffiche):
         lien.etat_de_verification = "verifie"
         lien.verifie_par = "verbatim+nli-lot v2 — un juge d'avant"
         lien.save(update_fields=["etat_de_verification", "verifie_par"])
-        poser_un_second_avis(
-            lien, score=41.0, methode=METHODE_LOCALE, seuil_utile=38.0,
-        )
+        poser_un_avis_local(lien, score=41.0, methode=METHODE_LOCALE, seuil=38.0)
 
         contenu = self._preuve()
 
@@ -180,17 +245,17 @@ class LesEtatsQuiNeSeConfondentPasTest(BaseDuSecondAvisAffiche):
 
         contenu = self._preuve()
 
-        self.assertIn('data-testid="synthese-second-avis-en-cours"', contenu)
-        self.assertNotIn('data-testid="synthese-barre-second-avis"', contenu)
+        self.assertIn('data-testid="synthese-avis-locaux-en-cours"', contenu)
+        self.assertNotIn('data-testid="synthese-barre-avis-local"', contenu)
 
     def test_sans_second_avis_ni_tache_le_panneau_n_annonce_rien(self):
         self._juger_en_production("1: 70")
 
         contenu = self._preuve()
 
-        self.assertNotIn('data-testid="synthese-second-avis"', contenu)
+        self.assertNotIn('data-testid="synthese-avis-locaux"', contenu)
         self.assertNotIn(
-            'data-testid="synthese-second-avis-en-cours"', contenu,
+            'data-testid="synthese-avis-locaux-en-cours"', contenu,
         )
 
     def test_sous_un_verdict_humain_le_second_avis_est_subordonne(self):
@@ -206,16 +271,14 @@ class LesEtatsQuiNeSeConfondentPasTest(BaseDuSecondAvisAffiche):
         lien.save(update_fields=[
             "etat_de_verification", "verifie_par", "score_de_verification",
         ])
-        poser_un_second_avis(
-            lien, score=41.0, methode=METHODE_LOCALE, seuil_utile=38.0,
-        )
+        poser_un_avis_local(lien, score=41.0, methode=METHODE_LOCALE, seuil=38.0)
 
         contenu = self._preuve()
 
         self.assertIn(
-            'data-testid="synthese-second-avis-subordonne"', contenu,
+            'data-testid="synthese-avis-locaux-subordonne"', contenu,
         )
-        self.assertIn("il ne le remplace pas", contenu)
+        self.assertIn("ils ne le remplacent pas", contenu)
 
 
 class LeDeclenchementDuSecondAvisTest(BaseDuSecondAvisAffiche):
@@ -223,11 +286,10 @@ class LeDeclenchementDuSecondAvisTest(BaseDuSecondAvisAffiche):
     def test_le_geste_utilisateur_met_le_second_avis_en_file(self):
         from front.views_synthese import _lancer_un_second_avis
 
-        requete = type("R", (), {"user": self.utilisateur})()
         with patch(
             "front.tasks.noter_avec_le_juge_local_task.delay",
         ) as mock_tache:
-            job = _lancer_un_second_avis(requete, self.article)
+            job = _lancer_un_second_avis(self.utilisateur.pk, self.article)
 
         self.assertIsNotNone(job)
         mock_tache.assert_called_once_with(job.pk)
@@ -239,10 +301,9 @@ class LeDeclenchementDuSecondAvisTest(BaseDuSecondAvisAffiche):
         # / Seconds for the API judge, tens of minutes here.
         from front.views_synthese import _lancer_un_second_avis
 
-        requete = type("R", (), {"user": self.utilisateur})()
         with patch("front.tasks.noter_avec_le_juge_local_task.delay"):
-            premier = _lancer_un_second_avis(requete, self.article)
-            second = _lancer_un_second_avis(requete, self.article)
+            premier = _lancer_un_second_avis(self.utilisateur.pk, self.article)
+            second = _lancer_un_second_avis(self.utilisateur.pk, self.article)
 
         self.assertIsNotNone(premier)
         self.assertIsNone(second)

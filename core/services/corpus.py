@@ -1,17 +1,204 @@
 """
-Services de la couche corpus : validation des categories d'appartenance.
-/ Corpus layer services: membership category validation.
+Services de la couche corpus : perimetres d'acces et rangement des notes.
+/ Corpus layer services: access scopes and note filing.
 
 LOCALISATION : core/services/corpus.py
 
 SPEC-corpus-base-carnet-note.md v1.1 § 3.4 : « la validation qui n'a pas
 le droit de manquer ». Sans elle, le modele perd son sens — le vocabulaire
 d'un carnet fuirait dans un autre.
+
+LES TROIS PERIMETRES VIVENT ICI, ET NULLE PART AILLEURS. `front/` rend de
+l'interface et `core/views.py` sert l'extension : si chacun ecrivait sa
+propre version de « qui peut lire quoi », les deux divergeraient. C'est
+deja arrive : `core/views.py` ignorait les partages par GROUPE que
+`front/views.py` honorait, et un membre de groupe ne voyait pas dans
+l'extension un carnet que le site lui montrait.
+/ The three scopes live here and nowhere else: front/ renders UI and
+core/views.py serves the extension; two copies of "who may read what"
+diverge, and they did.
 """
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
+
+from core.models import Dossier, DossierPartage, Page, VisibiliteDossier
+
+
+def carnets_visibles_par(utilisateur):
+    """
+    Les carnets qu'un visiteur peut OUVRIR : les siens, les orphelins,
+    les publics, ceux qu'on lui a partages. Anonyme : les publics.
+    / The notebooks a visitor may OPEN.
+
+    LOCALISATION : core/services/corpus.py
+
+    Le partage compte qu'il soit direct (`DossierPartage.utilisateur`) ou
+    par groupe (`DossierPartage.groupe`) : les deux ouvrent le carnet.
+    / A share counts whether it is direct or through a group.
+
+    :param utilisateur: l'utilisateur, authentifie ou anonyme
+    :return: un QuerySet de Dossier
+    """
+    if not utilisateur or not utilisateur.is_authenticated:
+        return Dossier.objects.filter(visibilite=VisibiliteDossier.PUBLIC)
+
+    identifiants_partages = DossierPartage.objects.filter(
+        Q(utilisateur=utilisateur) | Q(groupe__membres=utilisateur)
+    ).values_list("dossier_id", flat=True)
+
+    return Dossier.objects.filter(
+        Q(owner=utilisateur)
+        | Q(owner__isnull=True)
+        | Q(visibilite=VisibiliteDossier.PUBLIC)
+        | Q(pk__in=identifiants_partages)
+    ).distinct()
+
+
+def carnets_ou_ecrire(utilisateur):
+    """
+    Les carnets ou un utilisateur peut ECRIRE : les siens, les orphelins,
+    ceux qu'on lui a partages. Anonyme : aucun.
+    / The notebooks a user may WRITE to.
+
+    LOCALISATION : core/services/corpus.py
+
+    C'est la version QuerySet de `_utilisateur_peut_ecrire_dossier`
+    (front/views.py), qui delegue ici : une seule ecriture de la regle.
+    / The QuerySet form of the predicate in front/views.py, which
+    delegates here so the rule exists once.
+
+    LA DIFFERENCE AVEC LA LECTURE TIENT EN UN MOT : `PUBLIC` n'est pas
+    dans la liste. Un carnet public est lisible par tous et inscriptible
+    par son proprietaire et ses invites seulement — sans quoi n'importe
+    qui deposerait dans le carnet de n'importe qui.
+    / Public means readable by all, never writable by all.
+
+    PAS DE CONTOURNEMENT SUPERUSER, contrairement a la lecture
+    (`notes_visibles_par`). Tout lire n'est pas ecrire partout, et en
+    ajouter un serait un changement de gouvernance jamais discute.
+    / No superuser bypass here, unlike reading.
+
+    `Q(owner__isnull=True)` OUVRE LES CARNETS SANS PROPRIETAIRE A TOUT
+    UTILISATEUR AUTHENTIFIE, et c'est le comportement d'origine, conserve
+    tel quel (SPEC-corpus § 5.2, correction n°6). Il faut savoir ce qu'il
+    implique : `Dossier.owner` est un `SET_NULL`, donc supprimer un compte
+    rend TOUS ses carnets orphelins — donc inscriptibles par n'importe
+    qui, et proposes dans le menu de l'extension. Aucun carnet orphelin
+    n'existe en base au 20 aout 2026 ; le jour ou l'on supprimera un
+    compte, ce sera une decision a prendre, pas une surprise a subir.
+    / Ownerless notebooks are writable by any authenticated user — the
+    original behaviour, preserved. Note that owner is SET_NULL: deleting
+    an account orphans all its notebooks. None exist as of 20 Aug 2026.
+
+    :param utilisateur: l'utilisateur, authentifie ou anonyme
+    :return: un QuerySet de Dossier
+    """
+    if not utilisateur or not utilisateur.is_authenticated:
+        return Dossier.objects.none()
+
+    identifiants_partages = DossierPartage.objects.filter(
+        Q(utilisateur=utilisateur) | Q(groupe__membres=utilisateur)
+    ).values_list("dossier_id", flat=True)
+
+    return Dossier.objects.filter(
+        Q(owner=utilisateur)
+        | Q(owner__isnull=True)
+        | Q(pk__in=identifiants_partages)
+    ).distinct()
+
+
+def peut_ecrire_dans_le_carnet(utilisateur, dossier):
+    """
+    La forme « un seul carnet » de `carnets_ou_ecrire`, sans requete
+    quand la reponse se lit sur l'objet.
+    / The single-notebook form of carnets_ou_ecrire, query-free when the
+    answer is readable on the object itself.
+
+    LOCALISATION : core/services/corpus.py
+
+    ELLE VIT COLLEE A `carnets_ou_ecrire` POUR NE PAS EN DIVERGER : les
+    deux premiers tests correspondent, ligne pour ligne, aux deux
+    premieres clauses `Q` de la fonction du dessus. Les modifier separement
+    est une faute — c'est pour cela qu'elles sont voisines.
+    / It sits next to carnets_ou_ecrire so the two cannot drift: the two
+    fast checks mirror that function's first two Q clauses.
+
+    POURQUOI PAS UNE SIMPLE DELEGATION AU QUERYSET : ce predicat est
+    appele DANS DES BOUCLES d'affichage (une appartenance affichee = un
+    appel). Une requete par carnet affiche est le N+1 que
+    SPEC-corpus § 5.3 proscrit ; les deux tests directs ci-dessous
+    couvrent le cas courant — ses propres carnets — sans toucher la base.
+    / A plain delegation would cost one query per displayed notebook.
+
+    :param utilisateur: l'utilisateur, authentifie ou anonyme
+    :param dossier: le carnet vise
+    :return: True si l'utilisateur peut y ecrire
+    """
+    if not utilisateur or not utilisateur.is_authenticated:
+        return False
+    if dossier is None:
+        return False
+
+    # Miroir de `Q(owner=utilisateur)` / mirrors Q(owner=utilisateur)
+    if dossier.owner_id == utilisateur.pk:
+        return True
+
+    # Miroir de `Q(owner__isnull=True)` / mirrors Q(owner__isnull=True)
+    if dossier.owner_id is None:
+        return True
+
+    # Le partage, lui, se lit en base. / Shares need the database.
+    return carnets_ou_ecrire(utilisateur).filter(pk=dossier.pk).exists()
+
+
+def notes_visibles_par(utilisateur):
+    """
+    Les notes qu'un visiteur peut lire, en une requete.
+    / The notes a visitor may read, in one query.
+
+    LOCALISATION : core/services/corpus.py
+
+    C'est la version QuerySet de `_utilisateur_a_acces_page`
+    (front/views.py) : l'acces se derive des carnets, et LE PLUS
+    PERMISSIF GAGNE (SPEC-corpus § 5.2). Une note rangee dans un carnet
+    public est publique.
+    / The QuerySet form of the per-object rule: access derives from the
+    notebooks, most permissive wins.
+
+    LE CAS LEGACY EST PRESERVE : une note sans aucun carnet et sans
+    proprietaire reste lisible par tout utilisateur authentifie
+    (correction n°6 de la spec).
+    / Legacy preserved: ownerless, notebook-less notes stay readable.
+
+    :param utilisateur: l'utilisateur, authentifie ou anonyme
+    :return: un QuerySet de Page
+    """
+    if utilisateur and utilisateur.is_authenticated and utilisateur.is_superuser:
+        return Page.objects.all()
+
+    filtre_du_carnet = Q(
+        appartenances_dossiers__dossier__in=carnets_visibles_par(utilisateur)
+    )
+
+    if not utilisateur or not utilisateur.is_authenticated:
+        # Un anonyme n'a pas de note orpheline a lui : seuls les carnets
+        # publics lui ouvrent quelque chose.
+        # / An anonymous visitor only reads through public notebooks.
+        return Page.objects.filter(filtre_du_carnet).distinct()
+
+    # Une note sans aucun carnet : elle suit son proprietaire, et le cas
+    # legacy (aucun proprietaire) reste ouvert a tout authentifie.
+    # / A notebook-less note follows its owner; the legacy case stays open.
+    filtre_de_l_orpheline = Q(appartenances_dossiers__isnull=True) & (
+        Q(owner__isnull=True) | Q(owner=utilisateur)
+    )
+
+    return Page.objects.filter(
+        filtre_du_carnet | filtre_de_l_orpheline
+    ).distinct()
 
 
 def valider_les_categories_d_une_appartenance(appartenance, categories_soumises):

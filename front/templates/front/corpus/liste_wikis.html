@@ -16,7 +16,14 @@
             <span>
                 <a href="/wikis/{{ wiki.pk }}/"
                    hx-get="/wikis/{{ wiki.pk }}/"
-                   hx-target="#corpus-panneau-onglet" hx-swap="innerHTML"
+                   {# LA ZONE DE LECTURE, PAS L'ONGLET DU CARNET. Vise sur #}
+                   {# `#corpus-panneau-onglet`, l'article s'ouvrait DANS la #}
+                   {# page du carnet : on lisait la synthese sous l'en-tete du #}
+                   {# carnet, ses onglets et ses formulaires de creation. Un #}
+                   {# article est un ecran a lui seul. #}
+                   {# / The reading zone, not the notebook tab: the article #}
+                   {# used to open inside the notebook page. #}
+                   hx-target="#zone-lecture" hx-swap="innerHTML"
                    {# hx-push-url : sans lui on lit l'article a l'adresse du #}
                    {# carnet, F5 ramene a la liste des notes et le lien n'est pas #}
                    {# partageable depuis l'endroit ou on lit (recette, F4). #}

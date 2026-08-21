@@ -1,5 +1,14 @@
 # Banc d'essai — le juge de vérification
 
+> ⚠️ **Le jeu adverse fuit par la négation.** Le recouvrement de mots y vaut bien
+> 0,500, mais un **compteur de « ne / pas / aucun / jamais »** obtient **0,776 en
+> AUC globale et 0,962 en appariée** — au-dessus du meilleur juge (0,743 / 0,853).
+> 97 % des affirmations fausses portent une négation, contre 42 % des vraies.
+> Ce jeu ne démontre donc pas qu'un juge vérifie ; il reste valable pour
+> **écarter** un candidat. Détail :
+> `2026-08-19_des-encodeurs-contre-l-etalon.md`, encart en tête.
+
+
 Comparer des juges d'implication (NLI) sur des paires **déjà jugées**, sans rien réécrire.
 
 > **Ce dossier ne contient aucun test automatisé.** `comparer_un_juge.py` est un script
@@ -182,15 +191,89 @@ l'écart du contrôle d'orientation ; **une marge de 0,10 est exigée**.
 | **recouvrement de mots** | — | **0,889** | **0,867** | — | ~0 |
 | *plafond de l'étalon* | — | *0,690* | *—* | *—* | — |
 
+### Le jeu adverse, corrigé — deux perturbations sur quatre étaient invalides
+
+**Mesure du 19 août, après relecture.** Le jeu adverse a d'abord porté **quatre**
+perturbations. Deux se sont révélées fausses, et leurs résultats ne disaient rien
+des modèles :
+
+| perturbation | verdict | pourquoi |
+|---|---|---|
+| **négation** | ✅ valide | 114 paires |
+| **quantificateur** | ✅ valide | 40 paires — « permettent » → « empêchent » |
+| ~~entités~~ | ❌ **écartée** | elle échangeait « Open » et « Badges » — deux morceaux du **même** nom composé. Une coquille, pas une affirmation fausse. Et le fond n'est pas réglable : deux entités coordonnées s'échangent sans changer le sens, et en remplacer une ferait bouger le recouvrement. |
+| ~~nombre~~ | ⚠️ **non mesurable ici** | elle changeait « 2010 » en « 2011 » sur une source disant « En 2011 » : elle **corrigeait** l'affirmation. Corrigée (le nombre doit figurer dans la source, son remplaçant non), il ne reste que **2 cas sur 118**. |
+
+**L'invariant est désormais vérifié paire par paire, et les fautives sont jetées** :
+une perturbation qui déplace le recouvrement lexical est écartée et comptée. Le banc
+dit combien.
+
+Les seuils des juges de production sont calculés sur ce jeu — le seul équilibré du
+dossier — et vivent dans `core/services/juges_locaux.py`.
+
+### Le JEU ADVERSE — et il renverse ce tableau
+
+`--adverse` prend chaque paire positive de l'étalon et **perturbe l'affirmation**
+dans la phrase que la source établit. Les perturbations retenues n'enlèvent aucun
+mot et n'ajoutent que des mots de moins de quatre caractères : **le compteur de
+mots y obtient 0,500 en apparié, par construction**, vérifié sur tous les groupes.
+273 paires, 117 vraies et 156 fausses.
+
+« appariée » compare les versions d'une **même** paire — c'est la métrique de ce
+jeu, l'AUC globale y mélangeant des paires sans rapport.
+
+| Juge | Meilleure combinaison | AUC | **appariée** | négation | quantif. |
+|---|---|---|---|---|---|
+| `mdeberta-v3-base-mnli-xnli` | `directe` / `moins_contradiction` | **0,743** | 0,840 | **0,764** | **0,695** |
+| `bge-m3-zeroshot` | `directe` | 0,737 | 0,801 | 0,760 | 0,662 |
+| `camembertav2-base-xnli` | `directe` / `moins_contradiction` | 0,728 | **0,853** | **0,788** | 0,548 |
+| `distilcamembert-base-nli` | `directe` / `moins_contradiction` | 0,656 | 0,737 | 0,675 | 0,603 |
+| `lettucedect-v2-mmbert-base` | `qa` / `meilleure_phrase` | 0,630 | 0,763 | — | — |
+| `lettucedect-210m-eurobert-fr` | `resume` / `pire_token` | **0,516** | 0,667 | 0,516 | 0,517 |
+| `lettucedect-610m-eurobert-fr` | `qa` / `couverture` | **0,481** | 0,308 | 0,492 | 0,459 |
+| **recouvrement de mots** | — | **0,490** | **0,500** | 0,500 | 0,500 |
+
+**Les deux LettuceDetect français sont au hasard ou en dessous.** Le 610m — le
+candidat n°1 du récap, annoncé battant GPT-4.1-mini de 11 points — obtient **0,481**
+et **0,308 en apparié** ; aucune de ses neuf combinaisons ne dépasse 0,52. Ses 0,738
+sur l'étalon étaient donc **compatibles avec du comptage de mots**, et la mesure
+adverse montre qu'ils n'étaient rien d'autre. Sans ce jeu, on l'aurait retenu.
+
+**Le cadrage gagnant s'inverse d'un jeu à l'autre** : `par_phrase` gagne sur
+l'étalon, `directe` gagne sur l'adverse — parce qu'un maximum sur les phrases laisse
+une phrase **non perturbée** sauver la paire. `mdeberta` fait 0,743 en `directe`
+contre 0,598 en `par_phrase`.
+
+**P(contradiction) vaut +0,170** chez `mdeberta` et **+0,143** chez `camembertav2`.
+Les modèles à **spans** n'ont pas cette classe : leur étiquetage « soutenu / non
+soutenu » confond l'absence et la négation. C'est une limite d'architecture, et elle
+explique vraisemblablement les deux échecs ci-dessus.
+
+**Ces quatre juges sont branchés en production depuis le 19 août** —
+`core/services/juges_locaux.py`, `CHANGELOG/2026-08-19-quatre-juges-locaux.md`. Les
+seuils y sont calculés sur ce jeu.
+
+> **La réserve** : ce jeu n'éprouve que **deux** types d'erreur, et le second n'a
+> que 40 paires. `camembertav2` est le meilleur sur la négation (0,788) et tombe à
+> 0,548 sur le quantificateur : un juge peut être excellent sur un type et médiocre
+> sur le suivant.
+
 Compte rendu complet, réserves comprises :
 [des encodeurs contre l'étalon](2026-08-19_des-encodeurs-contre-l-etalon.md).
 
 **Trois choses que ce banc a apprises et qui valent au-delà de lui :**
 
-- **Le français déclaré n'est pas le français entraîné.** `lettucedect-v2-mmbert-base`
-  revendique `fr` dans ses métadonnées, passe le contrôle d'orientation
-  proprement, et **classe au niveau du hasard** (0,529, six combinaisons sur neuf
-  sous 0,5). Les deux EuroBERT entraînés *sur* RAGTruth-FR le battent nettement.
+- **Une AUC globale basse peut cacher un défaut de CALIBRATION, pas de jugement.**
+  `lettucedect-v2-mmbert-base` obtient **0,529 en global** mais **0,797 en
+  stratifié** (macro 0,835, jamais sous 0,40 sur un groupe) : il classe
+  correctement les sources *à l'intérieur* d'un paragraphe, mais ses scores ne
+  sont pas comparables *entre* paragraphes.
+  **C'est pour distinguer exactement cela que la métrique stratifiée existe.**
+- **L'entraînement français n'a pas décidé — c'est l'inverse.** Les deux modèles
+  entraînés *sur* RAGTruth-**FR** dominent l'étalon (0,738 et 0,710) et tombent au
+  hasard sur le jeu adverse ; le modèle **multilingue**, dernier sur l'étalon, y
+  atteint 0,661. Le tableau de l'étalon classe l'aptitude à épouser une référence
+  lexicalement saturée, pas l'aptitude à vérifier.
 - **Un tokeniseur peut se dégrader sans lever d'erreur.**
   `almanach/camembertav2-base-xnli` déclare `RobertaTokenizer` pour un vocabulaire
   **WordPiece** : `AutoTokenizer` découpe alors **caractère par caractère**, 109

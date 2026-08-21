@@ -9,9 +9,15 @@ Une instance de test (bac à sable) est disponible à l'adresse : **https://beta
 
 - **Extraction propre** : Utilise `Readability.js` (la technologie derrière le mode lecture de Firefox) pour extraire le
   contenu principal de la page en supprimant les publicités et menus inutiles.
+- **Choix du carnet avant la capture** : un menu liste les carnets dans lesquels vous avez le droit d'écrire — les
+  vôtres, ceux qu'on vous a partagés directement, et ceux partagés à un groupe dont vous êtes membre. Le dernier carnet
+  choisi est retenu, séparément pour chaque serveur et chaque compte.
+- **Avertissement sur les carnets publics** : ranger une note dans un carnet public la rend publique, avec ses
+  extractions et ses commentaires. L'extension le dit au moment où vous choisissez, pas dans une page d'aide.
 - **Intégration Django** : Communique directement avec l'API de votre instance Hypostasia.
-- **Vérification automatique** : L'extension vous indique si la page a déjà été enregistrée dans votre base de données.
-- **Interface simple** : Une popup rapide pour configurer l'URL du serveur et lancer l'extraction.
+- **Vérification automatique** : L'extension vous indique si la page a déjà été enregistrée — dans votre périmètre, ou
+  par quelqu'un d'autre sur la même instance.
+- **Interface simple** : Une popup rapide pour configurer l'URL du serveur, choisir le carnet et lancer l'extraction.
 
 ## Installation en mode développeur
 
@@ -51,9 +57,32 @@ Avant la première utilisation, vous devez indiquer à l'extension où se trouve
    - Pour l'instance de test : `https://beta.hypostasia.org/`
 3. Cliquez sur **OK** ou enregistrez.
 
+## Le token d'authentification
+
+L'extension a besoin d'un token pour savoir qui vous êtes. Sans lui, elle ne peut ni lister vos carnets ni enregistrer
+quoi que ce soit.
+
+1. Connectez-vous à votre instance, puis ouvrez **`/auth/token/`** (lien « Mon token API » dans le menu utilisateur).
+2. Copiez le token.
+3. Collez-le dans les options de l'extension (clic droit sur l'icône → **Options**).
+
+La popup affiche alors « Connecté : *votre nom* ». Tant que le token manque, elle affiche « Non connecté : collez votre
+token dans les options » — le serveur, lui, peut très bien être joignable.
+
 ## Utilisation
 
 1. Naviguez sur un article ou une page web que vous souhaitez sauvegarder.
 2. Ouvrez la popup de l'extension.
-3. Cliquez sur le bouton **Recolter**.
-4. Une notification vous confirmera si l'envoi vers Hypostasia a réussi.
+3. Choisissez le **carnet** de destination dans le menu « Ranger dans ». Par défaut, la note va dans votre fourre-tout
+   « À ranger », qui est créé automatiquement à la première capture qui en a besoin.
+4. Cliquez sur le bouton **Recolter**.
+5. Le message vous dit dans quel carnet la note a été enregistrée.
+
+### Les messages que vous pouvez voir
+
+| Message | Ce qu'il veut dire |
+|---|---|
+| *Enregistrée dans « … »* | c'est fait, la note est dans ce carnet |
+| *Déjà enregistrée (note N)* | vous aviez déjà capturé cette page ; rien n'a été créé |
+| *Cette page est déjà capturée sur ce serveur, dans un carnet auquel vous n'avez pas accès* | quelqu'un d'autre l'a prise. Une même URL ne peut exister qu'une fois par instance |
+| *Token manquant ou invalide* | voir « Le token d'authentification » ci-dessus |

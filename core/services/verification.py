@@ -138,12 +138,234 @@ def _texte_normalise(texte):
     return " ".join(texte.split())
 
 
+# La ponctuation dont l'espace qui l'entoure ne compte pas.
+# / Punctuation whose surrounding space does not count.
+PONCTUATION_DONT_L_ESPACE_NE_COMPTE_PAS = ",;:.!?()[]/"
+
+# Les marques de fin de phrase. Le « … » (U+2026) en est absent A
+# DESSEIN : `_texte_normalise` passe par NFKC, qui le rend en trois
+# points — le « . » le couvre deja, et l'y mettre serait du code que
+# rien n'atteindrait jamais.
+# / U+2026 deliberately absent: NFKC turns it into three dots.
+MARQUES_DE_FIN_DE_PHRASE = ".?!"
+
+
+def _voisin_non_espace(texte, depart, pas):
+    """Le premier caractere non-espace dans cette direction. / Neighbour."""
+    position = depart
+    while 0 <= position < len(texte) and texte[position].isspace():
+        position += pas
+    if 0 <= position < len(texte):
+        return texte[position]
+    return ""
+
+
+def _ecraser_l_espace_de_ponctuation(texte):
+    """
+    Colle la ponctuation a ses voisins — SAUF entre deux chiffres.
+    / Glues punctuation to its neighbours — EXCEPT between two digits.
+
+    LA GARDE DES CHIFFRES N'EST PAS UN DETAIL. Sans elle, ecraser
+    l'espace autour d'une virgule transforme l'enumeration « les niveaux
+    3, 5 et 8 » en decimal « les niveaux 3,5 » : le controle accepterait
+    une valeur que la source n'avance nulle part. Vaut pour les dates,
+    les montants, les versions, les references d'article.
+
+    ON PARCOURT LE TEXTE D'ORIGINE, sans jamais consommer les voisins.
+    Une expression reguliere qui capture le caractere de gauche et celui
+    de droite les RETIRE du texte restant : la ponctuation suivante ne
+    les voit plus, son voisin gauche parait vide, et la garde tombe.
+    Deux dispositions la percaient ainsi — « les niveaux 1 , 2 , 3 » et
+    « les niveaux ( 3 , 5 ) », toutes deux blanchissant un decimal.
+    / We walk the original text and never consume neighbours.
+    """
+    resultat = []
+    position = 0
+    while position < len(texte):
+        caractere = texte[position]
+        if caractere not in PONCTUATION_DONT_L_ESPACE_NE_COMPTE_PAS:
+            resultat.append(caractere)
+            position += 1
+            continue
+
+        voisin_de_gauche = _voisin_non_espace(texte, position - 1, -1)
+        voisin_de_droite = _voisin_non_espace(texte, position + 1, +1)
+        if voisin_de_gauche.isdigit() and voisin_de_droite.isdigit():
+            resultat.append(caractere)
+            position += 1
+            continue
+
+        while resultat and resultat[-1].isspace():
+            resultat.pop()
+        resultat.append(caractere)
+        position += 1
+        while position < len(texte) and texte[position].isspace():
+            position += 1
+    return "".join(resultat)
+
+
+def _l_occurrence_ne_coupe_pas_une_marque_de_fin(source, cite,
+                                                 marque_de_la_citation):
+    """
+    Le texte cite se lit-il dans la source SANS y couper une marque de
+    fin ? / Does the quote read without cutting a final mark?
+
+    :param marque_de_la_citation: la marque de fin que porte la citation,
+        ou "" si elle n'en porte pas.
+
+    LA GARDE NE S'APPLIQUE QU'AUX CITATIONS QUI SE TERMINENT PAR UNE
+    MARQUE DE FIN — c'est ce qui la rend sure. Une citation qui s'arrete
+    au milieu d'une phrase peut parfaitement etre suivie d'un point dans
+    la source : c'est le cas nominal, et l'inspecter le refuserait a
+    tort.
+
+    Mais une citation QUI SE TERMINE par une marque et que la source
+    fait suivre d'une autre marque a coupe quelque chose :
+
+    - « … l'auteur ? » rendu « … l'auteur. » remplace une question par
+      une affirmation ;
+    - « il viendra … mais » rendu « il viendra. » ferme un propos que la
+      source laissait en suspens.
+    """
+    if not marque_de_la_citation:
+        return cite in source
+
+    position = source.find(cite)
+    while position != -1:
+        # `[:1]` et non `[0]` : en fin de source la suite est vide, et
+        # une chaine vide est sous-chaine de TOUT — le test
+        # d'appartenance repondrait « marque de fin » sur du vide.
+        # / Empty string is a substring of everything; guard for it.
+        suite = source[position + len(cite):].lstrip()
+        marque_qui_suit = suite[:1]
+
+        # LA CITATION NE DOIT PAS S'ARRETER AU MILIEU D'UN MOT. Retirer
+        # le point final rend la recherche plus courte, donc capable de
+        # tomber a l'interieur d'un mot : « Le vaccin est sur. » se
+        # retrouverait dans « le vaccin est surement inefficace », et la
+        # chaine de preuve validerait l'inverse de ce que la source dit.
+        # Le controle strict ne pouvait pas produire ca — le point du
+        # cite devait exister dans la source.
+        # / Stripping the period lets the match land mid-word, which can
+        #   invert the meaning. The strict check could never do that.
+        # ELLE NE VAUT QUE SI LA CITATION FINIT SUR UN CARACTERE DE MOT.
+        # Une citation qui se termine par sa ponctuation porte deja sa
+        # frontiere : « … territoire. » suivi de « Soutenu » n'a rien
+        # coupe, c'est l'ecrasement des espaces qui les a colles.
+        # / Only when the quote ends on a word character: a quote ending
+        #   on its punctuation already carries its boundary.
+        suite_immediate = source[position + len(cite):]
+        if cite[-1:].isalnum() and suite_immediate[:1].isalnum():
+            position = source.find(cite, position + 1)
+            continue
+
+        if not marque_qui_suit or marque_qui_suit not in MARQUES_DE_FIN_DE_PHRASE:
+            return True
+
+        # LA SOURCE PORTE LE MEME SIGNE : c'est le MEME point, que
+        # l'ingestion avait simplement detache de son mot. Ni ajout ni
+        # substitution.
+        #
+        # DEUX EXCEPTIONS, et toutes deux changent le sens :
+        # - le signe se REPETE : une ellipse suspend le propos la ou la
+        #   citation le clot ;
+        # - le signe precede un CHIFFRE : ce n'est pas une fin de
+        #   phrase, c'est une decimale ou un numero de version.
+        #   « La note 7. » se retrouverait dans « la note 7.5 », et la
+        #   citation chiffrerait autre chose que la source.
+        # / Same mark = same period, except when it repeats (ellipsis)
+        #   or precedes a digit (decimal or version number).
+        c_est_le_meme_signe = marque_qui_suit == marque_de_la_citation
+        le_signe_se_repete = suite[1:2] == marque_qui_suit
+        le_signe_ouvre_un_nombre = suite[1:2].isdigit()
+        if (c_est_le_meme_signe and not le_signe_se_repete
+                and not le_signe_ouvre_un_nombre):
+            return True
+
+        position = source.find(cite, position + 1)
+    return False
+
+
+def _le_verbatim_est_present_a_la_forme_pres(texte_cherche, texte_source):
+    """
+    Le verbatim tient-il si l'on ignore TROIS retouches de forme ?
+    / Does the verbatim hold if we ignore THREE shape touch-ups?
+
+    LOCALISATION : core/services/verification.py
+
+    LES TROIS REGLES, ET POURQUOI ELLES SONT SURES. Aucune n'ajoute ni
+    ne retire de CONTENU : elles ne peuvent pas blanchir une citation
+    tronquee, deformee, ou dont un mot a change.
+
+    1. la casse de la premiere lettre — le modele capitalise ce qu'il
+       cite ;
+    2. l'espace autour de la ponctuation — c'est NOTRE ingestion qui le
+       pose (« IMS Global , un consortium », « territoire . Soutenu ») et
+       le modele qui le repare. Cause la plus frequente, mesuree ;
+    3. un point final — le modele termine en phrase un item de liste.
+
+    LA GARDE DE LA MARQUE DE FIN empeche la regle 3 de devenir une
+    substitution : un « ? » ou une ellipse remplaces par un point
+    changent ce que la source dit.
+
+    Mesure et methode :
+    benchmarks/extraction_format/2026-08-19_le-mode-d-echec-du-verbatim.md
+    """
+    derniere_marque = texte_cherche[-1:]
+    marque_de_la_citation = (
+        derniere_marque if derniere_marque in MARQUES_DE_FIN_DE_PHRASE else ""
+    )
+    source = _ecraser_l_espace_de_ponctuation(texte_source)
+
+    # LA CASSE EST TOLEREE, PAS IMPOSEE. Forcer la premiere lettre en
+    # minuscule casserait toute citation qui commence par un mot
+    # legitimement capitalise dans la source — un nom propre, un debut
+    # de phrase. On essaie donc les DEUX casses.
+    # / Both cases are tried; neither is imposed.
+    variantes = [texte_cherche]
+    premiere_lettre = texte_cherche[:1]
+    if premiere_lettre.isalpha():
+        variantes.append(premiere_lettre.swapcase() + texte_cherche[1:])
+
+    for variante in variantes:
+        cite = _ecraser_l_espace_de_ponctuation(variante)
+        if cite.endswith("."):
+            cite = cite[:-1]
+        if not cite:
+            continue
+        if _l_occurrence_ne_coupe_pas_une_marque_de_fin(
+            source, cite, marque_de_la_citation,
+        ):
+            return True
+    return False
+
+
 def _le_verbatim_est_present(texte_cite, texte_source):
-    """Le texte cite, normalise, est-il dans la source ? / Substring test."""
+    """
+    Le texte cite, normalise, est-il dans la source ?
+    / Is the normalised quote present in the source?
+
+    DEUX PASSES, ET L'ORDRE COMPTE. La premiere est le test strict —
+    celui qui a toujours existe, et qui reste la definition de
+    reference. La seconde ne s'ouvre que s'il echoue, et elle tolere
+    TROIS retouches de FORME, jamais un changement de FOND.
+
+    Sans la seconde, 34 des 60 citations INTROUVABLE mesurees le 19 aout
+    2026 l'etaient pour un point, une majuscule ou un espace — et pour
+    les deux tiers d'entre elles, l'espace venait de notre propre
+    ingestion. Declarer la chaine de preuve cassee sur ce motif faisait
+    porter au modele un defaut qui etait le notre.
+    / Strict first; then three shape-only tolerances.
+    """
     texte_cherche = _texte_normalise(texte_cite)
     if not texte_cherche:
         return False
-    return texte_cherche in _texte_normalise(texte_source)
+    texte_source_normalise = _texte_normalise(texte_source)
+    if texte_cherche in texte_source_normalise:
+        return True
+    return _le_verbatim_est_present_a_la_forme_pres(
+        texte_cherche, texte_source_normalise,
+    )
 
 
 def _construire_le_prompt_du_juge(paires, nonce):
@@ -354,6 +576,129 @@ def paires_sans_second_avis(article, methode):
         paire for paire in file_du_juge
         if paire.lien.methode_du_second_avis != methode
     ]
+
+
+def poser_un_avis_local(lien, score, methode, seuil):
+    """
+    Enregistre l'avis d'UN juge local sur UNE citation.
+    / Records ONE local judge's opinion on ONE citation.
+
+    LOCALISATION : core/services/verification.py
+
+    IL NE PILOTE RIEN, et c'est toute la definition d'un avis local : ni
+    `etat_de_verification`, ni `score_de_verification`, ni le libelle
+    affiche ne bougent. Cette fonction n'ecrit QUE dans
+    `AvisDeVerification` — un test l'exige.
+
+    UN REJEU REMPLACE, IL N'EMPILE PAS. Deux avis du meme juge sur la
+    meme paire ne diraient pas lequel fait foi ; la contrainte d'unicite
+    du modele l'interdit, et `update_or_create` s'y conforme.
+
+    LE SEUIL EST FIGE ICI, avec l'avis. Les juges ne sont pas sur la meme
+    regle : relire un degre avec le seuil d'un autre ferait conclure au
+    desaccord la ou il y a accord.
+    / Drives nothing, replaces rather than stacks, and freezes its own
+    threshold.
+
+    :param lien: le SourceLink note
+    :param score: le degre, de 0 a 100, sur l'echelle de CE juge
+    :param methode: qui rend l'avis — methode + cadrage + modele
+    :param seuil: le seuil propre a ce juge, au moment de l'avis
+    """
+    from core.models import AvisDeVerification
+
+    avis, _cree = AvisDeVerification.objects.update_or_create(
+        lien=lien, methode=methode,
+        defaults={"score": score, "seuil": seuil},
+    )
+    return avis
+
+
+def paires_sans_avis(article, methode):
+    """
+    Les paires qu'un juge local n'a pas encore notees.
+    / The pairs a local judge has not scored yet.
+
+    LOCALISATION : core/services/verification.py
+
+    L'IDEMPOTENCE EST UNE NECESSITE, PAS UN CONFORT. Relancer une tache
+    ne doit pas tout refaire. Une paire deja notee PAR CETTE METHODE est
+    ecartee ; notee par une AUTRE, elle reste a noter — changer de juge,
+    c'est changer d'echelle, et l'avis precedent ne vaut pas pour le
+    nouveau.
+
+    Le parcours deterministe decide de ce qui est jugeable : une citation
+    INTROUVABLE n'a rien a faire noter.
+    / Idempotent per method, over what the deterministic pass deems
+    judgeable.
+
+    :return: liste de `PaireAJuger` restant a noter
+    """
+    from core.models import AvisDeVerification
+
+    file_du_juge, _ecartees = preparer_les_paires_a_juger(article)
+    deja_notees = set(
+        AvisDeVerification.objects.filter(
+            lien__in=[paire.lien.pk for paire in file_du_juge],
+            methode=methode,
+        ).values_list("lien_id", flat=True)
+    )
+    return [
+        paire for paire in file_du_juge
+        if paire.lien.pk not in deja_notees
+    ]
+
+
+def accord_des_juges_locaux(lien, seuil=None):
+    """
+    Combien de juges locaux confirment le juge de production ?
+    / How many local judges back production's verdict?
+
+    LOCALISATION : core/services/verification.py
+
+    CHAQUE JUGE EST LU AVEC SON PROPRE SEUIL. C'est la regle qui empeche
+    une comparaison fausse : lire 70 et 41 sur la meme regle ferait
+    conclure au desaccord la ou il y a accord parfait, parce que le seuil
+    utile n'est pas le meme d'un juge a l'autre.
+
+    Rend None quand la comparaison est IMPOSSIBLE — pas de degre de
+    production, ou aucun avis local. C'est un cas ORDINAIRE, pas une
+    exception : l'appelant doit dire « comparaison impossible », jamais
+    faire passer une absence pour un desaccord.
+    / Each judge with ITS threshold; None means the comparison cannot be
+    made — ordinary, not exceptional.
+
+    ON NE COMPTE QUE LES JUGES QUI TRANCHENT. Mesure du 19 aout sur les
+    avis reels : la moitie des scores tombent dans la bande de
+    neutralite, ou le modele ne penche ni d'un cote ni de l'autre. Les
+    compter comme « d'accord » ou « en desaccord » ferait passer un
+    tirage au sort pour un avis — voir `AvisDeVerification.tranche`.
+    / Only judges that actually decide are counted.
+
+    :param seuil: le seuil du juge de production, quand l'appelant l'a
+        DEJA lu. La colonne des preuves rend une fiche par citation :
+        sans ce parametre, chacune relisait la `Configuration` en base —
+        59 requetes pour une valeur qui ne change pas pendant le rendu.
+        / Passed in when the caller already read it: the evidence column
+        renders one card per citation and re-read Configuration each time.
+    :return: (nombre qui confirment, nombre qui tranchent, nombre total),
+        ou None
+    """
+    if lien.score_de_verification is None:
+        return None
+    avis = list(lien.avis_locaux.all())
+    if not avis:
+        return None
+
+    if seuil is None:
+        seuil = seuil_de_verification()
+    production_est_positive = lien.score_de_verification >= seuil
+    qui_tranchent = [un_avis for un_avis in avis if un_avis.tranche]
+    confirment = sum(
+        1 for un_avis in qui_tranchent
+        if un_avis.confirme == production_est_positive
+    )
+    return confirment, len(qui_tranchent), len(avis)
 
 
 def accord_des_deux_juges(lien):
@@ -701,19 +1046,44 @@ def preparer_les_paires_a_juger(article):
     return file_du_juge, ecartees
 
 
-def verifier_les_citations_d_un_article(article, modele_ia=None):
+def verifier_les_citations_d_un_article(
+    article, modele_ia=None, seulement_les_non_jugees=False,
+):
     """
-    Verifie toutes les citations d'un article et pose les verdicts.
-    / Verifies every citation of an article and stores the verdicts.
+    Verifie les citations d'un article et pose les verdicts.
+    / Verifies an article's citations and stores the verdicts.
 
     LOCALISATION : core/services/verification.py
 
-    A LA DEMANDE : declenche par un geste explicite (endpoint phase H),
-    jamais par la production d'une synthese.
-    / On-demand only; never at synthesis production time.
+    DEUX REGIMES, ET LA DIFFERENCE EST UNE FACTURE.
+
+    - **Tout l'article** (`seulement_les_non_jugees=False`) : le geste
+      explicite. On rejuge meme ce qui portait deja un verdict — c'est
+      ce qu'on veut apres un changement de juge ou de seuil.
+    - **Seulement ce qui n'a pas de verdict** (`True`) : l'enchainement
+      automatique, apres une production ou une mise a jour. Une citation
+      qu'un paragraphe intact porte encore garde son verdict ; seules
+      les neuves et celles dont le passage a change repartent
+      « non verifie », et ce sont exactement celles-la qu'on rejuge.
+
+    POURQUOI « NON VERIFIE » SUFFIT A DIRE « MODIFIEE ». L'indexation
+    remet a `NON_VERIFIE` toute citation dont l'affirmation a bouge, et
+    les nouvelles naissent dans cet etat. Tenir en plus une liste des
+    liens touches serait une seconde source de verite, qui divergerait
+    de l'etat qu'elle est censee decrire.
+    / "Unverified" already means "changed": indexing resets it, and new
+    links are born in it. A separate list of touched links would be a
+    second source of truth.
+
+    UN VERDICT HUMAIN N'EST JAMAIS REJUGE, dans aucun des deux regimes
+    (§ 7.2) : il est `conteste`, donc hors du filtre, et la cascade
+    l'ecarte de toute facon.
+    / A human verdict is never re-judged, in either regime.
 
     :param article: la Page (wiki ou synthese) dont on verifie les liens
     :param modele_ia: l'AIModel juge ; None = celui de la Configuration
+    :param seulement_les_non_jugees: n'examiner que les citations sans
+        verdict — le regime de l'enchainement automatique
     :return: bilan {"verifiees", "faibles", "sourcees_debat",
         "sans_verdict", "contestees_ignorees", "sources_absentes",
         "bornes_perimees", "non_jugeables", "erreur_du_juge"}
@@ -770,6 +1140,26 @@ def verifier_les_citations_d_un_article(article, modele_ia=None):
     }
 
     file_du_juge, ecartees = preparer_les_paires_a_juger(article)
+
+    # LE FILTRE S'APPLIQUE ICI, sur la SORTIE du parcours, jamais dans
+    # `preparer_les_paires_a_juger` : cette fonction sert aussi le gel
+    # de l'etalon des juges, qui doit poser EXACTEMENT la meme question
+    # que la fois d'avant. Lui apprendre a en omettre une partie ferait
+    # comparer deux etalons differents sans que rien ne le dise.
+    # / Filtered on the output, never inside the read-only pass: the
+    # judge benchmark shares it and must ask the very same question.
+    if seulement_les_non_jugees:
+        from core.models import EtatDeVerification as _Etat
+
+        file_du_juge = [
+            paire for paire in file_du_juge
+            if paire.lien.etat_de_verification == _Etat.NON_VERIFIE
+        ]
+        ecartees = [
+            (lien, raison) for lien, raison in ecartees
+            if lien.etat_de_verification == _Etat.NON_VERIFIE
+        ]
+        bilan["regime"] = "seulement les non jugées"
 
     # Les ecartees, dans l'ordre de l'article. Le parcours ci-dessus
     # n'ecrit rien : c'est ICI que les verdicts du verbatim se posent, et

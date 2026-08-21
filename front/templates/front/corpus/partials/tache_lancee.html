@@ -1,9 +1,50 @@
 {# TACHE LANCEE — retour immediat d'un geste asynchrone. #}
 {# LOCALISATION : front/templates/front/corpus/partials/tache_lancee.html #}
-{# Variables : message, hx_get?, recharger? #}
+{# Variables : message, hx_get?, hx_target? #}
+{% comment %}
+`hx_target` N'EST PAS UN CONFORT, C'EST UNE CORRECTION.
+
+Sans lui, `hx-swap="outerHTML"` vise l'element LUI-MEME. Tant que la
+reponse est un simple message d'attente, c'est ce qu'on veut. Mais
+quand la tache se termine, `/etat/?apres=article` repond par
+l'ARTICLE ENTIER — qui venait donc se loger DANS `#synthese-zone-maj`,
+lui-meme a l'interieur de l'article : deux `data-testid="synthese-article"`
+imbriques, deux zones de corpus, deux colonnes de preuves.
+
+Les appelants qui rendent un article passent donc `#zone-lecture` :
+l'article remplace l'ECRAN, pas une fente a l'interieur de lui-meme.
+/ Without a target, outerHTML replaces this element — fine for a waiting
+message, wrong when the finished task answers with the whole article,
+which then nested inside itself.
+{% endcomment %}
 <div class="text-sm bg-sky-50 border border-sky-200 rounded p-2"
      data-testid="synthese-tache-lancee"
-     {% if hx_get %}hx-get="{{ hx_get }}" hx-trigger="load delay:3s"
-     hx-swap="outerHTML"{% endif %}>
+     aria-live="polite"
+     {% comment %}
+     DEUX DECLENCHEURS, ET LE SECOND EST UN FILET.
+
+     `tacheTerminee` vient du WebSocket (`hypostasia.js`) : la fin d'une
+     tache est SUE, pas devinee, et l'etat est relu AU MOMENT ou elle se
+     termine. Ce bandeau sondait sinon toutes les 3 secondes pendant
+     cinq minutes — jusqu'a cent requetes pour une seule production.
+
+     Le sondage lent qui reste ne vaut que pour le cas ou le socket est
+     coupe : sans lui, un bandeau resterait affiche « en cours » pour
+     toujours sur une tache pourtant finie.
+     / The socket says "done" and the state is read once, at that
+     moment; the slow poll only covers a dropped socket.
+     {% endcomment %}
+     {% if hx_get %}hx-get="{{ hx_get }}"
+     hx-trigger="tacheTerminee from:body, load delay:25s"
+     {# LE SWAP SUIT LA CIBLE. Sans cible, on se remplace soi-meme — #}
+     {# `outerHTML`, et c'est ce qu'on veut d'un message d'attente. Vers #}
+     {# `#zone-lecture`, `outerHTML` DETRUIRAIT le `<main>` lui-meme : #}
+     {# la grille du plateau perdrait sa colonne, et les swaps OOB qui #}
+     {# suivent (fil d'Ariane, colonne des preuves) viseraient des #}
+     {# conteneurs disparus. C'est `innerHTML` qu'il faut. #}
+     {# / The swap follows the target: outerHTML on #zone-lecture would #}
+     {# destroy the <main> itself, and the OOB swaps would then aim at #}
+     {# containers that no longer exist. #}
+     hx-swap="{% if hx_target %}innerHTML{% else %}outerHTML{% endif %}"{% if hx_target %} hx-target="{{ hx_target }}"{% endif %}{% endif %}>
     {{ message }}
 </div>

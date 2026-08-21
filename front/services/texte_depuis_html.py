@@ -21,6 +21,7 @@ fait, avec la seule aide dont elle depend.
 life of its own, under a name that says what it does.
 """
 
+import hashlib
 import html as html_module
 import re
 
@@ -103,3 +104,36 @@ def extraire_texte_depuis_html(html_brut):
         return ''
     texte_extrait, _ = _construire_mapping_text_vers_html(html_brut)
     return texte_extrait.strip()
+
+
+def empreinte_d_une_capture(html_readability, text_readability=""):
+    """
+    L'empreinte de deduplication d'une capture, calculee a un seul
+    endroit. / A capture's dedup fingerprint, computed in one place.
+
+    LOCALISATION : front/services/texte_depuis_html.py
+
+    DEUX APPELANTS, UNE SEULE IMPLEMENTATION, ET C'EST LA RAISON D'ETRE
+    DE CETTE FONCTION. La vue qui cherche un doublon et le serializer qui
+    enregistre doivent obtenir la MEME valeur ; quand ce calcul vivait a
+    deux endroits, ils ne s'accordaient pas et le doublon par contenu ne
+    se declenchait jamais.
+    / Two callers, one implementation: the view that looks for a
+    duplicate and the serializer that stores must agree.
+
+    LE HTML SIMPLIFIE FAIT FOI quand il est la : c'est de lui qu'on
+    derive `text_readability`, et hacher autre chose que ce qu'on
+    enregistre donnerait une empreinte qui ne correspond a rien. Le texte
+    soumis ne sert que pour une capture qui n'apporte aucun HTML.
+    / The simplified HTML wins when present; the submitted text only
+    serves a capture that brings no HTML at all.
+
+    :param html_readability: le HTML simplifie de la capture
+    :param text_readability: le texte soumis, utilise a defaut de HTML
+    :return: une empreinte SHA256 en hexadecimal (64 caracteres)
+    """
+    if html_readability:
+        texte_de_la_capture = extraire_texte_depuis_html(html_readability)
+    else:
+        texte_de_la_capture = text_readability or ""
+    return hashlib.sha256(texte_de_la_capture.encode("utf-8")).hexdigest()
