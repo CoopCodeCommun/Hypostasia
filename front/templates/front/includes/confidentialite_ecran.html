@@ -1,0 +1,20 @@
+{% comment %}
+L'ECRAN DE LA POLITIQUE — ce que `/confidentialite/` rend dans la zone de lecture.
+LOCALISATION : front/templates/front/includes/confidentialite_ecran.html
+
+TROIS LIGNES, sur le modele de `manifeste_ecran.html`, et pour les memes
+raisons. La politique n'est dans aucun carnet : elle n'a pas de chemin.
+Sans l'OOB du fil d'Ariane, la reponse HTMX laisse en place le fil de la
+note d'ou l'on vient, et la politique s'affiche sous le chemin d'un texte
+qu'on a quitte. Sans `fil_carnet` au contexte, `_fil_ariane.html` ne rend
+rien : l'OOB depose donc un conteneur VIDE, et c'est ce vide qui efface
+le fil precedent.
+LA BARRE DU LECTEUR part par le meme chemin : elle vit hors de
+`#zone-lecture` et survivrait a la navigation, proposant de lire un
+enregistrement que l'ecran n'affiche plus.
+/ Three lines, mirroring manifeste_ecran.html: clears the breadcrumb and
+the audio player bar, both of which live outside #zone-lecture.
+{% endcomment %}
+{% include "front/corpus/_fil_ariane_oob.html" %}
+{% include "front/includes/_lecteur_audio_oob.html" %}
+{% include "front/includes/confidentialite.html" %}

@@ -50,13 +50,19 @@ Pour utiliser cette extension sans passer par un store officiel, vous devez l'in
 
 ## Configuration
 
-Avant la première utilisation, vous devez indiquer à l'extension où se trouve votre serveur Hypostasia :
+Par défaut, l'extension pointe vers **`https://beta.hypostasia.org/`**. Si c'est l'instance que vous utilisez, il n'y a
+rien à configurer.
+
+Pour viser un autre serveur — votre propre instance, ou `http://127.0.0.1:8000/` en développement :
 
 1. Cliquez sur l'icône de l'extension dans votre navigateur.
-2. Saisissez l'URL de votre serveur :
-   - Pour un usage local : `http://127.0.0.1:8000/`
-   - Pour l'instance de test : `https://beta.hypostasia.org/`
-3. Cliquez sur **OK** ou enregistrez.
+2. Saisissez l'URL de votre serveur.
+3. Cliquez sur **OK**.
+4. **Le navigateur demande alors l'autorisation** de joindre cette adresse. Sans elle, l'extension ne peut pas parler à
+   ce serveur : le manifest n'accorde d'office que `hypostasia.org` et `beta.hypostasia.org`.
+
+> Le défaut ne s'applique qu'à une installation neuve. Une fois qu'une adresse est enregistrée, c'est elle qui prime,
+> même après une mise à jour de l'extension.
 
 ## Connecter l'extension
 

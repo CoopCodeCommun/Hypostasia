@@ -1,7 +1,7 @@
 from django.urls import include, path, re_path
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views_accueil import AideViewSet, ManifesteViewSet
+from .views_accueil import AideViewSet, ConfidentialiteViewSet, ManifesteViewSet
 from .views_alignement import AlignementViewSet
 from .views_benchmarks import BenchmarksViewSet
 from .views_auth import AuthViewSet
@@ -46,6 +46,14 @@ router.register(r"bases", BaseViewSet, basename="base-de-connaissances")
 # d'accueil. / Two former JS tabs, now addressable screens.
 router.register(r"aide", AideViewSet, basename="aide")
 router.register(r"manifeste", ManifesteViewSet, basename="manifeste")
+
+# `/confidentialite/` est cite dans la fiche AMO de l'extension
+# navigateur. Ce prefixe ne se renomme pas sans casser un lien
+# publie hors du depot, que nous ne controlons plus.
+# / Cited in the extension's AMO listing: do not rename.
+router.register(
+    r"confidentialite", ConfidentialiteViewSet, basename="confidentialite"
+)
 # Couche synthese (§ 10, phase H) : wikis, syntheses dirigees, preuves.
 # / Synthesis layer: wikis, frozen syntheses, evidence panels.
 router.register(r"wikis", WikiViewSet, basename="wiki")

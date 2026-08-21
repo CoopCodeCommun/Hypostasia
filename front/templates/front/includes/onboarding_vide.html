@@ -295,6 +295,28 @@ the note it plays.
         </div>
     </div>
 
+    {% comment %}
+    LA POLITIQUE DE CONFIDENTIALITE, HORS DE LA SECTION PRECEDENTE.
+    « Les references internes » pointe vers des artefacts de fabrication
+    — les mesures, l'etalon visuel. La politique, elle, s'adresse a
+    l'utilisateur et l'engage juridiquement : la ranger avec les
+    maquettes la ferait lire comme un document de travail.
+
+    ELLE PASSE PAR HTMX comme le reste de la navigation, avec le `href`
+    conserve pour le repli sans JS. Son adresse est citee dans la fiche
+    de l'extension sur addons.mozilla.org.
+    / Kept out of the "internal references" block: that section points at
+    build artefacts, this one is a user-facing legal document.
+    {% endcomment %}
+    <p class="onboarding-mentions">
+        <a href="/confidentialite/"
+           hx-get="/confidentialite/" hx-target="#zone-lecture"
+           hx-swap="innerHTML" hx-push-url="true"
+           data-testid="lien-confidentialite-aide">Politique de confidentialit&eacute;</a>
+        &mdash; ce qu&rsquo;Hypostasia et son extension navigateur font de
+        vos donn&eacute;es.
+    </p>
+
 </div>
 
 <style>
@@ -469,6 +491,20 @@ the note it plays.
 
 /* aide-kbd reutilise le style de la modale aide */
 /* / aide-kbd reuses style from help modal */
+
+/* Mentions de bas d'ecran : presentes, jamais tapageuses. */
+/* / End-of-screen notice: present, never loud. */
+.onboarding-mentions {
+    margin: 2rem 0 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--filet);
+    font-size: 0.8125rem;
+    color: var(--encre-douce);
+}
+.onboarding-mentions a {
+    color: var(--info);
+    text-decoration: underline;
+}
 
 /* === Mobile : empiler === */
 @media (max-width: 768px) {

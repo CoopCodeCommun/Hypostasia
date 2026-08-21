@@ -111,13 +111,14 @@ SCRIPT_DE_VERIFICATION_PROD := bin/verifier_prod.sh
 # etapes — le mail doit toujours partir apres le run.
 # / The night pass and the morning recap: one host script, two steps.
 SCRIPT_DE_NUIT := bin/nuit.sh
+SCRIPT_DE_PAQUETAGE_EXTENSION := bin/paqueter_l_extension.sh
 
 .DEFAULT_GOAL := aide
 
 .PHONY: aide install dev status stop restart logs shell check \
         collectstatic test test-rapide test-suite test-e2e test-docling \
         test-llm test-tout backup backup-check restore verif-prod \
-        prod-update prod-status nuit recapitulatif \
+        prod-update prod-status nuit recapitulatif extension-zip \
         .verif-services .verif-docker
 
 # Ce Makefile PILOTE Docker, il ne l'installe pas. Sans lui, chaque
@@ -386,6 +387,11 @@ restore:  ## ECRASE la base depuis une archive : make restore [ARCHIVE=<nom>]
 
 verif-prod:  ## Bilan de prod : depot, cron, secrets, DEBUG/NGINX_CONF
 	@bash $(SCRIPT_DE_VERIFICATION_PROD)
+
+##@ Extension navigateur (a lancer depuis l'hote)
+
+extension-zip:  ## Fabrique dist/hypostasia-extension-<version>.zip pour addons.mozilla.org
+	@bash $(SCRIPT_DE_PAQUETAGE_EXTENSION)
 
 ##@ La nuit des wikis (a lancer depuis l'hote, ou par cron)
 

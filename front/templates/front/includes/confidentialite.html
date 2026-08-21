@@ -1,0 +1,352 @@
+{# Politique de confidentialite — exigee par addons.mozilla.org, et par le RGPD #}
+{# / Privacy policy — required by addons.mozilla.org and by the GDPR #}
+{# LOCALISATION : front/templates/front/includes/confidentialite.html #}
+
+{% comment %}
+CETTE PAGE EST UNE ADRESSE PUBLIQUE, ET ELLE EST CITEE AILLEURS.
+Son URL est deposee dans la fiche AMO de l'extension navigateur. Un
+relecteur de Mozilla la lit, et un utilisateur peut y revenir des annees
+plus tard. Elle doit donc rester joignable a `/confidentialite/` : la
+deplacer casse un lien que nous ne controlons plus.
+
+ELLE DECRIT CE QUE LE CODE FAIT VRAIMENT. Chaque affirmation ci-dessous
+correspond a un chemin verifiable dans le depot. Si le code change, ce
+texte change avec lui — une politique de confidentialite qui decrit un
+logiciel disparu est pire que pas de politique du tout.
+/ Public address, cited in the extension's AMO listing. It must stay
+reachable at /confidentialite/, and it must keep describing what the
+code actually does.
+{% endcomment %}
+
+<article class="confidentialite-contenu"
+         data-testid="confidentialite-article"
+         aria-label="Politique de confidentialité">
+
+    <header class="confidentialite-header">
+        <h2 class="confidentialite-titre">Politique de confidentialit&eacute;</h2>
+        <p class="confidentialite-sous-titre">
+            Hypostasia et son extension navigateur.
+        </p>
+        <p class="confidentialite-date">
+            En vigueur au 21 ao&ucirc;t 2026.
+        </p>
+    </header>
+
+    <section class="confidentialite-section" data-testid="confidentialite-resume">
+        <h3 class="confidentialite-section-titre">En une phrase</h3>
+        <div class="confidentialite-section-corps">
+            <p>
+                Hypostasia ne collecte que ce qu'il faut pour vous rendre
+                le service&nbsp;: <strong>ce que vous d&eacute;cidez
+                d'enregistrer, et de quoi vous reconna&icirc;tre</strong>.
+                Rien n'est revendu, rien n'est c&eacute;d&eacute; &agrave;
+                un tiers, rien ne sert &agrave; vous profiler, et rien
+                ne quitte l'Europe.
+            </p>
+        </div>
+    </section>
+
+    <section class="confidentialite-section" data-testid="confidentialite-extension">
+        <h3 class="confidentialite-section-titre">
+            Ce que l'extension navigateur envoie, et quand
+        </h3>
+        <div class="confidentialite-section-corps">
+            <p>
+                L'extension <strong>ne lit aucune page tant que vous ne
+                le lui demandez pas</strong>. Elle n'a pas de t&acirc;che
+                de fond, pas de surveillance, pas d'historique de
+                navigation.
+            </p>
+            <p>
+                Quand vous cliquez sur <em>R&eacute;colter</em>, et
+                seulement &agrave; ce moment, elle envoie au serveur que
+                vous avez choisi&nbsp;:
+            </p>
+            <ul class="confidentialite-liste">
+                <li>l'adresse (URL) de la page&nbsp;;</li>
+                <li>son titre&nbsp;;</li>
+                <li>
+                    son texte principal, extrait par
+                    <em>Readability</em> &mdash; la biblioth&egrave;que
+                    qui fait le mode lecture de Firefox&nbsp;;
+                </li>
+                <li>le carnet o&ugrave; vous voulez la ranger.</li>
+            </ul>
+            <p>
+                C'est tout. Aucune autre page, aucun onglet, aucun
+                cookie de votre navigation ne part avec.
+            </p>
+        </div>
+    </section>
+
+    <section class="confidentialite-section" data-testid="confidentialite-local">
+        <h3 class="confidentialite-section-titre">
+            Ce que l'extension garde dans votre navigateur
+        </h3>
+        <div class="confidentialite-section-corps">
+            <ul class="confidentialite-liste">
+                <li>
+                    <strong>L'adresse de votre serveur</strong>, pour ne
+                    pas vous la redemander.
+                </li>
+                <li>
+                    <strong>Votre jeton d'authentification</strong>, qui
+                    tient lieu de mot de passe pour l'extension. Vous
+                    pouvez le r&eacute;voquer &agrave; tout moment depuis
+                    la page <em>Mon jeton</em> de votre compte.
+                </li>
+                <li>
+                    <strong>Le dernier carnet choisi</strong>, pour le
+                    proposer par d&eacute;faut la fois suivante.
+                </li>
+            </ul>
+            <p>
+                Ces trois informations vivent dans le stockage de
+                l'extension, sur votre machine. D&eacute;sinstaller
+                l'extension les efface.
+            </p>
+        </div>
+    </section>
+
+    <section class="confidentialite-section" data-testid="confidentialite-compte">
+        <h3 class="confidentialite-section-titre">Ce que votre compte contient</h3>
+        <div class="confidentialite-section-corps">
+            <p>
+                Un identifiant, une adresse de courriel, et une empreinte
+                de votre mot de passe &mdash; jamais le mot de passe
+                lui-m&ecirc;me. L'adresse de courriel sert &agrave; vous
+                r&eacute;initialiser un acc&egrave;s et &agrave; vous
+                envoyer les invitations que quelqu'un vous adresse. Elle
+                ne sert &agrave; rien d'autre.
+            </p>
+            <p>
+                S'ajoutent, forc&eacute;ment, les contenus que vous
+                cr&eacute;ez&nbsp;: vos notes, vos carnets, vos
+                commentaires. Ils vous appartiennent, et vous seul
+                d&eacute;cidez de les rendre publics.
+            </p>
+        </div>
+    </section>
+
+    <section class="confidentialite-section" data-testid="confidentialite-ou">
+        <h3 class="confidentialite-section-titre">O&ugrave; vont ces donn&eacute;es</h3>
+        <div class="confidentialite-section-corps">
+            <p>
+                <strong>Sur le serveur que vous choisissez dans
+                l'extension</strong>, et nulle part ailleurs. Il y en a
+                trois cas&nbsp;:
+            </p>
+            <ul class="confidentialite-liste">
+                <li>
+                    <strong>hypostasia.org</strong> et
+                    <strong>beta.hypostasia.org</strong> &mdash; nos deux
+                    instances. Elles tournent sur des serveurs
+                    <strong>OVH situ&eacute;s en Europe</strong>.
+                </li>
+                <li>
+                    <strong>Votre propre instance</strong>, si vous
+                    h&eacute;bergez Hypostasia vous-m&ecirc;me. Dans ce
+                    cas nous ne voyons rien du tout&nbsp;: vos
+                    donn&eacute;es ne nous parviennent jamais, et cette
+                    politique ne nous engage que sur le logiciel, pas sur
+                    votre h&eacute;bergement.
+                </li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="confidentialite-section" data-testid="confidentialite-jamais">
+        <h3 class="confidentialite-section-titre">Ce que nous ne faisons pas</h3>
+        <div class="confidentialite-section-corps">
+            <ul class="confidentialite-liste">
+                <li>Nous ne <strong>vendons</strong> aucune donn&eacute;e, &agrave; personne, jamais.</li>
+                <li>Nous ne les <strong>c&eacute;dons</strong> ni ne les louons &agrave; un tiers.</li>
+                <li>Nous n'utilisons <strong>aucun tra&ccedil;eur publicitaire</strong>, aucun cookie de mesure d'audience, aucun outil d'analyse tiers.</li>
+                <li>Nous ne construisons <strong>aucun profil</strong> de vos lectures ou de vos opinions.</li>
+                <li>L'extension ne transmet <strong>rien</strong> &agrave; un serveur autre que celui que vous avez configur&eacute;.</li>
+            </ul>
+        </div>
+    </section>
+
+    <section class="confidentialite-section" data-testid="confidentialite-ia">
+        <h3 class="confidentialite-section-titre">
+            Les mod&egrave;les de langue
+        </h3>
+        <div class="confidentialite-section-corps">
+            <p>
+                Hypostasia analyse les textes que vous lui confiez pour
+                en extraire des id&eacute;es. Sur nos instances, cette
+                analyse passe par des mod&egrave;les de langue, dont
+                certains sont fournis par des prestataires
+                ext&eacute;rieurs. <strong>Le texte que vous avez
+                enregistr&eacute; leur est alors transmis</strong>, le
+                temps de l'analyse, et pour cela seulement.
+            </p>
+            <p>
+                Ni votre identit&eacute;, ni votre adresse de courriel,
+                ni votre jeton ne partent avec.
+            </p>
+        </div>
+    </section>
+
+    <section class="confidentialite-section" data-testid="confidentialite-droits">
+        <h3 class="confidentialite-section-titre">Vos droits</h3>
+        <div class="confidentialite-section-corps">
+            <p>
+                Le r&egrave;glement europ&eacute;en sur la protection des
+                donn&eacute;es (RGPD) vous donne le droit
+                d'<strong>acc&eacute;der</strong> &agrave; vos
+                donn&eacute;es, de les <strong>corriger</strong>, de les
+                <strong>effacer</strong>, de les
+                <strong>emporter</strong> ailleurs, et de vous
+                <strong>opposer</strong> &agrave; leur traitement.
+            </p>
+            <p>
+                Une demande suffit, &agrave; l'adresse ci-dessous. La
+                suppression d'un compte emporte celle de ses notes et de
+                ses carnets priv&eacute;s.
+            </p>
+            <p>
+                Si notre r&eacute;ponse ne vous satisfait pas, vous
+                pouvez saisir la <abbr title="Commission nationale de l'informatique et des libertés">CNIL</abbr>.
+            </p>
+        </div>
+    </section>
+
+    <section class="confidentialite-section" data-testid="confidentialite-editeur">
+        <h3 class="confidentialite-section-titre">Qui &eacute;dite Hypostasia</h3>
+        <div class="confidentialite-section-corps">
+            <p>
+                La <strong>Coop&eacute;rative Code Commun</strong>,
+                soci&eacute;t&eacute; coop&eacute;rative
+                d'int&eacute;r&ecirc;t collectif (SCIC), est responsable
+                du traitement au sens du RGPD.
+            </p>
+            <p>
+                SIREN&nbsp;: <strong>913&nbsp;628&nbsp;665</strong>.<br>
+                Si&egrave;ge social&nbsp;: 18 rue &Eacute;douard Lavie,
+                97480 Saint-Joseph, La R&eacute;union, France.
+            </p>
+            {% comment %}
+            CETTE ADRESSE DOIT RESTER RELEVEE PAR UN HUMAIN. C'est elle
+            qui rend exercables les droits annonces plus haut : sans
+            quelqu'un au bout, la section « Vos droits » promet une
+            chose que personne ne peut reclamer. Ne jamais la remplacer
+            par `noreply@hypostasia.org`, qui est une adresse d'envoi.
+            / This address must stay staffed: it is what makes the
+            rights announced above claimable.
+            {% endcomment %}
+            <p>
+                Contact pour toute demande relative &agrave; vos
+                donn&eacute;es&nbsp;:
+                <a class="confidentialite-lien"
+                   href="mailto:contact@tibillet.re"
+                   data-testid="confidentialite-lien-contact">contact@tibillet.re</a>
+            </p>
+            <p>
+                H&eacute;bergement&nbsp;: OVH SAS, 2 rue Kellermann,
+                59100 Roubaix, France.
+            </p>
+        </div>
+    </section>
+
+    <section class="confidentialite-section" data-testid="confidentialite-code">
+        <h3 class="confidentialite-section-titre">V&eacute;rifiez par vous-m&ecirc;me</h3>
+        <div class="confidentialite-section-corps">
+            <p>
+                Hypostasia est un logiciel libre sous licence
+                <strong>AGPL&nbsp;v3</strong>. Tout ce qui est
+                &eacute;crit ci-dessus est v&eacute;rifiable dans le
+                code&nbsp;: vous n'avez pas &agrave; nous croire sur
+                parole.
+            </p>
+            <p>
+                <a class="confidentialite-lien"
+                   href="https://github.com/CoopCodeCommun/Hypostasia"
+                   rel="noopener noreferrer" target="_blank"
+                   data-testid="confidentialite-lien-code">
+                    github.com/CoopCodeCommun/Hypostasia
+                </a>
+            </p>
+        </div>
+    </section>
+
+</article>
+
+<style>
+/*
+ * LE STYLE VIT ICI, ET IL NE PARTAGE RIEN AVEC CELUI DU MANIFESTE.
+ * Les deux pages se ressemblent, mais une classe commune obligerait a
+ * charger le gabarit du manifeste pour afficher celle-ci. Deux petits
+ * blocs independants valent mieux qu'une abstraction que personne ne
+ * tiendra a jour.
+ * / Deliberately independent from the manifesto's style block.
+ */
+.confidentialite-contenu {
+    max-width: var(--largeur-lecture);
+    margin: 0 auto;
+    padding: 3rem 2rem 4rem;
+    color: var(--encre);
+}
+
+.confidentialite-header { margin-bottom: 2.5rem; }
+
+.confidentialite-titre {
+    font-size: 1.625rem;
+    font-weight: 700;
+    margin: 0 0 .5rem;
+    color: var(--encre);
+}
+
+.confidentialite-sous-titre {
+    font-size: 1rem;
+    color: var(--encre-douce);
+    margin: 0 0 .25rem;
+}
+
+.confidentialite-date {
+    font-family: "B612 Mono", monospace;
+    font-size: .75rem;
+    color: var(--encre-douce);
+    margin: 0;
+}
+
+.confidentialite-section {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--filet);
+}
+.confidentialite-section:last-of-type { border-bottom: none; }
+
+.confidentialite-section-titre {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    margin: 0 0 .75rem;
+    color: var(--encre);
+}
+
+.confidentialite-section-corps p {
+    margin: 0 0 .75rem;
+    line-height: 1.65;
+}
+.confidentialite-section-corps p:last-child { margin-bottom: 0; }
+
+.confidentialite-liste {
+    margin: 0 0 .75rem;
+    padding-left: 1.25rem;
+    line-height: 1.65;
+}
+.confidentialite-liste li { margin-bottom: .375rem; }
+
+.confidentialite-lien {
+    color: var(--info);
+    text-decoration: underline;
+    transition: color .15s;
+}
+
+@media (max-width: 768px) {
+    .confidentialite-contenu { padding: 2rem 1rem 3rem; }
+    .confidentialite-titre { font-size: 1.375rem; }
+    .confidentialite-section-titre { font-size: 1rem; }
+}
+</style>

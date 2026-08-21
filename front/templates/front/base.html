@@ -18,7 +18,7 @@
     {# SEUL nom qu'on voit d'une page. #}
     {# / The tab title never changed; it is often the only name a page #}
     {# gets in a tab bar, a bookmark or a history entry. #}
-    <title>{% if article %}{{ article.title|truncatechars:60 }} — Hypostasia{% elif page_preloaded %}{{ page_preloaded.title|default:"Sans titre"|truncatechars:60 }} — Hypostasia{% elif carnet %}{{ carnet.name|truncatechars:60 }} — Hypostasia{% elif base %}{{ base.nom|truncatechars:60 }} — Hypostasia{% elif carnets_liste_preloaded %}Carnets — Hypostasia{% elif bases_liste_preloaded %}Bases de connaissances — Hypostasia{% elif aide_preloaded %}Aide — Hypostasia{% elif manifeste_preloaded %}Manifeste — Hypostasia{% else %}Hypostasia{% endif %}</title>
+    <title>{% if article %}{{ article.title|truncatechars:60 }} — Hypostasia{% elif page_preloaded %}{{ page_preloaded.title|default:"Sans titre"|truncatechars:60 }} — Hypostasia{% elif carnet %}{{ carnet.name|truncatechars:60 }} — Hypostasia{% elif base %}{{ base.nom|truncatechars:60 }} — Hypostasia{% elif carnets_liste_preloaded %}Carnets — Hypostasia{% elif bases_liste_preloaded %}Bases de connaissances — Hypostasia{% elif aide_preloaded %}Aide — Hypostasia{% elif manifeste_preloaded %}Manifeste — Hypostasia{% elif confidentialite_preloaded %}Confidentialité — Hypostasia{% else %}Hypostasia{% endif %}</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
     <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=36">
     {# La couche maquette globale (9 aout 2026) : le design de l'etalon #}
@@ -440,6 +440,8 @@
                 {% include "front/includes/lecture_principale.html" with page=page_preloaded %}
             {% elif manifeste_preloaded %}
                 {% include "front/includes/manifeste_ecran.html" %}
+            {% elif confidentialite_preloaded %}
+                {% include "front/includes/confidentialite_ecran.html" %}
             {% else %}
                 {# Le repli sert aussi `aide_preloaded` : l'aide EST l'ecran #}
                 {# par defaut de la zone de lecture, une seule branche donc. #}
