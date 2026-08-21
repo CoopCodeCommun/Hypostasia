@@ -2628,9 +2628,9 @@ body:has(.bande-de-contexte .fil-ariane) #drawer-backdrop {
 /* ================================================================== */
 /* L'ONGLET « BASES DE CONNAISSANCES » DE L'ACCUEIL                   */
 /*                                                                     */
-/* Il remplace le tiroir lateral retire le 12 aout : la navigation    */
-/* dans le corpus remonte a la surface au lieu de se cacher derriere  */
-/* un hamburger.                                                       */
+/* Ces deux sections ont vecu sur l'accueil, en onglet, du 12 au       */
+/* 21 aout 2026. Elles sont depuis dans `/bases/` — l'onglet montrait  */
+/* une SECONDE vue des bases, qui avait deja diverge de celle-ci.      */
 /*                                                                     */
 /* Deux sections, pas une liste triee. Ce que j'ai cree, j'y reviens  */
 /* — espace de travail ; ce que d'autres publient, je l'explore —     */
@@ -2640,12 +2640,17 @@ body:has(.bande-de-contexte .fil-ariane) #drawer-backdrop {
 /* l'autre.                                                            */
 /* / Two sections, not one sorted list; the subtitle says why.        */
 /* ================================================================== */
-.section-bases-accueil {
-  max-width: 64rem;
-  margin: 0 auto 2.5rem;
-  padding: 0 1.5rem;
-}
-.section-bases-accueil:first-child { margin-top: 1.5rem; }
+/* ELLE N'A PLUS DE LARGEUR NI DE GOUTTIERE A ELLE. Ces sections
+   vivaient sur l'accueil, en enfants directs de la zone de lecture :
+   elles portaient donc `max-width:64rem`, `margin:auto` et un padding
+   lateral. Depuis le 21 aout 2026 elles sont DANS `.zone-corpus`
+   (bases_liste.html), qui porte exactement les memes — les deux
+   s'ajoutaient, et le titre de section commencait 25px a droite du
+   titre de la page. Mesure du 21 aout : h1 a x=212, section a x=237.
+   / They used to be direct children of the reading zone and carried
+   their own width and gutters; inside .zone-corpus the two added up. */
+.section-de-bases { margin: 0 0 2.5rem; }
+.section-de-bases:last-child { margin-bottom: 0; }
 
 .titre-section-bases {
   font-family: ui-monospace, Menlo, monospace;
@@ -3234,11 +3239,50 @@ body:has(.lecteur) { --barre-audio: 62px; }
   font-size: .875rem; text-decoration: none; flex-shrink: 0;
   padding: .15rem .1rem;
 }
-@media (max-width: 480px) {
-  .lien-nav-barre { font-size: .8125rem; }
-  /* Le titre du document cede la place aux entrees : on peut toujours le
-     lire dans l'onglet du navigateur, alors qu'un menu rogne ne se
-     rattrape nulle part.
-     / The document title yields: the tab bar still shows it. */
-  #titre-toolbar { display: none; }
+.entrees-de-navigation {
+  display: flex; align-items: center; gap: .5rem;
+  flex-shrink: 0; min-width: 0;
 }
+
+/* SOUS 560px, LES ENTREES PRENNENT UN RANG A ELLES.
+   / Under 560px the entries take a row of their own.
+
+   Ce n'est pas un choix d'esthetique, c'est une mesure. En 390px, les
+   controles de droite occupent 243px des 366px utiles ; les quatre
+   entrees en reclament 237. Elles ne tiennent pas, et l'ancienne forme
+   les ROGNAIT en silence. Les abreger ou les changer en pictogrammes
+   contredirait le retrait du burger (« trois pictogrammes empiles ne
+   disent pas ou l'on va ») : elles descendent d'un rang.
+
+   `--barre-outils` EST REDEFINI AVEC, ET C'EST INDISPENSABLE. Quatre
+   autres regles s'en servent — le voile du tiroir, le haut du panneau,
+   deux hauteurs de colonne. Grandir la barre sans bouger le token
+   ferait passer le tiroir SOUS elle.
+   / A measurement, not a taste: 243 + 237 > 366. The height token is
+   redefined with it — four other rules read it. */
+@media (max-width: 560px) {
+  :root { --barre-outils: 78px; }
+
+  .barre-outils { flex-wrap: wrap; align-content: center; }
+
+  .entrees-de-navigation {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    gap: .9rem;
+    padding-top: .1rem;
+    border-top: 1px solid var(--filet);
+    margin-top: .1rem;
+  }
+  .lien-nav-barre { font-size: .8125rem; }
+}
+/* AUCUNE REGLE ICI POUR `#titre-toolbar`. La place que les deux entrees
+   ajoutees reclament est deja liberee plus haut dans ce fichier, par une
+   regle du 20 aout qui rend le titre au fil d'Ariane SOUS CONDITION :
+   `body:has(#fil-ariane) … { display: none }`. La condition n'est pas un
+   detail — une note qui n'appartient a aucun carnet n'a PAS de fil, et
+   un masquage inconditionnel la laisserait sans titre nulle part.
+   Mesure du 21 aout : un `#titre-toolbar { display: none }` pose ici a
+   fait tomber `test_navbar_le_titre_sort_de_la_barre_et_le_fil_le_porte`.
+   / No rule for #titre-toolbar here: the 20 August rule already frees
+   that space, and only where a breadcrumb exists to carry the title. */

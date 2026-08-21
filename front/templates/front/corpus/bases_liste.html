@@ -101,16 +101,19 @@ left by the previous screen instead of stranding a stale trail.
     deux fois ferait douter du sens des zones (voir
     `_les_deux_zones_de_bases`, front/views_corpus.py).
 
-    LA GRILLE DE CREATION EST DANS LA SECONDE ZONE, PAS DANS LA
-    PREMIERE : « Mes bases » n'existe pas pour un visiteur anonyme, et y
-    loger la creation la ferait disparaitre pour la seule personne qui,
-    justement, n'en a encore aucune.
+    LA CREATION EST DANS « MES BASES », ET LA ZONE PARAIT MEME VIDE.
+    Une base qu'on cree est une base A SOI : « + Nouvelle base » n'a de
+    sens que de ce cote. Mais la zone ne peut pas etre conditionnee a
+    `mes_bases` — elle disparaitrait pour une personne connectee qui n'en
+    a encore aucune, c'est-a-dire exactement celle qui doit voir le
+    bouton. Sa garde est donc l'AUTHENTIFICATION, pas le contenu.
     / Two zones, not one sorted list: mine is a workspace, theirs is a
-    catalogue. The creation card sits in the second one, which everyone
-    sees.
+    catalogue. Creation lives in "mine", whose guard is authentication,
+    not content — otherwise it would vanish for the very person who has
+    no base yet.
     {% endcomment %}
-    {% if mes_bases %}
-    <section class="section-bases-accueil" data-testid="zone-mes-bases">
+    {% if user.is_authenticated %}
+    <section class="section-de-bases" data-testid="zone-mes-bases">
         <h2 class="titre-section-bases">Mes bases</h2>
         <p class="sous-titre-section-bases">
             Celles que vous avez cr&eacute;&eacute;es.
@@ -120,32 +123,30 @@ left by the previous screen instead of stranding a stale trail.
             {% for base in mes_bases %}
             {% include "front/corpus/partials/carte_de_base.html" %}
             {% endfor %}
-        </ul>
-    </section>
-    {% endif %}
 
-    <section class="section-bases-accueil" data-testid="zone-bases-partagees">
-        <h2 class="titre-section-bases">Bases publiques et partag&eacute;es</h2>
-        <p class="sous-titre-section-bases">
-            Celles que d&rsquo;autres ont ouvertes.
-        </p>
-        <ul class="grille-bases" aria-label="Bases publiques et partagées"
-            data-testid="corpus-bases-grille-partagees">
-            {% for base in bases_des_autres %}
-            {% include "front/corpus/partials/carte_de_base.html" %}
-            {% endfor %}
-
-            {% if user.is_authenticated %}
             {# LA CREATION est la DERNIERE cellule de la grille : sur une #}
             {# porte d'entree, « + Nouvelle base » ne doit pas passer avant #}
             {# la collection. / Last cell: the collection is read first. #}
             <li class="cellule-creation">
                 {% include "front/corpus/partials/_formulaire_de_base.html" with mode="creation" %}
             </li>
-            {% endif %}
         </ul>
+    </section>
+    {% endif %}
 
-        {% if not bases_des_autres %}
+    <section class="section-de-bases" data-testid="zone-bases-partagees">
+        <h2 class="titre-section-bases">Bases publiques et partag&eacute;es</h2>
+        <p class="sous-titre-section-bases">
+            Celles que d&rsquo;autres ont ouvertes.
+        </p>
+        {% if bases_des_autres %}
+        <ul class="grille-bases" aria-label="Bases publiques et partagées"
+            data-testid="corpus-bases-grille-partagees">
+            {% for base in bases_des_autres %}
+            {% include "front/corpus/partials/carte_de_base.html" %}
+            {% endfor %}
+        </ul>
+        {% else %}
         <p class="etat-vide-bases" data-testid="corpus-bases-partagees-vide">
             Aucune base publique pour l&rsquo;instant.
         </p>

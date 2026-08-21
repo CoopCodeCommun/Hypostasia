@@ -194,6 +194,7 @@ et sont importés dans `front/urls.py` :
 | `front/views_synthese.py` | wikis, synthèses dirigées, citations |
 | `front/views_alignement.py` | tableau d'alignement cross-documents |
 | `front/views_taches.py` | le menu des tâches et leurs notifications |
+| `front/views_accueil.py` | l'aide, le manifeste, et le message d'accueil |
 | `front/views_auth.py`, `views_groupes.py`, `views_invitation.py` | comptes, groupes, invitations |
 
 **Un ViewSet neuf va dans son propre fichier**, jamais dans `front/views.py`.
@@ -210,9 +211,12 @@ alignement · auth · groupes · invitation · taches
 carnets · notes · bases                          ← couche corpus
 wikis · syntheses · citations                    ← couche synthèse
 elements                                         ← moteur ELEMENT (BR-E)
+aide · manifeste                                 ← les deux écrans d'accueil
 ```
 
-Plus trois `path()` explicites : la racine (`BibliothequeViewSet`),
+Plus trois `path()` explicites : la racine (`BibliothequeViewSet`, qui
+**redirige vers `/carnets/`** depuis le 21 août 2026 — elle ne rend plus
+d'écran),
 `carnets/<pk>/wikis/` et `carnets/<pk>/syntheses/`.
 
 > **`/arbre/` n'existe plus.** L'arbre latéral et son ViewSet ont été retirés le

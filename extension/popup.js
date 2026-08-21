@@ -665,8 +665,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             files: ['lib/Readability.js'],
         });
 
-        // Fonction d'extraction injectee dans la page
-        // / Extraction function injected into the page
+        // Fonction d'extraction injectee dans la page. Elle est
+        // SERIALISEE avant injection : elle ne peut fermer sur aucune
+        // variable de ce fichier, tout doit vivre a l'interieur.
+        // / Serialised before injection: it can close over nothing.
         const resultat_extraction = await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: () => {
@@ -678,9 +680,86 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return { error: "Readability n'a pas pu extraire le contenu." };
                     }
 
+                    // Echappement par le DOM : un titre contenant « < »
+                    // ne doit pas devenir une balise.
+                    // / DOM escaping: a title with "<" must not become a tag.
+                    const echapper = (valeur) => {
+                        const noeud = document.createElement('span');
+                        noeud.textContent = String(valeur || '');
+                        return noeud.innerHTML;
+                    };
+
+                    // READABILITY REND DIX CHAMPS, ET `content` N'EN EST
+                    // QU'UN. Le titre, la signature et le chapeau vivent
+                    // dans `title`, `byline` et `excerpt` — des champs
+                    // SEPARES, absents de `content`. Le mode lecture de
+                    // Firefox les reaffiche en tete ; l'extension les
+                    // jetait, et l'article arrivait decapite : sur un
+                    // article du Monde diplomatique, la note commencait
+                    // au premier intertitre, sans titre ni auteur.
+                    // / Readability returns ten fields and `content` is
+                    // only one: title, byline and excerpt live apart.
+                    const morceaux = [];
+                    const titre = article_readability.title || document.title;
+                    if (titre) {
+                        morceaux.push('<h1>' + echapper(titre) + '</h1>');
+                    }
+                    if (article_readability.byline) {
+                        morceaux.push(
+                            '<p><em>' + echapper(article_readability.byline) + '</em></p>'
+                        );
+                    }
+
+                    // LE CHAPEAU, SEULEMENT S'IL N'EST PAS DEJA LA.
+                    // `excerpt` vient tantot du chapeau de l'article,
+                    // tantot de son premier paragraphe : dans le second
+                    // cas, l'ajouter le ferait lire deux fois.
+                    // / The standfirst, only if not already there:
+                    // excerpt is sometimes the first paragraph itself.
+                    const chapeau = (article_readability.excerpt || '').trim();
+                    if (chapeau) {
+                        const debut_du_corps = (article_readability.textContent || '')
+                            .trim().slice(0, 400);
+                        const empreinte = chapeau.slice(0, 60);
+                        if (!debut_du_corps.includes(empreinte)) {
+                            morceaux.push('<p>' + echapper(chapeau) + '</p>');
+                        }
+                    }
+
+                    // La provenance : d'ou vient ce texte, et de quand.
+                    // Dans un outil qui relie chaque affirmation a sa
+                    // source, ces deux valeurs ne sont pas decoratives.
+                    // / Provenance: where the text comes from, and when.
+                    const provenance = [];
+                    if (article_readability.siteName) {
+                        provenance.push(echapper(article_readability.siteName));
+                    }
+                    if (article_readability.publishedTime) {
+                        // ON NE REINTERPRETE PAS LA DATE DE L'EDITEUR.
+                        // `new Date(...).toLocaleDateString()` la ramene
+                        // dans le fuseau du navigateur : un article date
+                        // `2003-01-01T00:00:00+01:00` s'affichait
+                        // « 31/12/2002 » sur une machine en UTC. On
+                        // reordonne les chiffres que l'editeur a ecrits,
+                        // et rien de plus.
+                        // / We do not re-interpret the publisher's date:
+                        // converting to the browser's timezone moved it
+                        // back a day. We only reorder its digits.
+                        const iso = String(article_readability.publishedTime);
+                        const jour = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                        provenance.push(echapper(
+                            jour ? `${jour[3]}/${jour[2]}/${jour[1]}` : iso
+                        ));
+                    }
+                    if (provenance.length) {
+                        morceaux.push('<p>' + provenance.join(' — ') + '</p>');
+                    }
+
+                    morceaux.push(article_readability.content || '');
+
                     return {
-                        title: article_readability.title || document.title,
-                        html_readability: article_readability.content || '',
+                        title: titre,
+                        html_readability: morceaux.join('\n'),
                         html_original: document.documentElement.outerHTML,
                     };
                 } catch (e) {

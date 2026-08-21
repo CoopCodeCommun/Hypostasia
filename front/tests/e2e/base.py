@@ -121,11 +121,70 @@ class PlaywrightLiveTestCase(StaticLiveServerTestCase):
         # it closes at process exit (atexit).
         super().tearDownClass()
 
+    # LE MESSAGE D'ACCUEIL EST DEJA COMPRIS, SAUF DEMANDE CONTRAIRE.
+    #
+    # La modale d'accueil (front/views_accueil.py) parait tant que la
+    # session ne porte pas l'UUID du message courant. Or chaque test
+    # ouvre un onglet neuf, donc une session neuve : sans ce reglage,
+    # elle s'affiche au premier chargement de CHAQUE test et intercepte
+    # tous les clics — un voile en `position: fixed` sur toute la page.
+    # Mesure du 21 aout : deux tests de ce fichier meme tombaient en
+    # « intercepts pointer events » avant qu'il n'existe.
+    #
+    # On simule donc un visiteur qui a deja coche « j'ai compris » —
+    # l'etat de tout utilisateur qui revient, c'est-a-dire celui que la
+    # quasi-totalite des tests decrit. La classe qui veut EPROUVER la
+    # modale passe cet attribut a False.
+    # / Each test opens a fresh tab, hence a fresh session: without this
+    # the welcome modal shows on every test's first load and intercepts
+    # every click. We simulate a returning visitor.
+    le_message_d_accueil_est_deja_compris = True
+
     def setUp(self):
         # Ouverture d'un nouvel onglet pour chaque test
         # / Open a new tab for each test
         super().setUp()
         self.page = self.browser.new_page()
+
+        if self.le_message_d_accueil_est_deja_compris:
+            self._marquer_le_message_d_accueil_comme_compris()
+
+    def _marquer_le_message_d_accueil_comme_compris(self):
+        """
+        Pose une session Django portant l'UUID du message d'accueil.
+        / Plant a Django session carrying the welcome message UUID.
+
+        LOCALISATION : front/tests/e2e/base.py
+
+        On ecrit la session EN BASE puis on donne son cookie au
+        navigateur — plutot que de fermer la modale a chaque navigation.
+        Deux raisons :
+
+          - le cookie survit a `se_connecter()` : `django.contrib.auth`
+            fait bien tourner la cle de session, mais il en CONSERVE le
+            contenu (`cycle_key`). Une fermeture par clic, elle, aurait
+            ete a refaire apres chaque connexion ;
+          - elle ne coute rien par navigation.
+        / Planting the session survives login (cycle_key keeps the data)
+        and costs nothing per navigation.
+        """
+        from django.conf import settings
+        from django.contrib.sessions.backends.db import SessionStore
+
+        from front.views_accueil import (
+            CLE_DE_SESSION_DU_MESSAGE_VU,
+            UUID_DU_MESSAGE_D_ACCUEIL,
+        )
+
+        session = SessionStore()
+        session[CLE_DE_SESSION_DU_MESSAGE_VU] = UUID_DU_MESSAGE_D_ACCUEIL
+        session.save()
+
+        self.page.context.add_cookies([{
+            "name": settings.SESSION_COOKIE_NAME,
+            "value": session.session_key,
+            "url": self.live_server_url,
+        }])
 
     def tearDown(self):
         # Fermeture de l'onglet apres chaque test

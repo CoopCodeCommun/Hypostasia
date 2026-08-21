@@ -29,7 +29,6 @@ survive; only the route changed.
 """
 
 from front.tests.e2e.base import PlaywrightLiveTestCase
-from core.models import Page
 
 
 class E2ENavigationTest(PlaywrightLiveTestCase):
@@ -72,14 +71,22 @@ class E2ENavigationTest(PlaywrightLiveTestCase):
             owner=self.utilisateur_test,
         )
 
-    def test_onboarding_affiche_si_aucune_page(self):
-        """L'onboarding s'affiche quand il n'y a aucune page."""
-        # Supprimer toutes les pages pour voir l'onboarding
-        # / Delete all pages to see onboarding
-        Page.objects.all().delete()
-        self.naviguer_vers("/")
-        contenu_onboarding = self.page.text_content('[data-testid="bibliotheque-colonne-lecture"]')
-        self.assertIn("Importer", contenu_onboarding)
+    def test_l_aide_explique_comment_demarrer(self):
+        """
+        L'ecran « Aide » porte le parcours en quatre etapes, et son
+        bouton d'import.
+
+        Il vivait a la racine, en onglet « Decouvrir l'app ». Depuis le
+        21 aout 2026 la racine redirige vers `/carnets/` et cet ecran a
+        sa propre adresse, atteignable par l'entree « Aide » du menu.
+        / It used to be a tab on the root page; the root now redirects
+        and this screen has its own address.
+        """
+        self.naviguer_vers("/aide/")
+        contenu_de_l_aide = self.page.text_content(
+            '[data-testid="bibliotheque-colonne-lecture"]'
+        )
+        self.assertIn("Importer", contenu_de_l_aide)
 
     def test_la_collection_liste_les_carnets(self):
         """

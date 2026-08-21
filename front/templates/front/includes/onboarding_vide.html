@@ -1,99 +1,56 @@
-{# Parcours d'onboarding — affiche quand aucune page n'est chargee #}
-{# Contient : onglets Decouvrir/Manifeste + processus en 4 etapes + 6 statuts + raccourcis clavier #}
-{# / Onboarding guide — displayed when no page is loaded #}
-{# / Contains: Discover/Manifesto tabs + 4-step process + 6 statuses + keyboard shortcuts #}
-{# LOCALISATION : front/templates/front/includes/onboarding_vide.html #}
-
 {% comment %}
-LE DESIGN SYSTEM DU CORPUS EST INDISPENSABLE ICI. L'onglet « Bases de
-connaissances » ci-dessous montre les memes cartes que /bases/, par le
-meme partial `carte_de_base.html`, sous les memes classes
-(`.grille-bases`, `.carte-base`). Or ces regles sont scopees
-`.zone-corpus` et vivent dans `_style_maquette.html`, que CHAQUE ecran
-du corpus inclut lui-meme (`bases_liste.html`, `base_detail.html`,
-`carnets_liste.html`...). Ce gabarit est la branche « sinon » de la
-cascade de `base.html` : sans cet include, il est le seul a montrer des
-cartes de base sans une seule regle pour les dessiner, et elles tombent
-en texte brut.
-/ The home tab reuses the corpus cards, whose rules are scoped to
-.zone-corpus and shipped by _style_maquette.html — include it or the
-cards render unstyled.
+L'ECRAN « AIDE » — comment marche Hypostasia, en quatre etapes.
+LOCALISATION : front/templates/front/includes/onboarding_vide.html
+
+Rendu par `AideViewSet` (front/views_accueil.py) sur `/aide/`, et par le
+repli de `base.html` quand aucun ecran n'est pre-charge.
+
+IL PORTAIT TROIS ONGLETS jusqu'au 21 aout 2026 : « Decouvrir l'app »,
+« Bases de connaissances » et « Manifeste », montres et caches par du
+JavaScript. Un onglet n'a pas d'adresse — ni signet, ni partage, ni
+bouton « precedent » — et celui des bases affichait en plus une SECONDE
+vue des bases, a cote de `/bases/`, dont il avait deja diverge. Les
+trois sont devenus des ecrans : `/aide/` (ce fichier), `/manifeste/` et
+`/bases/`, qui a repris les deux zones de l'onglet.
+
+Il ne reste donc ici qu'un seul contenu, sans bascule.
+
+PAS D'INCLUDE DE `_style_maquette.html`. Il etait la pour les cartes de
+base, dont les regles sont scopees `.zone-corpus` ; ces cartes sont
+parties avec l'onglet. Le style propre a cet ecran vit dans le bloc
+`<style>` plus bas, et ses tokens (`--filet`, `--papier-creux`,
+`--encre-douce`) viennent de `maquette.css`, chargee partout.
+/ Three JS tabs became three addressable screens. What is left here is
+one content, with no toggle and no corpus card styling.
 {% endcomment %}
-{% include "front/corpus/_style_maquette.html" %}
-
 {% comment %}
-L'ACCUEIL EFFACE LE FIL D'ARIANE. Le logo « Hypostasia » de la barre
-d'outils ne recharge pas la page : il fait un `hx-get="/"` sur
-`#zone-lecture` (base.html). Sans ce depot, le fil du carnet d'ou l'on
-vient reste affiche AU-DESSUS DE L'ACCUEIL — l'ecran le plus haut du
-produit annonce alors un chemin dans lequel on n'est plus.
+CET ECRAN EFFACE LE FIL D'ARIANE. L'entree « Aide » de la barre ne
+recharge pas la page : elle fait un `hx-get="/aide/"` sur `#zone-lecture`
+(base.html). Sans ce depot, le fil du carnet d'ou l'on vient reste
+affiche AU-DESSUS DE L'AIDE — un ecran qui n'est dans aucun carnet
+annonce alors un chemin dans lequel on n'est plus.
 
 Sans `fil_carnet` au contexte, `_fil_ariane.html` ne rend rien : l'OOB
 depose donc un conteneur VIDE, ce qui efface le fil precedent et
 escamote la bande entiere
 (`.bande-de-contexte:not(:has(.fil-ariane))`, maquette.css).
-/ The wordmark is an hx-get, not a reload: without this the breadcrumb
-of the notebook you came from stays above the home screen.
+/ The Help entry is an hx-get, not a reload: without this the breadcrumb
+of the notebook you came from stays above a screen that has no path.
 {% endcomment %}
 {% include "front/corpus/_fil_ariane_oob.html" %}
+{% comment %}
+LA BARRE DU LECTEUR S'EFFACE ICI AUSSI, et pour la meme raison que le
+fil : elle vit hors de `#zone-lecture`, donc un swap HTMX ne la touche
+jamais. Sans cet include, la barre d'une note audio SURVIT a la
+navigation vers l'aide et propose de lire un enregistrement que l'ecran
+n'affiche plus. `_lecteur_audio_oob.html` le dit de lui-meme : « ce
+partial est inclus par TOUS les ecrans, y compris ceux qui n'ont pas
+d'audio ».
+/ The player lives outside #zone-lecture too: without this it outlives
+the note it plays.
+{% endcomment %}
+{% include "front/includes/_lecteur_audio_oob.html" %}
 
-{# === Barre d'onglets accueil — Decouvrir / Bases / Manifeste === #}
-{#                                                                     #}
-{# TROIS ONGLETS DEPUIS LE 12 AOUT. Le troisieme, « Bases de           #}
-{# connaissances », remplace le tiroir lateral retire le meme jour :   #}
-{# la navigation dans le corpus remonte a la surface, sur l'ecran      #}
-{# d'accueil, au lieu de se cacher derriere un hamburger.              #}
-{#                                                                     #}
-{# Les bascules ne peuvent plus s'ecrire en `nextElementSibling` : a   #}
-{# deux boutons voisins cela tenait, a trois cela devient faux. On     #}
-{# nomme donc les zones et les onglets, et une seule fonction fait la  #}
-{# bascule. / Three tabs now; sibling-based toggling breaks beyond     #}
-{# two, so zones and tabs are named instead. #}
-<div class="flex gap-3 justify-center pt-6 pb-4 border-b border-slate-200 mb-2" data-testid="onglets-accueil">
-    <button class="onglet-accueil active"
-            data-testid="onglet-decouvrir"
-            data-zone-accueil="zone-onboarding"
-            aria-label="D&eacute;couvrir l'application">
-        D&eacute;couvrir l'app
-    </button>
-    <button class="onglet-accueil"
-            data-testid="onglet-bases"
-            data-zone-accueil="zone-bases-accueil"
-            aria-label="Voir les bases de connaissances">
-        Bases de connaissances
-    </button>
-    <button class="onglet-accueil"
-            data-testid="onglet-manifeste"
-            data-zone-accueil="zone-manifeste"
-            aria-label="Lire le manifeste Hypostasia">
-        Manifeste
-    </button>
-</div>
-
-<script>
-// La bascule des onglets d'accueil. Elle vit ici et non dans un fichier
-// separe : ce gabarit est injecte par HTMX, et un script charge une fois
-// au demarrage n'aurait pas de boutons a accrocher au moment ou il
-// s'execute. La delegation sur le conteneur survit aux reinjections.
-// / Inline because this template is HTMX-injected: a script loaded once
-// at boot would have no buttons to bind. Delegation survives re-injection.
-(function () {
-    var barre = document.querySelector('[data-testid="onglets-accueil"]');
-    if (!barre) return;
-    barre.addEventListener('click', function (evenement) {
-        var onglet = evenement.target.closest('[data-zone-accueil]');
-        if (!onglet) return;
-        barre.querySelectorAll('[data-zone-accueil]').forEach(function (autre) {
-            var zone = document.getElementById(autre.dataset.zoneAccueil);
-            var estChoisi = autre === onglet;
-            autre.classList.toggle('active', estChoisi);
-            if (zone) zone.classList.toggle('hidden', !estChoisi);
-        });
-    });
-})();
-</script>
-
-<div id="zone-onboarding">
 <div class="onboarding-contenu" data-testid="onboarding-guide">
 
     {# === Header === #}
@@ -420,30 +377,6 @@ of the notebook you came from stays above the home screen.
 /* aide-kbd reutilise le style de la modale aide */
 /* / aide-kbd reuses style from help modal */
 
-/* Onglets accueil Decouvrir/Manifeste (refonte A.1) */
-/* / Home tabs Discover/Manifesto (refactor A.1) */
-.onglet-accueil {
-    padding: 0.5rem 1rem 0.625rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-tertiary);
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    margin-bottom: -1px;
-}
-.onglet-accueil:hover {
-    color: var(--text-primary);
-    border-bottom-color: var(--border-default);
-}
-.onglet-accueil.active {
-    color: var(--color-primary, #2563eb);
-    border-bottom-color: var(--color-primary, #2563eb);
-    font-weight: 600;
-}
-
 /* === Mobile : empiler === */
 @media (max-width: 768px) {
     .onboarding-contenu { padding: 2rem 1rem 3rem; }
@@ -452,58 +385,3 @@ of the notebook you came from stays above the home screen.
     .onboarding-section-clavier { display: none; }
 }
 </style>
-</div>{# fin zone-onboarding #}
-
-{# === Zone « Bases de connaissances » — les deux moities du corpus === #}
-{#                                                                       #}
-{# DEUX ZONES, ET NON UNE LISTE TRIEE (demande du mainteneur, 12 aout).  #}
-{# Elles ne se lisent pas de la meme facon : ce que j'ai cree, j'y       #}
-{# REVIENS — c'est un espace de travail ; ce que d'autres publient, je   #}
-{# l'EXPLORE — c'est un catalogue. Une liste unique melangerait les deux #}
-{# intentions et obligerait a lire chaque ligne pour savoir ou l'on est. #}
-{#                                                                       #}
-{# Une base a moi ET publique reste du cote « les miennes » : la montrer #}
-{# deux fois ferait douter du sens des zones (voir                       #}
-{# `BibliothequeViewSet._les_deux_zones_de_bases`).                      #}
-{# / Two zones, not one sorted list: mine is a workspace, theirs is a    #}
-{# catalogue. Ownership wins over publication. #}
-<div id="zone-bases-accueil" class="hidden zone-corpus" data-testid="zone-bases-accueil">
-
-    {% if mes_bases %}
-    <section class="section-bases-accueil" data-testid="zone-mes-bases">
-        <h2 class="titre-section-bases">Mes bases</h2>
-        <p class="sous-titre-section-bases">
-            Celles que vous avez cr&eacute;&eacute;es.
-        </p>
-        <ul class="grille-bases">
-            {% for base in mes_bases %}
-                {% include "front/corpus/partials/carte_de_base.html" %}
-            {% endfor %}
-        </ul>
-    </section>
-    {% endif %}
-
-    <section class="section-bases-accueil" data-testid="zone-bases-partagees">
-        <h2 class="titre-section-bases">Bases publiques et partag&eacute;es</h2>
-        <p class="sous-titre-section-bases">
-            Celles que d&rsquo;autres ont ouvertes.
-        </p>
-        {% if bases_des_autres %}
-        <ul class="grille-bases">
-            {% for base in bases_des_autres %}
-                {% include "front/corpus/partials/carte_de_base.html" %}
-            {% endfor %}
-        </ul>
-        {% else %}
-        <p class="etat-vide-bases">
-            Aucune base publique pour l&rsquo;instant.
-        </p>
-        {% endif %}
-    </section>
-</div>
-
-{# === Zone Manifeste — affichee quand l'utilisateur clique sur l'onglet Manifeste === #}
-{# / === Manifesto zone — displayed when the user clicks the Manifesto tab === #}
-<div id="zone-manifeste" class="hidden">
-    {% include "front/includes/manifeste.html" %}
-</div>

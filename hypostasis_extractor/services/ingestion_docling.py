@@ -42,10 +42,105 @@ logger = logging.getLogger(__name__)
 # recevoir des commentaires.
 # / Docling labels that carry no analysable content.
 LABELS_SANS_CONTENU_UTILE = {
+    # Mise en page d'un document imprime : ce qui se repete a chaque
+    # page. / Print layout furniture, repeated on every page.
     "page_header",
     "page_footer",
     "footnote",
+    # Chrome d'interface d'une page web. Ces labels-la n'existaient pas
+    # dans ce filtre tant qu'il ne servait qu'aux PDF, et la capture web
+    # les laissait passer : la page Wikipedia du 21 aout 2026 produisait
+    # 13 `checkbox_unselected` — les cases de repli de son sommaire.
+    # Treize elements a commenter, a ancrer, et a compter dans la
+    # couverture, pour des cases a cocher.
+    # / Web UI chrome: these were absent while the filter served PDFs
+    # only, so web captures let them through — 13 checkboxes from one
+    # collapsible table of contents.
+    "checkbox_selected",
+    "checkbox_unselected",
+    "form",
+    "field_heading",
+    "field_hint",
+    "field_item",
+    "field_key",
+    "field_region",
+    "field_value",
+    "key_value_region",
+    "document_index",
+    "empty_value",
+    "marker",
 }
+
+# En dessous de ce nombre de caracteres de texte, on ne croit pas que
+# Readability ait trouve un article.
+# / Below this many characters of text, we do not believe Readability
+# found an article.
+#
+# LE PLANCHER EXISTE POUR NE PAS REMPLACER DU BRUIT PAR DU VIDE.
+# Readability est fait pour les ARTICLES. Sur une page d'accueil, un
+# forum ou une page de resultats, il rend trois lignes de menu. Ingerer
+# ca donnerait une note vide la ou la page brute, elle, portait quelque
+# chose — l'utilisateur aurait capture pour rien, sans le savoir.
+# / Readability targets ARTICLES; on a home page it returns three lines
+# of menu, and ingesting that would give an empty note.
+#
+# La valeur est un ordre de grandeur assume, pas une mesure : un article
+# de moins de deux cents caracteres n'existe pas, une page de navigation
+# en fait rarement plus.
+# / An assumed order of magnitude, not a measurement.
+MINIMUM_DE_TEXTE_LISIBLE = 200
+
+
+def source_html_d_une_capture(page):
+    """
+    Choisit le HTML d'une capture web qui part chez Docling.
+    / Picks which of a web capture's HTML goes to Docling.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    L'ARTICLE PROPRE D'ABORD, LA PAGE BRUTE EN SECOURS. L'extension
+    fait tourner Readability dans l'onglet et range son resultat dans
+    `html_readability` ; `html_original` porte la page ENTIERE, menus,
+    bandeaux et pieds de page compris. Ingerer la seconde donnait un
+    document dont un tiers etait de la navigation.
+    / Clean article first, raw page as backup.
+
+    Mesure du 21 aout 2026, meme pipeline, deux entrees :
+
+    | page        | brut -> elements | propre -> elements | conversion |
+    |-------------|------------------|--------------------|------------|
+    | Wikipedia   | 248              | 108                | 6,8 s -> 0,2 s |
+    | Monde diplo | 150              |  26                | 0,4 s -> 0,1 s |
+
+    `html_original` N'EST PAS TOUCHE et ne doit pas l'etre : c'est
+    l'archive immuable de ce qui a ete capture, et c'est elle qui rendra
+    possible une re-ingestion le jour ou cette recette s'ameliore.
+    / html_original stays untouched: it is the immutable archive that
+    makes a future re-ingestion possible.
+
+    :param page: la Page capturee
+    :return: le couple (html, origine) ou origine vaut
+        "html_readability", "html_original" ou "aucune"
+    """
+    from front.services.texte_depuis_html import extraire_texte_depuis_html
+
+    article_propre = (page.html_readability or "").strip()
+    page_brute = (page.html_original or "").strip()
+
+    if article_propre:
+        texte_lisible = extraire_texte_depuis_html(article_propre)
+        if len(texte_lisible) >= MINIMUM_DE_TEXTE_LISIBLE:
+            return article_propre, "html_readability"
+        logger.info(
+            "Capture %s : article propre trop court (%s caracteres de "
+            "texte, minimum %s) — on repart de la page brute.",
+            page.pk, len(texte_lisible), MINIMUM_DE_TEXTE_LISIBLE,
+        )
+
+    if page_brute:
+        return page_brute, "html_original"
+
+    return "", "aucune"
 
 # Les labels qu'on accepte de RECOLLER quand ils se suivent dans un meme
 # groupe inline de Docling — c'est-a-dire quand ils sont les morceaux
@@ -725,18 +820,26 @@ def ingerer_une_capture_web(page):
 
     LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
 
-    U4 : la source est page.html_original (le HTML brut capture par
-    l'extension), pas un fichier. / The source is the captured HTML.
+    U4 : la source n'est pas un fichier mais le HTML capture par
+    l'extension. LEQUEL des deux HTML part chez Docling est decide par
+    `source_html_d_une_capture` : l'article rendu par Readability quand
+    il est credible, la page brute sinon.
+    / The source is captured HTML; which one is decided by
+    source_html_d_une_capture.
 
     :param page: la Page a peupler
     :return: la liste des ElementDocument crees
     :raises ValueError: si la page n'a pas de HTML a decouper
     """
-    html = page.html_original or ""
-    if not html.strip():
+    html, origine = source_html_d_une_capture(page)
+    if not html:
         raise ValueError(
             f"La page {page.pk} n'a pas de HTML original a decouper."
         )
+    logger.info(
+        "Capture %s : decoupage depuis %s (%s caracteres de HTML).",
+        page.pk, origine, len(html),
+    )
     document_docling = convertir_du_html_avec_docling(html)
     elements_bruts = extraire_les_elements_bruts(document_docling)
     return creer_les_elements_d_une_page(page, elements_bruts)

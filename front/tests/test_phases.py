@@ -454,11 +454,19 @@ class AnnonceDesToastsTest(TestCase):
 
 class Phase02PageAccueilSansErreurTest(TestCase):
     """Verifie que la page d'accueil se charge sans erreur HTTP.
-    / Verify that the homepage loads without HTTP error."""
+    / Verify that the homepage loads without HTTP error.
+
+    `follow=True` PARTOUT : depuis le 21 aout 2026 la racine REDIRIGE
+    vers `/carnets/` (front/views.py, BibliothequeViewSet) — elle ne rend
+    plus d'ecran. Ce que ces tests eprouvent reste le meme : ce qu'un
+    visiteur obtient en tapant le domaine seul.
+    / The root redirects since 21 August 2026; what these tests check is
+    still what a visitor gets by typing the bare domain.
+    """
 
     def test_page_accueil_status_200(self):
-        """GET / retourne un status 200."""
-        reponse = self.client.get("/")
+        """GET / aboutit a un status 200."""
+        reponse = self.client.get("/", follow=True)
         self.assertEqual(
             reponse.status_code, 200,
             f"La page d'accueil retourne {reponse.status_code} au lieu de 200"
@@ -466,25 +474,25 @@ class Phase02PageAccueilSansErreurTest(TestCase):
 
     def test_page_accueil_contient_tailwind_css(self):
         """La reponse HTML de / contient un lien vers tailwind.css."""
-        reponse = self.client.get("/")
+        reponse = self.client.get("/", follow=True)
         contenu = reponse.content.decode("utf-8")
         self.assertIn("tailwind.css", contenu)
 
     def test_page_accueil_contient_hypostasia_css(self):
         """La reponse HTML de / contient un lien vers hypostasia.css."""
-        reponse = self.client.get("/")
+        reponse = self.client.get("/", follow=True)
         contenu = reponse.content.decode("utf-8")
         self.assertIn("hypostasia.css", contenu)
 
     def test_page_accueil_contient_htmx(self):
         """La reponse HTML de / contient un lien vers htmx."""
-        reponse = self.client.get("/")
+        reponse = self.client.get("/", follow=True)
         contenu = reponse.content.decode("utf-8")
         self.assertIn("htmx", contenu)
 
     def test_page_accueil_sans_cdn(self):
         """La reponse HTML de / ne contient aucun domaine CDN."""
-        reponse = self.client.get("/")
+        reponse = self.client.get("/", follow=True)
         contenu = reponse.content.decode("utf-8")
         domaines_interdits = [
             "cdn.tailwindcss.com",

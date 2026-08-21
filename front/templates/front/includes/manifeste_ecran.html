@@ -1,0 +1,28 @@
+{% comment %}
+L'ECRAN DU MANIFESTE — ce que `/manifeste/` rend dans la zone de lecture.
+LOCALISATION : front/templates/front/includes/manifeste_ecran.html
+
+DEUX LIGNES, ET C'EST VOULU. Le manifeste lui-meme vit dans
+`manifeste.html` : il etait deja ecrit, et le recopier ici en aurait
+fait deux versions a tenir d'accord. Ce gabarit-ci n'ajoute que deux
+choses — l'effacement du fil d'Ariane et celui de la barre du lecteur
+audio — dont le partial n'avait pas besoin tant qu'il n'etait qu'un
+onglet de l'accueil.
+
+Le manifeste n'est dans aucun carnet : il n'a pas de chemin. Sans cet
+OOB, la reponse HTMX laisse en place le fil de la note d'ou l'on vient,
+et le manifeste s'affiche sous le chemin d'un texte qu'on a quitte.
+Sans `fil_carnet` au contexte, `_fil_ariane.html` ne rend rien : l'OOB
+depose donc un conteneur VIDE, et c'est ce vide qui efface le fil
+precedent puis escamote la bande entiere
+(`.bande-de-contexte:not(:has(.fil-ariane))`, maquette.css).
+LA BARRE DU LECTEUR part par le meme chemin, et pour la meme raison :
+elle vit hors de `#zone-lecture`. Sans elle, la barre d'une note audio
+SURVIT a la navigation vers le manifeste et propose de lire un
+enregistrement que l'ecran n'affiche plus.
+/ Three lines on purpose: the manifesto already lives in manifeste.html.
+This screen only clears the breadcrumb and the audio player.
+{% endcomment %}
+{% include "front/corpus/_fil_ariane_oob.html" %}
+{% include "front/includes/_lecteur_audio_oob.html" %}
+{% include "front/includes/manifeste.html" %}

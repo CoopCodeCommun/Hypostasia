@@ -1,0 +1,148 @@
+{% comment %}
+LE MESSAGE D'ACCUEIL — la modale qui explique les quatre entrees du menu.
+LOCALISATION : front/templates/front/includes/message_d_accueil.html
+
+QUI L'AFFICHE. `base.html`, sous la garde `afficher_le_message_d_accueil`
+posee par le context processor `front.context_processors`. La regle vit
+dans `front/views_accueil.py` : session sans l'UUID courant, ET requete
+non-HTMX.
+
+CE QU'IL EXPLIQUE. Les quatre boutons de la barre, dans leur ordre
+d'apparition. Rien d'autre : ce n'est pas l'aide (elle a son ecran, et
+c'est justement l'un des quatre boutons), c'est le mode d'emploi du
+menu, pour quelqu'un qui ouvre l'application et ne sait pas ou cliquer.
+
+TROIS FACONS D'EN SORTIR, ET DEUX SEULEMENT SONT DEFINITIVES.
+  - la croix, la touche Echap, le bouton « C'est parti » ferment la
+    modale POUR CETTE VISITE : elle reparaitra au prochain chargement ;
+  - la case « J'ai compris » ecrit l'UUID du message en session : elle
+    ne reparaitra plus, jusqu'a ce que l'UUID change.
+Fermer sans cocher n'est donc pas un oubli a rattraper : c'est le geste
+de qui veut juste passer, et le message respecte ce choix en revenant.
+
+PAS DE `hx-headers` ICI : le `<body>` de `base.html` le porte, et HTMX
+en herite pour toute requete de la page. / The body carries the CSRF
+header; HTMX inherits it.
+{% endcomment %}
+<div class="voile-message-accueil" id="message-d-accueil"
+     data-testid="message-d-accueil"
+     role="dialog" aria-modal="true"
+     aria-labelledby="titre-message-accueil">
+    <div class="carte-message-accueil">
+
+        <div class="entete-message-accueil">
+            <h2 id="titre-message-accueil" class="titre-message-accueil">
+                Bienvenue dans Hypostasia
+            </h2>
+            <button type="button" class="fermer-message-accueil"
+                    data-fermer-message-accueil
+                    data-testid="btn-fermer-message-accueil"
+                    title="Fermer" aria-label="Fermer">&#10005;</button>
+        </div>
+
+        <p class="intro-message-accueil">
+            Un outil pour <strong>lire</strong>, <strong>extraire</strong> et
+            <strong>d&eacute;battre</strong> collectivement d&rsquo;un texte.
+            Tout se trouve dans les quatre entr&eacute;es du menu, en haut
+            &agrave; gauche.
+        </p>
+
+        {% comment %}
+        LES QUATRE ENTREES, DANS L'ORDRE OU ELLES SONT DANS LA BARRE.
+        Une liste rangee autrement obligerait a chercher chaque nom dans
+        le menu au lieu de le suivre du regard. / Same order as the bar.
+        {% endcomment %}
+        <ul class="entrees-message-accueil" data-testid="entrees-du-menu">
+            <li>
+                <span class="nom-entree">Carnets</span>
+                <span class="role-entree">Vos notes, group&eacute;es par
+                carnet. C&rsquo;est l&agrave; qu&rsquo;on lit, qu&rsquo;on
+                analyse et qu&rsquo;on d&eacute;bat.</span>
+            </li>
+            <li>
+                <span class="nom-entree">Bases</span>
+                <span class="role-entree">Les carnets d&rsquo;un collectif,
+                rassembl&eacute;s et class&eacute;s selon ses propres axes.
+                Un carnet peut n&rsquo;appartenir &agrave; aucune base.</span>
+            </li>
+            <li>
+                <span class="nom-entree">Aide</span>
+                <span class="role-entree">Comment marche Hypostasia, en
+                quatre &eacute;tapes : importer, extraire, commenter,
+                synth&eacute;tiser.</span>
+            </li>
+            <li>
+                <span class="nom-entree">Manifeste</span>
+                <span class="role-entree">Pourquoi ce projet existe, et
+                pourquoi c&rsquo;est un commun num&eacute;rique.</span>
+            </li>
+        </ul>
+
+        <div class="pied-message-accueil">
+            {% comment %}
+            LA CASE POSTE ELLE-MEME, sans bouton « enregistrer » : le
+            geste de cocher EST la decision, en demander confirmation
+            ferait deux clics pour une seule intention.
+
+            `hx-swap="none"` parce que la reponse est un 204 : il n'y a
+            rien a poser dans la page. La modale, elle, se ferme au clic
+            sur « C'est parti » — pas au coche, sans quoi on ne verrait
+            jamais la case passer a l'etat coche.
+            / The checkbox posts itself; 204 means nothing to swap.
+            {% endcomment %}
+            <label class="case-message-accueil">
+                <input type="checkbox" name="j_ai_compris" value="oui"
+                       id="case-j-ai-compris"
+                       data-testid="case-j-ai-compris"
+                       hx-post="/aide/j-ai-compris/"
+                       hx-swap="none">
+                <span>J&rsquo;ai compris, ne plus afficher ce message</span>
+            </label>
+
+            <button type="button" class="bouton-message-accueil"
+                    data-fermer-message-accueil
+                    data-testid="btn-c-est-parti">C&rsquo;est parti</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// LA FERMETURE DU MESSAGE D'ACCUEIL.
+// / Closing the welcome message.
+//
+// LOCALISATION : front/templates/front/includes/message_d_accueil.html
+//
+// Le script vit ici et non dans un fichier a part : ce bloc n'est rendu
+// que lorsque la modale parait, donc un fichier charge a chaque page
+// n'aurait, la plupart du temps, rien a accrocher.
+//
+// Il ne fait QUE fermer. Ce qui doit survivre a la visite — la case
+// « j'ai compris » — part au serveur par le `hx-post` de la case
+// elle-meme : aucun etat metier ne vit dans ce JavaScript.
+//
+// FLUX : clic sur la croix ou sur « C'est parti », ou touche Echap
+//        -> la modale est retiree du DOM.
+(function () {
+    var modale = document.getElementById('message-d-accueil');
+    if (!modale) return;
+
+    function fermerLeMessageDAccueil() {
+        modale.remove();
+        document.removeEventListener('keydown', surEchap);
+    }
+
+    function surEchap(evenement) {
+        if (evenement.key === 'Escape') fermerLeMessageDAccueil();
+    }
+
+    // Delegation : la croix et « C'est parti » portent le meme marqueur.
+    // / Delegation: the cross and "C'est parti" share one marker.
+    modale.addEventListener('click', function (evenement) {
+        if (evenement.target.closest('[data-fermer-message-accueil]')) {
+            fermerLeMessageDAccueil();
+        }
+    });
+
+    document.addEventListener('keydown', surEchap);
+})();
+</script>

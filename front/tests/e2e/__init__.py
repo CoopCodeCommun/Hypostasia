@@ -53,7 +53,7 @@ from front.tests.e2e.test_25_liste_des_bases import *  # noqa: F401,F403
 # the tree goes away.
 from front.tests.e2e.test_27_actions_du_carnet import *  # noqa: F401,F403
 from front.tests.e2e.test_28_couverture_de_base import *  # noqa: F401,F403
-from front.tests.e2e.test_29_bases_sur_la_home import *  # noqa: F401,F403
+from front.tests.e2e.test_29_menu_et_message_d_accueil import *  # noqa: F401,F403
 # test_30 (« l'en-tete du panneau ») a ete supprime le 12 aout : cet
 # en-tete a FUSIONNE avec le fil d'Ariane dans une bande unique
 # (test_31). Un test qui verrouille un element supprime ne protege

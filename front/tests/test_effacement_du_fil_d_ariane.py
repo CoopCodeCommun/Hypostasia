@@ -64,15 +64,33 @@ class EcransSansFilDeposentUnOobVideTest(TestCase):
     def _reponse_htmx(self, url):
         return self.client.get(url, HTTP_HX_REQUEST="true").content.decode()
 
-    def test_l_accueil_efface_le_fil(self):
+    def test_la_racine_efface_le_fil(self):
         """
         Le cas le plus visible : le logo « Hypostasia » de la barre
-        d'outils est un `hx-get="/"`, pas un rechargement. Sans l'OOB, le
-        fil du carnet d'ou l'on vient reste AU-DESSUS DE L'ACCUEIL.
+        d'outils est un `hx-get`, pas un rechargement. Sans l'OOB, le fil
+        du carnet d'ou l'on vient reste AU-DESSUS DE L'ECRAN D'ARRIVEE.
+
+        `follow=True` : la racine REDIRIGE vers `/carnets/` depuis le
+        21 aout 2026. Le XHR de HTMX suit la redirection tout seul, et
+        c'est bien le partial des carnets qui doit porter l'OOB — ce test
+        verifie donc le bout du chemin, pas son premier pas.
         / The wordmark is an hx-get: without the OOB the breadcrumb of
-        the notebook you came from sits above the home screen.
+        the notebook you came from sits above the destination. The root
+        redirects, and HTMX's XHR follows it on its own.
         """
-        self.assertIn(MARQUEUR_OOB, self._reponse_htmx("/"))
+        contenu = self.client.get(
+            "/", HTTP_HX_REQUEST="true", follow=True,
+        ).content.decode()
+
+        self.assertIn(MARQUEUR_OOB, contenu)
+
+    def test_l_aide_efface_le_fil(self):
+        """L'aide n'est dans aucun carnet. / Help sits in no notebook."""
+        self.assertIn(MARQUEUR_OOB, self._reponse_htmx("/aide/"))
+
+    def test_le_manifeste_efface_le_fil(self):
+        """Le manifeste non plus. / Neither does the manifesto."""
+        self.assertIn(MARQUEUR_OOB, self._reponse_htmx("/manifeste/"))
 
     def test_la_liste_des_bases_efface_le_fil(self):
         self.assertIn(MARQUEUR_OOB, self._reponse_htmx("/bases/"))

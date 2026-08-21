@@ -76,58 +76,72 @@
     .h-11, so that class would be inert and the bar would collapse to 33px.
     {% endcomment %}
     <nav class="barre-outils h-12 border-b border-slate-200 flex items-center px-3 bg-white shrink-0 z-30 relative gap-1">
-        <!-- Gauche : hamburger + titre (prend l'espace restant, tronque) -->
-        <!-- Sur mobile : pas de mot "Hypostasia", juste le titre du document tronque -->
-        <!-- / Left: hamburger + title (takes remaining space, truncated) -->
-        <!-- / On mobile: no "Hypostasia" word, just truncated document title -->
-        <div class="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-            {# LE BURGER N'EXISTE PLUS (12 aout 2026).                       #}
-            {#                                                               #}
-            {# Il ouvrait un tiroir lateral, puis — le temps d'une journee — #}
-            {# il a mene a `/bases/`. Le mainteneur a tranche : ni tiroir ni #}
-            {# burger. Trois pictogrammes empiles ne disent pas ou l'on va ; #}
-            {# les liens « Carnets » et « Bases » ci-dessous le disent en    #}
-            {# toutes lettres, et menent aux memes ecrans.                   #}
-            {# / The hamburger is gone: two named links say where they lead, #}
-            {# three stacked bars do not. #}
-            {# LE LOGO MENE AUX CARNETS, ET NON A « / ». La racine ne rend  #}
-            {# plus d'ecran : elle redirige (front/views.py,                 #}
-            {# BibliothequeViewSet). Un `hx-get="/"` ferait suivre la        #}
-            {# redirection au XHR, puis pousserait « / » dans l'historique — #}
-            {# une adresse qui n'affiche rien par elle-meme.                 #}
-            {# / The wordmark points at /carnets/: the root only redirects,  #}
-            {# so pushing "/" would bookmark an address that renders         #}
-            {# nothing on its own. #}
-            <a href="/carnets/"
-               hx-get="/carnets/"
-               hx-target="#zone-lecture"
-               hx-swap="innerHTML"
-               hx-push-url="true"
-               class="titre-app-desktop font-semibold text-lg tracking-tight shrink-0 hover:text-blue-600 transition-colors no-underline text-slate-800"
-               data-testid="lien-accueil">Hypostasia</a>
-            {% comment %}
-            LES QUATRE ENTREES DU MENU — Carnets, Bases, Aide, Manifeste.
+        {% comment %}
+        LA BARRE A QUATRE ENFANTS DIRECTS, ET C'EST CE QUI LUI PERMET DE
+        SE REPLIER SUR TELEPHONE.
 
-            Elles etaient deux, et deux autres vivaient en ONGLETS sur la
-            page racine (« Decouvrir l'app », « Manifeste »). Un onglet
-            n'a pas d'adresse : on ne peut ni le mettre en signet, ni
-            l'envoyer, ni y revenir par le bouton « precedent ».
+        Le logo, les entrees, le titre et les controles etaient repartis
+        en DEUX conteneurs : « gauche » (logo + entrees + titre, en
+        `flex-1 overflow-hidden`) et « droite » (les controles). Cette
+        forme tenait a deux entrees ; a quatre elle ROGNE. Mesure du
+        21 aout 2026, en 390px sur une note : les controles de droite
+        prennent 243px, la zone gauche tombe a 119px, et les quatre
+        entrees en reclament 237 — « Aide » et « Manifeste » etaient
+        coupes en silence, l'`overflow-hidden` ne levant rien.
 
-            L'ORDRE EST UNE DECISION DU MAINTENEUR (21 aout 2026) : on
-            travaille dans un carnet, la base n'est qu'un rangement
-            facultatif au-dessus. Le menu commence donc par la ou l'on
-            passe ses journees. Il a longtemps commence par « Bases », au
-            nom de la hierarchie du modele — mais un menu se range par
-            frequence d'usage, pas par profondeur de schema.
+        A plat, les entrees peuvent porter `flex-basis:100%` sous 560px
+        et prendre un rang a elles (`.entrees-de-navigation`,
+        maquette.css). Imbriquees, elles n'auraient pu se replier qu'a
+        l'interieur d'un conteneur qui, lui, ne se replie pas.
 
-            AUCUNE NE PORTE `btn-desktop-only` : le tiroir lateral est
-            retire depuis le 12 aout, plus rien ne rattraperait une
-            entree absente sur telephone. La regle `.lien-nav-barre`
-            (maquette.css) les resserre sous 480px plutot que de les
-            masquer.
-            / Four addressable entries, ordered by how often they are
-            used, never hidden on phones.
-            {% endcomment %}
+        C'EST LE TITRE QUI ABSORBE ET SE TRONQUE desormais : il porte
+        `flex-1 min-w-0`, la place que l'ancien conteneur prenait pour
+        lui. C'est son role — les trois autres ont une largeur qu'on ne
+        peut pas negocier.
+        / Four direct children: nested entries could never wrap out of a
+        container that does not wrap itself. Measured at 390px: 243px of
+        controls, 119px left, 237px of entries — two clipped in silence.
+        {% endcomment %}
+        {# LE LOGO MENE AUX CARNETS, ET NON A « / ». La racine ne rend    #}
+        {# plus d'ecran : elle redirige (front/views.py,                  #}
+        {# BibliothequeViewSet). Un `hx-get="/"` ferait suivre la         #}
+        {# redirection au XHR, puis pousserait « / » dans l'historique —  #}
+        {# une adresse qui n'affiche rien par elle-meme.                  #}
+        {# / The wordmark points at /carnets/: the root only redirects,   #}
+        {# so pushing "/" would bookmark an address that renders nothing. #}
+        <a href="/carnets/"
+           hx-get="/carnets/"
+           hx-target="#zone-lecture"
+           hx-swap="innerHTML"
+           hx-push-url="true"
+           class="titre-app-desktop font-semibold text-lg tracking-tight shrink-0 hover:text-blue-600 transition-colors no-underline text-slate-800"
+           data-testid="lien-accueil">Hypostasia</a>
+
+        {% comment %}
+        LES QUATRE ENTREES DU MENU — Carnets, Bases, Aide, Manifeste.
+
+        Elles etaient deux, et deux autres vivaient en ONGLETS sur la
+        page racine (« Decouvrir l'app », « Manifeste »). Un onglet n'a
+        pas d'adresse : on ne peut ni le mettre en signet, ni l'envoyer,
+        ni y revenir par le bouton « precedent ».
+
+        L'ORDRE EST UNE DECISION DU MAINTENEUR (21 aout 2026) : on
+        travaille dans un carnet, la base n'est qu'un rangement
+        facultatif au-dessus. Le menu commence donc par la ou l'on passe
+        ses journees. Il a longtemps commence par « Bases », au nom de la
+        hierarchie du modele — mais un menu se range par frequence
+        d'usage, pas par profondeur de schema.
+
+        AUCUNE NE PORTE `btn-desktop-only`, ET AUCUNE N'EST ABREGEE. Le
+        tiroir lateral est retire depuis le 12 aout : plus rien ne
+        rattraperait une entree absente sur telephone. Elles passent au
+        rang du dessous plutot que de disparaitre ou de se changer en
+        pictogrammes — « trois pictogrammes empiles ne disent pas ou l'on
+        va », c'est ce qui avait fait retirer le burger.
+        / Never hidden on phones, never abbreviated: they move to their
+        own row instead. Pictograms do not say where they lead.
+        {% endcomment %}
+        <div class="entrees-de-navigation" data-testid="entrees-de-navigation">
             <a href="/carnets/" hx-get="/carnets/" hx-target="#zone-lecture"
                hx-swap="innerHTML" hx-push-url="true"
                class="lien-nav-barre text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
@@ -144,8 +158,8 @@
                hx-swap="innerHTML" hx-push-url="true"
                class="lien-nav-barre text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
                data-testid="lien-nav-manifeste">Manifeste</a>
-            <span id="titre-toolbar" class="text-sm text-slate-400 truncate" data-testid="titre-toolbar">{% if page_preloaded %}{{ page_preloaded.title|default:"Sans titre" }}{% endif %}</span>
         </div>
+        <span id="titre-toolbar" class="text-sm text-slate-400 truncate flex-1 min-w-0" data-testid="titre-toolbar">{% if page_preloaded %}{{ page_preloaded.title|default:"Sans titre" }}{% endif %}</span>
         <!-- Droite : boutons d'action (ne se compresse jamais) + separateur + import + config -->
         <!-- / Right: action buttons + separator + import + config -->
         <div class="flex items-center gap-1 shrink-0">
