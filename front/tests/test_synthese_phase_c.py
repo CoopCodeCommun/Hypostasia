@@ -541,8 +541,22 @@ class CorrectifsRelectureCTest(TestCase):
 
     # ----- I3 : une source hors carnet -> le « A ranger » du demandeur -----
 
-    def test_une_source_hors_carnet_range_la_synthese_dans_a_ranger(self):
-        from core.models import RoleSpecialDossier
+    def test_une_source_hors_carnet_ne_range_la_synthese_nulle_part(self):
+        """
+        CE TEST DISAIT L'INVERSE JUSQU'AU 21 AOUT 2026. Il verifiait que
+        la synthese d'une note sans carnet atterrissait dans le
+        fourre-tout « A ranger » du demandeur, cree pour l'occasion.
+
+        Ce carnet magique a disparu : une note appartient toujours a un
+        carnet, et ce carnet est cree par quelqu'un. LE REFUS VIT
+        DESORMAIS DANS LA VUE, avant l'appel au modele — refuser dans la
+        tache couterait une synthese FACTUREE pour la jeter. La tache,
+        elle, ne garde qu'un journal d'erreur, pour le cas ou la note
+        quitterait son carnet PENDANT la production : c'est exactement
+        ce que ce test met en scene en appelant la tache directement.
+        / This test asserted the opposite: the refusal now lives in the
+        view, before the billed call; the task only logs.
+        """
 
         note_orpheline = Page.objects.create(
             title="Note orpheline", text_readability="o",
@@ -580,12 +594,14 @@ class CorrectifsRelectureCTest(TestCase):
 
         self.assertEqual(job.status, "completed")
         page_synthese = Page.objects.get(pk=job.raw_result["page_synthese_id"])
-        appartenance = page_synthese.appartenances_dossiers.get()
-        self.assertEqual(
-            appartenance.dossier.role_special, RoleSpecialDossier.A_RANGER,
-        )
-        self.assertEqual(
-            appartenance.dossier.owner, self.fixtures["demandeur"],
+        # Aucune appartenance inventee, et AUCUN carnet fabrique.
+        # / No membership invented, and no notebook manufactured.
+        self.assertFalse(page_synthese.appartenances_dossiers.exists())
+        self.assertIsNone(page_synthese.dossier_id)
+        self.assertFalse(
+            Dossier.objects.filter(
+                owner=self.fixtures["demandeur"],
+            ).exclude(role_special="").exists()
         )
 
     # ----- I6 : le perimetre est fige AVANT l'appel LLM -----

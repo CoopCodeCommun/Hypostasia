@@ -19,6 +19,33 @@
 
 .zone-corpus .entete-zone { margin-bottom:1.2rem; padding-bottom:.8rem; border-bottom:1px solid var(--filet); }
 .zone-corpus .entete-zone h1 { font-size:1.65rem; line-height:1.25; margin:0 0 .25rem; letter-spacing:-.015em; }
+
+/* LA LIGNE DU TITRE PORTE LE GESTE D'IMPORT, A SA DROITE.
+   Le titre garde toute sa place ; le bouton se pose au bout de la ligne,
+   aligne sur la premiere ligne du titre meme si celui-ci passe a la
+   ligne (`align-items:flex-start`).
+   / The title line carries the import gesture on its right. */
+.zone-corpus .ligne-titre-carnet {
+  display:flex; align-items:flex-start; justify-content:space-between;
+  gap:1rem; margin:0 0 .25rem;
+}
+.zone-corpus .ligne-titre-carnet h1 { margin:0; }
+
+.zone-corpus .bouton-importer-note {
+  display:inline-flex; align-items:center; gap:.4rem; flex-shrink:0;
+  padding:.35rem .7rem; border:1px solid var(--filet); border-radius:.4rem;
+  background:var(--papier-panneau); color:var(--encre-douce);
+  font-family:'B612',sans-serif; font-size:.7rem; font-weight:700;
+  text-transform:uppercase; letter-spacing:.03em;
+  cursor:pointer; transition:color .15s, border-color .15s;
+}
+.zone-corpus .bouton-importer-note:hover {
+  color:var(--encre); border-color:var(--encre-douce);
+}
+.zone-corpus .bouton-importer-note:focus-within {
+  outline:2px solid var(--cible); outline-offset:2px;
+}
+.zone-corpus .bouton-importer-note svg { width:1rem; height:1rem; }
 .zone-corpus .entete-zone .meta {
   font-size:.7rem; color:var(--encre-douce); font-family:ui-monospace,Menlo,monospace;
 }

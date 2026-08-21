@@ -1370,9 +1370,18 @@ class Phase07LayoutMonoColonneBaseHtmlTest(TestCase):
         """Le span #titre-toolbar existe pour recevoir le titre du document via OOB."""
         self.assertIn('id="titre-toolbar"', self.contenu_base_html)
 
-    def test_bouton_import_dans_toolbar(self):
-        """Le bouton d'import fichier est dans la toolbar (input file present)."""
-        self.assertIn('id="input-import-fichier"', self.contenu_base_html)
+    def test_pas_de_bouton_import_dans_la_toolbar(self):
+        """
+        LE BOUTON D'IMPORT A QUITTE LA BARRE D'OUTILS le 21 aout 2026.
+
+        Global, il ne disait pas OU le fichier atterrissait : dans un
+        carnet fourre-tout invisible, que le serveur creait tout seul. Le
+        geste vit maintenant sur la ligne du titre de chaque carnet
+        (`corpus-carnet-importer`), ou la destination est la chose qu'on
+        regarde.
+        / The global button never said where the file landed.
+        """
+        self.assertNotIn('id="input-import-fichier"', self.contenu_base_html)
 
     def test_lien_config_llm_dans_toolbar(self):
         """Le lien config LLM (engrenage) est dans la toolbar."""
@@ -5874,9 +5883,14 @@ class Phase25bPageCreateAvecTokenTest(TestCase):
 
     def setUp(self):
         from django.contrib.auth.models import User
+        from core.models import Dossier
         self.user = User.objects.create_user(username="ext_user", password="test1234")
         from rest_framework.authtoken.models import Token
         self.token = Token.objects.create(user=self.user)
+        # UNE CAPTURE EXIGE UN CARNET depuis le 21 aout 2026 : le
+        # serveur n'a plus de destination par defaut.
+        # / A capture requires a notebook: no default destination.
+        self.carnet = Dossier.objects.create(name="Carnet ext", owner=self.user)
 
     def test_create_avec_token_assigne_owner(self):
         """POST avec token valide cree la page avec owner correct."""
@@ -5889,6 +5903,7 @@ class Phase25bPageCreateAvecTokenTest(TestCase):
                 "html_original": "<p>test</p>",
                 "html_readability": "<p>test</p>",
                 "text_readability": "test",
+                "dossier_id": self.carnet.pk,
             },
             content_type="application/json",
             HTTP_AUTHORIZATION=f"Token {self.token.key}",
@@ -5897,24 +5912,13 @@ class Phase25bPageCreateAvecTokenTest(TestCase):
         page_creee = Page.objects.get(url="https://example.com/test-auth")
         self.assertEqual(page_creee.owner, self.user)
 
-    def test_create_avec_token_cree_dossier_a_ranger(self):
-        """POST sans dossier_id cree/reutilise un dossier 'A ranger'."""
-        from core.models import Dossier
-        self.client.post(
-            "/api/pages/",
-            data={
-                "url": "https://example.com/test-dossier-auto",
-                "title": "Test Dossier Auto",
-                "html_original": "<p>test</p>",
-                "html_readability": "<p>test</p>",
-                "text_readability": "test",
-            },
-            content_type="application/json",
-            HTTP_AUTHORIZATION=f"Token {self.token.key}",
-        )
-        dossier_a_ranger = Dossier.objects.filter(name="A ranger", owner=self.user)
-        self.assertTrue(dossier_a_ranger.exists())
-
+    # `test_create_avec_token_cree_dossier_a_ranger` vivait ici. Il
+    # verifiait qu'un POST SANS `dossier_id` fabriquait le carnet
+    # « A ranger ». Ce carnet magique a disparu le 21 aout 2026, et un
+    # POST sans carnet rend desormais 400 — verrouille par
+    # `core/tests/test_extension_api.py`.
+    # / It checked that a POST without dossier_id manufactured the
+    # inbox; such a POST now returns 400.
 
 class Phase25bPageCreateSansTokenTest(TestCase):
     """Verifie que POST /api/pages/ sans token retourne 401.
@@ -6035,38 +6039,14 @@ class Phase25bEndpointMesDossiersTest(TestCase):
         self.assertEqual(reponse.status_code, 401)
 
 
-class Phase25bDossierParDefautTest(TestCase):
-    """Verifie l'auto-creation du dossier 'A ranger'.
-    / Verify 'A ranger' folder auto-creation."""
-
-    def setUp(self):
-        from django.contrib.auth.models import User
-        self.user = User.objects.create_user(username="ranger_user", password="test1234")
-        from rest_framework.authtoken.models import Token
-        self.token = Token.objects.create(user=self.user)
-
-    def test_dossier_a_ranger_cree_une_seule_fois(self):
-        """Deux creations successives reutilisent le meme dossier 'A ranger'."""
-        from core.models import Dossier
-        for i in range(2):
-            self.client.post(
-                "/api/pages/",
-                data={
-                    "url": f"https://example.com/ranger-{i}",
-                    "title": f"Test Ranger {i}",
-                    "html_original": "<p>test</p>",
-                    "html_readability": "<p>test</p>",
-                    "text_readability": "test",
-                },
-                content_type="application/json",
-                HTTP_AUTHORIZATION=f"Token {self.token.key}",
-            )
-        # Un seul dossier "A ranger" doit exister pour cet user
-        # / Only one "A ranger" folder should exist for this user
-        nombre_dossiers_a_ranger = Dossier.objects.filter(
-            name="A ranger", owner=self.user
-        ).count()
-        self.assertEqual(nombre_dossiers_a_ranger, 1)
+# La classe `Phase25bDossierParDefautTest` vivait ici. Elle verifiait
+# l'auto-creation du carnet « A ranger » a la premiere capture sans
+# destination. Ce carnet magique a ete supprime le 21 aout 2026 : une
+# note appartient toujours a un carnet, et ce carnet est cree par
+# quelqu'un. Le refus est desormais verrouille par
+# `core/tests/test_extension_api.py::test_sans_carnet_la_capture_est_refusee`.
+# / The class that checked the inbox's auto-creation lived here; the
+# catch-all is gone and the refusal is locked elsewhere.
 
 
 class Phase25bClasserDepuisExtensionTest(TestCase):
@@ -6132,12 +6112,16 @@ class Phase25bDedupFiltreOwnerTest(TestCase):
     def test_meme_url_deux_users_sans_partage(self):
         """Deux users sans partage commun peuvent enregistrer la meme URL."""
         url_commune = "https://example.com/dedup-test"
+        from core.models import Dossier
+        carnet1 = Dossier.objects.create(name="Carnet dedup 1", owner=self.user1)
+        carnet2 = Dossier.objects.create(name="Carnet dedup 2", owner=self.user2)
         donnees = {
             "url": url_commune,
             "title": "Dedup Test",
             "html_original": "<p>test</p>",
             "html_readability": "<p>test</p>",
             "text_readability": "test",
+            "dossier_id": carnet1.pk,
         }
 
         # User 1 enregistre
@@ -6155,6 +6139,7 @@ class Phase25bDedupFiltreOwnerTest(TestCase):
         # que la dedup cote view ne bloque pas
         donnees2 = donnees.copy()
         donnees2["url"] = "https://example.com/dedup-test-2"
+        donnees2["dossier_id"] = carnet2.pk
         reponse2 = self.client.post(
             "/api/pages/",
             data=donnees2,
@@ -6302,22 +6287,10 @@ class Phase25cAutoClassifyImportTest(TestCase):
     """Import sans dossier → 'Mes imports'.
     / Import without folder → 'Mes imports'."""
 
-    def test_obtenir_ou_creer_dossier_imports(self):
-        from django.contrib.auth.models import User
-        from core.models import Dossier
-        from front.views import _obtenir_ou_creer_dossier_imports
-        user = User.objects.create_user(username="import_user", password="test1234")
-        dossier = _obtenir_ou_creer_dossier_imports(user)
-        self.assertEqual(dossier.name, "Mes imports")
-        self.assertEqual(dossier.owner, user)
-        # Appel idempotent / Idempotent call
-        dossier2 = _obtenir_ou_creer_dossier_imports(user)
-        self.assertEqual(dossier.pk, dossier2.pk)
-
-
-class Phase25cChangerVisibiliteOwnerTest(TestCase):
-    """Seul owner change visibilite.
-    / Only owner can change visibility."""
+    # `test_obtenir_ou_creer_dossier_imports` vivait ici. La fonction
+    # qu'il testait creait le carnet « Mes imports » a la demande ; elle
+    # a ete supprimee le 21 aout 2026 avec les deux fourre-tout.
+    # / The function it tested created the "Mes imports" catch-all.
 
     def setUp(self):
         from django.contrib.auth.models import User

@@ -47,13 +47,15 @@ l'explication permanente, les compteurs distincts, la carte de création.
 | `front/templates/front/includes/manifeste_ecran.html` | **NEUF** — le manifeste + effacement du fil et du lecteur audio |
 | `front/tests/test_le_menu_et_le_message_d_accueil.py` | **NEUF** — 27 tests serveur |
 | `front/tests/e2e/test_29_menu_et_message_d_accueil.py` | **NEUF** — 17 tests navigateur (remplace `test_29_bases_sur_la_home.py`, supprimé) |
+| `front/tests/test_ce_que_dit_l_aide.py` | **NEUF** — 9 tests : les listes de raccourcis contre `keyboard.js`, et le vocabulaire mort |
 | `front/templates/front/bibliotheque.html` | **SUPPRIMÉ** — une ligne, plus aucun appelant |
 | `front/views.py` | `BibliothequeViewSet.list` → `redirect("/carnets/")` ; `_les_deux_zones_de_bases` déplacée |
 | `front/views_corpus.py` | `_les_deux_zones_de_bases` accueillie ici ; `BaseViewSet.list` pose les deux zones |
 | `front/urls.py` | `aide` et `manifeste` enregistrés au routeur |
 | `front/templates/front/base.html` | Quatre enfants directs dans la barre ; les 4 entrées ; branches `aide_preloaded` / `manifeste_preloaded` ; include de la modale |
 | `front/templates/front/corpus/bases_liste.html` | Deux zones, la création dans « Mes bases » |
-| `front/templates/front/includes/onboarding_vide.html` | Onglets, script de bascule, zone des bases et zone manifeste retirés ; OOB du lecteur audio ajouté |
+| `front/templates/front/includes/onboarding_vide.html` | Onglets, script de bascule, zone des bases et zone manifeste retirés ; OOB du lecteur audio ajouté ; **les 7 affirmations fausses corrigées** |
+| `front/views.py` (bis) | `liste_raccourcis` : `S — Marquer consensuelle` retiré (non lié, statut disparu le 2 mai) |
 | `front/static/front/css/maquette.css` | Modale, `.entrees-de-navigation` (repli sous 560 px), `.section-de-bases` recalée et renommée — `?v=73` |
 | `hypostasia/settings.py` | Le context processor branché |
 | `front/tests/e2e/base.py` | La session de test porte l'UUID du message : sinon la modale intercepte les clics de **toute** la suite |
@@ -96,6 +98,48 @@ monde, y compris à ceux qui avaient coché — c'est le mécanisme prévu pour
 annoncer une mise à jour, sans second dispositif ni effacement de sessions.
 
 *The session remembers WHAT was seen, not THAT something was.*
+
+### L'audit de l'écran « Aide » / Auditing the Help screen
+
+Promouvoir cet écran au rang d'entrée de menu a imposé de vérifier **ce
+qu'il affirme**, ligne à ligne, contre le code. **Sept affirmations étaient
+fausses.** Aucune n'avait jamais levé d'erreur : une aide ne plante pas, elle
+ment.
+
+*Promoting this screen to a menu entry meant checking every claim it makes
+against the code. Seven were false, and none had ever raised an error.*
+
+| Ce qu'il disait | Ce que le code fait | Corrigé en |
+|---|---|---|
+| « une **pastille en marge** » | Les pastilles sont mortes avec l'ancien moteur d'ancrage (10 août 2026) ; `test_phases.py` verrouille déjà la disparition de leur CSS | « **surligné dans le texte** », plus la **gouttière** et son compteur d'idées |
+| « Cliquez sur une **pastille** » | `marginalia.js` écoute le clic sur `mark.hl-extraction` — panneau latéral au-dessus de 768 px, feuille du bas en dessous | « Cliquez un **passage surligné**, ou le compteur de la gouttière » |
+| « **L'IA** extrait les passages clés » | `selection_menu.html` : le **crayon** crée une extraction à la main ; l'étincelle IA n'apparaît que si un modèle est configuré | « Sélectionnez un passage et cliquez le crayon, **ou** laissez l'IA le faire » |
+| « Lancez la synthèse quand vous le souhaitez » | Une synthèse est une note **du carnet**, en deux genres (`liste_wikis.html`, `liste_syntheses.html`) | « Depuis un carnet, pas depuis une note : un **wiki** vivant, ou une **synthèse dirigée** figée » |
+| Raccourci **`T` — Bibliothèque** | **Non lié.** `keyboard.js` porte à sa place un commentaire expliquant pourquoi : « laisser un raccourci sans effet est pire que pas de raccourci du tout » | Retiré |
+| Raccourci **`S` — Consensuelle** | **Non lié**, et le statut n'existe plus depuis la fusion des six en deux (2 mai 2026). Il était dans les **deux** listes d'aide | Retiré des deux |
+| « Appuyez sur `?` pour revoir **cette aide** » | `?` fait `htmx.ajax('GET', '/lire/aide/')` : c'est la **modale des raccourcis**, pas cet écran | « `?` les rappelle par-dessus n'importe quel écran » |
+
+Deux précisions mineures au passage : « PDF, audio, **page web**, Word » — or
+l'attribut `accept` du bouton n'admet aucun format de page web, elle vient de
+l'**extension navigateur** ; et « rond gris » désignait un cercle que le CSS
+dessine **vide** (fond transparent, bordure de 2 px).
+
+### Le garde-fou / The guard
+
+`front/tests/test_ce_que_dit_l_aide.py` **compare les listes de raccourcis aux
+touches réellement liées** dans `keyboard.js`, en lisant son `switch` — jamais
+une copie. Un raccourci retiré du JS fait désormais tomber la suite, au lieu de
+survivre des mois dans un écran que personne ne rouvre.
+
+Il verrouille **les deux** listes du produit (l'écran « Aide » et la modale
+« ? ») : c'est en n'en gardant qu'une sous surveillance que `S` a survécu dans
+l'autre. Il porte aussi une **contre-épreuve** — sans elle, une lecture qui
+rendrait un ensemble vide ferait passer les deux tests au vert.
+
+Les tests de vocabulaire lisent le **rendu**, pas le gabarit : Django retire les
+`{% comment %}`, et lire la source ferait tomber la suite sur les commentaires
+qui expliquent pourquoi un mot a été retiré (mesuré : la première version s'est
+cassée sur son propre commentaire).
 
 ---
 
@@ -164,12 +208,42 @@ Rejouer les tests 2, 4 et 5 après avoir basculé le thème (le bouton ○/● d
 barre). Tout doit rester lisible : les mesures de contraste ci-dessus sont
 toutes au-dessus de 4,5:1, mais l'œil vérifie ce qu'un ratio ne dit pas.
 
+### Test 7 — ce que dit l'écran « Aide »
+
+Le but est de vérifier que chaque affirmation **se vérifie à l'écran**.
+
+1. Ouvrir `/aide/`, puis ouvrir une note dans un autre onglet pour comparer.
+2. **Étape 2** : dans la note, sélectionner une phrase. **Attendu** : un menu
+   flottant apparaît avec un **crayon** (extraction à la main) et, si un modèle
+   est configuré, une **étincelle** (IA). C'est ce que l'aide décrit.
+3. **Étape 2 (suite)** : vérifier qu'un passage extrait est **surligné dans le
+   texte**, et que la **gouttière de gauche** porte un chiffre — le compteur
+   d'idées. **Il ne doit y avoir aucune pastille en marge** : elles n'existent
+   plus.
+4. **Étape 3** : cliquer un passage surligné. **Attendu** : sa carte s'ouvre
+   dans le panneau de droite. Réduire la fenêtre sous 768 px et recommencer :
+   la carte s'ouvre en **feuille du bas**.
+5. **Étape 4** : ouvrir un carnet, chercher où lancer une synthèse. **Attendu** :
+   deux entrées, **wiki** et **synthèse dirigée** — et rien de tel sur une note.
+6. **Raccourcis** : depuis une note, presser **`T`** puis **`S`**. **Attendu** :
+   rien ne se passe, et l'aide ne les annonce plus. Presser `E`, `J`, `K`, `C`,
+   `X`, `A`, `Z`, `Échap` : chacun agit.
+7. Presser **`?`**. **Attendu** : la modale des raccourcis s'ouvre (ce n'est
+   *pas* l'écran « Aide »), et **`S` n'y figure plus** non plus.
+8. **Étape 1** : cliquer « Importer un fichier » et regarder les formats
+   proposés par le sélecteur. **Attendu** : aucun format de page web — c'est
+   l'extension navigateur qui les capture, comme l'aide le dit maintenant.
+
 ### Vérifs automatiques / Automated checks
 
 ```bash
 # 27 tests serveur
 docker exec -w /app hypostasia_web python manage.py test \
     front.tests.test_le_menu_et_le_message_d_accueil
+
+# 9 tests : ce que l'aide affirme, contre keyboard.js et le rendu
+docker exec -w /app hypostasia_web python manage.py test \
+    front.tests.test_ce_que_dit_l_aide
 
 # 17 tests navigateur (mesure les 4 entrées à 360 px et 1600 px)
 make test-e2e S=test_29_menu_et_message_d_accueil
@@ -182,16 +256,33 @@ make test-e2e S=test_01_navigation
 
 ### Ce qui reste à trancher / Open questions
 
-L'écran « Aide » (ex-onglet « Découvrir l'app ») liste deux raccourcis clavier
-qui **n'existent plus**, et ce contenu est antérieur à ce chantier :
+**Deux chantiers reportés à une autre session**, à la demande du mainteneur.
+Tous deux demanderont une ligne dans l'écran « Aide » une fois faits — écrite
+maintenant, elle serait fausse jusque-là.
 
-- **`T` — Bibliothèque** : retiré le 12 août 2026 avec l'arbre latéral.
-  `front/views.py` l'a déjà retiré de la modale « ? » pour cette raison exacte
-  (« une aide qui annonce un raccourci mort est pire qu'une aide incomplète »).
-- **`S` — Consensuelle** : les six statuts ont été fusionnés en deux le 2 mai
-  2026 ; « consensuelle » n'existe plus. La modale « ? » le liste encore aussi
-  (`front/views.py`, `liste_raccourcis`).
+1. **Déplacer le bouton d'import dans le carnet**, pour qu'un fichier atterrisse
+   dans **ce** carnet et non dans le vrac. Le socle est déjà là :
+   `ImportFichierSerializer` accepte `dossier_id`, et `front/views.py` s'en sert
+   (`if dossier_id: …`). Ce qui manque est côté client — `hypostasia.js`
+   n'envoie **jamais** `dossier_id`, si bien que tout import tombe dans le
+   carnet de rôle « Mes imports » (`_get_ou_creer_dossier_mes_imports`,
+   `front/views.py:559`). Attention en retirant le bouton de la barre :
+   `front/tests/test_aucun_geste_orphelin.py` verrouille `btn-toolbar-import`
+   comme point d'entrée, et c'est le **seul** chemin d'import sur téléphone
+   depuis le retrait du tiroir.
 
-Les deux figurent dans **deux** listes qu'il faudrait corriger ensemble. Non
-touchés ici : c'est un arbitrage de vocabulaire métier, pas une conséquence de ce
-chantier.
+2. **Le menu garde le nom de la note après retour au carnet.** *Reproduit au
+   navigateur le 21 août 2026* : après `/lire/1/`, une navigation HTMX vers
+   `/carnets/1/`, `/bases/` puis `/aide/` laisse `#titre-toolbar` afficher
+   « Badgeons la Normandie » sur les trois écrans.
+   **Cause** : `#titre-toolbar` vit hors de `#zone-lecture`, donc un swap HTMX
+   ne le touche jamais — exactement comme le fil d'Ariane et la barre du lecteur
+   audio. Ces deux-là ont chacun un partial OOB que **tout écran** inclut
+   (`_fil_ariane_oob.html`, `_lecteur_audio_oob.html`) ; le titre est le
+   troisième élément de cette famille et **n'en a pas**. Un seul gabarit dépose
+   son OOB, `lecture_principale.html:289` — celui de la note. Personne ne
+   l'efface.
+   **Correctif attendu** : un `_titre_toolbar_oob.html` sur le modèle des deux
+   autres, inclus partout où `_lecteur_audio_oob.html` l'est déjà, plus un test
+   qui énumère les écrans (le patron existe :
+   `front/tests/test_effacement_du_fil_d_ariane.py`).

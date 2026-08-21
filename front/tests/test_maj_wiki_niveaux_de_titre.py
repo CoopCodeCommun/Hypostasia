@@ -347,10 +347,16 @@ class ReparationDUnArticleHeriteTest(TestCase):
         # paire (extraction, paragraphe) aux anciennes bornes et ne la
         # retrouve plus. C'est donc ce second temps qu'il faut jouer.
         # / The loss happens on the NEXT reindex, not on the repair.
+        # Le motif de tour est OBLIGATOIRE des que la page porte un wiki
+        # (addendum du 21 aout 2026) : ecrire un article sans lui ne
+        # laisserait aucune histoire.
+        # / A round motive is mandatory once the page carries a wiki.
+        from core.models import MotifDeTourDeWiki
         from front.tasks import _ecrire_le_corps_d_un_article
         _ecrire_le_corps_d_un_article(
             self.page, self.page.text_readability,
             {self.fixtures["extraction_seuil"].pk},
+            motif_du_tour=MotifDeTourDeWiki.REPARATION_DE_TITRES,
         )
 
         etats = list(

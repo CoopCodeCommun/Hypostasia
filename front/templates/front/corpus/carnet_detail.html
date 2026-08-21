@@ -1,3 +1,4 @@
+{% load i18n %}
 {# DETAIL D'UN CARNET — design de la MAQUETTE (front/static/front/maquettes/corpus.html) #}
 {# porte dans Django le 9 aout 2026, avec les P0 de la confrontation. #}
 {# LOCALISATION : front/templates/front/corpus/carnet_detail.html #}
@@ -13,7 +14,48 @@
 
     {# EN-TETE : nom, compteurs derives, visibilite icone + mot #}
     <header class="entete-zone">
-        <h1>{{ carnet.name }}</h1>
+        {% comment %}
+        LE GESTE D'IMPORT VIT SUR LA LIGNE DU TITRE, A SA DROITE.
+
+        Il etait dans la barre d'outils, global : on cliquait sans savoir
+        ou le fichier atterrissait, et il tombait dans un carnet
+        fourre-tout invisible. Ici la destination ne se devine pas — le
+        bouton est DANS le carnet qu'il remplit.
+
+        A DROITE et non a gauche : ce qui precede un titre se lit comme
+        une commande de navigation (retour, menu). Ce projet a deja paye
+        cette ambiguite une fois, avec le menu burger retire le 12 aout.
+
+        Ce n'est PAS un raccourci vers un formulaire situe plus bas — la
+        rangee de boutons qui existait ici a ete retiree pour cette
+        raison exacte. C'est le seul chemin d'import de ce carnet.
+
+        / The import gesture lives on the title line, on its right: what
+        precedes a title reads as navigation. It is not a shortcut to a
+        form below — it is this notebook's only import path.
+        {% endcomment %}
+        <div class="ligne-titre-carnet">
+            <h1>{{ carnet.name }}</h1>
+            {% if peut_ecrire %}
+            <label class="bouton-importer-note"
+                   title="{% translate 'Importer un document dans ce carnet' %}"
+                   data-testid="corpus-carnet-importer">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor"
+                     stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                </svg>
+                <span>{% translate "Importer" %}</span>
+                {# `data-carnet-id` porte la destination jusqu'au JS, qui #}
+                {# l'ajoute au formulaire d'envoi. Sans lui le serveur    #}
+                {# refuse : il n'a plus de carnet par defaut.             #}
+                {# / data-carnet-id carries the destination to the JS. #}
+                <input type="file" class="hidden" id="input-import-carnet"
+                       data-carnet-id="{{ carnet.pk }}"
+                       accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
+            </label>
+            {% endif %}
+        </div>
         <p class="meta">
             {{ nombre_de_notes }} note{{ nombre_de_notes|pluralize }}{% if axes %}
             · {{ axes|length }} axe{{ axes|length|pluralize }} de classement

@@ -1,112 +1,40 @@
 """
-Tests des carnets « magiques » retrouves par role_special (phase A).
-/ Tests for "magic" notebooks found by role_special (phase A).
+La migration qui a estampille les carnets « magiques » historiques.
+/ The migration that stamped the historical "magic" notebooks.
 
 LOCALISATION : core/tests/test_role_special.py
 
 SPEC-corpus § 6.3 : « A ranger » et « Mes imports » etaient retrouves par
-get_or_create(name=...). Un utilisateur qui renommait son carnet cassait
-ces flux. Les resolveurs filtrent desormais sur role_special ; le nom
-n'est plus qu'un affichage.
-/ The resolvers now filter on role_special; the name is display only.
+leur NOM. Un utilisateur qui renommait son carnet cassait les flux qui
+s'en servaient. La migration 0042 leur a donc pose un ROLE technique,
+independant du nom.
+
+CE FICHIER TESTAIT AUSSI LES DEUX RESOLVEURS, `_resoudre_dossier` et
+`_obtenir_ou_creer_dossier_imports`, qui creaient ces carnets a la
+demande. Ils ont ete supprimes le 21 aout 2026 avec les fourre-tout
+eux-memes : une note appartient toujours a un carnet, et ce carnet est
+cree par quelqu'un, jamais par le code. Restent ici les trois tests de
+la MIGRATION, qui gardent tout leur sens — les carnets estampilles
+existent en base et continuent de vivre comme des carnets ordinaires.
+/ This file also tested the two resolvers that created those notebooks
+on demand; they were removed on 21 August 2026 along with the catch-alls
+themselves. The migration tests remain valid.
+
+Voir CHANGELOG/2026-08-21-une-note-appartient-toujours-a-un-carnet.md
 """
 
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
-from django.test import TestCase, TransactionTestCase
+from django.test import TransactionTestCase
 
 from core.models import Dossier, RoleSpecialDossier
-from core.views import _resoudre_dossier
-from front.views import _obtenir_ou_creer_dossier_imports
 
 Utilisateur = get_user_model()
 
-
-class ResoudreDossierARangerTest(TestCase):
-    """Le resolveur du fourre-tout de l'extension. / The extension's inbox resolver."""
-
-    def setUp(self):
-        self.utilisateur = Utilisateur.objects.create_user(
-            username="capteur_test", password="motdepasse"
-        )
-
-    def test_retrouve_le_a_ranger_meme_renomme(self):
-        # LE CAS QUI CASSAIT : l'utilisateur a renomme son carnet.
-        # Avec la recherche par nom, un nouveau « A ranger » serait cree.
-        # / THE BREAKING CASE: the user renamed the notebook. Name-based
-        # lookup would create a duplicate.
-        fourre_tout_renomme = Dossier.objects.create(
-            name="Mon vrac à moi",
-            owner=self.utilisateur,
-            role_special=RoleSpecialDossier.A_RANGER,
-        )
-
-        dossier_resolu = _resoudre_dossier(self.utilisateur, None)
-
-        self.assertEqual(dossier_resolu.pk, fourre_tout_renomme.pk)
-        self.assertEqual(
-            Dossier.objects.filter(owner=self.utilisateur).count(), 1
-        )
-
-    def test_cree_le_a_ranger_avec_son_role(self):
-        # Premiere capture d'un utilisateur : le fourre-tout est cree avec
-        # son role technique, pas seulement son nom.
-        # / First capture: the inbox is created with its technical role.
-        dossier_resolu = _resoudre_dossier(self.utilisateur, None)
-
-        self.assertEqual(dossier_resolu.name, "A ranger")
-        self.assertEqual(
-            dossier_resolu.role_special, RoleSpecialDossier.A_RANGER
-        )
-
-    def test_un_carnet_ordinaire_nomme_a_ranger_n_est_pas_confondu(self):
-        # Un carnet que l'utilisateur a NOMME « A ranger » sans role
-        # technique n'est pas le fourre-tout : le resolveur en cree un vrai.
-        # / A notebook merely NAMED "A ranger" is not the inbox.
-        homonyme_sans_role = Dossier.objects.create(
-            name="A ranger", owner=self.utilisateur,
-        )
-
-        dossier_resolu = _resoudre_dossier(self.utilisateur, None)
-
-        self.assertNotEqual(dossier_resolu.pk, homonyme_sans_role.pk)
-        self.assertEqual(
-            dossier_resolu.role_special, RoleSpecialDossier.A_RANGER
-        )
-
-
-class ObtenirDossierImportsTest(TestCase):
-    """Le resolveur de « Mes imports ». / The "Mes imports" resolver."""
-
-    def setUp(self):
-        self.utilisateur = Utilisateur.objects.create_user(
-            username="importeur_test", password="motdepasse"
-        )
-
-    def test_retrouve_mes_imports_meme_renomme(self):
-        imports_renomme = Dossier.objects.create(
-            name="Fichiers déposés",
-            owner=self.utilisateur,
-            role_special=RoleSpecialDossier.MES_IMPORTS,
-        )
-
-        dossier_resolu = _obtenir_ou_creer_dossier_imports(self.utilisateur)
-
-        self.assertEqual(dossier_resolu.pk, imports_renomme.pk)
-        self.assertEqual(
-            Dossier.objects.filter(owner=self.utilisateur).count(), 1
-        )
-
-    def test_cree_mes_imports_avec_son_role(self):
-        dossier_resolu = _obtenir_ou_creer_dossier_imports(self.utilisateur)
-
-        self.assertEqual(dossier_resolu.name, "Mes imports")
-        self.assertEqual(
-            dossier_resolu.role_special, RoleSpecialDossier.MES_IMPORTS
-        )
-
-
+# L'etat de migration JUSTE AVANT celle qui estampille : c'est de la
+# qu'on rejoue 0042 pour verifier ce qu'elle fait.
+# / The migration state right BEFORE the stamping one.
 ETAT_AVANT_ESTAMPILLAGE = [("core", "0041_creer_les_appartenances_depuis_la_fk")]
 ETAT_APRES_ESTAMPILLAGE = [("core", "0042_estampiller_les_dossiers_speciaux")]
 

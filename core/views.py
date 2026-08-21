@@ -10,8 +10,10 @@ from rest_framework.authentication import SessionAuthentication, TokenAuthentica
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Dossier, EtatIngestion, Page, RoleSpecialDossier, VisibiliteDossier
+from .models import Dossier, EtatIngestion, Page, VisibiliteDossier
 from .services.corpus import (
+    CarnetRefuse,
+    carnet_ou_ranger,
     carnets_ou_ecrire,
     deplacer_une_note_vers_un_carnet,
     notes_visibles_par,
@@ -74,24 +76,6 @@ def normaliser_url(url_brute):
         return url_normalisee
     except Exception:
         return url_brute
-
-
-class CarnetRefuse(Exception):
-    """
-    Le carnet demande n'existe pas, ou l'utilisateur ne peut pas y ecrire.
-    / The requested notebook is unknown or not writable by this user.
-
-    LOCALISATION : core/views.py
-
-    C'EST UNE EXCEPTION ET NON UN REPLI, ET C'EST TOUT LE SUJET. Avant,
-    un carnet refuse etait remplace EN SILENCE par le fourre-tout : la
-    capture repondait 201, l'utilisateur croyait avoir range dans le
-    carnet de classe, et la note etait ailleurs. Depuis que l'extension
-    fait CHOISIR le carnet avant la capture, detourner ce choix sans le
-    dire est un mensonge.
-    / An exception, not a fallback: a refused notebook used to be
-    silently swapped for the inbox while the capture answered 201.
-    """
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -325,7 +309,7 @@ class PageViewSet(viewsets.ViewSet):
         # / Resolved BEFORE creation, from the validated data: a raw
         # payload value would raise ValueError on a non-integer pk.
         try:
-            carnet_de_destination = _resoudre_dossier(
+            carnet_de_destination = carnet_ou_ranger(
                 request.user, serializer.validated_data.get("dossier_id"),
             )
         except CarnetRefuse as carnet_refuse:
@@ -655,58 +639,6 @@ class PageViewSet(viewsets.ViewSet):
         )
 
         return Response({"detail": "Page classee.", "dossier_name": dossier_cible.name})
-
-
-def _resoudre_dossier(utilisateur, dossier_id_soumis):
-    """
-    Resout le carnet ou ranger une capture :
-    - un `dossier_id` fourni doit exister ET etre inscriptible, sinon on
-      REFUSE ;
-    - aucun `dossier_id` → le fourre-tout de l'utilisateur, cree au
-      besoin.
-    / Resolves the notebook for a capture: a supplied id must exist AND
-    be writable, otherwise it is REFUSED; no id falls back to the inbox.
-
-    LOCALISATION : core/views.py
-
-    LE REFUS EST LE CHANGEMENT. Cette fonction retombait en silence sur
-    le fourre-tout quand le carnet demande etait inconnu ou interdit.
-    Tant que l'extension ne choisissait rien, personne ne s'en apercevait.
-    Depuis qu'elle fait choisir, ce repli enverrait la note ailleurs que
-    la ou l'utilisateur l'a demandee — en repondant « enregistree ».
-    / Silent fallback was harmless while nothing chose; it is a lie now
-    that the extension makes the user choose.
-
-    :raises CarnetRefuse: carnet inconnu, ou sans droit d'ecriture
-    :return: le Dossier ou ranger la capture
-    """
-    if dossier_id_soumis:
-        carnet_demande = carnets_ou_ecrire(utilisateur).filter(
-            pk=dossier_id_soumis
-        ).first()
-        if carnet_demande is None:
-            # Un carnet inconnu et un carnet interdit recoivent la MEME
-            # reponse : doctrine du 404, jamais 403 — sinon l'extension
-            # devient un outil pour savoir quels carnets existent.
-            # / Unknown and forbidden get the SAME answer.
-            raise CarnetRefuse(
-                "Ce carnet n'existe pas, ou vous n'avez pas le droit d'y "
-                "écrire. / Unknown notebook, or no write access."
-            )
-        return carnet_demande
-
-    # Aucun carnet demande : le fourre-tout de l'utilisateur, retrouve
-    # par son ROLE technique et plus par son nom — un carnet renomme
-    # reste retrouve (SPEC-corpus § 6.3). Le nom n'est qu'une valeur
-    # d'affichage initiale.
-    # / No notebook asked for: the user's inbox, found by its technical
-    # ROLE, no longer by name.
-    dossier_a_ranger, _cree = Dossier.objects.get_or_create(
-        role_special=RoleSpecialDossier.A_RANGER,
-        owner=utilisateur,
-        defaults={"name": "A ranger"},
-    )
-    return dossier_a_ranger
 
 
 @method_decorator(csrf_exempt, name="dispatch")

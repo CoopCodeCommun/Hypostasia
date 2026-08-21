@@ -12,12 +12,12 @@
  * - GET  /api/pages/?url=        cherche un doublon dans MON perimetre
  * - POST /api/pages/             cree la note dans le carnet choisi
  *
- * LE CARNET SE CHOISIT AVANT LA CAPTURE. La note part directement a sa
- * destination : `dossier_id` voyage avec le POST. L'ancien flux creait
- * la note dans le fourre-tout puis proposait des boutons de rangement,
- * ce qui laissait la note mal rangee si la popup se fermait entre les
- * deux gestes.
- * / The notebook is chosen before capture and travels with the POST.
+ * LE CARNET SE CHOISIT AVANT LA CAPTURE, ET IL EST OBLIGATOIRE. La note
+ * part directement a sa destination : `dossier_id` voyage avec le POST,
+ * et le serveur refuse sans lui. L'ancien flux deposait la note dans un
+ * carnet fourre-tout puis proposait des boutons de rangement — deux
+ * gestes, et une note mal rangee si la popup se fermait entre les deux.
+ * / The notebook is chosen before capture and is mandatory.
  */
 document.addEventListener('DOMContentLoaded', async () => {
     const recolterBtn = document.getElementById('recolterBtn');
@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const zone_auth = document.getElementById('authStatus');
     const menu_des_carnets = document.getElementById('carnetChoisi');
     const avertissement_carnet = document.getElementById('carnetAvertissement');
+    const message_aucun_carnet = document.getElementById('carnetAucun');
 
     // Cle unique du souvenir de rangement. UN SEUL enregistrement, qui
     // porte un objet : une cle par couple serveur+compte ferait grossir
@@ -442,22 +443,17 @@ document.addEventListener('DOMContentLoaded', async () => {
      * Remplit le menu des carnets depuis /api/pages/mes_carnets/.
      * / Fills the notebook dropdown from /api/pages/mes_carnets/.
      *
-     * LE FOURRE-TOUT EST TOUJOURS EN TETE, ET IL EST LE DEFAUT. Deux
-     * cas se rejoignent la : le compte qui possede deja un carnet
-     * « A ranger », et celui qui n'en a pas encore — le serveur le cree
-     * a la premiere capture qui en a besoin, jamais a l'ouverture de ce
-     * menu. Dans les deux cas l'utilisateur a une destination valide des
-     * la premiere seconde, meme sans avoir jamais cree de carnet.
-     * / The inbox is always first and is the default: it covers both the
-     * account that already owns one and the account that owns none, the
-     * server creating it lazily on first capture.
+     * LE MENU NE PROPOSE QUE DE VRAIS CARNETS. Il s'ouvrait autrefois
+     * sur « A ranger », un carnet que le serveur creait tout seul a la
+     * premiere capture. Une destination inventee par le code n'en est
+     * pas une : elle rendait normal le fait de ne rien choisir, et le
+     * carnet ainsi cree ne se vidait jamais.
+     * / The dropdown only offers real notebooks.
      *
-     * IL SE RECONNAIT PAR SON ROLE, JAMAIS PAR SON NOM. La popup
-     * comparait `dossier.name === 'A ranger'` ; un utilisateur qui
-     * renommait son fourre-tout le voyait reapparaitre en double dans la
-     * liste. Le serveur a un champ pour ca — `role_special`.
-     * / Recognised by its ROLE, never its name: a renamed inbox used to
-     * show up twice.
+     * QUAND IL N'Y EN A AUCUN, ON NE PROPOSE PAS LE GESTE. Le menu
+     * disparait, un message dit ou aller, et « Recolter » s'eteint. Un
+     * bouton qui echouerait est pire qu'un bouton eteint.
+     * / When there is none, the gesture is not offered.
      */
     async function remplirLeMenuDesCarnets() {
         carnets_recus = [];
@@ -475,28 +471,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.debug('[Hypostasia] Carnets indisponibles:', erreur);
         }
 
-        var carnet_fourre_tout = carnets_recus.find(function(carnet) {
-            return carnet.role_special === 'a_ranger';
-        });
-        var carnets_ordinaires = carnets_recus.filter(function(carnet) {
-            return carnet.role_special !== 'a_ranger';
-        });
-
         menu_des_carnets.innerHTML = '';
 
-        // Le fourre-tout, avec son vrai nom s'il existe deja. Valeur
-        // vide quand il n'existe pas : le POST part alors sans
-        // `dossier_id` et le serveur s'en charge.
-        // / The inbox, with its real name if it exists; empty value
-        // otherwise, letting the server resolve it.
-        var option_fourre_tout = document.createElement('option');
-        option_fourre_tout.value = carnet_fourre_tout ? String(carnet_fourre_tout.id) : '';
-        option_fourre_tout.textContent = carnet_fourre_tout
-            ? carnet_fourre_tout.nom + ' (fourre-tout)'
-            : 'A ranger (le fourre-tout)';
-        menu_des_carnets.appendChild(option_fourre_tout);
+        // AUCUN CARNET OU ECRIRE : ON LE DIT, ET ON N'OFFRE PAS LE
+        // GESTE. Le menu s'ouvrait autrefois sur « A ranger (le
+        // fourre-tout) », un carnet que le serveur creait tout seul a la
+        // premiere capture. Ce carnet magique a disparu le 21 aout
+        // 2026 : une note appartient toujours a un carnet, et ce carnet
+        // est choisi par quelqu'un. Sans carnet, la capture ne peut pas
+        // aboutir — un bouton qui echouerait est pire qu'un bouton
+        // eteint.
+        // / No writable notebook: say so, and do not offer the gesture.
+        // The catch-all the server used to create is gone.
+        var aucun_carnet = carnets_recus.length === 0;
+        message_aucun_carnet.hidden = !aucun_carnet;
+        menu_des_carnets.hidden = aucun_carnet;
+        recolterBtn.disabled = aucun_carnet;
+        if (aucun_carnet) {
+            avertissement_carnet.classList.remove('visible');
+            return;
+        }
 
-        carnets_ordinaires.forEach(function(carnet) {
+        carnets_recus.forEach(function(carnet) {
             var option = document.createElement('option');
             option.value = String(carnet.id);
             option.textContent = carnet.nom;
@@ -785,12 +781,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             html_original: donnees_extraites.html_original,
         };
 
-        // Menu sur le fourre-tout inexistant : on n'envoie rien et le
-        // serveur resout la destination lui-meme.
-        // / Empty value means "let the server resolve the inbox".
-        if (menu_des_carnets.value) {
-            corps_de_la_requete.dossier_id = Number(menu_des_carnets.value);
-        }
+        // LE CARNET PART TOUJOURS. Le serveur n'a plus de destination
+        // par defaut : sans `dossier_id`, il refuse.
+        // / The notebook always travels: the server has no default.
+        corps_de_la_requete.dossier_id = Number(menu_des_carnets.value);
 
         const creation_response = await fetch(`${getBaseUrl()}api/pages/`, {
             method: 'POST',

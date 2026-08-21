@@ -125,14 +125,32 @@ function bloquerSiNonAuthentifie(inputFichier) {
     return true;
 }
 
-document.getElementById('input-import-fichier').addEventListener('change', function() {
-    var inputFichier = this;
+// IMPORT D'UN FICHIER — PAR DELEGATION, ET AVEC SON CARNET.
+//
+// L'input vivait dans la barre d'outils, en un exemplaire, lie au
+// chargement de la page. Il vit maintenant DANS l'ecran carnet, charge
+// par HTMX : une liaison directe ne le verrait jamais. La delegation
+// sur `document` attrape aussi bien celui d'aujourd'hui que celui d'un
+// ecran a venir.
+//
+// `data-carnet-id` PORTE LA DESTINATION. Sans lui, le serveur refuse :
+// il n'a plus de carnet par defaut depuis le 21 aout 2026 — les deux
+// fourre-tout (« A ranger », « Mes imports ») ont ete supprimes, parce
+// qu'une destination inventee par le code n'en est pas une.
+// / Delegated, because the input now lives in the HTMX-loaded notebook
+// screen; data-carnet-id carries the destination, and the server
+// refuses without it.
+document.addEventListener('change', function(evenementImport) {
+    var inputFichier = evenementImport.target;
+    if (!inputFichier.matches || !inputFichier.matches('input[data-carnet-id]')) return;
+
     var fichierSelectionne = inputFichier.files[0];
     if (!fichierSelectionne) return;
     if (bloquerSiNonAuthentifie(inputFichier)) return;
 
     var formulaireDonnees = new FormData();
     formulaireDonnees.append('fichier', fichierSelectionne);
+    formulaireDonnees.append('dossier_id', inputFichier.dataset.carnetId);
 
     var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
 
@@ -229,23 +247,6 @@ document.getElementById('input-import-fichier').addEventListener('change', funct
     // Reset l'input pour permettre de reimporter le meme fichier
     // / Reset input to allow reimporting the same file
     inputFichier.value = '';
-});
-
-// Import fichier depuis l'onboarding → relaye vers l'input principal
-// / File import from onboarding → relay to main input
-document.addEventListener('change', function(evenement) {
-    if (evenement.target.id !== 'input-import-fichier-onboarding') return;
-    var fichierOnboarding = evenement.target.files[0];
-    if (!fichierOnboarding) return;
-
-    var transfert = new DataTransfer();
-    transfert.items.add(fichierOnboarding);
-
-    var inputPrincipal = document.getElementById('input-import-fichier');
-    inputPrincipal.files = transfert.files;
-    inputPrincipal.dispatchEvent(new Event('change', { bubbles: true }));
-
-    evenement.target.value = '';
 });
 
 // Creation d'un analyseur syntaxique via SweetAlert (delegation d'evenement)

@@ -106,12 +106,19 @@ SCRIPT_DE_VERIFICATION_SAUVEGARDE := bin/check_backup.sh
 SCRIPT_DE_RESTAURATION := bin/restore.sh
 SCRIPT_DE_VERIFICATION_PROD := bin/verifier_prod.sh
 
+# La passe de nuit et le recapitulatif du matin : meme raison d'etre
+# sur l'hote (Docker + crontab), et le MEME script pour les deux
+# etapes — le mail doit toujours partir apres le run.
+# / The night pass and the morning recap: one host script, two steps.
+SCRIPT_DE_NUIT := bin/nuit.sh
+
 .DEFAULT_GOAL := aide
 
 .PHONY: aide install dev status stop restart logs shell check \
         collectstatic test test-rapide test-suite test-e2e test-docling \
         test-llm test-tout backup backup-check restore verif-prod \
-        prod-update prod-status .verif-services .verif-docker
+        prod-update prod-status nuit recapitulatif \
+        .verif-services .verif-docker
 
 # Ce Makefile PILOTE Docker, il ne l'installe pas. Sans lui, chaque
 # cible echouerait sur un « command not found » qui ne dit pas quoi
@@ -379,6 +386,14 @@ restore:  ## ECRASE la base depuis une archive : make restore [ARCHIVE=<nom>]
 
 verif-prod:  ## Bilan de prod : depot, cron, secrets, DEBUG/NGINX_CONF
 	@bash $(SCRIPT_DE_VERIFICATION_PROD)
+
+##@ La nuit des wikis (a lancer depuis l'hote, ou par cron)
+
+nuit:  ## Met a jour les wikis qui ont du neuf — APPELLE UN VRAI MODELE, c'est facture
+	@bash $(SCRIPT_DE_NUIT) passe $(ARGS)
+
+recapitulatif:  ## Envoie le recapitulatif du matin (attend la fin de la passe)
+	@bash $(SCRIPT_DE_NUIT) recapitulatif $(ARGS)
 
 # -----------------------------------------------------------------------------
 # Production

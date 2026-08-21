@@ -25,7 +25,9 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from core.models import ElementDocument, EtatIngestion, Page, empreinte_du_texte
+from core.models import (
+    Dossier, ElementDocument, EtatIngestion, Page, empreinte_du_texte,
+)
 
 Utilisateur = get_user_model()
 
@@ -38,6 +40,9 @@ class CaptureWebRouteVersDoclingTest(TestCase):
             username="capteur", password="motdepasse",
         )
         self.client.force_login(self.utilisateur)
+        self.carnet = Dossier.objects.create(
+            name="Carnet de capture", owner=self.utilisateur,
+        )
 
     def _capturer(self, html_readability="<h1>Titre</h1><p>Corps.</p>",
                  html_original="<html><body><h1>Titre</h1>"
@@ -50,6 +55,10 @@ class CaptureWebRouteVersDoclingTest(TestCase):
                 "title": "Un article capturé",
                 "html_original": html_original,
                 "html_readability": html_readability,
+                # LE CARNET EST OBLIGATOIRE depuis le 21 aout 2026 : le
+                # serveur n'a plus de destination par defaut.
+                # / The notebook is mandatory: no default destination.
+                "dossier_id": self.carnet.pk,
             },
             content_type="application/json",
 )

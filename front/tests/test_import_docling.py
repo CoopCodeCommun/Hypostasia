@@ -37,7 +37,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from core.models import Page
+from core.models import Dossier, Page
 from hypostasis_extractor.services.ingestion_docling import (
     fichier_couvert_par_docling,
 )
@@ -109,11 +109,21 @@ class ImportRouteVersDoclingTest(TestCase):
             username="importeur", password="motdepasse",
         )
         self.client.force_login(self.proprietaire)
+        self.carnet = Dossier.objects.create(
+            name="Carnet d'import", owner=self.proprietaire,
+        )
 
     def _importer(self, nom_fichier, contenu):
+        # LE CARNET EST OBLIGATOIRE depuis le 21 aout 2026 : le serveur
+        # n'a plus de destination par defaut, les deux fourre-tout ont
+        # ete supprimes. Un import sans `dossier_id` rend 400.
+        # / The notebook is mandatory: no default destination remains.
         return self.client.post(
             reverse("front:import-fichier"),
-            {"fichier": SimpleUploadedFile(nom_fichier, contenu)},
+            {
+                "fichier": SimpleUploadedFile(nom_fichier, contenu),
+                "dossier_id": self.carnet.pk,
+            },
 )
 
     @mock.patch(
@@ -219,7 +229,15 @@ class ImportRouteVersDoclingTest(TestCase):
         self.assertEqual(reponse.status_code, 200,
         )
         page = Page.objects.get(original_filename="rapport.docx")
-        self.assertIn("vrai docx", page.text_readability)
+        # CE TEST LISAIT LE TEXTE DE MAMMOTH. La vue convertissait le
+        # .docx dans la requete ; elle enregistre desormais le FICHIER et
+        # confie le texte a Docling. Ce qu'on verifie ici, c'est donc que
+        # le binaire est bien arrive jusqu'a la file — pas ce qu'une
+        # conversion synchrone en avait tire.
+        # / This test read mammoth's text; the view now stores the FILE
+        # and hands the text to Docling.
+        self.assertTrue(page.source_file)
+        self.assertEqual(page.text_readability, "")
         delay_mock.assert_called_once_with(page.pk,
 )
 

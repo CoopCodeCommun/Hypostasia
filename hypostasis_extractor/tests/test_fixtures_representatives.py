@@ -66,15 +66,19 @@ class BaseFixturesTestCase(TestCase):
 class CouvertureDesFixturesTest(BaseFixturesTestCase):
     """Ce qui route vers Docling, et ce qui n'y route pas."""
 
-    def test_le_texte_brut_reste_sur_l_ancien_pipeline(self):
-        # Le .txt n'a pas de structure a decouper : il ne part JAMAIS
-        # vers Docling (BR-B). / Plain text never goes to Docling.
+    def test_le_texte_brut_part_aussi_chez_docling(self):
+        # CE TEST DISAIT L'INVERSE JUSQU'AU 21 AOUT 2026 : « le .txt n'a
+        # pas de structure a decouper, il ne part JAMAIS vers Docling ».
+        # Mesure faite, Docling en rend exactement les memes elements
+        # qu'un .md equivalent — et une note .txt n'en avait AUCUN, donc
+        # rien d'analysable, d'ancrable ni de citable.
+        # / This test asserted the opposite until 21 August 2026.
         from hypostasis_extractor.services.ingestion_docling import (
             fichier_couvert_par_docling,
 
         )
 
-        self.assertFalse(
+        self.assertTrue(
             fichier_couvert_par_docling("notes-texte-brut.txt"),
 
     )

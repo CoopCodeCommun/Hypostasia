@@ -133,6 +133,30 @@ tous les verdicts seraient des citations introuvables n'aurait aucune ligne
             </div>
         </details>
 
+        {% comment %}
+        L'HISTOIRE DE L'ARTICLE, dans l'en-tete, avec les autres
+        chiffres d'audit. Un wiki se SUIT : sans son histoire, un
+        paragraphe apparu cette nuit se lit exactement comme un
+        paragraphe ecrit il y a six semaines, et rien ne dit lequel
+        vient d'un humain et lequel vient du moteur.
+        / A wiki is followed, not adopted: without its history, a
+        paragraph added last night reads like one written six weeks ago.
+        {% endcomment %}
+        {% if wiki %}
+        <details class="ligne-depliante" data-testid="synthese-historique-bloc">
+            <summary class="ligne">
+                <span>Historique</span>
+                <span>{{ wiki.tours_de_mise_a_jour }} tour{{ wiki.tours_de_mise_a_jour|pluralize }}</span>
+            </summary>
+            <div class="contenu-de-la-ligne"
+                 hx-get="/wikis/{{ wiki.pk }}/historique/"
+                 hx-trigger="toggle once from:closest details" hx-swap="innerHTML"
+                 aria-live="polite">
+                <p class="explication">Lecture de l'histoire…</p>
+            </div>
+        </details>
+        {% endif %}
+
         {% if dirigee %}
         <details class="ligne-depliante" data-testid="synthese-couverture-bloc">
             <summary class="ligne">

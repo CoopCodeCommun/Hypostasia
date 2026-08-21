@@ -31,7 +31,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from core.models import ElementDocument, EtatIngestion, Page, empreinte_du_texte
+from core.models import Dossier, ElementDocument, EtatIngestion, Page, empreinte_du_texte
 
 Utilisateur = get_user_model()
 
@@ -57,6 +57,12 @@ class BaseIngestionUITest(TestCase):
             username="lecteur-ingestion", password="motdepasse",
         )
         self.client.force_login(self.proprietaire)
+        # LE CARNET EST OBLIGATOIRE depuis le 21 aout 2026 : le serveur
+        # n'a plus de destination par defaut.
+        # / The notebook is mandatory: no default destination remains.
+        self.carnet = Dossier.objects.create(
+            name="Carnet d'ingestion", owner=self.proprietaire,
+        )
 
     def _creer_une_page(self, suffixe,
                         etat="", detail="", nom_fichier="doc.md"):
@@ -86,7 +92,7 @@ class EtatPoseParLaVueEtLaTacheTest(BaseIngestionUITest):
     def test_un_import_couvert_pose_l_etat_en_attente(self, delay_mock):
         reponse = self.client.post(
             reverse("front:import-fichier"),
-            {"fichier": SimpleUploadedFile(
+            {"dossier_id": self.carnet.pk, "fichier": SimpleUploadedFile(
                 "notes.md", "# Titre\n\nUn paragraphe.".encode("utf-8"))})
         self.assertEqual(reponse.status_code, 200,
         )
@@ -103,7 +109,7 @@ class EtatPoseParLaVueEtLaTacheTest(BaseIngestionUITest):
         )
         reponse = self.client.post(
             reverse("front:import-fichier"),
-            {"fichier": SimpleUploadedFile(
+            {"dossier_id": self.carnet.pk, "fichier": SimpleUploadedFile(
                 "panne.md", "# Titre\n\nCorps.".encode("utf-8"))})
         self.assertEqual(reponse.status_code, 200,
         )
@@ -356,9 +362,15 @@ class RelanceManuelleTest(BaseIngestionUITest):
         ".ingerer_un_fichier_avec_docling.delay"
     )
     def test_un_type_non_couvert_ne_se_relance_pas(self, delay_mock):
+        # LE `.txt` A CHANGE DE CAMP le 21 aout 2026 : Docling le couvre,
+        # et une note texte a desormais des elements. Le type qui reste
+        # hors Docling, c'est le `.json` de transcription — il a son
+        # propre pipeline, qui sait ce qu'est un tour de parole.
+        # / .txt switched sides: the type still outside Docling is the
+        # transcription .json, which has its own pipeline.
         page = self._creer_une_page(
-            "relance-txt", etat=EtatIngestion.ECHOUEE,
-            nom_fichier="notes.txt",
+            "relance-json", etat=EtatIngestion.ECHOUEE,
+            nom_fichier="transcription.json",
         )
         reponse = self.client.post(f"/lire/{page.pk}/relancer_ingestion/")
         self.assertEqual(reponse.status_code, 409)

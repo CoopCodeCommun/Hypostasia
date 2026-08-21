@@ -3097,3 +3097,404 @@ class SyntheseDirigee(models.Model):
 
     def __str__(self):
         return f"Synthese dirigee du {self.produite_le:%d/%m/%Y} (page {self.page_id})"
+
+
+# =============================================================================
+# L'HISTOIRE D'UN WIKI (SPEC-synthese, addendum du 21 aout 2026)
+# Un tour produisait toute la matiere de sa tracabilite, puis la jetait :
+# il ne restait qu'un compteur et une date ECRASEE. Ces deux tables
+# gardent le quand, le pourquoi et l'ajout — rejets compris.
+# / A wiki's history: when, why, and what was added — rejections included.
+# =============================================================================
+
+
+class MotifDeTourDeWiki(models.TextChoices):
+    """
+    Pourquoi le corps d'un wiki a ete ecrit.
+    / Why a wiki body was written.
+
+    LOCALISATION : core/models.py
+
+    Le motif est ce qui distingue un ajout incremental d'une
+    REGENERATION — celle-ci reecrit l'article entier et fait partir les
+    avis des juges par CASCADE (constat du 19 aout 2026 : un banc de
+    comparaison a emporte 165 avis en silence). Sans motif en base, les
+    deux se ressemblent : meme compteur, meme date.
+    / The motive tells an incremental round from a full regeneration.
+    """
+    CREATION = "creation", "Première rédaction"
+    MAJ_MANUELLE = "maj_manuelle", "Mise à jour acceptée par un humain"
+    MAJ_NOCTURNE = "maj_nocturne", "Mise à jour automatique de la nuit"
+    REPARATION_DE_TITRES = (
+        "reparation_de_titres", "Réparation des niveaux de titre",
+    )
+    REGENERATION = "regeneration", "Régénération complète de l'article"
+
+
+class TypeOperationDeSection(models.TextChoices):
+    """
+    Les quatre operations de section (SPEC-synthese § 6.1).
+    Les valeurs sont celles du schema contractualise de
+    `core/services/section_ops.py` : snake_case francais, jamais
+    traduites — un historique qui renommerait les types ne se
+    relierait plus aux operations d'origine.
+    / The four section operations; values match the applier's schema.
+    """
+    NO_CHANGE = "no_change", "Aucun changement"
+    APPEND_TO_SECTION = "append_to_section", "Ajout dans une section"
+    REPLACE_SECTION = "replace_section", "Remplacement d'une section"
+    INSERT_SECTION = "insert_section", "Insertion d'une section"
+
+
+class TourDeWiki(models.Model):
+    """
+    Un tour de mise a jour d'un wiki, tel qu'il s'est passe.
+    / One wiki update round, as it happened.
+
+    LOCALISATION : core/models.py
+
+    CE QUI EST FIGE ICI, ET POURQUOI. La RAISON d'un tour — combien
+    d'extractions et de commentaires neufs depuis le tour precedent —
+    se compte depuis une borne basse. Elle n'est PLUS reproductible une
+    fois le tour suivant passe : le comptage suivant part d'une autre
+    borne. La figer est donc la seule facon de savoir, six semaines
+    plus tard, ce qui avait appele ce paragraphe.
+    / The reason is frozen because a later round makes it unreproducible.
+
+    LE TEXTE AVANT **ET** APRES. Ne garder que l'avant obligerait a
+    reconstituer l'apres par chainage — et une edition manuelle entre
+    deux tours briserait la chaine EN SILENCE.
+    / Both texts: a manual edit between rounds would break a chain.
+    """
+
+    wiki = models.ForeignKey(
+        "Wiki", on_delete=models.CASCADE, related_name="tours",
+        help_text="Le wiki dont ce tour raconte une modification.",
+    )
+    numero_de_tour = models.PositiveIntegerField(
+        help_text="La valeur de Wiki.tours_de_mise_a_jour a ce tour.",
+    )
+    fait_le = models.DateTimeField(auto_now_add=True)
+    # NULL = LE MOTEUR. C'est le seul signe qu'aucun humain n'a rien
+    # decide : la passe de nuit applique sans demander.
+    # / NULL = the engine: the nightly pass applies without asking.
+    fait_par = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="tours_de_wiki",
+        help_text="L'humain qui a accepté les opérations. NULL = le "
+                  "moteur (passe de nuit).",
+    )
+    motif = models.CharField(
+        max_length=30, choices=MotifDeTourDeWiki.choices,
+        help_text="Pourquoi le corps de l'article a été écrit.",
+    )
+    # La RAISON, MESUREE puis FIGEE (voir la docstring).
+    # / The measured, then frozen, reason.
+    depuis = models.DateTimeField(
+        null=True, blank=True,
+        help_text="La borne basse du comptage des nouveautés. NULL = "
+                  "pas de date de référence, donc aucune nouveauté "
+                  "comptée (jamais un compte inventé).",
+    )
+    extractions_nouvelles = models.PositiveIntegerField(
+        default=0,
+        help_text="Extractions apparues dans le périmètre depuis "
+                  "`depuis`, au moment du tour.",
+    )
+    commentaires_nouveaux = models.PositiveIntegerField(
+        default=0,
+        help_text="Commentaires apparus sur les extractions du "
+                  "périmètre depuis `depuis`, au moment du tour.",
+    )
+    notes_declenchantes = models.ManyToManyField(
+        "Page", blank=True, related_name="tours_de_wiki_declenches",
+        help_text="Les notes entrées dans le périmètre depuis `depuis`.",
+    )
+    commentaires_declenchants = models.ManyToManyField(
+        "hypostasis_extractor.CommentaireExtraction", blank=True,
+        related_name="tours_de_wiki_declenches",
+        help_text="Les commentaires posés depuis `depuis` sur des "
+                  "extractions du périmètre.",
+    )
+    # SET_NULL : un job se supprime, le tour raconte l'histoire.
+    # / SET_NULL: jobs get deleted, the round tells the story.
+    job = models.ForeignKey(
+        "hypostasis_extractor.ExtractionJob", on_delete=models.SET_NULL,
+        null=True, blank=True, related_name="tours_de_wiki",
+        help_text="La proposition d'où viennent les opérations.",
+    )
+    texte_avant = models.TextField(
+        blank=True, help_text="Le markdown de l'article avant ce tour.",
+    )
+    texte_apres = models.TextField(
+        blank=True, help_text="Le markdown de l'article après ce tour.",
+    )
+
+    class Meta:
+        ordering = ["-fait_le", "-pk"]
+        verbose_name = "Tour de wiki"
+        verbose_name_plural = "Tours de wiki"
+
+    def __str__(self):
+        return (
+            f"Tour {self.numero_de_tour} du wiki {self.wiki_id} "
+            f"({self.get_motif_display()})"
+        )
+
+    @property
+    def est_fait_par_le_moteur(self):
+        """
+        Aucun humain n'a accepte ce tour.
+        / No human accepted this round.
+        """
+        return self.fait_par_id is None
+
+    @property
+    def a_change_l_article(self):
+        """
+        Le tour a-t-il modifie le texte ? Un lot entierement rejete
+        laisse l'article identique, et l'historique doit pouvoir le
+        dire sans faire relire deux textes au lecteur.
+        / Did the round change anything? A fully rejected batch leaves
+        the article identical.
+        """
+        return self.texte_avant != self.texte_apres
+
+    @property
+    def operations_a_lire(self):
+        """
+        Les operations qui sont entrees dans l'article.
+        / The operations that made it into the article.
+        """
+        return self.operations.filter(appliquee=True)
+
+    @property
+    def operations_appliquees_du_tour(self):
+        """Combien sont entrees. / How many made it in."""
+        return self.operations.filter(appliquee=True).count()
+
+    @property
+    def operations_rejetees_du_tour(self):
+        """
+        Combien ont ete refusees. Ce compte se dit, meme dans un mail :
+        un tour ou tout a ete refuse n'est pas un tour reussi.
+        / How many were refused — a count that gets said out loud.
+        """
+        return self.operations.filter(appliquee=False).count()
+
+
+class OperationDeWiki(models.Model):
+    """
+    Une operation du lot, appliquee ou rejetee.
+    / One operation of the batch, applied or rejected.
+
+    LOCALISATION : core/models.py
+
+    UN REJET EST UN FAIT D'HISTOIRE. Le § 6.2 exige qu'il soit visible
+    et que son contenu soit CONSERVE : le jeter serait une perte de
+    donnees, et un titre de section introuvable est une hallucination
+    du modele qu'il faut pouvoir relire.
+    / A rejection is a historical fact: kept, with its reason.
+    """
+
+    tour = models.ForeignKey(
+        TourDeWiki, on_delete=models.CASCADE, related_name="operations",
+    )
+    indice = models.PositiveIntegerField(
+        help_text="Sa place dans le lot proposé, à partir de 0.",
+    )
+    type_d_operation = models.CharField(
+        max_length=20, choices=TypeOperationDeSection.choices,
+        help_text="Le type d'opération proposé par le modèle.",
+    )
+    # 200 caracteres : la taille de SourceLink.section, la forme sous
+    # laquelle l'applieur compare les titres (§ 6, relecture F, I3).
+    # Pour une INSERTION, c'est le titre de la section CREEE ; `apres`
+    # porte alors l'ancre. / 200 chars matches SourceLink.section.
+    section = models.CharField(
+        max_length=200, blank=True,
+        help_text="La section visée. Pour une insertion : le titre de "
+                  "la section créée.",
+    )
+    apres = models.CharField(
+        max_length=200, blank=True,
+        help_text="Insertion seulement : la section après laquelle "
+                  "insérer.",
+    )
+    contenu = models.TextField(
+        blank=True,
+        help_text="Ce que l'opération a écrit — CONSERVÉ même quand "
+                  "elle a été rejetée (§ 6.2).",
+    )
+    ancien_contenu = models.TextField(
+        blank=True,
+        help_text="Remplacement seulement : le corps de section qui a "
+                  "disparu (§ 6.4, le diff montre l'avant).",
+    )
+    appliquee = models.BooleanField(
+        help_text="False = rejetée ; le motif dit pourquoi.",
+    )
+    motif_de_rejet = models.CharField(
+        max_length=300, blank=True,
+        help_text="Vide quand l'opération a été appliquée.",
+    )
+    extractions_citees = models.ManyToManyField(
+        "hypostasis_extractor.ExtractedEntity", blank=True,
+        related_name="operations_de_wiki",
+        help_text="Les extractions citées par le contenu, dérivées de "
+                  "ses marqueurs [[ext:N]] — jamais d'un champ "
+                  "parallèle (§ 4.4).",
+    )
+
+    class Meta:
+        ordering = ["indice", "pk"]
+        verbose_name = "Opération de wiki"
+        verbose_name_plural = "Opérations de wiki"
+
+    def __str__(self):
+        etat = "appliquée" if self.appliquee else "rejetée"
+        return f"{self.get_type_d_operation_display()} — {etat}"
+
+    @staticmethod
+    def _sans_les_marqueurs(texte):
+        """
+        Le texte debarrasse de ses marqueurs `[[ext:N]]`.
+        / The text without its `[[ext:N]]` markers.
+
+        LOCALISATION : core/models.py
+
+        Les marqueurs sont la VERITE du sourcage (§ 4.4) et restent
+        stockes tels quels ; a l'ecran, ils ne disent rien a personne —
+        les extractions citees sont deja comptees a cote.
+        / Markers stay stored; on screen they are noise.
+        """
+        from core.services.synthese import MOTIF_DE_MARQUEUR
+
+        return MOTIF_DE_MARQUEUR.sub("", texte or "").strip()
+
+    @property
+    def contenu_lisible(self):
+        """Ce que l'operation a ecrit, sans les marqueurs.
+        / What the operation wrote, without the markers."""
+        return self._sans_les_marqueurs(self.contenu)
+
+    @property
+    def ancien_contenu_lisible(self):
+        """Ce qu'elle a remplace, sans les marqueurs.
+        / What it replaced, without the markers."""
+        return self._sans_les_marqueurs(self.ancien_contenu)
+
+    @property
+    def nombre_de_preuves(self):
+        """Combien d'extractions ce contenu cite.
+        / How many extractions this content cites."""
+        return self.extractions_citees.count()
+
+
+# =============================================================================
+# LA PASSE DE NUIT ET LE RECAPITULATIF DU MATIN
+# (SPEC-synthese, addendum du 21 aout 2026)
+# Le mail part TOUJOURS apres le run de la nuit. Ces deux tables font de
+# cet ordre un fait verifiable, pas une convention entre deux lignes de
+# cron : la passe dit quand elle a fini, l'envoi dit ce qu'il a couvert.
+# / The morning mail always follows the night run — mechanically.
+# =============================================================================
+
+
+class PasseDeNuit(models.Model):
+    """
+    Une execution de la mise a jour automatique des wikis.
+    / One run of the automatic wiki update.
+
+    LOCALISATION : core/models.py
+
+    `terminee_le` a NULL veut dire « elle tourne encore » — et c'est ce
+    que le recapitulatif du matin interroge avant de partir. Sans cette
+    ligne en base, deux crons a quatre heures d'ecart seraient une
+    ESPERANCE d'ordre, pas une garantie : une nuit chargee suffirait a
+    faire partir le mail avant la fin du travail qu'il annonce.
+    / NULL end date means "still running": the morning recap waits.
+    """
+
+    lancee_le = models.DateTimeField(auto_now_add=True)
+    terminee_le = models.DateTimeField(
+        null=True, blank=True,
+        help_text="NULL tant que la passe tourne.",
+    )
+    wikis_examines = models.PositiveIntegerField(
+        default=0,
+        help_text="Combien de wikis ont été mis en file pour ce tour.",
+    )
+    # LE COMPTEUR QUI FERME LA PASSE. Les mises a jour partent en
+    # PARALLELE, une tache par wiki : aucune d'elles ne sait si elle est
+    # la derniere. Chacune s'incremente ici de facon ATOMIQUE en rendant
+    # la main, et celle qui atteint le total ferme la passe — puis
+    # seulement alors, le matin peut ecrire.
+    # / The counter that closes the pass: fan-out tasks cannot know who
+    # is last, so each increments atomically and the one reaching the
+    # total closes.
+    wikis_termines = models.PositiveIntegerField(
+        default=0,
+        help_text="Combien ont rendu la main — succès et erreurs "
+                  "confondus. La passe se ferme quand ce compte "
+                  "rejoint wikis_examines.",
+    )
+    wikis_modifies = models.PositiveIntegerField(default=0)
+    wikis_en_erreur = models.PositiveIntegerField(default=0)
+    wikis_ecartes_par_le_maximum = models.PositiveIntegerField(
+        default=0,
+        help_text="Wikis laissés de côté par --maximum. Compté, jamais "
+                  "passé sous silence : une troncature muette se lirait "
+                  "comme une couverture complète.",
+    )
+
+    class Meta:
+        ordering = ["-lancee_le", "-pk"]
+        verbose_name = "Passe de nuit"
+        verbose_name_plural = "Passes de nuit"
+
+    def __str__(self):
+        etat = "en cours" if self.terminee_le is None else "terminée"
+        return f"Passe de nuit du {self.lancee_le:%d/%m/%Y %H:%M} ({etat})"
+
+    @property
+    def tourne_encore(self):
+        """/ Still running?"""
+        return self.terminee_le is None
+
+
+class EnvoiDuRecapitulatif(models.Model):
+    """
+    Un recapitulatif du matin envoye a quelqu'un.
+    / One morning recap sent to somebody.
+
+    LOCALISATION : core/models.py
+
+    C'EST CETTE TABLE QUI TIENT LA PROMESSE « un mail par jour au
+    maximum » (modele Discourse). La borne basse du prochain envoi est
+    la date de celui-ci : relancer la commande deux fois le meme matin
+    n'envoie rien la seconde fois, et rien n'est raconte deux fois.
+    / This table is what caps sending at one mail per person per day.
+    """
+
+    destinataire = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="recapitulatifs_recus",
+    )
+    envoye_le = models.DateTimeField(auto_now_add=True)
+    couvre_depuis = models.DateTimeField(
+        help_text="La borne basse de ce que le mail racontait.",
+    )
+    wikis_modifies = models.PositiveIntegerField(default=0)
+    wikis_avec_du_neuf = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-envoye_le", "-pk"]
+        verbose_name = "Envoi du récapitulatif"
+        verbose_name_plural = "Envois du récapitulatif"
+
+    def __str__(self):
+        return (
+            f"Récapitulatif du {self.envoye_le:%d/%m/%Y} "
+            f"à {self.destinataire}"
+        )

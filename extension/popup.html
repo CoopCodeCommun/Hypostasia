@@ -206,6 +206,18 @@
 
         #carnetAvertissement.visible { display: block; }
 
+        /* Le message qui remplace le menu quand il n'y a rien a choisir.
+           / The message replacing the dropdown when there is nothing to
+           choose. */
+        #carnetAucun {
+            font-size: 11px;
+            color: var(--alerte);
+            line-height: 1.4;
+        }
+
+        #carnetAucun[hidden] { display: none; }
+        #carnetChoisi[hidden] { display: none; }
+
         .ligne-serveur { display: flex; gap: 4px; margin-bottom: 8px; }
 
         #saveUrlBtn {
@@ -255,10 +267,13 @@
         <label for="carnetChoisi">Ranger dans</label>
         <select id="carnetChoisi" data-testid="extension-choix-carnet"
                 aria-describedby="carnetAvertissement">
-            <option value="">A ranger (le fourre-tout)</option>
         </select>
         <div id="carnetAvertissement" role="status">
             Ce carnet est public : la note y sera visible par tous.
+        </div>
+        <div id="carnetAucun" role="status" data-testid="extension-aucun-carnet" hidden>
+            Vous n'avez aucun carnet où écrire. Créez-en un sur votre
+            instance, puis rouvrez cette fenêtre.
         </div>
     </div>
 

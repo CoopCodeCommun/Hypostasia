@@ -387,12 +387,39 @@ arbitrage produit qui n'a jamais été posé.**
 
 ---
 
-## 7. L'état des tests — remesuré le 20 août, après la tension sur le renvoi
+## 7. L'état des tests — remesuré le 21 août, après l'histoire des wikis
 
-**2200 tests, tous verts**, dont **1** sauté. La suite tourne en **24 min 18 s**
-(`Ran 2200 tests in 1458.065s`, `make test-rapide`, donc **hors e2e / docling /
-llm**), sous **LangExtract 1.6.0**. Suite lancée **seule**, aucune mesure
-concurrente.
+**2396 tests, tous verts**, dont **1** sauté. La suite tourne en **28 min 33 s**
+(`Ran 2396 tests in 1712.607s`, `make test-rapide`, donc **hors e2e / docling /
+llm**). Suite lancée **seule**, aucune mesure concurrente.
+
+> **Les 196 tests de plus que la mesure de 2200 ci-dessous ne sont pas tous les
+> miens, et je ne les attribue pas.** Le chantier de l'histoire des wikis en
+> ajoute **65**, comptés : 12 pour l'historique d'un tour, 3 pour la garde du
+> motif, 5 pour les destinataires, 5 pour l'état de la passe, 16 pour la passe
+> de nuit, 15 pour le récapitulatif du matin, 9 pour son écran. Les **131
+> restants** viennent d'un travail mené en parallèle : je les compte, je ne dis
+> pas d'où ils sortent.
+
+> ⚠️ **Une suite tuée depuis l'hôte continue de tourner DANS le conteneur.**
+> `timeout` (ou un Ctrl-C) tue le client `docker compose exec`, pas le process
+> Django au bout. Constaté le 21 août : la suite a poursuivi cinq minutes après
+> la mort de son client, invisible dans le terminal. En lancer une seconde à ce
+> moment-là, c'est le scénario des 299 erreurs fantômes ci-dessous. Toujours
+> vérifier AVANT de relancer :
+>
+> ```bash
+> docker exec hypostasia_web sh -c "ps -eo args | grep -c '[m]anage.py test'"
+> ```
+
+> **Une mesure prise avec `make test-rapide` en arrière-plan ment sur les
+> modèles Python, pas sur les templates.** Le process de test charge les modules
+> Python **au démarrage** et relit les templates **à chaque rendu** : une
+> propriété de modèle ajoutée pendant que la suite tourne n'existe pas pour
+> elle, et le template qui l'appelle rend une **chaîne vide, en silence**
+> (Django avale l'échec de résolution). Deux échecs du 21 août venaient de là,
+> et ressemblaient à des bugs de rendu. Relancer la suite concernée AVANT de
+> chercher la cause.
 
 > **Les 50 tests de plus que la mesure de 2098 ci-dessous ne sont pas tous les
 > miens, et je ne les attribue pas.** Le chantier des juges locaux en ajoute

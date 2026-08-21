@@ -67,39 +67,95 @@ the note it plays.
             <div class="onboarding-etape-num" style="background: #dbeafe; color: #2563eb;">1</div>
             <div class="onboarding-etape-corps">
                 <h3 class="onboarding-etape-titre">Importez un texte</h3>
-                <p class="onboarding-etape-desc">PDF, audio, page web, Word&hellip; Hypostasia extrait le texte et le met en page.</p>
-                <label class="onboarding-btn-import">
+                {# CE QUE LE BOUTON ACCEPTE VRAIMENT, et rien de plus : #}
+                {# la liste vient de l'attribut `accept` juste dessous. #}
+                {# « page web » y figurait, alors qu'aucune extension de #}
+                {# page web n'y est admise — une capture web passe par #}
+                {# l'EXTENSION NAVIGATEUR, jamais par ce bouton. #}
+                {# / The list mirrors the accept attribute below; a web #}
+                {# capture comes from the browser extension. #}
+                <p class="onboarding-etape-desc">Tout part d&rsquo;un <strong>carnet</strong> : c&rsquo;est lui qui range vos notes. Cr&eacute;ez-en un, puis d&eacute;posez-y des documents &mdash; PDF, Word, texte, pr&eacute;sentation, tableur, audio&hellip; Une <strong>page web</strong> se capture avec l&rsquo;extension navigateur.</p>
+                {% comment %}
+                CE BOUTON N'IMPORTE PLUS, IL MENE AUX CARNETS.
+
+                Il ouvrait un selecteur de fichier. Depuis le 21 aout
+                2026, une note appartient toujours a un carnet et l'import
+                exige donc une destination — or quelqu'un qui voit cet
+                ecran n'en a aucune : c'est l'ecran de celui qui n'a
+                encore rien. Le bouton proposait un geste qui ne pouvait
+                que echouer.
+                / It opened a file picker; since a note always belongs to
+                a notebook, someone seeing this screen has no destination
+                yet. The button offered a gesture bound to fail.
+                {% endcomment %}
+                <a href="/carnets/" class="onboarding-btn-import"
+                   hx-get="/carnets/" hx-target="body" hx-swap="innerHTML"
+                   hx-push-url="true" data-testid="onboarding-creer-carnet">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
                     </svg>
-                    Importer un fichier
-                    <input type="file" class="hidden" id="input-import-fichier-onboarding"
-                           accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
-                </label>
+                    Cr&eacute;er mon premier carnet
+                </a>
             </div>
         </div>
 
         <div class="onboarding-etape" data-testid="onboarding-step-2">
             <div class="onboarding-etape-num" style="background: #e0e7ff; color: #4f46e5;">2</div>
             <div class="onboarding-etape-corps">
-                <h3 class="onboarding-etape-titre">L&rsquo;IA extrait les passages cl&eacute;s</h3>
-                <p class="onboarding-etape-desc">Hypoth&egrave;ses, d&eacute;finitions, paradoxes, donn&eacute;es&hellip; Chaque passage est soulign&eacute; dans le texte avec une pastille en marge.</p>
+                {# DEUX CORRECTIONS ICI, ET LES DEUX COMPTENT. #}
+                {# #}
+                {# 1. L'EXTRACTION N'EST PAS RESERVEE A L'IA. Selectionner #}
+                {#    du texte ouvre un menu flottant dont le crayon cree #}
+                {#    une extraction A LA MAIN (`selection_menu.html`) ; #}
+                {#    l'etincelle IA, elle, n'y parait que si un modele #}
+                {#    est configure. Annoncer l'IA comme le seul chemin #}
+                {#    contredit la promesse du produit : tout marche sans. #}
+                {# #}
+                {# 2. LES PASTILLES DE MARGE N'EXISTENT PLUS. Elles #}
+                {#    appartenaient a l'ancien moteur d'ancrage, retire le #}
+                {#    10 aout 2026 ; un test anti-retour verrouille leur #}
+                {#    disparition (`test_le_css_des_pastilles_de_marge_a #}
+                {#    _disparu`). Ce qui existe : le SURLIGNAGE INLINE #}
+                {#    (`mark.hl-extraction`) et la GOUTTIERE de gauche, #}
+                {#    qui porte un compteur d'idees et un filet d'etat. #}
+                {# / Extraction is not AI-only, and the margin dots died #}
+                {# with the old anchoring engine: inline marks and a #}
+                {# gutter counter replaced them. #}
+                <h3 class="onboarding-etape-titre">Les passages cl&eacute;s sont extraits</h3>
+                <p class="onboarding-etape-desc">S&eacute;lectionnez un passage et cliquez le crayon, ou laissez l&rsquo;IA le faire. Hypoth&egrave;ses, d&eacute;finitions, paradoxes, donn&eacute;es&hellip; Chaque passage extrait est <strong>surlign&eacute; dans le texte</strong>, et la goutti&egrave;re de gauche compte les id&eacute;es du passage.</p>
             </div>
         </div>
 
         <div class="onboarding-etape" data-testid="onboarding-step-3">
             <div class="onboarding-etape-num" style="background: #fef3c7; color: #b45309;">3</div>
             <div class="onboarding-etape-corps">
+                {# LE GESTE REEL : un clic sur le passage surligne #}
+                {# (`marginalia.js`). Sur ordinateur il ouvre le panneau #}
+                {# lateral, sur telephone la feuille du bas — le seuil est #}
+                {# a 768px dans le meme fichier. Le compteur de la #}
+                {# gouttiere ouvre le meme panneau. #}
+                {# / A click on the highlighted passage: side panel on #}
+                {# desktop, bottom sheet under 768px. #}
                 <h3 class="onboarding-etape-titre">Commentez et d&eacute;battez</h3>
-                <p class="onboarding-etape-desc">Cliquez sur une pastille pour ouvrir la carte. Chaque lecteur peut commenter. Le statut change selon le d&eacute;bat.</p>
+                <p class="onboarding-etape-desc">Cliquez un passage surlign&eacute;, ou le compteur de la goutti&egrave;re : sa carte s&rsquo;ouvre dans le panneau, &agrave; droite sur ordinateur et en bas sur t&eacute;l&eacute;phone. Chaque lecteur peut commenter.</p>
             </div>
         </div>
 
         <div class="onboarding-etape" data-testid="onboarding-step-4">
             <div class="onboarding-etape-num" style="background: #d1fae5; color: #047857;">4</div>
             <div class="onboarding-etape-corps">
-                <h3 class="onboarding-etape-titre">Lancez la synth&egrave;se</h3>
-                <p class="onboarding-etape-desc">Une fois le d&eacute;bat engag&eacute;, lancez la synth&egrave;se quand vous le souhaitez.</p>
+                {# LA SYNTHESE EST UNE NOTE DU CARNET, PAS UNE VERSION #}
+                {# DE LA NOTE. Elle se lance depuis le carnet #}
+                {# (`liste_wikis.html`, `liste_syntheses.html`), en deux #}
+                {# genres qui ne se melangent pas : le wiki VIVANT, mis a #}
+                {# jour par operations de section, et la synthese dirigee, #}
+                {# acte FIGE et date qu'un collectif adopte. #}
+                {# Ne pas dire lequel des deux laissait croire a une seule #}
+                {# fonction, et cachait le seul choix que l'utilisateur #}
+                {# ait a faire ici. #}
+                {# / A synthesis is a note OF THE NOTEBOOK, in two genres. #}
+                <h3 class="onboarding-etape-titre">Synth&eacute;tisez le carnet</h3>
+                <p class="onboarding-etape-desc">Depuis un carnet, pas depuis une note : un <strong>wiki</strong> vivant, qui se met &agrave; jour quand le carnet grossit, ou une <strong>synth&egrave;se dirig&eacute;e</strong>, fig&eacute;e et dat&eacute;e. Chaque affirmation reste reli&eacute;e &agrave; ses preuves.</p>
             </div>
         </div>
 
@@ -123,14 +179,22 @@ the note it plays.
                     <span class="indicateur-statut onboarding-forme" data-statut="nouveau"></span>
                     <div>
                         <strong style="color: var(--statut-nouveau-text);">Nouveau</strong>
-                        <span class="onboarding-statut-desc">Pas encore comment&eacute; (rond gris)</span>
+                        {# La forme vient du CSS, pas d'une impression : #}
+                        {# `.indicateur-statut[data-statut="nouveau"]` est #}
+                        {# un cercle a fond TRANSPARENT, borde de 2px de #}
+                        {# #999999. « Rond gris » laissait attendre un #}
+                        {# disque plein. / An outlined circle, not a disc. #}
+                        <span class="onboarding-statut-desc">Pas encore comment&eacute; (cercle gris, vide)</span>
                     </div>
                 </div>
                 <div class="onboarding-statut" style="border-left-color: var(--statut-commente-accent);">
                     <span class="indicateur-statut onboarding-forme" data-statut="commente"></span>
                     <div>
                         <strong style="color: var(--statut-commente-text);">Comment&eacute;</strong>
-                        <span class="onboarding-statut-desc">Au moins un commentaire (triangle orange)</span>
+                        {# `clip-path: polygon(50% 0, 0 100%, 100% 100%)` #}
+                        {# — un triangle plein, teinte `--statut-commente #}
+                        {# -accent`. / A filled triangle. #}
+                        <span class="onboarding-statut-desc">Au moins un commentaire (triangle ambre)</span>
                     </div>
                 </div>
             </div>
@@ -138,18 +202,47 @@ the note it plays.
 
         {# Colonne droite : raccourcis clavier (desktop only) #}
         <div class="onboarding-section onboarding-section-clavier">
+            {% comment %}
+            CHAQUE TOUCHE LISTEE ICI EST LIEE DANS `keyboard.js`, ET LA
+            LISTE S'ARRETE LA.
+
+            DEUX ONT ETE RETIREES le 21 aout 2026, apres verification une
+            par une contre le `switch` de `keyboard.js` :
+              - `T` — « Bibliotheque ». Elle ouvrait l'arbre lateral,
+                retire le 12 aout. `keyboard.js` porte a sa place un
+                commentaire qui dit pourquoi elle n'est PAS reliee :
+                « laisser un raccourci sans effet est pire que pas de
+                raccourci du tout — il consomme la frappe sans rien
+                faire ». L'annoncer ici revenait a promettre ce que le
+                code refuse exprès de faire.
+              - `S` — « Consensuelle ». Les six statuts ont fusionne en
+                deux le 2 mai 2026 : « consensuelle » ne designe plus
+                rien, et la touche n'est liee nulle part.
+
+            `/` EST LIEE mais n'ouvre qu'un bandeau « Recherche — bientot
+            disponible » : la lister annoncerait une fonction absente.
+
+            Une aide qui annonce un raccourci mort est pire qu'une aide
+            incomplete : elle fait douter de tout le reste. C'est
+            l'argument que `front/views.py` donne deja pour la modale
+            « ? », et il vaut ici mot pour mot.
+            / Every key listed is bound in keyboard.js. T and S were not,
+            and a help screen listing a dead shortcut discredits the rest.
+            {% endcomment %}
             <h3 class="onboarding-section-titre">Raccourcis clavier</h3>
-            <p class="onboarding-section-desc">Appuyez sur <kbd class="aide-kbd">?</kbd> pour revoir cette aide.</p>
+            {# `?` OUVRE LA MODALE DES RACCOURCIS, PAS CET ECRAN-CI. #}
+            {# `keyboard.js` fait `htmx.ajax('GET', '/lire/aide/')`, qui #}
+            {# rend `aide_desktop.html` par-dessus la page. #}
+            {# / `?` opens the shortcuts modal, not this screen. #}
+            <p class="onboarding-section-desc">Ces raccourcis agissent pendant la lecture d&rsquo;une note. <kbd class="aide-kbd">?</kbd> les rappelle par-dessus n&rsquo;importe quel &eacute;cran.</p>
 
             <div class="onboarding-raccourcis">
-                <div class="onboarding-raccourci"><kbd class="aide-kbd">T</kbd><span>Biblioth&egrave;que</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">E</kbd><span>Extractions</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">J</kbd><span>Suivante</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">K</kbd><span>Pr&eacute;c&eacute;dente</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">C</kbd><span>Commenter</span></div>
-                <div class="onboarding-raccourci"><kbd class="aide-kbd">S</kbd><span>Consensuelle</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">X</kbd><span>Masquer</span></div>
-                <div class="onboarding-raccourci"><kbd class="aide-kbd">A</kbd><span>Comparer</span></div>
+                <div class="onboarding-raccourci"><kbd class="aide-kbd">A</kbd><span>Aligner</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">Z</kbd><span>Versions</span></div>
                 <div class="onboarding-raccourci"><kbd class="aide-kbd">Esc</kbd><span>Fermer</span></div>
             </div>

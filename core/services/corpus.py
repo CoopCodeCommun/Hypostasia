@@ -154,6 +154,77 @@ def peut_ecrire_dans_le_carnet(utilisateur, dossier):
     return carnets_ou_ecrire(utilisateur).filter(pk=dossier.pk).exists()
 
 
+class CarnetRefuse(Exception):
+    """
+    Le carnet demande n'existe pas, ou l'utilisateur ne peut pas y ecrire.
+    / The requested notebook is unknown, or not writable by this user.
+
+    LOCALISATION : core/services/corpus.py
+
+    C'EST UNE EXCEPTION ET NON UN REPLI, ET C'EST TOUT LE SUJET. Une
+    destination refusee etait remplacee EN SILENCE par un carnet
+    fourre-tout : l'import repondait « enregistre », l'utilisateur
+    croyait avoir range dans le carnet de classe, et la note etait
+    ailleurs.
+    / An exception, not a fallback: a refused destination used to be
+    silently swapped for a catch-all notebook.
+    """
+
+
+def carnet_ou_ranger(utilisateur, dossier_id):
+    """
+    Le carnet ou deposer une note. Il est EXIGE, jamais devine.
+    / The notebook to file a note into. It is REQUIRED, never guessed.
+
+    LOCALISATION : core/services/corpus.py
+
+    UNE NOTE APPARTIENT TOUJOURS A UN CARNET, et cette fonction est
+    l'endroit unique qui le garantit. Elle sert la capture web
+    (core/views.py) comme les quatre chemins d'import (front/views.py).
+
+    IL N'Y A PLUS DE FOURRE-TOUT. Deux carnets magiques recueillaient
+    les notes sans destination — « A ranger » pour l'extension,
+    « Mes imports » pour l'import de fichiers. Ils se creaient tout
+    seuls, ne se videraient jamais, et surtout ils faisaient d'une
+    destination NON CHOISIE un cas normal. Depuis que l'interface fait
+    choisir, ne rien choisir est une erreur, pas un defaut.
+    / No more catch-all notebooks: since the interface makes you choose,
+    choosing nothing is an error, not a default.
+
+    LE DROIT D'ECRITURE EST VERIFIE ICI, ET IL NE L'ETAIT NULLE PART.
+    Les quatre chemins d'import faisaient
+    `Dossier.objects.filter(pk=dossier_id).first()`, sans le moindre
+    controle : n'importe quel utilisateur authentifie pouvait deposer
+    un fichier dans le carnet de n'importe qui, en passant son
+    identifiant. Personne ne l'exploitait parce que l'interface
+    n'envoyait jamais `dossier_id` — elle va le faire.
+    / Write access is checked here, and it was checked nowhere: any
+    authenticated user could drop a file into anyone's notebook.
+
+    :param utilisateur: celui qui depose
+    :param dossier_id: l'identifiant du carnet vise
+    :raises CarnetRefuse: aucun carnet demande, inconnu, ou interdit
+    :return: le Dossier
+    """
+    if not dossier_id:
+        raise CarnetRefuse(
+            "Choisissez un carnet de destination. / Choose a destination "
+            "notebook."
+        )
+
+    carnet = carnets_ou_ecrire(utilisateur).filter(pk=dossier_id).first()
+    if carnet is None:
+        # Un carnet inconnu et un carnet interdit recoivent la MEME
+        # reponse : doctrine du 404, jamais 403 — sinon un import
+        # devient un moyen de savoir quels carnets existent.
+        # / Unknown and forbidden get the SAME answer.
+        raise CarnetRefuse(
+            "Ce carnet n'existe pas, ou vous n'avez pas le droit d'y "
+            "écrire. / Unknown notebook, or no write access."
+        )
+    return carnet
+
+
 def notes_visibles_par(utilisateur):
     """
     Les notes qu'un visiteur peut lire, en une requete.

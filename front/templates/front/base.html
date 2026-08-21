@@ -222,13 +222,18 @@
             {# / It was desktop-only because mobile imported through the    #}
             {# tree. The tree is gone, so keeping the class would leave a   #}
             {# phone with no way to import at all once a page exists. #}
-            <label class="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 cursor-pointer transition-colors" title="Importer un fichier ou audio" data-testid="btn-toolbar-import">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
-                </svg>
-                <input type="file" class="hidden" id="input-import-fichier"
-                       accept=".pdf,.docx,.md,.txt,.pptx,.xlsx,.json,.mp3,.wav,.m4a,.ogg,.flac,.webm,.aac,.wma,.opus,.aiff">
-            </label>
+            {% comment %}
+            LE BOUTON D'IMPORT A QUITTE LA BARRE D'OUTILS le 21 aout 2026.
+
+            Global, il ne disait pas OU le fichier atterrissait : dans un
+            carnet fourre-tout invisible, que le serveur creait tout
+            seul. On cliquait sans destination, et on la decouvrait
+            apres. Le geste vit maintenant sur la ligne du titre de
+            chaque carnet — la destination est celle qu'on regarde.
+            / The import button left the toolbar: global, it never said
+            where the file landed. It now lives on each notebook's title
+            line, where the destination is the thing you are looking at.
+            {% endcomment %}
             <!-- Lien config LLM (icone engrenage) — conditionnel staff (PHASE-26b) -->
             <!-- / LLM config link (gear icon) — conditional staff (PHASE-26b) -->
             {% if request.user.is_staff %}
@@ -573,7 +578,7 @@
     / Bump on every change: nginx serves /static/ as immutable for 30
     days, so a stale browser would keep the old script for a month.
     {% endcomment %}
-    <script src="{% static 'front/js/hypostasia.js' %}?v=39"></script>
+    <script src="{% static 'front/js/hypostasia.js' %}?v=40"></script>
     <script src="{% static 'front/js/marginalia.js' %}?v=27"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
     {# `arbre_overlay.js` et `arbre_context_menu.js` etaient charges ici. #}

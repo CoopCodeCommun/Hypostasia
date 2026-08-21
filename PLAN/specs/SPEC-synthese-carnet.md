@@ -267,6 +267,79 @@ commentaires FR/EN)
 >    NON_SOURCE reste un état d'AFFICHAGE (paragraphe sans marqueur),
 >    jamais posé en base.
 
+> ## Addendum du 21 août 2026 — le tour de wiki s'écrit, la nuit applique, le matin prévient
+>
+> **Ce que cet addendum remplace** : le § 11.3, qui classait le journal des acceptations
+> « YAGNI assumé pour le POC », et le § 6, qui réservait l'application à un humain. Les
+> deux changent. Ce qui ne change pas : **tous** les contrôles mécaniques du § 6.2 et du
+> § 6.3 — rejet visible par opération, contenu conservé, aucune source hors périmètre,
+> aucune affirmation sans preuve, une seule opération de contenu par section, contrôle de
+> fraîcheur du § 6.4 — et l'interdit qui les tient tous : **un wiki ne se régénère jamais**.
+>
+> ### Le trou : le moteur travaillait sans mémoire
+>
+> Un tour de mise à jour produisait toute la matière de sa propre traçabilité, puis la
+> jetait. `appliquer_les_operations` rend les opérations appliquées **avec l'ancien
+> contenu**, les opérations rejetées **avec leur motif** ; `nouveautes_du_perimetre` compte
+> les extractions et les commentaires apparus depuis le dernier tour. Rien de tout cela
+> n'était écrit : il ne restait qu'un compteur, `Wiki.tours_de_mise_a_jour`, et une date
+> **écrasée** à chaque tour. Les opérations que l'humain avait retenues n'étaient stockées
+> nulle part — seul le lot proposé survivait, dans `ExtractionJob.raw_result`.
+>
+> Conséquence : sur un wiki suivi depuis six semaines, personne ne pouvait dire **quand**
+> un paragraphe était entré, **pourquoi** (quelle note, quel commentaire l'avait appelé),
+> ni **ce qu'il avait remplacé**. Un article sourcé dont on ne sait pas d'où viennent les
+> ajouts est un article qu'il faut relire en entier à chaque fois.
+>
+> ### La décision : deux tables, et une garde qui les rend obligatoires
+>
+> `TourDeWiki` porte l'événement — quand, par qui (**NULL = le moteur**), pour quel motif,
+> avec la raison **mesurée et figée** (combien d'extractions et de commentaires neufs, et
+> lesquels), le texte avant et le texte après. `OperationDeWiki` porte une ligne par
+> opération du lot — sa section, ce qu'elle a ajouté, ce qu'elle a remplacé, les
+> extractions qu'elle cite, et **son motif de rejet quand elle a été refusée**. Un rejet
+> est un fait d'histoire, pas un non-événement.
+>
+> La raison est **figée**, jamais recalculée : elle se compte depuis le tour précédent, et
+> ce comptage n'est plus reproductible une fois le tour suivant passé.
+>
+> **La garde** : `_ecrire_le_corps_d_un_article` refuse d'écrire le corps d'un wiki sans
+> motif de tour. C'est mécanique, et c'est le point : un futur chemin d'écriture qui
+> oublierait l'historique ne passera pas en silence.
+>
+> ### La nuit applique — ce que ça contredit, et ce qui le borne
+>
+> Une passe nocturne propose **et applique**, sur les seuls wikis dont le périmètre offre
+> des extractions écartées. Cela contredit frontalement le § 6.1 (« qu'un humain
+> accepte ») et la docstring du modèle `Wiki` (« un wiki ne s'adopte pas, il se suit »).
+> **Décision assumée du mainteneur**, prise le 21 août 2026.
+>
+> Ce qui la borne, et qui n'est pas négociable :
+>
+> - la nuit n'applique **que** ce que l'applieur accepte — elle ne contourne aucun contrôle
+>   du § 6.2/6.3, et un lot entièrement rejeté laisse l'article **identique** ;
+> - elle n'a **aucun chemin** vers une régénération : elle ne peut qu'ajouter, remplacer
+>   une section ou insérer, jamais réécrire l'article ;
+> - chaque tour reste **entièrement lisible après coup** — c'est précisément ce que
+>   l'historique existe pour rendre possible, et c'est ce qui rend l'automatisme
+>   acceptable ;
+> - le coût est borné à un appel au rédacteur par wiki ayant du neuf, et la commande
+>   journalise ce qu'elle a écarté : jamais de troncature silencieuse.
+>
+> ### Le matin prévient — un mail par jour, au maximum
+>
+> Un récapitulatif quotidien annonce à chaque destinataire les wikis **modifiés** depuis
+> son dernier envoi — par un humain comme par la nuit, la distinction est portée — et ceux
+> dont le périmètre porte du **neuf non repris**. Le modèle est celui de Discourse : **un
+> seul mail par personne et par jour**, et rien du tout quand il n'y a rien à dire. Une
+> table d'envois porte cette garantie ; relancer la commande deux fois le même matin
+> n'envoie rien la seconde fois.
+>
+> Les destinataires d'un wiki sont le propriétaire de son article, les propriétaires des
+> carnets qui le portent, **et les partages du carnet** — utilisateurs directs et membres
+> des groupes. C'est un périmètre plus large que celui du bouton « tâches »
+> (`_destinataires_de_notification`), qui reste inchangé.
+
 ---
 
 ## 0. Ce que cette spec décide

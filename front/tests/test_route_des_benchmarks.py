@@ -67,15 +67,22 @@ class LaRouteDesMesuresTest(TestCase):
 
         self.assertNotEqual(reponse.status_code, 200)
 
-    def test_la_page_d_accueil_porte_les_deux_liens(self):
+    def test_l_ecran_d_aide_porte_les_deux_liens(self):
         # SANS EUX, on cherchait mesures et maquettes à la main dans le
         # dépôt. Ils sont sur la page d'accueil et NON dans la barre
         # d'outils, dont le conteneur gauche est en `overflow-hidden` :
         # deux liens de plus y étaient rognés sans aucune erreur.
         # / On the landing page, not the toolbar, whose left container is
         # overflow-hidden and silently clipped them.
+        # L'ECRAN A DEMENAGE, PAS L'EXIGENCE. Ces liens vivaient sur
+        # « / ». Depuis le 21 aout 2026 la racine REDIRIGE vers
+        # « /carnets/ », et l'ecran qui les porte — l'ancien onglet
+        # « Decouvrir l'app » — est devenu « /aide/ ». Un test qui
+        # interrogeait « / » ne lisait plus qu'un corps vide.
+        # / The screen moved, not the requirement: the root now
+        # redirects, and the screen carrying these links is /aide/.
         contenu = self.client.get(
-            "/", headers={"HX-Request": "true"},
+            "/aide/", headers={"HX-Request": "true"},
         ).content.decode()
 
         self.assertIn('data-testid="onboarding-references"', contenu)
@@ -88,7 +95,7 @@ class LaRouteDesMesuresTest(TestCase):
         # une promesse cassée : les deux sont publics, ou aucun.
         # / Link and route go together, or neither.
         contenu = Client().get(
-            "/", headers={"HX-Request": "true"},
+            "/aide/", headers={"HX-Request": "true"},
         ).content.decode()
 
         self.assertIn('data-testid="onboarding-references"', contenu)

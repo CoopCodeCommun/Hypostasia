@@ -36,7 +36,6 @@ from core.models import (
     DossierPartage,
     GroupeUtilisateurs,
     Page,
-    RoleSpecialDossier,
     VisibiliteDossier,
 )
 from core.services.corpus import (
@@ -416,44 +415,20 @@ class MesCarnetsTest(TestCase):
         )
         self.assertEqual(reponse.json(), [])
 
-    def test_lister_ne_cree_jamais_le_fourre_tout(self):
+    def test_aucun_carnet_n_est_jamais_cree_par_l_api(self):
         """
-        Une lecture n'ecrit pas. Le carnet « A ranger » nait a la
-        premiere capture qui en a besoin, pas a l'ouverture de la popup.
-        / A GET never writes: the inbox is born on first capture.
+        AUCUNE LECTURE, AUCUNE CAPTURE NE CREE DE CARNET. Le carnet
+        « A ranger » naissait tout seul a la premiere capture sans
+        destination. Il a disparu le 21 aout 2026 : une note appartient
+        toujours a un carnet, et ce carnet est cree par quelqu'un.
+        / Nothing creates a notebook any more: the inbox that appeared
+        on first destination-less capture is gone.
         """
         self.client.get(
             "/api/pages/mes_carnets/",
             HTTP_AUTHORIZATION=f"Token {self.jeton}",
         )
-        self.assertFalse(
-            Dossier.objects.filter(
-                owner=self.utilisateur,
-                role_special=RoleSpecialDossier.A_RANGER,
-            ).exists()
-        )
-
-    def test_le_fourre_tout_porte_son_role_et_non_son_nom(self):
-        """
-        La popup filtre le fourre-tout par ROLE. Un carnet renomme reste
-        reconnu — c'est la raison d'etre de `role_special`
-        (SPEC-corpus § 6.3), que la popup ignorait en comparant le nom.
-        / The popup filters the inbox by ROLE; a renamed one stays known.
-        """
-        Dossier.objects.create(
-            name="Boite de reception",  # renomme par l'utilisateur
-            owner=self.utilisateur,
-            role_special=RoleSpecialDossier.A_RANGER,
-        )
-        reponse = self.client.get(
-            "/api/pages/mes_carnets/",
-            HTTP_AUTHORIZATION=f"Token {self.jeton}",
-        )
-        carnet_rendu = reponse.json()[0]
-        self.assertEqual(carnet_rendu["nom"], "Boite de reception")
-        self.assertEqual(
-            carnet_rendu["role_special"], RoleSpecialDossier.A_RANGER,
-        )
+        self.assertFalse(Dossier.objects.filter(owner=self.utilisateur).exists())
 
 
 class CaptureVersUnCarnetChoisiTest(TestCase):
@@ -501,22 +476,38 @@ class CaptureVersUnCarnetChoisiTest(TestCase):
 
         # Elle n'a PAS transite par le fourre-tout, qui n'a donc pas
         # ete cree. / It never went through the inbox.
-        self.assertFalse(
-            Dossier.objects.filter(
-                owner=self.capteur, role_special=RoleSpecialDossier.A_RANGER,
-            ).exists()
-        )
+        # Le capteur possede UN carnet, celui du setUp. Aucun autre
+        # n'a ete fabrique au passage.
+        # / The capturer owns ONE notebook, from setUp; no other was made.
+        self.assertEqual(Dossier.objects.filter(owner=self.capteur).count(), 1)
 
     @mock.patch(CHEMIN_DE_LA_TACHE)
-    def test_sans_carnet_la_capture_tombe_dans_le_fourre_tout(self, _tache):
-        """Comportement conserve. / Behaviour preserved."""
-        reponse = self._capturer()
-        self.assertEqual(reponse.status_code, 201)
+    def test_sans_carnet_la_capture_est_refusee(self, _tache):
+        """
+        CE TEST DISAIT L'INVERSE JUSQU'AU 21 AOUT 2026. Il s'appelait
+        « tombe dans le fourre-tout » et verrouillait la creation
+        automatique du carnet « A ranger ».
 
-        note_creee = Page.objects.get(pk=reponse.json()["id"])
-        self.assertEqual(
-            note_creee.dossier.role_special, RoleSpecialDossier.A_RANGER,
+        UNE NOTE APPARTIENT TOUJOURS A UN CARNET, et ce carnet est choisi
+        par quelqu'un. Une destination inventee par le code n'en est pas
+        une : elle rendait normal le fait de ne rien choisir, et le
+        carnet ainsi cree ne se vidait jamais.
+        / This test asserted the opposite: it locked the automatic
+        creation of the inbox notebook.
+        """
+        reponse = self._capturer()
+
+        self.assertEqual(reponse.status_code, 400)
+        self.assertIn("dossier_id", reponse.json())
+        self.assertFalse(
+            Page.objects.filter(
+                url="http://exemple.local/article-a-capturer",
+            ).exists()
         )
+        # Et surtout : aucun carnet n'a ete fabrique au passage — le
+        # capteur en a toujours exactement un, celui du setUp.
+        # / And above all: no notebook was manufactured on the way.
+        self.assertEqual(Dossier.objects.filter(owner=self.capteur).count(), 1)
 
     @mock.patch(CHEMIN_DE_LA_TACHE)
     def test_un_carnet_non_inscriptible_est_refuse(self, _tache):
@@ -620,6 +611,12 @@ class EmpreinteCalculeeParLeServeurTest(TestCase):
             username="capteur_empreinte", password="motdepasse",
         )
         self.jeton = jeton_de(self.capteur)
+        # Une capture exige un carnet depuis le 21 aout 2026 : il n'y a
+        # plus de destination par defaut.
+        # / A capture requires a notebook: there is no default any more.
+        self.carnet = Dossier.objects.create(
+            name="Carnet empreinte", owner=self.capteur,
+        )
 
     @mock.patch(CHEMIN_DE_LA_TACHE)
     def test_une_empreinte_soumise_est_ignoree(self, _tache):
@@ -640,6 +637,7 @@ class EmpreinteCalculeeParLeServeurTest(TestCase):
                 "html_original": "<html><body><p>Corps.</p></body></html>",
                 "html_readability": "<p>Corps.</p>",
                 "content_hash": "empreinte-fantaisiste-envoyee-par-le-client",
+                "dossier_id": self.carnet.pk,
             },
             content_type="application/json",
             HTTP_AUTHORIZATION=f"Token {self.jeton}",

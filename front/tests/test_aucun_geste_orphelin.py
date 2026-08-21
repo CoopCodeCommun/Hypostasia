@@ -52,7 +52,16 @@ GESTES_ET_LEUR_POINT_D_ENTREE = {
     # / The N-N killed "move": a note has no single parent.
     "Ranger une note dans un carnet": "corpus-bloc-ajouter-bouton",
     "Retirer une note d'un carnet": "corpus-bloc-retirer",
-    "Importer un fichier": "btn-toolbar-import",
+    # LE GESTE A DEMENAGE, ET C'EST TOUT L'INTERET DE CE TEST. Il
+    # vivait dans la barre d'outils (« btn-toolbar-import »), global :
+    # on cliquait sans savoir dans quel carnet le fichier atterrissait,
+    # et il tombait dans un fourre-tout invisible. Il vit desormais sur
+    # la ligne du titre de chaque carnet, ou la destination est la chose
+    # qu'on regarde. Le marqueur change ; le geste, lui, existe toujours
+    # — c'est exactement ce que ce test verifie.
+    # / The gesture moved from the global toolbar to each notebook's
+    # title line; the marker changes, the gesture remains.
+    "Importer un fichier": "corpus-carnet-importer",
 }
 
 

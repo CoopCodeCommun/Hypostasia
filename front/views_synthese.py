@@ -881,21 +881,6 @@ class WikiViewSet(viewsets.ViewSet):
             page=wiki.page, raw_result__est_maj_wiki=True,
         )
 
-        from core.services.section_ops import (
-            PropositionPerimee, appliquer_les_operations,
-            verifier_que_la_proposition_est_fraiche,
-        )
-
-        try:
-            verifier_que_la_proposition_est_fraiche(
-                wiki.page,
-                job.raw_result.get("updated_at_de_l_article", ""),
-            )
-        except PropositionPerimee as peremption:
-            return render(request, "front/corpus/partials/erreur.html", {
-                "message": str(peremption).split("/")[0].strip(),
-            }, status=409)
-
         indices_retenus = {
             int(v) for v in str(request.data.get("indices", "")).split(",")
             if v.strip().isdigit()
@@ -906,25 +891,29 @@ class WikiViewSet(viewsets.ViewSet):
             if indice in indices_retenus
         ]
 
-        from core.services.synthese import extractions_du_perimetre
+        # LE MEME CHEMIN QUE LA PASSE DE NUIT (addendum du 21 aout 2026) :
+        # fraicheur, application, ecriture du corps, historique, juges.
+        # Ce qui change ici, et seulement ici : un humain a choisi les
+        # operations, et c'est lui qui signe le tour.
+        # / The same path the nightly pass takes; only the signer differs.
+        from core.models import MotifDeTourDeWiki
+        from core.services.section_ops import PropositionPerimee
+        from front.tasks import appliquer_un_tour_de_wiki
 
-        identifiants_du_perimetre = set(
-            extractions_du_perimetre(wiki.page).values_list("pk", flat=True)
-        )
-        bilan = appliquer_les_operations(
-            wiki.page.text_readability or "",
-            operations_retenues, identifiants_du_perimetre,
-        )
-
-        from front.tasks import _ecrire_le_corps_d_un_article
-
-        bilan_d_indexation = _ecrire_le_corps_d_un_article(
-            wiki.page, bilan["texte_final"], identifiants_du_perimetre,
-        )
-        wiki.tours_de_mise_a_jour += 1
-        wiki.save(update_fields=[
-            "tours_de_mise_a_jour", "derniere_mise_a_jour",
-        ])
+        try:
+            bilan, bilan_d_indexation = appliquer_un_tour_de_wiki(
+                wiki, operations_retenues,
+                motif=MotifDeTourDeWiki.MAJ_MANUELLE,
+                fait_par=request.user,
+                job=job,
+                updated_at_de_la_proposition=job.raw_result.get(
+                    "updated_at_de_l_article", "",
+                ),
+            )
+        except PropositionPerimee as peremption:
+            return render(request, "front/corpus/partials/erreur.html", {
+                "message": str(peremption).split("/")[0].strip(),
+            }, status=409)
 
         contexte = _contexte_d_article(request, wiki.page)
         contexte.update({
@@ -938,6 +927,43 @@ class WikiViewSet(viewsets.ViewSet):
                 bilan_d_indexation.get("contestations_perdues", []),
         })
         return render(request, "front/corpus/article.html", contexte)
+
+    @action(detail=True, methods=["GET"], url_path="historique")
+    def historique(self, request, pk=None):
+        """
+        GET /wikis/{id}/historique/ — l'histoire de l'article : quand,
+        par qui, pourquoi, et quel ajout.
+        / The article's history: when, by whom, why, what was added.
+
+        LOCALISATION : front/views_synthese.py
+
+        En LECTURE, pas en ecriture : quiconque peut lire l'article
+        peut lire son histoire. Un lecteur qui ne peut pas ecrire a
+        precisement besoin de savoir d'ou vient ce qu'il lit.
+        / Read access is enough: a reader needs the provenance most.
+        """
+        wiki = get_object_or_404(
+            Wiki.objects.select_related("page", "dossier"), pk=pk,
+        )
+        refus = _acces_article_ou_refus(request, wiki.page)
+        if refus:
+            return refus
+
+        # Les vingt derniers tours, du plus recent au plus ancien
+        # (l'ordering du modele). Au-dela, l'ecran deviendrait un
+        # journal a derouler, et le total est dit dans le resume.
+        # / The last twenty rounds; the total is announced.
+        tours = list(
+            wiki.tours.select_related("fait_par")
+            .prefetch_related("operations", "notes_declenchantes")[:20]
+        )
+        return render(
+            request, "front/corpus/partials/historique_de_wiki.html", {
+                "wiki": wiki,
+                "tours": tours,
+                "nombre_total_de_tours": wiki.tours.count(),
+            },
+        )
 
     @action(detail=True, methods=["POST"], url_path="verifier")
     def verifier(self, request, pk=None):

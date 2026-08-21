@@ -21,6 +21,8 @@ from rest_framework.response import Response
 
 from core.models import AIModel, AppartenancePageDossier, Configuration, Dossier, DossierPartage, EtatIngestion, GroupeUtilisateurs, Invitation, NotificationTacheLue, Page, PageEdit, Question, ReponseQuestion, RoleDeModele, RoleSpecialDossier, TranscriptionConfig, TypeDeNote, TypeDeTache, VisibiliteDossier
 from core.services.corpus import (
+    CarnetRefuse,
+    carnet_ou_ranger,
     deplacer_une_note_vers_un_carnet,
     peut_ecrire_dans_le_carnet,
     ranger_une_note_dans_un_carnet,
@@ -553,43 +555,6 @@ def _verifier_acces_page(request, page):
         return None
     return _reponse_acces_refuse(request)
 
-
-def _obtenir_ou_creer_dossier_imports(utilisateur):
-    """
-    Retourne (ou cree) le dossier "Mes imports" pour l'utilisateur.
-    Appel idempotent : si le dossier existe deja, on le retourne tel quel.
-    / Returns (or creates) the "Mes imports" folder for the user.
-    Idempotent: if the folder already exists, returns it as-is.
-
-    LOCALISATION : front/views.py
-    """
-    # Retrouve par le ROLE technique, plus par le nom : un carnet renomme
-    # reste retrouve (SPEC-corpus § 6.3).
-    # / Found by technical ROLE, no longer by name.
-    dossier_imports, _cree = Dossier.objects.get_or_create(
-        role_special=RoleSpecialDossier.MES_IMPORTS,
-        owner=utilisateur,
-        defaults={"name": "Mes imports"},
-    )
-    return dossier_imports
-
-
-# ---------------------------------------------------------------------
-# CE QUE RENVOIENT LES GESTES SUR UN CARNET, DEPUIS LE 12 AOUT.
-#
-# Ces gestes (creer, renommer, changer la visibilite, supprimer, quitter
-# un partage) repondaient tous par `_render_arbre` : leur reponse etait
-# le tiroir lateral, parce que le tiroir etait leur seul point de depart.
-# Ils partent maintenant de `/carnets/` et de `/carnets/<id>/`, donc ils
-# repondent par ces ecrans-la.
-#
-# Les deux fonctions vivent dans `front/views_corpus.py`, qui importe
-# CE module en tete : l'import doit donc se faire dans le corps, sinon
-# le cycle casse le demarrage de Django.
-# / These gestures used to answer with the side tree because the tree
-# was their only entry point. They now start from /carnets/, so they
-# answer with it. The import is lazy: views_corpus imports this module.
-# ---------------------------------------------------------------------
 
 def _rendre_la_collection_des_carnets(request):
     """
@@ -2128,7 +2093,15 @@ class LectureViewSet(viewsets.ViewSet):
             ("J", "Extraction suivante"),
             ("K", "Extraction pr\u00e9c\u00e9dente"),
             ("C", "Commenter l\u2019extraction s\u00e9lectionn\u00e9e"),
-            ("S", "Marquer consensuelle"),
+            # \u00ab S \u2014 Marquer consensuelle \u00bb a ete retire le 21 aout 2026,
+            # pour la raison exacte que la note ci-dessus donne pour \u00ab T \u00bb :
+            # la touche n'est liee NULLE PART dans `keyboard.js`, et
+            # \u00ab consensuelle \u00bb ne designe plus rien depuis la fusion des six
+            # statuts en deux, le 2 mai 2026. Les deux listes d'aide du
+            # produit sont desormais verrouillees par
+            # `front/tests/test_ce_que_dit_l_aide.py`.
+            # / S was bound nowhere and named a status that no longer
+            # exists; both help lists are now locked by a test.
             ("X", "Masquer l\u2019extraction"),
             ("A", "Comparer / Aligner des pages"),
             ("Z", "Comparer les versions"),
@@ -3082,6 +3055,35 @@ class LectureViewSet(viewsets.ViewSet):
                     },
                 })
                 return reponse_erreur
+
+        # UNE SYNTHESE SANS CARNET N'EST PAS PRODUITE, ET LE REFUS EST ICI
+        # — c'est-a-dire AVANT l'appel au modele, qui est facture.
+        #
+        # Ni carnet demande, ni carnet sur la source : la synthese
+        # n'irait nulle part. Elle etait alors rangee dans le fourre-tout
+        # « A ranger » du demandeur (front/tasks.py), cree pour
+        # l'occasion. Ce carnet magique a ete supprime le 21 aout 2026 :
+        # une note appartient toujours a un carnet, et une destination
+        # inventee par le code n'en est pas une.
+        # / A synthesis without a notebook is not produced, and the
+        # refusal happens BEFORE the billed model call.
+        la_source_n_a_aucun_carnet = (
+            carnet_d_origine is None
+            and not page.appartenances_dossiers.exists()
+            and page.dossier_id is None
+        )
+        if la_source_n_a_aucun_carnet:
+            reponse_erreur = HttpResponse(status=400)
+            reponse_erreur["HX-Trigger"] = json.dumps({
+                "showToast": {
+                    "message": (
+                        "Cette note n'est dans aucun carnet : rangez-la "
+                        "d'abord, la synthèse ira dans le même carnet."
+                    ),
+                    "icon": "warning",
+                },
+            })
+            return reponse_erreur
 
         # Guard anti-doublon : verifier s'il y a deja une synthese en cours
         # / Anti-duplicate guard: check if a synthesis is already running
@@ -5913,12 +5915,20 @@ class ImportViewSet(viewsets.ViewSet):
         # / Determine final title and folder
         nom_sans_extension = os.path.splitext(nom_fichier)[0]
         titre_final = titre_personnalise.strip() if titre_personnalise.strip() else nom_sans_extension
-        if dossier_id:
-            dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
-        else:
-            # Auto-classement dans "Mes imports" si pas de dossier specifie
-            # / Auto-classify in "Mes imports" if no folder specified
-            dossier_assigne = _obtenir_ou_creer_dossier_imports(request.user)
+        # LE CARNET EST EXIGE, ET LE DROIT D'Y ECRIRE AUSSI. Ces six
+        # lignes faisaient un `filter(pk=dossier_id).first()` SANS aucun
+        # controle — n'importe quel utilisateur authentifie pouvait
+        # deposer un fichier dans le carnet de n'importe qui — et se
+        # rabattaient sinon sur le fourre-tout « Mes imports ». Les deux
+        # sont partis le 21 aout 2026 : le service tranche, et il refuse.
+        # / The notebook is required, and so is write access.
+        try:
+            dossier_assigne = carnet_ou_ranger(request.user, dossier_id)
+        except CarnetRefuse as carnet_refuse:
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">{carnet_refuse}</p>',
+                status=400,
+            )
 
         # Sauvegarder le fichier JSON original dans source_file
         # / Save the original JSON file in source_file
@@ -6030,12 +6040,20 @@ class ImportViewSet(viewsets.ViewSet):
         # / Determine title and folder
         nom_sans_extension = os.path.splitext(nom_fichier)[0]
         titre_final = titre_personnalise.strip() if titre_personnalise.strip() else nom_sans_extension
-        if dossier_id:
-            dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
-        else:
-            # Auto-classement dans "Mes imports" si pas de dossier specifie
-            # / Auto-classify in "Mes imports" if no folder specified
-            dossier_assigne = _obtenir_ou_creer_dossier_imports(request.user)
+        # LE CARNET EST EXIGE, ET LE DROIT D'Y ECRIRE AUSSI. Ces six
+        # lignes faisaient un `filter(pk=dossier_id).first()` SANS aucun
+        # controle — n'importe quel utilisateur authentifie pouvait
+        # deposer un fichier dans le carnet de n'importe qui — et se
+        # rabattaient sinon sur le fourre-tout « Mes imports ». Les deux
+        # sont partis le 21 aout 2026 : le service tranche, et il refuse.
+        # / The notebook is required, and so is write access.
+        try:
+            dossier_assigne = carnet_ou_ranger(request.user, dossier_id)
+        except CarnetRefuse as carnet_refuse:
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">{carnet_refuse}</p>',
+                status=400,
+            )
 
         # Sauvegarder le fichier audio dans source_file
         # / Save the audio file in source_file
@@ -6175,12 +6193,20 @@ class ImportViewSet(viewsets.ViewSet):
             titre_personnalise.strip()
             or os.path.splitext(nom_fichier)[0]
         )
-        if dossier_id:
-            dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
-        else:
-            # Auto-classement dans "Mes imports" si pas de dossier specifie
-            # / Auto-classify in "Mes imports" if no folder specified
-            dossier_assigne = _obtenir_ou_creer_dossier_imports(request.user)
+        # LE CARNET EST EXIGE, ET LE DROIT D'Y ECRIRE AUSSI. Ces six
+        # lignes faisaient un `filter(pk=dossier_id).first()` SANS aucun
+        # controle — n'importe quel utilisateur authentifie pouvait
+        # deposer un fichier dans le carnet de n'importe qui — et se
+        # rabattaient sinon sur le fourre-tout « Mes imports ». Les deux
+        # sont partis le 21 aout 2026 : le service tranche, et il refuse.
+        # / The notebook is required, and so is write access.
+        try:
+            dossier_assigne = carnet_ou_ranger(request.user, dossier_id)
+        except CarnetRefuse as carnet_refuse:
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">{carnet_refuse}</p>',
+                status=400,
+            )
 
         # L'empreinte porte sur les OCTETS DU FICHIER, plus sur le texte
         # d'une conversion. Deux imports du meme fichier se
@@ -6476,12 +6502,20 @@ class ImportViewSet(viewsets.ViewSet):
         # / Determine title and folder
         nom_sans_extension = os.path.splitext(nom_fichier_original)[0]
         titre_final = titre_personnalise.strip() if titre_personnalise.strip() else nom_sans_extension
-        if dossier_id:
-            dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
-        else:
-            # Auto-classement dans "Mes imports" si pas de dossier specifie
-            # / Auto-classify in "Mes imports" if no folder specified
-            dossier_assigne = _obtenir_ou_creer_dossier_imports(request.user)
+        # LE CARNET EST EXIGE, ET LE DROIT D'Y ECRIRE AUSSI. Ces six
+        # lignes faisaient un `filter(pk=dossier_id).first()` SANS aucun
+        # controle — n'importe quel utilisateur authentifie pouvait
+        # deposer un fichier dans le carnet de n'importe qui — et se
+        # rabattaient sinon sur le fourre-tout « Mes imports ». Les deux
+        # sont partis le 21 aout 2026 : le service tranche, et il refuse.
+        # / The notebook is required, and so is write access.
+        try:
+            dossier_assigne = carnet_ou_ranger(request.user, dossier_id)
+        except CarnetRefuse as carnet_refuse:
+            return HttpResponse(
+                f'<p class="text-sm text-red-500">{carnet_refuse}</p>',
+                status=400,
+            )
 
         # Sauvegarder le fichier audio dans source_file depuis le fichier temp
         # / Save the audio file in source_file from the temp file
