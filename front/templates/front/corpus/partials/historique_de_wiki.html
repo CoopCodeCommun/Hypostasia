@@ -1,0 +1,119 @@
+{% comment %}
+L'HISTOIRE D'UN WIKI — quand, par qui, pourquoi, quel ajout.
+/ A wiki's history: when, by whom, why, what was added.
+
+LOCALISATION : front/templates/front/corpus/partials/historique_de_wiki.html
+
+Rendu par WikiViewSet.historique (front/views_synthese.py), charge par
+le depliant « Historique » de l'en-tete d'article, au premier ouvrage.
+
+CE QU'IL FAUT POUVOIR LIRE SANS CLIQUER AILLEURS :
+- QUI a fait le tour — un humain nomme, ou LE MOTEUR (passe de nuit) ;
+- POURQUOI — ce qui etait apparu dans le perimetre depuis le tour
+  precedent, en chiffres, et les notes qui l'ont declenche ;
+- QUOI — la section touchee, ce qui a ete ajoute, et pour un
+  remplacement, ce qui a DISPARU (§ 6.4 : le diff montre l'avant) ;
+- CE QUI A ETE REFUSE, avec son motif. Un rejet est un fait
+  d'histoire : le taire ferait croire que le modele n'a rien proposé.
+
+CLASSES REUTILISEES, aucune neuve : le build Tailwind est fige, et
+`document-ecarte` / `liste-ecartee` portent deja exactement la forme
+d'un depliant a compte dans cet en-tete.
+/ No new classes: the Tailwind build is frozen.
+
+Variables : wiki, tours, nombre_total_de_tours
+{% endcomment %}
+<div data-testid="synthese-historique">
+    {% if tours %}
+    <p class="explication" style="margin:0 0 .4rem">
+        <strong>{{ nombre_total_de_tours }} tour{{ nombre_total_de_tours|pluralize }}</strong>
+        depuis la première rédaction{% if tours|length < nombre_total_de_tours %},
+        dont {{ tours|length }} détaillés ici{% endif %}.
+    </p>
+
+    {% for tour in tours %}
+    <details class="document-ecarte" data-testid="synthese-tour-de-wiki"
+             data-motif="{{ tour.motif }}"
+             data-par-le-moteur="{% if tour.est_fait_par_le_moteur %}oui{% else %}non{% endif %}">
+        <summary>
+            <span class="titre-du-document">
+                {{ tour.fait_le|date:"d/m/Y à H:i" }} —
+                {% if tour.est_fait_par_le_moteur %}
+                    le moteur, automatiquement
+                {% else %}
+                    {{ tour.fait_par.username|default:"auteur inconnu" }}
+                {% endif %}
+            </span>
+            <span class="compte-du-document">
+                {% if tour.a_change_l_article %}
+                    {{ tour.operations_appliquees_du_tour }}
+                {% else %}
+                    inchangé
+                {% endif %}
+            </span>
+        </summary>
+
+        <ul class="liste-ecartee">
+            <li>
+                <strong>{{ tour.get_motif_display }}</strong>
+                {% if tour.depuis %}
+                    — depuis le {{ tour.depuis|date:"d/m/Y à H:i" }} :
+                    {{ tour.extractions_nouvelles }} nouvelle{% if tour.extractions_nouvelles > 1 %}s{% endif %} extraction{% if tour.extractions_nouvelles > 1 %}s{% endif %}, {{ tour.commentaires_nouveaux }} nouveau{% if tour.commentaires_nouveaux > 1 %}x{% endif %} commentaire{% if tour.commentaires_nouveaux > 1 %}s{% endif %}
+                {% endif %}
+            </li>
+
+            {% for note in tour.notes_declenchantes.all %}
+            <li data-testid="synthese-note-declenchante">
+                Note entrée dans le périmètre :
+                « {{ note.title|default:"note sans titre"|truncatechars:80 }} »
+            </li>
+            {% endfor %}
+
+            {% for operation in tour.operations.all %}
+            <li data-testid="synthese-operation-de-tour"
+                data-appliquee="{% if operation.appliquee %}oui{% else %}non{% endif %}">
+                {% if operation.appliquee %}
+                    <strong>{{ operation.get_type_d_operation_display }}</strong>
+                    — section « {{ operation.section|default:"sans titre" }} »
+                    {% if operation.nombre_de_preuves %}
+                    · {{ operation.nombre_de_preuves }} preuve{% if operation.nombre_de_preuves > 1 %}s{% endif %}
+                    {% endif %}
+                    {% if operation.contenu_lisible %}
+                    <br>Ajouté : {{ operation.contenu_lisible|truncatechars:400 }}
+                    {% endif %}
+                    {% comment %}
+                    § 6.4 : un remplacement qui ne montrerait que le
+                    nouveau contenu ferait approuver une reecriture sans
+                    montrer ce qui disparait.
+                    / § 6.4: show what vanished, not only what replaced it.
+                    {% endcomment %}
+                    {% if operation.ancien_contenu_lisible %}
+                    <br>À la place de : {{ operation.ancien_contenu_lisible|truncatechars:400 }}
+                    {% endif %}
+                {% else %}
+                    <strong>Refusé</strong> —
+                    {{ operation.get_type_d_operation_display }}
+                    sur « {{ operation.section|default:"sans titre" }} » :
+                    {{ operation.motif_de_rejet }}
+                    {% if operation.contenu_lisible %}
+                    <br>Contenu conservé : {{ operation.contenu_lisible|truncatechars:300 }}
+                    {% endif %}
+                {% endif %}
+            </li>
+            {% endfor %}
+
+            {% if not tour.operations.all %}
+            <li>Aucune opération : l'article a été écrit en une fois.</li>
+            {% endif %}
+        </ul>
+    </details>
+    {% endfor %}
+
+    {% else %}
+    <p class="explication">
+        Cet article n'a pas encore d'histoire enregistrée. Les tours
+        antérieurs au 21 août 2026 n'ont pas été gardés : le moteur ne
+        les écrivait nulle part.
+    </p>
+    {% endif %}
+</div>

@@ -1,0 +1,78 @@
+{% comment %}
+RECAPITULATIF DU MATIN — version HTML
+/ Morning recap — HTML version
+
+LOCALISATION : front/templates/front/emails/recapitulatif_du_matin.html
+
+Meme contenu que la version texte, meme ordre, memes deux sections.
+Les styles sont EN LIGNE : un client de messagerie ne charge ni
+feuille externe ni bundle Tailwind, et les tokens de `maquette.css`
+n'existent pas ici.
+{% endcomment %}<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; color: #1e293b;">
+    <h2 style="color: #1e293b;">Ce qui a bougé sur vos wikis</h2>
+    <p style="color: #64748b; font-size: 14px;">
+        Bonjour {{ destinataire.username }} — depuis le {{ depuis|date:"d/m/Y à H:i" }}.
+    </p>
+
+    {% if wikis_modifies %}
+    <h3 style="margin-top: 28px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">Ce qui a changé</h3>
+    {% for entree in wikis_modifies %}
+    <div style="margin: 18px 0; padding-left: 12px; border-left: 3px solid #2563eb;">
+        <p style="margin: 0 0 4px;"><strong>{{ entree.wiki.sujet }}</strong></p>
+        <p style="margin: 0 0 8px; color: #64748b; font-size: 13px;">Carnet : {{ entree.wiki.dossier.name }}</p>
+        {% for tour in entree.tours %}
+        <p style="margin: 0 0 4px; font-size: 14px;">
+            {{ tour.fait_le|date:"d/m/Y à H:i" }} —
+            {% if tour.est_fait_par_le_moteur %}
+                <em>par le moteur, automatiquement</em>
+            {% else %}
+                par <strong>{{ tour.fait_par.username }}</strong>
+            {% endif %}
+            : {{ tour.operations_appliquees_du_tour }} ajout{% if tour.operations_appliquees_du_tour > 1 %}s{% endif %} ou remplacement{% if tour.operations_appliquees_du_tour > 1 %}s{% endif %}{% if tour.operations_rejetees_du_tour %}, {{ tour.operations_rejetees_du_tour }} opération{% if tour.operations_rejetees_du_tour > 1 %}s{% endif %} refusée{% if tour.operations_rejetees_du_tour > 1 %}s{% endif %}{% endif %}.
+        </p>
+        <ul style="margin: 0 0 10px; padding-left: 20px; color: #475569; font-size: 13px;">
+            {% for operation in tour.operations_a_lire %}
+            <li>{{ operation.get_type_d_operation_display }} — section « {{ operation.section }} »</li>
+            {% endfor %}
+        </ul>
+        {% endfor %}
+        {% if entree.reste_a_reprendre %}
+        <p style="margin: 0 0 8px; color: #64748b; font-size: 13px;">
+            Il reste {{ entree.reste_a_reprendre }} extraction{% if entree.reste_a_reprendre > 1 %}s{% endif %} que l'article n'a pas encore reprise{% if entree.reste_a_reprendre > 1 %}s{% endif %}.
+        </p>
+        {% endif %}
+        <p style="margin: 0;">
+            <a href="{{ base_url }}/wikis/{{ entree.wiki.pk }}/" style="color: #2563eb;">Lire l'article</a>
+        </p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if wikis_avec_du_neuf %}
+    <h3 style="margin-top: 28px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">Ce qui attend</h3>
+    {% for entree in wikis_avec_du_neuf %}
+    <div style="margin: 18px 0; padding-left: 12px; border-left: 3px solid #d97706;">
+        <p style="margin: 0 0 4px;"><strong>{{ entree.wiki.sujet }}</strong></p>
+        <p style="margin: 0 0 8px; color: #64748b; font-size: 13px;">Carnet : {{ entree.wiki.dossier.name }}</p>
+        <p style="margin: 0 0 8px; font-size: 14px;">
+            {{ entree.nouveautes.extractions }} nouvelle{% if entree.nouveautes.extractions > 1 %}s{% endif %} extraction{% if entree.nouveautes.extractions > 1 %}s{% endif %},
+            {{ entree.nouveautes.commentaires }} nouveau{% if entree.nouveautes.commentaires > 1 %}x{% endif %} commentaire{% if entree.nouveautes.commentaires > 1 %}s{% endif %} dans le périmètre —
+            {{ entree.reste_a_reprendre }} pas encore reprise{% if entree.reste_a_reprendre > 1 %}s{% endif %} par l'article.
+        </p>
+        <p style="margin: 0;">
+            <a href="{{ base_url }}/wikis/{{ entree.wiki.pk }}/" style="color: #2563eb;">Ouvrir le wiki</a>
+        </p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+    <p style="color: #94a3b8; font-size: 12px;">
+        Vous recevez ce message une fois par jour au maximum, et seulement quand il y a quelque chose à dire.
+    </p>
+    <p style="color: #94a3b8; font-size: 12px;">Hypostasia — Plateforme de lecture collaborative</p>
+</body>
+</html>

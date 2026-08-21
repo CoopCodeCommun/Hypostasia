@@ -1,0 +1,41 @@
+{% comment %}
+RECAPITULATIF DU MATIN — version texte
+/ Morning recap — plain text version
+
+LOCALISATION : front/templates/front/emails/recapitulatif_du_matin.txt
+
+Rendu par front/management/commands/envoyer_le_recapitulatif_du_matin.py,
+une fois par personne et par jour au maximum.
+
+Deux sections, et deux seulement : ce qui a change, et ce qui attend.
+Un tour sans auteur est un tour de la PASSE DE NUIT — c'est ce que
+« le moteur » veut dire ici, et la distinction doit rester lisible :
+un article qu'un collegue a modifie ne se relit pas comme un article
+que la machine a complete.
+{% endcomment %}Bonjour {{ destinataire.username }},
+
+Voici ce qui a bougé sur vos wikis depuis le {{ depuis|date:"d/m/Y à H:i" }}.
+{% if wikis_modifies %}
+CE QUI A CHANGÉ
+{% for entree in wikis_modifies %}
+· {{ entree.wiki.sujet }}
+  Carnet : {{ entree.wiki.dossier.name }}
+{% for tour in entree.tours %}  - {{ tour.fait_le|date:"d/m/Y à H:i" }} — {% if tour.est_fait_par_le_moteur %}par le moteur, automatiquement{% else %}par {{ tour.fait_par.username }}{% endif %}
+    {{ tour.operations_appliquees_du_tour }} ajout{% if tour.operations_appliquees_du_tour > 1 %}s{% endif %} ou remplacement{% if tour.operations_appliquees_du_tour > 1 %}s{% endif %}{% if tour.operations_rejetees_du_tour %}, {{ tour.operations_rejetees_du_tour }} opération{% if tour.operations_rejetees_du_tour > 1 %}s{% endif %} refusée{% if tour.operations_rejetees_du_tour > 1 %}s{% endif %}{% endif %}
+{% for operation in tour.operations_a_lire %}    · {{ operation.get_type_d_operation_display }} — section « {{ operation.section }} »
+{% endfor %}{% endfor %}  {% if entree.reste_a_reprendre %}Il reste {{ entree.reste_a_reprendre }} extraction{% if entree.reste_a_reprendre > 1 %}s{% endif %} que l'article n'a pas encore reprise{% if entree.reste_a_reprendre > 1 %}s{% endif %}.
+  {% endif %}À lire : {{ base_url }}/wikis/{{ entree.wiki.pk }}/
+{% endfor %}{% endif %}{% if wikis_avec_du_neuf %}
+CE QUI ATTEND
+{% for entree in wikis_avec_du_neuf %}
+· {{ entree.wiki.sujet }}
+  Carnet : {{ entree.wiki.dossier.name }}
+  {{ entree.nouveautes.extractions }} nouvelle{% if entree.nouveautes.extractions > 1 %}s{% endif %} extraction{% if entree.nouveautes.extractions > 1 %}s{% endif %}, {{ entree.nouveautes.commentaires }} nouveau{% if entree.nouveautes.commentaires > 1 %}x{% endif %} commentaire{% if entree.nouveautes.commentaires > 1 %}s{% endif %} dans le périmètre.
+  {{ entree.reste_a_reprendre }} extraction{% if entree.reste_a_reprendre > 1 %}s{% endif %} pas encore reprise{% if entree.reste_a_reprendre > 1 %}s{% endif %} par l'article.
+  À lire : {{ base_url }}/wikis/{{ entree.wiki.pk }}/
+{% endfor %}{% endif %}
+Vous recevez ce message une fois par jour au maximum, et seulement
+quand il y a quelque chose à dire.
+
+---
+Hypostasia — Plateforme de lecture collaborative
