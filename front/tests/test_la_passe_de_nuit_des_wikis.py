@@ -396,3 +396,99 @@ class DeuxPassesNeTournentJamaisEnsembleTest(BaseDeLaPasseDeNuit):
             call_command("mettre_a_jour_les_wikis", verbosity=0, a_blanc=True)
 
         appel.assert_not_called()
+
+class LaPasseEstUnFanOutDeTachesTest(BaseDeLaPasseDeNuit):
+    """
+    Un wiki, une tache. C'est ce qui la garde sous le plafond de
+    30 minutes et fait avancer les appels en parallele.
+    / One wiki, one task: parallel, and far below the 30-minute limit.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Un second wiki, pour voir DEUX taches partir.
+        # / A second wiki, to see two tasks fire.
+        second_article = Page.objects.create(
+            title="Second wiki de la nuit",
+            text_readability=(
+                "## Le seuil\n\nActé."
+                f"[[ext:{self.fixtures['extraction_seuil'].pk}]]\n"
+            ),
+            html_readability="<p>w</p>", html_original="<p>w</p>",
+            content_hash="hash-fanout", type_de_note=TypeDeNote.WIKI,
+            owner=self.fixtures["demandeur"],
+        )
+        ranger_une_note_dans_un_carnet(
+            second_article, self.fixtures["carnet"],
+            self.fixtures["demandeur"],
+        )
+        self.second_wiki = Wiki.objects.create(
+            page=second_article, dossier=self.fixtures["carnet"],
+            sujet="Le seuil, encore",
+        )
+
+    def test_une_tache_est_mise_en_file_par_wiki(self):
+        from front.tasks import lancer_la_passe_de_nuit_task
+
+        with patch(
+            "front.tasks.mettre_a_jour_un_wiki_la_nuit_task.delay",
+        ) as mise_en_file:
+            lancer_la_passe_de_nuit_task()
+
+        wikis_mis_en_file = {
+            appel.args[1] for appel in mise_en_file.call_args_list
+        }
+        self.assertEqual(
+            wikis_mis_en_file, {self.wiki.pk, self.second_wiki.pk},
+        )
+
+    def test_la_passe_reste_ouverte_tant_qu_une_tache_n_a_pas_fini(self):
+        # C'est ce que le recapitulatif du matin interroge : tant que le
+        # compte n'est pas atteint, le mail attend.
+        # / The morning recap waits on exactly this.
+        from front.tasks import lancer_la_passe_de_nuit_task
+
+        with patch("front.tasks.mettre_a_jour_un_wiki_la_nuit_task.delay"):
+            lancer_la_passe_de_nuit_task()
+
+        passe = PasseDeNuit.objects.get()
+        self.assertTrue(passe.tourne_encore)
+        self.assertEqual(passe.wikis_examines, 2)
+        self.assertEqual(passe.wikis_termines, 0)
+
+    def test_la_derniere_tache_ferme_la_passe(self):
+        self._passer_la_nuit(self._operations_valides())
+
+        passe = PasseDeNuit.objects.get()
+        self.assertIsNotNone(passe.terminee_le)
+        self.assertEqual(passe.wikis_termines, 2)
+        self.assertEqual(passe.wikis_modifies, 2)
+
+    def test_un_wiki_en_erreur_rend_quand_meme_la_main(self):
+        # SINON LA PASSE RESTE OUVERTE POUR TOUJOURS, et le
+        # recapitulatif du matin n'arrive jamais.
+        # / Otherwise the pass never closes and the mail never comes.
+        with patch(
+            "core.llm_providers.appeler_llm",
+            side_effect=RuntimeError("le modèle est injoignable"),
+        ), patch("front.tasks.enchainer_la_verification"):
+            call_command("mettre_a_jour_les_wikis", verbosity=0)
+
+        passe = PasseDeNuit.objects.get()
+        self.assertIsNotNone(passe.terminee_le)
+        self.assertEqual(passe.wikis_en_erreur, 2)
+        self.assertEqual(passe.wikis_modifies, 0)
+
+    def test_une_nuit_sans_rien_a_faire_ferme_la_passe_tout_de_suite(self):
+        # Une passe ouverte sans tache pour la fermer bloquerait le
+        # recapitulatif jusqu'a sa peremption.
+        # / An empty pass with nobody to close it would block the mail.
+        from front.tasks import lancer_la_passe_de_nuit_task
+
+        Wiki.objects.all().delete()
+
+        lancer_la_passe_de_nuit_task()
+
+        passe = PasseDeNuit.objects.get()
+        self.assertIsNotNone(passe.terminee_le)
+        self.assertEqual(passe.wikis_examines, 0)

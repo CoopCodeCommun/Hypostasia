@@ -106,6 +106,17 @@ Chacun a déjà cassé quelque chose. Aucun ne lève d'erreur explicite.
   chargée. Verrouillés par
   `hypostasis_extractor/tests/test_files_celery_ingestion.py` et
   `.../test_worker_du_juge_local.py`.
+- **UN planificateur, jamais deux.** `celery_beat` (supervisord, les deux
+  topologies) lit le `beat_schedule` de `hypostasia/celery.py` et déclenche la
+  passe de nuit des wikis puis le récapitulatif du matin. **Ce n'est pas un
+  quatrième worker** : il ne consomme aucune file, n'exécute rien, et ne prend
+  donc aucun slot — la ligne ci-dessus reste vraie. Deux beats enverraient chaque
+  tâche **en double** : deux passes de nuit sur les mêmes wikis, donc la facture
+  du rédacteur doublée. Verrouillé par `core/tests/test_le_planificateur.py`.
+- **Toute tâche Celery neuve exige un redémarrage du worker** — `make restart
+  S=celery_worker` — sinon il tourne avec l'ancien code et `inspect registered`
+  ne la connaît pas. C'est arrivé le 21 août : trois tâches neuves, un beat qui
+  les appelait, et un worker qui ne savait pas les exécuter.
 - **Une suite de tests à la fois, jamais `--parallel`.** La base de test est
   partagée : deux exécutions simultanées se détruisent mutuellement en plein vol
   (755 erreurs fantômes constatées).
@@ -129,7 +140,7 @@ Chacun a déjà cassé quelque chose. Aucun ne lève d'erreur explicite.
 ```bash
 make                 # liste les cibles
 make install         # docker compose up -d + bin/install.sh (idempotent)
-make dev             # runserver + les TROIS workers Celery
+make dev             # runserver + les TROIS workers Celery + le planificateur
 make check
 make test            # l'aide des cibles de test et de leur coût
 make test-rapide     # le geste quotidien — tout sauf e2e/docling/llm

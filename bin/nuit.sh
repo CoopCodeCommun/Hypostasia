@@ -9,6 +9,25 @@
 # l'autre.
 # / Runs from the HOST: it drives Docker and sits in the host's crontab.
 #
+# CE SCRIPT EST LA PORTE MANUELLE, PAS LA PLANIFICATION.
+#
+# La planification vit DANS L'APPLICATION : `hypostasia/celery.py`
+# (`beat_schedule`), lue par le programme `celery_beat` de supervisord.
+# Elle est versionnee, relue en revue, et elle voyage avec le depot —
+# ce qu'un crontab d'hote ne fait pas : il ne se deplace pas avec le
+# code, et un clone frais ne l'a pas.
+#
+# NE PAS POSER CE SCRIPT DANS UN CRON. Il ferait partir la passe DEUX
+# fois par nuit — une par le beat, une par le cron — sur les memes
+# wikis, donc la facture du redacteur doublee. Il sert a lancer la
+# chose A LA MAIN, quand on veut la voir tourner tout de suite.
+# / This script is the manual door. The schedule lives in the app; do
+# not put this in a crontab or the pass would fire twice.
+#
+# Les heures se reglent par variables d'environnement, dans le .env :
+#     HEURE_PASSE_DE_NUIT=2     (defaut, en UTC)
+#     HEURE_RECAPITULATIF=6     (defaut, en UTC)
+#
 # DEUX ETAPES, A DEUX HEURES DIFFERENTES
 #
 #   passe          met a jour les wikis dont le perimetre a du neuf.
@@ -23,13 +42,10 @@
 #                  production, le mail doit partir LE MATIN, donc plus
 #                  tard que la passe.
 #
-# LES DEUX LIGNES DE CRON (heure de l'HOTE — les settings Django sont
-# en UTC, l'heure locale est donc celle du cron) :
+# POUR VERIFIER QUE LA PLANIFICATION TOURNE :
 #
-#   0 3 * * * bash /chemin/vers/Hypostasia/bin/nuit.sh passe \
-#                  >> /var/log/hypostasia-nuit.log 2>&1
-#   0 7 * * * bash /chemin/vers/Hypostasia/bin/nuit.sh recapitulatif \
-#                  >> /var/log/hypostasia-nuit.log 2>&1
+#   make status                       (le programme celery_beat)
+#   docker compose logs -f web        (« beat: Starting... » au demarrage)
 #
 # L'ENVOI REEL EXIGE EMAIL_HOST* DANS LE .env. Sans eux, le backend par
 # defaut est la CONSOLE : les mails s'impriment dans les journaux du

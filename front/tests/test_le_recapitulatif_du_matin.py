@@ -26,7 +26,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from core.models import (
-    DossierPartage, EnvoiDuRecapitulatif, MotifDeTourDeWiki, Page,
+    Dossier, DossierPartage, EnvoiDuRecapitulatif, MotifDeTourDeWiki, Page,
     PasseDeNuit, TourDeWiki, TypeDeNote, Wiki,
 )
 from core.services.corpus import ranger_une_note_dans_un_carnet
@@ -82,6 +82,28 @@ class BaseDuRecapitulatif(TestCase):
         # ardoise vide : il pose lui-meme ce qu'il veut raconter.
         # / Each test lays down its own history.
         TourDeWiki.objects.all().delete()
+        self._vieillir_les_fixtures()
+
+    def _vieillir_les_fixtures(self):
+        """
+        Recule les fixtures hors de la fenetre du recapitulatif.
+        / Ages the fixtures out of the recap window.
+
+        Le recapitulatif annonce les notes, les carnets et les
+        extractions APPARUS depuis la borne. Les fixtures naissent a
+        l'instant : sans ce recul, chaque test aurait « quelque chose a
+        dire » avant meme d'avoir rien pose. Un carnet cree il y a
+        trois jours n'est pas une nouvelle — c'est exactement ce que le
+        recul represente.
+        / Fixtures are born now; without ageing them, every test would
+        have news before laying anything down.
+        """
+        from hypostasis_extractor.models import ExtractedEntity
+
+        il_y_a_trois_jours = timezone.now() - timedelta(days=3)
+        Dossier.objects.all().update(created_at=il_y_a_trois_jours)
+        Page.objects.all().update(created_at=il_y_a_trois_jours)
+        ExtractedEntity.objects.all().update(created_at=il_y_a_trois_jours)
 
     def _un_tour_de_nuit(self, fait_par=None):
         """Un tour qui a REELLEMENT change l'article. / A real change."""
@@ -355,3 +377,264 @@ class LesDestinatairesDuMailTest(BaseDuRecapitulatif):
         # / The second was attempted despite the first failure.
         self.assertEqual(appels["nombre"], 2)
         self.assertEqual(EnvoiDuRecapitulatif.objects.count(), 1)
+
+
+class LesCinqRubriquesTest(BaseDuRecapitulatif):
+    """
+    Ce que le recapitulatif surveille, au-dela des wikis.
+    / What the recap watches beyond wikis.
+    """
+
+    def _une_note_neuve(self, titre="Note arrivée ce matin"):
+        note = Page.objects.create(
+            title=titre, text_readability="Du texte.",
+            html_readability="<p>t</p>", html_original="<p>t</p>",
+            content_hash=f"hash-{titre[:20]}", owner=self.proprietaire,
+        )
+        ranger_une_note_dans_un_carnet(
+            note, self.fixtures["carnet"], self.proprietaire,
+        )
+        return note
+
+    def test_une_note_neuve_dans_mon_carnet_est_annoncee(self):
+        note = self._une_note_neuve()
+
+        self._envoyer()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(note.title, mail.outbox[0].body)
+        self.assertIn(f"/lire/{note.pk}/", mail.outbox[0].body)
+
+    def test_un_commentaire_neuf_porte_son_texte_et_son_auteur(self):
+        # UN COMPTE NE DONNE ENVIE DE REPONDRE A PERSONNE.
+        # / A count makes nobody want to answer.
+        from django.contrib.auth import get_user_model
+        from hypostasis_extractor.models import CommentaireExtraction
+
+        commentatrice = get_user_model().objects.create_user(
+            username="commentatrice", password="motdepasse",
+            email="commentatrice@exemple.local",
+        )
+        CommentaireExtraction.objects.create(
+            entity=self.fixtures["extraction_seuil"],
+            user=commentatrice,
+            commentaire="Ce seuil me paraît beaucoup trop bas.",
+        )
+
+        self._envoyer()
+
+        corps = mail.outbox[0].body
+        self.assertIn("Ce seuil me paraît beaucoup trop bas.", corps)
+        self.assertIn("commentatrice", corps)
+
+    def test_le_texte_brut_n_echappe_pas_les_apostrophes(self):
+        # « C&#x27;est » sous les yeux du lecteur : Django echappe pour
+        # le HTML, or rien n'est interprete dans un texte brut.
+        # / Django escapes for HTML; nothing is interpreted in plain text.
+        from django.contrib.auth import get_user_model
+        from hypostasis_extractor.models import CommentaireExtraction
+
+        quelqu_un = get_user_model().objects.create_user(
+            username="apostrophe", password="motdepasse",
+            email="apostrophe@exemple.local",
+        )
+        CommentaireExtraction.objects.create(
+            entity=self.fixtures["extraction_seuil"], user=quelqu_un,
+            commentaire="C'est exactement l'inverse qu'il faudrait dire.",
+        )
+
+        self._envoyer()
+
+        corps = mail.outbox[0].body
+        self.assertIn("C'est exactement l'inverse", corps)
+        self.assertNotIn("&#x27;", corps)
+
+    def test_le_html_echappe_le_contenu_d_utilisateur(self):
+        # Un commentaire est du contenu d'utilisateur, et il serait
+        # INTERPRETE dans la version HTML.
+        # / A comment is user content and would render in the HTML part.
+        from django.contrib.auth import get_user_model
+        from hypostasis_extractor.models import CommentaireExtraction
+
+        quelqu_un = get_user_model().objects.create_user(
+            username="injecteur", password="motdepasse",
+            email="injecteur@exemple.local",
+        )
+        CommentaireExtraction.objects.create(
+            entity=self.fixtures["extraction_seuil"], user=quelqu_un,
+            commentaire="<script>alert('bonjour')</script>",
+        )
+
+        self._envoyer()
+
+        html = mail.outbox[0].alternatives[0][0]
+        self.assertNotIn("<script>alert", html)
+        self.assertIn("&lt;script&gt;", html)
+
+    def test_un_commentaire_porte_un_bouton_reagir(self):
+        from django.contrib.auth import get_user_model
+        from hypostasis_extractor.models import CommentaireExtraction
+
+        quelqu_un = get_user_model().objects.create_user(
+            username="repondeur", password="motdepasse",
+            email="repondeur@exemple.local",
+        )
+        CommentaireExtraction.objects.create(
+            entity=self.fixtures["extraction_seuil"], user=quelqu_un,
+            commentaire="Je ne suis pas d'accord.",
+        )
+
+        self._envoyer()
+
+        note_commentee = self.fixtures["note_source"]
+        html = mail.outbox[0].alternatives[0][0]
+        self.assertIn("Réagir", html)
+        self.assertIn(f"/lire/{note_commentee.pk}/", html)
+
+    def test_un_carnet_public_neuf_est_annonce(self):
+        from django.contrib.auth import get_user_model
+        from core.models import VisibiliteDossier
+
+        quelqu_un_d_autre = get_user_model().objects.create_user(
+            username="fondateur", password="motdepasse",
+            email="fondateur@exemple.local",
+        )
+        carnet_public = Dossier.objects.create(
+            name="Carnet public tout neuf", owner=quelqu_un_d_autre,
+            visibilite=VisibiliteDossier.PUBLIC,
+        )
+
+        self._envoyer()
+
+        corps = mail.outbox[0].body
+        self.assertIn("Carnet public tout neuf", corps)
+        self.assertIn(f"/carnets/{carnet_public.pk}/", corps)
+
+    def test_mon_propre_carnet_public_ne_m_est_pas_annonce(self):
+        # On ne s'annonce pas a soi-meme ce qu'on vient de creer.
+        # / One does not announce one's own creation to oneself.
+        from core.models import VisibiliteDossier
+
+        Dossier.objects.create(
+            name="Mon carnet public à moi", owner=self.proprietaire,
+            visibilite=VisibiliteDossier.PUBLIC,
+        )
+
+        self._envoyer()
+
+        if mail.outbox:
+            self.assertNotIn("Mon carnet public à moi", mail.outbox[0].body)
+
+    def test_un_wiki_neuf_est_annonce_comme_article(self):
+        page_du_wiki = Page.objects.create(
+            title="Wiki tout neuf", text_readability="## S\n\nDu texte.\n",
+            html_readability="<p>w</p>", html_original="<p>w</p>",
+            content_hash="hash-wiki-neuf", type_de_note=TypeDeNote.WIKI,
+            owner=self.proprietaire,
+        )
+        wiki_neuf = Wiki.objects.create(
+            page=page_du_wiki, dossier=self.fixtures["carnet"],
+            sujet="Un sujet fraîchement ouvert",
+        )
+
+        self._envoyer()
+
+        corps = mail.outbox[0].body
+        self.assertIn("Un sujet fraîchement ouvert", corps)
+        self.assertIn(f"/wikis/{wiki_neuf.pk}/", corps)
+
+    def test_une_synthese_neuve_est_annoncee_comme_article(self):
+        from core.models import SyntheseDirigee
+
+        page_de_synthese = Page.objects.create(
+            title="Synthèse du 21 août", text_readability="Du texte.",
+            html_readability="<p>s</p>", html_original="<p>s</p>",
+            content_hash="hash-synthese-neuve",
+            type_de_note=TypeDeNote.SYNTHESE, owner=self.proprietaire,
+        )
+        dirigee = SyntheseDirigee.objects.create(
+            page=page_de_synthese, dossier=self.fixtures["carnet"],
+            produite_par=self.proprietaire,
+        )
+
+        self._envoyer()
+
+        corps = mail.outbox[0].body
+        self.assertIn("Synthèse du 21 août", corps)
+        self.assertIn(f"/syntheses/{dirigee.pk}/", corps)
+
+    def test_une_note_d_un_carnet_qui_n_est_pas_le_mien_n_est_pas_annoncee(self):
+        # Le perimetre du CONTENU, ce sont les carnets qu'on suit — pas
+        # tous les publics du monde, sinon cent notes importees
+        # arroseraient tout le monde.
+        # / Followed notebooks only, or one import would spam everyone.
+        from django.contrib.auth import get_user_model
+        from core.models import VisibiliteDossier
+
+        etranger = get_user_model().objects.create_user(
+            username="etranger", password="motdepasse",
+            email="etranger@exemple.local",
+        )
+        carnet_d_ailleurs = Dossier.objects.create(
+            name="Carnet d'ailleurs", owner=etranger,
+            visibilite=VisibiliteDossier.PUBLIC,
+        )
+        note_d_ailleurs = Page.objects.create(
+            title="Note qui ne me regarde pas",
+            text_readability="Du texte.", html_readability="<p>t</p>",
+            html_original="<p>t</p>", content_hash="hash-ailleurs",
+            owner=etranger,
+        )
+        ranger_une_note_dans_un_carnet(
+            note_d_ailleurs, carnet_d_ailleurs, etranger,
+        )
+
+        self._envoyer()
+
+        mails_du_proprietaire = [
+            message for message in mail.outbox
+            if message.to == [self.proprietaire.email]
+        ]
+        if mails_du_proprietaire:
+            self.assertNotIn(
+                "Note qui ne me regarde pas", mails_du_proprietaire[0].body,
+            )
+
+    def test_le_titre_du_mail_parle_d_hypostasia_pas_de_mes_wikis(self):
+        self._une_note_neuve()
+
+        self._envoyer()
+
+        html = mail.outbox[0].alternatives[0][0]
+        self.assertIn("Ce qui a bougé sur Hypostasia.org", html)
+
+
+class LaBorneImposeeTest(BaseDuRecapitulatif):
+    """
+    `--depuis-jours` sert a REGARDER, jamais a envoyer.
+    / --depuis-jours is for looking, never for sending.
+    """
+
+    def test_elle_est_refusee_sur_un_envoi_reel(self):
+        # Sinon tout le monde recevrait des semaines d'histoire deja lue.
+        # / Otherwise everyone would get weeks of already-read history.
+        with self.assertRaises(CommandError):
+            self._envoyer(depuis_jours=30)
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_elle_remonte_le_temps_pour_un_essai(self):
+        # Les fixtures ont trois jours : avec une borne a un jour, rien.
+        # Avec une borne a trente, elles reapparaissent.
+        # / The fixtures are three days old.
+        self._envoyer(adresse_de_test="essai@exemple.local")
+        self.assertEqual(len(mail.outbox), 0)
+
+        self._envoyer(
+            adresse_de_test="essai@exemple.local", depuis_jours=30,
+        )
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(
+            self.fixtures["note_source"].title, mail.outbox[0].body,
+        )

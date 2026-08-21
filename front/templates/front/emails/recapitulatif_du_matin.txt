@@ -7,14 +7,30 @@ LOCALISATION : front/templates/front/emails/recapitulatif_du_matin.txt
 Rendu par front/management/commands/envoyer_le_recapitulatif_du_matin.py,
 une fois par personne et par jour au maximum.
 
-Deux sections, et deux seulement : ce qui a change, et ce qui attend.
+Six rubriques, et une seule regle de redaction : une rubrique VIDE ne
+s'affiche pas. Un mail qui aligne cinq titres suivis de « rien » ne se
+lit plus au bout de trois jours.
+
 Un tour sans auteur est un tour de la PASSE DE NUIT — c'est ce que
 « le moteur » veut dire ici, et la distinction doit rester lisible :
 un article qu'un collegue a modifie ne se relit pas comme un article
 que la machine a complete.
-{% endcomment %}Bonjour {{ destinataire.username }},
 
-Voici ce qui a bougé sur vos wikis depuis le {{ depuis|date:"d/m/Y à H:i" }}.
+LES COMMENTAIRES PORTENT LEUR TEXTE ET LEUR AUTEUR, pas un compte :
+c'est ce qui donne envie de repondre. Le lien « reagir » ouvre la note
+qui porte l'extraction commentee.
+
+L'AUTOESCAPE EST COUPE, et seulement ici. Django echappe par defaut
+pour le HTML : dans un corps de mail en TEXTE BRUT, cela transformait
+« C'est » en « C&#x27;est » sous les yeux du lecteur. Rien n'est
+interprete dans un texte brut, donc rien n'est a echapper. La version
+HTML, elle, GARDE l'echappement : un commentaire est du contenu
+d'utilisateur, et il y serait interprete.
+/ Autoescape off here only: nothing is interpreted in plain text. The
+HTML version keeps it — a comment is user content and would render.
+{% endcomment %}{% autoescape off %}Bonjour {{ destinataire.username }},
+
+Voici ce qui a bougé sur Hypostasia.org depuis le {{ depuis|date:"d/m/Y à H:i" }}.
 {% if wikis_modifies %}
 CE QUI A CHANGÉ
 {% for entree in wikis_modifies %}
@@ -22,9 +38,35 @@ CE QUI A CHANGÉ
   Carnet : {{ entree.wiki.dossier.name }}
 {% for tour in entree.tours %}  - {{ tour.fait_le|date:"d/m/Y à H:i" }} — {% if tour.est_fait_par_le_moteur %}par le moteur, automatiquement{% else %}par {{ tour.fait_par.username }}{% endif %}
     {{ tour.operations_appliquees_du_tour }} ajout{% if tour.operations_appliquees_du_tour > 1 %}s{% endif %} ou remplacement{% if tour.operations_appliquees_du_tour > 1 %}s{% endif %}{% if tour.operations_rejetees_du_tour %}, {{ tour.operations_rejetees_du_tour }} opération{% if tour.operations_rejetees_du_tour > 1 %}s{% endif %} refusée{% if tour.operations_rejetees_du_tour > 1 %}s{% endif %}{% endif %}
-{% for operation in tour.operations_a_lire %}    · {{ operation.get_type_d_operation_display }} — section « {{ operation.section }} »
+{% for note in tour.notes_declenchantes.all %}    · appelé par la note « {{ note.title|default:"sans titre"|truncatechars:60 }} »
+{% endfor %}{% for operation in tour.operations_a_lire %}    · {{ operation.get_type_d_operation_display }} — section « {{ operation.section }} »
 {% endfor %}{% endfor %}  {% if entree.reste_a_reprendre %}Il reste {{ entree.reste_a_reprendre }} extraction{% if entree.reste_a_reprendre > 1 %}s{% endif %} que l'article n'a pas encore reprise{% if entree.reste_a_reprendre > 1 %}s{% endif %}.
   {% endif %}À lire : {{ base_url }}/wikis/{{ entree.wiki.pk }}/
+{% endfor %}{% endif %}{% if commentaires_neufs.total %}
+CE QU'ON A DIT ({{ commentaires_neufs.total }}{% if commentaires_neufs.montre < commentaires_neufs.total %}, dont {{ commentaires_neufs.montre }} ici{% endif %})
+{% for commentaire in commentaires_neufs.lignes %}
+· {{ commentaire.user.username }} — {{ commentaire.created_at|date:"d/m/Y à H:i" }}
+  « {{ commentaire.commentaire|truncatechars:400 }} »
+  Sur : « {{ commentaire.entity.extraction_text|truncatechars:120 }} »
+  Note : {{ commentaire.entity.job.page.title|default:"sans titre"|truncatechars:60 }}
+  RÉAGIR : {{ base_url }}/lire/{{ commentaire.entity.job.page.pk }}/
+{% endfor %}{% endif %}{% if articles_neufs.total %}
+NOUVEAUX ARTICLES ({{ articles_neufs.total }}{% if articles_neufs.montre < articles_neufs.total %}, dont {{ articles_neufs.montre }} ici{% endif %})
+{% for article in articles_neufs.lignes %}
+· {% if article.genre == "wiki" %}Wiki{% else %}Synthèse{% endif %} — {{ article.sujet|truncatechars:80 }}
+  Carnet : {{ article.carnet.name|default:"hors carnet" }}{% if article.par %} · par {{ article.par.username }}{% endif %}
+  À lire : {{ base_url }}{% if article.genre == "wiki" %}/wikis/{{ article.objet.pk }}/{% else %}/syntheses/{{ article.objet.pk }}/{% endif %}
+{% endfor %}{% endif %}{% if notes_neuves.total %}
+NOUVELLES NOTES ({{ notes_neuves.total }}{% if notes_neuves.montre < notes_neuves.total %}, dont {{ notes_neuves.montre }} ici{% endif %})
+{% for note in notes_neuves.lignes %}
+· {{ note.title|default:"sans titre"|truncatechars:80 }}
+  {{ note.created_at|date:"d/m/Y à H:i" }}{% if note.owner %} · par {{ note.owner.username }}{% endif %}
+  À lire : {{ base_url }}/lire/{{ note.pk }}/
+{% endfor %}{% endif %}{% if carnets_publics_neufs.total %}
+NOUVEAUX CARNETS PUBLICS ({{ carnets_publics_neufs.total }}{% if carnets_publics_neufs.montre < carnets_publics_neufs.total %}, dont {{ carnets_publics_neufs.montre }} ici{% endif %})
+{% for carnet in carnets_publics_neufs.lignes %}
+· {{ carnet.name }}{% if carnet.owner %} · par {{ carnet.owner.username }}{% endif %}
+  À ouvrir : {{ base_url }}/carnets/{{ carnet.pk }}/
 {% endfor %}{% endif %}{% if wikis_avec_du_neuf %}
 CE QUI ATTEND
 {% for entree in wikis_avec_du_neuf %}
@@ -39,3 +81,4 @@ quand il y a quelque chose à dire.
 
 ---
 Hypostasia — Plateforme de lecture collaborative
+{% endautoescape %}

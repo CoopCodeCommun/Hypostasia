@@ -4,15 +4,22 @@ RECAPITULATIF DU MATIN — version HTML
 
 LOCALISATION : front/templates/front/emails/recapitulatif_du_matin.html
 
-Meme contenu que la version texte, meme ordre, memes deux sections.
-Les styles sont EN LIGNE : un client de messagerie ne charge ni
-feuille externe ni bundle Tailwind, et les tokens de `maquette.css`
-n'existent pas ici.
+Meme contenu que la version texte, meme ordre, memes six rubriques.
+
+LES STYLES SONT EN LIGNE : un client de messagerie ne charge ni feuille
+externe ni bundle Tailwind, et les tokens de `maquette.css` n'existent
+pas ici. Les couleurs reprennent celles du produit — vert pour ce qui
+avance, orange pour ce qui attend, bleu pour les liens.
+
+LE BOUTON « REAGIR » EST UN LIEN, jamais un formulaire : un client de
+messagerie ne poste rien, et un bouton qui ne fait rien est pire que
+pas de bouton. Il ouvre la note qui porte l'extraction commentee.
+/ The "react" button is a link: a mail client posts nothing.
 {% endcomment %}<!DOCTYPE html>
 <html lang="fr">
 <head><meta charset="UTF-8"></head>
 <body style="font-family: sans-serif; max-width: 640px; margin: 0 auto; padding: 20px; color: #1e293b;">
-    <h2 style="color: #1e293b;">Ce qui a bougé sur vos wikis</h2>
+    <h2 style="color: #1e293b;">Ce qui a bougé sur Hypostasia.org</h2>
     <p style="color: #64748b; font-size: 14px;">
         Bonjour {{ destinataire.username }} — depuis le {{ depuis|date:"d/m/Y à H:i" }}.
     </p>
@@ -20,7 +27,7 @@ n'existent pas ici.
     {% if wikis_modifies %}
     <h3 style="margin-top: 28px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">Ce qui a changé</h3>
     {% for entree in wikis_modifies %}
-    <div style="margin: 18px 0; padding-left: 12px; border-left: 3px solid #2563eb;">
+    <div style="margin: 18px 0; padding-left: 12px; border-left: 3px solid #429900;">
         <p style="margin: 0 0 4px;"><strong>{{ entree.wiki.sujet }}</strong></p>
         <p style="margin: 0 0 8px; color: #64748b; font-size: 13px;">Carnet : {{ entree.wiki.dossier.name }}</p>
         {% for tour in entree.tours %}
@@ -33,6 +40,12 @@ n'existent pas ici.
             {% endif %}
             : {{ tour.operations_appliquees_du_tour }} ajout{% if tour.operations_appliquees_du_tour > 1 %}s{% endif %} ou remplacement{% if tour.operations_appliquees_du_tour > 1 %}s{% endif %}{% if tour.operations_rejetees_du_tour %}, {{ tour.operations_rejetees_du_tour }} opération{% if tour.operations_rejetees_du_tour > 1 %}s{% endif %} refusée{% if tour.operations_rejetees_du_tour > 1 %}s{% endif %}{% endif %}.
         </p>
+        {% if tour.notes_declenchantes.all %}
+        <p style="margin: 0 0 4px; color: #475569; font-size: 13px;">
+            Appelé par
+            {% for note in tour.notes_declenchantes.all %}« {{ note.title|default:"sans titre"|truncatechars:60 }} »{% if not forloop.last %}, {% endif %}{% endfor %}.
+        </p>
+        {% endif %}
         <ul style="margin: 0 0 10px; padding-left: 20px; color: #475569; font-size: 13px;">
             {% for operation in tour.operations_a_lire %}
             <li>{{ operation.get_type_d_operation_display }} — section « {{ operation.section }} »</li>
@@ -49,6 +62,107 @@ n'existent pas ici.
         </p>
     </div>
     {% endfor %}
+    {% endif %}
+
+    {% if commentaires_neufs.total %}
+    <h3 style="margin-top: 28px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+        Ce qu'on a dit
+        <span style="color: #64748b; font-size: 13px; font-weight: normal;">
+            ({{ commentaires_neufs.total }}{% if commentaires_neufs.montre < commentaires_neufs.total %}, dont {{ commentaires_neufs.montre }} ici{% endif %})
+        </span>
+    </h3>
+    {% for commentaire in commentaires_neufs.lignes %}
+    <div style="margin: 18px 0; padding: 12px; background: #f8fafc; border-radius: 8px;">
+        <p style="margin: 0 0 6px; font-size: 13px; color: #64748b;">
+            <strong style="color: #1e293b;">{{ commentaire.user.username }}</strong>
+            — {{ commentaire.created_at|date:"d/m/Y à H:i" }}
+        </p>
+        {% comment %}
+        Le commentaire en Srisakdi serait fidele a la charte (les
+        interventions du lecteur), mais aucune police ne se charge dans
+        un client de messagerie : on garde l'italique, qui dit la meme
+        chose sans dependre de rien.
+        / No web font loads in a mail client; italics carry the meaning.
+        {% endcomment %}
+        <p style="margin: 0 0 10px; font-style: italic; font-size: 15px; line-height: 1.5;">
+            « {{ commentaire.commentaire|truncatechars:400 }} »
+        </p>
+        <p style="margin: 0 0 4px; font-size: 13px; color: #475569;">
+            Sur : « {{ commentaire.entity.extraction_text|truncatechars:120 }} »
+        </p>
+        <p style="margin: 0 0 10px; font-size: 13px; color: #64748b;">
+            Note : {{ commentaire.entity.job.page.title|default:"sans titre"|truncatechars:60 }}
+        </p>
+        <p style="margin: 0;">
+            <a href="{{ base_url }}/lire/{{ commentaire.entity.job.page.pk }}/"
+               style="display: inline-block; padding: 8px 16px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">
+                Réagir
+            </a>
+        </p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if articles_neufs.total %}
+    <h3 style="margin-top: 28px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+        Nouveaux articles
+        <span style="color: #64748b; font-size: 13px; font-weight: normal;">
+            ({{ articles_neufs.total }}{% if articles_neufs.montre < articles_neufs.total %}, dont {{ articles_neufs.montre }} ici{% endif %})
+        </span>
+    </h3>
+    {% for article in articles_neufs.lignes %}
+    <div style="margin: 14px 0; padding-left: 12px; border-left: 3px solid #6d28d9;">
+        <p style="margin: 0 0 4px;">
+            <span style="font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #6d28d9;">
+                {% if article.genre == "wiki" %}Wiki{% else %}Synthèse{% endif %}
+            </span><br>
+            <strong>{{ article.sujet|truncatechars:80 }}</strong>
+        </p>
+        <p style="margin: 0 0 6px; color: #64748b; font-size: 13px;">
+            Carnet : {{ article.carnet.name|default:"hors carnet" }}{% if article.par %} · par {{ article.par.username }}{% endif %}
+        </p>
+        <p style="margin: 0;">
+            <a href="{{ base_url }}{% if article.genre == 'wiki' %}/wikis/{{ article.objet.pk }}/{% else %}/syntheses/{{ article.objet.pk }}/{% endif %}"
+               style="color: #2563eb;">Lire</a>
+        </p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if notes_neuves.total %}
+    <h3 style="margin-top: 28px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+        Nouvelles notes
+        <span style="color: #64748b; font-size: 13px; font-weight: normal;">
+            ({{ notes_neuves.total }}{% if notes_neuves.montre < notes_neuves.total %}, dont {{ notes_neuves.montre }} ici{% endif %})
+        </span>
+    </h3>
+    <ul style="margin: 12px 0; padding-left: 20px; font-size: 14px; line-height: 1.7;">
+        {% for note in notes_neuves.lignes %}
+        <li>
+            <a href="{{ base_url }}/lire/{{ note.pk }}/" style="color: #2563eb;">{{ note.title|default:"sans titre"|truncatechars:80 }}</a>
+            <span style="color: #64748b; font-size: 13px;">
+                — {{ note.created_at|date:"d/m/Y à H:i" }}{% if note.owner %} · {{ note.owner.username }}{% endif %}
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if carnets_publics_neufs.total %}
+    <h3 style="margin-top: 28px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+        Nouveaux carnets publics
+        <span style="color: #64748b; font-size: 13px; font-weight: normal;">
+            ({{ carnets_publics_neufs.total }}{% if carnets_publics_neufs.montre < carnets_publics_neufs.total %}, dont {{ carnets_publics_neufs.montre }} ici{% endif %})
+        </span>
+    </h3>
+    <ul style="margin: 12px 0; padding-left: 20px; font-size: 14px; line-height: 1.7;">
+        {% for carnet in carnets_publics_neufs.lignes %}
+        <li>
+            <a href="{{ base_url }}/carnets/{{ carnet.pk }}/" style="color: #2563eb;">{{ carnet.name }}</a>
+            {% if carnet.owner %}<span style="color: #64748b; font-size: 13px;">— {{ carnet.owner.username }}</span>{% endif %}
+        </li>
+        {% endfor %}
+    </ul>
     {% endif %}
 
     {% if wikis_avec_du_neuf %}

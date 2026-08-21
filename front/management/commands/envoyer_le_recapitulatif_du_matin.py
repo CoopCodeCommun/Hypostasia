@@ -29,11 +29,13 @@ FLUX :
 
 import logging
 import time
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.core.management.base import BaseCommand, CommandError
 from django.template.loader import render_to_string
+from django.utils import timezone
 
 from core.models import EnvoiDuRecapitulatif
 from core.services.passe_de_nuit import passe_en_cours
@@ -75,6 +77,15 @@ class Command(BaseCommand):
             help="Ne traite qu'un seul destinataire, par son username.",
         )
         analyseur_d_arguments.add_argument(
+            "--depuis-jours", type=int, default=0,
+            dest="depuis_jours",
+            help="Impose la borne basse a N jours en arriere, au lieu "
+                 "de la date du dernier mail de chacun. Pour VOIR ce "
+                 "que donnerait un recapitulatif sur une periode "
+                 "chargee — a n'utiliser qu'avec --a-blanc ou "
+                 "--adresse-de-test.",
+        )
+        analyseur_d_arguments.add_argument(
             "--adresse-de-test", type=str, default="",
             dest="adresse_de_test",
             help="Envoie le recapitulatif a CETTE adresse au lieu des "
@@ -89,7 +100,23 @@ class Command(BaseCommand):
                 options.get("attendre_minutes", 60),
             )
 
-        matiere = matiere_par_destinataire()
+        # UNE BORNE IMPOSEE NE SERT QU'A REGARDER. L'envoi reel garde
+        # la borne de chacun — la date de son dernier mail — sinon la
+        # promesse « rien deux fois » tomberait.
+        # / A forced bound is for looking only.
+        depuis_jours = options.get("depuis_jours") or 0
+        depuis_force = None
+        if depuis_jours:
+            if not (options.get("a_blanc") or options.get("adresse_de_test")):
+                raise CommandError(
+                    "--depuis-jours ne s'utilise qu'avec --a-blanc ou "
+                    "--adresse-de-test : sur un envoi réel, il ferait "
+                    "raconter à tout le monde des semaines d'histoire "
+                    "déjà lues. / --depuis-jours is for trials only."
+                )
+            depuis_force = timezone.now() - timedelta(days=depuis_jours)
+
+        matiere = matiere_par_destinataire(depuis_force=depuis_force)
 
         nom_demande = (options.get("destinataire") or "").strip()
         if nom_demande:
@@ -106,10 +133,11 @@ class Command(BaseCommand):
             for entree in matiere:
                 self.stdout.write(
                     f"  {entree['utilisateur'].username} "
-                    f"<{entree['utilisateur'].email}> : "
-                    f"{len(entree['wikis_modifies'])} modifié(s), "
-                    f"{len(entree['wikis_avec_du_neuf'])} avec du neuf."
+                    f"<{entree['utilisateur'].email}> :"
                 )
+                for libelle, compte in self._comptes_de(entree):
+                    if compte:
+                        self.stdout.write(f"      {compte} {libelle}")
             return
 
         adresse_de_test = (options.get("adresse_de_test") or "").strip()
@@ -157,6 +185,63 @@ class Command(BaseCommand):
             f"{en_erreur} en erreur."
         )
 
+    def _comptes_de(self, entree):
+        """
+        Ce que le mail dira, rubrique par rubrique.
+        / What the mail will say, section by section.
+
+        LOCALISATION :
+        front/management/commands/envoyer_le_recapitulatif_du_matin.py
+        """
+        return [
+            ("wiki(s) modifié(s)", len(entree["wikis_modifies"])),
+            ("commentaire(s)",
+             (entree["commentaires_neufs"] or {}).get("total", 0)),
+            ("article(s) neuf(s)",
+             (entree["articles_neufs"] or {}).get("total", 0)),
+            ("note(s) neuve(s)",
+             (entree["notes_neuves"] or {}).get("total", 0)),
+            ("carnet(s) public(s) neuf(s)",
+             (entree["carnets_publics_neufs"] or {}).get("total", 0)),
+            ("wiki(s) avec du neuf non repris",
+             len(entree["wikis_avec_du_neuf"])),
+        ]
+
+    def _sujet_de(self, entree):
+        """
+        Le sujet dit CE QU'IL Y A, pas « vous avez du courrier ».
+        / The subject says what is inside.
+
+        LOCALISATION :
+        front/management/commands/envoyer_le_recapitulatif_du_matin.py
+
+        Il nomme la rubrique la plus vivante — un commentaire appelle
+        une reponse, une modification appelle une relecture — et il
+        garde le total pour que la ligne soit utile fermee.
+        / It names the liveliest section and keeps the total.
+        """
+        commentaires = (entree["commentaires_neufs"] or {}).get("total", 0)
+        articles = (entree["articles_neufs"] or {}).get("total", 0)
+        notes = (entree["notes_neuves"] or {}).get("total", 0)
+        modifies = len(entree["wikis_modifies"])
+
+        if commentaires:
+            morceau = (
+                f"{commentaires} commentaire"
+                f"{'s' if commentaires > 1 else ''}"
+            )
+        elif modifies:
+            morceau = (
+                f"{modifies} wiki{'s' if modifies > 1 else ''} mis à jour"
+            )
+        elif articles:
+            morceau = f"{articles} article{'s' if articles > 1 else ''}"
+        elif notes:
+            morceau = f"{notes} note{'s' if notes > 1 else ''}"
+        else:
+            morceau = "des nouveautés"
+        return f"Hypostasia — {morceau} depuis hier"
+
     def _attendre_la_fin_de_la_nuit(self, attendre_minutes):
         """
         Retient le mail tant que la passe de nuit tourne.
@@ -201,15 +286,13 @@ class Command(BaseCommand):
             "depuis": entree["depuis"],
             "wikis_modifies": entree["wikis_modifies"],
             "wikis_avec_du_neuf": entree["wikis_avec_du_neuf"],
+            "notes_neuves": entree["notes_neuves"],
+            "commentaires_neufs": entree["commentaires_neufs"],
+            "carnets_publics_neufs": entree["carnets_publics_neufs"],
+            "articles_neufs": entree["articles_neufs"],
             "base_url": settings.SITE_URL.rstrip("/"),
         }
-        nombre_de_wikis = (
-            len(entree["wikis_modifies"]) + len(entree["wikis_avec_du_neuf"])
-        )
-        sujet = (
-            f"Hypostasia — {nombre_de_wikis} wiki"
-            f"{'s' if nombre_de_wikis > 1 else ''} à relire ce matin"
-        )
+        sujet = self._sujet_de(entree)
         texte_brut = render_to_string(
             "front/emails/recapitulatif_du_matin.txt", contexte,
         )
