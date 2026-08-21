@@ -4,18 +4,26 @@ Tests du routage de l'import fichier vers l'ingestion Docling (BR-B).
 
 LOCALISATION : front/tests/test_import_docling.py
 
-SPEC-ancrage-par-element-v2 § 9 (double moteur) + cahier des charges du
-branchement (PLAN/archive/cahiers-des-charges/branchement-moteur-ancrage-cahier-des-charges.md,
-phase BR-B) : quand un fichier importe est d'un type que Docling sait
-convertir, la vue d'import lance la tache `ingerer_un_fichier_avec_docling`
-EN PLUS du pipeline synchrone existant. Le pipeline synchrone continue de
-remplir html_readability : l'affichage reste celui de l'ANCIEN moteur
-jusqu'a BR-D (aucune regression). Le flag ELEMENT sera pose par la tache
-elle-meme (BR-A). Type non couvert (.txt) : repli ANCIEN, message honnete.
-/ Covered file types ALSO launch the Docling ingestion task; the sync
-pipeline keeps filling html_readability so display stays on the old
-engine until BR-D. Uncovered types fall back to ANCIEN with an honest
-message.
+La vue d'import ne convertit rien. Elle enregistre le fichier, cree la
+note, et confie son decoupage a la file `ingestion_docling` — servie par
+un worker a concurrence 1, pour que deux conversions ne chargent jamais
+leurs modeles en meme temps.
+/ The import view converts nothing: it stores the file, creates the note,
+and hands the cutting to the concurrency-1 Docling queue.
+
+CE FICHIER A DECRIT UN DOUBLE MOTEUR JUSQU'AU 21 AOUT 2026. La vue
+convertissait le fichier DANS la requete HTTP — MarkItDown pour les PDF,
+mammoth pour les DOCX — pour remplir `html_readability` et donner a lire
+tout de suite, PUIS lancait Docling. Deux rendus du meme fichier, dont un
+etait remplace par l'autre quelques secondes plus tard, et qui ne
+disaient pas la meme chose : 6 426 caracteres contre 8 770 sur le PDF
+etalon. Surtout, le rendu synchrone ne produisait aucun `ElementDocument`
+— donc rien d'ancrable, rien d'analysable, rien de citable.
+/ This file described a double engine until 21 August 2026: two renderings
+of the same file, one replaced by the other, and only one of them usable.
+
+Detail et mesures :
+`CHANGELOG/2026-08-21-un-seul-moteur-d-ingestion.md`.
 """
 
 import io
@@ -49,19 +57,26 @@ class CouvertureDoclingTest(SimpleTestCase):
     """
 
     def test_les_types_couverts_par_docling(self):
-        # Docling convertit pdf, docx, md, pptx, xlsx (SPEC-ancrage § 4).
-        # / Docling handles pdf, docx, md, pptx, xlsx.
-        for nom in ["a.pdf", "b.docx", "c.md", "d.pptx", "e.xlsx"]:
+        # Docling convertit pdf, docx, md, txt, pptx, xlsx.
+        #
+        # LE `.txt` A REJOINT LA LISTE LE 21 AOUT 2026. Il en etait
+        # exclu au motif qu'« il n'a pas de structure a decouper » :
+        # mesure faite, Docling en rend exactement les memes elements
+        # que du `.md` equivalent, et une note `.txt` avait donc ZERO
+        # element — impossible a analyser, a ancrer ou a citer.
+        # / .txt joined the list: Docling yields the same elements as
+        # the equivalent .md, and text notes had zero elements.
+        for nom in ["a.pdf", "b.docx", "c.md", "d.txt", "e.pptx", "f.xlsx"]:
             self.assertTrue(fichier_couvert_par_docling(nom), nom,
 
     )
 
     def test_les_types_non_couverts_par_docling(self):
-        # Le texte brut n'a pas de structure a decouper : Docling ne le
-        # prend pas. Le JSON de transcription a son propre pipeline.
-        # / Plain text has no structure; transcription JSON has its own
-        # pipeline.
-        for nom in ["a.txt", "b.json", "sans-extension", ""]:
+        # Le JSON de transcription a son propre pipeline, qui sait ce
+        # qu'est un tour de parole. Docling n'a rien a y faire.
+        # / Transcription JSON has its own pipeline, which knows what a
+        # speaking turn is.
+        for nom in ["b.json", "sans-extension", ""]:
             self.assertFalse(fichier_couvert_par_docling(nom), nom,
 
     )
@@ -106,11 +121,10 @@ class ImportRouteVersDoclingTest(TestCase):
         ".ingerer_un_fichier_avec_docling.delay"
     )
     def test_un_type_couvert_lance_l_ingestion_docling(self, delay_mock):
-        # Un .md est couvert : le pipeline synchrone cree la page (HTML
-        # lisible tout de suite, moteur ANCIEN pour l'instant) ET la
-        # tache Docling est lancee avec le fichier sauvegarde.
-        # / A covered type creates the page synchronously AND launches
-        # the Docling task on the saved file.
+        # Un .md est couvert : la vue cree la note et confie TOUT le
+        # decoupage a la file. Elle ne convertit plus rien elle-meme.
+        # / A covered type: the view creates the note and hands all the
+        # cutting to the queue. It converts nothing itself.
         reponse = self._importer(
             "notes.md", "# Titre\n\nUn paragraphe.".encode("utf-8"))
 
@@ -118,15 +132,22 @@ class ImportRouteVersDoclingTest(TestCase):
         )
         page = Page.objects.get(original_filename="notes.md")
 
-        # L'affichage ne regresse pas : le HTML de l'ancien pipeline est la.
-        # / No display regression: old-pipeline HTML is present.
-        self.assertIn("Un paragraphe", page.text_readability,
+        # AUCUN RENDU PROVISOIRE. La vue convertissait le fichier DANS
+        # la requete HTTP (MarkItDown pour les PDF, mammoth pour les
+        # DOCX) pour remplir l'ecran pendant l'attente. Ce rendu-la etait
+        # remplace par celui de Docling quelques secondes plus tard, et
+        # les deux ne disaient pas la meme chose : 6 426 caracteres
+        # contre 8 770 sur le PDF etalon, mesure du 21 aout 2026.
+        # L'archive d'un import, c'est le FICHIER.
+        # / No provisional rendering: it was replaced by Docling's and
+        # the two disagreed. An import's archive is the FILE.
+        self.assertEqual(page.html_original, "")
+        self.assertEqual(page.html_readability, "")
+        self.assertEqual(page.text_readability, "")
+        self.assertTrue(page.source_file)
 
-        )
-
-        # Le flag ELEMENT viendra de la tache (BR-A), pas de la vue :
-        # a la creation la page est encore ANCIEN.
-        # / The ELEMENT flag comes from the task, not the view.
+        # Les elements viennent de la tache, pas de la vue.
+        # / Elements come from the task, not from the view.
         self.assertFalse(page.elements.exists(),
 
         )
@@ -150,25 +171,29 @@ class ImportRouteVersDoclingTest(TestCase):
         "hypostasis_extractor.tasks_element"
         ".ingerer_un_fichier_avec_docling.delay"
     )
-    def test_un_type_non_couvert_reste_sur_l_ancien_moteur(self, delay_mock):
-        # Un .txt n'est pas couvert : import comme avant, AUCUNE tache
-        # Docling, et le toast ne pretend pas le contraire.
-        # / A .txt imports as before, no Docling task, honest toast.
+    def test_un_texte_brut_part_aussi_au_decoupage(self, delay_mock):
+        # CE TEST DISAIT L'INVERSE JUSQU'AU 21 AOUT 2026. Il s'appelait
+        # « reste sur l'ancien moteur » et verrouillait le fait qu'un
+        # .txt n'ait AUCUN element. Or une note sans element ne peut
+        # etre ni analysee (`analyse_par_element` sort aussitot), ni
+        # ancree, ni citee : elle etait lisible et morte. Docling avale
+        # un .txt et en rend les memes elements qu'un .md equivalent.
+        # / This test asserted the opposite until 21 August 2026: a
+        # text note had zero elements — readable and dead.
         reponse = self._importer(
-            "brouillon.txt", "Du texte brut sans structure.".encode("utf-8"),
+            "brouillon.txt", "Du texte brut.\n\nEt deux paragraphes.".encode("utf-8"),
 
         )
 
         self.assertEqual(reponse.status_code, 200)
         page = Page.objects.get(original_filename="brouillon.txt",
         )
-        self.assertFalse(page.elements.exists())
 
-        delay_mock.assert_not_called()
+        delay_mock.assert_called_once_with(page.pk)
 
         declencheurs = json.loads(reponse["HX-Trigger"],
         )
-        self.assertNotIn("éléments", declencheurs["showToast"]["message"])
+        self.assertIn("éléments", declencheurs["showToast"]["message"])
 
     @mock.patch(
         "hypostasis_extractor.tasks_element"
@@ -176,8 +201,8 @@ class ImportRouteVersDoclingTest(TestCase):
     )
     def test_un_docx_reel_est_route_vers_docling(self, delay_mock):
         # Le cas nominal reel est un fichier BINAIRE (relecture BR-B,
-        # defaut n°6) : un vrai .docx passe le pipeline synchrone
-        # (mammoth) ET lance l'ingestion Docling.
+        # defaut n°6) : un vrai .docx est enregistre tel quel et son
+        # decoupage part en file.
         # / The real nominal case is a binary file: a genuine .docx.
         import docx
 
@@ -231,21 +256,23 @@ class ImportRouteVersDoclingTest(TestCase):
         "hypostasis_extractor.tasks_element"
         ".ingerer_un_fichier_avec_docling.delay"
     )
-    def test_une_conversion_en_echec_ne_lance_pas_docling(self, delay_mock):
-        # Relecture BR-B, defaut n°6 : si le pipeline synchrone rejette
-        # le fichier (ValueError -> 400), AUCUNE tache Docling ne doit
-        # partir — le return du 400 precede le lancement, et ce test
+    def test_un_fichier_refuse_ne_lance_pas_docling(self, delay_mock):
+        # UN FICHIER REJETE NE DOIT JAMAIS ATTEINDRE DOCLING, et ce test
         # verrouille cet ordre pour les reorganisations futures.
-        # / A file rejected by the sync pipeline must never reach Docling.
-        with mock.patch(
-            "front.services.conversion_fichiers.convertir_fichier_en_html",
-            side_effect=ValueError("fichier corrompu")):
-            reponse = self._importer(
-                "casse.docx", b"pas un vrai docx",
+        #
+        # LE REJET A CHANGE DE MAIN le 21 aout 2026. Il venait du
+        # pipeline synchrone, qui levait une ValueError sur une
+        # extension inconnue ; ce pipeline a disparu avec MarkItDown et
+        # mammoth. C'est desormais le serializer d'import qui refuse, en
+        # amont — la seule validation d'entree, comme partout ailleurs.
+        # / The rejection moved: the sync pipeline is gone, the import
+        # serializer refuses upstream.
+        reponse = self._importer(
+            "tableur.ods", b"pas un format accepte",
 
         )
 
         self.assertEqual(reponse.status_code, 400)
         delay_mock.assert_not_called()
         self.assertFalse(
-            Page.objects.filter(original_filename="casse.docx").exists())
+            Page.objects.filter(original_filename="tableur.ods").exists())

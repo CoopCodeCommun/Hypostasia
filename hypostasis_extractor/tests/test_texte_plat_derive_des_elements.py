@@ -5,7 +5,7 @@ Apres une ingestion reussie, le texte plat est une PROJECTION des elements.
 LOCALISATION : hypostasis_extractor/tests/test_texte_plat_derive_des_elements.py
 
 L'import d'un fichier ecrivait DEUX textes concurrents : `text_readability`
-par MarkItDown (conversion synchrone, avant la file), puis les
+par une conversion synchrone (retiree le 21 aout 2026), puis les
 `ElementDocument` par Docling. Mesure du 17 aout 2026 : la note
 « Présentation Hypostasia V3 » portait 58 524 signes de texte plat ET
 189 elements — deux verites, dont les offsets n'avaient aucun rapport.

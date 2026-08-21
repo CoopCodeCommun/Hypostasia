@@ -285,8 +285,10 @@ def _noter_l_etat_d_ingestion(identifiant_de_la_page, etat, detail=""):
 
     # LE TEXTE PLAT DEVIENT UNE PROJECTION DES ELEMENTS.
     #
-    # L'import d'un fichier ecrivait DEUX textes concurrents : celui de la
-    # conversion synchrone (MarkItDown), puis les elements de Docling.
+    # L'import d'un fichier ecrivait DEUX textes concurrents : celui de
+    # la conversion synchrone, puis les elements de Docling. Cette
+    # conversion a ete retiree le 21 aout 2026 ; la projection reste ce
+    # qui garantit qu'il n'y en aura jamais deux.
     # Mesure du 17 aout 2026 : une note portait 58 524 signes de texte
     # plat ET 189 elements, dont les offsets n'avaient aucun rapport.
     # C'est pire qu'un champ vide : un lecteur du champ plat y trouve un

@@ -6121,39 +6121,60 @@ class ImportViewSet(viewsets.ViewSet):
 
     def _importer_fichier_document(self, request, serializer):
         """
-        Pipeline d'import synchrone pour les documents (PDF, DOCX, etc.).
-        / Synchronous import pipeline for documents (PDF, DOCX, etc.).
+        Cree la note d'un document, et confie son decoupage a Docling.
+        / Creates a document's note and hands its cutting to Docling.
+
+        LOCALISATION : front/views.py
+
+        IL N'Y A PLUS DE CONVERSION DANS LA REQUETE. Cette vue appelait
+        `convertir_fichier_en_html` — MarkItDown pour les PDF, mammoth
+        pour les DOCX — et bloquait la reponse HTTP le temps de
+        convertir. Ce rendu-la etait REMPLACE quelques secondes plus tard
+        par celui de Docling : le lecteur ouvrait la note, lisait une
+        version, et la page changeait sous ses yeux pour une autre.
+        Mesure du 21 aout 2026 sur `Etude_Epistemologique_IA.pdf` :
+        6 426 caracteres cote MarkItDown, 8 770 cote Docling — les deux
+        rendus ne disaient pas la meme chose.
+        / No conversion inside the request any more: its output was
+        replaced by Docling's seconds later, and the two disagreed.
+
+        SURTOUT, LE RENDU SYNCHRONE ETAIT DE LA LECTURE MORTE. Il ne
+        produisait aucun `ElementDocument` : impossible d'y ancrer une
+        extraction, d'analyser la note (`analyse_par_element` sort
+        aussitot sur « aucun element a analyser ») ou de la citer dans
+        une synthese. Dans un outil dont la these est « l'ancre fait la
+        preuve », une note qu'on peut lire mais pas travailler est un
+        piege, pas un filet.
+        / It produced no elements: nothing could be anchored, analysed
+        or cited.
+
+        L'ATTENTE N'EST PAS SUPPRIMEE, ELLE EST DITE. Le gabarit
+        `front/templates/front/includes/_etat_ingestion.html` affiche
+        « en attente / en cours / echouee » : le decoupage prend le temps
+        qu'il prend, sur la file dediee `ingestion_docling` a concurrence
+        1, et l'ecran le montre au lieu de le masquer derriere un rendu
+        provisoire.
+        / The wait is not removed, it is stated.
         """
         import hashlib
-        from front.services.conversion_fichiers import convertir_fichier_en_html
+        import os
 
         fichier_uploade = serializer.validated_data["fichier"]
         titre_personnalise = serializer.validated_data.get("titre", "")
         dossier_id = serializer.validated_data.get("dossier_id")
         nom_fichier = fichier_uploade.name
 
-        # Conversion du fichier en HTML + texte
-        # / Convert file to HTML + text
-        try:
-            html_readability, text_readability, titre_extrait = convertir_fichier_en_html(
-                fichier_uploade, nom_fichier,
-            )
-        except ValueError as erreur_conversion:
-            logger.error("import fichier: erreur conversion — %s", erreur_conversion)
-            return HttpResponse(
-                f'<p class="text-sm text-red-500">Erreur de conversion: {erreur_conversion}</p>',
-                status=400,
-            )
-        except Exception as erreur_inattendue:
-            logger.error("import fichier: erreur inattendue — %s", erreur_inattendue, exc_info=True)
-            return HttpResponse(
-                '<p class="text-sm text-red-500">Erreur inattendue lors de la conversion du fichier.</p>',
-                status=500,
-            )
-
-        # Determiner le titre final et le dossier
-        # / Determine final title and folder
-        titre_final = titre_personnalise.strip() if titre_personnalise.strip() else titre_extrait
+        # Le titre de depart est le nom du fichier. L'ingestion le
+        # remplacera par le titre que Docling aura reconnu DANS le
+        # document, s'il y en a un : un titre lu dans le document vaut
+        # mieux qu'un nom de fichier, et mieux qu'une regex sur du HTML
+        # converti.
+        # / The starting title is the file name; ingestion replaces it
+        # with the title Docling recognised inside the document.
+        titre_final = (
+            titre_personnalise.strip()
+            or os.path.splitext(nom_fichier)[0]
+        )
         if dossier_id:
             dossier_assigne = Dossier.objects.filter(pk=dossier_id).first()
         else:
@@ -6161,9 +6182,18 @@ class ImportViewSet(viewsets.ViewSet):
             # / Auto-classify in "Mes imports" if no folder specified
             dossier_assigne = _obtenir_ou_creer_dossier_imports(request.user)
 
-        # Calculer le hash du contenu pour content_hash
-        # / Compute content hash
-        hash_contenu = hashlib.sha256(text_readability.encode("utf-8")).hexdigest()
+        # L'empreinte porte sur les OCTETS DU FICHIER, plus sur le texte
+        # d'une conversion. Deux imports du meme fichier se
+        # dedoublonnent donc quelle que soit la facon dont on le
+        # convertira — et l'empreinte se calcule avant meme de savoir si
+        # la conversion reussira.
+        # / The fingerprint is of the FILE'S BYTES, not of a conversion's
+        # text: the same file dedups whatever the conversion does.
+        fichier_uploade.seek(0)
+        empreinte = hashlib.sha256()
+        for morceau in fichier_uploade.chunks():
+            empreinte.update(morceau)
+        hash_contenu = empreinte.hexdigest()
 
         # Sauvegarder le fichier original dans source_file
         # / Save original file in source_file
@@ -6176,9 +6206,18 @@ class ImportViewSet(viewsets.ViewSet):
             original_filename=nom_fichier,
             url=None,
             title=titre_final,
-            html_original=html_readability,
-            html_readability=html_readability,
-            text_readability=text_readability,
+            # Vides, et c'est voulu. L'ARCHIVE D'UN IMPORT, C'EST LE
+            # FICHIER — il est juste en dessous, dans `source_file`.
+            # Ces trois champs portaient un HTML derive d'une conversion
+            # jetee ensuite : une copie de plus, d'une qualite moindre
+            # que les elements, et qui ne servait qu'a remplir l'ecran
+            # pendant l'attente. `text_readability` est reecrit par
+            # l'ingestion, qui y projette le texte des elements.
+            # / Empty on purpose: an import's archive is the FILE itself,
+            # in source_file. text_readability is rewritten by ingestion.
+            html_original="",
+            html_readability="",
+            text_readability="",
             content_hash=hash_contenu,
             dossier=dossier_assigne,
             source_file=fichier_uploade,
@@ -6193,18 +6232,18 @@ class ImportViewSet(viewsets.ViewSet):
             ranger_une_note_dans_un_carnet(page_importee, dossier_assigne, request.user)
 
         logger.info(
-            "import fichier: page pk=%s creee depuis '%s' (%d chars HTML)",
-            page_importee.pk, nom_fichier, len(html_readability),
+            "import fichier: page pk=%s creee depuis '%s'",
+            page_importee.pk, nom_fichier,
         )
 
-        # BR-B (SPEC-ancrage § 9, double moteur) : si Docling couvre ce
-        # type, lancer AUSSI le decoupage en elements, en arriere-plan.
-        # Le pipeline synchrone ci-dessus garde l'affichage de l'ANCIEN
-        # moteur fonctionnel (html_readability) jusqu'a BR-D. Le flag
-        # ELEMENT sera pose par la tache elle-meme (BR-A). Type non
-        # couvert (.txt) : la page reste ANCIEN, comme avant.
-        # / Covered type: also launch element ingestion in background.
-        # The sync pipeline keeps old-engine display working until BR-D.
+        # LE DECOUPAGE EST LE SEUL TRAITEMENT, ET IL EST EN FILE.
+        # Il part sur `ingestion_docling`, servie par un worker a
+        # concurrence 1 : jamais deux conversions Docling en meme temps
+        # sur l'hote partage (hypostasia/celery.py). Ce test de
+        # couverture ne laisse plus passer que le `.json` de
+        # transcription, qui a son propre pipeline en amont.
+        # / Cutting is the only processing, and it is queued on the
+        # concurrency-1 Docling queue.
         from hypostasis_extractor.services.ingestion_docling import (
             fichier_couvert_par_docling,
         )
@@ -6216,10 +6255,12 @@ class ImportViewSet(viewsets.ViewSet):
             # On ne passe QUE la cle primaire : la tache resout le chemin
             # depuis page.source_file (elle connait le stockage, pas la
             # vue). Et si le broker est tombe, l'import reste un succes :
-            # la page est deja creee et lisible par l'ancien moteur —
-            # c'est le contrat du double moteur (relecture BR-B).
+            # le FICHIER est enregistre, la note existe, et le decoupage
+            # se relance depuis l'ecran de lecture. Un broker en panne ne
+            # doit pas transformer un import reussi en 500.
             # / Only the pk is passed; a dead broker must not turn a
-            # successful import into a 500.
+            # successful import into a 500: the file is stored and the
+            # cutting can be relaunched from the reading screen.
             try:
                 ingerer_un_fichier_avec_docling.delay(page_importee.pk)
                 ingestion_docling_lancee = True
@@ -6243,8 +6284,8 @@ class ImportViewSet(viewsets.ViewSet):
             except Exception as erreur_de_broker:
                 logger.error(
                     "import fichier: ingestion Docling NON lancee pour la "
-                    "page pk=%s (broker indisponible ? %s) — la page reste "
-                    "sur l'ancien moteur",
+                    "page pk=%s (broker indisponible ? %s) — la note est "
+                    "creee mais reste a decouper",
                     page_importee.pk, erreur_de_broker,
                 )
 

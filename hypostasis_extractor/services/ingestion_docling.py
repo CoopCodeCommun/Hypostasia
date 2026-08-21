@@ -156,15 +156,27 @@ def source_html_d_une_capture(page):
 LABELS_RECOLLABLES_EN_LIGNE = {"text", "code"}
 
 # Les extensions que Docling sait convertir en structure (BR-B).
-# Le texte brut (.txt) n'en fait pas partie : il n'a pas de structure a
-# decouper, il reste sur l'ancien pipeline. Le .json de transcription a
-# son propre pipeline dans la vue d'import.
-# / Extensions Docling can convert into structure. Plain text has no
-# structure to split; transcription JSON has its own pipeline.
+# Le .json de transcription n'y est pas : il a son propre pipeline dans
+# la vue d'import, qui sait ce qu'est un tour de parole.
+# / Extensions Docling can convert into structure. Transcription JSON
+# has its own pipeline, which knows what a speaking turn is.
+#
+# LE `.txt` EN FAIT PARTIE, ET CE COMMENTAIRE A DIT LE CONTRAIRE.
+# Il affirmait que « le texte brut n'a pas de structure a decouper » et
+# le laissait sur l'ancien pipeline. Mesure du 21 aout 2026 : Docling
+# avale un `.txt` et rend exactement les memes elements que le `.md`
+# equivalent — les lignes vides separent les paragraphes, les tirets
+# font des puces. Une note `.txt` avait donc ZERO element : lisible,
+# mais impossible a analyser (`analyse_par_element` sort aussitot sur
+# « aucun element a analyser »), a ancrer ou a citer. Une note morte.
+# / The .txt claim was false: Docling yields the same elements as the
+# equivalent .md. Text notes had zero elements — readable, but
+# impossible to analyse, anchor or cite.
 EXTENSIONS_COUVERTES_PAR_DOCLING = {
     ".pdf",
     ".docx",
     ".md",
+    ".txt",
     ".pptx",
     ".xlsx",
 }
@@ -810,7 +822,69 @@ def ingerer_un_fichier(page, chemin_du_fichier):
     """
     document_docling = convertir_un_fichier_avec_docling(chemin_du_fichier)
     elements_bruts = extraire_les_elements_bruts(document_docling)
-    return creer_les_elements_d_une_page(page, elements_bruts)
+    elements = creer_les_elements_d_une_page(page, elements_bruts)
+    adopter_le_titre_du_document(page, elements_bruts)
+    return elements
+
+
+def adopter_le_titre_du_document(page, elements_bruts):
+    """
+    Donne a la note le titre lu DANS le document, si elle porte encore
+    celui de son fichier.
+    / Gives the note the title read INSIDE the document, if it still
+    carries its file name.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    UN TITRE LU DANS LE DOCUMENT VAUT MIEUX QU'UN NOM DE FICHIER. La vue
+    d'import n'a que le nom du fichier au moment ou elle cree la note —
+    `presentation des open badges.pdf` donne « presentation des open
+    badges ». Docling, lui, reconnait le titre du document et le range
+    sous le label `title`.
+    / A title read inside the document beats a file name.
+
+    ELLE NE TOUCHE PAS A UN TITRE CHOISI PAR QUELQU'UN. Le formulaire
+    d'import accepte un titre ; s'il differe du nom du fichier, c'est
+    qu'un humain l'a ecrit, et rien ne l'ecrase.
+    / It never overwrites a title a human typed.
+
+    :param page: la Page ingeree
+    :param elements_bruts: les elements rendus par extraire_les_elements_bruts
+    :return: True si le titre a ete remplace
+    """
+    import os
+
+    from core.models import Page
+
+    if not page.original_filename:
+        return False
+
+    titre_par_defaut = os.path.splitext(page.original_filename)[0]
+    if (page.title or "").strip() != titre_par_defaut.strip():
+        return False
+
+    titre_du_document = next(
+        (
+            element["texte"].strip()
+            for element in elements_bruts
+            if element.get("label") == "title" and element.get("texte", "").strip()
+        ),
+        "",
+    )
+    if not titre_du_document:
+        return False
+
+    # `Page.title` est borne a 500 caracteres : un « titre » reconnu sur
+    # un document mal structure peut etre un paragraphe entier.
+    # / Page.title is capped at 500 characters.
+    titre_du_document = titre_du_document[:500]
+
+    Page.objects.filter(pk=page.pk).update(title=titre_du_document)
+    page.title = titre_du_document
+    logger.info(
+        "Page %s : titre repris du document — %r", page.pk, titre_du_document,
+    )
+    return True
 
 
 def ingerer_une_capture_web(page):
