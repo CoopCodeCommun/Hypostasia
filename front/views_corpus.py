@@ -1406,6 +1406,52 @@ def bases_visibles_avec_leurs_comptes(utilisateur):
     return bases_a_afficher, len(identifiants_de_carnets_distincts)
 
 
+def _les_deux_zones_de_bases(bases_visibles, utilisateur):
+    """
+    Partage les bases visibles en deux : les miennes, celles des autres.
+    / Split the visible bases in two: mine, and other people's.
+
+    LOCALISATION : front/views_corpus.py
+
+    POURQUOI DEUX ZONES ET NON UNE LISTE TRIEE
+
+    Demande du mainteneur, 12 aout. Les deux moities ne se lisent pas de
+    la meme facon : ce que j'ai cree, j'y REVIENS — c'est un espace de
+    travail ; ce que d'autres publient, je l'EXPLORE — c'est un
+    catalogue. Une seule liste triee par nom melangerait les deux
+    intentions et obligerait a lire chaque ligne pour savoir dans
+    laquelle on se trouve.
+
+    UNE BASE NE FIGURE JAMAIS DES DEUX COTES. Une base a moi ET publique
+    reste dans « les miennes » : la montrer deux fois ferait douter du
+    sens des zones. L'appartenance l'emporte sur la publication.
+
+    LA VISIBILITE N'EST PAS REJOUEE ICI. On decoupe une liste deja
+    filtree par `bases_visibles_avec_leurs_comptes` : une base privee
+    d'autrui n'y est jamais entree, et ce n'est pas a cette fonction de
+    le reverifier — deux regles de visibilite finiraient par diverger.
+
+    :param bases_visibles: les bases deja filtrees, annotees et rangees
+    :param utilisateur: le demandeur (anonyme accepte)
+    :return: le couple (mes_bases, bases_des_autres)
+    / Ownership wins over publication; the visibility rule stays where it
+    already is, never re-implemented here.
+    """
+    mes_bases = []
+    bases_des_autres = []
+
+    for base in bases_visibles:
+        elle_est_a_moi = (
+            utilisateur.is_authenticated and base.owner_id == utilisateur.pk
+        )
+        if elle_est_a_moi:
+            mes_bases.append(base)
+        else:
+            bases_des_autres.append(base)
+
+    return mes_bases, bases_des_autres
+
+
 class BaseViewSet(viewsets.ViewSet):
     """
     La base de connaissances : liste, detail, rangement de carnets, axes.
@@ -1432,8 +1478,19 @@ class BaseViewSet(viewsets.ViewSet):
             bases_visibles_avec_leurs_comptes(request.user)
         )
 
+        mes_bases, bases_des_autres = _les_deux_zones_de_bases(
+            bases_a_afficher, request.user
+        )
+
         contexte = {
             "bases": bases_a_afficher,
+            # LES DEUX ZONES, arrivees ici le 21 aout avec la disparition
+            # de l'onglet « Bases de connaissances » de l'accueil, qui
+            # les portait depuis le 12. Elles decoupent `bases` sans le
+            # remplacer : le compteur de l'en-tete, lui, parle bien du
+            # tout. / The two zones split `bases` without replacing it.
+            "mes_bases": mes_bases,
+            "bases_des_autres": bases_des_autres,
             "slug_de_la_base_creee": slug_de_la_base_creee,
             "nombre_de_bases": len(bases_a_afficher),
             # DISTINCT : un carnet range dans deux bases ne compte

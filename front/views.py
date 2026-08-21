@@ -1188,69 +1188,46 @@ class ConfigurationIAViewSet(viewsets.ViewSet):
 
 class BibliothequeViewSet(viewsets.ViewSet):
     """
-    Page racine — shell 3 colonnes.
-    Root page — 3-column shell.
+    La racine — une redirection, plus un ecran.
+    / The root — a redirect, no longer a screen.
+
+    LOCALISATION : front/views.py
+
+    POURQUOI ELLE NE REND PLUS RIEN (21 aout 2026)
+
+    Elle servait un onboarding a trois onglets, montres et caches par du
+    JavaScript. Le troisieme, « Bases de connaissances », affichait une
+    SECONDE vue des bases a cote de `/bases/` — et les deux avaient
+    derive : celle de l'accueil ignorait la description, les compteurs
+    et la carte de creation. Les deux autres onglets sont devenus des
+    ecrans avec leur propre adresse (`/aide/`, `/manifeste/`), et le
+    troisieme a ete rendu a `/bases/`, qui a repris ses deux zones.
+
+    Il ne restait donc rien a rendre ici. La racine mene la ou l'on
+    travaille : le carnet.
+
+    Le ViewSet subsiste parce que le `path("")` de `front/urls.py` a
+    besoin d'une vue, et que l'adresse `/` doit continuer de repondre :
+    elle est en signet, en lien externe, et c'est ce que tape quiconque
+    connait seulement le domaine.
+    / Nothing left to render: the three tabs became addressable screens
+    and the duplicated base list went back to /bases/.
     """
 
     def list(self, request):
-        contexte = {"ia_active": _get_ia_active()}
-        contexte.update(self._les_deux_zones_de_bases(request.user))
-
-        # Requete HTMX → retourne l'onboarding comme contenu par defaut
-        # / HTMX request → return onboarding as default content
-        if request.headers.get('HX-Request'):
-            return render(
-                request, "front/includes/onboarding_vide.html", contexte,
-            )
-
-        # Acces direct → page complete
-        # / Direct access → full page
-        return render(request, "front/bibliotheque.html", contexte)
-
-    def _les_deux_zones_de_bases(self, utilisateur):
         """
-        Partage les bases visibles en deux : les miennes, celles des autres.
-        / Split the visible bases in two: mine, and other people's.
+        GET / — redirige vers `/carnets/`, en HTMX comme en acces direct.
+        / GET / — redirects to /carnets/, HTMX or not.
 
-        LOCALISATION : front/views.py
-
-        POURQUOI DEUX ZONES ET NON UNE LISTE TRIEE
-
-        Demande du mainteneur, 12 aout. Les deux moities ne se lisent pas
-        de la meme facon : ce que j'ai cree, j'y REVIENS — c'est un
-        espace de travail ; ce que d'autres publient, je l'EXPLORE —
-        c'est un catalogue. Une seule liste triee par nom melangerait les
-        deux intentions et obligerait a lire chaque ligne pour savoir
-        dans laquelle on se trouve.
-
-        UNE BASE NE FIGURE JAMAIS DES DEUX COTES. Une base a moi ET
-        publique reste dans « les miennes » : la montrer deux fois ferait
-        douter du sens des zones. L'appartenance l'emporte sur la
-        publication.
-
-        La regle de visibilite n'est pas reecrite ici : elle vient de
-        `bases_visibles_avec_leurs_comptes`, que `/bases/` utilise aussi.
-        / Ownership wins over publication; the visibility rule is shared
-        with /bases/, never re-implemented.
+        UNE SEULE REGLE POUR LES DEUX CHEMINS. Le XHR de HTMX suit la
+        redirection tout seul, sans que rien n'ait a le lui dire, et
+        recoit le partial des carnets — que `CarnetViewSet.list` rend
+        deja quand l'en-tete `HX-Request` est present, redepose du fil
+        d'Ariane compris.
+        / HTMX's XHR follows the redirect on its own and gets the
+        notebook partial, breadcrumb clearing included.
         """
-        from front.views_corpus import bases_visibles_avec_leurs_comptes
-
-        bases_visibles, _nombre_de_carnets = bases_visibles_avec_leurs_comptes(
-            utilisateur
-        )
-
-        mes_bases = []
-        bases_des_autres = []
-        for base in bases_visibles:
-            if utilisateur.is_authenticated and base.owner_id == utilisateur.pk:
-                mes_bases.append(base)
-            else:
-                bases_des_autres.append(base)
-
-        return {
-            "mes_bases": mes_bases,
-            "bases_des_autres": bases_des_autres,
-        }
+        return redirect("/carnets/")
 
 
 class LectureViewSet(viewsets.ViewSet):

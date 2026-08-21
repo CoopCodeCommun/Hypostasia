@@ -7,6 +7,7 @@
  *
  * COMMUNICATION :
  * - GET  /api/pages/me/          verifie le serveur ET le token
+ * - GET  /api/pages/mon_jeton/   recupere le jeton — SEUL appel avec cookies
  * - GET  /api/pages/mes_carnets/ remplit le menu des carnets
  * - GET  /api/pages/?url=        cherche un doublon dans MON perimetre
  * - POST /api/pages/             cree la note dans le carnet choisi
@@ -148,6 +149,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
+     * TOUTE REQUETE PART SANS LES COOKIES DU NAVIGATEUR.
+     * / Every request goes out WITHOUT the browser's cookies.
+     *
+     * Firefox joint les cookies du site aux requetes emises depuis une
+     * page d'extension qui a la permission de ce site ; Chrome ne le
+     * fait pas. Sans cette consigne, les deux navigateurs se comportent
+     * donc differemment, et Firefox produit un etat impossible :
+     *
+     *   GET  /api/pages/me/  -> 200 {authenticated: true, username: ...}
+     *   GET  /api/pages/...  -> 200, la liste des carnets
+     *   POST /api/pages/     -> 403 CSRF Failed: CSRF cookie not set
+     *
+     * parce que `SessionAuthentication` (DRF) exige un jeton CSRF sur
+     * les methodes d'ecriture, que l'extension n'a pas et ne peut pas
+     * avoir. La popup annoncait alors « Connecte : untel » a quelqu'un
+     * qui ne pouvait rien capturer. Le `csrf_exempt` pose sur la vue
+     * n'y change rien : le controle vit DANS la classe
+     * d'authentification, pas dans le decorateur.
+     *
+     * En coupant les cookies, l'extension s'authentifie par son jeton et
+     * par lui seul — deliberement, et pareil dans les deux navigateurs.
+     * / Cutting cookies makes the extension authenticate by its token
+     * alone, deliberately, and identically in both browsers.
+     */
+    const SANS_LES_COOKIES = 'omit';
+
+    /**
+     * L'UNIQUE EXCEPTION, ET ELLE EST DELIBEREE.
+     * / The one deliberate exception.
+     *
+     * `recupererLeJetonDepuisLaSession()` envoie les cookies pour aller
+     * chercher le jeton une seule fois. C'est une LECTURE : un GET n'est
+     * pas soumis au controle CSRF, donc il passe la ou une ecriture
+     * echouerait. Tout ce qui suit repasse par le jeton.
+     * / Used once, to fetch the token: a GET is not CSRF-checked, so it
+     * succeeds where a write would fail. Everything else uses the token.
+     */
+    const AVEC_LES_COOKIES = 'include';
+
+    /**
      * Construit les headers HTTP avec le token d'authentification si present.
      * / Build HTTP headers with authentication token if available.
      */
@@ -191,6 +232,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Serveur et authentification / Server and authentication ---
 
     /**
+     * Montre ou cache le bouton de connexion.
+     * / Shows or hides the connect button.
+     *
+     * Il n'apparait QUE quand le serveur repond et qu'aucun jeton ne
+     * fonctionne : un bouton qui ne peut rien faire est pire qu'un
+     * bouton absent — serveur hors ligne, il ne promettrait rien.
+     * / Only when the server answers and no token works.
+     */
+    function montrerLeBoutonDeConnexion(il_faut_le_montrer) {
+        document.getElementById('connecterBtn').hidden = !il_faut_le_montrer;
+    }
+
+    /**
      * Interroge /api/pages/me/ : c'est LE point qui repond aux deux
      * questions a la fois — le serveur est-il joignable, et le token
      * est-il bon.
@@ -213,6 +267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             var reponse = await fetch(getBaseUrl() + 'api/pages/me/', {
                 headers: construireHeaders(),
+                credentials: SANS_LES_COOKIES,
                 signal: AbortSignal.timeout(3000),
             });
 
@@ -221,6 +276,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 indicateur_texte.textContent = 'Serveur erreur (' + reponse.status + ')';
                 zone_auth.textContent = '';
                 zone_auth.className = '';
+                montrerLeBoutonDeConnexion(false);
                 return false;
             }
 
@@ -232,23 +288,100 @@ document.addEventListener('DOMContentLoaded', async () => {
                 nom_du_compte = donnees.username || '';
                 zone_auth.textContent = 'Connecte : ' + nom_du_compte;
                 zone_auth.className = 'auth-ok';
+                montrerLeBoutonDeConnexion(false);
                 return true;
             }
 
             nom_du_compte = '';
             zone_auth.textContent = token_api
-                ? 'Token invalide — a regenerer sur /auth/token/'
-                : 'Non connecte : collez votre token dans les options';
+                ? 'Token invalide — reconnectez l\'extension'
+                : 'Non connecte a cette instance';
             zone_auth.className = 'auth-ko';
+            montrerLeBoutonDeConnexion(true);
             return false;
         } catch (erreur) {
             indicateur_point.className = 'offline';
             indicateur_texte.textContent = 'Serveur hors ligne';
             zone_auth.textContent = '';
             zone_auth.className = '';
+            montrerLeBoutonDeConnexion(false);
             return false;
         }
     }
+
+    // --- Connexion en un clic / One-click connection ---
+
+    /**
+     * Va chercher le jeton du compte connecte au site, et le range.
+     * / Fetches the token of the account logged into the site, stores it.
+     *
+     * LE GESTE QU'ON SUPPRIME : ouvrir la page du jeton, selectionner
+     * quarante caracteres hexadecimaux, les copier, ouvrir les options,
+     * les coller. Ici : un clic.
+     * / Replaces: open the token page, select forty hex characters,
+     * copy, open the options, paste.
+     *
+     * IL FAUT ETRE CONNECTE AU SITE DANS CE NAVIGATEUR — c'est la
+     * session qui autorise l'appel. Si elle manque, le serveur repond
+     * 401 et on le dit en clair, avec l'adresse ou aller.
+     * / Requires being logged into the site in this browser.
+     */
+    async function recupererLeJetonDepuisLaSession() {
+        const bouton = document.getElementById('connecterBtn');
+        bouton.disabled = true;
+        bouton.textContent = 'Connexion...';
+        afficherLeStatut('', '');
+
+        try {
+            var reponse = await fetch(getBaseUrl() + 'api/pages/mon_jeton/', {
+                headers: { 'Accept': 'application/json' },
+                credentials: AVEC_LES_COOKIES,
+                signal: AbortSignal.timeout(5000),
+            });
+
+            if (reponse.status === 401) {
+                afficherLeStatut(
+                    'Connectez-vous d\'abord à ' + getBaseUrl() + ' dans ce '
+                    + 'navigateur, puis réessayez.',
+                    'info',
+                );
+                return;
+            }
+
+            if (!reponse.ok) {
+                afficherLeStatut(
+                    'Le serveur a refusé (' + reponse.status + ').', 'error',
+                );
+                return;
+            }
+
+            var donnees = await reponse.json();
+            token_api = donnees.token;
+
+            // Meme cle que les options : les deux chemins de
+            // configuration restent d'accord.
+            // / Same key as the options page: both paths agree.
+            await new Promise(function(resolve) {
+                chrome.storage.sync.set({ apiKey: donnees.token }, resolve);
+            });
+
+            afficherLeStatut('Connectée en tant que ' + donnees.username, 'success');
+
+            // Tout se rejoue avec le jeton : le compte, puis les carnets.
+            // / Everything replays with the token.
+            await verifierServeurEtCompte();
+            await remplirLeMenuDesCarnets();
+        } catch (erreur) {
+            console.error('[Hypostasia] Connexion impossible:', erreur);
+            afficherLeStatut('Serveur injoignable.', 'error');
+        } finally {
+            bouton.disabled = false;
+            bouton.textContent = 'Connecter cette extension';
+        }
+    }
+
+    document.getElementById('connecterBtn')
+        .addEventListener('click', recupererLeJetonDepuisLaSession);
 
     // --- Le menu des carnets / The notebook dropdown ---
 
@@ -332,6 +465,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             var reponse = await fetch(getBaseUrl() + 'api/pages/mes_carnets/', {
                 headers: construireHeaders(),
+                credentials: SANS_LES_COOKIES,
                 signal: AbortSignal.timeout(3000),
             });
             if (reponse.ok) {
@@ -488,7 +622,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         afficherLeStatut('Verification...', '');
         const verification_response = await fetch(
             `${getBaseUrl()}api/pages/?url=${encodeURIComponent(url_normalisee)}`,
-            { headers: construireHeaders() }
+            { headers: construireHeaders(), credentials: SANS_LES_COOKIES }
         );
 
         // 401 ICI VEUT DIRE « PAS DE COMPTE », PAS « SERVEUR CASSE ». La
@@ -582,6 +716,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const creation_response = await fetch(`${getBaseUrl()}api/pages/`, {
             method: 'POST',
             headers: construireHeaders('application/json'),
+            credentials: SANS_LES_COOKIES,
             body: JSON.stringify(corps_de_la_requete),
         });
 

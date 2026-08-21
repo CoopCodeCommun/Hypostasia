@@ -196,3 +196,56 @@ l'utilisateur**, et une capture d'écran de fiche.
 Le store le plus proche est **Firefox AMO** : `browser_specific_settings`, l'id
 gecko et la structure `data_collection_permissions` sont déjà en place. Chrome
 demande davantage de travail neuf.
+
+---
+
+## `SessionAuthentication` sur l'API de l'extension : lecture oui, ecriture 403
+
+*Constaté le 21 août 2026, à l'installation de l'extension dans Firefox.*
+
+`PageViewSet` et `SidebarViewSet` (`core/views.py`) déclarent
+`authentication_classes = [TokenAuthentication, SessionAuthentication]`. Or ces
+deux ViewSets ne servent **que** l'extension navigateur, qui s'authentifie par
+jeton. La session n'y est réellement utilisée que par des tests
+(`front/tests/test_capture_web_docling.py` fait `force_login` puis `POST`).
+
+Le piège, mesuré :
+
+```
+GET  /api/pages/me/          -> 200 {'authenticated': True, 'username': 'jonas'}
+GET  /api/pages/mes_carnets/ -> 200 [...la liste...]
+POST /api/pages/             -> 403 {"detail":"CSRF Failed: CSRF cookie not set."}
+```
+
+Un client porteur d'un cookie de session **lit** l'API mais ne peut pas y
+**écrire** : `SessionAuthentication.enforce_csrf()` exige un jeton CSRF sur les
+méthodes d'écriture. **Le `@method_decorator(csrf_exempt, name="dispatch")`
+posé sur les deux ViewSets ne protège pas de ça** — le contrôle vit dans la
+classe d'authentification, pas dans le décorateur. C'est un classique de DRF, et
+il ne se voit pas à la lecture de la vue.
+
+Ce n'est plus un problème pour l'extension : depuis le 21 août ses appels
+portent `credentials: 'omit'`. Le piège reste posé pour tout autre client qui
+arriverait avec une session.
+
+> ⚠️ **NE PAS « corriger » en retirant `SessionAuthentication`.** C'était la
+> correction envisagée le matin du 21 août ; elle est devenue **destructrice**
+> le soir même. `PageViewSet.mon_jeton` — la connexion en un clic de l'extension
+> — s'authentifie **par la session**, et c'est tout son mécanisme : la session
+> ne peut pas *écrire* depuis une extension Firefox (origine aléatoire par
+> installation, jamais whitelistable), mais elle peut *lire*, et un GET n'est
+> pas soumis au contrôle CSRF. La retirer supprimerait la seule façon de
+> connecter l'extension sans copier-coller.
+> Voir `CHANGELOG/2026-08-21-connecter-l-extension-en-un-clic.md`.
+
+Ce qui reste vrai, et qu'il faut lire comme une **contrainte** et non comme un
+défaut à réparer : sur ces deux ViewSets, une session **lit** mais n'**écrit**
+pas. Tout client qui arriverait avec une session et tenterait un `POST` recevra
+un 403 CSRF, sans que la vue ne le laisse deviner.
+
+**Note de sécurité, pour éviter une inquiétude mal placée** : ce chemin n'est pas
+exploitable depuis un site web ordinaire. `CORS_ALLOW_ALL_ORIGINS = True` rend
+`Access-Control-Allow-Origin: *`, et le navigateur **refuse** une requête avec
+cookies (`credentials: 'include'`) quand la réponse répond `*`. Seule une
+extension disposant de la permission d'hôte contourne le CORS — ce qui est le
+propre des extensions, pas un défaut de cette API.

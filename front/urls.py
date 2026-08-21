@@ -1,6 +1,7 @@
 from django.urls import include, path, re_path
 from rest_framework.routers import DefaultRouter
 from . import views
+from .views_accueil import AideViewSet, ManifesteViewSet
 from .views_alignement import AlignementViewSet
 from .views_benchmarks import BenchmarksViewSet
 from .views_auth import AuthViewSet
@@ -38,6 +39,13 @@ router.register(r"taches", TachesViewSet, basename="tache")
 router.register(r"carnets", CarnetViewSet, basename="carnet")
 router.register(r"notes", NoteCorpusViewSet, basename="note-corpus")
 router.register(r"bases", BaseViewSet, basename="base-de-connaissances")
+# Les deux ecrans d'accueil (21 aout 2026). Ils vivaient en ONGLETS sur la
+# page racine, montres et caches par du JavaScript : un onglet n'a pas
+# d'adresse, donc ni signet, ni partage, ni bouton « precedent ».
+# `/aide/` porte aussi le POST de la case « j'ai compris » du message
+# d'accueil. / Two former JS tabs, now addressable screens.
+router.register(r"aide", AideViewSet, basename="aide")
+router.register(r"manifeste", ManifesteViewSet, basename="manifeste")
 # Couche synthese (§ 10, phase H) : wikis, syntheses dirigees, preuves.
 # / Synthesis layer: wikis, frozen syntheses, evidence panels.
 router.register(r"wikis", WikiViewSet, basename="wiki")
@@ -49,8 +57,12 @@ router.register(r"citations", CitationViewSet, basename="citation")
 router.register(r"elements", ElementViewSet, basename="element")
 
 urlpatterns = [
-    # La page racine reste un path explicite (pas de pk, pas de CRUD)
-    # Root page stays as explicit path (no pk, no CRUD)
+    # LA RACINE NE REND PLUS D'ECRAN : elle redirige vers `/carnets/`.
+    # Elle servait un onboarding a trois onglets, dont l'un montrait une
+    # SECONDE vue des bases a cote de `/bases/` — deux ecrans pour la
+    # meme chose, qui avaient deja derive. Le ViewSet reste (le path a
+    # besoin d'une vue) ; c'est son `list()` qui redirige.
+    # / The root no longer renders a screen: it redirects to /carnets/.
     path("", views.BibliothequeViewSet.as_view({"get": "list"}), name="bibliotheque"),
 
     # Les collections carnet-niveau de la couche synthese (§ 10) : le

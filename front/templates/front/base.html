@@ -18,12 +18,12 @@
     {# SEUL nom qu'on voit d'une page. #}
     {# / The tab title never changed; it is often the only name a page #}
     {# gets in a tab bar, a bookmark or a history entry. #}
-    <title>{% if article %}{{ article.title|truncatechars:60 }} — Hypostasia{% elif page_preloaded %}{{ page_preloaded.title|default:"Sans titre"|truncatechars:60 }} — Hypostasia{% elif carnet %}{{ carnet.name|truncatechars:60 }} — Hypostasia{% elif base %}{{ base.nom|truncatechars:60 }} — Hypostasia{% elif carnets_liste_preloaded %}Carnets — Hypostasia{% elif bases_liste_preloaded %}Bases de connaissances — Hypostasia{% else %}Hypostasia — Bibliothèque{% endif %}</title>
+    <title>{% if article %}{{ article.title|truncatechars:60 }} — Hypostasia{% elif page_preloaded %}{{ page_preloaded.title|default:"Sans titre"|truncatechars:60 }} — Hypostasia{% elif carnet %}{{ carnet.name|truncatechars:60 }} — Hypostasia{% elif base %}{{ base.nom|truncatechars:60 }} — Hypostasia{% elif carnets_liste_preloaded %}Carnets — Hypostasia{% elif bases_liste_preloaded %}Bases de connaissances — Hypostasia{% elif aide_preloaded %}Aide — Hypostasia{% elif manifeste_preloaded %}Manifeste — Hypostasia{% else %}Hypostasia{% endif %}</title>
     <link rel="stylesheet" href="{% static 'front/css/tailwind.css' %}?v=10">
     <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=36">
     {# La couche maquette globale (9 aout 2026) : le design de l'etalon #}
     {# applique au chrome — chargee EN DERNIER, elle re-teinte le reste. #}
-    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=72">
+    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=73">
     {# LE SPINNER AU POINT DE CLIC. Charge apres `maquette.css` : il lit #}
     {# `--info`, qui y est defini en clair ET en sombre. #}
     {# / Loaded after maquette.css: it reads --info from there. #}
@@ -90,29 +90,60 @@
             {# toutes lettres, et menent aux memes ecrans.                   #}
             {# / The hamburger is gone: two named links say where they lead, #}
             {# three stacked bars do not. #}
-            <a href="/"
-               hx-get="/"
+            {# LE LOGO MENE AUX CARNETS, ET NON A « / ». La racine ne rend  #}
+            {# plus d'ecran : elle redirige (front/views.py,                 #}
+            {# BibliothequeViewSet). Un `hx-get="/"` ferait suivre la        #}
+            {# redirection au XHR, puis pousserait « / » dans l'historique — #}
+            {# une adresse qui n'affiche rien par elle-meme.                 #}
+            {# / The wordmark points at /carnets/: the root only redirects,  #}
+            {# so pushing "/" would bookmark an address that renders         #}
+            {# nothing on its own. #}
+            <a href="/carnets/"
+               hx-get="/carnets/"
                hx-target="#zone-lecture"
                hx-swap="innerHTML"
-               hx-push-url="/"
+               hx-push-url="true"
                class="titre-app-desktop font-semibold text-lg tracking-tight shrink-0 hover:text-blue-600 transition-colors no-underline text-slate-800"
                data-testid="lien-accueil">Hypostasia</a>
-            {# Navigation corpus (phase H, audit UX P1) : une fonctionnalite #}
-            {# sans point d'entree n'existe pas pour l'utilisateur. #}
-            {# / Corpus nav: a feature with no entry point does not exist. #}
-            {# ORDRE HIERARCHIQUE : une base contient des carnets, qui       #}
-            {# contiennent des notes. Le menu les listait dans l'ordre        #}
-            {# inverse — on lisait « Carnets, Bases » en descendant la        #}
-            {# hierarchie a l'envers. / Bases contain notebooks: the menu     #}
-            {# now reads in that order.                                       #}
-            <a href="/bases/" hx-get="/bases/" hx-target="#zone-lecture"
-               hx-swap="innerHTML" hx-push-url="true"
-               class="text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
-               data-testid="lien-nav-bases">Bases</a>
+            {% comment %}
+            LES QUATRE ENTREES DU MENU — Carnets, Bases, Aide, Manifeste.
+
+            Elles etaient deux, et deux autres vivaient en ONGLETS sur la
+            page racine (« Decouvrir l'app », « Manifeste »). Un onglet
+            n'a pas d'adresse : on ne peut ni le mettre en signet, ni
+            l'envoyer, ni y revenir par le bouton « precedent ».
+
+            L'ORDRE EST UNE DECISION DU MAINTENEUR (21 aout 2026) : on
+            travaille dans un carnet, la base n'est qu'un rangement
+            facultatif au-dessus. Le menu commence donc par la ou l'on
+            passe ses journees. Il a longtemps commence par « Bases », au
+            nom de la hierarchie du modele — mais un menu se range par
+            frequence d'usage, pas par profondeur de schema.
+
+            AUCUNE NE PORTE `btn-desktop-only` : le tiroir lateral est
+            retire depuis le 12 aout, plus rien ne rattraperait une
+            entree absente sur telephone. La regle `.lien-nav-barre`
+            (maquette.css) les resserre sous 480px plutot que de les
+            masquer.
+            / Four addressable entries, ordered by how often they are
+            used, never hidden on phones.
+            {% endcomment %}
             <a href="/carnets/" hx-get="/carnets/" hx-target="#zone-lecture"
                hx-swap="innerHTML" hx-push-url="true"
-               class="text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
+               class="lien-nav-barre text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
                data-testid="lien-nav-carnets">Carnets</a>
+            <a href="/bases/" hx-get="/bases/" hx-target="#zone-lecture"
+               hx-swap="innerHTML" hx-push-url="true"
+               class="lien-nav-barre text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
+               data-testid="lien-nav-bases">Bases</a>
+            <a href="/aide/" hx-get="/aide/" hx-target="#zone-lecture"
+               hx-swap="innerHTML" hx-push-url="true"
+               class="lien-nav-barre text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
+               data-testid="lien-nav-aide">Aide</a>
+            <a href="/manifeste/" hx-get="/manifeste/" hx-target="#zone-lecture"
+               hx-swap="innerHTML" hx-push-url="true"
+               class="lien-nav-barre text-sm text-slate-600 hover:text-blue-600 no-underline shrink-0"
+               data-testid="lien-nav-manifeste">Manifeste</a>
             <span id="titre-toolbar" class="text-sm text-slate-400 truncate" data-testid="titre-toolbar">{% if page_preloaded %}{{ page_preloaded.title|default:"Sans titre" }}{% endif %}</span>
         </div>
         <!-- Droite : boutons d'action (ne se compresse jamais) + separateur + import + config -->
@@ -388,7 +419,12 @@
                 {% include "front/corpus/bases_liste.html" %}
             {% elif page_preloaded %}
                 {% include "front/includes/lecture_principale.html" with page=page_preloaded %}
+            {% elif manifeste_preloaded %}
+                {% include "front/includes/manifeste_ecran.html" %}
             {% else %}
+                {# Le repli sert aussi `aide_preloaded` : l'aide EST l'ecran #}
+                {# par defaut de la zone de lecture, une seule branche donc. #}
+                {# / The fallback doubles as the help screen. #}
                 {% include "front/includes/onboarding_vide.html" %}
             {% endif %}
         </main>
@@ -550,6 +586,28 @@
     <!-- / Close user menu dropdown on outside click (PHASE-25) -->
     <script src="{% static 'front/js/user_menu.js' %}?v=26"></script>
 
+    {% comment %}
+    LE MESSAGE D'ACCUEIL — en DERNIER dans le corps, et sous garde.
+
+    La garde `afficher_le_message_d_accueil` vient du context processor
+    `front.context_processors`, pas d'une vue : `base.html` est rendu par
+    une quinzaine de vues reparties sur six fichiers, et la seizieme
+    ecrite demain aurait oublie la variable — en silence, une variable
+    absente valant faux dans un gabarit Django.
+
+    Le processeur refuse aussi de l'afficher sur une reponse HTMX : la
+    modale vit dans ce squelette, jamais dans un partial, sinon chaque
+    navigation la rejouerait par-dessus celle deja a l'ecran.
+
+    EN DERNIER parce que son script s'accroche a son propre balisage :
+    place plus haut, il s'executerait avant que le reste de la page ne
+    soit la, sans rien y gagner.
+    / Guarded by a context processor, not a view: fifteen views render
+    this skeleton and the sixteenth would have forgotten the variable.
+    {% endcomment %}
+    {% if afficher_le_message_d_accueil %}
+        {% include "front/includes/message_d_accueil.html" %}
+    {% endif %}
 
 </body>
 </html>

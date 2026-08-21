@@ -21,6 +21,8 @@
     FLUX : popup.js au chargement
       -> GET /api/pages/me/         (le serveur repond-il, suis-je connecte)
       -> GET /api/pages/mes_carnets/ (remplit #carnetChoisi)
+      -> si aucun jeton ne marche : #connecterBtn apparait
+         -> clic -> GET /api/pages/mon_jeton/ AVEC les cookies du site
       -> clic #recolterBtn
       -> GET /api/pages/?url=...    (deja capturee ?)
       -> Readability dans l'onglet
@@ -160,6 +162,32 @@
         #authStatus.auth-ok { color: var(--succes); }
         #authStatus.auth-ko { color: var(--alerte); }
 
+        #connecterBtn {
+            width: 100%;
+            padding: 6px 10px;
+            margin-bottom: 8px;
+            background: transparent;
+            /* `--bouton-fond` et non `--accent` : en theme clair,
+               #3b82f6 sur le fond de la popup ne donne que 3,52:1, sous
+               le seuil AA pour du texte de 11 px.
+               / Not --accent: it only reaches 3.52:1 in the light theme. */
+            color: var(--bouton-fond);
+            border: 1px solid var(--bouton-fond);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        #connecterBtn:hover:not(:disabled) {
+            background: var(--bouton-fond);
+            color: var(--bouton-texte);
+            border-color: var(--bouton-fond);
+        }
+
+        #connecterBtn:disabled { opacity: .6; cursor: not-allowed; }
+        #connecterBtn[hidden] { display: none; }
+
         #zoneCarnet { margin-bottom: 8px; }
 
         /* L'avertissement de carnet public. Discret par choix : le seul
@@ -208,6 +236,20 @@
         <span id="serverStatusText">Verification...</span>
     </div>
     <div id="authStatus" aria-live="polite"></div>
+
+    <!--
+    CONNEXION EN UN CLIC
+    / One-click connection
+
+    Le bouton n'apparait que tant qu'aucun jeton ne fonctionne. Au clic,
+    popup.js demande le jeton au serveur AVEC les cookies du navigateur
+    (le seul appel qui les envoie), le range, et tout repart par le jeton.
+    / Shown only while no token works; popup.js then fetches the token
+    using the browser session, stores it, and uses only the token after.
+    -->
+    <button id="connecterBtn" data-testid="extension-connecter" hidden>
+        Connecter cette extension
+    </button>
 
     <div id="zoneCarnet">
         <label for="carnetChoisi">Ranger dans</label>

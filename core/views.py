@@ -426,6 +426,77 @@ class PageViewSet(viewsets.ViewSet):
             "email": request.user.email,
         })
 
+    @action(detail=False, methods=["GET"], url_path="mon_jeton")
+    def mon_jeton(self, request):
+        """
+        Rend a l'extension le jeton d'API du compte connecte, pour qu'il
+        n'ait plus a etre recopie a la main.
+        / Hands the extension the logged-in account's API token, so it
+        no longer has to be copied by hand.
+
+        LOCALISATION : core/views.py
+
+        LE GESTE QU'ON SUPPRIME : ouvrir `/auth/token/`, selectionner
+        quarante caracteres hexadecimaux, les copier, ouvrir les options
+        de l'extension, les coller. L'extension appelle cet endpoint AVEC
+        les cookies du navigateur — le seul de ses appels a le faire —,
+        range le jeton, et n'utilise plus que lui ensuite.
+        / The extension calls this WITH the browser's cookies — its only
+        call that does — stores the token, and uses only that afterwards.
+
+        POURQUOI UN GET, ET POURQUOI SEULEMENT POUR CA. Une requete
+        d'ECRITURE authentifiee par session est refusee des que l'origine
+        de l'appelant n'est pas dans `CSRF_TRUSTED_ORIGINS` (mesure du
+        21 aout 2026), et Firefox donne a chaque INSTALLATION d'une
+        extension un UUID aleatoire qu'aucune liste blanche ne peut
+        contenir. La session ne peut donc jamais ECRIRE depuis une
+        extension Firefox. Elle peut LIRE : un GET n'est pas soumis au
+        controle CSRF. D'ou ce point de passage unique — la session sert
+        une fois, a recuperer le jeton ; tout le reste passe par le jeton.
+        / A session-authenticated WRITE is refused unless the caller's
+        origin is whitelisted, and Firefox's per-install random UUID can
+        never be. A GET is not CSRF-checked: hence this single crossing.
+
+        CE N'EST PAS UNE NOUVELLE EXPOSITION. `/auth/token/` AFFICHE deja
+        ce jeton en clair a quiconque porte la session. Un site tiers ne
+        peut lire ni l'un ni l'autre : `Access-Control-Allow-Origin: *`
+        interdit au navigateur d'y joindre des cookies.
+        / Not a new exposure: /auth/token/ already displays this token to
+        whoever holds the session, and CORS blocks credentialed reads.
+
+        IL NE REGENERE JAMAIS. Regenerer invaliderait le jeton des AUTRES
+        installations : connecter l'extension du portable deconnecterait
+        celle du poste fixe, en silence. Ce geste connecte une machine de
+        plus, il n'en deconnecte aucune. La regeneration reste un geste
+        explicite, sur `/auth/token/`.
+        / It never regenerates: that would silently disconnect every
+        other installation.
+        """
+        if not request.user or not request.user.is_authenticated:
+            return Response(
+                {"detail": "Connectez-vous à cette instance dans votre "
+                           "navigateur, puis réessayez."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        from rest_framework.authtoken.models import Token
+
+        # `get_or_create`, comme la page `/auth/token/` : un compte qui
+        # n'a jamais ouvert cette page doit pouvoir se connecter quand
+        # meme, sinon on lui redemande le geste qu'on supprime.
+        # / get_or_create, exactly like the /auth/token/ page does.
+        jeton, jeton_cree = Token.objects.get_or_create(user=request.user)
+        if jeton_cree:
+            logger.info(
+                "PageViewSet.mon_jeton: premier jeton cree pour %s",
+                request.user.username,
+            )
+
+        return Response({
+            "token": jeton.key,
+            "username": request.user.username,
+        })
+
     @action(detail=False, methods=["GET"], url_path="mes_dossiers")
     def mes_dossiers(self, request):
         """

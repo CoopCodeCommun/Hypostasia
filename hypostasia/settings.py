@@ -106,6 +106,12 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # Le message d'accueil est lu par `base.html`, que rendent
+                # une quinzaine de vues reparties sur six fichiers : le
+                # poser dans chaque contexte ferait quinze ajouts, et le
+                # seizieme ecran l'oublierait en silence.
+                # / Read by base.html, which fifteen views render.
+                'front.context_processors.message_d_accueil',
             ],
         },
     },

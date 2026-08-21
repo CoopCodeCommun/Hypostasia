@@ -64,12 +64,50 @@ notes du depot de dev sont dans un carnet public.
 | `front/views.py` | `_utilisateur_peut_ecrire_dossier` delegue au service |
 | `front/views_corpus.py` | `carnets_visibles_par` importee du service ; la **troisieme copie** de la regle d'ecriture (bloc « Ajouter a... ») remplacee par `carnets_ou_ecrire` |
 | `extension/popup.html` | menu des carnets **avant** le bouton, avertissement « carnet public », tokens de couleur clair **et** sombre, `data-testid` |
-| `extension/popup.js` | choix du carnet envoye dans le POST ; souvenir du dernier carnet ; indicateur de serveur bascule sur `/api/pages/me/` ; les trois 409 distingues par leur `code` ; plus d'empreinte calculee cote client ; rangement post-recolte retire |
+| `extension/popup.js` | choix du carnet envoye dans le POST ; souvenir du dernier carnet ; indicateur de serveur bascule sur `/api/pages/me/` ; les trois 409 distingues par leur `code` ; plus d'empreinte calculee cote client ; rangement post-recolte retire ; **`credentials: 'omit'` sur les quatre appels** (voir ci-dessous) |
 | `extension/manifest.json` | retrait de `init_htmx_sidebar.js`, declaree et absente du paquet |
 | `core/tests/test_extension_api.py` | **Nouveau** — 26 tests, le fichier que `SPEC-corpus` § 9 annonce depuis le 5 aout et qui n'avait jamais ete ecrit |
 | `front/tests/test_phases.py` | `Phase25bPageListSansTokenTest` **inverse** : il exigeait un 200 sans jeton, donc il verrouillait la fuite |
 | `front/tests/test_corpus_phase_d.py` | le test de dedup par contenu posait l'empreinte a la main ; il pose maintenant celle que le serveur calcule |
 | `PLAN/specs/SPEC-corpus-base-carnet-note.md` | addendum date du 20 aout : ce que ce chantier fait de la phase I |
+
+### Correctif du 21 aout : la popup n'usurpe plus la session du navigateur
+
+**Constate a l'installation dans Firefox** : la popup affichait « Connecte :
+jonas » **sans qu'aucun jeton n'ait ete saisi**, listait les carnets — puis
+rendait **403** a la capture.
+
+Firefox joint les cookies du site aux requetes emises depuis une page
+d'extension qui a la permission de ce site ; Chrome ne le fait pas. Le serveur
+reconnaissait donc l'utilisateur par sa **session**, et `SessionAuthentication`
+(DRF) exige un jeton CSRF sur les methodes d'ecriture — que l'extension n'a pas
+et ne peut pas avoir. Reproduit a l'identique :
+
+```
+GET  /api/pages/me/          -> 200 {'authenticated': True, 'username': 'jonas'}
+GET  /api/pages/mes_carnets/ -> 200 [...]
+POST /api/pages/             -> 403 {"detail":"CSRF Failed: CSRF cookie not set."}
+```
+
+**Le `@csrf_exempt` pose sur `PageViewSet` n'y change rien** : le controle vit
+DANS `SessionAuthentication.enforce_csrf()`, pas dans le decorateur de la vue.
+
+C'etait un etat affiche qui ment : « connecte » a quelqu'un qui ne pouvait rien
+capturer. Les quatre appels de la popup portent desormais
+`credentials: 'omit'` — l'extension s'authentifie par son jeton et par lui
+seul, deliberement, et de facon identique dans les deux navigateurs.
+
+Verifie au navigateur, session valide posee dans le contexte, jeton vide :
+
+| Requete | Reponse |
+|---|---|
+| `me/` **avec** les cookies | `{authenticated: True, username: 'jonas'}` |
+| `me/` **sans** les cookies | `{authenticated: False}` |
+| la popup corrigee | « Non connecte : collez votre token dans les options » |
+
+Le serveur n'a pas bouge : `SessionAuthentication` reste sur `PageViewSet`, et
+le piege qu'il pose pour tout autre client est consigne dans
+`CHANGELOG/DEFAUTS-DIFFERES.md`.
 
 ### Ce qui n'a PAS ete fait, et pourquoi
 

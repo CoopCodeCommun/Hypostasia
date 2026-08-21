@@ -17,6 +17,7 @@ Une instance de test (bac à sable) est disponible à l'adresse : **https://beta
 - **Intégration Django** : Communique directement avec l'API de votre instance Hypostasia.
 - **Vérification automatique** : L'extension vous indique si la page a déjà été enregistrée — dans votre périmètre, ou
   par quelqu'un d'autre sur la même instance.
+- **Connexion en un clic** : un bouton récupère votre token depuis le site. Aucun copier-coller.
 - **Interface simple** : Une popup rapide pour configurer l'URL du serveur, choisir le carnet et lancer l'extraction.
 
 ## Installation en mode développeur
@@ -57,17 +58,29 @@ Avant la première utilisation, vous devez indiquer à l'extension où se trouve
    - Pour l'instance de test : `https://beta.hypostasia.org/`
 3. Cliquez sur **OK** ou enregistrez.
 
-## Le token d'authentification
+## Connecter l'extension
 
-L'extension a besoin d'un token pour savoir qui vous êtes. Sans lui, elle ne peut ni lister vos carnets ni enregistrer
-quoi que ce soit.
+L'extension s'authentifie par un **token** propre à votre compte. Vous n'avez pas à le manipuler :
 
-1. Connectez-vous à votre instance, puis ouvrez **`/auth/token/`** (lien « Mon token API » dans le menu utilisateur).
-2. Copiez le token.
-3. Collez-le dans les options de l'extension (clic droit sur l'icône → **Options**).
+1. Connectez-vous à votre instance Hypostasia dans ce navigateur.
+2. Ouvrez la popup de l'extension et cliquez sur **« Connecter cette extension »**.
 
-La popup affiche alors « Connecté : *votre nom* ». Tant que le token manque, elle affiche « Non connecté : collez votre
-token dans les options » — le serveur, lui, peut très bien être joignable.
+C'est tout. L'extension récupère votre token et affiche « Connecté : *votre nom* ».
+
+> **Pourquoi un token et pas simplement votre session ?** Parce qu'une extension ne peut pas *écrire* avec votre session.
+> Firefox donne à chaque installation d'extension une adresse interne aléatoire (`moz-extension://<uuid>`), différente sur
+> chaque machine, et Django refuse toute écriture venant d'une origine qu'il ne connaît pas. Le token, lui, marche
+> partout et de la même façon. La session sert donc une seule fois : à aller le chercher.
+>
+> Un token se révoque seul, sans vous déconnecter de nulle part : bouton **Régénérer** sur `/auth/token/`. Après quoi la
+> popup affiche « Token invalide — reconnectez l'extension », et un clic suffit.
+
+**Connecter une seconde machine ne déconnecte pas la première** : le token n'est jamais régénéré par ce bouton.
+
+### À la main, si besoin
+
+Le token reste visible sur **`/auth/token/`** (lien « Mon token API » dans le menu utilisateur) et se colle dans les
+options de l'extension (clic droit sur l'icône → **Options**).
 
 ## Utilisation
 
@@ -85,4 +98,4 @@ token dans les options » — le serveur, lui, peut très bien être joignable.
 | *Enregistrée dans « … »* | c'est fait, la note est dans ce carnet |
 | *Déjà enregistrée (note N)* | vous aviez déjà capturé cette page ; rien n'a été créé |
 | *Cette page est déjà capturée sur ce serveur, dans un carnet auquel vous n'avez pas accès* | quelqu'un d'autre l'a prise. Une même URL ne peut exister qu'une fois par instance |
-| *Token manquant ou invalide* | voir « Le token d'authentification » ci-dessus |
+| *Token manquant ou invalide* | cliquez sur « Connecter cette extension » — voir ci-dessus |

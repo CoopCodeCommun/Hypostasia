@@ -82,19 +82,73 @@ left by the previous screen instead of stranding a stale trail.
     </p>
     {% endif %}
 
-    <ul class="grille-bases" aria-label="Liste des bases"
-        data-testid="corpus-bases-grille">
-        {% for base in bases %}
-        {% include "front/corpus/partials/carte_de_base.html" %}
-        {% endfor %}
+    {% comment %}
+    DEUX ZONES, ET NON UNE LISTE TRIEE.
 
-        {% if user.is_authenticated %}
-        {# LA CREATION est la DERNIERE cellule de la grille : sur une #}
-        {# porte d'entree, « + Nouvelle base » ne doit pas passer avant #}
-        {# la collection. / Last cell: the collection is read first. #}
-        <li class="cellule-creation">
-            {% include "front/corpus/partials/_formulaire_de_base.html" with mode="creation" %}
-        </li>
+    Elles vivaient jusqu'au 21 aout 2026 dans un ONGLET de la page
+    d'accueil, qui montrait une seconde vue des bases a cote de cet
+    ecran-ci. Les deux avaient derive : l'onglet ignorait l'explication,
+    les compteurs et la carte de creation. L'onglet est parti, ses deux
+    zones sont venues ici — l'unification ne devait rien perdre.
+
+    POURQUOI DEUX (demande du mainteneur, 12 aout). Les deux moities ne
+    se lisent pas de la meme facon : ce que j'ai cree, j'y REVIENS —
+    c'est un espace de travail ; ce que d'autres publient, je l'EXPLORE —
+    c'est un catalogue. Une liste unique melangerait les deux intentions
+    et obligerait a lire chaque ligne pour savoir ou l'on est.
+
+    Une base a moi ET publique reste du cote « les miennes » : la montrer
+    deux fois ferait douter du sens des zones (voir
+    `_les_deux_zones_de_bases`, front/views_corpus.py).
+
+    LA GRILLE DE CREATION EST DANS LA SECONDE ZONE, PAS DANS LA
+    PREMIERE : « Mes bases » n'existe pas pour un visiteur anonyme, et y
+    loger la creation la ferait disparaitre pour la seule personne qui,
+    justement, n'en a encore aucune.
+    / Two zones, not one sorted list: mine is a workspace, theirs is a
+    catalogue. The creation card sits in the second one, which everyone
+    sees.
+    {% endcomment %}
+    {% if mes_bases %}
+    <section class="section-bases-accueil" data-testid="zone-mes-bases">
+        <h2 class="titre-section-bases">Mes bases</h2>
+        <p class="sous-titre-section-bases">
+            Celles que vous avez cr&eacute;&eacute;es.
+        </p>
+        <ul class="grille-bases" aria-label="Mes bases"
+            data-testid="corpus-bases-grille">
+            {% for base in mes_bases %}
+            {% include "front/corpus/partials/carte_de_base.html" %}
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    <section class="section-bases-accueil" data-testid="zone-bases-partagees">
+        <h2 class="titre-section-bases">Bases publiques et partag&eacute;es</h2>
+        <p class="sous-titre-section-bases">
+            Celles que d&rsquo;autres ont ouvertes.
+        </p>
+        <ul class="grille-bases" aria-label="Bases publiques et partagées"
+            data-testid="corpus-bases-grille-partagees">
+            {% for base in bases_des_autres %}
+            {% include "front/corpus/partials/carte_de_base.html" %}
+            {% endfor %}
+
+            {% if user.is_authenticated %}
+            {# LA CREATION est la DERNIERE cellule de la grille : sur une #}
+            {# porte d'entree, « + Nouvelle base » ne doit pas passer avant #}
+            {# la collection. / Last cell: the collection is read first. #}
+            <li class="cellule-creation">
+                {% include "front/corpus/partials/_formulaire_de_base.html" with mode="creation" %}
+            </li>
+            {% endif %}
+        </ul>
+
+        {% if not bases_des_autres %}
+        <p class="etat-vide-bases" data-testid="corpus-bases-partagees-vide">
+            Aucune base publique pour l&rsquo;instant.
+        </p>
         {% endif %}
-    </ul>
+    </section>
 </div>

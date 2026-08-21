@@ -3107,3 +3107,138 @@ body:has(.lecteur) { --barre-audio: 62px; }
    / The masking rule only covered the frozen diarised HTML: rewiring
    the filter without this would set a class no rule ever read. */
 #readability-content .bloc.masque-par-filtre { display: none; }
+
+/* ==========================================================================
+   LE MESSAGE D'ACCUEIL — la modale qui explique les quatre entrees du menu.
+   Gabarit : front/templates/front/includes/message_d_accueil.html
+   / The welcome modal explaining the four menu entries.
+
+   TOUT EST EN TOKENS, AUCUNE COULEUR EN DUR. `--papier`, `--encre`,
+   `--filet` basculent deja en sombre plus haut dans ce fichier : ecrire
+   `#fff` ici donnerait une modale blanche sur une application sombre,
+   sans qu'aucune erreur ne le signale.
+   / Tokens only: a hardcoded #fff would stay white in dark mode.
+
+   Z-INDEX 80. Au-dessus du panneau lateral (70) et du voile du tiroir
+   (68) : ce message est le premier ecran qu'on voit, rien ne doit passer
+   devant. / Above the side panel (70) and the drawer veil (68).
+   ========================================================================== */
+
+.voile-message-accueil {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+
+.carte-message-accueil {
+  background: var(--papier); color: var(--encre);
+  border: 1px solid var(--filet); border-radius: 10px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, .35);
+  width: min(34rem, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding: 1.4rem 1.5rem 1.2rem;
+}
+
+.entete-message-accueil {
+  display: flex; align-items: flex-start; gap: .75rem;
+  margin-bottom: .6rem;
+}
+.titre-message-accueil {
+  flex: 1; min-width: 0;
+  font-size: 1.25rem; line-height: 1.25; margin: 0;
+  letter-spacing: -.015em; font-weight: 700;
+}
+.fermer-message-accueil {
+  flex-shrink: 0;
+  width: 2rem; height: 2rem; line-height: 1;
+  border: none; background: transparent; cursor: pointer;
+  color: var(--encre-douce); font-size: 1rem; border-radius: 5px;
+}
+.fermer-message-accueil:hover {
+  background: var(--papier-creux); color: var(--encre);
+}
+
+.intro-message-accueil {
+  font-size: .875rem; line-height: 1.55;
+  color: var(--encre-douce); margin: 0 0 1rem;
+}
+
+/* Les quatre entrees. Le nom est en monospace, comme tout ce que la
+   machine nomme ailleurs dans le produit (cotes, identifiants) : ici il
+   designe un bouton EXISTANT de la barre, pas une idee.
+   / Monospace names: they point at real buttons, not at concepts. */
+.entrees-message-accueil {
+  list-style: none; margin: 0 0 1.2rem; padding: 0;
+  display: flex; flex-direction: column; gap: .55rem;
+}
+.entrees-message-accueil li {
+  display: grid; grid-template-columns: 6.5rem 1fr; gap: .1rem .8rem;
+  align-items: baseline;
+  padding: .55rem .7rem;
+  border: 1px solid var(--filet); border-radius: 6px;
+  background: var(--papier-creux);
+}
+.entrees-message-accueil .nom-entree {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .8rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.entrees-message-accueil .role-entree {
+  font-size: .8125rem; line-height: 1.5; color: var(--encre-douce);
+}
+
+.pied-message-accueil {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+  border-top: 1px solid var(--filet); padding-top: .9rem;
+}
+.case-message-accueil {
+  display: flex; align-items: center; gap: .5rem;
+  font-size: .8125rem; color: var(--encre-douce); cursor: pointer;
+}
+.case-message-accueil input { width: 1rem; height: 1rem; cursor: pointer; }
+
+.bouton-message-accueil {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: .8rem; font-weight: 700;
+  padding: .5rem 1.1rem; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--barre);
+  background: var(--barre); color: var(--barre-texte);
+}
+.bouton-message-accueil:hover { opacity: .88; }
+
+/* Sur telephone, les deux colonnes de chaque entree s'empilent : une
+   colonne de 6,5rem sur un ecran de 360px ne laisse plus de quoi lire
+   le role. / On phones the two columns stack. */
+@media (max-width: 560px) {
+  .carte-message-accueil { padding: 1.1rem 1.1rem 1rem; }
+  .entrees-message-accueil li { grid-template-columns: 1fr; }
+  .pied-message-accueil { justify-content: stretch; }
+  .bouton-message-accueil { flex: 1; }
+}
+
+/* ==========================================================================
+   LES ENTREES DE NAVIGATION DE LA BARRE — quatre depuis le 21 aout 2026.
+   / The toolbar navigation entries — four since 21 August 2026.
+
+   ELLES DOIVENT TENIR SUR UN TELEPHONE. Leur conteneur porte
+   `overflow-hidden` : un lien qui deborde n'est pas replie, il est
+   ROGNE, et aucune erreur ne le dit. Le mot « Hypostasia » s'efface deja
+   sous 768px (`.titre-app-desktop`), ce qui libere la place des deux
+   entrees ajoutees ; en dessous de 480px on resserre encore.
+   / The container is overflow-hidden: an overflowing link is clipped in
+   silence, not wrapped. */
+.lien-nav-barre {
+  font-size: .875rem; text-decoration: none; flex-shrink: 0;
+  padding: .15rem .1rem;
+}
+@media (max-width: 480px) {
+  .lien-nav-barre { font-size: .8125rem; }
+  /* Le titre du document cede la place aux entrees : on peut toujours le
+     lire dans l'onglet du navigateur, alors qu'un menu rogne ne se
+     rattrape nulle part.
+     / The document title yields: the tab bar still shows it. */
+  #titre-toolbar { display: none; }
+}
