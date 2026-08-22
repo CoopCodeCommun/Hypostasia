@@ -53,16 +53,24 @@ neuves**, les **carnets publics** qui viennent d'apparaitre, et les wikis dont
 le perimetre porte du **neuf non repris**. Le titre du mail est « Ce qui a bouge
 sur Hypostasia.org ».
 
-**ON NE S'ANNONCE JAMAIS A SOI-MEME CE QU'ON VIENT DE FAIRE.** Sa propre note,
-son propre commentaire, son propre tour accepte, son propre carnet public : le
-lendemain matin, leur auteur le sait deja. Les lui raconter ferait du
-recapitulatif un accuse de reception — et c'est l'utilisateur le PLUS ACTIF qui
-recevrait le plus de bruit, donc celui qui cesserait de le lire le premier.
-**Une exception, et une seule : ce que LE MOTEUR a fait.** Un tour de la passe
-de nuit sur mon wiki est une nouvelle pour moi, puisque je ne l'ai pas decide —
-c'est meme la seule facon de l'apprendre sans ouvrir l'article. Mesure sur la
-base de dev : le destinataire le plus actif passe de 20 lignes annoncees a 7.
-/ One is never told what one did oneself — except what the engine did.
+**CREER N'EST PAS METTRE A JOUR, ET LA REGLE N'EST PAS LA MEME.**
+
+**Ce qu'on a CREE ne nous est pas annonce** : sa propre note, son propre
+commentaire, son propre carnet public. Le lendemain matin, leur auteur le sait
+deja ; les lui raconter ferait du recapitulatif un accuse de reception — et
+c'est l'utilisateur le PLUS ACTIF qui recevrait le plus de bruit, donc celui qui
+cesserait de le lire le premier. Mesure sur la base de dev : le destinataire le
+plus actif passe de 20 lignes annoncees a 7.
+
+**UN WIKI QUI CHANGE EST ANNONCE, QUEL QUE SOIT L'AUTEUR DU TOUR** — y compris
+le sien (decision du mainteneur, 22 aout 2026). Un wiki est VIVANT : ce qui
+compte n'est pas qui a clique, c'est l'ETAT de l'article apres le tour.
+Accepter cinq operations sur douze, puis lire le lendemain ce que l'article dit
+devenu, n'est pas un accuse de reception — c'est le suivi d'un document qui
+bouge. Et le mail porte deja l'auteur du tour : le lecteur voit s'il se relit ou
+s'il lit un collegue.
+/ Creating is not updating: one is not told what one created, but a living wiki
+is announced whenever it changes, whoever changed it.
 
 **Le perimetre n'est pas le meme partout, et c'est deliberé.** Le CONTENU
 (notes, commentaires, articles) ne porte que sur les carnets qu'on **suit** —
@@ -238,9 +246,10 @@ PasseDeNuit.objects.filter(terminee_le__isnull=True).update(terminee_le=timezone
   passe n'existe — la promesse centrale, cassee par sa propre porte manuelle.
 - **Le compte de tours du depliant vient des tours ecrits**, pas du compteur du
   wiki : les deux divergent des le premier lot rejete.
-- **L'auto-notification est retiree** (decision du mainteneur, apres la
-  relecture) : on ne recoit plus l'annonce de ses propres gestes, sauf ceux du
-  moteur.
+- **L'auto-notification est retiree sur les CREATIONS** (decision du mainteneur,
+  apres la relecture) : ses propres notes, commentaires et carnets publics ne
+  sont plus annonces. **Les MISES A JOUR de wiki le restent**, quel que soit
+  l'auteur du tour — un wiki est un document vivant qu'on suit.
 - **UN ECHEC EST UN TOUR** (motif `ECHEC`, champ `message_d_echec`). Sans lui,
   une tache qui echoue ne laissait RIEN : pas de tour, donc pas d'avancee de la
   borne, donc le meme wiki rappelait le redacteur chaque nuit — sans backoff,

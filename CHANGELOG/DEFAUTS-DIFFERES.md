@@ -153,45 +153,41 @@ la page — passée à `["websiteContent"]` (valeur vérifiée sur la documentat
 Mozilla ; la clé est obligatoire pour toute nouvelle soumission depuis le
 3 novembre 2025).
 
-**Ce qui reste ouvert, et qui bloque une soumission :**
+> ### ⚠️ Quatre des cinq points ci-dessous ont été RÉGLÉS le 21 août 2026
+> par le chantier de publication Firefox (commits `b9d8071`, `3e65de2`), et
+> **cette section les décrivait encore comme ouverts** — vérifié dans le paquet
+> le 22 août. Ce qu'il reste est le point 5, plus le travail humain de
+> soumission.
+>
+> - `<all_urls>` a disparu : `host_permissions` ne porte plus que
+>   `https://hypostasia.org/*` et `https://beta.hypostasia.org/*`, le reste
+>   passe par `optional_host_permissions`. `permissions` se limite à
+>   `activeTab`, `scripting`, `storage`.
+> - `lib/` ne contient plus que `Readability.js` : les 109 Ko de SweetAlert
+>   sont partis.
+> - La sidebar morte est supprimée — `background.js`, `content.js`,
+>   `sidebar.html`, `sidebar.js` ne sont plus dans le paquet. Le point 4
+>   (défaut sur `beta.hypostasia.org`) disparaît avec elle.
+> - La **politique de confidentialité est écrite** et hébergée
+>   (`front/templates/front/includes/confidentialite.html`).
 
-1. **`<all_urls>` en `host_permissions` n'est justifié par aucun chemin de code
-   atteignable** (`extension/manifest.json`). Le seul flux vivant — le clic sur
-   « Récolter » — n'agit que sur l'onglet actif, à la suite du geste qui a
-   ouvert la popup : `activeTab` + `scripting`, tous deux déjà déclarés,
-   suffisent. C'est la permission qui déclenche la revue manuelle sur les deux
-   stores, et la politique Chrome renforcée du 1er août 2026 exige de justifier
-   chaque permission par le code réel.
-2. **`lib/sweetalert2.all.min.js` et `lib/sweetalert2.min.css`** (109 Ko) ne sont
-   référencés par **aucun** code atteignable — la CSS n'est appelée que par le
-   `background.js` mort. Mozilla exigera leurs sources non minifiées
-   (« source code submission ») pour une bibliothèque qui ne sert à rien.
-3. **Le sort de la sidebar morte n'est pas tranché.** `manifest.json` ne déclare
-   **aucune** clé `background`, donc `background.js` — son unique déclencheur —
-   n'est jamais chargé ; et `action.default_popup` neutraliserait
-   `chrome.action.onClicked` de toute façon. `content.js`, `sidebar.html` et
-   `sidebar.js` sont donc injoignables. Un relecteur humain lit tout le zip, pas
-   seulement ce que le manifest référence.
-4. **`extension/sidebar.js:28` et `:33` défautent sur `https://beta.hypostasia.org/`**
-   alors que `popup.js` et `options.js` défautent sur `http://127.0.0.1:8000/`.
-   Sans conséquence aujourd'hui (code mort), mais si la sidebar est un jour
-   rebranchée, un utilisateur qui l'ouvre avant configuration enverrait l'URL de
-   sa page courante — et un éventuel jeton déjà stocké — vers le serveur du
-   mainteneur au lieu du sien.
-5. **`hypostasia/settings.py` code en dur
+**Ce qui reste ouvert :**
+
+1. **`hypostasia/settings.py` code en dur
    `chrome-extension://lmflifaokphpaknpdnmdmhdiaeiieomd`** dans
    `CSRF_TRUSTED_ORIGINS`. C'est l'identifiant d'une extension chargée en mode
    développeur ; il **changera** à la publication (aucune clé `key` n'est
    épinglée dans le manifest). L'extension s'authentifiant par
    `Authorization: Token`, elle ne dépend probablement pas de cette entrée — à
    vérifier avant de la retirer ou de la passer en variable d'environnement.
+   **Toujours présent le 22 août 2026** (`settings.py:192`).
 
-**À rédiger avant toute soumission**, et c'est du travail humain, pas du code :
-politique de confidentialité hébergée (obligatoire côté Chrome dès qu'une
-extension manipule des données utilisateur), formulaire « Data usage / Privacy
-practices » du dashboard, justification écrite de chaque permission, notes au
-relecteur AMO expliquant que le serveur destinataire est **choisi et hébergé par
-l'utilisateur**, et une capture d'écran de fiche.
+**À faire avant toute soumission**, et c'est du travail humain, pas du code :
+formulaire « Data usage / Privacy practices » du dashboard, justification écrite
+de chaque permission, notes au relecteur AMO expliquant que le serveur
+destinataire est **choisi et hébergé par l'utilisateur**. Les captures d'écran,
+elles, sont **déjà dans le dépôt** (`extension/screen/`, quatre vues), et la
+politique de confidentialité est écrite.
 
 Le store le plus proche est **Firefox AMO** : `browser_specific_settings`, l'id
 gecko et la structure `data_collection_permissions` sont déjà en place. Chrome

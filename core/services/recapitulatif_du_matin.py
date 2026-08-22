@@ -7,9 +7,9 @@ LOCALISATION : core/services/recapitulatif_du_matin.py
 SIX CHOSES SE RACONTENT (addendum du 21 aout 2026) :
 
 1. les **wikis modifies** depuis le dernier mail de cette personne —
-   par la passe de nuit comme par un humain, la distinction est portee
-   par `TourDeWiki.fait_par`, et le tour dit CE QUI l'a appele
-   (les notes entrees dans le perimetre) ;
+   par la passe de nuit comme par un humain, **soi-meme compris** : la
+   distinction est portee par `TourDeWiki.fait_par`, et le tour dit CE
+   QUI l'a appele (les notes entrees dans le perimetre) ;
 2. les **notes neuves** dans ses carnets ;
 3. les **commentaires neufs** sur les extractions de ses carnets —
    avec leur TEXTE et leur AUTEUR : un compte ne donne envie de
@@ -19,19 +19,24 @@ SIX CHOSES SE RACONTENT (addendum du 21 aout 2026) :
 6. les wikis dont le perimetre a recu du **neuf** que l'article n'a pas
    repris.
 
-ON NE S'ANNONCE JAMAIS A SOI-MEME CE QU'ON VIENT DE FAIRE. Sa propre
-note, son propre commentaire, son propre tour accepte, son propre
-carnet public : le lendemain matin, leur auteur le sait deja. Les lui
-raconter fait du recapitulatif un accuse de reception — et c'est
-l'utilisateur le PLUS ACTIF qui recevrait le plus de bruit, donc celui
-qui cesserait de le lire le premier.
+CREER N'EST PAS METTRE A JOUR, ET LA REGLE N'EST PAS LA MEME.
 
-CE QUI RESTE ANNONCE, MEME SUR SES PROPRES OBJETS : ce que LE MOTEUR a
-fait. Un tour de la passe de nuit sur mon wiki est une nouvelle pour
-moi — je ne l'ai pas decide, et c'est meme la seule facon de
-l'apprendre sans ouvrir l'article.
-/ One is never told what one did oneself — except what the ENGINE did,
-which is news even on one's own wiki.
+**Ce qu'on a CREE ne nous est pas annonce.** Sa propre note, son propre
+commentaire, son propre carnet public : le lendemain matin, leur auteur
+le sait deja. Les lui raconter fait du recapitulatif un accuse de
+reception — et c'est l'utilisateur le PLUS ACTIF qui recevrait le plus
+de bruit, donc celui qui cesserait de le lire le premier.
+
+**UN WIKI QUI CHANGE EST ANNONCE, QUEL QUE SOIT L'AUTEUR DU TOUR** —
+y compris le sien (decision du mainteneur, 22 aout 2026). Un wiki est
+VIVANT : ce qui compte n'est pas qui a clique, c'est l'ETAT de
+l'article apres le tour. Accepter cinq operations sur douze proposees,
+puis lire le lendemain ce que l'article dit devenu, n'est pas un accuse
+de reception — c'est le suivi d'un document qui bouge. Et le tour porte
+DEJA son auteur dans le mail : le lecteur voit s'il se relit ou s'il
+lit un collegue.
+/ Creating is not updating: one is not told what one created, but a
+living wiki is announced whenever it changes, whoever changed it.
 
 LE PERIMETRE DE CHACUN, ET POURQUOI IL N'EST PAS LE MEME PARTOUT.
 Les rubriques 2, 3 et 5 portent sur les carnets qu'on SUIT — les siens
@@ -343,14 +348,15 @@ def matiere_par_destinataire(depuis_force=None):
 
         for utilisateur in destinataires:
             entree = _entree_de(utilisateur)
-            # PAS MES PROPRES TOURS, mais TOUJOURS ceux du moteur : un
-            # tour de la passe de nuit sur mon wiki est une nouvelle
-            # pour moi, puisque je ne l'ai pas decide.
-            # / Not my own rounds, but always the engine's.
+            # AUCUN FILTRE D'AUTEUR ICI, et c'est delibere : un wiki
+            # qui a change est annonce, que le tour vienne de moi, d'un
+            # collegue ou du moteur. Ce qui compte n'est pas qui a
+            # clique — c'est l'etat de l'article au matin.
+            # / No author filter: a changed wiki is announced whoever
+            # changed it; what matters is the article's state.
             tours_a_raconter = [
                 tour for tour in tours_qui_ont_change
                 if tour.fait_le > entree["depuis"]
-                and tour.fait_par_id != utilisateur.pk
             ]
             if tours_a_raconter:
                 entree["wikis_modifies"].append({

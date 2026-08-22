@@ -721,13 +721,17 @@ class LaBorneHauteTest(BaseDuRecapitulatif):
         )
 
 
-class OnNeSAnnoncePasASoiMemeTest(BaseDuRecapitulatif):
+class OnNeSAnnoncePasCeQuOnACreeTest(BaseDuRecapitulatif):
     """
-    Le lendemain matin, l'auteur d'un geste le sait deja. Le lui
-    raconter fait du recapitulatif un accuse de reception — et c'est
-    l'utilisateur le plus actif qui recevrait le plus de bruit.
-    / One already knows what one did: telling them makes the recap a
-    receipt, and the most active user gets the most noise.
+    Ce qu'on a CREE ne nous est pas annonce : le lendemain matin, son
+    auteur le sait deja, et c'est l'utilisateur le plus actif qui
+    recevrait le plus de bruit.
+
+    MAIS UN WIKI QUI CHANGE EST ANNONCE, quel que soit l'auteur du
+    tour — creer n'est pas mettre a jour, et un wiki est un document
+    vivant qu'on suit.
+    / One is not told what one created; a changed wiki is announced
+    whoever changed it.
     """
 
     def _une_note_de(self, proprietaire, titre):
@@ -782,12 +786,21 @@ class OnNeSAnnoncePasASoiMemeTest(BaseDuRecapitulatif):
         self.assertIn("La remarque d'un autre", corps)
         self.assertNotIn("Ma propre remarque", corps)
 
-    def test_mon_propre_tour_ne_m_est_pas_annonce(self):
+    def test_mon_propre_tour_M_EST_annonce_car_le_wiki_a_change(self):
+        # CREER N'EST PAS METTRE A JOUR. Un wiki est VIVANT : ce qui
+        # compte n'est pas qui a clique, c'est l'etat de l'article au
+        # matin. Accepter cinq operations sur douze, puis lire le
+        # lendemain ce que l'article dit devenu, n'est pas un accuse de
+        # reception — c'est le suivi d'un document qui bouge.
+        # (Decision du mainteneur, 22 aout 2026.)
+        # / Creating is not updating: a living wiki is announced
+        # whenever it changes, whoever changed it.
         self._un_tour_de_nuit(fait_par=self.proprietaire)
 
         self._envoyer()
 
-        self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(self.proprietaire.username, mail.outbox[0].body)
 
     def test_un_tour_du_MOTEUR_sur_mon_wiki_m_est_annonce(self):
         # Je ne l'ai pas decide : c'est meme la seule facon de
