@@ -53,9 +53,17 @@ mkdir -p "$DOSSIER_SORTIE"
 # / zip appends to an existing archive instead of replacing it.
 rm -f "$ARCHIVE"
 
+# `screen/` EST EXCLU, ET IL DOIT LE RESTER. Il porte les captures de la
+# fiche du store : 1,7 Mo, soit dix fois le poids de l'extension entiere.
+# Livrees, elles ne serviraient a personne — le navigateur ne les ouvre
+# jamais — et elles feraient d'un paquet de 68 Ko un paquet de 1,9 Mo.
+# Elles vivent dans le depot parce que c'est la qu'on les retrouve au
+# moment de remplir la fiche, pas parce qu'elles s'installent.
+# / screen/ holds the store listing captures: 1.7 MB that the browser
+# never opens. They live in the repo to be found at listing time.
 cd "$DOSSIER_SOURCE"
 zip --recurse-paths --filesync --quiet "$ARCHIVE" . \
-    --exclude '.*' '*/.*' '*~'
+    --exclude '.*' '*/.*' '*~' 'screen/*' 'screen'
 
 echo "Paquet : $ARCHIVE"
 echo "Taille : $(du -h "$ARCHIVE" | cut -f1)"

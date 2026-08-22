@@ -58,7 +58,7 @@ vers sa propre machine, ou rien ne repond.
 | `extension/popup.js` | defaut serveur -> `beta.hypostasia.org` ; `demanderLAutorisationDuServeur()` avant l'enregistrement d'une URL |
 | `extension/options.js` | idem, cote page d'options |
 | `extension/popup.html`, `options.html` | placeholders alignes sur le nouveau defaut |
-| `bin/paqueter_l_extension.sh` | **neuf** — fabrique `dist/hypostasia-extension-<version>.zip` |
+| `bin/paqueter_l_extension.sh` | **neuf** — fabrique `dist/hypostasia-extension-<version>.zip`, en excluant `extension/screen/` |
 | `Makefile` | cible `extension-zip` |
 | `front/views_accueil.py` | `ConfidentialiteViewSet` |
 | `front/urls.py` | route `confidentialite` |
@@ -239,20 +239,39 @@ Attendu : **0 erreur**, 2 avertissements, tous deux dans `lib/Readability.js`.
 | Politique | `https://hypostasia.org/confidentialite/` — **l'adresse de contact reste a renseigner** |
 | Licence | GNU AGPL v3 |
 | Code source | `https://github.com/CoopCodeCommun/Hypostasia` |
-| Captures | 2 ou 3, prises apres le test 1 (voir plus bas) |
+| Captures | les 4 fichiers de `extension/screen/`, dans l'ordre donne plus bas |
 | Compte de test | a saisir **dans le formulaire AMO uniquement** — voir l'avertissement |
 
 > ⚠️ **Le compte de test ne s'ecrit pas dans ce depot.** Le depot est public. Le
 > champ « Notes for reviewers » d'AMO, lui, n'est lu que par Mozilla : c'est la,
 > et seulement la, que l'identifiant et le mot de passe se saisissent.
 
-### Les captures a prendre
+### Les captures, et leurs legendes
 
-Firefox les veut en PNG ou JPG. Trois suffisent :
+Elles vivent dans **`extension/screen/`**. AMO accepte une legende par capture,
+et il faut les saisir : trois des quatre montrent le serveur, pas l'extension.
+Sans legende, la fiche a l'air de faire la promotion d'un autre produit que
+celui qu'on installe.
 
-1. **La popup ouverte sur un article**, carnet choisi, avant le clic.
-2. **La popup apres la recolte**, avec le message « Enregistree dans « … » ».
-3. **La note arrivee dans Hypostasia**, dans son carnet.
+**L'ordre compte.** La premiere est souvent la seule qu'on regarde, et c'est la
+seule ou l'on voit l'extension elle-meme.
+
+| # | Fichier | Legende a saisir |
+|---|---|---|
+| 1 | `screen extension depuis article externe.png` | Sur n'importe quel article : choisissez le carnet, cliquez Recolter. L'extension previent si le carnet est public. |
+| 2 | `screen notes.png` | La page arrive sans ses publicites ni ses menus, puis chaque passage cle est extrait et type. |
+| 3 | `screen carnet.png` | Vos captures se rangent dans le carnet choisi, a cote de vos PDF, audio et notes. |
+| 4 | `screen wiki.png` | Hypostasia en tire des articles vivants, ou chaque affirmation reste reliee a sa source. |
+
+Les deux premieres se suivent : la popup capture un article du *Monde
+diplomatique*, et la note montree juste apres vient du meme journal, rangee dans
+le meme carnet « Philo / Politique / Societe ». La continuite se lit sans qu'on
+ait a l'expliquer.
+
+> **`screen/` ne part pas dans le paquet.** `bin/paqueter_l_extension.sh`
+> l'exclut : 1,7 Mo que le navigateur n'ouvre jamais, et qui faisaient passer le
+> paquet de 68 Ko a 1,9 Mo. Le dossier vit dans le depot parce que c'est la
+> qu'on le retrouve au moment de remplir la fiche, pas parce qu'il s'installe.
 
 ### Le texte de la fiche
 
@@ -325,17 +344,79 @@ Firefox les veut en PNG ou JPG. Trois suffisent :
 > eux-memes : l'autorisation leur est demandee au moment ou ils saisissent
 > l'adresse de leur serveur (`popup.js`, `demanderLAutorisationDuServeur`).
 
-### La marche a suivre
+### Ce qui s'est reellement passe, le 21 aout 2026
 
-1. Se connecter sur https://addons.mozilla.org/developers/
-2. **Soumettre un nouveau module** -> distribution **« Sur ce site »**
-   (publique, listee).
-3. Televerser `dist/hypostasia-extension-1.0.0.zip`. La validation automatique
-   tourne : elle doit rendre **0 erreur**.
-4. Repondre **non** a la question du code source : il n'y a aucun code minifie,
-   genere ou transpile dans le paquet.
-5. Renseigner la fiche avec les textes ci-dessus, la licence **AGPL v3**, et
-   l'URL de la politique de confidentialite.
-6. Coller les notes pour les relecteurs, **avec** l'identifiant et le mot de
-   passe du compte de test.
-7. Soumettre. Le delai de relecture varie de quelques heures a quelques jours.
+**Ce n'etait pas une premiere soumission.** « Hypostasia Extractor » existait sur
+AMO depuis le **6 decembre 2025**, version 1.0, approuvee. Le premier
+televersement a echoue sur « Un identifiant identique a ete trouve » : c'etait
+notre propre `hypostasia@hypostasia.org`.
+
+**Et ce module n'a jamais ete public.** Sa page publique rendait 404, l'API 401,
+avec `is_disabled_by_developer: false` et `is_disabled_by_mozilla: false` — ni
+retire, ni bloque.
+
+**La cause : le canal de distribution.** La soumission de decembre avait choisi
+« A vous de jouer » (*self-distribution*), qui fait signer le `.xpi` par Mozilla
+pour qu'on le distribue soi-meme et **ne publie rien sur addons.mozilla.org**.
+
+Ce choix explique tout ce qui paraissait incoherent :
+
+| Symptome | Cause |
+|---|---|
+| Page publique en 404, API en 401 | un module non liste n'a pas de fiche publique |
+| Aucun champ de televersement d'image sur la page produit | la section « Images » n'existe que pour un module liste |
+| Ligne « Licence » vide, sans selecteur | idem — la licence est un champ de fiche |
+| Aucune categorie nulle part | idem |
+| `submit/details` redirigeait vers `submit/source-unlisted` | le parcours restait dans le canal *unlisted* |
+
+**Le geste qui debloque** : sur `versions/submit/`, l'encart « Hebergement de
+cette version » porte un lien **« Changement »**. Il ramene au choix du canal.
+Passe sur « Gestion via le site », tout l'ecran manquant apparait d'un coup.
+
+### L'etat de la fiche apres coup
+
+| | |
+|---|---|
+| Adresse | `addons.mozilla.org/fr/firefox/addon/hypostasia/` |
+| Version en attente | **1.0.0**, canal **AMO**, « En attente de validation », 0 erreur / 2 avertissements |
+| Ancienne version | 1.0, canal **Self**, approuvee le 6 decembre 2025 |
+| Visibilite | Visible |
+| Categorie | Marque-pages |
+| Licence | GNU Affero General Public License v3.0 |
+| Politique de confidentialite | 3 941 caracteres, saisis **dans AMO** |
+| Captures | les 4, avec leurs legendes, plus l'icone |
+| Assistance | `contact@tibillet.re` et les issues GitHub |
+
+> **L'adresse a resiste deux fois.** Posee a `hypostasia` sur la page produit,
+> elle etait revenue a `hypostasia-extractor` apres la bascule de canal. Verifier
+> ce champ apres tout changement de canal.
+
+### Le compte de test n'existe pas, et c'est voulu
+
+Les notes aux relecteurs ne portent **aucun identifiant partage**. Elles pointent
+vers `https://beta.hypostasia.org/auth/register/` : l'inscription y est libre,
+sans validation par courriel, et la vue connecte la personne dans la foulee
+(`front/views_auth.py`, `page_register`). Un relecteur se cree un compte en
+trente secondes.
+
+C'est mieux qu'un compte commun : rien a faire tourner, rien qui fuite, rien a
+reecrire le jour ou le mot de passe change. **Ne pas remettre d'identifiants
+dans ce fichier** — le depot est public.
+
+### Ce que la politique de confidentialite devient
+
+**AMO ne stocke pas une URL, il stocke le texte.** Le champ `privacy_policy_fr`
+est un `textarea`. La politique vit donc **dans AMO**, sans dependre de la
+disponibilite de hypostasia.org.
+
+La page `/confidentialite/` garde son role : elle est lisible **dans** le produit
+(liee depuis l'aide et le pied du manifeste), et le texte AMO la cite comme
+version en ligne. Les deux doivent rester d'accord — modifier l'une sans l'autre
+les fait diverger en silence.
+
+### Ce qui reste
+
+Attendre. Mozilla annonce **jusqu'a 24 heures**, davantage si le module part en
+revue manuelle, et previent par courriel. La page publique n'existera qu'a
+l'approbation de la version 1.0.0 : la version 1.0 approuvee en decembre ne
+compte pas, elle est dans l'autre canal.
