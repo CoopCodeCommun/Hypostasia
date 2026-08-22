@@ -22,6 +22,37 @@ commentaires bilingues FR/EN comme le reste du projet.
 > et un protocole de mesure. Elle n'a pas de maquette pour étalon : son étalon
 > est une transcription humaine (§ 5.3).
 
+> ## Addendum du 22 août 2026 — LA MACHINE DE MESURE A CHANGÉ
+>
+> Le § 5.1 décrit un **Framework Laptop 13, Core Ultra 7 155H, 22 threads,
+> 30 Go de RAM**. Ce n'est plus la machine du projet. Mesuré le 22 août 2026 :
+>
+> | | § 5.1 (périmé) | la machine réelle |
+> |---|---|---|
+> | processeur | Core Ultra 7 155H | **« Intel Core Processor (Haswell, no TSX) »** — une VM QEMU/KVM |
+> | threads | 22 | **8** (`nproc`), 1 thread par cœur |
+> | RAM | 30 Go (≈20 dispo) | **22 Go, ≈14 disponibles** |
+> | disque | — | 145 Go libres |
+>
+> **Trois conséquences, et elles changent le protocole :**
+>
+> 1. **Le bridage `--cpus=8` du § 5.1 n'a plus d'objet** : la machine EST le
+>    gabarit que le § 4.6 voulait simuler. Mesurer sans bridage donne
+>    directement le chiffre qui décide. Le second point de mesure « sans
+>    bridage » disparaît — il n'y a plus rien au-dessus.
+> 2. **Haswell n'a ni VNNI ni AMX.** Les gains INT8 publiés (le RTFx 36 du
+>    dépôt `onnx-asr`, par exemple) sont mesurés sur des processeurs qui les
+>    ont. **Attendre des chiffres nettement moins bons ici, et ne pas conclure
+>    que la pile est mauvaise** : conclure que ce gabarit-là est le plancher.
+>    Un VPS moderne (Ice Lake ou plus récent) ferait mieux à nombre de vCPU
+>    égal.
+> 3. **La RAM est partagée avec la stack qui tourne.** Les quatre juges NLI
+>    occupent 5,13 Go résidents, une conversion Docling ~2 Go au pic,
+>    PostgreSQL le sien. Sur 14 Go disponibles, **un banc qui charge un
+>    encodeur fp32 de 2,4 Go pendant une passe de nuit peut déclencher l'OOM
+>    killer** — et `nice` ne protège pas de l'OOM. Arrêter les workers
+>    concernés, ou mesurer quand la stack est au repos.
+
 ---
 
 ## 0. Ce que cette spec décide
