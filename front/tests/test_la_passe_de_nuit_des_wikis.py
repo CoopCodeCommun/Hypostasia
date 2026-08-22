@@ -54,6 +54,25 @@ class BaseDeLaPasseDeNuit(TestCase):
             page=self.page_du_wiki, dossier=self.fixtures["carnet"],
             sujet="Le seuil",
         )
+        self._vieillir_le_dernier_tour(self.wiki)
+
+    def _vieillir_le_dernier_tour(self, wiki):
+        """
+        Recule la derniere mise a jour d'un jour.
+        / Ages the wiki's last update by a day.
+
+        Sans ce recul, les fixtures naitraient toutes a la meme
+        seconde et le wiki serait cree APRES ses extractions : rien
+        n'aurait « paru depuis le dernier tour », et la passe n'aurait
+        aucune raison de le reprendre. Le cas reel est l'inverse — un
+        article produit hier, des extractions arrivees aujourd'hui.
+        / Otherwise the wiki is born after its own extractions and
+        nothing has appeared since its last round.
+        """
+        Wiki.objects.filter(pk=wiki.pk).update(
+            derniere_mise_a_jour=timezone.now() - timedelta(days=1),
+        )
+        wiki.refresh_from_db()
 
     def _operations_valides(self):
         return json.dumps([{
@@ -210,6 +229,172 @@ class CeQuiEstExamineTest(BaseDeLaPasseDeNuit):
         appel.assert_not_called()
         self.assertFalse(TourDeWiki.objects.exists())
 
+    def test_un_echec_ecrit_un_tour_et_ne_se_retente_pas_chaque_nuit(self):
+        # SANS TOUR, RIEN N'AVANCE : le meme wiki rappellerait le
+        # redacteur la nuit suivante, et celle d'apres, sans backoff ni
+        # plafond — un modele durablement injoignable couterait tous
+        # les soirs, invisiblement.
+        # / Without a round nothing advances and the writer is summoned
+        # every night, invisibly.
+        from front.tasks import _le_wiki_a_une_raison_d_etre_repris
+
+        texte_avant = self.page_du_wiki.text_readability
+
+        with patch(
+            "core.llm_providers.appeler_llm",
+            side_effect=RuntimeError("le modèle est injoignable"),
+        ), patch("front.tasks.enchainer_la_verification"):
+            call_command("mettre_a_jour_les_wikis", verbosity=0)
+
+        tour = TourDeWiki.objects.get(wiki=self.wiki)
+        self.assertEqual(tour.motif, MotifDeTourDeWiki.ECHEC)
+        self.assertIn("injoignable", tour.message_d_echec)
+        self.assertFalse(tour.a_change_l_article)
+
+        # L'article n'a pas bouge, et le wiki n'a plus de raison d'etre
+        # repris tant que rien de neuf n'arrive.
+        # / The article is untouched, and there is no reason to re-run.
+        self.page_du_wiki.refresh_from_db()
+        self.wiki.refresh_from_db()
+        self.assertEqual(self.page_du_wiki.text_readability, texte_avant)
+        self.assertFalse(_le_wiki_a_une_raison_d_etre_repris(self.wiki))
+
+    def test_un_echec_n_est_pas_annonce_comme_une_modification(self):
+        # Un tour d'echec ne change pas l'article : le recapitulatif
+        # l'exclut deja, comme tout tour sans changement.
+        # / A failed round changes nothing: the recap excludes it.
+        with patch(
+            "core.llm_providers.appeler_llm",
+            side_effect=RuntimeError("le modèle est injoignable"),
+        ), patch("front.tasks.enchainer_la_verification"):
+            call_command("mettre_a_jour_les_wikis", verbosity=0)
+
+        tour = TourDeWiki.objects.get(wiki=self.wiki)
+        self.assertFalse(tour.a_change_l_article)
+
+    def test_un_wiki_sans_nouveaute_n_est_pas_repris_chaque_nuit(self):
+        # LE PIEGE QUE CE TEST EXISTE POUR EMPECHER. Un wiki garde des
+        # extractions ecartees EN PERMANENCE — un article ne reprend
+        # jamais tout son perimetre. Reprendre sur ce seul critere le
+        # ferait rejuger chaque nuit sur la meme matiere : le modele
+        # reproposerait les memes extractions, l'historique se
+        # remplirait de tours sans cause, et le recapitulatif
+        # annoncerait des modifications que rien n'a appelees.
+        # / A wiki always has left-out extractions; that criterion alone
+        # would re-run it every night on the same material.
+        from front.tasks import _le_wiki_a_une_raison_d_etre_repris
+
+        # Il RESTE une extraction ecartee (l'article n'en cite qu'une
+        # sur deux), mais RIEN n'est apparu depuis la derniere mise a
+        # jour. / Something left out, but nothing new.
+        from core.services.synthese import extractions_ecartees
+
+        self.wiki.derniere_mise_a_jour = timezone.now()
+        self.wiki.save(update_fields=["derniere_mise_a_jour"])
+
+        self.assertTrue(extractions_ecartees(self.page_du_wiki).exists())
+        self.assertFalse(_le_wiki_a_une_raison_d_etre_repris(self.wiki))
+
+        with patch("core.llm_providers.appeler_llm") as appel, patch(
+            "front.tasks.enchainer_la_verification",
+        ):
+            call_command("mettre_a_jour_les_wikis", verbosity=0)
+
+        appel.assert_not_called()
+        self.assertFalse(TourDeWiki.objects.exists())
+
+    def test_une_extraction_neuve_donne_une_raison_de_reprendre(self):
+        from hypostasis_extractor.models import ExtractedEntity
+        from front.tasks import _le_wiki_a_une_raison_d_etre_repris
+
+        self.wiki.derniere_mise_a_jour = timezone.now()
+        self.wiki.save(update_fields=["derniere_mise_a_jour"])
+        self.assertFalse(_le_wiki_a_une_raison_d_etre_repris(self.wiki))
+
+        ExtractedEntity.objects.create(
+            job=self.fixtures["job_analyse"], extraction_class="donnee",
+            extraction_text="Un fait arrivé cette nuit.",
+            start_char=60, end_char=86,
+        )
+
+        self.assertTrue(_le_wiki_a_une_raison_d_etre_repris(self.wiki))
+
+    def test_un_wiki_a_jour_n_a_aucune_raison_meme_avec_du_neuf(self):
+        # L'autre condition reste necessaire : sans ecartee, la
+        # proposition echouerait sur « rien a mettre a jour ».
+        # / Without a left-out extraction the proposal would fail.
+        from core.services.synthese import extractions_du_perimetre
+        from front.tasks import (
+            _ecrire_le_corps_d_un_article, _le_wiki_a_une_raison_d_etre_repris,
+        )
+
+        with patch("front.tasks.enchainer_la_verification"):
+            _ecrire_le_corps_d_un_article(
+                self.page_du_wiki,
+                f"## Le seuil\n\nActé."
+                f"[[ext:{self.fixtures['extraction_seuil'].pk}]] "
+                f"Et coûteux."
+                f"[[ext:{self.fixtures['extraction_cout'].pk}]]\n",
+                set(
+                    extractions_du_perimetre(self.page_du_wiki)
+                    .values_list("pk", flat=True)
+                ),
+                motif_du_tour=MotifDeTourDeWiki.MAJ_MANUELLE,
+                wiki_du_tour=self.wiki,
+            )
+
+        self.assertFalse(_le_wiki_a_une_raison_d_etre_repris(self.wiki))
+
+    def test_un_lot_rejete_ne_fait_pas_revenir_le_wiki_chaque_nuit(self):
+        # LE PIEGE LE PLUS FIN DU CHANTIER. `derniere_mise_a_jour`
+        # n'avance QUE si une operation est appliquee. Un lot
+        # entierement rejete la laisse donc en arriere, la nouveaute
+        # qui avait declenche ce tour compte encore le lendemain, et le
+        # redacteur est rappele chaque nuit sur la meme matiere, pour
+        # le meme rejet. C'est `TourDeWiki.fait_le` — ecrit meme pour un
+        # lot rejete — qui dit « on a deja regarde ».
+        # / A fully rejected batch leaves the date behind; without the
+        # attempt date the writer is summoned nightly on the same
+        # material.
+        from front.tasks import _le_wiki_a_une_raison_d_etre_repris
+
+        self.assertTrue(_le_wiki_a_une_raison_d_etre_repris(self.wiki))
+
+        operations_hallucinees = json.dumps([{
+            "type": "append_to_section",
+            "section": "Une section que le modèle a inventée",
+            "contenu": (
+                "Du contenu."
+                f"[[ext:{self.fixtures['extraction_cout'].pk}]]"
+            ),
+        }])
+        self._passer_la_nuit(operations_hallucinees)
+
+        # Le tour existe, l'article n'a pas bouge, et le compteur du
+        # wiki n'a pas monte. / The round exists; nothing else moved.
+        tour = TourDeWiki.objects.get(wiki=self.wiki)
+        self.assertFalse(tour.a_change_l_article)
+
+        self.wiki.refresh_from_db()
+        self.assertFalse(_le_wiki_a_une_raison_d_etre_repris(self.wiki))
+
+    def test_un_lot_de_no_change_ne_reecrit_pas_l_article(self):
+        # L'applieur ACCEPTE `no_change` — c'est une operation
+        # legitime. Mais accepter n'est pas changer : le chemin
+        # d'ecriture complet (reindexation, juge d'API facture,
+        # compteur de tours) ne doit pas s'ouvrir pour un texte
+        # identique. / Accepted is not changed.
+        texte_avant = self.page_du_wiki.text_readability
+        tours_avant = self.wiki.tours_de_mise_a_jour
+
+        self._passer_la_nuit(json.dumps([{"type": "no_change"}]))
+
+        self.page_du_wiki.refresh_from_db()
+        self.wiki.refresh_from_db()
+        self.assertEqual(self.page_du_wiki.text_readability, texte_avant)
+        self.assertEqual(self.wiki.tours_de_mise_a_jour, tours_avant)
+        self.assertFalse(TourDeWiki.objects.get(wiki=self.wiki).a_change_l_article)
+
     def test_le_maximum_borne_et_compte_ce_qu_il_ecarte(self):
         # Une troncature muette se lirait comme une couverture
         # complete. / A silent truncation would read as full coverage.
@@ -227,10 +412,10 @@ class CeQuiEstExamineTest(BaseDeLaPasseDeNuit):
             second_article, self.fixtures["carnet"],
             self.fixtures["demandeur"],
         )
-        Wiki.objects.create(
+        self._vieillir_le_dernier_tour(Wiki.objects.create(
             page=second_article, dossier=self.fixtures["carnet"],
             sujet="Le seuil, encore",
-        )
+        ))
 
         self._passer_la_nuit(self._operations_valides(), maximum=1)
 
@@ -280,10 +465,10 @@ class LaPasseSeDeclareTest(BaseDeLaPasseDeNuit):
             second_article, self.fixtures["carnet"],
             self.fixtures["demandeur"],
         )
-        Wiki.objects.create(
+        self._vieillir_le_dernier_tour(Wiki.objects.create(
             page=second_article, dossier=self.fixtures["carnet"],
             sujet="Le seuil, encore",
-        )
+        ))
 
         # Le premier appel echoue, le second rend des operations
         # valides. / First call fails, second one succeeds.
@@ -426,6 +611,7 @@ class LaPasseEstUnFanOutDeTachesTest(BaseDeLaPasseDeNuit):
             page=second_article, dossier=self.fixtures["carnet"],
             sujet="Le seuil, encore",
         )
+        self._vieillir_le_dernier_tour(self.second_wiki)
 
     def test_une_tache_est_mise_en_file_par_wiki(self):
         from front.tasks import lancer_la_passe_de_nuit_task

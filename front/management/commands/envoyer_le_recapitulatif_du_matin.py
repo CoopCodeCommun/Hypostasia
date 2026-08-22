@@ -15,10 +15,17 @@ qu'un mail en retard, et un cron en erreur se voit.
 / The mail always follows the night run: it waits, and refuses rather
 than half-announcing.
 
-CE QU'ELLE RACONTE : les wikis modifies depuis le dernier mail de
-CETTE personne, et ceux dont le perimetre a recu du neuf non repris.
-Rien des deux ⇒ aucun mail. C'est le modele Discourse : on n'ecrit
-que quand il y a quelque chose a dire.
+CE QU'ELLE RACONTE : les six rubriques du service (wikis modifies,
+commentaires avec leur texte, articles neufs, notes neuves, carnets
+publics, wikis en retard). Rien du tout ⇒ aucun mail. C'est le modele
+Discourse : on n'ecrit que quand il y a quelque chose a dire.
+
+UN MAIL PAR PERSONNE ET PAR JOUR, MECANIQUEMENT : la garde regarde
+les envois des vingt dernieres heures, pas seulement « y a-t-il du
+neuf depuis le dernier ». Sans elle, une relance a la main apres
+l'arrivee d'un commentaire renvoyait un second mail le meme jour.
+`--forcer` la leve, pour un rattrapage decide.
+/ One mail per person per day, enforced by a look at the last sends.
 
 FLUX :
 1. attend la fin de la passe de nuit (sauf --sans-attendre-la-nuit) ;
@@ -39,7 +46,9 @@ from django.utils import timezone
 
 from core.models import EnvoiDuRecapitulatif
 from core.services.passe_de_nuit import passe_en_cours
-from core.services.recapitulatif_du_matin import matiere_par_destinataire
+from core.services.recapitulatif_du_matin import (
+    a_deja_recu_un_recapitulatif_aujourd_hui, matiere_par_destinataire,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +84,11 @@ class Command(BaseCommand):
         analyseur_d_arguments.add_argument(
             "--destinataire", type=str, default="",
             help="Ne traite qu'un seul destinataire, par son username.",
+        )
+        analyseur_d_arguments.add_argument(
+            "--forcer", action="store_true",
+            help="Envoie meme a qui a deja recu son mail du jour. Pour "
+                 "un rattrapage decide, jamais pour un cron.",
         )
         analyseur_d_arguments.add_argument(
             "--depuis-jours", type=int, default=0,
@@ -116,6 +130,11 @@ class Command(BaseCommand):
                 )
             depuis_force = timezone.now() - timedelta(days=depuis_jours)
 
+        # T0 : l'instant ou la matiere est ARRETEE. C'est lui qui sera
+        # enregistre comme borne haute, jamais l'heure d'envoi — sans
+        # quoi tout ce qui nait pendant que les mails partent tomberait
+        # dans un trou. / T0 is the recorded high bound.
+        instant_du_calcul = timezone.now()
         matiere = matiere_par_destinataire(depuis_force=depuis_force)
 
         nom_demande = (options.get("destinataire") or "").strip()
@@ -162,9 +181,20 @@ class Command(BaseCommand):
 
         envoyes = 0
         en_erreur = 0
+        deja_servis = 0
         for entree in matiere:
+            # UN PAR JOUR, ET C'EST MECANIQUE. Sans cette garde, une
+            # relance a la main apres l'arrivee d'un commentaire
+            # renvoyait un second mail le meme jour.
+            # / One a day, mechanically.
+            if not options.get("forcer") and \
+                    a_deja_recu_un_recapitulatif_aujourd_hui(
+                        entree["utilisateur"],
+                    ):
+                deja_servis += 1
+                continue
             try:
-                self._envoyer_a(entree)
+                self._envoyer_a(entree, instant_du_calcul=instant_du_calcul)
             except Exception as erreur:
                 # UN ECHEC N'ARRETE PAS LES AUTRES : un serveur SMTP
                 # qui refuse une adresse priverait tout le monde de son
@@ -182,7 +212,8 @@ class Command(BaseCommand):
 
         self.stdout.write(
             f"Récapitulatif du matin : {envoyes} envoyé(s), "
-            f"{en_erreur} en erreur."
+            f"{en_erreur} en erreur, {deja_servis} déjà servi(s) "
+            f"aujourd'hui."
         )
 
     def _comptes_de(self, entree):
@@ -271,7 +302,8 @@ class Command(BaseCommand):
             time.sleep(attente)
             secondes_restantes -= attente
 
-    def _envoyer_a(self, entree, adresse=None, enregistrer=True):
+    def _envoyer_a(self, entree, adresse=None, enregistrer=True,
+                   instant_du_calcul=None):
         """
         Un mail, puis sa trace — c'est la trace qui borne le suivant.
         / One mail, then its record: the record bounds the next one.
@@ -315,6 +347,7 @@ class Command(BaseCommand):
         EnvoiDuRecapitulatif.objects.create(
             destinataire=entree["utilisateur"],
             couvre_depuis=entree["depuis"],
+            couvre_jusqu_a=instant_du_calcul or timezone.now(),
             wikis_modifies=len(entree["wikis_modifies"]),
             wikis_avec_du_neuf=len(entree["wikis_avec_du_neuf"]),
         )

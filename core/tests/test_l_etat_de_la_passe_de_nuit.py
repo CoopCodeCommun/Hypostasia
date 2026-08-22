@@ -26,6 +26,36 @@ from core.services.passe_de_nuit import (
 )
 
 
+class UneSeulePasseOuverteALaFoisTest(TestCase):
+    """
+    La garantie est en base, pas en Python.
+    / The guarantee is in the database, not in Python.
+    """
+
+    def test_une_seconde_passe_ouverte_est_refusee_par_la_base(self):
+        # « Regarder s'il y en a une, puis en creer une » laisse une
+        # fenetre que deux lancements simultanes traversent tous les
+        # deux. PostgreSQL, lui, ne laisse pas passer.
+        # / Check-then-create leaves a window; PostgreSQL does not.
+        from django.db import IntegrityError, transaction
+
+        PasseDeNuit.objects.create()
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                PasseDeNuit.objects.create()
+
+    def test_une_passe_fermee_laisse_la_place_a_la_suivante(self):
+        premiere = PasseDeNuit.objects.create()
+        premiere.terminee_le = timezone.now()
+        premiere.save(update_fields=["terminee_le"])
+
+        seconde = PasseDeNuit.objects.create()
+
+        self.assertEqual(PasseDeNuit.objects.count(), 2)
+        self.assertTrue(seconde.tourne_encore)
+
+
 class UnePasseAbandonneeNeBloqueRienTest(TestCase):
     """La passe morte est fermee, pas attendue. / Dead, not awaited."""
 

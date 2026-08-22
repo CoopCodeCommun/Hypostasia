@@ -13,10 +13,13 @@ aucune erreur :
    disputent le meme article.
 
 2. **Une passe morte qui bloque tout.** `terminee_le` reste NULL quand
-   le conteneur est tue en plein travail. Le recapitulatif du matin,
-   qui attend la fin de la passe, attendrait alors POUR TOUJOURS — et
-   personne ne recevrait plus rien, sans un message. Une passe trop
-   vieille est donc declaree ABANDONNEE, et dite comme telle.
+   une tache est tuee net — SIGKILL, OOM, plafond de 30 minutes : le
+   `finally` qui rend la main ne s'execute pas, et le compteur n'atteint
+   jamais son total. Le recapitulatif du matin, qui attend la fin de la
+   passe, attendrait alors POUR TOUJOURS — et personne ne recevrait plus
+   rien, sans un message. UN SEUL wiki tue couterait le mail de TOUT LE
+   MONDE. Une passe trop vieille est donc declaree ABANDONNEE, et le
+   delai est calcule pour qu'elle le soit AVANT le mail du matin.
 / Two silent failures: concurrent passes, and a dead pass blocking the
 morning mail forever.
 """
@@ -27,12 +30,24 @@ from django.utils import timezone
 
 from core.models import PasseDeNuit
 
-# Au-dela, une passe « en cours » est tenue pour morte. Douze heures :
-# largement plus qu'une nuit de travail reel (un appel au redacteur par
-# wiki, sequentiels), et bien moins que le prochain cycle quotidien —
-# une passe abandonnee ne doit jamais survivre a la nuit suivante.
-# / Beyond this, a "running" pass is presumed dead.
-DUREE_MAXIMALE_D_UNE_PASSE = timedelta(hours=12)
+# Au-dela, une passe « en cours » est tenue pour morte.
+#
+# TROIS HEURES, ET LE CHIFFRE EST CONTRAINT PAR LE MATIN. Une tache
+# tuee net (SIGKILL, OOM, plafond de 30 minutes) ne rend jamais la
+# main : `finally` ne s'execute pas sous SIGKILL, et le compteur
+# n'atteint donc jamais son total. La passe reste ouverte, et le
+# recapitulatif — qui attend sa fin — refuse d'envoyer. UN SEUL wiki
+# tue coute alors le mail de TOUT LE MONDE pour la journee.
+#
+# Avec une peremption a douze heures, une passe morte a 2 h 05 bloquait
+# encore le matin de 6 h. A trois heures, elle est fauchee a 5 h 05 : le
+# recapitulatif la trouve fermee et part. Le fan-out rend ce delai
+# large — chaque tache est un appel de quelques dizaines de secondes,
+# et le plafond Celery est de 30 minutes par tache.
+# / Three hours, and the number is set by the morning: a pass killed at
+# 2:05 must be reaped before the 6:00 mail, or one dead task costs
+# everyone's daily mail.
+DUREE_MAXIMALE_D_UNE_PASSE = timedelta(hours=3)
 
 
 def fermer_les_passes_abandonnees():

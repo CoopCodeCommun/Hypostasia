@@ -2978,6 +2978,16 @@ class Wiki(models.Model):
     une reecriture. C'est ce qui permet de voir ce qui a change.
     Un wiki ne s'adopte pas, il se suit.
     / No versions: a state and an update-round counter.
+
+    UNE EXCEPTION EXISTE, ET ELLE PORTE UN NOM. `produire_un_wiki_task`
+    reecrit l'article entier, et l'historique l'enregistre sous le motif
+    `REGENERATION` (`MotifDeTourDeWiki`) — c'est ce que fait
+    `produire_les_syntheses_etalons --forcer`. Elle emporte les avis des
+    juges par CASCADE : le 19 aout 2026, un banc de comparaison l'a
+    appelee neuf fois et 165 avis sont partis en silence. La passe de
+    nuit, elle, n'a AUCUN chemin vers cette tache.
+    / One exception, and it is named: full regeneration, which cascades
+    the judges' opinions away. The nightly pass cannot reach it.
     """
 
     page = models.OneToOneField(
@@ -3129,6 +3139,14 @@ class MotifDeTourDeWiki(models.TextChoices):
         "reparation_de_titres", "Réparation des niveaux de titre",
     )
     REGENERATION = "regeneration", "Régénération complète de l'article"
+    # UN ECHEC EST UN TOUR, ET C'EST DELIBERE. Sans lui, une tache qui
+    # echoue ne laisse RIEN : pas de tour, donc pas d'avancee de la
+    # borne du dernier essai, donc le meme wiki rappelle le redacteur
+    # chaque nuit — sans backoff, sans plafond, et sans que personne ne
+    # le voie ailleurs que dans un journal de worker.
+    # / A failure is a round: otherwise nothing advances and the writer
+    # is summoned every night, invisibly.
+    ECHEC = "echec", "Tentative échouée"
 
 
 class TypeOperationDeSection(models.TextChoices):
@@ -3228,6 +3246,12 @@ class TourDeWiki(models.Model):
     )
     texte_apres = models.TextField(
         blank=True, help_text="Le markdown de l'article après ce tour.",
+    )
+    message_d_echec = models.TextField(
+        blank=True,
+        help_text="Ce qui a empêché ce tour d'aboutir. Vide quand il a "
+                  "abouti. Un échec se lit dans l'historique de "
+                  "l'article, pas seulement dans un journal de worker.",
     )
 
     class Meta:
@@ -3447,11 +3471,39 @@ class PasseDeNuit(models.Model):
                   "passé sous silence : une troncature muette se lirait "
                   "comme une couverture complète.",
     )
+    # LE VERROU, ET POURQUOI IL EST EN BASE. « Regarder s'il y en a une,
+    # puis en créer une » laisse une fenêtre : deux lancements
+    # simultanés — le planificateur et un `make nuit` à la même seconde
+    # — passent tous les deux le contrôle avant que l'un n'ait écrit.
+    # La facture du rédacteur double, et deux tours concurrents se
+    # disputent le même article.
+    #
+    # Un verrou en CACHE ne suffirait pas : le cache par défaut de ce
+    # projet est local au process, or les deux lancements viennent de
+    # process différents. La contrainte ci-dessous, elle, est tenue par
+    # PostgreSQL : une seule ligne peut porter `verrou=True` avec
+    # `terminee_le` à NULL. La seconde création lève, et c'est tant
+    # mieux.
+    # / A database lock: the default cache is per-process, and the two
+    # launches come from different processes.
+    verrou = models.BooleanField(
+        default=True, editable=False,
+        help_text="Toujours True. N'existe que pour porter la "
+                  "contrainte d'unicité qui interdit deux passes "
+                  "ouvertes en même temps.",
+    )
 
     class Meta:
         ordering = ["-lancee_le", "-pk"]
         verbose_name = "Passe de nuit"
         verbose_name_plural = "Passes de nuit"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["verrou"],
+                condition=models.Q(terminee_le__isnull=True),
+                name="une_seule_passe_de_nuit_ouverte",
+            ),
+        ]
 
     def __str__(self):
         etat = "en cours" if self.terminee_le is None else "terminée"
@@ -3484,6 +3536,20 @@ class EnvoiDuRecapitulatif(models.Model):
     envoye_le = models.DateTimeField(auto_now_add=True)
     couvre_depuis = models.DateTimeField(
         help_text="La borne basse de ce que le mail racontait.",
+    )
+    # LA BORNE HAUTE, ET POURQUOI ELLE N'EST PAS `envoye_le`. La matiere
+    # est calculee a un instant T0, puis les mails partent — ce qui
+    # prend d'autant plus de temps qu'il y a de destinataires. Si le
+    # prochain envoi repartait de l'heure d'ENVOI, tout ce qui est ne
+    # entre T0 et l'envoi ne serait raconte NI ce matin (pas encore
+    # calcule) NI demain (deja passe) : perdu, en silence.
+    # / The high bound is the moment the material was computed, not the
+    # moment the mail left: everything born in between would be lost.
+    couvre_jusqu_a = models.DateTimeField(
+        null=True, blank=True,
+        help_text="L'instant où la matière a été calculée. C'est la "
+                  "borne basse du PROCHAIN envoi. NULL = envois "
+                  "d'avant ce champ.",
     )
     wikis_modifies = models.PositiveIntegerField(default=0)
     wikis_avec_du_neuf = models.PositiveIntegerField(default=0)

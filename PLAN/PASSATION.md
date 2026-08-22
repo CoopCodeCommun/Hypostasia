@@ -389,17 +389,29 @@ arbitrage produit qui n'a jamais été posé.**
 
 ## 7. L'état des tests — remesuré le 21 août, après l'histoire des wikis
 
-**2396 tests, tous verts**, dont **1** sauté. La suite tourne en **28 min 33 s**
-(`Ran 2396 tests in 1712.607s`, `make test-rapide`, donc **hors e2e / docling /
+**2426 tests, tous verts**, dont **1** sauté. La suite tourne en **29 min 04 s**
+(`Ran 2426 tests in 1744.341s`, `make test-rapide`, donc **hors e2e / docling /
 llm**). Suite lancée **seule**, aucune mesure concurrente.
 
-> **Les 196 tests de plus que la mesure de 2200 ci-dessous ne sont pas tous les
+> ⚠️ **Cette mesure est ANTÉRIEURE aux correctifs de la relecture adverse du
+> 21 août au soir.** Onze tests ont été ajoutés depuis (5 sur la passe de nuit,
+> 4 sur le récapitulatif, 2 sur la contrainte d'unicité de la passe), et le
+> total n'a **pas** été remesuré — le mainteneur avait demandé de ne pas
+> relancer la suite entière. Les six suites touchées, elles, ont été relancées
+> une par une et sont vertes : `test_la_passe_de_nuit_des_wikis` (26),
+> `test_le_recapitulatif_du_matin` (36), `test_l_etat_de_la_passe_de_nuit` (7),
+> `test_le_planificateur` (8), `test_historique_de_wiki` (12),
+> `test_aucun_corps_de_wiki_sans_tour` (3), `test_l_ecran_de_l_historique` (9),
+> `test_synthese_phase_h` (17). **Remesurer le total avant de citer un
+> chiffre.**
+
+> **Les 226 tests de plus que la mesure de 2200 ci-dessous ne sont pas tous les
 > miens, et je ne les attribue pas.** Le chantier de l'histoire des wikis en
-> ajoute **65**, comptés : 12 pour l'historique d'un tour, 3 pour la garde du
-> motif, 5 pour les destinataires, 5 pour l'état de la passe, 16 pour la passe
-> de nuit, 15 pour le récapitulatif du matin, 9 pour son écran. Les **131
-> restants** viennent d'un travail mené en parallèle : je les compte, je ne dis
-> pas d'où ils sortent.
+> ajoute **106** à l'état du 21 août au soir, comptés : 12 pour l'historique
+> d'un tour, 3 pour la garde du motif, 5 pour les destinataires, 7 pour l'état
+> de la passe, 8 pour le planificateur, 26 pour la passe de nuit, 36 pour le
+> récapitulatif du matin, 9 pour son écran. Les **131 restants** viennent d'un travail mené en
+> parallèle : je les compte, je ne dis pas d'où ils sortent.
 
 > ⚠️ **Une suite tuée depuis l'hôte continue de tourner DANS le conteneur.**
 > `timeout` (ou un Ctrl-C) tue le client `docker compose exec`, pas le process

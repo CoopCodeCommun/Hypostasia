@@ -19,6 +19,20 @@ SIX CHOSES SE RACONTENT (addendum du 21 aout 2026) :
 6. les wikis dont le perimetre a recu du **neuf** que l'article n'a pas
    repris.
 
+ON NE S'ANNONCE JAMAIS A SOI-MEME CE QU'ON VIENT DE FAIRE. Sa propre
+note, son propre commentaire, son propre tour accepte, son propre
+carnet public : le lendemain matin, leur auteur le sait deja. Les lui
+raconter fait du recapitulatif un accuse de reception — et c'est
+l'utilisateur le PLUS ACTIF qui recevrait le plus de bruit, donc celui
+qui cesserait de le lire le premier.
+
+CE QUI RESTE ANNONCE, MEME SUR SES PROPRES OBJETS : ce que LE MOTEUR a
+fait. Un tour de la passe de nuit sur mon wiki est une nouvelle pour
+moi — je ne l'ai pas decide, et c'est meme la seule facon de
+l'apprendre sans ouvrir l'article.
+/ One is never told what one did oneself — except what the ENGINE did,
+which is news even on one's own wiki.
+
 LE PERIMETRE DE CHACUN, ET POURQUOI IL N'EST PAS LE MEME PARTOUT.
 Les rubriques 2, 3 et 5 portent sur les carnets qu'on SUIT — les siens
 et ceux qu'on lui a partages. Elles n'incluent PAS les carnets publics
@@ -62,6 +76,14 @@ from core.services.synthese import (
 # son tout premier mail. / A first mail covers one day, not a month.
 DUREE_PAR_DEFAUT = timedelta(hours=24)
 
+# Le delai minimal entre deux mails a la meme personne. VINGT heures,
+# et non vingt-quatre : le planificateur tombe a heure fixe, et une
+# journee pile ferait sauter un matin sur deux au moindre retard de
+# quelques minutes.
+# / Twenty hours, not twenty-four: a fixed-hour scheduler would skip
+# every other morning on the slightest delay.
+DELAI_ENTRE_DEUX_MAILS = timedelta(hours=20)
+
 # Au-dela, une rubrique se resume au lieu de se derouler : un mail de
 # deux cents lignes n'est plus un mail, c'est un journal. Le compte
 # total est dit dans tous les cas — jamais de troncature muette.
@@ -76,16 +98,46 @@ def borne_du_destinataire(utilisateur):
 
     LOCALISATION : core/services/recapitulatif_du_matin.py
 
-    C'est la date de son dernier recapitulatif — la garantie « un mail
-    par jour au maximum » et « rien deux fois » sont la meme ligne de
-    code. / One mail a day and no repetition are the same rule.
+    C'EST LA BORNE HAUTE DU MAIL PRECEDENT, pas l'heure a laquelle il
+    est parti. La matiere se calcule a un instant, puis les mails
+    partent — ce qui prend du temps quand il y a du monde. Repartir de
+    l'heure d'ENVOI ferait tomber dans un trou tout ce qui est ne entre
+    les deux : ni raconte ce matin-la (pas encore calcule), ni le
+    lendemain (deja passe).
+    / The previous mail's high bound, not the hour it left: anything
+    born in between would fall in a hole.
+
+    `envoye_le` sert de repli pour les envois d'avant ce champ.
+    / `envoye_le` is the fallback for pre-field sends.
     """
     dernier_envoi = EnvoiDuRecapitulatif.objects.filter(
         destinataire=utilisateur,
     ).first()
     if dernier_envoi is not None:
-        return dernier_envoi.envoye_le
+        return dernier_envoi.couvre_jusqu_a or dernier_envoi.envoye_le
     return timezone.now() - DUREE_PAR_DEFAUT
+
+
+def a_deja_recu_un_recapitulatif_aujourd_hui(utilisateur):
+    """
+    Cette personne a-t-elle deja eu son mail du jour ?
+    / Has this person already had today's mail?
+
+    LOCALISATION : core/services/recapitulatif_du_matin.py
+
+    LA PROMESSE « UN PAR JOUR » NE TENAIT QUE PAR ACCIDENT. La seule
+    garde etait « rien de nouveau depuis le dernier envoi » : un
+    commentaire arrive a 9 h, une relance a la main a 10 h, et la
+    personne recevait un SECOND mail le meme jour. En exploitation par
+    le planificateur seul, la promesse tenait de fait ; elle ne tenait
+    pas de droit.
+    / The "one a day" promise held by accident: any manual re-run after
+    fresh activity sent a second mail.
+    """
+    depuis_une_journee = timezone.now() - DELAI_ENTRE_DEUX_MAILS
+    return EnvoiDuRecapitulatif.objects.filter(
+        destinataire=utilisateur, envoye_le__gt=depuis_une_journee,
+    ).exists()
 
 
 def carnets_suivis_par(utilisateur):
@@ -114,10 +166,10 @@ def carnets_suivis_par(utilisateur):
     ).distinct()
 
 
-def _notes_neuves(carnets_suivis, depuis):
+def _notes_neuves(carnets_suivis, depuis, utilisateur):
     """
-    Les notes ordinaires entrees dans ces carnets depuis la borne.
-    / The plain notes that entered those notebooks since the bound.
+    Les notes ordinaires entrees dans ces carnets depuis la borne, sauf
+    les siennes. / The plain notes that entered, minus one's own.
 
     LOCALISATION : core/services/recapitulatif_du_matin.py
 
@@ -130,13 +182,16 @@ def _notes_neuves(carnets_suivis, depuis):
         appartenances_dossiers__dossier__in=carnets_suivis,
         created_at__gt=depuis,
         type_de_note=TypeDeNote.NOTE,
-    ).distinct().select_related("owner").order_by("-created_at")
+    ).exclude(owner=utilisateur).distinct().select_related(
+        "owner",
+    ).order_by("-created_at")
 
 
-def _commentaires_neufs(carnets_suivis, depuis):
+def _commentaires_neufs(carnets_suivis, depuis, utilisateur):
     """
     Les commentaires poses depuis la borne sur les extractions des
-    notes de ces carnets. / The comments posted since the bound.
+    notes de ces carnets, sauf les siens.
+    / The comments posted since the bound, minus one's own.
 
     LOCALISATION : core/services/recapitulatif_du_matin.py
 
@@ -150,7 +205,7 @@ def _commentaires_neufs(carnets_suivis, depuis):
         entity__job__page__appartenances_dossiers__dossier__in=carnets_suivis,
         entity__masquee=False,
         created_at__gt=depuis,
-    ).distinct().select_related(
+    ).exclude(user=utilisateur).distinct().select_related(
         "user", "entity", "entity__job__page",
     ).order_by("-created_at")
 
@@ -170,7 +225,7 @@ def _carnets_publics_neufs(utilisateur, depuis):
     )
 
 
-def _articles_neufs(carnets_suivis, depuis):
+def _articles_neufs(carnets_suivis, depuis, utilisateur):
     """
     Les wikis et syntheses dirigees nes depuis la borne dans ces
     carnets. / The wikis and directed syntheses born since the bound.
@@ -184,13 +239,15 @@ def _articles_neufs(carnets_suivis, depuis):
     """
     wikis = Wiki.objects.filter(
         dossier__in=carnets_suivis, page__created_at__gt=depuis,
-    ).select_related("page", "dossier").order_by("-page__created_at")
+    ).exclude(page__owner=utilisateur).select_related(
+        "page", "dossier",
+    ).order_by("-page__created_at")
 
     dirigees = SyntheseDirigee.objects.filter(
         dossier__in=carnets_suivis, produite_le__gt=depuis,
-    ).select_related("page", "dossier", "produite_par").order_by(
-        "-produite_le",
-    )
+    ).exclude(produite_par=utilisateur).select_related(
+        "page", "dossier", "produite_par",
+    ).order_by("-produite_le")
 
     articles = [
         {
@@ -286,9 +343,14 @@ def matiere_par_destinataire(depuis_force=None):
 
         for utilisateur in destinataires:
             entree = _entree_de(utilisateur)
+            # PAS MES PROPRES TOURS, mais TOUJOURS ceux du moteur : un
+            # tour de la passe de nuit sur mon wiki est une nouvelle
+            # pour moi, puisque je ne l'ai pas decide.
+            # / Not my own rounds, but always the engine's.
             tours_a_raconter = [
                 tour for tour in tours_qui_ont_change
                 if tour.fait_le > entree["depuis"]
+                and tour.fait_par_id != utilisateur.pk
             ]
             if tours_a_raconter:
                 entree["wikis_modifies"].append({
@@ -323,10 +385,16 @@ def matiere_par_destinataire(depuis_force=None):
             continue
 
         borne = depuis_force or borne_du_destinataire(utilisateur)
-        notes_neuves = _premieres(_notes_neuves(carnets_suivis, borne))
-        commentaires = _premieres(_commentaires_neufs(carnets_suivis, borne))
+        notes_neuves = _premieres(
+            _notes_neuves(carnets_suivis, borne, utilisateur),
+        )
+        commentaires = _premieres(
+            _commentaires_neufs(carnets_suivis, borne, utilisateur),
+        )
         publics = _premieres(_carnets_publics_neufs(utilisateur, borne))
-        articles = _premieres(_articles_neufs(carnets_suivis, borne))
+        articles = _premieres(
+            _articles_neufs(carnets_suivis, borne, utilisateur),
+        )
 
         if not any((
             notes_neuves["total"], commentaires["total"],

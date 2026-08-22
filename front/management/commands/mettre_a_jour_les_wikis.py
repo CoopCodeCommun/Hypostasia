@@ -39,11 +39,22 @@ FLUX :
    matin interroge avant de partir (le mail suit TOUJOURS le run).
 """
 
+import time
+from datetime import timedelta
+
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 
 from core.models import Wiki
 from core.services.passe_de_nuit import passe_en_cours
-from core.services.synthese import extractions_ecartees
+
+
+# Combien de temps laisser a la tache d'ouverture pour creer la passe,
+# et a quel rythme regarder. La tache peut patienter derriere d'autres
+# dans la file : deux minutes sont larges sans etre une eternite.
+# / How long the opening task gets to create the pass.
+DELAI_D_OUVERTURE = timedelta(minutes=2)
+SECONDES_ENTRE_DEUX_REGARDS = 3
 
 
 class Command(BaseCommand):
@@ -62,6 +73,13 @@ class Command(BaseCommand):
             "--a-blanc", action="store_true", dest="a_blanc",
             help="N'appelle aucun modele et n'ecrit rien : dit "
                  "seulement quels wikis seraient mis a jour.",
+        )
+        analyseur_d_arguments.add_argument(
+            "--attendre", action="store_true",
+            help="Ne rend la main que lorsque la passe est fermee. "
+                 "INDISPENSABLE quand un recapitulatif suit dans le "
+                 "meme script : sans cela il partirait avant que la "
+                 "passe n'existe.",
         )
         analyseur_d_arguments.add_argument(
             "--meme-si-une-passe-tourne", action="store_true",
@@ -119,21 +137,76 @@ class Command(BaseCommand):
             f"  tâche d'ouverture : {tache_d_ouverture}"
         )
 
+        if options.get("attendre"):
+            self._attendre_la_fermeture()
+
+    def _attendre_la_fermeture(self):
+        """
+        Ne rend la main qu'une fois la passe fermee.
+        / Returns only once the pass is closed.
+
+        LOCALISATION :
+        front/management/commands/mettre_a_jour_les_wikis.py
+
+        POURQUOI CETTE OPTION EXISTE. La commande ne fait plus que
+        METTRE EN FILE : elle rend la main en quelques millisecondes,
+        avant meme que la tache d'ouverture n'ait cree la
+        `PasseDeNuit`. Un script qui enchaine le recapitulatif derriere
+        elle — `bin/nuit.sh tout` — trouvait donc « aucune passe en
+        cours » et envoyait le mail AVANT le travail qu'il annonce.
+        C'est la promesse centrale du chantier, cassee par sa propre
+        porte manuelle.
+        / The command only queues: a script chaining the recap behind it
+        found no running pass and mailed before the work it announces.
+        """
+        from core.models import PasseDeNuit
+        from core.services.passe_de_nuit import passe_en_cours
+
+        # D'abord attendre que la passe EXISTE : la tache d'ouverture
+        # peut patienter derriere d'autres dans la file.
+        # / First wait for the pass to exist.
+        debut = timezone.now()
+        while passe_en_cours() is None:
+            if timezone.now() - debut > DELAI_D_OUVERTURE:
+                derniere = PasseDeNuit.objects.first()
+                if derniere is not None and not derniere.tourne_encore:
+                    # Elle a ouvert ET ferme pendant qu'on regardait :
+                    # rien a attendre. / It opened and closed already.
+                    break
+                raise CommandError(
+                    "La passe n'a pas démarré : le worker Celery "
+                    "répond-il ? (make status) "
+                    "/ The pass never started; is the worker alive?"
+                )
+            time.sleep(SECONDES_ENTRE_DEUX_REGARDS)
+
+        # Puis attendre qu'elle finisse.
+        # / Then wait for it to finish.
+        while passe_en_cours() is not None:
+            time.sleep(SECONDES_ENTRE_DEUX_REGARDS)
+
+        passe = PasseDeNuit.objects.first()
+        if passe is not None:
+            self.stdout.write(
+                f"Passe terminée : {passe.wikis_examines} examiné(s), "
+                f"{passe.wikis_modifies} modifié(s), "
+                f"{passe.wikis_en_erreur} en erreur."
+            )
+
     def _wikis_qui_ont_du_neuf(self):
         """
-        Les wikis dont l'article n'a pas repris toute la matiere de son
-        perimetre. / The wikis whose article left something out.
+        Les wikis qui ont une raison d'etre repris cette nuit.
+        / The wikis with a reason to be re-run tonight.
+
+        LE MEME CRITERE QUE LA TACHE, jamais un second : il exige que
+        quelque chose soit APPARU depuis le dernier tour, et pas
+        seulement qu'il reste des extractions ecartees — un wiki en
+        porte en permanence.
+        / The task's criterion, never a second one.
         """
-        wikis_a_examiner = []
-        for wiki in Wiki.objects.select_related("page", "dossier"):
-            try:
-                a_du_neuf = extractions_ecartees(wiki.page).exists()
-            except Exception as erreur:
-                self.stderr.write(
-                    f"  wiki #{wiki.pk} : périmètre illisible ({erreur}) "
-                    f"— laissé de côté."
-                )
-                continue
-            if a_du_neuf:
-                wikis_a_examiner.append(wiki)
-        return wikis_a_examiner
+        from front.tasks import _le_wiki_a_une_raison_d_etre_repris
+
+        return [
+            wiki for wiki in Wiki.objects.select_related("page", "dossier")
+            if _le_wiki_a_une_raison_d_etre_repris(wiki)
+        ]

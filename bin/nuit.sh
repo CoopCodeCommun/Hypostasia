@@ -38,6 +38,12 @@
 #                  annonce le travail de la nuit, il ne peut pas le
 #                  preceder. Voir la commande Django, qui refuse plutot
 #                  que d'annoncer a moitie.
+#
+#                  ATTENTION : cette attente porte sur une passe DEJA
+#                  OUVERTE. Lancee juste apres `passe`, elle ne verrait
+#                  rien — la mise en file rend la main en quelques
+#                  millisecondes. C'est pourquoi l'etape `tout`
+#                  ci-dessous passe `--attendre` a la premiere.
 #   tout           les deux a la suite. Pour un essai a la main : en
 #                  production, le mail doit partir LE MATIN, donc plus
 #                  tard que la passe.
@@ -83,8 +89,14 @@ case "$ETAPE" in
         dans_le_conteneur envoyer_le_recapitulatif_du_matin "${@:2}"
         ;;
     tout)
-        dire "mise a jour automatique des wikis…"
-        dans_le_conteneur mettre_a_jour_les_wikis
+        # `--attendre` EST INDISPENSABLE ICI, et pas un confort : la
+        # commande ne fait que METTRE EN FILE et rend la main en
+        # quelques millisecondes. Sans elle, le recapitulatif partirait
+        # avant meme que la passe n'existe — donc avant le travail
+        # qu'il annonce. / Without --attendre the recap would mail
+        # before the pass even exists.
+        dire "mise a jour automatique des wikis (on attend la fin)…"
+        dans_le_conteneur mettre_a_jour_les_wikis --attendre
         dire "recapitulatif du matin…"
         dans_le_conteneur envoyer_le_recapitulatif_du_matin
         ;;

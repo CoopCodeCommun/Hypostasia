@@ -62,6 +62,20 @@ Variables : wiki, tours, nombre_total_de_tours
                 {% endif %}
             </li>
 
+            {% if tour.message_d_echec %}
+            {% comment %}
+            UN ECHEC QUI NE VIT QUE DANS UN JOURNAL DE WORKER N'EXISTE
+            POUR PERSONNE. Ici, il se lit a cote des tours qui ont
+            abouti — et il explique pourquoi l'article n'a pas bouge
+            cette nuit-la.
+            / A failure living only in a worker log exists for nobody.
+            {% endcomment %}
+            <li data-testid="synthese-echec-du-tour">
+                <strong>Ce qui a empêché ce tour :</strong>
+                {{ tour.message_d_echec|truncatechars:300 }}
+            </li>
+            {% endif %}
+
             {% for note in tour.notes_declenchantes.all %}
             <li data-testid="synthese-note-declenchante">
                 Note entrée dans le périmètre :

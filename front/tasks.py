@@ -1424,19 +1424,31 @@ def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par=None,
         operations, identifiants_du_perimetre,
     )
 
-    # La borne basse des nouveautes est la DERNIERE MISE A JOUR, lue
-    # avant l'ecriture : `derniere_mise_a_jour` est un auto_now, le save
-    # qui suit l'ecrasera. C'est la meme borne que celle de l'ecran
-    # (`_contexte_d_article`), donc la meme raison des deux cotes.
-    # / Read the previous date before the save overwrites it.
-    depuis = wiki.derniere_mise_a_jour
+    # LA MEME BORNE QUE LE CRITERE DE REPRISE : la date du dernier
+    # ESSAI. Compter depuis la derniere REUSSITE ferait reraconter, au
+    # tour d'apres un lot rejete, des nouveautes que le tour rejete
+    # avait deja vues.
+    # / The same bound as the re-run criterion: the last attempt.
+    depuis = borne_du_dernier_essai(wiki)
 
     # RIEN D'APPLICABLE : on ecrit l'histoire de la tentative, et on ne
     # touche PAS a l'article. Le reecrire a l'identique le ferait passer
-    # par une reindexation complete pour zero changement, et ferait
-    # monter un compteur de tours qui ne raconte rien.
-    # / Nothing applicable: record the attempt, leave the article alone.
-    if not bilan["operations_appliquees"]:
+    # par une reindexation complete pour zero changement — y compris
+    # l'enchainement d'un juge d'API, qui est FACTURE — et ferait monter
+    # un compteur de tours qui ne raconte rien.
+    #
+    # `no_change` COMPTE COMME RIEN. L'applieur l'ACCEPTE (§ 6.1 : c'est
+    # une operation legitime, celle par laquelle le modele dit « il n'y
+    # a rien a ajouter »), mais accepter n'est pas changer : un lot qui
+    # n'en contient que prendrait sinon tout le chemin d'ecriture pour
+    # un texte identique.
+    # / An accepted `no_change` changes nothing: it must not take the
+    # full write path.
+    operations_qui_changent_le_texte = [
+        ligne for ligne in bilan["operations_appliquees"]
+        if (ligne.get("operation") or {}).get("type") != "no_change"
+    ]
+    if not operations_qui_changent_le_texte:
         from core.services.historique_de_wiki import enregistrer_un_tour
 
         texte_inchange = wiki.page.text_readability or ""
@@ -1467,6 +1479,99 @@ def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par=None,
     ])
 
     return bilan, bilan_d_indexation
+
+
+def borne_du_dernier_essai(wiki):
+    """
+    Depuis quand ce wiki n'a-t-il pas ete REGARDE ?
+    / When was this wiki last LOOKED AT?
+
+    LOCALISATION : front/tasks.py
+
+    LA DATE DU DERNIER ESSAI, PAS DE LA DERNIERE REUSSITE. C'est la
+    distinction qui empeche une boucle nocturne, et elle n'est pas
+    intuitive : `derniere_mise_a_jour` n'avance QUE lorsqu'une
+    operation est appliquee. Un lot entierement rejete — cas reel du
+    16 aout : six operations proposees, six rejetees sur des titres
+    hallucines — laisse donc la date en arriere. La nouveaute qui avait
+    declenche ce tour compte encore le lendemain, et le surlendemain :
+    le redacteur est rappele chaque nuit sur la meme matiere, pour le
+    meme rejet.
+
+    `TourDeWiki.fait_le` est ecrit meme quand tout a ete rejete. C'est
+    lui qui dit « on a deja regarde, et ca n'a rien donne ».
+    / The date of the last ATTEMPT, not of the last success: a fully
+    rejected batch leaves `derniere_mise_a_jour` behind, and the same
+    novelty would summon the writer every night.
+
+    :param wiki: le `Wiki` / the wiki
+    :return: la date la plus recente entre le dernier tour et la
+             derniere mise a jour / the latest of the two dates
+    """
+    dernier_tour = wiki.tours.first()
+    if dernier_tour is None:
+        return wiki.derniere_mise_a_jour
+    return max(dernier_tour.fait_le, wiki.derniere_mise_a_jour)
+
+
+def _le_wiki_a_une_raison_d_etre_repris(wiki):
+    """
+    Ce wiki merite-t-il un tour cette nuit ?
+    / Does this wiki deserve a round tonight?
+
+    LOCALISATION : front/tasks.py
+
+    DEUX CONDITIONS, ET LES DEUX SONT NECESSAIRES :
+
+    1. quelque chose est APPARU dans le perimetre depuis le dernier
+       ESSAI — une extraction, un commentaire. Le dernier essai, et non
+       la derniere reussite : voir `borne_du_dernier_essai` ;
+    2. il reste des extractions que l'article n'a pas reprises.
+
+    LA PREMIERE EST CELLE QUI MANQUAIT, et son absence ne coutait pas
+    surtout de l'argent : elle faisait du BRUIT. Un wiki garde des
+    extractions ecartees en permanence — c'est meme le cas nominal, un
+    article ne reprend jamais tout son perimetre (mesure du 21 aout :
+    91 et 97 ecartees sur deux wikis qui n'avaient AUCUNE nouveaute).
+    Le seul critere des ecartees les faisait donc reprendre chaque
+    nuit, indefiniment : le modele reproposait les memes extractions,
+    l'historique se remplissait de tours sans cause, et le
+    recapitulatif annonçait des modifications que rien n'avait
+    appelees. Un journal qui raconte tous les jours la meme chose
+    cesse d'etre lu.
+    / The missing condition cost noise more than money: a wiki always
+    has left-out extractions, so that criterion alone re-ran it every
+    night on the same material.
+
+    LA SECONDE RESTE INDISPENSABLE : sans ecartee, la proposition
+    echouerait sur « rien a mettre a jour ».
+    / Without a left-out extraction the proposal would fail outright.
+
+    :param wiki: le `Wiki` a examiner / the wiki
+    :return: True s'il faut le reprendre / True if it deserves a round
+    """
+    from core.services.nouveautes_du_perimetre import nouveautes_du_perimetre
+    from core.services.synthese import (
+        extractions_ecartees, notes_du_perimetre_d_un_wiki,
+    )
+
+    try:
+        if not extractions_ecartees(wiki.page).exists():
+            return False
+    except Exception as erreur:
+        # Un perimetre illisible (article historique) n'est pas une
+        # raison d'arreter la nuit. / An unreadable scope does not stop
+        # the night.
+        logger.warning(
+            "passe de nuit: wiki=%s perimetre illisible (%s) — laisse "
+            "de cote.", wiki.pk, erreur,
+        )
+        return False
+
+    comptes = nouveautes_du_perimetre(
+        notes_du_perimetre_d_un_wiki(wiki), borne_du_dernier_essai(wiki),
+    )
+    return bool(comptes["total"])
 
 
 @shared_task(bind=True)
@@ -1509,7 +1614,14 @@ def lancer_la_passe_de_nuit_task(self, maximum=0):
     # DEUX PASSES EN MEME TEMPS DOUBLERAIENT LA FACTURE, et deux tours
     # concurrents se disputeraient le meme article. Le cas arrive tout
     # seul : une nuit plus longue que prevu, et le beat repart.
-    # / Concurrent passes double the bill.
+    #
+    # CE CONTROLE-CI DONNE LE MESSAGE CLAIR ; LA GARANTIE EST AILLEURS.
+    # Regarder puis creer laisse une fenetre : deux lancements a la
+    # meme seconde — le planificateur et un `make nuit` — la traversent
+    # tous les deux. C'est la contrainte `une_seule_passe_de_nuit_ouverte`
+    # (core/models.py) qui la ferme, en faisant lever la creation.
+    # / This check gives the clear message; the database constraint
+    # gives the guarantee.
     deja_en_cours = passe_en_cours()
     if deja_en_cours is not None:
         logger.warning(
@@ -1518,31 +1630,34 @@ def lancer_la_passe_de_nuit_task(self, maximum=0):
         )
         return None
 
-    wikis_a_examiner = []
-    for wiki in Wiki.objects.select_related("page", "dossier"):
-        try:
-            a_du_neuf = extractions_ecartees(wiki.page).exists()
-        except Exception as erreur:
-            # Un perimetre illisible (article historique) n'est pas une
-            # raison d'arreter la nuit. / An unreadable scope does not
-            # stop the night.
-            logger.warning(
-                "lancer_la_passe_de_nuit_task: wiki=%s perimetre "
-                "illisible (%s) — laisse de cote.", wiki.pk, erreur,
-            )
-            continue
-        if a_du_neuf:
-            wikis_a_examiner.append(wiki)
+    wikis_a_examiner = [
+        wiki for wiki in Wiki.objects.select_related("page", "dossier")
+        if _le_wiki_a_une_raison_d_etre_repris(wiki)
+    ]
 
     ecartes_par_le_maximum = 0
     if maximum and len(wikis_a_examiner) > maximum:
         ecartes_par_le_maximum = len(wikis_a_examiner) - maximum
         wikis_a_examiner = wikis_a_examiner[:maximum]
 
-    passe = PasseDeNuit.objects.create(
-        wikis_examines=len(wikis_a_examiner),
-        wikis_ecartes_par_le_maximum=ecartes_par_le_maximum,
-    )
+    from django.db import IntegrityError
+
+    try:
+        passe = PasseDeNuit.objects.create(
+            wikis_examines=len(wikis_a_examiner),
+            wikis_ecartes_par_le_maximum=ecartes_par_le_maximum,
+        )
+    except IntegrityError:
+        # LA CONTRAINTE A PARLE. `une_seule_passe_de_nuit_ouverte`
+        # (core/models.py) interdit deux passes ouvertes a la fois :
+        # une autre a demarre pendant qu'on listait les wikis, et le
+        # controle du debut ne pouvait pas la voir.
+        # / The constraint spoke: a pass opened while we were listing.
+        logger.warning(
+            "lancer_la_passe_de_nuit_task: une passe a ete ouverte "
+            "pendant le listage — celle-ci ne demarre pas.",
+        )
+        return None
 
     # RIEN A FAIRE EST UN CAS NORMAL, et il doit fermer la passe tout
     # de suite : sinon le recapitulatif du matin attendrait une passe
@@ -1652,8 +1767,47 @@ def mettre_a_jour_un_wiki_la_nuit_task(self, passe_id, wiki_id):
             "mettre_a_jour_un_wiki_la_nuit_task: wiki=%s a echoue (%s)",
             wiki_id, erreur,
         )
+        _ecrire_un_tour_d_echec(wiki_id, erreur)
     finally:
         _rendre_la_main_a_la_passe(passe_id, a_modifie, en_erreur)
+
+
+def _ecrire_un_tour_d_echec(wiki_id, erreur):
+    """
+    Un echec s'ecrit dans l'histoire de l'article.
+    / A failure is written into the article's history.
+
+    LOCALISATION : front/tasks.py
+
+    DEUX RAISONS, ET LA PREMIERE EST MECANIQUE. Sans tour, la borne du
+    dernier essai n'avance pas : le meme wiki rappelle le redacteur la
+    nuit suivante, et celle d'apres, sans backoff ni plafond — un
+    modele durablement injoignable coute alors tous les soirs. Avec
+    lui, l'echec compte comme un regard : on ne reessaiera qu'a la
+    prochaine nouveaute.
+
+    La seconde raison est pour le lecteur : un echec qui ne vit que
+    dans le journal d'un worker n'existe pour personne. Ici, il se lit
+    dans le depliant « Historique », a cote des tours qui ont abouti.
+    / Two reasons: the attempt bound must advance, and a failure living
+    only in a worker log exists for nobody.
+    """
+    from core.models import MotifDeTourDeWiki, TourDeWiki, Wiki
+
+    wiki = Wiki.objects.filter(pk=wiki_id).select_related("page").first()
+    if wiki is None:
+        return
+    texte_inchange = wiki.page.text_readability or ""
+    TourDeWiki.objects.create(
+        wiki=wiki,
+        numero_de_tour=wiki.tours_de_mise_a_jour,
+        fait_par=None,
+        motif=MotifDeTourDeWiki.ECHEC,
+        depuis=borne_du_dernier_essai(wiki),
+        texte_avant=texte_inchange,
+        texte_apres=texte_inchange,
+        message_d_echec=str(erreur)[:2000],
+    )
 
 
 # Combien de fois le recapitulatif se repasse la main en attendant la
@@ -1737,10 +1891,11 @@ def mettre_a_jour_un_wiki_la_nuit(wiki, modele_ia):
       et se relit le lendemain matin.
     / The night has no privilege over the applier, and never regenerates.
 
-    Aucune tache Celery ici : la passe est SEQUENTIELLE, dans la
-    commande de management. Un appel au redacteur a la fois, donc un
-    cout previsible et une file qui ne se remplit pas d'un coup.
-    / Sequential on purpose: one writer call at a time.
+    CETTE FONCTION N'EST PAS UNE TACHE : c'est le corps d'un tour, et
+    c'est `mettre_a_jour_un_wiki_la_nuit_task` qui l'appelle, une tache
+    par wiki. La garder hors du decorateur la rend appelable
+    directement, en test comme a la main, sans passer par la file.
+    / Not a task itself: the fan-out task calls it, one per wiki.
 
     :param wiki: le `Wiki` a mettre a jour / the wiki
     :param modele_ia: l'`AIModel` du role redacteur / the writer model

@@ -146,7 +146,17 @@ tous les verdicts seraient des citations introuvables n'aurait aucune ligne
         <details class="ligne-depliante" data-testid="synthese-historique-bloc">
             <summary class="ligne">
                 <span>Historique</span>
-                <span>{{ wiki.tours_de_mise_a_jour }} tour{{ wiki.tours_de_mise_a_jour|pluralize }}</span>
+                {% comment %}
+                LE COMPTE VIENT DES TOURS ECRITS, pas du compteur du
+                wiki : les deux divergent des le premier lot rejete
+                (un tour est ecrit, le compteur ne monte pas — il ne
+                compte que les tours qui ont CHANGE l'article). Deux
+                nombres sous le meme mot, c'est le defaut que le
+                dépliant des écartées avait déjà connu.
+                / The count comes from the recorded rounds, not the
+                wiki's counter: they diverge at the first rejected batch.
+                {% endcomment %}
+                <span>{{ wiki.tours.count }} tour{{ wiki.tours.count|pluralize }}</span>
             </summary>
             <div class="contenu-de-la-ligne"
                  hx-get="/wikis/{{ wiki.pk }}/historique/"
