@@ -344,6 +344,14 @@ de 50 ; `bge-m3` rend `P(entailment)` brut, étalé de 0,3 à 99,2.
 contradiction, c'est-à-dire sans le signal que tout le dossier défend. Une marge
 par juge, ou une échelle commune : à trancher.
 
+**Le rédacteur : Medium, tranché le 22 août 2026.** Le banc ne départageait pas
+Small et Medium (articles différents, pas meilleurs) ; le mainteneur garde
+**Medium** pour sa densité de sources — 10 % de prose sans marqueur contre
+18,8 %. Reste ouvert, et jamais posé comme question produit : **un article sur
+un sujet que le corpus couvre mal se dégrade en prose non sourcée** (4,5 % sur
+« open badges », **35,2 %** sur « gouvernance collective »), et changer de
+modèle n'y change rien.
+
 **Faut-il assouplir la comparaison du verbatim ?** (mesure du 19 août,
 `benchmarks/extraction_format/2026-08-19_le-mode-d-echec-du-verbatim.md`) Sur
 les 60 citations `INTROUVABLE` en base, **34 (57 %)** ne tiennent qu'à une
@@ -356,9 +364,21 @@ veut dire dans la chaîne de preuve, et le produit tout entier repose dessus.
 
 Et la cause dominante n'est pas le modèle : **la page 1 porte littéralement
 `territoire .`**, un point détaché de son mot par l'ingestion, que les trois
-Mistral recollent et que notre comparaison leur refuse. Corriger l'ingestion
-traiterait la cause — au prix d'une réingestion. **Trois voies, aucune
-tranchée.**
+Mistral recollent et que notre comparaison leur refuse.
+
+> **La cause côté moteur a été corrigée le 22 août 2026**
+> (`CHANGELOG/2026-08-22-le-point-detache-de-son-mot.md`). La mesure a
+> d'abord tranché une question qui ne l'était pas : **le défaut a DEUX
+> origines distinctes**. Sur un fichier (markdown, PDF), c'est le moteur —
+> Docling découpe au balisage en ligne, et notre recollage insérait un espace
+> inconditionnel ; `PRESENTATION-V3.md` porte zéro espace avant un point,
+> l'élément stocké en portait un. Sur une **capture web**, c'est la donnée
+> source elle-même : **505** espaces avant un point dans le HTML d'une seule
+> page. Là, le moteur recopie fidèlement, et il a raison.
+>
+> **Ce qui reste ouvert** est donc l'arbitrage, pas la cause : faut-il
+> assouplir la comparaison pour les sources qui écrivent `mot .` ? Et faut-il
+> réingérer les documents déjà en base (22 éléments touchés sur 1103) ?
 
 **Le banc des rédacteurs a tourné, et il a mesuré son propre bruit.** Neuf
 passes (3 modèles × 3 répétitions × 4 articles, températures à 0, périmètre
