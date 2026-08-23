@@ -9,6 +9,43 @@
 > Ce qui n'a pas été vérifié est dit comme tel. Ne jamais réécrire un chiffre
 > sans le remesurer.
 
+
+> ## La journée du 23 août 2026 — une session d'exploration, un correctif
+>
+> **Ce qui a été LIVRÉ** : un seul correctif, `CHANGELOG/2026-08-23-la-fusion-de-deux-tours-gardait-le-mauvais-locuteur.md`
+> (migration `core/0080`, appliquée). `_fusionner_les_provenances` lisait
+> `start_time`/`end_time`/`voice` — trois clés que l'ingestion audio n'écrit nulle
+> part. Recoller deux tours gardait donc **le locuteur du premier, quel qu'il soit**,
+> et une borne de fin trop courte. Les tests étaient verts sur ce contrat mort.
+>
+> **Ce qui a été ÉCRIT, non codé** : `PLAN/TODO/` passe à **20 notes**, et une spec
+> neuve — `PLAN/specs/SPEC-edition-par-blocs-et-stenotypie.md` (v1.1, relue le jour
+> même, deux erreurs de fait corrigées). Plus un dossier externe conservé dans
+> `PLAN/Documents exterieurs/`.
+>
+> **Trois constats qui changent une priorité :**
+>
+> 1. 🔴 **`/api/extraction-jobs/` et `/api/extracted-entities/` sont ouverts à tous.**
+>    Mesuré sans cookie, avec le Host de production : 17 487 octets pour un job
+>    (prompt + 25 extractions verbatim), **375 122 octets** pour la liste des
+>    extractions. Routé dans les deux conf nginx.
+>    → `PLAN/TODO/2026-08-23-l-api-des-jobs-est-ouverte-a-tous.md`
+> 2. **Le prompt réellement envoyé n'est enregistré sur AUCUN chemin.**
+>    `prompt_description` porte le préambule système (4 999 car.) ou une étiquette
+>    (38 car.) ; le prompt assemblé fait **75 928 car.** sur le job 35. Et
+>    `ExtractionJob.analyseur_version` n'a **aucun écrivain** : 0 job sur 37.
+>    → aucun banc n'est rattachable à sa cause tant que ce n'est pas réparé.
+> 3. **La doc ment sur la nuit et sur la vérification.** Les planches
+>    `PLAN/Diagrams/` datent du 17 août et n'ont pas suivi : la planche 03 affirme que
+>    la vérification n'est « jamais automatique à la production », faux depuis le
+>    21 août ; la planche 02 ne montre que le chemin humain de mise à jour d'un wiki.
+>    L'addendum du 18 août de `SPEC-synthese-carnet.md` porte la même erreur.
+>
+> **La méthode qui a produit ces trois-là** : faire relire par deux agents adverses
+> avec accès au dépôt. Ils ont trouvé deux erreurs de fait dans un document que je
+> venais d'écrire, et l'une d'elles était le symptôme du bug de production corrigé
+> depuis. **À reconduire.**
+
 ---
 
 ## 0. Ce qu'il faut savoir en trois phrases
@@ -740,11 +777,34 @@ un contraste de 1,15:1 là où il valait 4,13:1.
 
 ## 10. Par quoi commencer
 
-1. **Ouvrir l'étalon et le produit côte à côte**, en clair puis en sombre. Les
-   sept écarts sont tous résolus ou assumés — mais les tableaux périment, et
-   celui-ci s'est déjà révélé faux sur quatre lignes. Mesurer avant de croire.
-2. **Écrire la spec du visualiseur PDF** avant de l'attaquer (§ 5.2).
-3. **Mesurer les proportions** (§ 5.3). S'il n'y a rien à corriger, le dire :
-   c'est un résultat.
-4. **Mettre à jour le tableau des écarts** dans l'en-tête de `maquette.html` à
-   chaque ligne touchée. La session suivante repart de là.
+> **Révisé le 23 août 2026.** L'ordre qui suit remplace celui du chantier UX/UI, qui
+> visait le visualiseur PDF et les proportions. Ces deux-là restent au § 5 et dans
+> `PLAN/TODO/2026-08-22-le-visualiseur-pdf-avec-surlignage.md` — ils ne sont plus
+> premiers, parce qu'un défaut de sécurité et un trou de traçabilité sont passés
+> devant.
+
+1. 🔴 **Fermer `/api/extraction-jobs/` et `/api/extracted-entities/`.** C'est le seul
+   défaut du dossier qui produit un effet **maintenant, en ligne**, et il bloque tout
+   le reste : la série des notes sur les prompts y déverserait 25 à 80 ko de corpus
+   par job. Une demi-journée, aucune dépendance.
+   → `2026-08-23-l-api-des-jobs-est-ouverte-a-tous.md`
+2. **Prototyper l'option C de l'édition par blocs** — un jour, et elle tranche le plus
+   gros chantier du dossier : trois voies concurrentes dont deux ne seront jamais
+   écrites. Le meilleur rapport information/coût.
+   → `2026-08-23-le-prototype-blocknote-sur-notre-back.md`, section « Option C »
+3. **Le gratuit, si on veut un résultat sans facture** : les distributions par juge
+   sur les 836 avis déjà en base. **Aucun modèle appelé**, et cela débloque le degré
+   progressif, que la note du 20 août appelle « la cible du mainteneur ».
+   → `2026-08-22-la-marge-de-neutralite-des-juges-locaux.md`
+4. **La doc qui ment** (planches 02/03, README des Diagrams, addendum de spec,
+   docstring Q3, et le prompt qui promet au modèle qu'« un humain acceptera »). Une
+   demi-journée, faisable en parallèle de n'importe quoi d'autre.
+   → `2026-08-23-la-doc-ment-sur-la-nuit-et-la-verification.md`
+
+**Ce qui vient ensuite, dans l'ordre** : la provenance minimale d'un prompt (bloquante
+pour toute mesure), les deux bornes — le prompt de mise à jour et la réécriture
+nocturne —, puis le typage des analyseurs.
+
+**Et une règle de méthode, mesurée le 23 août** : faire relire par un agent adverse
+avec accès au dépôt, **avant** de croire un document qu'on vient d'écrire. Deux erreurs
+de fait y ont été trouvées le jour même, dont une qui cachait un bug de production.
