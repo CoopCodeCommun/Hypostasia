@@ -436,7 +436,7 @@ def _fusionner_les_provenances(provenance_du_premier, provenance_du_second):
 
     Trois formes de provenance, selon la source :
       PDF   -> {page_no, boites: [...]}  les boites s'additionnent
-      audio -> {start_time, end_time, voice}  l'intervalle s'elargit
+      audio -> {locuteur, debut, fin}  l'intervalle s'elargit
       autre -> {}  rien a faire
 
     On ne perd aucune information : deux boites PDF distinctes restent
@@ -471,21 +471,29 @@ def _fusionner_les_provenances(provenance_du_premier, provenance_du_second):
         )
 
     # Cas audio : l'intervalle couvre les deux tours de parole.
-    # / Audio case: the interval covers both turns.
-    debut_du_premier = provenance_du_premier.get("start_time")
-    fin_du_second = provenance_du_second.get("end_time")
+    #
+    # LES CLES SONT CELLES DE L'INGESTION — `locuteur`, `debut`, `fin`
+    # (`services/ingestion_audio.py`), et c'est aussi ce que le rendu
+    # lit (`front/services/rendu_elements.py`). Toute autre orthographe
+    # rend `None` a chaque lecture : les deux gardes ci-dessous ne font
+    # alors plus rien, et la provenance du PREMIER tour est conservee
+    # telle quelle — locuteur compris.
+    # / The keys are the ingestion's own; any other spelling silently
+    # disables both guards below and keeps the FIRST turn's provenance.
+    debut_du_premier = provenance_du_premier.get("debut")
+    fin_du_second = provenance_du_second.get("fin")
     if debut_du_premier is not None:
-        provenance_fusionnee["start_time"] = debut_du_premier
+        provenance_fusionnee["debut"] = debut_du_premier
     if fin_du_second is not None:
-        provenance_fusionnee["end_time"] = fin_du_second
+        provenance_fusionnee["fin"] = fin_du_second
 
     # Le locuteur n'est conserve que si c'est le meme des deux cotes.
     # Recoller deux locuteurs differents effacerait qui a dit quoi.
     # / The speaker is kept only if both sides agree.
-    locuteur_du_premier = provenance_du_premier.get("voice")
-    locuteur_du_second = provenance_du_second.get("voice")
+    locuteur_du_premier = provenance_du_premier.get("locuteur")
+    locuteur_du_second = provenance_du_second.get("locuteur")
     if locuteur_du_premier != locuteur_du_second:
-        provenance_fusionnee.pop("voice", None)
+        provenance_fusionnee.pop("locuteur", None)
 
     return provenance_fusionnee
 

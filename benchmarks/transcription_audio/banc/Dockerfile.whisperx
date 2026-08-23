@@ -1,0 +1,37 @@
+# WhisperX — la pile complete : Whisper (via faster-whisper) + alignement
+# wav2vec2 au mot + diarisation pyannote.
+# / WhisperX: Whisper via faster-whisper + wav2vec2 word alignment + pyannote.
+#
+# CE QU'ELLE APPORTE AU BANC, ET QUI EST DIFFERENT DE TOUT LE RESTE :
+#
+# 1. **Un autre ASR.** Toutes les autres piles du banc transcrivent avec
+#    Parakeet TDT v3. WhisperX utilise Whisper (large-v3 par defaut ici), dont
+#    le francais est repute meilleur. C'est donc la seule ligne du tableau qui
+#    fasse varier l'ASR — et le WER doit se lire en le sachant.
+# 2. **Un alignement force au mot**, par wav2vec2, la ou notre pilote aligne les
+#    horodatages du decodeur. C'est exactement le probleme que le collage de ce
+#    banc resout a la main : WhisperX le resout avec un modele.
+# 3. **Le meme `community-1` que pyannote** pour la diarisation : le jeton et
+#    l'acceptation des conditions valent donc aussi pour lui.
+#
+# CPU : `--compute_type int8 --device cpu`, ce que CTranslate2 sait faire sans
+# carte graphique. Sur un processeur sans VNNI, attendre le meme genre de
+# desagrement que pour Parakeet en int8 (voir la note du 22 aout).
+# / CPU: int8 via CTranslate2 — expect the same INT8 caveat on a VNNI-less CPU.
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg ca-certificates curl git time \
+    && rm -rf /var/lib/apt/lists/*
+
+# L'index CPU de PyTorch : wav2vec2 et pyannote tournent dessus.
+# / PyTorch's CPU index: wav2vec2 and pyannote run on it.
+RUN pip install --no-cache-dir torch torchaudio \
+        --index-url https://download.pytorch.org/whl/cpu
+
+# Pas de version figee : on mesure l'installation telle qu'elle vient.
+# / No pins: we measure the install as it comes.
+RUN pip install --no-cache-dir whisperx
+
+WORKDIR /work
+ENV HF_HOME=/work/.cache_huggingface

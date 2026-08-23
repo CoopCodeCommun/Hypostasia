@@ -1,0 +1,40 @@
+# pyannote.audio 4.x A JOUR — le pipeline `community-1`, celui que pyannote
+# recommande aujourd'hui.
+# / pyannote.audio 4.x, up to date — the `community-1` pipeline.
+#
+# POURQUOI CETTE IMAGE EXISTE A COTE DE `Dockerfile.diarisation`. Celle-la fige
+# `pyannote.audio==3.3.2`, `torch==2.5.1` et `huggingface_hub<1.0` pour faire
+# tourner `speaker-diarization-3.1` — que la documentation officielle appelle
+# desormais **legacy**. Mesurer uniquement cette version-la donnerait un chiffre
+# de 2024 presente comme l'etat de l'art. Les deux images coexistent donc, et le
+# tableau comparatif porte la version de chaque ligne.
+# / The other image pins 2024 versions to run the *legacy* 3.1 pipeline. Both
+# coexist so the comparison table can carry each line's version.
+#
+# CE QUE `community-1` EXIGE, ET QUI COMPTE POUR LE CRITERE 4 :
+# accepter les conditions de `hf.co/pyannote/speaker-diarization-community-1`
+# avec le compte qui porte le jeton. Sans cela, le telechargement des poids rend
+# **403**, alors meme que l'API des metadonnees rend 200 — l'acces se verifie
+# donc sur un FICHIER, jamais sur le depot.
+# / Access must be checked on a FILE: the metadata API answers 200 even when the
+# weights are refused with 403.
+FROM python:3.12-slim
+
+# ffmpeg est requis par torchcodec, la bibliotheque de decodage audio que
+# pyannote 4.x utilise desormais. / ffmpeg is required by torchcodec.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg ca-certificates curl time \
+    && rm -rf /var/lib/apt/lists/*
+
+# L'index CPU de PyTorch : la machine cible n'a pas de carte graphique.
+# / PyTorch's CPU index: the target machine has no GPU.
+RUN pip install --no-cache-dir torch torchaudio \
+        --index-url https://download.pytorch.org/whl/cpu
+
+# Aucune version figee ici, delibere : c'est l'installation « telle qu'un
+# nouveau venu la ferait aujourd'hui » que cette image mesure.
+# / No pins here, on purpose: this image measures the install a newcomer gets today.
+RUN pip install --no-cache-dir pyannote.audio "onnx-asr[cpu,hub]"
+
+WORKDIR /work
+ENV HF_HOME=/work/.cache_huggingface

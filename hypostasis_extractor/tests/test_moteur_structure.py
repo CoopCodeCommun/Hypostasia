@@ -778,20 +778,61 @@ class ProvenanceApresFusionTest(BaseMoteurStructureTestCase):
         self.assertEqual(boites[0]["page_no"], 1)
         self.assertEqual(boites[1]["page_no"], 2)
 
+    def _provenance_d_un_tour(self, locuteur, debut, fin):
+        """
+        La provenance d'un tour de parole, PRODUITE PAR L'INGESTION.
+        / A speech turn's provenance, PRODUCED BY THE INGESTION CODE.
+
+        LOCALISATION : hypostasis_extractor/tests/test_moteur_structure.py
+
+        On ne l'ecrit PAS a la main. Un test qui fabrique son propre
+        contrat ne teste que lui-meme : ces tests-ci ont ete verts
+        pendant des mois sur des cles (`start_time`, `end_time`,
+        `voice`) que l'ingestion n'ecrit nulle part, pendant que la
+        fusion gardait en silence le locuteur du premier tour quel que
+        soit le second.
+        / Never hand-write it: these very tests stayed green for months
+        on keys the ingestion never writes.
+        """
+        from hypostasis_extractor.services.ingestion_audio import (
+            _decouper_un_tour_trop_long,
+        )
+
+        tour = {
+            "texte": "Un tour court, qui ne sera pas decoupe.",
+            "locuteur": locuteur, "debut": debut, "fin": fin,
+        }
+        return _decouper_un_tour_trop_long(tour)[0]["provenance"]
+
+    def test_la_provenance_du_tour_porte_les_cles_de_l_ingestion(self):
+        """
+        Le contrat lui-meme : `locuteur`, `debut`, `fin`.
+        / The contract itself.
+
+        Si cette assertion tombe, les trois tests qui suivent ne
+        prouvent plus rien : ils tourneraient sur un contrat mort.
+        / If this one falls, the next three prove nothing.
+        """
+        provenance = self._provenance_d_un_tour("A", 10.0, 15.0)
+
+        self.assertEqual(
+            set(provenance), {"locuteur", "debut", "fin"},
+        )
+
     def test_l_intervalle_audio_s_elargit(self):
         """La fusion de deux segments couvre les deux intervalles."""
         premier = self._ajouter_un_element(
-            "AAAA", provenance={"start_time": 10.0, "end_time": 15.0, "voice": "A"},
+            "AAAA", provenance=self._provenance_d_un_tour("A", 10.0, 15.0),
         )
         second = self._ajouter_un_element(
-            "BBBB", provenance={"start_time": 15.0, "end_time": 22.5, "voice": "A"},
+            "BBBB", provenance=self._provenance_d_un_tour("A", 15.0, 22.5),
         )
 
         element_fusionne = fusionner_deux_elements(premier, second)
 
-        self.assertEqual(element_fusionne.provenance["start_time"], 10.0)
-        self.assertEqual(element_fusionne.provenance["end_time"], 22.5)
-        self.assertEqual(element_fusionne.provenance["voice"], "A")
+        self.assertEqual(element_fusionne.provenance["debut"], 10.0)
+        self.assertEqual(element_fusionne.provenance["fin"], 22.5)
+        self.assertEqual(element_fusionne.provenance["locuteur"], "A")
 
     def test_deux_locuteurs_differents_effacent_le_locuteur(self):
         """
@@ -800,15 +841,38 @@ class ProvenanceApresFusionTest(BaseMoteurStructureTestCase):
         / Merging two different speakers erases the speaker attribution.
         """
         premier = self._ajouter_un_element(
-            "AAAA", provenance={"start_time": 10.0, "end_time": 15.0, "voice": "A"},
+            "AAAA", provenance=self._provenance_d_un_tour("A", 10.0, 15.0),
         )
         second = self._ajouter_un_element(
-            "BBBB", provenance={"start_time": 15.0, "end_time": 22.5, "voice": "B"},
+            "BBBB", provenance=self._provenance_d_un_tour("B", 15.0, 22.5),
         )
 
         element_fusionne = fusionner_deux_elements(premier, second)
 
-        self.assertNotIn("voice", element_fusionne.provenance)
+        self.assertNotIn("locuteur", element_fusionne.provenance)
+
+    def test_la_borne_de_fin_vient_du_SECOND_tour(self):
+        """
+        Le tour fusionne s'arrete quand le SECOND s'arrete, jamais quand
+        le premier s'arretait. / The merged turn ends when the SECOND
+        one ends.
+
+        Une fin restee sur celle du premier tour rend l'intervalle trop
+        court : le lecteur audio cesse de surligner avant la fin du
+        texte affiche, et « ecouter depuis ici » s'arrete au milieu.
+        / A stale end makes the interval too short, and the player stops
+        highlighting before the end of the displayed text.
+        """
+        premier = self._ajouter_un_element(
+            "AAAA", provenance=self._provenance_d_un_tour("A", 10.0, 15.0),
+        )
+        second = self._ajouter_un_element(
+            "BBBB", provenance=self._provenance_d_un_tour("B", 15.0, 22.5),
+        )
+
+        element_fusionne = fusionner_deux_elements(premier, second)
+
+        self.assertEqual(element_fusionne.provenance["fin"], 22.5)
 
 
 class ScissionPuisFusionTest(BaseMoteurStructureTestCase):

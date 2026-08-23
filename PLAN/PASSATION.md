@@ -280,10 +280,54 @@ attente (§ 6).
 **L'état cible et le protocole sont dans `PLAN/specs/SPEC-transcription-audio-locale.md`.**
 Ne pas les recopier ici — cette entrée ne dit que ce qui bouge.
 
-**Où on en est** : rien n'est mesuré. Le banc d'essai est écrit et compile sans
-avertissement (vérifié le 16 août), le matériau de test est choisi, et le § 7 de
-la spec donne les huit étapes à dérouler. La première session s'est arrêtée pendant
-le téléchargement des 2,4 Go de l'encodeur.
+**Où on en est — la campagne a tourné le 22 août 2026.** Résultats détaillés :
+`benchmarks/transcription_audio/2026-08-22_parakeet-contre-voxtral-sur-huit-vcpu.md`,
+entrée de chantier : `CHANGELOG/2026-08-22-transcription-locale.md`. Ne pas les
+recopier ici. **Ce qui reste vrai, et qui commande la suite :**
+
+- **Le banc est versionné** dans `benchmarks/transcription_audio/banc/` (décision
+  du mainteneur, 22 août). Les annexes de la spec ne sont plus la seule copie.
+- **Le protocole de découpage de la spec (§ 6.2, blocs de 240 s) est faux** : il
+  rend 95 % de WER et du franglais. Parakeet TDT v3 exige un découpage sur la
+  parole (VAD) ou, à défaut, des blocs de 20 s.
+- **Le critère 3 est satisfait** : 12,8 min de calcul par heure d'audio, 1,84 Go
+  de pic, 2,4 cœurs sur 8.
+- **Le critère 1 ne l'est pas.** Sur une tranche à 6 voix, Sortformer en rend 4,
+  `diarize` 5, et **les deux affichent 0 % d'INCONNU** : l'échec est silencieux,
+  exactement le mode de panne disqualifiant. Voxtral se trompe aussi (7 pour 6)
+  mais en sur-segmentant — une erreur qu'un seuil peut voir.
+- **Le WER local reste 8 points au-dessus de Voxtral** (34,9 % contre 26,9 %).
+
+**Le 23 août, la campagne complète a tourné** : neuf piles, trois tranches,
+vingt-sept mesures.
+`benchmarks/transcription_audio/2026-08-23_neuf-piles-contre-la-transcription-humaine.md`.
+Ce qui change les conclusions ci-dessus :
+
+- **pyannote est le seul diariseur juste sur les trois tranches**, six voix
+  comprises — 3.1 *legacy* et `community-1` à égalité. Il coûte **65 min/h** et
+  exige un jeton plus l'acceptation de conditions.
+- **WhisperX bat Voxtral sur le WER partout** (25,05 % contre 27,07 % sur T1),
+  mais coûte **deux fois le temps réel** et 8 Go, et rate le compte à six voix.
+- **Parakeet TDT v3 est instable en français** : de 0,36 % à 38 % de mots
+  anglais selon la tranche et l'implémentation, contre 0,10 % chez l'humain.
+  C'est lui qui plombe toutes les piles locales bon marché.
+- **`sherpa-onnx` rend 15 à 24 locuteurs pour 4** avec le seuil par défaut du
+  banc : la mesure porte sur **notre paramétrage**, pas sur la pile. À reprendre
+  avant d'en conclure quoi que ce soit.
+- **La combinaison qui n'a pas été mesurée** : Whisper pour l'ASR + pyannote
+  pour la diarisation + **notre** collage au point milieu. Les trois briques
+  sont dans le banc.
+
+**Ce qui n'a pas été fait** : `loudpage/parakeet-v3-diarized` (son image se
+construit, le dépôt ne fournit aucun Dockerfile) et le banc sur GPU ou sur NPU
+— voir `PLAN/TODO/2026-08-23-le-banc-de-transcription-sur-gpu-et-sur-npu.md`.
+
+**Le jeton `HF_TOKEN_DIARIZATION` fonctionne** — les conditions de
+`speaker-diarization-3.1` **et** de `community-1` sont acceptées depuis le
+23 août. Piège à connaître : **l'accès se vérifie sur un fichier, jamais sur le
+dépôt** ; l'API des métadonnées répond 200 alors que les poids sont refusés
+en 403. Le conteneur `web` du projet, lui, ne voit toujours pas ce jeton —
+`env_file` est lu au démarrage, et le recréer coupe les workers.
 
 **Les trois choses à savoir avant d'y toucher** :
 
@@ -296,9 +340,10 @@ le téléchargement des 2,4 Go de l'encodeur.
   `logger.info`. Il dit notre *intention*, pas le comportement actuel. Ça compte,
   parce que le diariseur candidat (Sortformer) plafonne à **4** locuteurs, et que
   son mode de panne au-delà est **silencieux** : la sortie reste plausible.
-- **Le banc n'existe que dans les annexes de la spec.** Le scratchpad où il vivait
-  a déjà été purgé une fois. Les annexes A à G sont intégrales et suffisent à tout
-  reconstruire — ne pas les alléger.
+- **Le banc est versionné depuis le 22 août** dans
+  `benchmarks/transcription_audio/banc/`, avec son `installer_le_banc.sh` et le
+  collage Python de la voie B. Les annexes A à G de la spec restent la copie de
+  référence — ne pas les alléger — mais elles ne sont plus la seule.
 
 **Résultats à consigner** dans un `CHANGELOG/AAAA-MM-JJ-transcription-locale.md`,
 pas ici.
@@ -316,7 +361,10 @@ tableaux n'en ont aucun. Découper par ligne à l'ingestion, ou assumer le bloc 
 signalée deux fois, jamais tranchée.
 
 **Combien de voix dans les enregistrements réels ?** (chantier 5.4) C'est la
-question qui commande toute l'architecture de la transcription locale. Le
+question qui commande toute l'architecture de la transcription locale — et la
+mesure du 22 août la rend **plus** aiguë : sur une tranche à 6 voix réelles,
+Sortformer en rend 4 et `diarize` 5, tous deux avec **0 % d'INCONNU**. L'échec
+prédit par le § 4.5 est mesuré, et il est muet. Le
 diariseur candidat plafonne à **4 locuteurs**, notre `max_speakers` vaut **5**, et
 au-delà de 4 la sortie est fausse **sans le dire**. À 3-4 voix, la pile candidate
 est excellente et gère même la parole superposée ; à 6-8, il faut un autre modèle
@@ -329,9 +377,10 @@ le taux d'erreur de diarisation. Un vrai DER suppose d'annoter à la main les
 frontières de tours sur un extrait — quelques heures de travail. À arbitrer avant
 de s'y engager, pas après.
 
-**Où ranger le banc d'essai ?** (chantier 5.4) Il n'existe aujourd'hui que dans
-les annexes de sa spec, faute d'un emplacement décidé pour du code qui n'est pas
-du code de production.
+> **Où ranger le banc d'essai ? — TRANCHÉ le 22 août 2026.** Les scripts vont
+> dans `benchmarks/transcription_audio/banc/` (versionnés) ; les poids, l'audio
+> et les résultats bruts restent **hors dépôt**, dans un dossier de travail passé
+> en argument à `installer_le_banc.sh`. Fait le jour même.
 
 **La marge de neutralité des juges locaux, à revoir.** (mesure du 20 août, sur
 836 avis réels) `MARGE_DE_NEUTRALITE = 2,5` est appliquée uniformément à des

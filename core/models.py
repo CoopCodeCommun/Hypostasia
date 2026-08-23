@@ -2410,7 +2410,7 @@ class ElementDocument(models.Model):
                   "PDF -> {page_no, boites: [{l,t,r,b,coord_origin}, ...]} "
                   "(LISTE de boites : un paragraphe a cheval sur deux pages "
                   "ou deux colonnes produit plusieurs entrees). "
-                  "audio -> {start_time, end_time, voice}. "
+                  "audio -> {locuteur, debut, fin} (les cles ecrites par services/ingestion_audio.py, et lues par le rendu). "
                   "md/html/txt -> {}",
     )
 

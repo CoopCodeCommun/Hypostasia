@@ -35,6 +35,18 @@ par une chaîne locale — et son étalon est une transcription humaine, pas un 
 finissent toujours par diverger, et c'est ce que la ligne précédente faisait
 jusqu'au 16 août 2026.
 
+## Le sixième fichier non plus
+
+`SPEC-edition-par-blocs-et-stenotypie.md` (23 août 2026) décrit une **couche
+d'interaction** — ce qu'un humain peut faire aux éléments : corriger, vider, écouter,
+naviguer au clavier — et non une couche de produit. Elle ne définit **aucun modèle** :
+elle se pose au-dessus de `SPEC-ancrage-par-element-v2.md`, dont elle suppose les
+portions, le masquage et la réconciliation déjà livrés.
+
+**Son état est dans son propre en-tête** — spécifiée, non codée — et la voie technique
+n'y est délibérément pas choisie : trois sont en concurrence, et un prototype les
+départage (`PLAN/TODO/2026-08-23-le-prototype-blocknote-sur-notre-back.md`).
+
 ## Comment les lire
 
 **Les encarts datés en tête d'un fichier font foi. Ses sections, non.** Les

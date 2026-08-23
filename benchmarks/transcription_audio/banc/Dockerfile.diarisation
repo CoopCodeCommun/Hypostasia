@@ -1,0 +1,43 @@
+# Banc d'essai : les diariseurs lourds (pyannote 3.1 sur PyTorch CPU)
+# / Benchmark: the heavy diarizers (pyannote 3.1 on PyTorch CPU)
+#
+# POURQUOI UNE IMAGE A PART. pyannote.audio tire PyTorch et Lightning — plus de
+# 2 Go. Les voies ONNX (onnx-asr, diarize, sherpa-onnx) n'en ont pas besoin et
+# tiennent dans une image trois fois plus petite. Les melanger obligerait a
+# telecharger PyTorch pour mesurer une pile qui s'en passe — ce qui fausserait
+# aussi le critere 4 (« installable sans friction »).
+# / Separate image: pyannote pulls PyTorch (>2 GB); the ONNX paths do not need it.
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg ca-certificates curl time \
+    && rm -rf /var/lib/apt/lists/*
+
+# L'index CPU de PyTorch, sinon pip tire les 2,5 Go de bibliotheques CUDA pour
+# une machine qui n'a pas de carte graphique.
+# / PyTorch's CPU index: otherwise pip pulls 2.5 GB of CUDA libraries.
+# Versions FIGEES, et ce n'est pas du zele : torchaudio >= 2.9 a retire
+# `torchaudio.AudioMetaData`, que pyannote.audio 3.x appelle au chargement —
+# l'installation « derniere version » de tout casse donc a l'import.
+# / Pinned on purpose: torchaudio >= 2.9 removed `AudioMetaData`, which
+# pyannote.audio 3.x calls at import time.
+RUN pip install --no-cache-dir torch==2.5.1 torchaudio==2.5.1 \
+        --index-url https://download.pytorch.org/whl/cpu
+
+# pyannote.audio 3.3.2, et NON la 4.x : la version 4 redirige
+# `speaker-diarization-3.1` vers `pyannote/speaker-diarization-community-1`, un
+# depot RESTREINT dont l'acces se demande a la main et s'attend. Mesure le
+# 23 aout 2026 : « Access to model ... is restricted and you are not in the
+# authorized list » (403), jeton valide pourtant. La 3.3.2 charge le pipeline
+# 3.1, auquel notre jeton a acces.
+# / pyannote.audio 3.3.2, NOT 4.x: v4 redirects to a gated repo (403).
+#
+# `huggingface_hub` est fige sous la 1.0 : pyannote 3.3.2 appelle
+# `hf_hub_download(..., use_auth_token=...)`, argument SUPPRIME en 1.x. Sans ce
+# plafond, le pipeline ne se charge pas du tout — et l'erreur ne parle ni de
+# pyannote ni de version, elle dit juste « unexpected keyword argument ».
+# / huggingface_hub pinned below 1.0: pyannote 3.3.2 calls a parameter removed in 1.x.
+RUN pip install --no-cache-dir "pyannote.audio==3.3.2" "huggingface_hub<1.0" matplotlib "onnx-asr[cpu,hub]"
+
+WORKDIR /work
+ENV HF_HOME=/work/.cache_huggingface

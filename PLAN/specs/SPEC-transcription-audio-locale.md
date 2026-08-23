@@ -53,6 +53,145 @@ commentaires bilingues FR/EN comme le reste du projet.
 >    killer** — et `nice` ne protège pas de l'OOM. Arrêter les workers
 >    concernés, ou mesurer quand la stack est au repos.
 
+
+> ## Addendum du 22 août 2026 (2) — LE BANC A UN EMPLACEMENT, ET LA VOIE B UN CONTRAT
+>
+> Écrit **avant** de coder, comme l'exige `AGENTS.md`. Trois choses que le corps
+> de cette spec ne dit pas, et une correction de chiffre.
+>
+> ### a. Où vit le banc — la question du § 7 est tranchée
+>
+> Décision du mainteneur, 22 août 2026, en ouverture du chantier de mesure :
+>
+> | Ce qui est versionné | Ce qui ne l'est pas |
+> |---|---|
+> | `benchmarks/transcription_audio/banc/` — les scripts des annexes A à G, plus le collage de la voie B | les poids ONNX, l'audio, les résultats bruts : **hors dépôt**, dans un dossier de travail passé **en argument** |
+>
+> `installer_le_banc.sh <dossier_de_travail>` recopie les scripts versionnés vers
+> le dossier de travail, qui est le seul volume monté dans le conteneur. Les
+> annexes de ce document restent la **copie de référence**, mais elles ne sont
+> plus la **seule** : c'est ce qui a été perdu une première fois avec le
+> scratchpad.
+>
+> ### b. La voie B n'était qu'une puce du § 7 — voici son contrat
+>
+> `istupakov/onnx-asr` + `FoxNoseTech/diarize` demandent un collage qui n'existe
+> dans aucun projet public. Une centaine de lignes, et cinq points où il peut
+> être faux **sans le dire** :
+>
+> 1. **L'unité d'alignement est le mot**, pas le segment ASR. Pour chaque mot
+>    horodaté, on prend son **point milieu** `(début+fin)/2` et on cherche le
+>    segment de diarisation qui le recouvre. Aligner sur le **début** du mot fait
+>    basculer de locuteur tout mot à cheval sur une frontière de tour.
+> 2. **Un mot peut n'être recouvert par aucun segment** — silence mal détecté,
+>    ou parole superposée que `diarize` ne modélise pas. Il est alors marqué
+>    `INCONNU`, jamais attribué au voisin par défaut. **Ce taux est un résultat
+>    en soi**, à publier.
+> 3. Les mots consécutifs de même locuteur sont **regroupés en segments**, et la
+>    sortie est exactement `[{speaker, start, end, text}]` — la forme que
+>    `construire_html_diarise()` (`front/services/transcription_audio.py:271`)
+>    consomme déjà. **Une pile qui ne sait pas rendre cette forme est
+>    disqualifiée quels que soient ses chiffres.**
+> 4. Si l'ASR découpe l'audio (Parakeet plafonne vers 4-5 min), **le décalage est
+>    reporté sur les horodatages de chaque morceau** — sans quoi l'attribution
+>    est fausse dès le deuxième. La diarisation, elle, se fait sur l'intégralité.
+> 5. **Trois chronos séparés** : chargement des modèles, transcription cumulée,
+>    diarisation. Les ordres de grandeur publiés, à confirmer ici : Parakeet v3
+>    ONNX INT8 ~1 min 40 par heure d'audio, `diarize` ~7 min 30, pyannote
+>    ~52 min. **La diarisation coûterait plus de quatre fois la transcription** :
+>    c'est là qu'est le goulot, et c'est là qu'il faut passer du temps.
+>
+> ### c. La mesure sera refaite sur une seconde machine
+>
+> Le mainteneur rejouera les mêmes mesures sur le Framework Laptop 13 du § 5.1
+> (Core Ultra 7 155H, 22 threads, 30 Go) pour comparer. Trois contraintes qui en
+> découlent, et qui valent pour tout script écrit ici :
+>
+> - **aucune valeur codée en dur, aucun chemin absolu** : tout paramètre passe en
+>   argument ;
+> - **chaque résultat porte la machine qui l'a produit** — modèle de CPU,
+>   `nproc`, RAM disponible, présence de VNNI/AMX (`lscpu | grep -i vnni`), et
+>   l'état de la stack pendant la mesure ;
+> - le tableau comparatif a **une ligne par (moteur, quantification, machine)**.
+>   Deux chiffres de deux machines dans un tableau sans colonne « machine » sont
+>   un piège, pas un résultat.
+>
+> ### d. Correction : Sortformer v2 ONNX pèse 469 Mo, pas « quelques dizaines »
+>
+> Le § 6.3 annonce « Sortformer v2 quelques dizaines de Mo ». Le `Content-Length`
+> mesuré le 22 août 2026 sur
+> `altunenes/parakeet-rs/diar_streaming_sortformer_4spk-v2.onnx` est de
+> **469,4 Mo**. Le budget de téléchargement du banc en int8 n'est donc pas
+> ~700 Mo mais **~1,2 Go**, et le pic mémoire attendu s'en trouve relevé
+> d'autant.
+
+> ## Addendum du 23 août 2026 — LE BANC COUVRE SEPT PILES, ET LE PLAFOND DE 4 EST UNE CONSTANTE
+>
+> Le § 7 listait quatre « autres solutions à comparer » sans dire comment. Elles
+> ont toutes été montées et mesurées. Ce qui suit corrige trois affirmations du
+> corps de cette spec et en ferme une réserve.
+>
+> ### a. Le plafond de Sortformer n'est pas là où le § 4.5 le situe
+>
+> Le § 4.5 dit que la sortie est « une matrice T × S avec S = 4, **en dur** », et
+> que la compatibilité d'Ultra-Sortformer avec `parakeet-rs` est « **non
+> vérifiée** ». Vérifié le 23 août 2026 :
+>
+> - **Les deux modèles ONNX ont exactement la même interface.** Entrées
+>   identiques (`chunk` en 128 bandes mel, `spkcache`, `fifo`), et la
+>   configuration de streaming — `chunk_len`, `fifo_len`, `spkcache_len` — est
+>   lue dans les **métadonnées du modèle**, donc elle s'adapte déjà seule. Seule
+>   la dernière dimension de sortie diffère : 4 contre 8.
+> - **Le plafond est dans la crate, pas dans le format.** `parakeet-rs` 0.3.7
+>   porte `pub const NUM_SPEAKERS: usize = 4;`, utilisée 25 fois, sans aucun `4`
+>   en dur à côté. Chargé tel quel, Ultra-Sortformer fait **paniquer** le
+>   programme : `ndarray: could not broadcast array from shape: [680, 8] to:
+>   [680, 4]`.
+> - **L'incompatibilité est donc bruyante, et c'est une bonne nouvelle** : elle
+>   ne se confond pas avec un mauvais résultat.
+> - **Une copie de la crate avec la constante à 8 suffit.**
+>   `preparer_ultra_sortformer.sh` la fabrique et compile un second binaire.
+>   Ultra-Sortformer 8 locuteurs tourne alors, et **ne remplit pas ses slots
+>   systématiquement** : 3 locuteurs sur une tranche à 4 voix déséquilibrées,
+>   4 sur une tranche à 4 voix équilibrées, 8 sur une tranche à 6 voix.
+>
+> ### b. Il existe une voie pyannote SANS jeton, et le § 7 ne la mentionne pas
+>
+> `sherpa-onnx` publie la segmentation `pyannote/segmentation-3.0` **convertie en
+> ONNX** (6,6 Mo), plus des extracteurs d'empreintes vocales. C'est le **même
+> modèle de segmentation** que le pipeline officiel, exécuté sans PyTorch, sans
+> jeton et sans conditions à accepter. Le critère 4 le distingue nettement du
+> pipeline officiel, et le banc mesure les deux pour que l'écart de qualité soit
+> connu, et non supposé.
+>
+> ### c. pyannote coûte plus cher à installer que le § 7 ne le laisse croire
+>
+> Le § 7 dit « en acceptant la lenteur de pyannote et le token HF ». Mesuré :
+> il a fallu **quatre** correctifs successifs avant qu'une ligne de code tourne.
+>
+> | ce qui bloque | ce que ça donne |
+> |---|---|
+> | `torchaudio ≥ 2.9` a retiré `torchaudio.AudioMetaData` | `AttributeError` à l'import de `pyannote.audio` 3.x |
+> | `pyannote.audio` **4.x** redirige `speaker-diarization-3.1` vers `pyannote/speaker-diarization-community-1` | **403 GatedRepoError** — dépôt restreint, jeton pourtant valide, accès à demander à la main |
+> | `huggingface_hub ≥ 1.0` a retiré `use_auth_token` | `TypeError` dans `hf_hub_download`, sans un mot sur la version |
+> | `matplotlib` absent | `ModuleNotFoundError` au chargement du pipeline |
+>
+> Les versions sont donc **figées** dans `Dockerfile.diarisation` :
+> `torch==2.5.1`, `torchaudio==2.5.1`, `pyannote.audio==3.3.2`,
+> `huggingface_hub<1.0`. Sans ce figeage, une installation « dernière version de
+> tout » ne démarre pas — et c'est exactement le genre de friction que le
+> critère 4 doit compter.
+>
+> ### d. Le banc a un pilote unique, et un compose à lui
+>
+> `mesurer_une_pile.py` garde le même ASR, le même alignement mot à mot et le
+> même regroupement pour toutes les piles, et ne fait varier que le **diariseur**
+> (`--diariseur diarize|sherpa|pyannote`). Sans cela on comparerait des chaînes
+> entières, sans jamais savoir d'où vient l'écart.
+>
+> `docker-compose.banc.yml` monte les quatre conteneurs du banc. **Il est séparé
+> du compose du projet, délibérément** : celui de la racine sert la production,
+> et `docker compose down` sur l'un emporterait l'autre.
 ---
 
 ## 0. Ce que cette spec décide

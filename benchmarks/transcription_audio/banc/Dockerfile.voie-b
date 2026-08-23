@@ -1,0 +1,26 @@
+# Banc d'essai, voie B : onnx-asr (Parakeet TDT v3 ONNX) + diarize, CPU uniquement
+# / Benchmark, path B: onnx-asr (Parakeet TDT v3 ONNX) + diarize, CPU only
+#
+# Python 3.12 et non 3.14 : onnxruntime ne publie pas encore de roue pour 3.14,
+# et l'hote de mesure porte un Python 3.14. Figer la version ici evite une
+# compilation depuis les sources qui n'a rien a voir avec ce qu'on mesure.
+# / Python 3.12, not 3.14: onnxruntime publishes no wheel for 3.14 yet.
+FROM python:3.12-slim
+
+# ffmpeg pour la conversion audio, time pour le pic RSS reellement consomme
+# / ffmpeg for audio conversion, time for actual peak RSS
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg ca-certificates curl time \
+    && rm -rf /var/lib/apt/lists/*
+
+# onnx-asr[cpu,hub] : NumPy + ONNX Runtime + le telechargement depuis le hub.
+# Ni PyTorch, ni Transformers, ni FFmpeg en dependance Python.
+# / onnx-asr[cpu,hub]: NumPy + ONNX Runtime + hub download. No PyTorch.
+# sherpa-onnx apporte une diarisation ONNX complete (segmentation pyannote
+# convertie + embeddings de locuteurs) SANS token HuggingFace : c'est la seule
+# pile pyannote que le critere 4 n'ecarte pas d'office.
+# / sherpa-onnx brings full ONNX diarization with NO HuggingFace token.
+RUN pip install --no-cache-dir "onnx-asr[cpu,hub]" diarize sherpa-onnx
+
+WORKDIR /work
+ENV HF_HOME=/work/.cache_huggingface
