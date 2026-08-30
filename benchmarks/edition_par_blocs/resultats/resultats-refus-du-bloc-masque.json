@@ -1,0 +1,15 @@
+{
+ "element": 9,
+ "avec_le_refus": {
+  "statut": 200,
+  "le_bloc_est_nomme_dans_le_refus": true,
+  "le_texte_a_bouge": false,
+  "rattachees_au_demasquage": 3,
+  "laissees_detachees": 0
+ },
+ "verification": {
+  "masque": false,
+  "texte_intact": true,
+  "portions_ancrees": 3
+ }
+}

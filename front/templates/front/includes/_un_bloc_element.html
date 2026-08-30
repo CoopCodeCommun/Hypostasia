@@ -1,0 +1,214 @@
+{% comment %}
+UN SEUL BLOC DE LECTURE — le corps de boucle de _blocs_elements.html.
+/ ONE reading block: the loop body of _blocs_elements.html.
+
+LOCALISATION : front/templates/front/includes/_un_bloc_element.html
+
+Ce gabarit est inclus DEUX FOIS, et c'est sa raison d'etre :
+  - par `_blocs_elements.html`, une fois par bloc, pour rendre la page ;
+  - par `ElementViewSet.bloc`, seul, pour remplacer UN bloc apres une
+    operation, sans refaire toute la zone de lecture.
+
+NE JAMAIS RECOPIER CE MARKUP AILLEURS. Deux rendus du meme bloc
+finiraient par diverger, et le bloc echange ne ressemblerait plus a ses
+voisins — sans que rien ne le signale. C'est ce que verifie
+`test_le_bloc_rendu_seul_est_identique_a_celui_de_la_page`.
+
+Recoit `bloc` (un dict de construire_les_blocs_de_lecture) et
+`la_note_est_modifiable`. `pour_swap_oob` pose `hx-swap-oob="true"` sur la
+racine : c'est ce qui permet a une reponse d'operation de remplacer LE
+bloc touche au lieu de faire recharger toute la zone de lecture. Il vaut
+FAUX par defaut — la page, elle, n'en veut pas. Un `la_note_est_modifiable` absent vaut FAUX :
+on retombe sur le rendu lecteur, sans boutons — le defaut sur.
+{% endcomment %}
+{% if bloc.est_masque %}
+    {% if la_note_est_modifiable %}
+    <div class="element-masque"
+         id="bloc-{{ bloc.element.identifiant_stable }}"
+         {% if pour_swap_oob %}hx-swap-oob="true"{% endif %}
+         data-element="{{ bloc.element.identifiant_stable }}"
+         data-element-id="{{ bloc.element.pk }}"
+         data-testid="element-masque-{{ bloc.element.ordre }}">
+        <span class="etiquette">Passage masqué</span>
+        <span class="extrait">{{ bloc.element.texte|truncatechars:160 }}</span>
+        <button type="button"
+                hx-post="/elements/{{ bloc.element.pk }}/demasquer/"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                hx-swap="none"
+                hx-disabled-elt="this"
+                data-testid="btn-element-demasquer"
+                title="Rétablir ce passage dans la lecture">démasquer</button>
+    </div>
+    {% endif %}
+{% else %}
+    {% if bloc.idees_non_surlignees %}
+    {# Ce bloc porte trop d'idees pour les surligner toutes sans #}
+    {# rendre la page inutilisable. On le DIT, au lieu de servir #}
+    {# un texte nu dont rien n'indique qu'il porte des preuves.  #}
+    {# / Say it, instead of serving bare text that hides them.   #}
+    <p class="avertissement-plafond"
+       data-testid="avis-surlignage-abandonne-{{ bloc.element.ordre }}">
+        Ce passage porte {{ bloc.idees_non_surlignees }} idées :
+        trop pour les surligner sans rendre la lecture
+        impossible. Elles restent consultables dans le panneau
+        des idées.
+    </p>
+    {% endif %}
+    {# LA GOUTTIERE DE L'ETALON (maquette.html § .bloc).         #}
+    {# Chaque bloc est une grille « gouttiere | corps », avec un  #}
+    {# filet d'etat entre les deux. La gouttiere porte le reperage#}
+    {# du passage : son numero, son label, son empreinte — tous   #}
+    {# CACHES en lecture, un lecteur n'a rien a en faire — et le  #}
+    {# COMPTEUR D'IDEES, lui bien visible : c'est la seule chose  #}
+    {# de la gouttiere qui s'adresse au lecteur.                  #}
+    {# / The mock's gutter: numbering hidden, idea count shown.   #}
+    {% comment %}
+    L'IDENTIFIANT STABLE, ET POURQUOI IL EST LA EN PLUS DU pk.
+    / The stable id, and why it sits beside the pk.
+
+    `data-element-id` porte le pk : c'est ce que les boutons d'action
+    postent, et rien ne le change. `data-element` porte
+    l'`identifiant_stable`, qui est ce par quoi le contrat d'edition par
+    lot designe un bloc (SPEC-edition-par-blocs § 7.1) — jamais le pk.
+    L'`id` en donne la cible au swap : remplacer CE bloc, pas la page.
+    {% endcomment %}
+    <div class="bloc"
+         id="bloc-{{ bloc.element.identifiant_stable }}"
+         {% if pour_swap_oob %}hx-swap-oob="true"{% endif %}
+         data-element="{{ bloc.element.identifiant_stable }}"
+         data-media="{{ bloc.media }}"
+         data-label="{{ bloc.element.label }}"
+         data-etat="{% if bloc.est_debattu %}debattu{% else %}analyse{% endif %}"
+         {% comment %}
+         LES BORNES DU TOUR, pour que le lecteur audio sache
+         quel passage on entend. Elles ne paraissent que sur un
+         audio minute : sur un PDF, un `data-debut` vide se
+         lirait comme un tour de duree nulle.
+         / The turn's bounds, so the player knows what is heard.
+         {% endcomment %}
+         {% if bloc.debut is not None and bloc.fin is not None %}data-debut="{{ bloc.debut|stringformat:'g' }}"
+         data-fin="{{ bloc.fin|stringformat:'g' }}"
+         data-locuteur="{{ bloc.locuteur|default:'' }}"{% endif %}
+         data-testid="bloc-{{ bloc.element.ordre }}">
+        <div class="gouttiere">
+            {% if bloc.locuteur %}
+            {# La glissiere d'un AUDIO porte d'abord QUI parle,   #}
+            {# puis QUAND (etalon l. 1567-1575). C'est ce qui     #}
+            {# rend un verbatim citable : une phrase sans son     #}
+            {# locuteur n'est pas une preuve.                     #}
+            {# / Who speaks, then when: a quote needs its voice.  #}
+            <span class="etiquette-locuteur"
+                  {% if bloc.couleur_du_locuteur %}style="--couleur-locuteur: {{ bloc.couleur_du_locuteur }}"{% endif %}
+                  data-testid="locuteur-{{ bloc.element.ordre }}">{{ bloc.locuteur }}</span>
+            {% endif %}
+            {% if bloc.minutage %}
+            {% comment %}
+            UN BOUTON D'ECOUTE A COTE DU MINUTAGE — patron de
+            l'etalon (maquette.html:1725-1727).
+
+            Une premiere version faisait du MINUTAGE LUI-MEME un
+            bouton. Deux choses s'y perdaient. Le minutage est un
+            REPERE — on le lit pour situer un passage, pour le
+            citer — et un repere qui se souligne au survol invite
+            a un clic qu'on ne cherchait pas. Et l'action, elle,
+            n'etait ecrite nulle part : rien ne DISAIT
+            « ecouter ».
+
+            Deux objets distincts, donc : un repere qui se lit,
+            un bouton qui agit. Le bouton ne parait que si un
+            media est attache — une transcription sans son
+            garderait sinon un play qui ne joue rien —, et il
+            s'efface (CSS) jusqu'a ce qu'on survole le bloc ou
+            qu'on l'ecoute.
+            / A play button beside the timecode, not instead of
+            it: one is a marker you read, the other an action.
+            {% endcomment %}
+            <span class="ligne-minutage">
+                {% if page.source_file and bloc.debut is not None %}
+                <button type="button" class="bouton-ecouter"
+                        data-testid="bouton-ecouter-{{ bloc.element.ordre }}"
+                        title="Écouter à partir d'ici"
+                        aria-label="Écouter à partir de {{ bloc.minutage }}">&#9654;</button>
+                {% endif %}
+                <span class="minutage">{{ bloc.minutage }}</span>
+            </span>
+            {% endif %}
+            <span class="etiquette-label">{{ bloc.label_affiche }}</span>
+            {% if bloc.numero_de_page %}
+            <span class="numero-page">p. {{ bloc.numero_de_page }}</span>
+            {% endif %}
+            <span class="numero-element">#{{ bloc.numero }}</span>
+            {% if bloc.nombre_d_idees %}
+            <button type="button" class="compteur-idees"
+                    data-element-id="{{ bloc.element.pk }}"
+                    data-testid="compteur-idees-{{ bloc.element.ordre }}"
+                    title="{{ bloc.nombre_d_idees }} idée{{ bloc.nombre_d_idees|pluralize }} extraite{{ bloc.nombre_d_idees|pluralize }} de ce passage">{{ bloc.nombre_d_idees }}</button>
+            {% endif %}
+            {% if bloc.numero_de_page %}
+            {# L'etalon ouvrirait le document source a cette page,  #}
+            {# boite surlignee. Le visualiseur PDF n'existe pas     #}
+            {# encore (SPEC-ancrage § 8.2 incomplete) : le bouton   #}
+            {# le DIT, au lieu de promettre ce qu'il ne fait pas.   #}
+            {# / Says what it cannot do yet, instead of promising.  #}
+            <button type="button" class="bouton-voir-source"
+                    data-page-source="{{ bloc.numero_de_page }}"
+                    data-testid="bouton-voir-source-{{ bloc.element.ordre }}"
+                    title="Ouvrir le document source à cette page">
+                <span class="icone-source">⤴</span>
+                <span class="libelle-source">voir la source</span>
+            </button>
+            {% endif %}
+            <span class="empreinte"
+                  title="empreinte_contenu, 8 premiers signes">{{ bloc.empreinte_courte }}</span>
+        </div>
+        <div class="filet-etat"></div>
+        <div class="corps" id="corps-{{ bloc.element.pk }}">
+    {% if bloc.balise == "h2" %}
+        <h2 data-element-id="{{ bloc.element.pk }}"
+            data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h2>{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}
+    {% elif bloc.balise == "h3" %}
+        <h3 data-element-id="{{ bloc.element.pk }}"
+            data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</h3>{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}
+    {% elif bloc.balise == "li" %}
+        {# Une puce est un bloc comme un autre, avec sa gouttiere. #}
+        {# Son corps est un <ul> d'un seul <li> : le HTML reste    #}
+        {# valide, et la puce garde son reperage (etalon l. 1449). #}
+        {# / One-item list per bullet: valid HTML, own gutter.     #}
+        <ul><li data-element-id="{{ bloc.element.pk }}"
+                data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</li></ul>
+    {% elif bloc.balise == "table" %}
+        {# Le HTML du tableau est deja construit par le service   #}
+        {# (`convertir_un_tableau_markdown`), marques comprises : #}
+        {# on l'insere tel quel dans un conteneur qui le fait     #}
+        {# defiler s'il est plus large que la colonne.            #}
+        {# / The table HTML is built by the service, marks and    #}
+        {# all; the wrapper lets it scroll inside its own box.    #}
+        <div class="cadre-tableau" data-element-id="{{ bloc.element.pk }}"
+             data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}</div>{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}
+    {% elif bloc.balise == "blockquote" %}
+        {# Une citation porte un filet et l'italique (etalon § 8) : #}
+        {# sans eux, elle a la forme du texte qui la commente.      #}
+        {# / A quote needs its rule and italics, or it reads as the #}
+        {# prose around it. #}
+        <blockquote data-element-id="{{ bloc.element.pk }}"
+                    data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</blockquote>
+    {% elif bloc.balise == "figure" %}
+        {# FORMULE ET IMAGE partagent la `<figure>` : toutes deux   #}
+        {# sont un bloc autonome qu'on ne coupe pas au milieu, et   #}
+        {# que le texte designe de l'exterieur. La classe distingue #}
+        {# leur habillage — centre entre filets pour la formule,    #}
+        {# cadre et legende pour l'image.                           #}
+        {# / Both are self-contained blocks the prose points at.    #}
+        <figure class="{% if bloc.element.label == 'formula' %}formule{% else %}illustration{% endif %}"
+                data-element-id="{{ bloc.element.pk }}"
+                data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</figure>
+    {% elif bloc.balise == "pre" %}
+        <pre data-element-id="{{ bloc.element.pk }}"
+             data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</pre>
+    {% else %}
+        <p data-element-id="{{ bloc.element.pk }}"
+           data-testid="bloc-element-{{ bloc.element.ordre }}">{{ bloc.html_du_texte }}{% if la_note_est_modifiable %}{% include "front/includes/_actions_element.html" %}{% endif %}</p>
+    {% endif %}
+        </div>
+    </div>
+{% endif %}

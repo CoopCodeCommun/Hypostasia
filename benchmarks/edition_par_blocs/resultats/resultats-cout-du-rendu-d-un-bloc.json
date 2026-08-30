@@ -1,0 +1,24 @@
+{
+ "page_19": {
+  "blocs": 210,
+  "caracteres_de_la_note": 58770,
+  "swap_d_un_bloc_median_ms": 57.9,
+  "swap_d_un_bloc_min_ms": 56.0,
+  "octets_du_bloc": 1449,
+  "dont_service_median_ms": 50.6,
+  "rendu_de_TOUTE_la_zone_median_ms": 159.7,
+  "octets_de_toute_la_zone": 801402,
+  "rapport_octets": 553.1
+ },
+ "page_3": {
+  "blocs": 12,
+  "caracteres_de_la_note": 4411,
+  "swap_d_un_bloc_median_ms": 14.1,
+  "swap_d_un_bloc_min_ms": 13.7,
+  "octets_du_bloc": 4380,
+  "dont_service_median_ms": 10.9,
+  "rendu_de_TOUTE_la_zone_median_ms": 34.8,
+  "octets_de_toute_la_zone": 49590,
+  "rapport_octets": 11.3
+ }
+}

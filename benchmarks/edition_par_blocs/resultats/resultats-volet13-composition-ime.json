@@ -1,0 +1,73 @@
+{
+ "horodatage": "2026-08-26 22:40:50",
+ "chromium_vraie_composition_parade_0": {
+  "parade_active": false,
+  "frontieres_identiques": false,
+  "blocs_avant_apres": [
+   210,
+   205
+  ],
+  "gouttieres_avant_apres": [
+   210,
+   205
+  ],
+  "compositions_vues": 0,
+  "compositions_normalisees": 0,
+  "le_texte_compose_est_arrive": true,
+  "bloc20_apres": "Portion argumen日本venement argument principe gouttiere e",
+  "geste_non_annulable_signale": "insertCompositionText"
+ },
+ "chromium_vraie_composition_parade_1": {
+  "parade_active": true,
+  "frontieres_identiques": true,
+  "blocs_avant_apres": [
+   210,
+   210
+  ],
+  "gouttieres_avant_apres": [
+   210,
+   210
+  ],
+  "compositions_vues": 1,
+  "compositions_normalisees": 1,
+  "le_texte_compose_est_arrive": true,
+  "bloc20_apres": "Portion argumen日本",
+  "geste_non_annulable_signale": null
+ },
+ "chromium_compositionstart_synthetique": {
+  "version": "145.0.7632.6",
+  "gestionnaire_atteint": true,
+  "selection_normalisee": true,
+  "frontieres_identiques": true,
+  "blocs_21_a_24_vides": [
+   true,
+   true,
+   true,
+   true
+  ]
+ },
+ "firefox_compositionstart_synthetique": {
+  "version": "146.0.1",
+  "gestionnaire_atteint": true,
+  "selection_normalisee": true,
+  "frontieres_identiques": true,
+  "blocs_21_a_24_vides": [
+   true,
+   true,
+   true,
+   true
+  ]
+ },
+ "webkit_compositionstart_synthetique": {
+  "version": "26.0",
+  "gestionnaire_atteint": true,
+  "selection_normalisee": true,
+  "frontieres_identiques": true,
+  "blocs_21_a_24_vides": [
+   true,
+   true,
+   true,
+   true
+  ]
+ }
+}

@@ -1,0 +1,142 @@
+{
+ "horodatage": "2026-08-26 22:31:50",
+ "adresse": "https://beta.hypostasia.org/static/front/maquettes/prototype-champ-unique/index.html",
+ "chromium": {
+  "version": "145.0.7632.6",
+  "fleche_bas_traverse": true,
+  "bloc_depart_arrivee": [
+   "0",
+   "2"
+  ],
+  "maj_bas_etend_a_travers": true,
+  "la_gouttiere_entre_dans_la_selection": false,
+  "ctrl_fin_va_au_dernier": true,
+  "suppression_traversante_garde_2": {
+   "frontieres_identiques": true,
+   "blocs_avant": 210,
+   "blocs_apres": 210
+  },
+  "suppression_traversante_garde_0": {
+   "frontieres_identiques": false,
+   "blocs_avant": 210,
+   "blocs_apres": 205
+  },
+  "frappe_de_remplacement_garde_2": {
+   "frontieres_identiques": true,
+   "blocs_avant": 210,
+   "blocs_apres": 210
+  },
+  "frappe_de_remplacement_garde_0": {
+   "frontieres_identiques": false,
+   "blocs_avant": 210,
+   "blocs_apres": 205
+  },
+  "plaintext_only_accepte": true,
+  "getTargetRanges_sous_plaintext_only": [
+   {
+    "type": "insertText",
+    "plages_rendues": 0,
+    "annulable": true
+   }
+  ],
+  "getTargetRanges_sous_true": [
+   {
+    "type": "insertText",
+    "plages_rendues": 1,
+    "annulable": true
+   }
+  ]
+ },
+ "firefox": {
+  "version": "146.0.1",
+  "fleche_bas_traverse": true,
+  "bloc_depart_arrivee": [
+   "0",
+   "2"
+  ],
+  "maj_bas_etend_a_travers": true,
+  "la_gouttiere_entre_dans_la_selection": false,
+  "ctrl_fin_va_au_dernier": true,
+  "suppression_traversante_garde_2": {
+   "frontieres_identiques": true,
+   "blocs_avant": 210,
+   "blocs_apres": 210
+  },
+  "suppression_traversante_garde_0": {
+   "frontieres_identiques": false,
+   "blocs_avant": 210,
+   "blocs_apres": 205
+  },
+  "frappe_de_remplacement_garde_2": {
+   "frontieres_identiques": true,
+   "blocs_avant": 210,
+   "blocs_apres": 210
+  },
+  "frappe_de_remplacement_garde_0": {
+   "frontieres_identiques": false,
+   "blocs_avant": 210,
+   "blocs_apres": 206
+  },
+  "plaintext_only_accepte": true,
+  "getTargetRanges_sous_plaintext_only": [
+   {
+    "type": "insertText",
+    "plages_rendues": 1,
+    "annulable": true
+   }
+  ],
+  "getTargetRanges_sous_true": [
+   {
+    "type": "insertText",
+    "plages_rendues": 1,
+    "annulable": true
+   }
+  ]
+ },
+ "webkit": {
+  "version": "26.0",
+  "fleche_bas_traverse": true,
+  "bloc_depart_arrivee": [
+   "0",
+   "2"
+  ],
+  "maj_bas_etend_a_travers": true,
+  "la_gouttiere_entre_dans_la_selection": true,
+  "ctrl_fin_va_au_dernier": true,
+  "suppression_traversante_garde_2": {
+   "frontieres_identiques": true,
+   "blocs_avant": 210,
+   "blocs_apres": 210
+  },
+  "suppression_traversante_garde_0": {
+   "frontieres_identiques": false,
+   "blocs_avant": 210,
+   "blocs_apres": 205
+  },
+  "frappe_de_remplacement_garde_2": {
+   "frontieres_identiques": true,
+   "blocs_avant": 210,
+   "blocs_apres": 210
+  },
+  "frappe_de_remplacement_garde_0": {
+   "frontieres_identiques": false,
+   "blocs_avant": 210,
+   "blocs_apres": 205
+  },
+  "plaintext_only_accepte": true,
+  "getTargetRanges_sous_plaintext_only": [
+   {
+    "type": "insertText",
+    "plages_rendues": 1,
+    "annulable": true
+   }
+  ],
+  "getTargetRanges_sous_true": [
+   {
+    "type": "insertText",
+    "plages_rendues": 1,
+    "annulable": true
+   }
+  ]
+ }
+}

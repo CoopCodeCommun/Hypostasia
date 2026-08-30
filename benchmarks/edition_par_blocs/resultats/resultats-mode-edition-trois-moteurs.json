@@ -1,0 +1,98 @@
+{
+ "chromium": {
+  "version": "145.0.7632.6",
+  "bouton_present": true,
+  "bouton_actif": true,
+  "blocs": 189,
+  "ouverture": {
+   "classe": true,
+   "contenteditable": "plaintext-only",
+   "aria_pressed": "true",
+   "gouttiere_hors_champ": "false",
+   "annonce": "Mode édition ouvert. Ctrl+S enregistre, "
+  },
+  "frappe_de_remplacement": {
+   "blocs_apres": 189,
+   "frontieres_identiques": true
+  },
+  "ctrl_z": {
+   "blocs": 189,
+   "annonce": "6 passage(s) rétabli(s)."
+  },
+  "ctrl_a_puis_frappe": {
+   "blocs": 189,
+   "gouttieres": 189
+  },
+  "echap_sort": {
+   "mode_ferme": true,
+   "contenteditable": null,
+   "aria_pressed": "false",
+   "annonce": "Mode édition fermé. Des modifications ne sont PAS enregistré"
+  },
+  "erreurs_javascript": []
+ },
+ "firefox": {
+  "version": "146.0.1",
+  "bouton_present": true,
+  "bouton_actif": true,
+  "blocs": 189,
+  "ouverture": {
+   "classe": true,
+   "contenteditable": "plaintext-only",
+   "aria_pressed": "true",
+   "gouttiere_hors_champ": "false",
+   "annonce": "Mode édition ouvert. Ctrl+S enregistre, "
+  },
+  "frappe_de_remplacement": {
+   "blocs_apres": 189,
+   "frontieres_identiques": true
+  },
+  "ctrl_z": {
+   "blocs": 189,
+   "annonce": "6 passage(s) rétabli(s)."
+  },
+  "ctrl_a_puis_frappe": {
+   "blocs": 189,
+   "gouttieres": 189
+  },
+  "echap_sort": {
+   "mode_ferme": true,
+   "contenteditable": null,
+   "aria_pressed": "false",
+   "annonce": "Mode édition fermé. Des modifications ne sont PAS enregistré"
+  },
+  "erreurs_javascript": []
+ },
+ "webkit": {
+  "version": "26.0",
+  "bouton_present": true,
+  "bouton_actif": true,
+  "blocs": 189,
+  "ouverture": {
+   "classe": true,
+   "contenteditable": "plaintext-only",
+   "aria_pressed": "true",
+   "gouttiere_hors_champ": "false",
+   "annonce": "Mode édition ouvert. Ctrl+S enregistre, "
+  },
+  "frappe_de_remplacement": {
+   "blocs_apres": 189,
+   "frontieres_identiques": true
+  },
+  "ctrl_z": {
+   "blocs": 189,
+   "annonce": "6 passage(s) rétabli(s)."
+  },
+  "ctrl_a_puis_frappe": {
+   "blocs": 189,
+   "gouttieres": 189
+  },
+  "echap_sort": {
+   "mode_ferme": true,
+   "contenteditable": null,
+   "aria_pressed": "false",
+   "annonce": "Mode édition fermé. Des modifications ne sont PAS enregistré"
+  },
+  "erreurs_javascript": []
+ }
+}

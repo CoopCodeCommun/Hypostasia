@@ -1,0 +1,58 @@
+{
+ "base": "https://beta.hypostasia.org",
+ "page": 21,
+ "horodatage": "2026-08-26 21:30:23",
+ "connexion_reussie": true,
+ "garde_prete": true,
+ "blocs_dans_le_vrai_dom": 189,
+ "boutons_d_action_presents": 189,
+ "serialisation": {
+  "par_le_corps": {
+   "exacts": 0,
+   "differents": 189,
+   "exemples": [
+    {
+     "attendu": "Traductions de cet article",
+     "obtenu": "\n    \n        Traductions de cet article\n    corriger\n    co"
+    },
+    {
+     "attendu": "Español - La crisis monstruo",
+     "obtenu": "\n    \n        \n        \n        \n        \n        Español - "
+    }
+   ]
+  },
+  "par_l_element_interne": {
+   "exacts": 189,
+   "differents": 0,
+   "exemples": []
+  }
+ },
+ "gestes": {
+  "frappe_de_remplacement_20_a_25": {
+   "frontieres_identiques": true,
+   "blocs_avant": 189,
+   "blocs_apres": 189
+  },
+  "tout_selectionner_puis_frappe": {
+   "frontieres_identiques": true,
+   "blocs_avant": 189,
+   "blocs_apres": 189,
+   "gouttieres_restantes": 189
+  },
+  "suppression_20_a_25": {
+   "frontieres_identiques": true,
+   "blocs_avant": 189,
+   "blocs_apres": 189,
+   "mutations_de_structure": 0
+  }
+ },
+ "journal_beforeinput": [
+  {
+   "type": "deleteContentForward",
+   "traverse": true,
+   "hors_bloc": false,
+   "annulable": true
+  }
+ ],
+ "erreurs_javascript": []
+}

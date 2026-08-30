@@ -1,0 +1,89 @@
+{
+ "horodatage": "2026-08-23 21:24:30",
+ "charge_au_debut": [
+  "0.81",
+  "1.13",
+  "1.10"
+ ],
+ "navigateur": "Chromium 145.0.7632.6",
+ "ce=true_mono_bloc": {
+  "frontieres_identiques": true,
+  "blocs_apres": 210,
+  "enfants_du_corps": 4,
+  "balises": [
+   "p",
+   "h1",
+   "p",
+   "p"
+  ],
+  "style_survivant": true,
+  "html": "<p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">A  high  s</p><h1>TITRE</h1><p><b>gras</b> et <i>italique</i></p><p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">secondchool  debate  is",
+  "journal_beforeinput": [
+   {
+    "type": "insertFromPaste",
+    "traverse": false,
+    "hors_bloc": false,
+    "annulable": true
+   }
+  ]
+ },
+ "ce=true_traversant": {
+  "frontieres_identiques": true,
+  "blocs_apres": 210,
+  "enfants_du_corps": 1,
+  "balises": [
+   "p"
+  ],
+  "style_survivant": false,
+  "html": "<p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">A  high  sTITRE\n\ngras et italique\n\nsecond</p>",
+  "journal_beforeinput": [
+   {
+    "type": "insertFromPaste",
+    "traverse": true,
+    "hors_bloc": false,
+    "annulable": true
+   }
+  ]
+ },
+ "ce=plaintext-only_mono_bloc": {
+  "frontieres_identiques": true,
+  "blocs_apres": 210,
+  "enfants_du_corps": 1,
+  "balises": [
+   "p"
+  ],
+  "style_survivant": false,
+  "html": "<p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">A  high  sTITRE\n\ngras et italique\n\nsecondchool  debate  is  presented  here  as  an  example,  but  this  approach  can  be applied just as effe",
+  "journal_beforeinput": [
+   {
+    "type": "insertFromPaste",
+    "traverse": false,
+    "hors_bloc": false,
+    "annulable": true
+   }
+  ]
+ },
+ "ce=plaintext-only_traversant": {
+  "frontieres_identiques": false,
+  "blocs_apres": 209,
+  "enfants_du_corps": 1,
+  "balises": [
+   "p"
+  ],
+  "style_survivant": false,
+  "html": "<p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">A  high  sTITRE\n\ngras et italique\n\n</p>",
+  "journal_beforeinput": [
+   {
+    "type": "insertFromPaste",
+    "traverse": false,
+    "hors_bloc": false,
+    "annulable": true
+   }
+  ]
+ },
+ "charge_a_la_fin": [
+  "1.39",
+  "1.24",
+  "1.14"
+ ]
+}

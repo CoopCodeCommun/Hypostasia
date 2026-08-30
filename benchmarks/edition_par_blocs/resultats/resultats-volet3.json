@@ -1,0 +1,106 @@
+{
+ "horodatage": "2026-08-23 20:32:51",
+ "charge_au_debut": [
+  "1.19",
+  "1.61",
+  "1.95"
+ ],
+ "navigateur": "Chromium 145.0.7632.6",
+ "f_glisser_multi_blocs": {
+  "garde_0": {
+   "frontieres_identiques": false,
+   "blocs_avant": 12,
+   "blocs_apres": 12,
+   "frontieres_perdues": [],
+   "blocs_dont_le_texte_a_change": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "mutations_de_structure": 10
+  },
+  "garde_1": {
+   "frontieres_identiques": true,
+   "blocs_avant": 12,
+   "blocs_apres": 12,
+   "frontieres_perdues": [],
+   "blocs_dont_le_texte_a_change": [
+    1,
+    2,
+    3
+   ],
+   "mutations_de_structure": 0
+  }
+ },
+ "g_execcommand": {
+  "dom": {
+   "mode_ecriture_relu": "dom",
+   "entree_texte_avec": "Thus, a synthesis of a doABC\ncument is define",
+   "entree_apres_un_ctrl_z": "Thus, a synthesis of a doABC\ncument is define",
+   "entree_apres_deux_ctrl_z": "Thus, a synthesis of a doABC\ncument is define",
+   "le_saut_de_ligne_a_ete_annule": false,
+   "l_annulation_a_change_quelque_chose": false,
+   "suppression_frontieres_identiques": true,
+   "suppression_blocs_apres": 210,
+   "suppression_21_24_vides": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "annulation_apres_suppression_a_marche": false,
+   "annulation_a_rendu_les_blocs_21_24": [
+    false,
+    false,
+    false,
+    false
+   ],
+   "frontieres_finales_identiques": true,
+   "mutations_de_structure": 0
+  },
+  "exec": {
+   "mode_ecriture_relu": "exec",
+   "entree_texte_avec": "Thus, a synthesis of a doABCcument is defined",
+   "entree_apres_un_ctrl_z": "Thus, a synthesis of a doABCcument is defined",
+   "entree_apres_deux_ctrl_z": "Thus, a synthesis of a document is defined he",
+   "le_saut_de_ligne_a_ete_annule": false,
+   "l_annulation_a_change_quelque_chose": true,
+   "suppression_frontieres_identiques": true,
+   "suppression_blocs_apres": 210,
+   "suppression_21_24_vides": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "annulation_apres_suppression_a_marche": true,
+   "annulation_a_rendu_les_blocs_21_24": [
+    false,
+    false,
+    false,
+    false
+   ],
+   "frontieres_finales_identiques": true,
+   "mutations_de_structure": 2
+  }
+ },
+ "h_cout": {
+  "dom": {
+   "suppression_6_blocs_ms": 27.1,
+   "frontieres_identiques": true
+  },
+  "exec": {
+   "suppression_6_blocs_ms": 48.2,
+   "frontieres_identiques": true
+  }
+ },
+ "charge_a_la_fin": [
+  "1.34",
+  "1.63",
+  "1.96"
+ ]
+}

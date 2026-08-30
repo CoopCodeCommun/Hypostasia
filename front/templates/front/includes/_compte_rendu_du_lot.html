@@ -1,0 +1,54 @@
+{% comment %}
+LE COMPTE RENDU D'UN ENREGISTREMENT DE LOT
+/ The batch save report
+
+LOCALISATION : front/templates/front/includes/_compte_rendu_du_lot.html
+
+SPEC-edition-par-blocs-et-stenotypie.md § 7.4 : cinq nombres et une
+LISTE. Un compte sans liste ne dit pas quoi retaper — c'est pour ca que
+les refus sont nommes un par un, avec leur motif.
+
+La region porte `role="status"` et `aria-live="polite"` : le § 9 exige
+que le compte rendu s'ANNONCE, et `annonces.js` n'annonce que les toasts.
+Un resume tient dans le toast ; le detail est ici.
+{% endcomment %}
+<div class="compte-rendu-du-lot" role="status" aria-live="polite"
+     data-testid="compte-rendu-du-lot">
+    <ul class="chiffres-du-lot">
+        <li data-testid="blocs-modifies">
+            <strong>{{ compte_rendu.blocs_modifies }}</strong>
+            bloc{{ compte_rendu.blocs_modifies|pluralize }} modifié{{ compte_rendu.blocs_modifies|pluralize }}
+        </li>
+        <li data-testid="blocs-masques">
+            <strong>{{ compte_rendu.blocs_masques }}</strong>
+            bloc{{ compte_rendu.blocs_masques|pluralize }} masqué{{ compte_rendu.blocs_masques|pluralize }}
+        </li>
+        <li data-testid="ancres-detachees">
+            <strong>{{ compte_rendu.ancres_detachees }}</strong>
+            passage{{ compte_rendu.ancres_detachees|pluralize }} détaché{{ compte_rendu.ancres_detachees|pluralize }}
+        </li>
+        <li data-testid="citations-detachees">
+            <strong>{{ compte_rendu.citations_detachees }}</strong>
+            citation{{ compte_rendu.citations_detachees|pluralize }} détachée{{ compte_rendu.citations_detachees|pluralize }}
+        </li>
+        <li data-testid="blocs-refuses">
+            <strong>{{ compte_rendu.blocs_refuses }}</strong>
+            bloc{{ compte_rendu.blocs_refuses|pluralize }} refusé{{ compte_rendu.blocs_refuses|pluralize }}
+        </li>
+    </ul>
+    {% if compte_rendu.refus %}
+    {% comment %}
+    LA LISTE, jamais un simple compte. Chaque refus porte l'identifiant du
+    bloc et son motif : sans eux, on sait qu'on a perdu quelque chose sans
+    savoir quoi.
+    / The list, never a bare count.
+    {% endcomment %}
+    <ul class="refus-du-lot" data-testid="liste-des-refus">
+        {% for refus in compte_rendu.refus %}
+        <li data-testid="refus-{{ refus.identifiant_stable }}">
+            <code>{{ refus.identifiant_stable }}</code> — {{ refus.motif }}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>

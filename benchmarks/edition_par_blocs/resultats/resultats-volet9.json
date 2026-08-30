@@ -1,0 +1,86 @@
+{
+ "horodatage": "2026-08-23 21:25:31",
+ "charge_au_debut": [
+  "0.77",
+  "1.09",
+  "1.09"
+ ],
+ "navigateur": "Chromium 145.0.7632.6",
+ "ce=true_collage": [
+  {
+   "type": "insertFromPaste",
+   "cible_debut": "14",
+   "cible_fin": "16",
+   "cible_traverse": true,
+   "selection_debut": "14",
+   "selection_fin": "16",
+   "selection_traverse": true,
+   "selection_repliee": false
+  }
+ ],
+ "ce=true_frappe": [
+  {
+   "type": "insertText",
+   "cible_debut": "14",
+   "cible_fin": "16",
+   "cible_traverse": true,
+   "selection_debut": "14",
+   "selection_fin": "16",
+   "selection_traverse": true,
+   "selection_repliee": false
+  }
+ ],
+ "ce=true_suppression": [
+  {
+   "type": "deleteContentForward",
+   "cible_debut": "14",
+   "cible_fin": "16",
+   "cible_traverse": true,
+   "selection_debut": "14",
+   "selection_fin": "16",
+   "selection_traverse": true,
+   "selection_repliee": false
+  }
+ ],
+ "ce=plaintext-only_collage": [
+  {
+   "type": "insertFromPaste",
+   "cible_debut": null,
+   "cible_fin": null,
+   "cible_traverse": null,
+   "selection_debut": "14",
+   "selection_fin": "16",
+   "selection_traverse": true,
+   "selection_repliee": false
+  }
+ ],
+ "ce=plaintext-only_frappe": [
+  {
+   "type": "insertText",
+   "cible_debut": null,
+   "cible_fin": null,
+   "cible_traverse": null,
+   "selection_debut": "14",
+   "selection_fin": "16",
+   "selection_traverse": true,
+   "selection_repliee": false
+  }
+ ],
+ "ce=plaintext-only_suppression": [
+  {
+   "type": "deleteContentForward",
+   "cible_debut": null,
+   "cible_fin": null,
+   "cible_traverse": null,
+   "selection_debut": "14",
+   "selection_fin": "16",
+   "selection_traverse": true,
+   "selection_repliee": false
+  }
+ ],
+ "charge_a_la_fin": [
+  "1.03",
+  "1.14",
+  "1.10"
+ ]
+}
