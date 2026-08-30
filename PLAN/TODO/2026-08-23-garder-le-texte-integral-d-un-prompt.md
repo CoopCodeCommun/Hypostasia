@@ -40,9 +40,10 @@ pour n'en tirer qu'un booléen « inchangé ».
 ## Ce qui est voulu
 
 - le texte va dans la **table dédiée** de la note sur la provenance, jamais dans
-  `ExtractionJob.prompt_description` — cet objet est exposé publiquement
-  (`2026-08-23-l-api-des-jobs-est-ouverte-a-tous.md`) et chargé par paquets de 30
-  dans le menu des tâches ;
+  `ExtractionJob.prompt_description` — cet objet est rendu par
+  `/api/extraction-jobs/<pk>/`, fermé aux inconnus depuis le 23 août 2026
+  (`CHANGELOG/2026-08-23-fermer-l-api-d-extraction.md`) mais toujours lisible par
+  qui accède à la note, et chargé par paquets de 30 dans le menu des tâches ;
 - **une rétention** : les N derniers prompts par article, ou une durée. Au-delà,
   l'empreinte reste, le texte part. Une trace qui grossit sans fin finit par être
   purgée à la main, en urgence, et on perd alors aussi celles qu'on voulait garder ;

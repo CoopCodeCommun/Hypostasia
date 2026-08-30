@@ -48,7 +48,11 @@ def lire_les_arguments():
     analyseur.add_argument("--modele", default="large-v3",
                            help="modele Whisper : large-v3, medium, small...")
     analyseur.add_argument("--quantification", default="int8",
-                           help="compute_type de CTranslate2 : int8, float32")
+                           help="compute_type de CTranslate2 : int8, float32, float16")
+    analyseur.add_argument("--peripherique", default="cpu", choices=["cpu", "cuda"],
+                           help="ou tourne l'inference. `cuda` exige une image CUDA "
+                                "et un GPU : sur `cpu` la quantification utile est "
+                                "int8, sur `cuda` c'est float16")
     analyseur.add_argument("--langue", default="fr",
                            help="code langue ; vide = detection automatique")
     analyseur.add_argument("--taille-de-lot", type=int, default=4,
@@ -132,7 +136,8 @@ def main():
 
     duree_audio = mesurer_la_duree_audio(arguments.audio)
     print("=" * 62)
-    print(f"WHISPERX — modele {arguments.modele} ({arguments.quantification}), CPU")
+    print(f"WHISPERX — modele {arguments.modele} ({arguments.quantification}), "
+          f"{arguments.peripherique.upper()}")
     print(f"audio     : {arguments.audio} ({duree_audio:.1f} s)")
     print(f"etiquette : {arguments.etiquette}")
     print("=" * 62)
@@ -142,8 +147,8 @@ def main():
     # ---------- Chargement (hors mesure d'inference) ----------
     debut_du_chargement = time.perf_counter()
     modele_whisper = whisperx.load_model(
-        arguments.modele, device="cpu", compute_type=arguments.quantification,
-        language=arguments.langue or None,
+        arguments.modele, device=arguments.peripherique,
+        compute_type=arguments.quantification, language=arguments.langue or None,
     )
     audio = whisperx.load_audio(arguments.audio)
     temps_de_chargement = time.perf_counter() - debut_du_chargement
@@ -164,11 +169,11 @@ def main():
     print("\n### ETAPE 2 — ALIGNEMENT (wav2vec2, force alignment)")
     debut = time.perf_counter()
     modele_d_alignement, metadonnees = whisperx.load_align_model(
-        language_code=langue_detectee, device="cpu",
+        language_code=langue_detectee, device=arguments.peripherique,
     )
     resultat = whisperx.align(
-        resultat["segments"], modele_d_alignement, metadonnees, audio, "cpu",
-        return_char_alignments=False,
+        resultat["segments"], modele_d_alignement, metadonnees, audio,
+        arguments.peripherique, return_char_alignments=False,
     )
     temps_d_alignement = time.perf_counter() - debut
     print(f"inference           : {temps_d_alignement:.2f} s "
@@ -197,9 +202,9 @@ def main():
         # avant. On essaie le nom courant, puis l'ancien.
         # / The argument was renamed: `token=` in 3.8.x, `use_auth_token=` before.
         try:
-            diariseur = fabrique(token=jeton, device="cpu")
+            diariseur = fabrique(token=jeton, device=arguments.peripherique)
         except TypeError:
-            diariseur = fabrique(use_auth_token=jeton, device="cpu")
+            diariseur = fabrique(use_auth_token=jeton, device=arguments.peripherique)
         tours = diariseur(audio, min_speakers=arguments.min_locuteurs,
                           max_speakers=arguments.max_locuteurs)
         resultat = whisperx.assign_word_speakers(tours, resultat)
@@ -233,6 +238,7 @@ def main():
         "moteur_diarisation": nom_du_diariseur,
         "diariseur": "pyannote-community" if not arguments.sans_diarisation else "aucun",
         "quantification": arguments.quantification,
+        "peripherique": arguments.peripherique,
         "machine": decrire_la_machine(arguments.etat_de_la_stack),
         "audio": arguments.audio,
         "duree_audio_s": round(duree_audio, 2),

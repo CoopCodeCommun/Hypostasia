@@ -23,7 +23,7 @@
     <link rel="stylesheet" href="{% static 'front/css/hypostasia.css' %}?v=36">
     {# La couche maquette globale (9 aout 2026) : le design de l'etalon #}
     {# applique au chrome — chargee EN DERNIER, elle re-teinte le reste. #}
-    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=73">
+    <link rel="stylesheet" href="{% static 'front/css/maquette.css' %}?v=74">
     {# LE SPINNER AU POINT DE CLIC. Charge apres `maquette.css` : il lit #}
     {# `--info`, qui y est defini en clair ET en sombre. #}
     {# / Loaded after maquette.css: it reads --info from there. #}
@@ -581,7 +581,7 @@
     days, so a stale browser would keep the old script for a month.
     {% endcomment %}
     <script src="{% static 'front/js/hypostasia.js' %}?v=40"></script>
-    <script src="{% static 'front/js/marginalia.js' %}?v=27"></script>
+    <script src="{% static 'front/js/marginalia.js' %}?v=28"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
     {# `arbre_overlay.js` et `arbre_context_menu.js` etaient charges ici. #}
     {# Ils sont supprimes avec l'arbre (12 aout 2026). #}
@@ -601,11 +601,16 @@
     {# / One tracks scrolling, the other tracks sound. #}
     <script src="{% static 'front/js/lecteur_audio.js' %}?v=1"></script>
     <script src="{% static 'front/js/alignement.js' %}?v=19"></script>
-    <script src="{% static 'front/js/keyboard.js' %}?v=26"></script>
+    <script src="{% static 'front/js/keyboard.js' %}?v=28"></script>
 
     <!-- Fermeture du dropdown menu utilisateur au clic exterieur (PHASE-25) -->
     <!-- / Close user menu dropdown on outside click (PHASE-25) -->
-    <script src="{% static 'front/js/user_menu.js' %}?v=26"></script>
+    <script src="{% static 'front/js/user_menu.js' %}?v=27"></script>
+    {# Le mode d'edition par blocs. Charge APRES keyboard.js : la cascade #}
+    {# Echap appelle window.modeEdition, qui doit exister a la frappe —   #}
+    {# ce qui est le cas, l'appel etant fait au moment de la touche.      #}
+    {# / Loaded after keyboard.js; the cascade calls it at keypress time. #}
+    <script src="{% static 'front/js/mode_edition.js' %}?v=1"></script>
 
     {% comment %}
     LE MESSAGE D'ACCUEIL — en DERNIER dans le corps, et sous garde.

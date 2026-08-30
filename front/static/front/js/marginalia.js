@@ -20,7 +20,9 @@
 //          avec mode_filtre 'inclure'|'exclure' pour inverser le dimming (PHASE-26a UX)
 // Appelle : window.drawerVueListe.ouvrir() pour ouvrir le drawer
 // Exporte : window.marginalia = { getContributeurFiltre,
-//           resetContributeurFiltre, ouvrirDrawerEtScrollerVersCarte }
+//           resetContributeurFiltre, ouvrirDrawerEtScrollerVersCarte,
+//           fermerEditeurEnPlace }
+// Appele par : keyboard.js:gererEscape() -> fermerEditeurEnPlace()
 // ==========================================================================
 (function() {
     'use strict';
@@ -268,33 +270,49 @@
     // --- Annuler une correction en place (etalon § 11) ---
     //
     // Refermer, c'est retirer l'editeur et rendre le corps : pas de
-    // rechargement, rien a redemander au serveur. Le bouton est pose
-    // par un fragment HTMX, donc l'ecouteur vit sur `document` — un
-    // ecouteur pose sur le fragment lui-meme s'empilerait a chaque
-    // ouverture (piege connu de ce depot).
+    // rechargement, rien a redemander au serveur.
+    //
+    // LA CONVENTION EST POSEE PAR `_editeur_en_place.html` : son script
+    // inline ajoute `est-en-edition` sur le bloc et injecte `.editeur`
+    // dans son corps. Le CSS (`maquette.css:2040-2044`) cache le corps
+    // et montre l'editeur. Fermer, c'est defaire exactement ces deux-la.
+    // / The convention comes from _editeur_en_place.html's inline script.
+    //
+    // :return: true si un editeur etait ouvert et vient d'etre ferme.
+    //          C'est ce booleen que la cascade Echap de keyboard.js
+    //          attend pour savoir si elle doit s'arreter la.
+    function fermerEditeurEnPlace(blocVise) {
+        var bloc = blocVise || document.querySelector('.bloc.est-en-edition');
+        if (!bloc) return false;
+        bloc.classList.remove('est-en-edition');
+        var editeur = bloc.querySelector('.editeur');
+        if (editeur) editeur.remove();
+        return true;
+    }
+
+    // Le bouton est pose par un fragment HTMX, donc l'ecouteur vit sur
+    // `document` — un ecouteur pose sur le fragment lui-meme
+    // s'empilerait a chaque ouverture (piege connu de ce depot).
     // / Delegated on document: a per-fragment listener would stack up.
     document.addEventListener('click', function (evenement) {
         var bouton = evenement.target.closest('.annuler-edition');
         if (!bouton) return;
         evenement.preventDefault();
-        var bloc = bouton.closest('.bloc');
-        if (!bloc) return;
-        bloc.classList.remove('est-en-edition');
-        var editeur = bloc.querySelector('.editeur');
-        if (editeur) editeur.remove();
+        fermerEditeurEnPlace(bouton.closest('.bloc'));
     });
 
-    // Echap ferme l'editeur, comme il fermait le dialogue. Ce qui
-    // s'ouvre doit se fermer par la meme touche, quelle que soit sa
-    // forme. / Escape closes it, as it closed the modal.
-    document.addEventListener('keydown', function (evenement) {
-        if (evenement.key !== 'Escape') return;
-        var bloc = document.querySelector('.bloc.est-en-edition');
-        if (!bloc) return;
-        bloc.classList.remove('est-en-edition');
-        var editeur = bloc.querySelector('.editeur');
-        if (editeur) editeur.remove();
-    });
+    // ECHAP N'A PLUS D'ECOUTEUR ICI, ET C'EST DELIBERE.
+    //
+    // Ce fichier en portait un, hors de la cascade de `keyboard.js`.
+    // Deux ecouteurs independants sur la meme touche fermaient DEUX
+    // choses d'un seul appui : avec le drawer ouvert par-dessus un
+    // editeur, un Echap fermait le drawer ET jetait la correction en
+    // cours de frappe (mesure du 29 aout 2026). La cascade existe pour
+    // fermer UNE chose a la fois, la plus proche de l'utilisateur.
+    // La fermeture par Echap vit desormais dans `gererEscape()`, qui
+    // appelle `window.marginalia.fermerEditeurEnPlace()`.
+    // / Escape lives in keyboard.js's cascade now: two independent
+    // listeners closed two things per keypress.
 
 
     // Expose l'API publique
@@ -303,6 +321,9 @@
         getContributeurFiltre: getContributeurFiltre,
         resetContributeurFiltre: resetContributeurFiltre,
         ouvrirDrawerEtScrollerVersCarte: ouvrirDrawerEtScrollerVersCarte,
+        // Appelee par la cascade Echap de keyboard.js. Rend true si elle
+        // a ferme quelque chose. / Called by keyboard.js's Escape cascade.
+        fermerEditeurEnPlace: fermerEditeurEnPlace,
     };
 
     // --- Tap sur .hl-extraction sur mobile → ouvrir bottom sheet (PHASE-21) ---

@@ -246,7 +246,47 @@
             </svg>
             Modifier la structure
         </button>
+        {% comment %}
+        LE MODE D'ÉDITION — SPEC-edition-par-blocs § 2.
+
+        Deux modes distincts, et non une bascule d'affichage : en mode
+        édition le texte devient modifiable partout, d'un coup, et le
+        clavier change de sens. Le bouton porte `aria-pressed`, comme
+        son voisin — un mode invisible qui capture le clavier est une
+        source de confusion, et le projet a déjà tranché dans ce sens.
+
+        IL EST DÉSACTIVÉ PENDANT UNE ANALYSE (§ 8.1), et il DIT pourquoi.
+        Le refus existe aussi à l'écriture — les services reposent la
+        garde eux-mêmes, et le lot entier est alors annulé — mais un
+        refus qui arrive après vingt minutes de frappe est le pire des
+        deux mondes.
+        / Two distinct modes; disabled during an analysis, and it says so.
+        {% endcomment %}
+        {% with analyse_en_cours=page|une_analyse_tourne_sur %}
+        <button type="button" id="bouton-mode-edition"
+                onclick="basculerModeEdition(this)"
+                aria-pressed="false"
+                {% if analyse_en_cours %}disabled{% endif %}
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-slate-500 disabled:hover:bg-transparent"
+                data-testid="bouton-mode-edition"
+                title="{% if analyse_en_cours %}Une analyse tourne sur cette note : l'édition rouvrira quand elle sera finie.{% else %}Corriger le texte de tous les passages d'un seul geste. Ctrl+S enregistre, Échap sort.{% endif %}">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
+            </svg>
+            Éditer le texte
+        </button>
+        {% endwith %}
     </div>
+    {% comment %}
+    OU LE COMPTE RENDU DU LOT VIENT S'AFFICHER (§ 7.4 et § 9).
+
+    Le partial rendu par `corriger_en_lot` porte lui-meme
+    `role="status"` et `aria-live="polite"` : il s'annonce donc en
+    arrivant. Ce conteneur reste VIDE tant qu'aucun enregistrement n'a
+    eu lieu — un cadre vide serait du bruit.
+    / Where the batch report lands; it announces itself on arrival.
+    {% endcomment %}
+    <div id="compte-rendu-du-lot" data-testid="accueil-compte-rendu-du-lot"></div>
     {% endif %}
 
     <article id="readability-content" class="lecture-article prose prose-slate prose-lg max-w-none

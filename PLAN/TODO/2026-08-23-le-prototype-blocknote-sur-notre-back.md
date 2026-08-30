@@ -1,5 +1,73 @@
 # Prototype : trois voies pour l'édition par blocs
 
+> ## ⚠️ CE QUI RESTE — 23 août 2026, au soir. Le prototype a tourné.
+>
+> **Cette note n'est pas supprimée, et c'est délibéré.** Elle devait l'être le jour
+> où la voie serait tranchée. **Elle ne l'est qu'à moitié** : l'option C est
+> instruite et tient, mais **B n'a jamais été construite ni pesée** — son bundle,
+> qui était son premier critère de chute, n'a pas de chiffre. L'écarter est un
+> **arbitrage**, pas un résultat de mesure, et le dossier TODO garde ce qui n'est
+> pas décidé.
+>
+> **Les chiffres, la méthode et les limites** :
+> `CHANGELOG/2026-08-23-le-champ-unique-tranche-l-edition-par-blocs.md`.
+> La spec porte la décision dans son encart de tête.
+>
+> **Ce que le prototype a établi** : le champ tient à 210 blocs (6 ms par frappe) ;
+> le diff par `identifiant_stable` est exact (0 perdu, 0 dupliqué, 191 blocs
+> intacts à l'octet) ; **`plaintext-only` n'empêche pas la fusion multi-blocs** ; et
+> **l'interception doit vivre dans `beforeinput`** — une garde par `keydown` laisse
+> `Ctrl+A` + frappe réduire une note de 210 blocs à un seul.
+>
+> **La mesure des ancres — le critère éliminatoire de cette note — a été prise**, et
+> elle rassure : `reconcilier_les_portions_de_l_element` ne détache **que** les
+> portions qui enjambent le point d'édition (22 sur 22), et **aucune** des 37
+> autres. Ce comportement est **le même pour les trois voies** : elles appellent
+> toutes cette fonction. Confirmé au passage, et indépendant de la voie : **14
+> éléments sur 40 (35 %) sont refusés d'emblée** parce qu'une synthèse figée les
+> cite.
+>
+> **Un piège de plateforme, découvert en refermant les trous** :
+> `getTargetRanges()` rend une **liste vide** sous `plaintext-only` (Chromium 145),
+> là où la sélection traverse bien trois blocs. Une garde qui s'y fie seule y est
+> aveugle. `plaintext-only` n'est donc **pas** optionnel — c'est lui qui tient le
+> collage non traversant — et le combiner avec la garde exige un repli sur
+> `window.getSelection()`.
+>
+> **LES TROIS MESURES SONT FAITES, ET LES TROIS PASSENT** (26 août 2026). Cette
+> note ne survit plus que pour **le bundle de B, jamais pesé** — voir la fin de cet
+> encart. Le détail des trois :
+>
+> 1. ✅ **FAIT le 26 août 2026 — Firefox 146 et WebKit 26.** `libgtk-3-0t64` a été
+>    installé dans le conteneur (décision du mainteneur) ; les binaires y étaient
+>    déjà. **La promesse fondatrice tient sur les trois moteurs**, et la garde aussi
+>    sur le chemin réel (sélection au clavier + `Suppr`) : **210 blocs et 210
+>    gouttières intacts** partout avec elle, cassé partout sans elle. Le piège de
+>    `getTargetRanges()` est **propre à Chromium**. Une divergence WebKit à
+>    connaître : le repère de gouttière entre dans la sélection étendue au clavier —
+>    défaut de **copie**, pas de correction.
+> 2. ✅ **FAIT le 26 août 2026.** La garde a été injectée dans la **vraie page**,
+>    avec ses 189 boutons d'action : les trois gestes tiennent (**189 → 189**, zéro
+>    mutation, zéro erreur JS), lire `.corps.textContent` donne **0 bloc exact sur
+>    189** et lire l'élément interne **189 sur 189**. Et sur la page 19, **202 sur
+>    210 bouclent — les 8 échecs sont exactement les 8 `table`**.
+>    *(Non vus : un `.element-masque` et un `avertissement-plafond` dans le flux.)*
+> 3. ✅ **FAIT le 26 août 2026 — et la parade marche.** Vraie composition par CDP :
+>    **210 → 205 sans parade, 210 → 210 avec**. On ne combat pas la composition, on
+>    lui retire sa matière — la sélection est normalisée dès `compositionstart`, qui
+>    arrive avant toute écriture. Le gestionnaire s'arme sur les trois moteurs.
+>    ⚠️ **Android reste non éprouvé** : la vraie composition n'est déclenchable que
+>    sur Chromium, et c'est là que ça compterait le plus.
+>
+> **Le poids du bundle de B reste sans chiffre**, et le seuil que cette note voulait
+> fixer « avant de mesurer » n'a jamais été fixé. Si les coûts de C enflent — une
+> annulation applicative est déjà à écrire —, **B redevient candidate**, et c'est
+> par là qu'il faudra reprendre.
+>
+> **Tout ce qui suit est l'état d'AVANT le prototype.** Il garde ses mesures de
+> lecture du dépôt `suitenumerique/docs`, qui n'ont pas été refaites.
+
+
 **Décidé par le mainteneur le 23 août 2026. Rien n'est codé.**
 
 > **📘 La spec fait foi désormais.**
@@ -76,7 +144,7 @@ pari-là que le prototype éprouve. **S'il tombe, la voie B tombe avec lui.**
 | `id` | `ElementDocument.identifiant_stable` (UUID, `unique`) |
 | `type` | `label` (`text`, `section_header`, `list_item`…) |
 | `content` (texte nu) | `texte` |
-| `props` | `provenance` — `{start_time, end_time, voice}` ou `{page_no, boites}` |
+| `props` | `provenance` — `{locuteur, debut, fin}` ou `{page_no, boites}` |
 
 - **le diff se fait en Python, jamais en JavaScript.** À la sortie du mode édition, un
   seul POST de `[{id, type, texte}, …]` ; Django compare avec ses `ElementDocument`
@@ -252,10 +320,21 @@ contrôle a posteriori.
 3. **Les tables.** **2 éléments sur 1 129** contiennent une ligne vide interne, et ce
    sont **les deux des `table`**. Elles ne cassent pas l'option C (on ne re-découpe
    rien) mais leur édition en texte libre est à éprouver.
-4. **Le cas transcription reste NON MESURÉ** : `provenance__has_key='voice'` rend
-   **0 élément** sur cette base — aucune transcription n'y est ingérée. Tout ce qui
-   est dit du cas audio vient du code, pas d'une mesure. **Le prototype doit ingérer
-   une vraie transcription avant de conclure quoi que ce soit sur ce cas.**
+4. **Le cas transcription est mesurable ICI, sans rien ingérer.** Remesuré le 23 août
+   2026 sur la base de dev : `provenance__has_key='locuteur'` — la clé réellement
+   écrite par `ingestion_audio.py` — rend **21 éléments sur 1 129**, répartis sur
+   **deux notes** (page 3 « Débat IA — transcription », 12 éléments ; page 4 « Palais
+   César — deux locuteurs », 9 éléments), et **5 locuteurs distincts** (`Elinor`,
+   `Eric`, `Laurent`, `speaker_1`, `speaker_2`). Exemple de provenance :
+   `{'debut': 0.0, 'fin': 27.5, 'locuteur': 'Laurent'}`.
+   **`provenance__has_key='voice'` rend bien 0** — l'ancienne orthographe n'est écrite
+   nulle part.
+
+   > Cette mesure **corrige** ce que deux notes du 23 août affirmaient : « 0 élément,
+   > aucune transcription n'y est ingérée ». Elles interrogeaient `voice`, la clé
+   > morte, et en concluaient à l'absence de transcription. Le prototype n'a donc
+   > **pas** à ingérer un audio pour éprouver le cas audio — mais 21 éléments sur deux
+   > notes courtes ne disent rien de la tenue à 200 blocs.
 
 ### Les blocs vidés — masqués, jamais supprimés
 

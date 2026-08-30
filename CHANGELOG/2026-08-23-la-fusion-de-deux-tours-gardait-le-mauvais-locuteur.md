@@ -59,9 +59,15 @@ vertes : `test_ancrage_m2m` (54), `test_rendu_elements` (54),
 
 **Il ne répare aucune donnée existante.** Toute fusion de tours faite avant aujourd'hui
 a produit une attribution potentiellement fausse, et rien ne permet de la retrouver :
-la provenance d'origine n'est pas conservée. **Aucune transcription n'est ingérée sur
-la base de dev** (`provenance__has_key='locuteur'` rend 0 élément), donc la portée
-réelle en production reste à établir.
+la provenance d'origine n'est pas conservée.
+
+**Correction de mesure, le 23 août 2026 :** cette section affirmait d'abord qu'« aucune
+transcription n'est ingérée sur la base de dev ». C'était faux — la requête avait porté
+sur `voice`, la clé morte. Remesuré avec la bonne clé :
+`provenance__has_key='locuteur'` rend **21 éléments sur 1 129**, sur **deux** notes
+(page 3 « Débat IA — transcription », 12 ; page 4 « Palais César — deux locuteurs », 9),
+**5 locuteurs distincts**. `provenance__has_key='voice'` rend bien **0**. La portée
+réelle en production reste à établir, mais le cas audio est éprouvable ici.
 
 ---
 

@@ -54,3 +54,40 @@ def est_modifiable_par(page, utilisateur):
     from front.views import _utilisateur_peut_ecrire_page
 
     return _utilisateur_peut_ecrire_page(utilisateur, page)
+
+
+@register.filter(name="une_analyse_tourne_sur")
+def une_analyse_tourne_sur(page):
+    """
+    Vrai si une analyse tourne sur cette note, donc si l'edition doit
+    etre refusee A L'ENTREE.
+    / True if an analysis is running, so editing must be refused UP FRONT.
+
+    Usage : {% if page|une_analyse_tourne_sur %}
+
+    POURQUOI A L'ENTREE, ET PAS AU MOMENT D'ENREGISTRER
+
+    `services/garde_edition.py` refuse deja l'ecriture pendant une
+    analyse — les services reposent la garde eux-memes, et le lot entier
+    est alors annule. Mais un refus qui arrive APRES vingt minutes de
+    frappe est le pire des deux mondes : le travail est fait, et il ne
+    passe pas. La spec (§ 8.1) demande donc que le mode NE S'OUVRE PAS.
+
+    Ce filtre ne SUPPRIME pas le second controle, il evite le cas
+    frequent : une analyse peut toujours demarrer une fois le mode
+    ouvert, et c'est alors l'enregistrement qui refuse — en bloc, sans
+    rien ecrire.
+    / This does not replace the write-time guard; it avoids the common case.
+
+    Un filtre plutot qu'une variable de contexte : `lecture_principale.html`
+    est rendu depuis TROIS endroits de `front/views.py`, et une variable
+    oubliee dans l'un d'eux vaudrait « faux » — donc un bouton actif
+    pendant une analyse, sans que rien ne le signale.
+    / A filter, not a context variable: the template is rendered from three
+    places, and a forgotten variable would read as False.
+    """
+    from hypostasis_extractor.services.garde_edition import (
+        une_analyse_tourne_sur_la_page,
+    )
+
+    return une_analyse_tourne_sur_la_page(page)

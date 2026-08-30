@@ -22,13 +22,20 @@
 `PLAN/PASSATION.md` le sont. Il donne la couleur générale ; eux donnent la date
 et la mesure.
 
-## Le cinquième fichier n'est pas une cinquième spec canonique
+## Les deux fichiers de transcription ne sont pas des specs canoniques
 
-`SPEC-transcription-audio-locale.md` (16 août 2026) est dans ce dossier sans
+`SPEC-transcription-audio-locale.md` (16 août 2026) et
+`SPEC-transcription-sur-gpu-loue.md` (23 août 2026) sont dans ce dossier sans
 appartenir aux quatre ci-dessus. La différence est de nature : les quatre
 décrivent une **couche du produit** et se placent sous l'autorité d'une maquette ;
-celle-là décrit une **brique d'infrastructure** — remplacer l'API Mistral Voxtral
-par une chaîne locale — et son étalon est une transcription humaine, pas un écran.
+ces deux-là décrivent une **brique d'infrastructure** — remplacer l'API Mistral
+Voxtral par une chaîne à nous — et leur étalon est une transcription humaine, pas
+un écran.
+
+**Elles se lisent ensemble, et ne se recouvrent pas** : la première décide
+**quels modèles** (et son § 8 porte les critères) ; la seconde décide **où ils
+tournent**, et porte le protocole de test sur GPU loué. La seconde ne rouvre
+aucune question tranchée par la première.
 
 **Son état est écrit dans son propre en-tête, et le chantier est suivi dans
 `PLAN/PASSATION.md § 5.4`** — il n'est pas recopié ici. Deux copies d'un même état

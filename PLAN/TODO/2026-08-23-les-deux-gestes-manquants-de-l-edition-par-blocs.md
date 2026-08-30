@@ -79,8 +79,9 @@ que l'inverse (tout ou rien) est plus facile à annuler.
 > raisonnement ; sa conclusion est fausse.
 >
 > Et le vocabulaire de cette section est faux aussi : la clé est **`locuteur`**, pas
-> `voice` — voir `2026-08-23-la-fusion-de-deux-tours-garde-le-mauvais-locuteur.md`,
-> qui porte le défaut de production que cette erreur a révélé.
+> `voice`. Le défaut de production que cette erreur a révélé — une fusion de deux tours
+> qui gardait le locuteur du premier — est **corrigé** depuis le 23 août 2026 :
+> `CHANGELOG/2026-08-23-la-fusion-de-deux-tours-gardait-le-mauvais-locuteur.md`.
 
 `ElementDocument.provenance` porte `{start_time, end_time, voice}` pour un tour de
 parole. Il existe un **filtre** par locuteur en lecture

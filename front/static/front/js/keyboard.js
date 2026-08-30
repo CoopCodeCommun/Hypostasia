@@ -289,6 +289,31 @@
     // Ferme le panneau le plus "proche" de l'utilisateur en premier
     // / Close the panel closest to the user first
     function gererEscape() {
+        // 0.0 bis Le DIALOGUE de scission est en top layer : il est
+        //     au-dessus de tout, il se ferme donc en premier. Sans ce
+        //     rang, le rang 4.5 fermait l'editeur CACHE DERRIERE lui
+        //     — un brouillon perdu sans que rien ne se voie — et le
+        //     preventDefault de ce fichier empechait en plus la
+        //     fermeture native du <dialog>.
+        // / A <dialog> sits in the top layer: it closes first.
+        var dialogueElement = document.getElementById('dialogue-element-ouvert');
+        if (dialogueElement && dialogueElement.open) {
+            dialogueElement.close();
+            return true;
+        }
+
+        // 0.0 ter Menu utilisateur ouvert → fermer. Il s'ouvre par-dessus
+        //     l'ecran, donc avant tout le reste. Ce rang REMPLACE un
+        //     ecouteur que `user_menu.js` portait hors cascade : menu +
+        //     editeur ouverts, un seul Echap fermait les deux et jetait
+        //     la correction en cours de frappe.
+        // / Replaces an out-of-cascade listener in user_menu.js.
+        if (window.userMenu && window.userMenu.fermerSiOuvert) {
+            if (window.userMenu.fermerSiOuvert()) {
+                return true;
+            }
+        }
+
         // 0.0 Bottom sheet mobile ouvert → fermer (PHASE-21)
         // / 0.0 Mobile bottom sheet open → close (PHASE-21)
         if (window.bottomSheet && window.bottomSheet.estOuvert()) {
@@ -334,6 +359,40 @@
         // 4. L'arbre lateral occupait ce rang de la cascade jusqu'au
         //    12 aout 2026. Retire avec l'arbre.
         // / 4. The side tree held this rung until it was removed.
+
+        // 4.5 Editeur de correction en place ouvert -> fermer.
+        //
+        // CE RANG EST APRES LE DRAWER, ET C'EST VOULU : le drawer est un
+        // panneau qui s'ouvre PAR-DESSUS le texte, donc plus pres de
+        // l'utilisateur. Un Echap ferme le drawer, un second ferme
+        // l'editeur — une chose a la fois, ce que cette cascade existe
+        // pour garantir.
+        //
+        // Ce rang REMPLACE un second ecouteur `keydown` que marginalia.js
+        // portait hors cascade : les deux repondaient a la meme touche, et
+        // un seul appui fermait le drawer ET jetait la correction en cours
+        // de frappe (mesure du 29 aout 2026).
+        // / This rung replaces a second, out-of-cascade Escape listener:
+        // one keypress used to close two things and discard the edit.
+        if (window.marginalia && window.marginalia.fermerEditeurEnPlace) {
+            if (window.marginalia.fermerEditeurEnPlace()) {
+                return true;
+            }
+        }
+
+        // 4.6 Mode d'edition ouvert → en sortir.
+        //
+        // CE RANG EST LE DERNIER AVANT LA DESELECTION, ET C'EST VOULU :
+        // le mode est un ETAT, pas un panneau. Tout ce qui s'ouvre
+        // par-dessus lui — dialogue, menu, drawer, editeur en place — se
+        // ferme d'abord ; on ne sort du mode que lorsqu'il ne reste plus
+        // que lui. En sortir par megarde coute cher.
+        // / The mode is a state, not a panel: everything else closes first.
+        if (window.modeEdition && window.modeEdition.estOuvert
+            && window.modeEdition.estOuvert()) {
+            window.modeEdition.fermer();
+            return true;
+        }
 
         // 5. Extraction selectionnee → deselectionner
         // (la branche 'carte inline ouverte' a ete retiree avec la refonte

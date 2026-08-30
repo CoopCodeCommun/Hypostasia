@@ -3286,3 +3286,85 @@ body:has(.lecteur) { --barre-audio: 62px; }
    fait tomber `test_navbar_le_titre_sort_de_la_barre_et_le_fil_le_porte`.
    / No rule for #titre-toolbar here: the 20 August rule already frees
    that space, and only where a breadcrumb exists to carry the title. */
+
+/* ================================================================== */
+/* LE MODE D'EDITION PAR BLOCS (SPEC-edition-par-blocs § 2)           */
+/*                                                                     */
+/* « Le mode doit se voir et s'annoncer. Un mode invisible qui capture */
+/* le clavier est une source de confusion. » Tout ce qui suit passe    */
+/* par les TOKENS : le build Tailwind est fige, une classe arbitraire  */
+/* y serait inerte — et ces tokens suivent deja le theme clair/sombre. */
+/* / The mode must be visible; everything goes through the tokens.     */
+/* ================================================================== */
+
+/* Le champ se distingue du papier sans crier : un fond legerement    */
+/* creuse et un filet a gauche, la ou le regard revient a chaque      */
+/* ligne. / A slightly hollowed ground and a rule on the left.        */
+#zone-lecture.mode-edition #readability-content [data-testid="blocs-elements"] {
+  background: var(--papier-creux);
+  border-left: 3px solid var(--filet-controle);
+  border-radius: 4px;
+  padding: .75rem .5rem .75rem .75rem;
+  outline: none;
+}
+
+/* LE CURSEUR DOIT SE VOIR DANS UN TEXTE LONG. */
+#zone-lecture.mode-edition #readability-content [data-testid="blocs-elements"]:focus-within {
+  border-left-color: var(--encre-douce);
+}
+
+/* LES BOUTONS D'ACTION N'ONT RIEN A FAIRE DANS LE CHAMP.
+   Ils appartiennent au mode STRUCTURE. Les laisser paraitre ici
+   mettrait « corriger couper recoller masquer » au milieu du texte
+   qu'on edite. Ils restent dans le DOM — la serialisation les retire
+   — mais ils ne se voient pas.
+   / They belong to structure mode; hidden here, still in the DOM. */
+#zone-lecture.mode-edition .actions-element { display: none; }
+
+/* LA GOUTTIERE PORTE LES FRONTIERES, et c'est tout ce qu'il faut :
+   elles sont deja materialisees, bloc par bloc. On ne perd que le
+   chrome d'edition, jamais le repere. En mode edition on rend le
+   NUMERO visible — sans lui, un champ de 210 blocs n'a plus d'echelle.
+   / The gutter already shows the borders; the number comes back. */
+#zone-lecture.mode-edition .numero-element { display: inline-block; }
+
+/* Un bloc VIDE doit garder sa place : sans hauteur minimale, le texte
+   se referme et l'on ne sait plus qu'un passage attend d'etre masque.
+   / An emptied block keeps its place. */
+#zone-lecture.mode-edition .bloc > .corps > [data-element-id]:empty::before {
+  content: "(vidé — sera masqué à l’enregistrement)";
+  color: var(--encre-douce);
+  font-style: italic;
+  font-size: .85em;
+}
+
+/* L'ETAT « des modifications ne sont pas enregistrees », discret mais
+   present : le filet passe a l'encre pleine.
+   / Unsaved changes: the rule turns to full ink. */
+#zone-lecture.mode-edition.a-des-modifications
+  #readability-content [data-testid="blocs-elements"] {
+  border-left-color: var(--encre);
+}
+
+/* Pendant l'envoi, le champ ne se touche plus — le lot part avec le
+   texte tel qu'il etait au Ctrl+S.
+   / While saving, the field is not editable. */
+#zone-lecture.mode-edition.enregistrement-en-cours
+  #readability-content [data-testid="blocs-elements"] {
+  opacity: .6;
+  pointer-events: none;
+}
+
+/* Le compte rendu du lot. */
+#compte-rendu-du-lot .compte-rendu-du-lot {
+  background: var(--papier-panneau);
+  border: 1px solid var(--filet);
+  border-radius: 4px;
+  padding: .6rem .8rem;
+  margin: .5rem 0;
+  font-size: .85rem;
+}
+#compte-rendu-du-lot .chiffres-du-lot,
+#compte-rendu-du-lot .refus-du-lot { margin: 0; padding-left: 1.1rem; }
+#compte-rendu-du-lot .refus-du-lot { margin-top: .4rem; color: var(--encre-douce); }
+#compte-rendu-du-lot .refus-du-lot code { font-size: .8em; }

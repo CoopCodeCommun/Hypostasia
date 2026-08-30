@@ -56,9 +56,12 @@ le seul tour existant est un tour du moteur, `fait_par=None`, `job=None`.
 
 **Une table dédiée, jamais `ExtractionJob`.** Trois raisons, toutes vérifiées :
 
-1. `ExtractionJob` est exposé publiquement (voir
-   `2026-08-23-l-api-des-jobs-est-ouverte-a-tous.md`) : y écrire le prompt assemblé
-   ferait fuiter le corpus entier ;
+1. `ExtractionJob` est exposé par `/api/extraction-jobs/`, dont le détail rend
+   `prompt_description` **et** `raw_result`. Cette API est fermée aux inconnus depuis
+   le 23 août 2026 (`CHANGELOG/2026-08-23-fermer-l-api-d-extraction.md`), mais elle
+   reste ouverte à **qui accède à la note** — donc à tout compte connecté si la note
+   est rangée dans un carnet public. Y écrire le prompt assemblé y déverserait
+   25 000 à 80 000 caractères de corpus par job ;
 2. le menu des tâches charge **30 `ExtractionJob` complets** sans `.only()` ni
    `.defer()` (`front/views_taches.py:284-286`) ;
 3. un tour nocturne n'a pas de job — mais il a un `TourDeWiki`, qui **est** l'objet

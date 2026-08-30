@@ -11,11 +11,16 @@
 Dépend de `2026-08-23-les-deux-gestes-manquants-de-l-edition-par-blocs.md`, qui
 porte les deux endpoints qui manquent au back.
 
-> **⚠️ Cette voie est en concurrence, et la décision n'est pas prise.**
-> `2026-08-23-le-prototype-blocknote-sur-notre-back.md` éprouve l'alternative :
-> laisser BlockNote fournir ces gestes au lieu de les écrire. **Ne pas coder cette
-> note avant que le prototype ait rendu ses chiffres** — sinon on aura écrit le
-> clavier maison sans avoir regardé ce qu'il remplaçait.
+> **⚠️ Cette voie est le REPLI — 23 août 2026, au soir.**
+> Le prototype a rendu ses chiffres :
+> `CHANGELOG/2026-08-23-le-champ-unique-tranche-l-edition-par-blocs.md`. **C'est
+> l'option C — le champ unique — qui est instruite**, et cette note-ci n'est plus
+> la première à coder. Elle n'est pas morte pour autant : elle fait **autre chose**
+> (sélectionner des blocs *entiers*, garder `scinder`/`fusionner` au clavier), et
+> elle garde un avantage que rien n'a mesuré mais que la structure impose — **son rayon de dégât**. Sous C, une session
+> couvre la note entière : un `lectureReload` déclenché par le `masquer` d'un
+> collègue efface **tout** le travail ; ici, on ne perdrait que le bloc en cours.
+> **Y revenir si l'un des six coûts de C est refusé.**
 
 
 ## Le besoin
@@ -35,7 +40,11 @@ régime-là que le front actuel ne sert pas.
 **Le back est déjà bon, et il n'est pas en cause.** `ElementDocument` porte un
 `identifiant_stable` (UUID, `unique`, « ne change jamais, même après scission ou
 fusion »), un `ordre` renumérotable, un `label`, un `texte`, et une `provenance`
-qui sait d'où vient le bloc — `{start_time, end_time, voice}` pour l'audio,
+qui sait d'où vient le bloc — ~~`{start_time, end_time, voice}`~~ **`{locuteur,
+debut, fin}`** pour l'audio (⚠️ **corrigé le 23 août 2026** : les trois clés barrées
+n'existent nulle part, et c'est ce contrat mort qui faisait garder le mauvais
+locuteur à la fusion de deux tours —
+`CHANGELOG/2026-08-23-la-fusion-de-deux-tours-gardait-le-mauvais-locuteur.md`),
 `{page_no, boites}` pour le PDF. `ElementViewSet` porte cinq gestes avec leurs
 verrous : verrou de **ligne** pour `corriger` et `masquer`, verrou de **page** pour
 `scinder` et `fusionner_avec_le_suivant`, qui renumérotent toute la page.

@@ -135,6 +135,100 @@ basculent).
 
 ---
 
+## Les quatre tailles de Whisper — la mesure qui déplace tout
+
+Le WER du tableau précédent est déterminé par l'**ASR**, jamais par le diariseur :
+les quatre lignes « pilote » partagent le même texte au caractère près. La vraie
+question était donc : *quelle taille de Whisper faut-il payer ?* Mesuré sur les
+trois tranches, ASR seul (`--sans-diarisation`) :
+
+| modèle | WER T1 | WER T2 | WER T4 | **moyenne** | min/h | pic RSS |
+|---|---|---|---|---|---|---|
+| **large-v3** | 25,05 % | 36,41 % | 29,92 % | **30,5 %** | ~60 | 8,27 Go |
+| **large-v3-turbo** | 26,35 % | 36,82 % | 31,36 % | **31,5 %** | 41 | **3,66 Go** |
+| medium | 26,85 % | 39,49 % | 34,46 % | 33,6 % | 37 | 5,43 Go |
+| small | 30,88 % | 41,74 % | 35,50 % | 36,0 % | **17** | **3,15 Go** |
+| *Parakeet + VAD, pour comparaison* | 34,95 % | 67,92 % | 40,13 % | 47,7 % | ~10 | 3,90 Go |
+
+**Trois conclusions, et la première clôt le débat sur l'ASR :**
+
+1. **Whisper `small` bat Parakeet sur tous les tableaux** — 36,0 % contre 47,7 %
+   de WER, 0,03 % contre 4,38 % de mots anglais, pour un coût du même ordre
+   (17 contre ~10 min/h) et **moins de mémoire** (3,15 contre 3,90 Go). À partir
+   de là, **Parakeet n'a plus aucun argument** : il n'est ni meilleur, ni moins
+   cher, ni plus léger, et il est le seul à basculer en anglais.
+2. **`turbo` domine `medium`** : meilleur WER (31,5 contre 33,6 %) **et** 1,8 Go
+   de moins. `medium` sort du jeu. Il ne domine pas `medium` en vitesse
+   (41 contre 37 min/h), et la raison mérite d'être connue : **turbo garde
+   l'encodeur complet de large-v3 et ne réduit que le décodeur** (4 couches au
+   lieu de 32). Sur GPU, où le décodage domine, cela donne les ×8 annoncés en
+   amont ; **sur CPU et sur de l'audio long, c'est l'encodeur qui coûte**, et il
+   est intact. Le gain se réduit à ~30 % contre large-v3.
+3. **La dégradation est douce** — 30,5 → 31,5 → 33,6 → 36,0 % quand on descend
+   en taille, pendant que le coût est divisé par quatre. Aucun décrochage : le
+   choix est un curseur, pas une falaise.
+
+**Aucune taille ne bascule en anglais** : 0,00 à 0,12 %, contre 0,10 % chez
+l'humain. L'instabilité était bien propre à Parakeet, pas au découpage.
+
+---
+
+## sherpa-onnx : le seuil n'est pas réglable une fois pour toutes
+
+Le premier tableau donnait 15, 24 et 16 locuteurs pour 4, 4 et 6 réels — un
+chiffre qui mesurait notre paramétrage, pas la pile. Balayage complet :
+
+| seuil (CAM++) | T1 (4) | T2 (4) | T4 (6) |
+|---|---|---|---|
+| 0,5 | 15 | 24 | 16 |
+| 0,7 | 9 | 12 | 11 |
+| 0,9 | 6 | 9 | 7 |
+| 0,95 | 5 | — | **6 ✓** |
+| **1,0** | **4 ✓** | — | 4 |
+| 1,1 | 3 | — | 3 |
+
+**Aucun seuil ne convient aux trois tranches.** À 1,0 le compte est exact sur T1
+et retombe à 4 sur T4 ; à 0,95 c'est l'inverse.
+
+Essai avec **l'extracteur d'empreintes de pyannote lui-même**
+(`wespeaker_en_voxceleb_resnet34_LM`), dans l'idée de reproduire le pipeline
+officiel en ONNX et sans jeton : il **sous-segmente** au contraire — 3, 5, 2 à
+seuil 0,5, et 1, 2, 1 à seuil 0,8. Sa plage utile est ailleurs. Mettre le modèle
+de pyannote dans sherpa ne suffit pas : le clustering n'est pas le même.
+
+**On s'arrête là, et c'est une conclusion, pas un abandon.** Continuer à affiner
+reviendrait à régler un paramètre sur trois extraits pour qu'il tombe juste sur
+ces trois extraits — un seuil calibré ainsi n'aurait aucune valeur prédictive, et
+le banc produirait un chiffre flatteur qui mentirait au déploiement. Le résultat
+honnête est celui-ci : **sherpa exige un seuil qui dépend de l'enregistrement ;
+pyannote trouve juste sans aucun réglage.** C'est précisément ce qu'on paie dans
+ses 65 min/h.
+
+---
+
+## loudpage : mort en OOM, et abandonné
+
+La pile n'a jamais rendu un chiffre de qualité. Ce qu'elle a coûté avant d'y
+renoncer, au titre du critère 4 :
+
+| ce qu'il a fallu | détail |
+|---|---|
+| écrire son Dockerfile | le dépôt n'en fournit **aucun** |
+| retirer `cuda-python` | dans ses dépendances, sur une machine sans GPU |
+| **rétrograder NeMo 3.0.0 → 2.3.1** | la 3.0.0 importe `nv_one_logger`, **absent de PyPI** (404) et de l'index NVIDIA public. Le serveur annonçait pourtant `Application startup complete` — **sans modèle chargé** |
+| renommer le jeton | il attend `HUGGINGFACE_ACCESS_TOKEN`, pas `HF_TOKEN_DIARIZATION` |
+| 12 Go d'image | contre 4,3 à 4,8 Go pour les autres |
+
+Et au bout : **tué par l'OOM killer sur une tranche de 900 s**,
+`OOMKilled=true`, exit 137, **11,6 Go de RSS** relevés par le noyau alors qu'il
+n'avait traité que le premier de ses deux morceaux de 450 s. Sur une machine de
+22 Go dont 14 disponibles.
+
+**Abandonné en accord avec le mainteneur.** Ce qu'il apporte est de toute façon
+Parakeet servi par NeMo au lieu d'ONNX — l'ASR que cette campagne disqualifie.
+
+---
+
 ## Critère 3 — le coût
 
 Minutes de calcul par heure d'audio, et pic mémoire du processus :
@@ -268,7 +362,24 @@ granularité d'attribution). Quatre s'y ajoutent :
   et c'est lui qui les plombe** : instable en français, il bascule en anglais
   selon le contenu, dans les trois implémentations testées.
 
-La combinaison qui n'a pas été mesurée et qui devrait l'être : **Whisper pour
-l'ASR, pyannote pour la diarisation, notre pilote pour le collage** — c'est-à-dire
-WhisperX démonté, avec l'assignation au point milieu à la place de la sienne. Les
+### Ce que la campagne recommande, une fois tout mesuré
+
+**L'ASR est tranché : Whisper, quelle que soit la taille.** Même `small` bat
+Parakeet sur la qualité, la stabilité et la mémoire, pour un coût comparable.
+Les sept piles bâties sur Parakeet tombent d'un bloc.
+
+**Le diariseur est tranché aussi : pyannote**, seul juste sur les trois tranches,
+et le seul qui n'exige aucun paramètre à deviner. Ses deux versions se valent —
+retenir `community-1`, qui est le pipeline courant.
+
+**Reste un curseur, et c'est au mainteneur de le poser** : `large-v3-turbo`
+(31,5 % de WER, 41 min/h, 3,66 Go) ou `small` (36,0 %, 17 min/h, 3,15 Go). Avec
+la diarisation pyannote par-dessus, compter **+65 min/h** dans les deux cas —
+c'est elle qui domine le coût, pas l'ASR.
+
+**La combinaison qui n'a toujours pas été mesurée, et qui devrait l'être** :
+Whisper pour l'ASR, pyannote pour la diarisation, **notre pilote pour le
+collage** — c'est-à-dire WhisperX démonté, avec l'assignation au point milieu à
+la place de la sienne. C'est la seule façon connue d'avoir à la fois le texte de
+Whisper et le 6/6 de pyannote, que WhisperX manque (5/6) par son assignation. Les
 trois briques existent déjà dans le banc.

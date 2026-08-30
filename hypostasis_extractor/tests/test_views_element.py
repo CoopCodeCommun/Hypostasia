@@ -102,14 +102,20 @@ class CorrectionDElementTest(BaseElementViewSetTest):
 
         )
 
-        # Le client est prevenu : toast + rechargement de la lecture.
-        # / The client gets a toast and a reading reload.
+        # Le client est prevenu par un toast, et il recoit LE BLOC
+        # TOUCHE en swap hors bande — plus de rechargement de toute la
+        # zone de lecture (SPEC-edition-par-blocs § 11.3). Le detail du
+        # contrat est dans
+        # tests/test_le_rendu_d_un_seul_bloc.py::LeSwapCibleRemplaceLeRechargement.
+        # / A toast plus the touched block out of band; no full reload.
         declencheurs = json.loads(reponse["HX-Trigger"],
         )
         self.assertIn("showToast", declencheurs)
-        self.assertEqual(
-            str(declencheurs["lectureReload"]["page_id"]), str(self.page.pk),
-
+        self.assertNotIn("lectureReload", declencheurs)
+        corps = reponse.content.decode()
+        self.assertIn("hx-swap-oob", corps)
+        self.assertIn(
+            f'id="bloc-{element.identifiant_stable}"', corps,
     )
 
     def test_corriger_journalise_dans_page_edit(self):
