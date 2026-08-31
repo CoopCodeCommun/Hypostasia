@@ -54,6 +54,7 @@ VUES = RACINE / "views.py"
 # Les touches que `keyboard.js` traite hors du `switch`, parce qu'elles
 # doivent agir meme dans un champ de saisie. / Handled outside the switch.
 TOUCHES_HORS_SWITCH = {"ESC"}
+MODE_EDITION_JS = CLAVIER_JS.parent / "mode_edition.js"
 
 
 def touches_liees_dans_le_javascript():
@@ -72,7 +73,52 @@ def touches_liees_dans_le_javascript():
     """
     source = CLAVIER_JS.read_text(encoding="utf-8")
     trouvees = re.findall(r"case '(.+?)':", source)
-    return {touche.upper() for touche in trouvees} | TOUCHES_HORS_SWITCH
+    return ({touche.upper() for touche in trouvees}
+            | TOUCHES_HORS_SWITCH
+            | touches_liees_par_le_mode_edition())
+
+
+def _notation_francaise(notation_du_javascript):
+    """
+    « Control+Shift+z » -> « CTRL+MAJ+Z », comme l'aide l'ecrit.
+    / Renders a table notation the way the help screen spells it.
+
+    LOCALISATION : front/tests/test_ce_que_dit_l_aide.py
+    """
+    equivalents = {"Control": "CTRL", "Shift": "MAJ", "Alt": "ALT"}
+    rendus = []
+    for morceau in notation_du_javascript.split("+"):
+        rendus.append(equivalents.get(morceau, morceau.upper()))
+    return "+".join(rendus)
+
+
+def touches_liees_par_le_mode_edition():
+    """
+    Les raccourcis que `mode_edition.js` lie vraiment.
+    / The shortcuts mode_edition.js actually binds.
+
+    LOCALISATION : front/tests/test_ce_que_dit_l_aide.py
+
+    ILS NE SONT PAS DANS LE `switch` DE `keyboard.js`, et ils ne peuvent
+    pas y etre : ce fichier ignore tout ce qui porte Ctrl, Meta ou Alt
+    (sa garde des touches modifiees). Le mode d'edition pose donc son
+    propre ecouteur — et c'est LA qu'il faut lire, sinon l'audit
+    condamnerait des raccourcis parfaitement vivants.
+
+    ON LIT LA TABLE `RACCOURCIS`, qui EST la liaison depuis le 30 aout
+    2026 (SPEC § 4.4). Avant, ce fichier cherchait des comparaisons
+    `touche === 'x'` : elles ont disparu avec la table, et l'audit a
+    aussitot declare morts trois raccourcis vivants. La lecon tient en
+    une phrase — un audit doit lire la SOURCE de la liaison, et suivre
+    quand elle demenage.
+    / Read the RACCOURCIS table: it IS the binding since 30 Aug 2026.
+    """
+    source = MODE_EDITION_JS.read_text(encoding="utf-8")
+    liees = set()
+    for tableau in re.findall(r"touches:\s*\[([^\]]+)\]", source):
+        for notation in re.findall(r"'([^']+)'", tableau):
+            liees.add(_notation_francaise(notation))
+    return liees
 
 
 def touches_annoncees_par_l_ecran():

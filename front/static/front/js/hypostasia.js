@@ -434,7 +434,15 @@ document.body.addEventListener('showToast', function(evenement) {
         toast: true,
         position: 'top-end',
         icon: detail.icon || 'success',
-        title: detail.message || 'OK',
+        // `titleText`, JAMAIS `title` : SweetAlert2 rend `title` en
+        // innerHTML. Or ces messages portent des donnees ecrites par des
+        // humains — le nom d'un groupe, le titre d'une base, celui de la
+        // synthese qui bloque une edition. Mesure du 30 aout 2026 : un
+        // titre contenant `<img src=x onerror=...>` EXECUTAIT son script
+        // chez quiconque recevait le toast. `titleText` pose du texte.
+        // / titleText, never title: SweetAlert2 renders `title` as
+        // innerHTML, and these messages carry human-written data.
+        titleText: detail.message || 'OK',
         showConfirmButton: false,
         // Duree ajustable par la vue : un message long (deux
         // informations) a besoin de plus de temps de lecture — public

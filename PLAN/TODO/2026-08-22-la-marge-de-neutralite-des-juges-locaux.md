@@ -1,5 +1,70 @@
 # La marge de neutralité fait taire les deux meilleurs juges
 
+> ## ⚖️ TRANCHÉ par le mainteneur le 30 août 2026 — VOIE A, UNE MARGE PAR JUGE
+>
+> **Chaque juge porte sa propre marge, calibrée sur sa distribution.** La voie B
+> — une échelle commune — n'est pas retenue : elle demanderait de décider ce que
+> « comparable » veut dire entre un juge à contradiction et un juge sans, ce qui
+> est un problème plus dur que celui qu'on cherche à résoudre.
+>
+> **Le patron de code existe déjà, et il faut le suivre à l'identique** — c'est
+> celui du SEUIL, qui a exactement le même problème et qui l'a résolu :
+> `seuil_du_juge(nom)` lit `SEUILS_PAR_DEFAUT` (`core/services/juges_locaux.py:385`),
+> réglable par variable d'environnement (`SEUIL_<JUGE>`), **et la valeur est
+> FIGÉE sur l'avis au moment de l'écriture** (`AvisDeVerification.seuil`,
+> `core/models.py:2202`). La marge doit être figée de la même façon, sur un champ
+> de l'avis. **Sans ce gel, changer une marge réécrirait le verdict de tous les
+> avis déjà en base** — et c'est précisément la faute que le gel du seuil existe
+> pour empêcher.
+>
+> `MARGE_DE_NEUTRALITE = 2.5` (`core/models.py:2255`) devient donc
+> `marge_du_juge(nom)` + `MARGES_PAR_DEFAUT` + un champ `marge` sur l'avis, lu par
+> `tranche` (`core/models.py:2301`) à la place de la constante de classe.
+
+### Les distributions par juge — MESURÉES le 30 août 2026
+
+C'est ce que la section « ce qu'il faut avant de coder » réclamait. Mesure
+**gratuite**, en lecture seule, sur les **859** avis en base (aucun modèle
+appelé) :
+
+| juge | n | médiane | Q1 | Q3 | seuil | < 1 pt | **< 2,5 pt (muet aujourd'hui)** | < 5 pt |
+|---|---|---|---|---|---|---|---|---|
+| CamemBERTa v2 | 859 | 50,5 | 49,8 | 58,0 | 49,7 | 38 % | **50 %** | 59 % |
+| mDeBERTa v3 | 859 | 50,0 | **50,0** | 58,8 | 50,0 | **61 %** | **65 %** | 67 % |
+| bge-m3 | 859 | 32,8 | 6,3 | 83,2 | 70,0 | 1 % | **2 %** | 4 % |
+| distilCamemBERT | 859 | 54,0 | 45,9 | 82,5 | 63,7 | 1 % | **4 %** | 8 % |
+
+**Un écart à lever avant de calibrer.** Cette note annonce **85 %** de mutisme
+pour CamemBERTa v2 et mDeBERTa v3 (mesure du 20 août, 836 avis) ; la mesure du
+30 août en rend **50 %** et **65 %** sur 859 avis. L'écart n'est pas expliqué —
+il peut venir du corpus d'avis, qui a grossi, ou d'une définition différente du
+mutisme. **Le sens du défaut ne change pas** (les deux juges à contradiction se
+taisent bien plus que les deux autres), mais aucun seuil ne doit être choisi sur
+un chiffre dont on ne sait pas d'où il vient.
+
+### Ce que la mesure ajoute, et qui borne l'attente
+
+**La voie A règle trois juges sur quatre, pas quatre.**
+
+- **bge-m3** ne se tait que 2 % du temps : sa marge doit **augmenter**, pas
+  baisser. Une marge par juge sert d'abord à le rendre **moins** péremptoire —
+  c'est l'inverse de ce que le titre de cette note laisse attendre.
+- **distilCamemBERT** (4 %) est dans le même cas.
+- **CamemBERTa v2** est le vrai bénéficiaire : ses écarts au seuil ont une
+  médiane de 2,58 point, juste au-dessus de la bande actuelle. Une marge de
+  l'ordre de 0,6 point le ferait parler dans 70 % des cas.
+- **mDeBERTa v3 est structurellement muet, et aucune marge ne l'en sort.** Son
+  premier et son troisième quartile valent tous deux 50,0 : **la moitié de ses
+  scores tombent exactement sur son seuil**, et la médiane de ses écarts vaut
+  **0,18 point**. Le faire parler dans 70 % des cas demanderait une marge de
+  **0,04 point**, c'est-à-dire trancher sur la deuxième décimale — exactement ce
+  que la bande de neutralité existe pour interdire.
+
+**Conséquence à assumer en codant** : après ce chantier, « l'accord des juges »
+reposera sur trois voix au lieu d'une, pas sur quatre. Le silence de mDeBERTa
+n'est pas un défaut de réglage, c'est ce que ce modèle répond sur ce matériau —
+et l'écran doit continuer à le dire.
+
 **Arbitrage en attente du mainteneur, exposé le 22 août 2026.**
 Mesure du 20 août 2026, sur **836 avis réels**. **Rien n'est codé.**
 

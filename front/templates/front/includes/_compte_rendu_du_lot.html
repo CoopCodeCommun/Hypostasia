@@ -8,9 +8,18 @@ SPEC-edition-par-blocs-et-stenotypie.md § 7.4 : cinq nombres et une
 LISTE. Un compte sans liste ne dit pas quoi retaper — c'est pour ca que
 les refus sont nommes un par un, avec leur motif.
 
-La region porte `role="status"` et `aria-live="polite"` : le § 9 exige
-que le compte rendu s'ANNONCE, et `annonces.js` n'annonce que les toasts.
-Un resume tient dans le toast ; le detail est ici.
+La region porte `role="status"` et `aria-live="polite"`.
+
+DEUX CANAUX, ET CHACUN SA PORTEE. Ce partial porte le DETAIL, et il
+s'affiche EN TETE de la note. Le RESUME, lui, part dans l'en-tete
+`HX-Trigger` : l'appelant est un `fetch()`, qui ne declenche aucun
+evenement htmx, donc `mode_edition.js` relit cet en-tete et rejoue
+l'evenement — sans quoi le resume n'atteindrait personne, ce qui fut le
+cas jusqu'au 30 aout 2026.
+
+L'annonce sonore, elle, passe par `annoncer()` cote mode : une region
+live creee EN MEME TEMPS que son contenu n'est pas annoncee de facon
+fiable (doctrine de `annonces.js`).
 {% endcomment %}
 <div class="compte-rendu-du-lot" role="status" aria-live="polite"
      data-testid="compte-rendu-du-lot">

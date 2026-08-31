@@ -426,6 +426,26 @@
         // / Ignore shortcuts if in an input field
         if (estDansChampSaisie()) return;
 
+        // LE MODE D'EDITION PREND LE CLAVIER, MEME QUAND LE FOCUS EST
+        // SORTI DU CHAMP.
+        //
+        // La garde ci-dessus ne voit que le champ lui-meme. Or pendant
+        // une session d'edition, le focus passe legitimement sur le rail
+        // du lecteur (`tabindex="0"`), sur le menu du recul a la
+        // reprise, sur un bouton du panneau des masques — et la, les
+        // touches simples redevenaient vivantes : « e » ouvrait un
+        // tiroir que le mode cache, « m » rebasculait le mode, et
+        // surtout « z » REMPLACE `#zone-lecture` par la comparaison de
+        // versions, ce qui detruit la session de frappe sans une
+        // question.
+        //
+        // `Echap` est traite PLUS HAUT, avant cette garde : le mode s'en
+        // sort au rang 4.6, comme il le doit.
+        // / During an editing session the focus legitimately leaves the
+        // field; bare letters must stay silent, or "z" replaces the
+        // whole reading zone and the session dies unasked.
+        if (window.modeEdition && window.modeEdition.estOuvert()) return;
+
         // Ignorer si Ctrl, Meta ou Alt est enfonce (raccourcis navigateur)
         // / Ignore if Ctrl, Meta or Alt is pressed (browser shortcuts)
         if (evenement.ctrlKey || evenement.metaKey || evenement.altKey) return;
@@ -439,6 +459,26 @@
 
             // E → Toggle drawer vue liste
             // / E → Toggle list view drawer
+            // 'm' — ENTRER EN MODE EDITION.
+            //
+            // Le mode se ferme par Echap (rang 4.6 de la cascade), et
+            // cette touche-ci ne peut pas l'y aider : une fois le mode
+            // ouvert, le focus est DANS le champ, et `estDansChampSaisie`
+            // — qui compte `isContentEditable` — arrete toutes les
+            // touches simples avant d'arriver ici. C'est heureux : sans
+            // cela, taper « m » dans le texte sortirait du mode.
+            // / 'm' enters; Escape leaves. Once inside, single keys are
+            // stopped by the input-field guard, which is what we want.
+            case 'm':
+                if (window.modeEdition && window.modeEdition.basculer) {
+                    var boutonDuMode = document.getElementById('bouton-mode-edition');
+                    if (boutonDuMode && !boutonDuMode.disabled) {
+                        evenement.preventDefault();
+                        window.modeEdition.basculer(boutonDuMode);
+                    }
+                }
+                break;
+
             case 'e':
                 if (window.drawerVueListe) {
                     window.drawerVueListe.basculer();

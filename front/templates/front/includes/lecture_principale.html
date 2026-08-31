@@ -286,6 +286,31 @@
     eu lieu — un cadre vide serait du bruit.
     / Where the batch report lands; it announces itself on arrival.
     {% endcomment %}
+    {% comment %}
+    OÙ VIT LE PANNEAU DES PASSAGES MASQUÉS — SPEC-edition-par-blocs § 5.3,
+    cas 4.
+
+    Le conteneur est TOUJOURS rendu, même quand rien n'est masqué : c'est
+    lui que `mode_edition.js` remplace après un enregistrement. Sans un
+    point d'ancrage stable, un passage masqué PENDANT la session n'aurait
+    nulle part où apparaître — et le geste que le mode vient de faire
+    resterait irréversible jusqu'au rechargement.
+
+    Il porte `data-page` parce que le rafraîchissement passe par un
+    endpoint qui a besoin de savoir de quelle note il parle.
+
+    IL EST AU-DESSUS DE `<article>`, donc HORS du champ modifiable : rien
+    de ce qu'il contient n'est jamais sérialisé au `Ctrl+S`.
+    / The container is always rendered: it is the stable anchor the mode
+    replaces after a save.
+    {% endcomment %}
+    <div id="accueil-du-panneau-des-masques"
+         data-page="{{ page.pk }}"
+         data-testid="accueil-du-panneau-des-masques">
+        {% with passages_masques=page|passages_masques_de %}
+        {% include "front/includes/_panneau_des_masques.html" %}
+        {% endwith %}
+    </div>
     <div id="compte-rendu-du-lot" data-testid="accueil-compte-rendu-du-lot"></div>
     {% endif %}
 

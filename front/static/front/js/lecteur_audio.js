@@ -110,6 +110,167 @@
      */
     function deplacerLaLecture(audio, instantVise) {
         audio.currentTime = instantVise;
+        // ON VIENT DE DESIGNER UN POINT : la prochaine reprise ne doit
+        // pas le deplacer. Le drapeau vit sur l'element, comme l'etat de
+        // branchement — il survit ainsi a tout ce qui vit dans ce
+        // module. / A point was just designated: the next resume must
+        // not move it.
+        audio.dataset.sautVolontaire = 'oui';
+    }
+
+    // =================================================================
+    // LES DEUX REGLAGES DE LA STENOTYPIE (SPEC-edition-par-blocs § 6.3)
+    //
+    // La VITESSE et le RECUL A LA REPRISE. Ils vivent ici, dans le
+    // lecteur, et non dans le mode d'edition : ils servent aussi a qui
+    // ecoute sans corriger, et le bouton ▶ de la barre doit en
+    // beneficier autant que le clavier.
+    //
+    // ILS SURVIVENT AU SWAP. `brancherLeLecteur` est rappele a chaque
+    // swap HTMX qui redepose la barre ; sans reapplication, la vitesse
+    // choisie retomberait a 1× au premier rafraichissement — la spec
+    // demande explicitement qu'elle « survive au changement de bloc ».
+    //
+    // ILS SONT DANS `localStorage`, PAS EN BASE : c'est un confort de
+    // poste de travail. Deux personnes qui corrigent la meme note n'ont
+    // aucune raison de partager leur vitesse d'ecoute.
+    // / The two § 6.3 settings live in the player, survive HTMX swaps,
+    // and are per-browser conveniences, never corpus data.
+    // =================================================================
+
+    var CLE_DE_LA_VITESSE = "hypostasia.lecteur.vitesse";
+    var CLE_DU_RECUL = "hypostasia.lecteur.reculALaReprise";
+    var VITESSES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+    var RECUL_PAR_DEFAUT = 2;
+    // Les valeurs du menu de `_lecteur_audio.html`, et rien d'autre.
+    // / The template's menu values, and nothing else.
+    var RECULS_OFFERTS = [0, 1, 2, 3, 5];
+
+    /**
+     * Lit un reglage persiste, avec son defaut.
+     * / Reads a persisted setting, with its default.
+     *
+     * `localStorage` peut lever — navigation privee, stockage refuse.
+     * Un reglage de confort ne doit jamais empecher d'ecouter.
+     * / localStorage can throw; a comfort setting must never block.
+     */
+    function lireLeReglage(cle, defaut) {
+        try {
+            var brut = window.localStorage.getItem(cle);
+            if (brut === null) return defaut;
+            var valeur = parseFloat(brut);
+            return isFinite(valeur) ? valeur : defaut;
+        } catch (erreur) {
+            return defaut;
+        }
+    }
+
+    function ecrireLeReglage(cle, valeur) {
+        try {
+            window.localStorage.setItem(cle, String(valeur));
+        } catch (erreur) {
+            // Rien : le reglage vaut pour cette session, c'est tout.
+            // / Nothing: the setting holds for this session only.
+        }
+    }
+
+    /**
+     * La vitesse retenue, RAMENEE A UN PALIER CONNU.
+     * / The stored speed, snapped to a known step.
+     *
+     * `localStorage` n'est pas une source sure : une valeur ecrite a la
+     * console, par un autre code du meme domaine, ou par un futur
+     * changement de format, y arrive telle quelle. Une vitesse hors
+     * plage passee a `playbackRate` LEVE — et l'exception tomberait
+     * dans `brancherLeLecteur`, a chaque chargement, en laissant la
+     * barre a moitie branchee.
+     * / localStorage is not a trusted source, and an out-of-range
+     * playbackRate throws inside the binding.
+     */
+    function vitesseCourante() {
+        var retenue = lireLeReglage(CLE_DE_LA_VITESSE, 1);
+        return VITESSES.indexOf(retenue) === -1 ? 1 : retenue;
+    }
+
+    /**
+     * Le recul retenu, RAMENE AUX VALEURS OFFERTES.
+     * / The stored rewind, snapped to the offered values.
+     *
+     * Un recul enorme ferait repartir chaque reprise au debut du
+     * fichier ; un recul negatif AVANCERAIT a la reprise.
+     */
+    function reculALaReprise() {
+        var retenu = lireLeReglage(CLE_DU_RECUL, RECUL_PAR_DEFAUT);
+        return RECULS_OFFERTS.indexOf(retenu) === -1 ? RECUL_PAR_DEFAUT : retenu;
+    }
+
+    /**
+     * Affiche la vitesse, et l'applique a l'element audio.
+     * / Shows the speed, and applies it to the audio element.
+     */
+    function appliquerLaVitesse(audio, facteur) {
+        if (audio) audio.playbackRate = facteur;
+        var affichage = document.getElementById("vitesse-de-lecture");
+        if (affichage) {
+            // « 1× », « 1,5× » — la virgule, pas le point : c'est du
+            // francais. / A comma, not a dot: this is French.
+            affichage.textContent =
+                String(facteur).replace(".", ",") + "\u00d7";
+        }
+    }
+
+    /**
+     * Passe a la vitesse suivante ou precedente de la table.
+     * / Steps to the next or previous speed in the table.
+     *
+     * Une TABLE de paliers, pas une multiplication : « 0,5 a 2 par pas
+     * visibles » (§ 6.3). Multiplier par 1,1 donnerait 1,331× — un
+     * nombre qu'on ne sait ni lire ni retrouver.
+     */
+    function changerLaVitesse(sens) {
+        var audio = lElementAudio();
+        var courante = vitesseCourante();
+        var rang = VITESSES.indexOf(courante);
+        if (rang === -1) rang = VITESSES.indexOf(1);
+        var suivant = Math.max(0, Math.min(VITESSES.length - 1, rang + sens));
+        var facteur = VITESSES[suivant];
+        ecrireLeReglage(CLE_DE_LA_VITESSE, facteur);
+        appliquerLaVitesse(audio, facteur);
+        return facteur;
+    }
+
+    /**
+     * Lance la lecture EN RECULANT du reglage de reprise.
+     * / Starts playback, rewound by the resume setting.
+     *
+     * « On met en pause pour ecrire, et on a toujours perdu le debut de
+     * la phrase » (§ 6.3). Le recul ne s'applique qu'a une REPRISE —
+     * jamais a un saut volontaire, ou il deplacerait la cible qu'on
+     * vient de designer.
+     * / The rewind applies to a RESUME only, never to a deliberate seek.
+     */
+    function reprendreLaLecture(audio) {
+        var recul = reculALaReprise();
+        // TROIS CAS OU IL NE FAUT PAS RECULER, et chacun a coute une
+        // mesure ou une relecture :
+        //
+        // 1. un SAUT VOLONTAIRE vient d'avoir lieu — clic sur le rail,
+        //    « écouter ce passage », F2. On vient de DESIGNER un point :
+        //    le deplacer de deux secondes est le contraire du service
+        //    rendu. Le § 6.3 le dit, encore fallait-il le coder ;
+        // 2. le fichier est FINI : `play()` sur un media termine repart
+        //    du debut, et poser `currentTime = duree - recul` effacerait
+        //    cet etat pour ne rejouer que les deux dernieres secondes ;
+        // 3. on n'a jamais joue (`currentTime` a 0).
+        // / Three cases where the rewind must not apply: after a
+        // deliberate seek, on a finished file, and before the first play.
+        var apresUnSaut = audio.dataset.sautVolontaire === 'oui';
+        audio.dataset.sautVolontaire = 'non';
+        if (recul > 0 && audio.currentTime > 0 && !audio.ended && !apresUnSaut) {
+            deplacerLaLecture(audio, Math.max(0, audio.currentTime - recul));
+        }
+        var promesse = audio.play();
+        if (promesse && promesse.catch) { promesse.catch(function () {}); }
     }
 
     /**
@@ -291,7 +452,16 @@
             mettreLeRailALEchelle(audio);
             rafraichir(audio);
         });
-        audio.addEventListener("timeupdate", function () { rafraichir(audio); });
+        audio.addEventListener("timeupdate", function () {
+            // LE SAUT S'OUBLIE DES QUE LE SON AVANCE. Sans cela, un
+            // « reculer de 5 s » fait au debut d'une ecoute priverait de
+            // recul la pause suivante, une demi-heure plus tard. Ce
+            // qu'on veut retenir, c'est « un point vient d'etre
+            // designe », pas « un point l'a ete un jour ».
+            // / The seek is forgotten as soon as playback moves on.
+            if (!audio.paused) audio.dataset.sautVolontaire = "non";
+            rafraichir(audio);
+        });
         audio.addEventListener("play", function () { marquerLEtatDuBouton(audio); });
         audio.addEventListener("pause", function () { marquerLEtatDuBouton(audio); });
         audio.addEventListener("ended", function () { marquerLEtatDuBouton(audio); });
@@ -304,7 +474,25 @@
             rafraichir(audio);
         }
         marquerLEtatDuBouton(audio);
+        // LES REGLAGES SE REAPPLIQUENT A CHAQUE BRANCHEMENT.
+        //
+        // `brancherLeLecteur` est rappele apres chaque swap HTMX qui
+        // redepose la barre : sans cette ligne, la vitesse choisie
+        // retomberait a 1x au premier rafraichissement, alors que le
+        // § 6.3 demande qu'elle SURVIVE au changement de bloc.
+        // / Reapplied on every re-bind: the speed must survive swaps.
+        appliquerLaVitesse(audio, vitesseCourante());
+        var choixDuRecul = document.getElementById("recul-a-la-reprise");
+        if (choixDuRecul) choixDuRecul.value = String(reculALaReprise());
     }
+
+    // Le reglage du recul se retient : on le choisit une fois, pas a
+    // chaque note. / The rewind setting is remembered.
+    document.addEventListener("change", function (evenement) {
+        var choix = evenement.target.closest("#recul-a-la-reprise");
+        if (!choix) return;
+        ecrireLeReglage(CLE_DU_RECUL, parseFloat(choix.value));
+    });
 
     /**
      * Deplace la lecture a la position cliquee sur le rail.
@@ -332,15 +520,14 @@
             var audio = lElementAudio();
             if (!audio) return;
             if (audio.paused) {
-                // `play()` rend une promesse qui PEUT etre rejetee — le
-                // navigateur refuse le son tant que rien n'a ete
-                // clique, et un rejet non capture remonte en erreur de
-                // console. Ici le clic EST le geste, donc le cas est
-                // rare ; on le tait proprement plutot que de le laisser
-                // salir la console.
-                // / play() can reject; swallow it cleanly.
-                var promesse = audio.play();
-                if (promesse && promesse.catch) { promesse.catch(function () {}); }
+                // PAR `reprendreLaLecture`, donc AVEC le recul du § 6.3 :
+                // le bouton de la barre est une reprise comme une autre.
+                // (Elle avale aussi le rejet possible de `play()` — le
+                // navigateur refuse le son tant que rien n'a ete clique,
+                // et un rejet non capture salit la console.)
+                // / Through reprendreLaLecture, so the § 6.3 rewind
+                // applies to the bar's button too.
+                reprendreLaLecture(audio);
             } else {
                 audio.pause();
             }
@@ -389,6 +576,15 @@
             return;
         }
 
+        if (evenement.target.closest("#bouton-ralentir")) {
+            changerLaVitesse(-1);
+            return;
+        }
+        if (evenement.target.closest("#bouton-accelerer")) {
+            changerLaVitesse(1);
+            return;
+        }
+
         var boutonDEcoute = evenement.target.closest(".bouton-ecouter");
         if (boutonDEcoute) {
             var bloc = boutonDEcoute.closest(".bloc[data-debut]");
@@ -432,4 +628,74 @@
         brancherLeLecteur();
     }
     document.body.addEventListener("htmx:afterSwap", brancherLeLecteur);
+
+    /**
+     * L'API DU LECTEUR, pour qui veut le piloter sans le recopier.
+     *
+     * LOCALISATION : front/static/front/js/lecteur_audio.js
+     *
+     * Le mode d'edition (§ 6, la stenotypie) doit lancer, arreter,
+     * reculer et ralentir le son SANS quitter le champ. Il pourrait
+     * atteindre `document.querySelector('audio')` lui-meme — et il
+     * refabriquerait alors le recul a la reprise, la table des
+     * vitesses, l'avalement du rejet de `play()`, le rafraichissement
+     * du rail. Quatre choses qui divergeraient.
+     *
+     * La regle du lecteur, deja ecrite au § 6.1 de la spec : « Rien
+     * n'est recopie, donc rien ne peut diverger. »
+     * / The editing mode drives the player through this API, never by
+     * reaching for the audio element itself.
+     */
+    window.lecteurAudio = {
+        /** L'element <audio>, ou null si la note n'a pas de son. */
+        element: lElementAudio,
+        /** Y a-t-il un son a piloter ? / Is there any sound to drive? */
+        estDisponible: function () { return !!lElementAudio(); },
+        /**
+         * Bascule lecture/pause. La reprise applique le recul du § 6.3.
+         * @return {boolean} vrai si le son joue apres le geste
+         */
+        lireOuPause: function () {
+            var audio = lElementAudio();
+            if (!audio) return false;
+            if (audio.paused) {
+                reprendreLaLecture(audio);
+                marquerLEtatDuBouton(audio);
+                return true;
+            }
+            audio.pause();
+            marquerLEtatDuBouton(audio);
+            return false;
+        },
+        /**
+         * Ecoute a partir d'un instant PRECIS — un saut volontaire,
+         * donc SANS le recul de reprise : il deplacerait la cible qu'on
+         * vient de designer.
+         * / A deliberate seek: no resume rewind.
+         */
+        ecouterDepuis: function (instant) {
+            var audio = lElementAudio();
+            if (!audio || !isFinite(instant)) return false;
+            deplacerLaLecture(audio, Math.max(0, instant));
+            var promesse = audio.play();
+            if (promesse && promesse.catch) { promesse.catch(function () {}); }
+            marquerLEtatDuBouton(audio);
+            return true;
+        },
+        /** Recule ou avance de N secondes, sans sortir des bornes. */
+        decaler: function (secondes) {
+            var audio = lElementAudio();
+            if (!audio || !isFinite(audio.duration)) return false;
+            deplacerLaLecture(audio, Math.max(
+                0, Math.min(audio.duration, audio.currentTime + secondes)));
+            rafraichir(audio);
+            return true;
+        },
+        /** Palier de vitesse suivant (+1) ou precedent (-1). */
+        changerLaVitesse: changerLaVitesse,
+        /** La vitesse courante, telle qu'elle est retenue. */
+        vitesse: vitesseCourante,
+        /** Le recul applique a la reprise, en secondes (0 = aucun). */
+        reculALaReprise: reculALaReprise,
+    };
 })();

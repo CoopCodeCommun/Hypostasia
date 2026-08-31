@@ -1,0 +1,83 @@
+{
+  "hors_du_mode": {
+    "placeholders": [
+      {
+        "identifiant": "a9e1cb0b-9986-4d3a-82ff-689aeb42f928",
+        "dans_le_champ": true,
+        "bloc_visible": false,
+        "hauteur_du_bloc": 0,
+        "bouton_present": true,
+        "bouton_visible": false,
+        "bouton_taille": [
+          0,
+          0
+        ],
+        "bouton_pointer_events": "auto",
+        "bouton_tabindex": 0
+      },
+      {
+        "identifiant": "8d837ab6-0c07-48b1-98c2-1a9ea084985b",
+        "dans_le_champ": true,
+        "bloc_visible": false,
+        "hauteur_du_bloc": 0,
+        "bouton_present": true,
+        "bouton_visible": false,
+        "bouton_taille": [
+          0,
+          0
+        ],
+        "bouton_pointer_events": "auto",
+        "bouton_tabindex": 0
+      }
+    ],
+    "champ": {
+      "contenteditable": null,
+      "mode_ouvert": false
+    }
+  },
+  "dans_le_mode": {
+    "placeholders": [
+      {
+        "identifiant": "a9e1cb0b-9986-4d3a-82ff-689aeb42f928",
+        "dans_le_champ": true,
+        "bloc_visible": false,
+        "hauteur_du_bloc": 0,
+        "bouton_present": true,
+        "bouton_visible": false,
+        "bouton_taille": [
+          0,
+          0
+        ],
+        "bouton_pointer_events": "auto",
+        "bouton_tabindex": 0
+      },
+      {
+        "identifiant": "8d837ab6-0c07-48b1-98c2-1a9ea084985b",
+        "dans_le_champ": true,
+        "bloc_visible": false,
+        "hauteur_du_bloc": 0,
+        "bouton_present": true,
+        "bouton_visible": false,
+        "bouton_taille": [
+          0,
+          0
+        ],
+        "bouton_pointer_events": "auto",
+        "bouton_tabindex": 0
+      }
+    ],
+    "champ": {
+      "contenteditable": "plaintext-only",
+      "mode_ouvert": true
+    },
+    "tabulations_depuis_le_champ": [
+      "body",
+      "lien-evitement",
+      "lien-accueil",
+      "lien-nav-carnets"
+    ],
+    "blocs_serialises": 97,
+    "placeholders_comptes_comme_blocs": 0
+  },
+  "erreurs_js": []
+}

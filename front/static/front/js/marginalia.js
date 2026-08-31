@@ -39,6 +39,17 @@
     // Refonte A.8 drawer-only : plus de carte inline sous le paragraphe.
     // / Open drawer + scroll to the card for the given extraction.
     // / A.8 drawer-only refactor: no more inline card below the paragraph.
+    // PENDANT L'EDITION, RIEN N'EMMENE AILLEURS.
+    //
+    // Un clic sur une ancre ouvre le drawer et fait defiler vers une
+    // carte : au milieu d'une correction, c'est une sortie du texte —
+    // et le clic devait seulement poser le curseur.
+    // / During editing, nothing navigates away: the click places a caret.
+    function onEditeLeTexte() {
+        return !!(window.modeEdition && window.modeEdition.estOuvert
+                  && window.modeEdition.estOuvert());
+    }
+
     function ouvrirDrawerEtScrollerVersCarte(extractionId) {
         // Activer le span correspondant dans le texte (surlignage)
         // / Activate corresponding span in text (highlight)
@@ -102,6 +113,24 @@
     // sans effet nuisible. / Interaction now happens on a click on the
     // inline highlight itself, matching the mock.
     document.addEventListener('click', function(evenement) {
+        // PENDANT L'EDITION, UN CLIC DANS LE TEXTE POSE UN CURSEUR, ET
+        // RIEN D'AUTRE.
+        //
+        // Les `mark` restent dans le DOM en mode edition — ils portent
+        // le texte, les retirer le decouperait —, seulement transparents.
+        // Cliquer un passage jadis surligne pour y ecrire est donc le
+        // geste le plus ordinaire du mode, et il ouvrait le tiroir : un
+        // panneau invisible qui mange le prochain Echap, une colonne
+        // vide reservee dans la grille, et une requete htmx qui
+        // declenche « des modifications ne sont pas enregistrees,
+        // quitter ? » au milieu d'une frappe.
+        //
+        // CE FICHIER PORTE DEUX ECOUTEURS SUR CE MEME CLIC (celui-ci et
+        // celui du bas, mobile + desktop). La garde doit etre sur LES
+        // DEUX : sur un seul, l'autre gagne et la protection est nulle.
+        // / During editing, a click in the text places a caret and
+        // nothing else. Both click listeners need this guard.
+        if (onEditeLeTexte()) return;
         var ancre = evenement.target.closest(
             '#readability-content .hl-extraction[data-extraction-id]'
         );
@@ -253,6 +282,7 @@
     // existe, et il dit honnetement ou en est le produit.
     // / The mock toasts too: the PDF viewer exists in neither.
     document.addEventListener('click', function (evenement) {
+        if (onEditeLeTexte()) return;
         var bouton = evenement.target.closest('.bouton-voir-source');
         if (!bouton) return;
         evenement.preventDefault();
@@ -331,6 +361,7 @@
     // / Tap on .hl-extraction on mobile → open bottom sheet (PHASE-21)
     // / On desktop: click on .hl-extraction → open drawer (A.8 drawer-only)
     document.addEventListener('click', function(evenement) {
+        if (onEditeLeTexte()) return;
         var spanExtraction = evenement.target.closest('.hl-extraction[data-extraction-id]');
         if (!spanExtraction) return;
         var extractionId = spanExtraction.dataset.extractionId;

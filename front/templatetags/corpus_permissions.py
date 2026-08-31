@@ -91,3 +91,39 @@ def une_analyse_tourne_sur(page):
     )
 
     return une_analyse_tourne_sur_la_page(page)
+
+
+@register.filter(name="passages_masques_de")
+def passages_masques_de(page):
+    """
+    Les passages MASQUES d'une note, dans l'ordre de lecture.
+    / A note's HIDDEN passages, in reading order.
+
+    Usage : {% with masques=page|passages_masques_de %}
+
+    POURQUOI CE FILTRE EXISTE (SPEC-edition-par-blocs § 5.3, cas 4)
+
+    Le mode d'edition CREE des passages masques : un bloc vide est
+    masque a l'enregistrement, jamais supprime. Sans un endroit pour les
+    retrouver, ce geste n'est reversible qu'en SORTANT du mode, puis en
+    passant au mode structure — le seul ou le placeholder « Passage
+    masque » se voit (`maquette.css`, decision U1 ; mesure du 30 aout
+    2026 : hauteur 0 px, bouton 0x0, hors de l'arbre d'accessibilite
+    partout ailleurs).
+
+    UN FILTRE PLUTOT QU'UNE VARIABLE DE CONTEXTE, pour la meme raison
+    que `une_analyse_tourne_sur` : `lecture_principale.html` est rendu
+    depuis TROIS endroits, et une variable oubliee dans l'un d'eux
+    vaudrait « vide » — donc un panneau absent, sans que rien ne le
+    signale.
+    / A filter, not a context variable: the template is rendered from
+    three places and a forgotten variable would read as empty.
+
+    :param page: la Page lue
+    :return: la liste des ElementDocument masques, par ordre croissant
+    """
+    from core.models import ElementDocument
+
+    return list(
+        ElementDocument.objects.filter(page=page, masque=True).order_by("ordre")
+    )

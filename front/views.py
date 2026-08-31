@@ -2103,10 +2103,29 @@ class LectureViewSet(viewsets.ViewSet):
             # / S was bound nowhere and named a status that no longer
             # exists; both help lists are now locked by a test.
             ("X", "Masquer l\u2019extraction"),
+            # LA TOUCHE DU MODE D'EDITION. Elle ENTRE dans le mode ;
+            # `Echap` en sort (rang 4.6 de la cascade). Elle ne peut pas
+            # servir aux deux : une fois le mode ouvert, le focus est
+            # dans le champ, et la garde des champs de saisie arrete
+            # toutes les touches simples — sans quoi taper « m » dans le
+            # texte sortirait du mode.
+            # / M enters; Escape leaves. It cannot do both: once inside,
+            # the input-field guard stops single keys, which is right.
+            ("M", "Entrer en mode \u00e9dition du texte (\u00c9chap en sort)"),
             ("A", "Comparer / Aligner des pages"),
             ("Z", "Comparer les versions"),
             ("?", "Afficher cette aide"),
             ("Esc", "Fermer le panneau actif"),
+            # LES TROIS DU MODE D'EDITION. Ils ne vivent PAS dans le
+            # `switch` de `keyboard.js` — ce fichier ignore tout ce qui
+            # porte Ctrl — mais dans `mode_edition.js`, et le test de
+            # l'aide y lit desormais aussi. Annoncer un raccourci mort
+            # ferait douter de toute la liste.
+            # / The three editing-mode shortcuts live in mode_edition.js;
+            # the help test reads them there too.
+            ("Ctrl+S", "Enregistrer la session d’édition"),
+            ("Ctrl+Z", "Annuler le dernier geste — en mode édition"),
+            ("Ctrl+Maj+Z", "Rétablir — en mode édition"),
         ]
         return render(request, "front/includes/aide_desktop.html", {
             "raccourcis": liste_raccourcis,

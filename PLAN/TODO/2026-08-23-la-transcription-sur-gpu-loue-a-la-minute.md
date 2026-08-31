@@ -1,5 +1,27 @@
 # La transcription sur GPU loué à la minute (OVHcloud AI Training)
 
+> ## ⚖️ RETENUE par le mainteneur le 30 août 2026 — C'EST LA SECONDE VOIE
+>
+> Cette note s'ouvrait comme une **piste**, et se présentait comme une « variante
+> d'hébergement » du moteur local. **Elle est désormais la voie souveraine
+> elle-même** : le choix du 30 août est *Voxtral pour la rapidité et le prix,
+> notre conteneur sur GPU loué pour la souveraineté* — et **pas** de transcription
+> lourde sur notre VPS. Voir l'encart de
+> `2026-08-23-le-moteur-de-transcription-a-deux-voies.md`.
+>
+> **Rien de ce qui suit n'est démenti** : le point mort, les contraintes
+> d'OVHcloud AI Training, les deux pièges de facturation et l'ordre des trois
+> mesures restent le dossier de référence. **Ce qui change est leur statut** : ce
+> ne sont plus les préalables d'une option parmi d'autres, ce sont les préalables
+> du chantier retenu. Les trois mesures du bas de cette note — RTFx réel sur L4,
+> temps facturé d'un job à vide, WER en float16 — sont donc **la première chose à
+> faire** quand ce chantier s'ouvrira, et le point mort peut encore le refermer.
+>
+> **Un gain que la décision apporte, et qui n'est écrit nulle part ailleurs** :
+> les poids vivant sur l'Object Storage, plus aucune machine de développement n'a
+> besoin du jeton HuggingFace de pyannote. `bin/install.sh` reste idempotent —
+> c'était le point bloquant du moteur local sur VPS.
+
 **Piste ouverte le 23 août 2026** par le mainteneur, après la campagne de mesure.
 Rien n'est codé, et **rien n'est mesuré sur GPU**.
 

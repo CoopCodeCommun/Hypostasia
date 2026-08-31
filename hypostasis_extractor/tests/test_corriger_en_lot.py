@@ -66,9 +66,9 @@ class BaseDuLot(TestCase):
         ]
         self.client.force_login(self.proprietaire)
 
-    def _element(self, texte, ordre, masque=False):
+    def _element(self, texte, ordre, masque=False, label="text"):
         return ElementDocument.objects.create(
-            page=self.page, ordre=ordre, label="text", texte=texte,
+            page=self.page, ordre=ordre, label=label, texte=texte,
             empreinte_contenu=empreinte_du_texte(texte), masque=masque,
         )
 
@@ -200,6 +200,78 @@ class LeCompteRendu(BaseDuLot):
              "texte": "disparu"},
         ])
         self.assertIn("disparu", reponse.content.decode().lower())
+
+
+class LeResumeDuToast(BaseDuLot):
+    """
+    Le resume que porte `HX-Trigger` — c'est LE seul retour visible d'un
+    enregistrement reussi, en haut a droite, quel que soit le
+    defilement. Le compte rendu detaille, lui, s'affiche EN TETE de la
+    note : en bas d'une note de 200 blocs, on ne le voit pas.
+    / The header summary is the only visible feedback of a good save.
+
+    IL NE DIT QUE CE QUI A EU LIEU. « 0 corrige, 0 masque, 0 refuse »
+    fait lire trois nombres pour apprendre qu'il ne s'est rien passe.
+    """
+
+    def _resume(self, reponse):
+        return json.loads(reponse["HX-Trigger"])["showToast"]["message"]
+
+    def test_une_seule_correction_s_accorde_au_SINGULIER(self):
+        reponse = self._poster([self._bloc(self.blocs[0], "Un texte neuf.")])
+        self.assertEqual(self._resume(reponse), "1 passage corrigé.")
+
+    def test_plusieurs_corrections_s_accordent_au_PLURIEL(self):
+        reponse = self._poster([
+            self._bloc(self.blocs[0], "Un texte neuf."),
+            self._bloc(self.blocs[1], "Un autre texte neuf."),
+        ])
+        self.assertEqual(self._resume(reponse), "2 passages corrigés.")
+
+    def test_le_resume_NE_DIT_PAS_les_comptes_a_zero(self):
+        """Trois nombres pour apprendre qu'il ne s'est rien passe.
+        / Three numbers to learn that nothing happened."""
+        reponse = self._poster([self._bloc(self.blocs[3], "")])
+        self.assertEqual(self._resume(reponse), "1 passage masqué.")
+
+    def test_le_resume_CUMULE_ce_qui_a_eu_lieu(self):
+        reponse = self._poster([
+            self._bloc(self.blocs[0], "Un texte neuf."),
+            self._bloc(self.blocs[3], ""),
+        ])
+        self.assertEqual(
+            self._resume(reponse), "1 passage corrigé, 1 masqué.",
+        )
+
+    def test_un_refus_est_DIT_dans_le_resume(self):
+        reponse = self._poster([
+            self._bloc(self.blocs[0], "Un texte neuf."),
+            {"identifiant_stable": "3f7c1e2a-0000-4000-8000-000000000000",
+             "texte": "disparu"},
+        ])
+        self.assertEqual(
+            self._resume(reponse), "1 passage corrigé, 1 refusé.",
+        )
+
+    def test_un_lot_SANS_EFFET_le_dit_clairement(self):
+        """
+        Renvoyer le meme texte n'est pas une erreur — le mode envoie
+        TOUS les blocs. Mais le dire « 0 corrige » ferait croire a une
+        panne. / Sending unchanged text is not an error, but "0" reads
+        like a failure.
+        """
+        reponse = self._poster([
+            self._bloc(self.blocs[0], self.blocs[0].texte),
+        ])
+        self.assertEqual(self._resume(reponse), "Aucun changement à enregistrer.")
+
+    def test_l_icone_passe_en_AVERTISSEMENT_des_qu_un_bloc_est_refuse(self):
+        reponse = self._poster([
+            {"identifiant_stable": "3f7c1e2a-0000-4000-8000-000000000000",
+             "texte": "disparu"},
+        ])
+        declencheurs = json.loads(reponse["HX-Trigger"])
+        self.assertEqual(declencheurs["showToast"]["icon"], "warning")
 
 
 class UnBlocMASQUE(BaseDuLot):
@@ -342,6 +414,98 @@ class LesRefus(BaseDuLot):
         self.assertEqual(self._poster([]).status_code, 400)
 
 
+class UnTABLEAU(BaseDuLot):
+    """
+    § 12 : un tableau ne se relit pas — il est refuse, ce bloc seul.
+    / A table cannot be read back: refused, that block alone.
+
+    POURQUOI CETTE GARDE EXISTE COTE SERVEUR
+
+    Le `texte` d'un element `table` est du markdown « pipe » ; ce qui
+    s'affiche est un <table> construit APRES le marquage, et aucun
+    chemin HTML -> markdown n'existe dans le depot. Ce qu'un client lit
+    du tableau rendu differe donc TOUJOURS de la base :
+    « CategorieArgument » au lieu de « | Categorie | Argument | ».
+
+    Le mode d'edition ne les envoie plus. Cette garde-ci est pour le
+    CLIENT PERIME — celui qui a charge la page avant que la regle
+    n'existe. Sans elle, un enregistrement sur une note a tableaux les
+    ecrasait tous, SANS QUE PERSONNE N'Y AIT TOUCHE.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.tableau = self._element(
+            "| Catégorie | Argument |\n| --- | --- |\n| Coût | 6 500 euros |",
+            5, label="table",
+        )
+
+    def test_un_tableau_MODIFIE_est_refuse(self):
+        compte_rendu_html = self._poster([
+            self._bloc(self.tableau, "CatégorieArgumentCoût6 500 euros"),
+        ])
+        self.assertEqual(compte_rendu_html.status_code, 200)
+        self.assertIn(str(self.tableau.identifiant_stable),
+                      compte_rendu_html.content.decode())
+
+    def test_le_texte_du_tableau_N_EST_PAS_ecrase(self):
+        """Le degat que cette garde interdit, mesure en base.
+        / The exact damage the guard forbids."""
+        avant = self.tableau.texte
+        self._poster([
+            self._bloc(self.tableau, "CatégorieArgumentCoût6 500 euros"),
+        ])
+        self.tableau.refresh_from_db()
+        self.assertEqual(self.tableau.texte, avant)
+
+    def test_le_refus_du_tableau_DIT_que_c_est_un_tableau(self):
+        """Un refus sans motif est un bug d'interface.
+        / A refusal without a reason is a UI bug."""
+        reponse = self._poster([
+            self._bloc(self.tableau, "CatégorieArgument"),
+        ])
+        self.assertIn("tableau", reponse.content.decode().lower())
+
+    def test_VIDER_un_tableau_est_refuse_AUSSI(self):
+        """
+        Le vider n'est pas moins destructeur que le corriger : le refus
+        est pose AVANT la branche du masquage.
+        / Emptying is no less destructive: the guard comes first.
+        """
+        reponse = self._poster([self._bloc(self.tableau, "")])
+        self.tableau.refresh_from_db()
+        self.assertFalse(self.tableau.masque)
+        # ET LE REFUS SE DIT. Sans cette assertion, ignorer le tableau
+        # en silence — un `continue` sans `refuser` — passerait pour un
+        # succes : la personne croirait avoir masque ce qui n'a pas
+        # bouge.
+        # / And the refusal is REPORTED: silence would read as success.
+        corps = reponse.content.decode()
+        self.assertIn(str(self.tableau.identifiant_stable), corps)
+        self.assertIn("tableau", corps.lower())
+
+    def test_les_AUTRES_blocs_du_lot_passent_quand_meme(self):
+        """Ce bloc seul est refuse, jamais le lot.
+        / That block alone, never the batch."""
+        self._poster([
+            self._bloc(self.tableau, "CatégorieArgument"),
+            self._bloc(self.blocs[0], "Le premier bloc, corrigé."),
+        ])
+        self.blocs[0].refresh_from_db()
+        self.assertEqual(self.blocs[0].texte, "Le premier bloc, corrigé.")
+
+    def test_un_tableau_INCHANGE_ne_produit_AUCUN_refus(self):
+        """
+        Un client perime renvoie TOUS les blocs, tableaux compris. Ceux
+        qu'il n'a pas touches ne doivent pas remplir le compte rendu de
+        refus : le texte identique sort avant la garde.
+        / An untouched table must not raise a refusal.
+        """
+        reponse = self._poster([self._bloc(self.tableau, self.tableau.texte)])
+        corps = reponse.content.decode()
+        self.assertNotIn(str(self.tableau.identifiant_stable), corps)
+
+
 class UneAnalyseRefuseLeLotENTIER(BaseDuLot):
     """
     § 8.1 : le refus n'est pas partiel. Une analyse qui tourne travaille
@@ -383,12 +547,168 @@ class UneAnalyseRefuseLeLotENTIER(BaseDuLot):
             self.assertEqual(bloc.texte, avant)
             self.assertFalse(bloc.masque)
 
+    def test_une_analyse_qui_DEMARRE_PENDANT_le_lot_annule_TOUT(self):
+        """
+        LE REFUS SUBSISTE A L'ECRITURE, PAS SEULEMENT A L'ENTREE (§ 8.1).
+
+        La garde d'entree ne voit que l'instant du POST. Entre elle et
+        le commit, une analyse peut demarrer — et le lot ecrirait alors
+        sous les pieds d'un job qui lit le texte : des ancres fausses,
+        en silence, ou l'analyse entiere perdue et facturee.
+
+        CE CHEMIN ETAIT OUVERT POUR LES VIDAGES SEULS. Le lot appelle
+        `masquer_un_element(..., verifier_les_jobs=False)` : le service
+        ne repose donc pas la garde, alors que
+        `reconcilier_les_portions_de_l_element` le fait pour les
+        corrections. Un lot fait uniquement de vidages n'etait protege
+        que par la garde d'entree.
+        / The write-time guard must hold for a batch of hides too.
+        """
+        from unittest import mock
+
+        from hypostasis_extractor.services import masquage as service_masquage
+
+        vrai_masquer = service_masquage.masquer_un_element
+
+        def masquer_puis_lancer_une_analyse(*arguments, **nommes):
+            """Une analyse surgit APRES le premier masquage du lot."""
+            resultat = vrai_masquer(*arguments, **nommes)
+            self._lancer_une_analyse()
+            return resultat
+
+        with mock.patch.object(
+            service_masquage, "masquer_un_element",
+            side_effect=masquer_puis_lancer_une_analyse,
+        ):
+            reponse = self._poster([
+                self._bloc(self.blocs[3], ""),
+                self._bloc(self.blocs[4], ""),
+            ])
+
+        self.assertEqual(reponse.status_code, 409)
+        # ET RIEN N'EST ECRIT : le masquage deja fait est annule avec le
+        # reste. Un lot a moitie ecrit serait pire que pas de lot.
+        # / And nothing is written: the hide already done is rolled back.
+        for bloc in (self.blocs[3], self.blocs[4]):
+            bloc.refresh_from_db()
+            self.assertFalse(
+                bloc.masque,
+                "le masquage doit être annulé avec le reste du lot",
+            )
+        self.assertEqual(PageEdit.objects.filter(page=self.page).count(), 0)
+
+    def test_un_lot_SANS_ECRITURE_ne_declenche_pas_le_refus_tardif(self):
+        """
+        La garde de fin ne se pose que s'il y a quelque chose a
+        proteger. Un lot ou rien n'a change n'ecrit rien : le refuser
+        n'annulerait rien et dirait a la personne qu'elle a perdu un
+        travail qu'elle n'a pas fait.
+        / The late guard only fires when there is something to protect.
+        """
+        from unittest import mock
+
+        from hypostasis_extractor.services import masquage as service_masquage
+
+        vrai_masquer = service_masquage.masquer_un_element
+
+        def masquer_puis_lancer_une_analyse(*arguments, **nommes):
+            resultat = vrai_masquer(*arguments, **nommes)
+            self._lancer_une_analyse()
+            return resultat
+
+        with mock.patch.object(
+            service_masquage, "masquer_un_element",
+            side_effect=masquer_puis_lancer_une_analyse,
+        ):
+            # Le meme texte : aucun bloc ne bouge, aucun service appele.
+            # / The same text: nothing moves, no service is called.
+            reponse = self._poster([
+                self._bloc(self.blocs[0], self.blocs[0].texte),
+            ])
+        self.assertEqual(reponse.status_code, 200)
+
     def test_aucun_journal_n_est_ecrit_quand_le_lot_est_refuse(self):
         """/ No journal entry when the batch is refused."""
         self._lancer_une_analyse()
         avant = PageEdit.objects.filter(page=self.page).count()
         self._poster([self._bloc(self.blocs[0], "Un.")])
         self.assertEqual(PageEdit.objects.filter(page=self.page).count(), avant)
+
+
+class LaBorneEtLesDoublons(BaseDuLot):
+    """
+    § 7.4 : ce qu'un lot ECARTE est compte et NOMME, jamais jete en
+    silence. / What a batch drops is counted and named, never dropped
+    silently.
+    """
+
+    def test_un_bloc_envoye_DEUX_FOIS_n_est_compte_qu_une_fois(self):
+        """
+        LE MEME BLOC DEUX FOIS CORROMPRAIT LE JOURNAL.
+
+        A la seconde occurrence, l'element en memoire porte encore
+        l'ancien texte : le service relit sous verrou, trouve « rien a
+        faire », et rendrait un `ancien_texte` qui EST le nouveau. Le
+        journal ecrirait alors un « avant » egal a l'« apres », et le
+        compte annoncerait deux blocs modifies pour un seul.
+        / The same block twice would write a journal whose "before"
+        equals its "after".
+        """
+        reponse = self._poster([
+            self._bloc(self.blocs[0], "Un texte neuf."),
+            self._bloc(self.blocs[0], "Un texte neuf."),
+        ])
+        self.assertEqual(reponse.status_code, 200)
+        corps = reponse.content.decode()
+        self.assertIn("deux fois", corps,
+                      "le doublon doit être nommé, pas jeté en silence")
+        journal = PageEdit.objects.get(page=self.page)
+        self.assertEqual(len(journal.donnees_avant["blocs"]), 1)
+        self.assertEqual(
+            journal.donnees_avant["blocs"][str(self.blocs[0].identifiant_stable)],
+            "Le premier bloc de la note.",
+            "le « avant » du journal doit être l'ancien texte, pas le neuf",
+        )
+
+    def test_les_blocs_AU_DELA_de_la_borne_sont_ecartes_ET_NOMMES(self):
+        """
+        Un lot fait un verrou et une reconciliation par bloc modifie. La
+        borne protege la base ; ce qu'elle ecarte doit se dire, sinon la
+        personne croit avoir enregistre ce qui n'est jamais parti.
+        / The cap protects the DB; what it drops must be said.
+        """
+        from hypostasis_extractor.serializers import CorrectionEnLotSerializer
+
+        borne = CorrectionEnLotSerializer.BORNE_DU_LOT
+        # Le bloc reel est le PREMIER : il passe. Les suivants sont
+        # inventes, et seuls ceux au-dela de la borne sont « ecartes ».
+        # / The real block comes first; the rest are made up.
+        lot = [self._bloc(self.blocs[0], "Un texte neuf.")]
+        for numero in range(borne):
+            lot.append({
+                "identifiant_stable": f"3f7c1e2a-0000-4000-8000-{numero:012d}",
+                "texte": "bloc de remplissage",
+            })
+        reponse = self._poster(lot)
+        self.assertEqual(reponse.status_code, 200)
+        corps = reponse.content.decode()
+        self.assertIn("borne", corps, "l'écart doit dire POURQUOI")
+        # LE NOMBRE, pas seulement le mot : 499 identifiants inventes
+        # dans la borne (refuses « disparu ») + 1 au-dela (« ecarte »).
+        # Sans ce compte, un decalage d'un cran sur `blocs_postes[borne:]`
+        # passerait inapercu.
+        # / The COUNT, not just the word: an off-by-one would slip by.
+        import re
+        trouve = re.search(
+            r'data-testid="blocs-refuses">\s*<strong>(\d+)</strong>', corps,
+        )
+        self.assertIsNotNone(trouve)
+        self.assertEqual(int(trouve.group(1)), borne)
+        # Le dernier envoye est le seul au-dela de la borne.
+        # / The last one sent is the only one past the cap.
+        self.assertIn(f"3f7c1e2a-0000-4000-8000-{borne - 1:012d}", corps)
+        self.blocs[0].refresh_from_db()
+        self.assertEqual(self.blocs[0].texte, "Un texte neuf.")
 
 
 class LeJournal(BaseDuLot):

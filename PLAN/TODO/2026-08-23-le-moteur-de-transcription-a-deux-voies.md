@@ -1,4 +1,68 @@
-# Le moteur de transcription a deux voies : Voxtral, ou du local souverain
+# Le moteur de transcription a deux voies : Voxtral, ou notre conteneur sur GPU loué
+
+> ## ⚖️ TRANCHÉ par le mainteneur le 30 août 2026 — LES DEUX VOIES SONT NOMMÉES
+>
+> | voie | ce qu'on lui demande |
+> |---|---|
+> | **Voxtral** (API Mistral) | **rapide et bon marché** — c'est son seul rôle, et il suffit |
+> | **notre conteneur sur GPU loué** | **la souveraineté** : la donnée reste dans notre périmètre, aucun éditeur de LLM n'y a accès, nos poids, notre code |
+>
+> **La seconde voie n'est PLUS « le local sur notre VPS ».** Le protocole et les
+> contraintes vivent dans `2026-08-23-la-transcription-sur-gpu-loue-a-la-minute.md`
+> et `PLAN/specs/SPEC-transcription-sur-gpu-loue.md` — cette note-ci décrit le
+> **choix** entre les deux voies et son point d'ancrage dans le code.
+>
+> **Ce que ce déplacement CHANGE dans les sections ci-dessous** — à lire avant de
+> les suivre :
+>
+> 1. **Le worker à concurrence 1 sous `nice -n 19` n'a plus de raison d'être telle
+>    qu'elle est écrite.** Sa justification était la mémoire : deux transcriptions
+>    simultanées, 7 Go sur notre machine. Le calcul ne tourne plus ici. Il faut
+>    toujours un worker dédié, mais il **orchestre** : il pousse l'audio sur
+>    l'Object Storage, lance le job, attend, récupère le JSON. La concurrence 1 y
+>    devient un **contrôle de dépense**, plus un garde-fou mémoire — et le `nice`
+>    n'a plus d'objet.
+> 2. **Le curseur de la taille de Whisper se rouvre.** `large-v3` (le meilleur WER
+>    mesuré, 30,5 %) était écarté parce que ses **8,27 Go** ne tiennent pas à côté
+>    des juges NLI sur un VPS 16 Go. Sur un GPU loué, cette contrainte disparaît :
+>    c'est le **point mort économique** qui décide désormais, pas la RAM de la
+>    machine.
+> 3. **Le point bloquant d'idempotence est LEVÉ, et c'est un gain net.** La note
+>    ci-dessous établit que `bin/install.sh` ne peut plus être idempotent, parce
+>    que pyannote exige un jeton HuggingFace et l'acceptation manuelle de
+>    conditions. Avec le GPU loué, **les poids ne sont plus téléchargés sur nos
+>    machines** : ils vivent sur l'Object Storage, poussés une fois. Un clone frais
+>    n'a besoin d'aucun jeton, et `bin/install.sh` reste idempotent. Le jeton
+>    redevient une opération d'administration, faite une fois, pas une dépendance
+>    d'installation.
+>
+> **Une précision de vocabulaire, pour ne pas promettre plus que ce qui est vrai.**
+> « Souverain » désigne ici l'**usage** de la donnée, pas son isolement physique :
+> l'audio quitte notre machine et transite chez l'hébergeur du GPU, dans notre
+> conteneur et sur notre Object Storage. Ce qui est acquis, et qui est le motif de
+> la décision : **aucun éditeur de modèle n'y a accès**, les poids sont les nôtres
+> et figés, rien n'est réutilisé pour entraîner quoi que ce soit, et la sortie est
+> **déterministe** — ce que Voxtral n'est pas (26,90 % puis 27,07 % de WER sur le
+> même audio). Un compte rendu de délibération confidentiel reste chez un tiers
+> pendant son traitement, et c'est à dire tel quel à qui le demandera.
+>
+> **Ce qui reste à trancher, et qui n'a pas bougé** : la taille de Whisper (point
+> 1 ci-dessous, désormais arbitré par le point mort), WhisperX tel quel ou démonté
+> (point 2 — toujours décisif : 5/6 voix contre 6/6), et le nombre de voix réelles
+> (point 3).
+>
+> **La question que la nouvelle voie créait est tranchée le 30 août 2026 :
+> quand le GPU n'est pas joignable, ON AFFICHE L'ERREUR.** Ni repli
+> silencieux sur Voxtral, ni attente indéfinie. C'est cohérent avec le motif
+> même de la voie : quelqu'un qui a choisi la souveraineté ne doit **jamais**
+> voir son enregistrement partir chez un tiers parce qu'une machine ne
+> répondait pas. Un repli automatique serait exactement la panne invisible que
+> ce produit s'interdit partout ailleurs.
+>
+> Ce que ça impose au code : la tâche marque la note en échec avec un motif
+> **lisible** — le patron existe, c'est `TourDeWiki.message_d_echec` pour les
+> articles — et l'écran d'import le dit. **Un nouvel essai est un geste
+> humain**, comme le choix du moteur l'est déjà.
 
 **Intention prise le 23 août 2026** par le mainteneur, après la campagne de
 mesure. Rien n'est codé. Les chiffres sont dans

@@ -79,5 +79,46 @@ Segments carry their bounds; the JS scales them once duration is known.
                  data-testid="tete-de-lecture"></div>
         </div>
     </div>
+
+    {% comment %}
+    LES DEUX RÉGLAGES DE LA STÉNOTYPIE — SPEC-edition-par-blocs § 6.3.
+
+    Ce sont « les deux gestes qui manquent vraiment » : la VITESSE, et
+    le RECUL À LA REPRISE — on met en pause pour écrire, et on a
+    toujours perdu le début de la phrase.
+
+    ILS VIVENT DANS LA BARRE, pas dans le mode d'édition : ils servent
+    aussi à qui écoute sans corriger, et la barre survit à tout — elle
+    est hors de `#zone-lecture`, que `lectureReload` remplace en entier.
+
+    Le recul est RÉGLABLE et **zéro le désactive** : le réglage offre un
+    comportement, il ne l'impose pas. Le choix est retenu par le
+    navigateur de chacun (`localStorage`), pas en base : c'est un
+    confort de poste de travail, pas une donnée du corpus.
+    / The two § 6.3 settings: speed and rewind-on-resume. They live in
+    the bar because they serve listening too, and zero disables the
+    rewind. The choice is per-browser, never in the database.
+    {% endcomment %}
+    <div class="reglages-de-lecture" data-testid="reglages-de-lecture">
+        <button type="button" id="bouton-ralentir" class="bouton-reglage"
+                data-testid="btn-ralentir"
+                aria-label="Ralentir la lecture">&minus;</button>
+        <span id="vitesse-de-lecture" data-testid="vitesse-de-lecture"
+              aria-live="polite"
+              aria-label="Vitesse de lecture">1&times;</span>
+        <button type="button" id="bouton-accelerer" class="bouton-reglage"
+                data-testid="btn-accelerer"
+                aria-label="Accélérer la lecture">+</button>
+
+        <label class="etiquette-reglage" for="recul-a-la-reprise">reprise</label>
+        <select id="recul-a-la-reprise" data-testid="recul-a-la-reprise"
+                aria-label="Recul à la reprise, en secondes">
+            <option value="0">0 s</option>
+            <option value="1">1 s</option>
+            <option value="2" selected>2 s</option>
+            <option value="3">3 s</option>
+            <option value="5">5 s</option>
+        </select>
+    </div>
 </div>
 {% endif %}

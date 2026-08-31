@@ -1,0 +1,141 @@
+{
+  "les_reglages_sont_la": {
+    "visible": true,
+    "hauteur": 24
+  },
+  "au_depart": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1,
+    "instant": 0,
+    "en_pause": true,
+    "vitesse_affichee": "1×",
+    "recul_choisi": "2"
+  },
+  "bandeau_note_transcrite": "Mode édition — Ctrl+S enregistrer · Ctrl+Z annuler le dernier geste · Échap sortir du mode · F4 lire ou mettre en pause · F2 écouter à partir du passage du curseur",
+  "debut_du_bloc_vise": 3.2,
+  "ou_est_le_curseur": {
+    "type_du_noeud": 3,
+    "texte": "Ici, ",
+    "debut_du_bloc_trouve": "3.2",
+    "le_champ_a_le_focus": true
+  },
+  "apres_F2": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1,
+    "instant": 3.78,
+    "en_pause": false,
+    "vitesse_affichee": "1×",
+    "recul_choisi": "2"
+  },
+  "etat_avant_le_bouton_ecouter": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1,
+    "instant": 3.79,
+    "en_pause": false,
+    "vitesse_affichee": "1×",
+    "recul_choisi": "2"
+  },
+  "debut_du_bloc_5": 8.1,
+  "apres_le_bouton_ecouter": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1,
+    "instant": 8.74,
+    "en_pause": false,
+    "vitesse_affichee": "1×",
+    "recul_choisi": "2"
+  },
+  "apres_F8_avance": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1,
+    "instant": 14.08,
+    "en_pause": false,
+    "vitesse_affichee": "1×",
+    "recul_choisi": "2"
+  },
+  "apres_deux_F7_recul": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1,
+    "instant": 4.42,
+    "en_pause": false,
+    "vitesse_affichee": "1×",
+    "recul_choisi": "2"
+  },
+  "apres_deux_F10": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1.5,
+    "instant": 5,
+    "en_pause": false,
+    "vitesse_affichee": "1,5×",
+    "recul_choisi": "2"
+  },
+  "apres_un_F9": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1.25,
+    "instant": 5.55,
+    "en_pause": false,
+    "vitesse_affichee": "1,25×",
+    "recul_choisi": "2"
+  },
+  "a_la_pause": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1.25,
+    "instant": 5.82,
+    "en_pause": true,
+    "vitesse_affichee": "1,25×",
+    "recul_choisi": "3"
+  },
+  "a_la_reprise": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1.25,
+    "instant": 3.48,
+    "en_pause": false,
+    "vitesse_affichee": "1,25×",
+    "recul_choisi": "3"
+  },
+  "apres_un_saut_volontaire": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1.25,
+    "instant": 9,
+    "en_pause": true,
+    "vitesse_affichee": "1,25×",
+    "recul_choisi": "3"
+  },
+  "reprise_apres_un_saut": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1.25,
+    "instant": 9.51,
+    "en_pause": false,
+    "vitesse_affichee": "1,25×",
+    "recul_choisi": "3"
+  },
+  "texte_avant_ctrl_z_hors_champ": "Une autre question ?\n    corriger\n    co",
+  "texte_apres_ctrl_z_hors_champ": "Une autre question ?\n    corriger\n    co",
+  "le_champ_survit_a_la_touche_z": true,
+  "clic_sur_un_surlignage": {
+    "drawer_ouvert": false
+  },
+  "apres_rechargement": {
+    "readyState": 4,
+    "duree": 15,
+    "vitesse": 1.25,
+    "instant": 0,
+    "en_pause": true,
+    "vitesse_affichee": "1,25×",
+    "recul_choisi": "3"
+  },
+  "bandeau_note_ecrite": "Mode édition — Ctrl+S enregistrer · Ctrl+Z annuler le dernier geste · Échap sortir du mode",
+  "reglages_sur_note_ecrite": false,
+  "erreurs_js": []
+}

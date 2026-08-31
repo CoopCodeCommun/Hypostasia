@@ -329,6 +329,14 @@ S'il n'y a rien, le dire — c'est un résultat.
 
 ### 5.4 La transcription audio en local — ouvert le 16 août
 
+> ⚖️ **Le 30 août 2026, le mainteneur a nommé les deux voies** : **Voxtral**
+> (rapide, bon marché) et **notre conteneur sur GPU loué** (souverain). La
+> seconde voie n'est donc **plus** « le local sur notre VPS » : ce qui suit
+> garde toutes ses mesures, mais la cible d'exécution a changé — pas de worker
+> de transcription sous `nice` sur notre machine, et le curseur de la taille de
+> Whisper se rouvre. Voir
+> `PLAN/TODO/2026-08-23-le-moteur-de-transcription-a-deux-voies.md`.
+
 Seul chantier de ce fichier qui ne soit pas d'UX/UI : il est ici parce que c'est
 l'endroit prévu pour les chantiers ouverts, et qu'il porte trois décisions en
 attente (§ 6).
@@ -421,6 +429,18 @@ pas ici.
 
 ## 6. Décisions en attente du mainteneur
 
+> ### ⚖️ Quatre décisions prises le 30 août 2026 — elles ne sont plus en attente
+>
+> Elles sont consignées **dans leur note**, en encart daté ; ce qui suit n'en est
+> que l'index. Aucune n'est codée.
+>
+> | Ce qui est tranché | Où c'est écrit |
+> |---|---|
+> | **La nuit peut réécrire un article entier**, toutes sections comprises — **à condition que l'historique le conserve**. Pas de borne. La vérification du 30 août dit que la condition n'est pas entièrement tenue : trois trous à combler, dont **la perte des contestations humaines, qui n'est écrite nulle part**. | `PLAN/TODO/2026-08-22-borner-la-reecriture-nocturne-d-un-wiki.md` |
+> | **Une marge de neutralité par juge** (voie A). Les distributions par juge ont été mesurées le jour même, et elles bornent l'attente : mDeBERTa v3 reste structurellement muet. | `PLAN/TODO/2026-08-22-la-marge-de-neutralite-des-juges-locaux.md` |
+> | **Les deux voies de transcription sont nommées** : Voxtral pour la rapidité et le prix ; **notre conteneur sur GPU loué** pour la souveraineté. Ce n'est plus « le local sur notre VPS ». | `PLAN/TODO/2026-08-23-le-moteur-de-transcription-a-deux-voies.md` et `…-la-transcription-sur-gpu-loue-a-la-minute.md` |
+> | **Le verbatim : la question posée plus bas est PÉRIMÉE, et la suite est CODÉE.** Les trois règles de forme datent du 21 août ; la **comparaison par les mots** a été mesurée puis livrée le 30 — **42 des 45 citations au fond intact récupérées, 0 blanchie sur 225 falsifications**, non-régression intacte. Un score de similarité avait été mesuré d'abord, et écarté : un chiffre falsifié y obtient 0,996. Restent le **rejugement** (gratuit) et la **réingestion**. | `CHANGELOG/2026-08-30-le-verbatim-se-compare-par-les-mots.md` et `PLAN/TODO/2026-08-30-ce-qui-reste-du-verbatim-introuvable.md` |
+
 **La granularité de l'ancrage sur un tableau.** Un tableau est **un seul**
 `ElementDocument` de 4 471 signes : une idée ancrée dessus désigne le tableau
 entier, pas une ligne. Rendre un vrai `<table>` (fait le 13 août) n'y change
@@ -451,7 +471,7 @@ de s'y engager, pas après.
 > et les résultats bruts restent **hors dépôt**, dans un dossier de travail passé
 > en argument à `installer_le_banc.sh`. Fait le jour même.
 
-**La marge de neutralité des juges locaux, à revoir.** (mesure du 20 août, sur
+**La marge de neutralité des juges locaux, à revoir.** ⚖️ **TRANCHÉ le 30 août 2026 : une marge par juge** (voie A). Ce qui suit reste le dossier ; les distributions mesurées le 30 août sont dans la note. (mesure du 20 août, sur
 836 avis réels) `MARGE_DE_NEUTRALITE = 2,5` est appliquée uniformément à des
 échelles différentes : **CamemBERTa v2 et mDeBERTa v3 — les deux MEILLEURS
 juges par AUC appariée — sont muets 85 % du temps**, contre 4 % pour `bge-m3`.
@@ -470,7 +490,7 @@ un sujet que le corpus couvre mal se dégrade en prose non sourcée** (4,5 % sur
 « open badges », **35,2 %** sur « gouvernance collective »), et changer de
 modèle n'y change rien.
 
-**Faut-il assouplir la comparaison du verbatim ?** (mesure du 19 août,
+**Faut-il assouplir la comparaison du verbatim ?** ⚠️ **PÉRIMÉ — les trois règles décrites ci-dessous sont CODÉES depuis le 21 août 2026** (`_le_verbatim_est_present`). Ce qui reste est mesuré et instruit dans `PLAN/TODO/2026-08-30-ce-qui-reste-du-verbatim-introuvable.md`. Ce qui suit décrit l'état d'avant le correctif. (mesure du 19 août,
 `benchmarks/extraction_format/2026-08-19_le-mode-d-echec-du-verbatim.md`) Sur
 les 60 citations `INTROUVABLE` en base, **34 (57 %)** ne tiennent qu'à une
 retouche de forme : un espace de ponctuation (20), un point ajouté (8), une
@@ -971,6 +991,141 @@ un contraste de 1,15:1 là où il valait 4,13:1.
    docstring Q3, et le prompt qui promet au modèle qu'« un humain acceptera »). Une
    demi-journée, faisable en parallèle de n'importe quoi d'autre.
    → `2026-08-23-la-doc-ment-sur-la-nuit-et-la-verification.md`
+
+> ### ⚠️ REPRISE — état au 30 août 2026, rien n'est commité
+>
+> ✅ **LA SUITE A TOURNÉ le 30 août : 691 tests OK en 432 s.** Elle couvre les cinq
+> améliorations du mode, le refus des tableaux, la modale de refus, la touche `M`,
+> les rangs de cascade de `user_menu.js` et du `<dialog>`, et la garde serveur
+> `LABELS_QUI_NE_SE_RELISENT_PAS` : **aucun échec**. La commande :
+> ```bash
+> docker exec -w /app hypostasia_web python manage.py test \
+>   front.tests.test_mode_edition front.tests.test_ce_que_dit_l_aide \
+>   front.tests.test_phases front.tests.test_lecture_elements \
+>   front.tests.test_boutons_elements front.tests.test_rendu_elements \
+>   hypostasis_extractor.tests.test_corriger_en_lot \
+>   hypostasis_extractor.tests.test_le_rendu_d_un_seul_bloc \
+>   hypostasis_extractor.tests.test_views_element --noinput
+> ```
+> **Puis 46 tests neufs ont été écrits dans la journée** — le refus par synthèse
+> figée dans un lot, les deux compteurs d'ancres, le refus des tableaux, la borne
+> et les doublons, le panneau des masqués, l'endpoint qui le tient à jour, et la
+> garde d'analyse des vidages. La suite ci-dessus, augmentée de
+> `hypostasis_extractor.tests.test_le_lot_et_les_ancrages`, rend
+> **737 tests OK en 481 s** (30 août, au soir).
+>
+> ⚠️ **UNE FAILLE DE SÉCURITÉ A ÉTÉ FERMÉE LE 30 AOÛT, et elle ne venait pas du
+> mode.** `Swal.fire` rend son `title` **en HTML**, et `hypostasia.js` y passait
+> le `message` de `HX-Trigger: showToast` — soit **84 emplacements** qui portent
+> des données écrites par des humains (nom de groupe, titre de base, et depuis
+> ce matin le titre de la synthèse qui bloque une édition). **Mesuré** : un
+> message contenant `<img src=x onerror=…>` faisait **exécuter le script** chez
+> qui recevait le toast. Corrigé par `titleText`, remesuré, `?v=41`.
+> → `benchmarks/edition_par_blocs/banc/mesures22_le_toast_et_le_html.py`
+>
+> **Ce qui reste ouvert sur le mode**, par ordre de gravité :
+>
+> 1. ✅ **FAIT le 30 août — le refus par synthèse figée DANS un lot est exercé.**
+>    Le chemin le plus délicat (exception attrapée dans l'`atomic`) tient : le bloc
+>    gelé est refusé **lui seul**, les autres blocs du lot sont **écrits en base**,
+>    vider un bloc gelé est refusé aussi, un wiki ne gèle rien, et un lot
+>    entièrement gelé n'écrit **aucun** `PageEdit`. **Le mordant est mesuré** : en
+>    neutralisant la garde dans les deux services, **7 des 15 tests tombent**.
+>    → `CHANGELOG/2026-08-24-l-endpoint-de-lot.md`, section du 30 août.
+> 2. ✅ **FAIT le 30 août — une fixture porte enfin de vrais ancrages.**
+>    Extractions, portions posées sur des **offsets calculés depuis le texte**, et
+>    citations créées par le vrai service `indexer_les_citations` (seul chemin qui
+>    pose `ancrage_source`). `ancres_detachees` et `citations_detachees` sont
+>    désormais affirmés **par leur nombre**, et l'état en base est vérifié.
+> 3. ✅ **TRANCHÉ le 30 août — l'i18n SORT de cette liste.** Ce n'était pas un
+>    reste du mode, mais l'état du projet entier : **2** occurrences de
+>    `{% translate %}` dans les **85** gabarits de `front/`, **0** `gettext` dans
+>    `front/*.py`, **aucun dossier `locale/`**, **aucun `LOCALE_PATHS`**, rien
+>    côté JS. Envelopper les seules chaînes du mode ne traduirait **rien**.
+>    Décision du mainteneur : **rien maintenant, chantier de projet**, avec ce
+>    qu'il suppose écrit une fois pour toutes.
+>    → `PLAN/TODO/2026-08-30-l-i18n-est-un-chantier-de-projet.md`
+> 4. ✅ **FAIT le 30 août — le mode sait démasquer** (§ 5.3, cas 4). Un panneau
+>    replié, rendu **au-dessus du champ** (donc hors de lui, donc jamais
+>    sérialisé), liste les passages masqués et les rétablit d'un clic.
+>    *Arbitrage du mainteneur : une commande, pas des placeholders au fil du
+>    texte.* La liste vient du serveur (filtre `passages_masques_de`), le bouton
+>    poste l'endpoint `demasquer` qui existait déjà, le JS ne fait que
+>    l'affichage. **Mesuré de bout en bout** sur une note jetable : « 2 passages
+>    masqués » → « 1 » → panneau disparu, blocs du champ 2 → 3 → 4, mode toujours
+>    ouvert, **0 erreur JS**, contrastes **5,24:1** clair / **5,94:1** sombre,
+>    filet du bouton **3,16** / **4,26**, cible **72 × 24 px**.
+>    **Et une relecture adverse a repris le tout**, ce qui a livré quatre
+>    défauts réels : le panneau **ignorait ce que le mode venait de masquer**
+>    (le cas fondateur du § 5.3 cas 4 — corrigé par un endpoint qui rend le même
+>    partial, redemandé après chaque enregistrement) ; les `hx-post` d'un
+>    fragment posé par `innerHTML` sont **inertes** sans `htmx.process()` ; le
+>    panneau **se refermait** sous les doigts ; et la lecture seule des tableaux
+>    **comme les gouttières** n'étaient posées qu'à l'ouverture — un bloc revenu
+>    par swap redevenait modifiable là où il ne doit pas l'être. Tout est reposé
+>    après chaque swap, et mesuré dans les deux sens.
+>    → `benchmarks/edition_par_blocs/resultats/resultats-le-panneau-des-masques.json`
+> 5. **Un tableau ne se corrige NULLE PART** — ni dans le mode, ni ailleurs. Le seul
+>    recours est de réingérer. C'est un manque du moteur, antérieur au mode.
+> 5 bis. ✅ **FAIT le 30 août — la garde d'analyse couvre enfin les vidages.**
+>    Trouvé par la relecture adverse, **mesuré avant de corriger** : une analyse
+>    démarrée pendant un lot de vidages le laissait passer — **200 au lieu de
+>    409**, blocs masqués pour de bon. Les corrections étaient couvertes (le
+>    service repose la garde), les vidages non
+>    (`masquer_un_element(..., verifier_les_jobs=False)`) — et le commentaire de
+>    la vue affirmait le contraire. La garde est reposée **une fois en fin de
+>    lot**, dans l'`atomic`, et **seulement s'il y a eu des écritures** : le lot
+>    entier est annulé, 409, le texte reste à l'écran. Deux tests l'épinglent,
+>    dont un pour le cas « rien n'a changé », qui ne doit **pas** refuser.
+>    → `CHANGELOG/2026-08-24-l-endpoint-de-lot.md`
+> 6. **Le lecteur d'écran réel** n'a jamais été essayé (§ 9), et **Android** non plus
+>    (la vraie composition IME n'est déclenchable que sur Chromium).
+> 7. ✅ **FAIT le 30 août — la sténotypie au clavier et la table de raccourcis.**
+>    Dans le mode : `F4` lit/pause, `F2` écoute **à partir du passage du curseur**,
+>    `F7`/`F8` reculent et avancent de 5 s, `F9`/`F10` changent la vitesse — et
+>    chaque geste accepte aussi les codes de **pédale** (`MediaPlayPause`,
+>    `F13`–`F15`). Deux réglages neufs dans la barre : la **vitesse** (paliers 0,5
+>    → 2, affichée, **survit au rechargement**) et le **recul à la reprise** (2 s
+>    par défaut, **zéro le désactive**, et il ne s'applique **qu'à une reprise**).
+>    Les touches sont une **table** publiée, et le bandeau du mode se compose
+>    depuis elle — il portait une recopie dans du CSS. Mesuré sur `/lire/4/` :
+>    `F2` sur le passage à 3,2 s y saute, ±5 s justes, 1,25× conservé après
+>    rechargement, **0 erreur JS**.
+>    → `CHANGELOG/2026-08-30-la-stenotypie-au-clavier.md`
+>
+>    **Une relecture adverse a repris le tout, et trouvé quatre défauts qui
+>    faisaient perdre du travail** — tous corrigés et remesurés : les frappes
+>    tapées **pendant l'envoi** étaient désarmées en silence ; `Ctrl+Z` avec le
+>    focus hors du champ (rail, menu du recul, panneau) annulait le texte
+>    derrière ; la touche **« z » nue** remplaçait `#zone-lecture` sans une
+>    question ; et **cliquer un passage surligné** — le geste le plus ordinaire
+>    du mode — ouvrait le tiroir, la garde étant posée sur le mauvais des deux
+>    listeners de `marginalia.js`. Plus : le motif FALC d'un refus et le résumé
+>    d'un enregistrement **partiel** n'atteignaient jamais l'écran, et le recul à
+>    la reprise **déplaçait un point qu'on venait de viser**, contre ce que
+>    l'encart du § 6.3 promet. **768 tests OK.**
+>
+>    **Ce qui reste de la sténotypie** : la **correction du locuteur** (§ 6.2),
+>    et la spec **se trompe** à son sujet — `renommer_locuteur` **refuse en 409
+>    toute note à éléments**, donc le geste n'existe pour **aucune note réelle**.
+>    Il faut un geste natif ELEMENT qui écrit `provenance["locuteur"]`, pas un
+>    raccourci vers un endpoint qui refuse. La **modale d'aide** doit encore rendre
+>    la table, et les **trois autres listeners** (`keyboard.js`, `marginalia.js`,
+>    `user_menu.js`) gardent leurs touches en dur.
+> 8. ✅ **FAIT le 30 août — un `Ctrl+S` réussi se voit.** Le résumé que la vue pose
+>    dans `HX-Trigger` n'atteignait personne (le `fetch` ignore les en-têtes) : le
+>    mode le relit et rejoue l'événement, donc le toast s'affiche en haut à droite,
+>    quel que soit le défilement. Le libellé était du bricolage
+>    (« 0 passage(s) corrigé(s), 1 masqué(s), 0 refusé(s) ») ; il est maintenant
+>    composé par `_resume_du_lot`, accordé, et **ne dit que ce qui a eu lieu** —
+>    « 1 passage corrigé, 1 masqué. », « Aucun changement à enregistrer. » Sept
+>    tests l'épinglent.
+>
+> **Deux relectures adverses du 29 août ont laissé des restes** : le compte de charge
+> annoncé dans le CHANGELOG de la décision ne couvre pas toute la session ; « les
+> mesures 1 et 2 sont les seules prises deux fois » est inexact ; deux notes de
+> `PLAN/TODO/` disent encore « rien n'est codé » alors que le partial de bloc et
+> l'endpoint existent ; et `mesures10_le_vrai_dom.py` porte le mot de passe en dur.
 
 **Ce qui vient ensuite, dans l'ordre** : la provenance minimale d'un prompt (bloquante
 pour toute mesure), les deux bornes — le prompt de mise à jour et la réécriture

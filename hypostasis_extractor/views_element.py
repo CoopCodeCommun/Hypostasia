@@ -49,6 +49,16 @@ from hypostasis_extractor.services.garde_edition import (
 
 logger = logging.getLogger(__name__)
 
+# LES LABELS DONT LE TEXTE NE SURVIT PAS A UN ALLER-RETOUR PAR LE DOM.
+#
+# Mesure du 30 aout 2026, sur cinq notes et 387 blocs : `table` echoue
+# 20 fois sur 20, et TOUS les autres bouclent exactement — `code`,
+# `picture`, `caption`, `title`, `section_header`, `list_item`, `text`.
+# La liste ne contient donc que `table`, pas les « 58 elements non
+# textuels » qu'on pouvait croire concernes.
+# / Measured on five notes and 387 blocks: only `table` fails.
+LABELS_QUI_NE_SE_RELISENT_PAS = {"table"}
+
 
 def _message_falc_du_blocage_par_analyse():
     """
@@ -208,6 +218,67 @@ def _reponse_de_succes_avec_le_bloc(request, element, message):
     return reponse
 
 
+def _resume_du_lot(compte_rendu):
+    """
+    Le resume d'un enregistrement, en une phrase.
+    / A batch save's summary, in one sentence.
+
+    LOCALISATION : hypostasis_extractor/views_element.py
+
+    C'EST LE SEUL RETOUR VISIBLE D'UN `Ctrl+S` REUSSI. Le compte rendu
+    detaille s'affiche EN TETE de la note : en bas d'une note de 200
+    blocs, on ne le voit pas. Ce resume-la part dans le toast, en haut a
+    droite, quel que soit le defilement.
+
+    IL NE DIT QUE CE QUI A EU LIEU. « 0 corrige, 0 masque, 0 refuse »
+    fait lire trois nombres pour apprendre qu'il ne s'est rien passe —
+    et un « 0 » en tete se lit comme une panne.
+
+    LES ANCRES ET LES CITATIONS DETACHEES N'Y SONT PAS : ce sont des
+    consequences, pas des gestes. Elles ont leur place dans le compte
+    rendu detaille, qui les nomme separement (§ 7.4).
+
+    :param compte_rendu: le dictionnaire des cinq nombres
+    :return: la phrase, accordee
+    """
+    morceaux = []
+    modifies = compte_rendu["blocs_modifies"]
+    masques = compte_rendu["blocs_masques"]
+    refuses = compte_rendu["blocs_refuses"]
+
+    if modifies:
+        morceaux.append(
+            f"{modifies} passage{'s' if modifies > 1 else ''} "
+            f"corrigé{'s' if modifies > 1 else ''}"
+        )
+    if masques:
+        # « corrigé, 1 masqué » : le mot « passage » ne se repete pas.
+        # / The noun is not repeated in the following clauses.
+        if morceaux:
+            morceaux.append(f"{masques} masqué{'s' if masques > 1 else ''}")
+        else:
+            morceaux.append(
+                f"{masques} passage{'s' if masques > 1 else ''} "
+                f"masqué{'s' if masques > 1 else ''}"
+            )
+    if refuses:
+        if morceaux:
+            morceaux.append(f"{refuses} refusé{'s' if refuses > 1 else ''}")
+        else:
+            morceaux.append(
+                f"{refuses} passage{'s' if refuses > 1 else ''} "
+                f"refusé{'s' if refuses > 1 else ''}"
+            )
+
+    if not morceaux:
+        # Renvoyer le meme texte n'est pas une erreur : le mode envoie
+        # TOUS les blocs, touches ou non. Mais « 0 corrige » se lirait
+        # comme une panne.
+        # / Unchanged text is not an error, but "0" reads like a failure.
+        return "Aucun changement à enregistrer."
+    return ", ".join(morceaux) + "."
+
+
 def _reponse_du_compte_rendu(request, compte_rendu):
     """
     Le compte rendu d'un lot : cinq nombres, et la LISTE des refus.
@@ -215,9 +286,18 @@ def _reponse_du_compte_rendu(request, compte_rendu):
 
     LOCALISATION : hypostasis_extractor/views_element.py
 
-    SPEC-edition-par-blocs § 7.4. Le toast porte le RESUME, la region
-    live porte le DETAIL : `annonces.js` n'annonce que les toasts, et un
-    compte a cinq nombres avec une liste ne passe pas par ce canal.
+    SPEC-edition-par-blocs § 7.4.
+
+    DEUX CANAUX, ET CHACUN SA PORTEE. Le partial rendu ci-dessous porte
+    le DETAIL — cinq nombres et la liste des refus — et s'affiche EN
+    TETE de la note. L'en-tete `HX-Trigger` porte le RESUME
+    (`_resume_du_lot`), qui part dans le toast, en haut a droite : c'est
+    le seul retour visible quand on edite en bas d'une note longue.
+
+    L'appelant est un `fetch()`, qui ne declenche aucun evenement htmx :
+    c'est `mode_edition.js` qui relit cet en-tete et rejoue l'evenement
+    `showToast`. Sans cela, le resume n'atteindrait personne — ce fut le
+    cas jusqu'au 30 aout 2026.
 
     JAMAIS de `lectureReload` ici, meme quand tout est refuse : recharger
     la page de qui vient d'enregistrer effacerait le texte qu'il n'a pas
@@ -232,11 +312,7 @@ def _reponse_du_compte_rendu(request, compte_rendu):
     reponse = HttpResponse(html, status=200)
     reponse["HX-Trigger"] = json.dumps({
         "showToast": {
-            "message": (
-                f"{compte_rendu['blocs_modifies']} passage(s) corrigé(s), "
-                f"{compte_rendu['blocs_masques']} masqué(s), "
-                f"{compte_rendu['blocs_refuses']} refusé(s)."
-            ),
+            "message": _resume_du_lot(compte_rendu),
             "icon": "success" if not compte_rendu["blocs_refuses"] else "warning",
         },
         "tachesChanged": {},
@@ -334,6 +410,83 @@ class ElementViewSet(viewsets.ViewSet):
             )
         return None
 
+    @action(detail=False, methods=["GET"])
+    def panneau_des_masques(self, request):
+        """
+        Rend le PANNEAU des passages masques d'une note, a jour.
+        / Renders a note's panel of hidden passages, up to date.
+
+        LOCALISATION : hypostasis_extractor/views_element.py
+
+        SPEC-edition-par-blocs-et-stenotypie.md § 5.3, cas 4.
+
+        POURQUOI CET ENDPOINT EXISTE
+
+        Le mode d'edition MASQUE un bloc pendant la session — un bloc
+        vide est masque a l'enregistrement. Le panneau rendu au
+        chargement de la page ne le connait pas : sans un moyen de le
+        redemander, le geste que le mode vient de faire resterait
+        irreversible jusqu'au rechargement, ce qui est exactement le
+        manque que le panneau existe pour combler.
+
+        LE RENDU PASSE PAR LE MEME GABARIT QUE LA PAGE, jamais par un
+        second markup : `_panneau_des_masques.html`. Deux rendus du meme
+        panneau finiraient par diverger — et le reconstruire en
+        JavaScript demanderait de recopier cote client le texte conserve
+        du bloc, son ordre et le pluriel du compte.
+        / Same template as the page, never a second markup.
+
+        IL REPARE AUSSI LA LIGNE PERIMEE. Un passage demasque ailleurs
+        — depuis le mode structure, ou par un tiers — laissait dans le
+        panneau une ligne dont le bouton aurait fait revenir en place la
+        version EN BASE du bloc, ecrasant ce qui etait en train d'etre
+        tape. Redemander le panneau au serveur fait disparaitre cette
+        ligne.
+
+        LE DROIT EST CELUI D'ECRIRE, ET LE REFUS EST UN 404.
+
+        Ce panneau montre le TEXTE de passages RETIRES de la lecture :
+        `_un_bloc_element.html` ne les rend deja pas pour un simple
+        lecteur. Repondre 403 lui apprendrait qu'il existe des passages
+        cachees sur cette note. C'est la doctrine du depot — 404, jamais
+        403 — et elle vaut ici pour le contenu, pas seulement pour le
+        droit.
+        / Write right required, and the refusal is a 404: the panel
+        shows text removed from reading.
+
+        :return: le partial du panneau — VIDE si rien n'est masque
+        """
+        from core.models import Page as ModelePage
+
+        from front.views import _utilisateur_a_acces_page
+        from front.templatetags.corpus_permissions import passages_masques_de
+
+        # UN PARAMETRE NON NUMERIQUE EST UN 404, PAS UN 500.
+        #
+        # `filter(pk="abc")` leve `ValueError: Field 'id' expected a
+        # number`. C'est le troisieme piege de la doctrine du 404, deja
+        # paye une fois dans ce depot — et `lookup_value_regex` ne
+        # protege que le pk de l'URL, pas un parametre de requete.
+        # / A non-numeric query parameter must be a 404, never a 500.
+        identifiant_de_page = request.query_params.get("page", "")
+        if not identifiant_de_page.isdigit():
+            raise Http404
+
+        page = get_object_or_404(ModelePage, pk=identifiant_de_page)
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404
+
+        from front.views import _utilisateur_peut_ecrire_page
+
+        if not _utilisateur_peut_ecrire_page(request.user, page):
+            raise Http404
+
+        return render(
+            request,
+            "front/includes/_panneau_des_masques.html",
+            {"passages_masques": passages_masques_de(page)},
+        )
+
     @action(detail=False, methods=["POST"])
     def corriger_en_lot(self, request):
         """
@@ -366,9 +519,11 @@ class ElementViewSet(viewsets.ViewSet):
           - un passage cite par une synthese FIGEE : ce bloc-la, et lui
             seul ;
           - une ANALYSE qui tourne : le lot ENTIER est refuse, 0 passe.
-            Le controle est pose une fois en tete, et les services le
-            reposent eux-memes ; si l'un d'eux leve en cours de route, on
-            annule tout plutot que de laisser une note a moitie ecrite.
+            Le controle est pose une fois EN TETE, puis une fois EN FIN
+            DE LOT des qu'il y a eu des ecritures — les corrections
+            reposent la garde elles-memes, les vidages non. Si l'une ou
+            l'autre leve, on annule tout plutot que de laisser une note
+            a moitie ecrite.
 
         :return: le compte rendu du § 7.4 — cinq nombres et la LISTE des
             refus, avec leur motif. Un compte sans liste ne dit pas quoi
@@ -499,10 +654,18 @@ class ElementViewSet(viewsets.ViewSet):
         if refus_de_droit:
             return refus_de_droit
 
-        # La garde d'analyse, posee UNE FOIS pour la page. Les services la
-        # reposent chacun ; celle-ci evite le cas frequent, et surtout
-        # elle refuse AVANT d'avoir ecrit quoi que ce soit.
-        # / The analysis guard, checked once, before any write.
+        # LA GARDE D'ANALYSE, A L'ENTREE : elle refuse AVANT d'avoir
+        # ecrit quoi que ce soit, et c'est le cas frequent.
+        #
+        # Elle ne suffit pas : une analyse peut demarrer ENSUITE. Les
+        # corrections sont couvertes — `reconcilier_les_portions_de_l_element`
+        # repose la garde bloc par bloc —, les vidages ne l'etaient pas
+        # (`masquer_un_element` est appele ici avec
+        # `verifier_les_jobs=False`). C'est pourquoi elle est reposee
+        # UNE FOIS en fin de lot, plus bas, des qu'il y a eu des
+        # ecritures.
+        # / The entry guard refuses before any write. It is not enough:
+        # hides do not re-check it, hence the single re-check at the end.
         try:
             verifier_qu_aucune_analyse_ne_tourne(page)
         except EditionBloqueePendantAnalyse:
@@ -570,6 +733,28 @@ class ElementViewSet(viewsets.ViewSet):
                     if hash_du_texte_brut(nouveau_texte) == hash_du_texte_brut(
                         ancien_texte,
                     ):
+                        continue
+
+                    # UN TABLEAU NE SE RELIT PAS — refus, ce bloc seul.
+                    #
+                    # Son `texte` est du markdown « pipe » ; ce qui
+                    # s'affiche est un <table> construit APRES le
+                    # marquage, et aucun chemin HTML -> markdown n'existe
+                    # dans le depot. Ce qu'un client lirait du tableau
+                    # rendu differe donc TOUJOURS de la base : l'accepter
+                    # l'ecraserait, meme si personne n'y a touche.
+                    #
+                    # Le mode d'edition ne les envoie pas ; cette garde
+                    # est pour le client perime — celui qui a charge la
+                    # page avant que la regle n'existe.
+                    # / A table's text is pipe markdown and the rendered
+                    # table cannot be read back: refuse it.
+                    if element.label in LABELS_QUI_NE_SE_RELISENT_PAS:
+                        refuser(
+                            identifiant,
+                            "ce passage est un tableau : il ne peut pas être "
+                            "corrigé dans le texte, seulement réingéré.",
+                        )
                         continue
 
                     if element.masque:
@@ -641,11 +826,23 @@ class ElementViewSet(viewsets.ViewSet):
                                 resultat["detachees"],
                             )
                             ancien_texte = resultat["ancien_texte"]
-                    except EditionBloqueeParUneSynthese:
+                    except EditionBloqueeParUneSynthese as blocage:
+                        # LE REFUS NOMME LA SYNTHESE QUI BLOQUE (§ 5.3
+                        # de SPEC-synthese). Un motif generique — « cite
+                        # par une synthese figee » — ne dit pas laquelle :
+                        # sur une note ou 7 blocs sur 12 sont geles, on
+                        # ne sait ni quelle citation retirer, ni quelle
+                        # synthese reproduire.
+                        #
+                        # C'est la MEME fonction que les quatre gestes
+                        # unitaires. Recopier le message ici en ferait
+                        # une seconde version, qui divergerait.
+                        # / The refusal names the blocking synthesis,
+                        # through the very function the single gestures
+                        # use — never a second copy of the message.
                         refuser(
                             identifiant,
-                            "ce passage est cité par une synthèse figée : "
-                            "il ne peut plus changer",
+                            _message_falc_du_blocage_par_synthese(blocage),
                         )
                         continue
                     except ElementDocument.DoesNotExist:
@@ -669,6 +866,37 @@ class ElementViewSet(viewsets.ViewSet):
 
                     journal_avant[identifiant] = ancien_texte
                     journal_apres[identifiant] = nouveau_texte
+
+                # LA GARDE D'ANALYSE SE REPOSE UNE FOIS, EN FIN DE LOT.
+                #
+                # Le § 8.1 promet que le refus subsiste A L'ECRITURE, pas
+                # seulement a l'entree. Pour les CORRECTIONS, c'est vrai
+                # sans rien faire ici : `reconcilier_les_portions_de_l_element`
+                # repose la garde a chaque bloc. Pour les VIDAGES, ca ne
+                # l'etait pas — le lot appelle `masquer_un_element` avec
+                # `verifier_les_jobs=False`, et un lot fait uniquement de
+                # vidages n'etait donc protege que par la garde d'entree.
+                # Une analyse qui demarrait entre les deux ecrivait ses
+                # ancres sur un texte que le lot etait en train de
+                # masquer.
+                #
+                # UNE SEULE FOIS, PAS UNE PAR BLOC : la reposer dans la
+                # boucle couterait deux requetes par bloc masque — 400
+                # requetes pour un nettoyage de 200 en-tetes — pour ne
+                # rien gagner. Ce qui compte est qu'AUCUNE ecriture ne
+                # soit commitee apres le demarrage d'une analyse ; la
+                # lever ici annule le lot ENTIER, ce que le § 8.1
+                # demande.
+                #
+                # SEULEMENT S'IL Y A EU DES ECRITURES : un lot ou rien
+                # n'a change n'a rien a proteger, et le refuser dirait a
+                # la personne qu'elle a perdu un travail qu'elle n'a pas
+                # fait.
+                # / The write-time guard, re-checked ONCE at the end of
+                # the batch: corrections re-check it themselves, hides do
+                # not. Only when something was actually written.
+                if journal_avant:
+                    verifier_qu_aucune_analyse_ne_tourne(page)
 
                 compte_rendu["citations_detachees"] = (
                     compter_les_citations_detachees() - citations_detachees_avant

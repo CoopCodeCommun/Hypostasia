@@ -1,5 +1,84 @@
 # Faut-il empêcher la nuit de réécrire un article entier ?
 
+> ## ⚖️ TRANCHÉ par le mainteneur le 30 août 2026 — PAS DE BORNE
+>
+> **La nuit peut réécrire un article entier, toutes sections comprises, à la
+> condition que l'historique le conserve.** La borne « la moitié des sections »
+> proposée plus bas **n'est pas retenue** : ce document garde son raisonnement
+> et ses mesures, mais sa conclusion est révoquée. Rien n'est à coder dans
+> `core/services/section_ops.py` — la règle « une seule opération de contenu par
+> section et par lot » reste, elle, en place : elle borne l'applicabilité, pas le
+> volume.
+>
+> **La condition a été VÉRIFIÉE dans le code le 30 août 2026, et elle n'est pas
+> entièrement tenue.** Trois trous, chacun mesuré, chacun à combler pour que la
+> décision tienne ce qu'elle promet.
+
+### Ce que l'historique conserve déjà — vérifié le 30 août 2026
+
+| Ce qui est gardé | Où |
+|---|---|
+| le markdown **entier** d'avant et d'après, à chaque tour | `TourDeWiki.texte_avant` / `.texte_apres` (`core/models.py:3244`) |
+| **le contenu remplacé, section par section** | `OperationDeWiki.ancien_contenu`, rempli par l'applieur (`core/services/section_ops.py:450`) |
+| les opérations **rejetées**, avec leur contenu et leur motif | `_ecrire_une_operation` (`core/services/historique_de_wiki.py:57`) |
+| qui a fait le tour — `NULL` = le moteur, personne n'a rien accepté | `TourDeWiki.fait_par` |
+| ce qui l'a déclenché : les notes et les commentaires neufs, pas seulement leur compte | `notes_declenchantes`, `commentaires_declenchants` |
+| **les échecs** eux-mêmes | `MotifDeTourDeWiki.ECHEC` + `message_d_echec` (`front/tasks.py:1775`) |
+
+**Aucun chemin n'écrit un corps d'article sans écrire son tour** :
+`_ecrire_le_corps_d_un_article` l'écrit avant même d'enchaîner les juges
+(`front/tasks.py:1333`), un lot sans changement en écrit un quand même
+(`front/tasks.py:1434`), un échec aussi. **Aucune purge** : rien ne supprime un
+`TourDeWiki` dans le dépôt.
+
+**Le coût de stockage n'est pas un obstacle.** Calcul à partir des tailles
+mesurées le 22 août (3 956 à 7 382 caractères par article) : une réécriture
+intégrale garde deux instantanés, soit ~15 ko par nuit et par article, ~25 Mo par
+an pour les cinq wikis, ~13 Mo après la compression PostgreSQL mesurée le 23 août
+(×2). C'est un calcul, pas une mesure.
+
+### Les trois trous — ce qu'il faut coder pour que la décision tienne
+
+**1. La perte de jugement n'est écrite NULLE PART.** C'est le trou qui touche
+directement la condition posée. `indexer_les_citations` rend bien
+`contestations_perdues` (la liste des contestations humaines dont la paire a
+disparu) et `avis_perdus` (le compte des avis des quatre juges locaux)
+— `core/services/synthese.py:812` — mais **aucun champ ne les reçoit** :
+
+- chemin **humain** : ils sont mis dans un contexte de rendu et affichés une
+  fois (`front/views_synthese.py:926`), puis perdus ;
+- chemin **de nuit** : `mettre_a_jour_un_wiki_la_nuit_task` ne lit que le tour ;
+  le bilan d'indexation est jeté sans être lu (`front/tasks.py:1760`).
+
+Donc, le lendemain d'une réécriture intégrale, **personne ne peut dire combien de
+contestations humaines ont sauté** — et c'est exactement ce que la décision
+suppose conservé. Deux champs sur `TourDeWiki` (`contestations_perdues`,
+`avis_perdus`) et leur passage depuis `_ecrire_le_corps_d_un_article` suffisent.
+Le précédent existe et il est écrit : *« perdre une donnée est défendable, la
+perdre en silence ne l'est pas »* (`core/tests/test_avis_perdus_au_report.py`).
+
+**2. Rien ne sait revenir en arrière.** `texte_avant` est en base, mais **aucun
+chemin ne le réécrit vers l'article** : ses seuls lecteurs sont le récapitulatif
+du matin et l'écran d'historique. Conserver n'est pas restaurer, et une
+réécriture intégrale est précisément le cas où l'on veut annuler d'un geste. Il
+manque une action « rétablir ce texte », qui repasse par
+`_ecrire_le_corps_d_un_article` — donc qui écrive son propre tour, et qui
+réindexe.
+
+**3. L'écran ne rend pas ce que la base garde.** L'historique montre les **20
+derniers tours** (`front/views_synthese.py:956`) et tronque l'ancien contenu à
+**400 caractères** (`historique_de_wiki.html:105`). Sur un article réécrit chaque
+nuit, vingt tours font vingt jours : la donnée reste en base, l'interface cesse
+d'y donner accès. Pagination, et l'ancien contenu en entier au dépli.
+
+### Ce qui reste vrai de la note, et qui n'attendait pas la borne
+
+Le point **2 de l'ajout du 23 août** est indépendant de la décision et reste à
+corriger : le prompt de mise à jour écrit encore au modèle « tu proposes des
+opérations, **un humain les acceptera une par une** »
+(`front/tasks.py:2257`). C'est faux pour la nuit depuis le 21 août. La borne
+ayant été écartée, ce mensonge n'est plus compensé par rien.
+
 **Question posée par le mainteneur le 22 août 2026, non tranchée.**
 Ce document expose le problème et la borne proposée. **Rien n'est codé.**
 
@@ -141,7 +220,7 @@ du même banc sur le même carnet ne partiraient donc pas du même état. Toute 
 de notes du 23 août sur la mesure des prompts bute ici.
 
 **2. Le prompt dit encore au modèle qu'un humain filtrera.**
-`construire_la_proposition_d_operations` (`front/tasks.py:2255`) écrit : « tu proposes
+`construire_la_proposition_d_operations` (`front/tasks.py:2257`) écrit : « tu proposes
 des opérations, **un humain les acceptera une par une** ». C'est faux pour la nuit
 depuis le 21 août, et ce n'est pas une inexactitude cosmétique : c'est précisément ce
 qui autorise le modèle à proposer largement, en comptant sur un filtre qui n'existe

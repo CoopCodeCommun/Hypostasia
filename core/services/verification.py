@@ -340,22 +340,300 @@ def _le_verbatim_est_present_a_la_forme_pres(texte_cherche, texte_source):
     return False
 
 
+# LES SIGNES QUI CHANGENT CE QUE LA SOURCE DIT, ramenes a leur CLASSE.
+#
+# CE QUI EST DEDANS, ET POURQUOI. Une parenthese met une reserve a part,
+# un deux-points annonce, des guillemets mettent un propos a DISTANCE,
+# un « ? » interroge. Les retirer ne change AUCUN mot et change ce que
+# la source dit. Mesure du 30 aout 2026 : une comparaison qui ignorait
+# toute la ponctuation blanchissait 17 parentheses retirees sur 19 et
+# 18 guillemets sur 64 — dont « comme « l'ecole descolarise » » rendu
+# sans ses guillemets, ou l'auteur AFFIRME ce qu'il rapportait.
+#
+# CE QUI N'EST PAS DEDANS. Le point, la virgule, le point-virgule et les
+# tirets : ils ne portent pas de sens propre, et ce sont eux qui separent
+# les 45 citations au fond intact de leur source.
+#
+# A LA CLASSE PRES, JAMAIS A LA FORME PRES : un « " » et un « ' » sont
+# le meme signe. Le modele les echange sans rien changer au propos.
+# / Marks that change meaning, reduced to their class.
+CLASSE_DU_SIGNE_STRUCTURANT = {
+    "(": "(", "[": "(", "{": "(",
+    ")": ")", "]": ")", "}": ")",
+    "«": '"', "»": '"', '"': '"', "'": '"', "\u201c": '"', "\u201d": '"',
+    ":": ":", "?": "?", "!": "!",
+}
+
+MOTIF_D_UN_MOT = re.compile(r"\w+", re.UNICODE)
+
+
+def _signes_structurants(texte, debut=0, fin=None):
+    """
+    La suite des signes qui portent le sens, entre deux bornes.
+    / The sequence of meaning-bearing marks, between two bounds.
+
+    LOCALISATION : core/services/verification.py
+
+    ON PARCOURT UNE TRANCHE, MAIS ON LIT LES VOISINS DANS LE TEXTE
+    ENTIER. La garde des chiffres a besoin du caractere qui precede et
+    de celui qui suit ; les chercher dans la tranche seule les rendrait
+    vides a ses deux bouts, et la garde tomberait en silence.
+    / We walk a slice but read neighbours in the whole text: the digit
+    guard needs them, and a slice would blank them at both ends.
+
+    :param texte: le texte normalise / the normalised text
+    :param debut: ou commencer a relever / where to start
+    :param fin: ou s'arreter, la fin du texte par defaut / where to stop
+    :return: la liste des classes de signes, dans l'ordre
+    """
+    if fin is None:
+        fin = len(texte)
+    suite = []
+    for position in range(max(debut, 0), min(fin, len(texte))):
+        caractere = texte[position]
+
+        # UNE APOSTROPHE ENTRE DEUX LETTRES EST UNE ELISION, pas un
+        # guillemet : « l'ecole » n'ouvre aucune citation. Sans cette
+        # garde, le francais courant porterait un signe structurant tous
+        # les trois mots. / An apostrophe between letters is elision.
+        if caractere == "'":
+            caractere_avant = texte[position - 1] if position else ""
+            caractere_apres = texte[position + 1:position + 2]
+            if caractere_avant.isalpha() and caractere_apres.isalpha():
+                continue
+
+        classe_du_signe = CLASSE_DU_SIGNE_STRUCTURANT.get(caractere)
+        if classe_du_signe:
+            suite.append(classe_du_signe)
+            continue
+
+        # LA GARDE DES CHIFFRES. Comparer par mots decoupe « 3,5 » en
+        # deux mots « 3 » et « 5 » — exactement ceux de l'enumeration
+        # « 3, 5 et 8 ». Sans cette ligne, la chaine de preuve
+        # validerait un chiffre que la source n'avance NULLE PART.
+        # / Word comparison splits a decimal into the enumeration's
+        #   digits: a comma between two digits is structural.
+        if caractere == ",":
+            caractere_avant = texte[position - 1] if position else ""
+            caractere_apres = texte[position + 1:position + 2]
+            if caractere_avant.isdigit() and caractere_apres.isdigit():
+                suite.append(",")
+    return suite
+
+
+def _le_bord_correspond(mot_de_la_source, mot_cite, c_est_le_bord_gauche):
+    """
+    Le mot d'un bord correspond-il, soudure de la source comprise ?
+    / Does an edge word match, welded source words included?
+
+    LOCALISATION : core/services/verification.py
+
+    83 ELEMENTS DE LA BASE PORTENT DES MOTS SOUDES — mesure du 30 aout
+    2026. Deux blocs recolles sans separateur donnent « participation
+    citoyenneAucun parlementaire », et une citation honnete s'y arrete
+    au milieu du mot soude.
+
+    LA COUPE N'EST TOLEREE QUE DEVANT UNE MAJUSCULE OU UN CHIFFRE, et
+    c'est ce qui rend la tolerance sure : c'est la signature d'une
+    soudure. Devant une minuscule, c'est un mot COUPE — « Le vaccin est
+    sur. » se retrouverait dans « le vaccin est surement inefficace »,
+    et la chaine de preuve validerait le CONTRAIRE de ce que la source
+    dit.
+    / Only a capital or a digit marks a weld; before a lowercase letter
+    it is a cut word, which can invert the meaning.
+
+    :param mot_de_la_source: le mot tel que la source l'ecrit, casse comprise
+    :param mot_cite: le mot cite, deja en minuscules
+    :param c_est_le_bord_gauche: True pour le premier mot de la citation
+    :return: True si le bord correspond / True when the edge matches
+    """
+    if mot_de_la_source.lower() == mot_cite:
+        return True
+
+    if c_est_le_bord_gauche:
+        # La citation COMMENCE dans le mot : la coupe est a sa gauche.
+        # / The quote starts inside the word: the cut is on its left.
+        if not mot_de_la_source.lower().endswith(mot_cite):
+            return False
+        position_de_la_coupe = len(mot_de_la_source) - len(mot_cite)
+    else:
+        # La citation FINIT dans le mot : la coupe est a sa droite.
+        # / The quote ends inside the word: the cut is on its right.
+        if not mot_de_la_source.lower().startswith(mot_cite):
+            return False
+        position_de_la_coupe = len(mot_cite)
+
+    if position_de_la_coupe <= 0 or position_de_la_coupe >= len(mot_de_la_source):
+        return False
+    caractere_de_la_coupe = mot_de_la_source[position_de_la_coupe]
+    return caractere_de_la_coupe.isupper() or caractere_de_la_coupe.isdigit()
+
+
+def _le_verbatim_se_lit_par_les_mots(texte_cite, texte_source):
+    """
+    Les MOTS de la citation se lisent-ils tels quels dans la source ?
+    / Does the quote's WORD sequence read as such in the source?
+
+    LOCALISATION : core/services/verification.py
+
+    CE QUE CETTE PASSE FAIT, ET POURQUOI ELLE EST PLUS SURE QUE LES
+    REGLES DE CARACTERES QU'ELLE REMPLACE. Les mots doivent y etre tous,
+    dans l'ordre et SANS TROU ; ce qui n'est pas un mot ne compte pas,
+    sauf les signes qui changent le sens (`_signes_structurants`). Le
+    controle devient donc plus STRICT sur ce qui porte le sens, et
+    indifferent a la typographie.
+
+    Mesure du 30 aout 2026, sur la base de dev : elle recupere 42 des 45
+    citations dont le fond etait intact — un tiret cadratin, un
+    guillemet droit, un trait d'union que notre ingestion avait detache
+    — et n'en blanchit AUCUNE des 74 dont le fond avait bouge, ni aucune
+    des 92 falsifications fabriquees pour l'eprouver.
+
+    UN SCORE DE SIMILARITE NE PEUT PAS FAIRE CELA, et ce n'est pas une
+    affaire de reglage. La citation honnete la plus abimee obtient
+    0,9577 et la citation falsifiee la mieux notee 0,9970 : les deux
+    nuages se chevauchent. Changer 2011 en 2012 — un caractere sur cent
+    cinquante — obtient 0,9961. Une similarite est unidimensionnelle :
+    elle additionne « trois signes de ponctuation » et « une date
+    falsifiee » dans le meme nombre.
+    / A similarity ratio cannot separate the two clouds: a falsified
+    date scores 0.9961.
+
+    FLUX :
+    1. on releve les mots de la citation et ceux de la source ;
+    2. on cherche une fenetre de mots contigus qui corresponde, les
+       bords tolerant les soudures de la source ;
+    3. les signes structurants INTERIEURS doivent etre les memes ;
+    4. si la citation se termine par une marque de fin, la garde
+       existante verifie qu'elle n'en remplace pas une autre.
+
+    Banc : benchmarks/extraction_format/mesurer_la_comparaison_par_les_mots.py
+
+    :param texte_cite: la citation / the quote
+    :param texte_source: le texte ou la chercher / the text to search
+    :return: True si elle s'y lit / True when it reads there
+    """
+    citation = _texte_normalise(texte_cite)
+    source = _texte_normalise(texte_source)
+
+    bornes_des_mots_cites = [m.span() for m in MOTIF_D_UN_MOT.finditer(citation)]
+    if not bornes_des_mots_cites:
+        return False
+    mots_cites = [
+        citation[debut:fin].lower() for debut, fin in bornes_des_mots_cites
+    ]
+
+    bornes_des_mots_source = [m.span() for m in MOTIF_D_UN_MOT.finditer(source)]
+    nombre_de_mots_cites = len(mots_cites)
+    if nombre_de_mots_cites > len(bornes_des_mots_source):
+        return False
+
+    # Les minuscules se calculent UNE FOIS : la boucle ci-dessous passe
+    # sur chaque mot de la source. / Lowercased once, not per window.
+    mots_source_en_minuscules = [
+        source[debut:fin].lower() for debut, fin in bornes_des_mots_source
+    ]
+
+    # Les signes INTERIEURS de la citation : ceux qui separent son
+    # premier mot de son dernier. Les signes des BORDS ne comptent pas —
+    # une citation honnete peut commencer apres une parenthese ouvrante
+    # que la source porte. / Only the marks BETWEEN the edge words.
+    signes_cites = _signes_structurants(
+        citation, bornes_des_mots_cites[0][1], bornes_des_mots_cites[-1][0],
+    )
+
+    derniere_marque = citation[-1:]
+    marque_de_la_citation = (
+        derniere_marque if derniere_marque in MARQUES_DE_FIN_DE_PHRASE else ""
+    )
+
+    dernier_depart = len(bornes_des_mots_source) - nombre_de_mots_cites
+    for depart in range(dernier_depart + 1):
+        arrivee = depart + nombre_de_mots_cites
+
+        # L'INTERIEUR D'ABORD, PARCE QU'IL EST LE PLUS DISCRIMINANT et
+        # que les bords coutent un appel de fonction chacun.
+        # / The middle first: it discriminates most and costs least.
+        if nombre_de_mots_cites > 2 and (
+            mots_source_en_minuscules[depart + 1:arrivee - 1]
+            != mots_cites[1:-1]
+        ):
+            continue
+
+        mot_de_gauche = source[
+            bornes_des_mots_source[depart][0]:bornes_des_mots_source[depart][1]
+        ]
+        mot_de_droite = source[
+            bornes_des_mots_source[arrivee - 1][0]:bornes_des_mots_source[arrivee - 1][1]
+        ]
+        if nombre_de_mots_cites == 1:
+            # Le mot unique est a la fois le premier et le dernier : la
+            # soudure peut le toucher des deux cotes.
+            # / A single word is both edges at once.
+            if not (_le_bord_correspond(mot_de_gauche, mots_cites[0], True)
+                    or _le_bord_correspond(mot_de_gauche, mots_cites[0], False)):
+                continue
+        else:
+            if not _le_bord_correspond(mot_de_gauche, mots_cites[0], True):
+                continue
+            if not _le_bord_correspond(mot_de_droite, mots_cites[-1], False):
+                continue
+
+        signes_de_la_source = _signes_structurants(
+            source,
+            bornes_des_mots_source[depart][1],
+            bornes_des_mots_source[arrivee - 1][0],
+        )
+        if signes_de_la_source != signes_cites:
+            continue
+
+        if marque_de_la_citation:
+            # LA GARDE DE FIN EST CELLE QUI EXISTE DEJA, et elle est
+            # reutilisee telle quelle : elle sait qu'un point suivi d'un
+            # chiffre est une decimale, et qu'un signe repete est une
+            # ellipse. La reecrire ici en ferait une seconde copie, qui
+            # divergerait. / The end guard is reused as is.
+            passage_de_la_source = source[
+                bornes_des_mots_source[depart][0]:bornes_des_mots_source[arrivee - 1][1]
+            ]
+            if not _l_occurrence_ne_coupe_pas_une_marque_de_fin(
+                source, passage_de_la_source, marque_de_la_citation,
+            ):
+                continue
+
+        return True
+
+    return False
+
+
 def _le_verbatim_est_present(texte_cite, texte_source):
     """
     Le texte cite, normalise, est-il dans la source ?
     / Is the normalised quote present in the source?
 
-    DEUX PASSES, ET L'ORDRE COMPTE. La premiere est le test strict —
-    celui qui a toujours existe, et qui reste la definition de
-    reference. La seconde ne s'ouvre que s'il echoue, et elle tolere
-    TROIS retouches de FORME, jamais un changement de FOND.
+    TROIS PASSES, ET L'ORDRE COMPTE. Chacune ne s'ouvre que si la
+    precedente echoue, et aucune ne tolere un changement de FOND.
 
-    Sans la seconde, 34 des 60 citations INTROUVABLE mesurees le 19 aout
-    2026 l'etaient pour un point, une majuscule ou un espace — et pour
-    les deux tiers d'entre elles, l'espace venait de notre propre
-    ingestion. Declarer la chaine de preuve cassee sur ce motif faisait
-    porter au modele un defaut qui etait le notre.
-    / Strict first; then three shape-only tolerances.
+    1. LE TEST STRICT — celui qui a toujours existe, et qui reste la
+       definition de reference.
+    2. LES TROIS RETOUCHES DE FORME (`..._a_la_forme_pres`) : l'espace
+       de ponctuation, le point final, la majuscule d'amorce. Sans elle,
+       34 des 60 citations INTROUVABLE mesurees le 19 aout 2026 l'etaient
+       pour un point, une majuscule ou un espace — et pour les deux tiers
+       d'entre elles, l'espace venait de NOTRE propre ingestion.
+    3. LA COMPARAISON PAR LES MOTS (`..._se_lit_par_les_mots`) : les
+       mots doivent y etre tous, dans l'ordre et sans trou ; ce qui n'est
+       pas un mot ne compte pas, sauf les signes qui changent le sens.
+       Sans elle, 45 des 119 citations INTROUVABLE mesurees le 30 aout
+       2026 l'etaient pour un tiret cadratin, un guillemet droit ou un
+       trait d'union que notre ingestion avait detache.
+
+    LA TROISIEME ENGLOBE LA DEUXIEME, et celle-ci est pourtant gardee.
+    Deux raisons : elle est dix fois moins chere sur le cas frequent, et
+    elle est verrouillee par quinze tests qui disent, un par un, ce que
+    la chaine de preuve accepte. Les perdre pour une equivalence
+    supposee serait echanger une garantie contre un raisonnement.
+    / Strict, then three shape tolerances, then a word-sequence check.
     """
     texte_cherche = _texte_normalise(texte_cite)
     if not texte_cherche:
@@ -363,7 +641,11 @@ def _le_verbatim_est_present(texte_cite, texte_source):
     texte_source_normalise = _texte_normalise(texte_source)
     if texte_cherche in texte_source_normalise:
         return True
-    return _le_verbatim_est_present_a_la_forme_pres(
+    if _le_verbatim_est_present_a_la_forme_pres(
+        texte_cherche, texte_source_normalise,
+    ):
+        return True
+    return _le_verbatim_se_lit_par_les_mots(
         texte_cherche, texte_source_normalise,
     )
 

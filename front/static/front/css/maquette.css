@@ -3032,6 +3032,49 @@ body:has(.bande-de-contexte .fil-ariane) .plateau {
 body:has(.lecteur) { --barre-audio: 62px; }
 #zone-lecture { padding-bottom: calc(2rem + var(--barre-audio)); }
 
+/* LES REGLAGES DE STENOTYPIE, a droite de la barre (§ 6.3).
+   Discrets : ils ne doivent pas concurrencer la piste, qui est ce
+   qu'on regarde. Meme grammaire de controle discret que le mode
+   structure — mono, petit, --filet-controle pour tenir les 3:1 de
+   WCAG 1.4.11, et 24px de cible (WCAG 2.5.8).
+   / The § 6.3 settings: discreet controls at the bar's right end. */
+.reglages-de-lecture {
+  display: flex; align-items: center; gap: .35rem;
+  margin-left: auto;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .72rem;
+  color: var(--encre-douce);
+  white-space: nowrap;
+}
+.reglages-de-lecture .bouton-reglage {
+  min-width: 24px; min-height: 24px;
+  line-height: 1;
+  color: var(--encre-douce);
+  background: var(--papier);
+  border: 1px solid var(--filet-controle);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.reglages-de-lecture .bouton-reglage:hover {
+  color: var(--encre); background: var(--papier-creux);
+}
+/* La vitesse est un CHIFFRE QUI CHANGE : elle a besoin d'une largeur
+   stable, sinon les boutons sautent a chaque palier.
+   / A changing number needs a stable width, or the buttons jump. */
+#vitesse-de-lecture {
+  min-width: 3.2em; text-align: center;
+}
+.reglages-de-lecture .etiquette-reglage { margin-left: .5rem; }
+.reglages-de-lecture select {
+  font-family: inherit; font-size: inherit;
+  color: var(--encre-douce);
+  background: var(--papier);
+  border: 1px solid var(--filet-controle);
+  border-radius: 4px;
+  min-height: 24px;
+  padding: 0 .2rem;
+}
+
 .bouton-lecture {
   flex: none; width: 34px; height: 34px; border-radius: 50%;
   border: none; background: var(--encre); color: var(--papier);
@@ -3297,20 +3340,61 @@ body:has(.lecteur) { --barre-audio: 62px; }
 /* / The mode must be visible; everything goes through the tokens.     */
 /* ================================================================== */
 
-/* Le champ se distingue du papier sans crier : un fond legerement    */
-/* creuse et un filet a gauche, la ou le regard revient a chaque      */
-/* ligne. / A slightly hollowed ground and a rule on the left.        */
+/* LE PIEGE DE `plaintext-only`, ET SA PARADE.                        */
+/*                                                                     */
+/* `contenteditable="plaintext-only"` applique `white-space: pre-wrap` */
+/* a tout le champ. Or `.corps` contient les BLANCS D'INDENTATION du   */
+/* gabarit Django : ils cessent d'etre collapses et deviennent de      */
+/* vraies lignes vides. Mesure du 30 aout : un bloc passait de 24 px a */
+/* 197 px, et la note de 17 259 px a 154 062 px — le mode etait        */
+/* inutilisable, sans la moindre erreur.                               */
+/*                                                                     */
+/* On rend donc `.corps` a `normal` — ses blancs se recollapsent — et  */
+/* on garde `pre-wrap` sur l'ELEMENT INTERNE, celui qui porte le texte.*/
+/* CE N'EST PAS QU'UNE REPARATION : c'est ce qui rend enfin VISIBLE le */
+/* saut de ligne insere par Entree (§ 4.2 de la spec, question ouverte */
+/* depuis le 23 aout — « un geste qui ne se voit pas est pire que pas  */
+/* de geste »). En mode edition, il se voit.                            */
+/* / plaintext-only turns the template's indentation into blank lines. */
+/* IL N'Y A PAS DE PARADE EN CSS, ET C'EST MESURE.                    */
+/* `white-space: normal !important` pose EN LIGNE sur `.corps` reste   */
+/* calcule `pre-wrap` : le navigateur impose la valeur dans un champ   */
+/* `plaintext-only`, et aucune regle d'auteur ne la contredit.         */
+/* La cure est donc dans le DOM — `mode_edition.js` retire les noeuds  */
+/* texte purement blancs a l'ouverture du mode. Ils ne portent rien.   */
+/* / No CSS cure: the browser forces the value. The fix is in the DOM. */
+
+/* Le champ se distingue du papier par son FILET, pas par son fond :  */
+/* mesure du 30 aout, `--papier-creux` sur `--papier` ne donne que    */
+/* 1,08:1 — invisible. Le filet, lui, tient 5:1 dans les deux themes. */
+/* / The rule carries the signal; the ground alone is invisible.      */
 #zone-lecture.mode-edition #readability-content [data-testid="blocs-elements"] {
   background: var(--papier-creux);
-  border-left: 3px solid var(--filet-controle);
+  border-left: 4px solid var(--encre-douce);
   border-radius: 4px;
   padding: .75rem .5rem .75rem .75rem;
   outline: none;
 }
 
-/* LE CURSEUR DOIT SE VOIR DANS UN TEXTE LONG. */
-#zone-lecture.mode-edition #readability-content [data-testid="blocs-elements"]:focus-within {
-  border-left-color: var(--encre-douce);
+/* ET LE MODE SE NOMME. « Le mode doit se voir et s'annoncer » (§ 2). */
+/* Un filet seul demande de savoir ce qu'il veut dire ; une phrase,   */
+/* non. / A rule alone must be learned; a sentence need not be.       */
+#zone-lecture.mode-edition #readability-content
+  [data-testid="blocs-elements"]::before {
+  /* LE TEXTE VIENT DE LA TABLE DES RACCOURCIS, pas d'ici. Ecrit en
+     dur, il aurait menti au premier changement de touche — et il ne
+     pouvait pas dire les touches de son, qui n'existent que sur une
+     note qui en a. `mode_edition.js` pose `data-bandeau`.
+     / The text comes from the shortcut table, never from here. */
+  content: attr(data-bandeau);
+  display: block;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .68rem;
+  letter-spacing: .04em;
+  color: var(--encre-douce);
+  border-bottom: 1px solid var(--filet);
+  padding-bottom: .4rem;
+  margin-bottom: .6rem;
 }
 
 /* LES BOUTONS D'ACTION N'ONT RIEN A FAIRE DANS LE CHAMP.
@@ -3328,10 +3412,14 @@ body:has(.lecteur) { --barre-audio: 62px; }
    / The gutter already shows the borders; the number comes back. */
 #zone-lecture.mode-edition .numero-element { display: inline-block; }
 
-/* Un bloc VIDE doit garder sa place : sans hauteur minimale, le texte
-   se referme et l'on ne sait plus qu'un passage attend d'etre masque.
-   / An emptied block keeps its place. */
-#zone-lecture.mode-edition .bloc > .corps > [data-element-id]:empty::before {
+/* UN BLOC VIDE DOIT LE DIRE.
+   `:empty` ne marche PAS ici — l'element interne garde le <span> des
+   boutons d'action, meme cache : il n'est donc jamais vide au sens CSS.
+   Mesure du 30 aout : la mention ne s'affichait JAMAIS. C'est le JS qui
+   pose `data-vide`, et le CSS le lit.
+   / :empty fails: the hidden buttons keep the element non-empty. */
+#zone-lecture.mode-edition .bloc[data-vide="oui"] > .corps > [data-element-id]::after,
+#zone-lecture.mode-edition .bloc[data-vide="oui"] > .corps > ul > li[data-element-id]::after {
   content: "(vidé — sera masqué à l’enregistrement)";
   color: var(--encre-douce);
   font-style: italic;
@@ -3368,3 +3456,149 @@ body:has(.lecteur) { --barre-audio: 62px; }
 #compte-rendu-du-lot .refus-du-lot { margin: 0; padding-left: 1.1rem; }
 #compte-rendu-du-lot .refus-du-lot { margin-top: .4rem; color: var(--encre-douce); }
 #compte-rendu-du-lot .refus-du-lot code { font-size: .8em; }
+
+/* LE PANNEAU DES PASSAGES MASQUES — § 5.3, cas 4.
+   Il n'existe QUE dans le mode d'edition : en lecture, il ferait
+   doublon avec le placeholder du mode structure, qui dit deja la meme
+   chose a l'endroit du texte. Ici, l'endroit du texte est justement ce
+   qu'on ne veut pas encombrer — d'ou une commande, repliee par defaut.
+   / Only in edit mode: elsewhere the structure-mode placeholder says it
+   at the text's own place. */
+#panneau-des-passages-masques { display: none; }
+#zone-lecture.mode-edition #panneau-des-passages-masques {
+  display: block;
+  background: var(--papier-panneau);
+  border: 1px dashed var(--filet-controle);
+  border-radius: 5px;
+  padding: .4rem .7rem;
+  margin: .5rem 0;
+  font-size: .85rem;
+  color: var(--encre-douce);
+}
+#panneau-des-passages-masques > summary {
+  cursor: pointer;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .72rem;
+  letter-spacing: .03em;
+  /* La cible du pliage fait au moins 24 px de haut : WCAG 2.5.8, la
+     meme regle que les boutons du mode structure.
+     / At least a 24px target, like the structure-mode buttons. */
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+}
+#panneau-des-passages-masques ul {
+  list-style: none;
+  margin: .4rem 0 .2rem;
+  padding: 0;
+}
+#panneau-des-passages-masques li {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  flex-wrap: wrap;
+  padding: .25rem 0;
+  border-top: 1px solid var(--filet);
+}
+#panneau-des-passages-masques .extrait { font-style: italic; }
+/* Le bouton reprend la grammaire des controles discrets (.bouton-icone
+   et .actions-element) : --filet-controle tient les 3:1 de WCAG 1.4.11,
+   la ou le --filet nu ne fait que 1,28:1.
+   / Same discreet-control grammar; --filet-controle holds 3:1. */
+#panneau-des-passages-masques button {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: .68rem;
+  line-height: 1;
+  color: var(--encre-douce);
+  background: var(--papier);
+  border: 1px solid var(--filet-controle);
+  border-radius: 4px;
+  padding: .32rem .55rem;
+  min-height: 24px;
+  cursor: pointer;
+}
+#panneau-des-passages-masques button:hover {
+  color: var(--encre);
+  background: var(--papier-creux);
+}
+
+/* ================================================================== */
+/* EDITER, C'EST NE VOIR QUE LE TEXTE                                 */
+/*                                                                     */
+/* Le mode d'edition retire tout ce qui parle DES extractions pour ne  */
+/* laisser que ce dont elles parlent. Le panneau et le drawer vivent   */
+/* HORS de `#zone-lecture` : c'est le `body` qui porte la classe.      */
+/* / Editing means seeing the text alone.                              */
+/* ================================================================== */
+
+body.en-mode-edition #sidebar-right,
+body.en-mode-edition #drawer-overlay,
+body.en-mode-edition #bottom-sheet {
+  display: none !important;
+}
+
+/* LES SURLIGNAGES S'EFFACENT, MAIS LE TEXTE RESTE.
+   On ne RETIRE pas les <mark> du DOM : ils portent le texte, et les
+   retirer le decouperait. On les rend transparents — le texte qu'ils
+   contiennent est intact, et la serialisation ne voit pas la
+   difference. / The marks stay in the DOM (they carry the text); only
+   their appearance goes. */
+#zone-lecture.mode-edition mark.hl-extraction,
+#zone-lecture.mode-edition mark.portion {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  color: inherit !important;
+  cursor: text;
+}
+
+/* CE QUI MENE AILLEURS N'A RIEN A FAIRE ICI. Le compteur d'idees, le
+   bouton « voir la source » et le bouton d'ecoute ouvrent un panneau,
+   un document ou le son : autant de sorties du texte, au milieu d'une
+   session de correction.
+   / What leads elsewhere has no place here. */
+#zone-lecture.mode-edition .compteur-idees,
+#zone-lecture.mode-edition .bouton-voir-source,
+#zone-lecture.mode-edition .avertissement-plafond {
+  display: none !important;
+}
+
+/* UN PASSAGE REFUSE SE VOIT LA OU IL EST.
+   Le compte rendu le NOMME par son identifiant — mais un identifiant ne
+   dit pas ou regarder, et le compte rendu s'affiche en tete de la note.
+   / An id does not say WHERE to look. */
+#zone-lecture.mode-edition .bloc.a-ete-refuse > .filet-etat {
+  background: var(--danger);
+  width: 3px;
+}
+#zone-lecture.mode-edition .bloc.a-ete-refuse > .corps > [data-element-id],
+#zone-lecture.mode-edition .bloc.a-ete-refuse > .corps > ul > li[data-element-id] {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  border-radius: 3px;
+}
+#zone-lecture.mode-edition .bloc.a-ete-refuse > .gouttiere::after {
+  content: "refusé";
+  color: var(--danger);
+  font-size: .6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* UN BLOC EN LECTURE SEULE LE DIT.
+   Le tableau ne se relit pas : son `texte` est du markdown « pipe », et
+   ce qui s'affiche est un <table> construit apres coup. Le laisser
+   paraitre modifiable ferait croire qu'on le corrige — et le travail
+   serait perdu au premier Ctrl+S.
+   / A read-only block says so: a table cannot be read back. */
+#zone-lecture.mode-edition .bloc[data-lecture-seule] > .corps {
+  opacity: .72;
+  cursor: not-allowed;
+}
+#zone-lecture.mode-edition .bloc[data-lecture-seule] > .gouttiere::after {
+  content: "lecture seule";
+  color: var(--encre-douce);
+  font-size: .55rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  line-height: 1.1;
+}

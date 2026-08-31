@@ -72,6 +72,7 @@ la page.
 | `hypostasis_extractor/views_element.py` | l'action `corriger_en_lot` et `_reponse_du_compte_rendu()` |
 | `front/templates/front/includes/_compte_rendu_du_lot.html` | **neuf** — cinq nombres, la liste des refus, `role="status"` + `aria-live` |
 | `hypostasis_extractor/tests/test_corriger_en_lot.py` | **neuf** — 17 tests |
+| `hypostasis_extractor/tests/test_le_lot_et_les_ancrages.py` | **neuf, 30 août** — 15 tests, la première fixture qui porte de vrais ancrages |
 
 **Deux écarts assumés avec `CorrectionDElementSerializer`** : l'identifiant est
 l'`identifiant_stable` (le pk désigne une ligne, l'identifiant stable désigne un
@@ -152,18 +153,126 @@ un aller-retour de trop, et ce refus le rend visible.
 Spec : **addendum B**. Bancs : `mesures17_bloc_masque.py`,
 `mesures18_le_refus_protege.py`.
 
+### Les deux chemins que rien n'exerçait — 30 août 2026
+
+Vingt-trois tests couvraient cet endpoint, et **aucun ne posait le moindre
+ancrage** : ses blocs étaient du texte nu. Trois promesses du § 7.4 n'étaient donc
+jamais éprouvées, et l'une d'elles est **le chemin le plus fréquent en usage
+réel** — sur la note 3, **7 blocs sur 12 sont gelés par une synthèse figée**.
+
+**1. Le refus par synthèse figée DANS un lot.** C'est le chemin le plus délicat de
+la vue : `EditionBloqueeParUneSynthese` est attrapée **à l'intérieur** du
+`transaction.atomic()`, et le lot doit continuer d'écrire après elle. Si
+l'exception laissait la transaction en échec, tout serait annulé au commit — mais
+le compte rendu, lui, annoncerait « 1 modifié ». **La personne verrait un succès et
+n'aurait rien.** Vérifié : le bloc gelé est refusé, lui seul, et les autres blocs
+du même lot sont bien **écrits en base**.
+
+**2. Les deux compteurs.** `ancres_detachees` et `citations_detachees` n'étaient
+affirmés que par la présence de leur `data-testid` — jamais par un nombre. La
+fixture porte désormais de vraies extractions, de vraies portions posées sur des
+**offsets calculés depuis le texte** (jamais écrits à la main), et des citations
+créées **par le vrai service** `indexer_les_citations`, seul chemin qui pose
+`ancrage_source`.
+
+**Ce que ces tests épinglent, et que rien ne disait avant :**
+
+| | |
+|---|---|
+| un bloc cité par une synthèse **figée** | refusé, **lui seul** — le reste du lot est écrit |
+| **vider** un bloc gelé | refusé aussi : le masquage passe par un autre service, même garde |
+| un bloc cité par un **wiki** | **passe** — sans quoi un carnet à cinq wikis gèlerait la moitié de ses passages |
+| un lot **entièrement** gelé | 0 modifié, **aucun `PageEdit`** : un journal vide serait un geste inventé |
+| le journal | porte l'avant/après des blocs **passés**, et la **liste des refus** |
+| une correction qui efface le passage ancré | `ancres_detachees` = 1, portion `DETACHEE` en base |
+| une correction **ailleurs** dans le bloc | `ancres_detachees` = **0**, portion toujours `ANCREE` |
+| la citation qui pointait la portion | `citations_detachees` = 1, `SourceLink` en `DETACHEE` |
+
+**Le mordant est mesuré, pas supposé.** Un test neuf qui passe du premier coup ne
+prouve rien tant qu'on ne l'a pas vu tomber. En neutralisant
+`verifier_qu_aucune_synthese_ne_cite` dans les **deux** services (réconciliation et
+masquage), **7 des 15 tests tombent** — et le texte du bloc gelé se retrouve écrit
+en base, ce qui est exactement le dégât qu'ils existent pour interdire. Les deux
+services ont été restaurés depuis une copie hors dépôt, empreintes vérifiées.
+
+### Le refus NOMME désormais la synthèse qui bloque — 30 août 2026
+
+Le lot écrivait « ce passage est cité par une synthèse figée ». Sur une note où
+**7 blocs sur 12 sont gelés**, ce motif ne dit ni quelle citation retirer, ni
+quelle synthèse reproduire — et le § 5.3 de `SPEC-synthese-carnet.md` exige que
+le refus **nomme** ce qui bloque. Les quatre gestes unitaires le faisaient déjà,
+par `_message_falc_du_blocage_par_synthese` ; le lot jetait l'exception sans
+même la lier.
+
+Il la lie, et appelle **la même fonction** — pas une seconde version du message,
+qui divergerait :
+
+> ce passage est cité par « Synthèse du 12 mars ». Une synthèse adoptée ne doit
+> pas voir ses preuves changer : retirez d'abord la citation, ou produisez une
+> nouvelle synthèse.
+
+**Et ce titre est saisi par un humain**, donc il fallait le suivre jusqu'au bout :
+le gabarit l'échappe (un test l'épingle sur `<img src=x onerror=…>`), et côté
+client la modale du mode ne construit plus son HTML par concaténation — chaque
+`<li>` passe par `textContent`.
+→ `CHANGELOG/2026-08-29-le-mode-edition-par-blocs.md`, troisième temps.
+
+### Le refus des tableaux avait une garde, mais aucun test — 30 août 2026
+
+`LABELS_QUI_NE_SE_RELISENT_PAS` protège contre un dégât grave et silencieux —
+un `Ctrl+S` sur une note à tableaux les écrasait **tous, sans que personne n'y
+ait touché**. Écrite le 29, elle n'était exercée par **rien** : les deux fixtures
+ne créaient que des `label="text"`. Six tests la tiennent maintenant — un tableau
+modifié est refusé, son texte n'est pas écrasé, le motif dit « tableau », le
+vider est refusé aussi, les autres blocs du lot passent, et **un tableau
+inchangé ne produit aucun refus** (le client périmé renvoie tout, il ne doit pas
+remplir le compte rendu pour ce qu'il n'a pas touché).
+
+### La garde d'analyse manquait aux VIDAGES — 30 août 2026
+
+Relevé par la relecture adverse, **vérifié par un test qui échouait** : le § 8.1
+promet que le refus subsiste **à l'écriture**, pas seulement à l'entrée. C'était
+vrai pour les corrections — `reconcilier_les_portions_de_l_element` repose la
+garde bloc par bloc — et **faux pour les vidages** : le lot appelle
+`masquer_un_element(..., verifier_les_jobs=False)`. Un lot fait uniquement de
+vidages n'était donc protégé que par la garde d'entrée, alors que le commentaire
+de la vue affirmait « les services la reposent chacun ».
+
+**Mesuré avant correction** : une analyse démarrée pendant le lot le laissait
+passer — **200 au lieu de 409**, et les blocs restaient masqués.
+
+**La garde est reposée UNE FOIS, en fin de lot**, dans le même `atomic` :
+
+- **une fois, pas une par bloc** — la reposer dans la boucle coûterait deux
+  requêtes par bloc masqué (400 pour un nettoyage de 200 en-têtes) sans rien
+  gagner : ce qui compte est qu'**aucune écriture ne soit commitée** après le
+  démarrage d'une analyse, et lever ici annule le lot **entier** ;
+- **seulement s'il y a eu des écritures** — un lot où rien n'a changé n'a rien à
+  protéger, et le refuser dirait à la personne qu'elle a perdu un travail qu'elle
+  n'a pas fait. Un second test épingle ce cas.
+
+L'exception remonte au `except EditionBloqueePendantAnalyse` qui existait déjà :
+rollback complet, 409, et le texte reste à l'écran.
+
 ### Ce qui n'est PAS fait
 
-**Aucun front ne l'appelle** — le mode d'édition n'existe pas.
+**Le mode d'édition l'appelle depuis le 29 août 2026** — `Ctrl+S` enregistre par
+cet endpoint : `CHANGELOG/2026-08-29-le-mode-edition-par-blocs.md`.
 
 > *À l'écriture de ces lignes, trois mesures conditionnaient encore la voie
 > technique. **Elles ont été faites les 26 et 28 août, et les trois passent** :
 > `CHANGELOG/2026-08-23-le-champ-unique-tranche-l-edition-par-blocs.md`.*
 
-**Le compte rendu n'est pas encore annoncé** : la région porte `role="status"` et
-`aria-live="polite"`, mais `annonces.js` n'annonce que les toasts — le § 9 de la
-spec demande de trancher entre un résumé en toast et une région live dédiée. Le
-toast porte le résumé ; le détail attend son écran.
+**Le toast du compte rendu n'est affiché par personne** — relevé par la relecture
+adverse du 30 août, vérifié : `_reponse_du_compte_rendu` pose bien
+`HX-Trigger: showToast`, mais **le seul appelant est le `fetch()` du mode**, qui
+lit le corps et ignore les en-têtes. Ce que la personne voit est le partial, en
+tête de la note, plus la modale des refus. Trois documents affirmaient le
+contraire ; ils sont corrigés. **Conséquence à connaître** : un `Ctrl+S`
+entièrement réussi, en bas d'une note longue, n'a pas de retour visible près du
+curseur — seulement l'annonce d'`annoncer()`, qui est `sr-only`. C'est le même
+défaut de visibilité que celui qui a motivé la modale des refus, et il reste
+ouvert.
 
 ---
 
@@ -202,8 +311,19 @@ avec son motif — et **aucun `lectureReload`** dans le `HX-Trigger`.
 docker exec -w /app hypostasia_web python manage.py test \
   hypostasis_extractor.tests.test_corriger_en_lot --noinput
 ```
-→ **23 tests, OK** (mesuré le 29 août 2026 : 17 d'origine, +2 sur la
-distinction lire/écrire, +4 sur l'addendum B).
+→ **33 tests, OK** (mesuré le 30 août 2026 : 17 d'origine, +2 sur la distinction
+lire/écrire, +4 sur l'addendum B, **+6 sur le refus des tableaux**, **+2 sur la
+borne et les doublons**, **+2 sur la garde d'analyse des vidages**).
+
+Et le fichier qui porte les ancrages réels — le refus par synthèse figée dans un
+lot, le nom de la synthèse, et les deux compteurs du compte rendu :
+```bash
+docker exec -w /app hypostasia_web python manage.py test \
+  hypostasis_extractor.tests.test_le_lot_et_les_ancrages --noinput
+```
+→ **22 tests**. Avec `test_corriger_en_lot` et `front.tests.test_mode_edition` :
+**79 tests** ; et toute la suite du chantier, **737 tests OK en 481 s** (mesuré
+le 30 août 2026, au soir).
 
 Toute l'app, pour la non-régression :
 ```bash

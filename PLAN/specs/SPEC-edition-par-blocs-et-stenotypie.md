@@ -11,9 +11,13 @@ ciblé, l'`identifiant_stable` dans le DOM, l'endpoint de lot du § 7 — **et l
 d'édition existe** depuis le 29 août : la garde, la parade IME, la pile
 d'annulation, `Ctrl+S`, `Échap`.
 → `CHANGELOG/2026-08-29-le-mode-edition-par-blocs.md`
-**Restent hors du socle** : toute la sténotypie (§ 6), la table de raccourcis
-(§ 4.4), le `white-space: pre-line` de l'`Entrée` (§ 4.2), le démasquage depuis le
-mode (§ 5.3) et le lecteur d'écran réel (§ 9). **La voie technique est
+**Restent hors du socle** : la correction du locuteur (§ 6.2 — et cette section
+**se trompe**, voir son encart), le `white-space: pre-line` de l'`Entrée` (§ 4.2),
+la modale d'aide qui doit rendre la table (§ 4.4), et le lecteur d'écran réel
+(§ 9). *(Faits le **30 août 2026** : le démasquage depuis le mode — § 5.3, cas 4 —,
+**le transport audio au clavier et les deux réglages du § 6.3**, et **la table de
+raccourcis** qui les gouverne. Voir les encarts, et
+`CHANGELOG/2026-08-30-la-stenotypie-au-clavier.md`.)* **La voie technique est
 tranchée** — option C, le champ unique, garde sur `beforeinput` et parade sur
 `compositionstart` : **les trois mesures qui la conditionnaient sont faites, et les
 trois passent** (26 août 2026).
@@ -266,6 +270,16 @@ C'est une garantie **testable**, et ce doit être un test (§ 12).
 | `Suppr` / `Retour arrière` sur une sélection multi-blocs | vide le texte sélectionné **bloc par bloc** (§ 5.2) |
 | `Ctrl+S` | enregistrer (§ 7) |
 
+> ✅ **RÉSOLU DANS LE MODE, par effet de bord — 30 août 2026.**
+> `contenteditable="plaintext-only"` impose `white-space: pre-wrap` à tout le champ,
+> et **aucun CSS d'auteur ne peut le contredire** (mesuré : `normal !important` en
+> ligne reste calculé `pre-wrap`). **Dans le mode d'édition, le saut de ligne inséré
+> par `Entrée` se voit donc**, sans qu'on ait rien à changer au CSS. La question
+> ci-dessous ne vaut plus que **hors du mode**, en lecture — et le même mécanisme
+> impose alors de retirer du DOM les blancs d'indentation du gabarit, sans quoi le
+> champ s'ouvre avec des lignes vides partout (un bloc passait de 24 px à 197 px).
+> → `CHANGELOG/2026-08-29-le-mode-edition-par-blocs.md`
+>
 > **`Entrée` est aujourd'hui invisible sur 1 107 blocs sur 1 129.** Aucun
 > `white-space: pre-line` sur `.bloc > .corps` (`maquette.css:1763-1772`) : dans un
 > `<p>`, un `<h2>`, un `<li>` ou un `<blockquote>`, un `\n` **s'affiche comme une
@@ -295,6 +309,29 @@ Les touches ne sont pas fixées ici : voir 4.4.
 
 **Une table nommée** (`{geste: touche}`), avec des valeurs par défaut. La modale d'aide
 (`?`) la rend telle qu'elle est, jamais une liste recopiée qui divergerait.
+
+> ✅ **LA TABLE EXISTE DEPUIS LE 30 AOÛT 2026** — `RACCOURCIS`, dans
+> `mode_edition.js`, publiée par `window.modeEdition.raccourcis`. Chaque geste
+> porte **plusieurs touches** : la première est celle qu'on affiche, les suivantes
+> sont les équivalents de la **pédale** (`MediaPlayPause`, `F13`–`F15`). Les
+> défauts sont des **touches F** — un `contenteditable` avale toute touche nue, et
+> les combinaisons à modificateur sont prises par le système —, en écartant celles
+> du navigateur : F1, F3, F5, F6, F11, F12.
+>
+> **Premier effet, déjà acquis** : le bandeau du mode se compose **depuis la
+> table** (`attr(data-bandeau)`), et n'annonce les touches de son que sur une note
+> qui en a. Il portait jusque-là une recopie, dans le `content:` d'une règle CSS.
+>
+> **Le point 3 ci-dessus est PÉRIMÉ sur un détail qui compte** : il annonce quatre
+> listeners `keydown`, dont `marginalia.js:290` et `user_menu.js:52`. **Ces
+> deux-là n'en ont plus aucun** depuis le 29 août (vérifié le 30 : `rg` ne rend
+> que `keyboard.js`, `lecteur_audio.js` et `mode_edition.js`). Il en reste
+> **trois**, et celui qu'il faudra convertir ensuite est `lecteur_audio.js` — les
+> flèches, `Début` et `Fin` du rail —, que le texte d'origine ne cite pas.
+>
+> **Ce qui reste** : la modale d'aide, `lecteur_audio.js`, et surtout
+> `aide_desktop.html`, qui **recopie** `M`, `Ctrl+S`, `Ctrl+Z` et `Échap` en dur —
+> la recopie que ce paragraphe interdit, et qui échappe aux deux audits existants.
 
 ---
 
@@ -356,9 +393,40 @@ nombre, distinct de celui des ancres.
 2. **vider puis re-remplir avant d'enregistrer** : la bonne réponse est « jamais
    masqué » — on compare l'**état**, pas les frappes ;
 3. **tout vider** : geste légitime qu'un `demasquer` rattrape, ou refus ?
-4. **démasquer depuis le mode** : le § 5.3 crée des blocs masqués, et le mode n'a
-   aujourd'hui **aucun moyen de les voir ni de les restaurer**. Sans ce geste, le
-   masquage n'est réversible qu'en sortant du mode.
+4. **démasquer depuis le mode** — ✅ **TRANCHÉ ET CODÉ le 30 août 2026.**
+
+> ### Encart — le panneau des passages masqués (30 août 2026)
+>
+> **Ce que la mesure a montré, et qui change la question.** Le placeholder
+> « Passage masqué » **et son bouton** existaient déjà dans le champ. Mesuré sur
+> `/lire/29/` (2 blocs masqués sur 99) : `display: none` hors du mode
+> **structure** — hauteur **0 px**, bouton **0 × 0**, et retiré de l'arbre
+> d'accessibilité. Le geste n'était donc pas seulement inatteignable au clavier
+> depuis le mode d'édition : il était **invisible**.
+>
+> **La décision du mainteneur** : *pas* de placeholders au fil du texte, mais un
+> **panneau replié**, rendu **au-dessus du champ** — donc hors de lui, donc
+> jamais sérialisé. Le champ reste ce qu'on lit et corrige ; ce qui a été retiré
+> se retrouve dans une commande.
+>
+> **La liste vient du serveur** (filtre de gabarit `passages_masques_de`, jamais
+> une variable de contexte : `lecture_principale.html` est rendu depuis trois
+> endroits), le bouton poste l'endpoint `demasquer` **qui existe déjà**, et le
+> JavaScript ne fait que l'affichage — retirer la ligne, refaire le compte,
+> annoncer.
+>
+> **Mesuré de bout en bout**, sur une note jetable créée puis supprimée : le
+> compte passe de « 2 passages masqués » à « 1 », puis le panneau **disparaît** ;
+> les blocs du champ passent de 2 à 3 puis à 4 ; le mode **reste ouvert** ; zéro
+> erreur JavaScript ; contrastes **5,24:1** (clair) et **5,94:1** (sombre), filet
+> du bouton **3,16:1** et **4,26:1**, cible **72 × 24 px**.
+>
+> **Un défaut trouvé en chemin** : la mise en lecture seule des tableaux n'était
+> posée qu'à l'ouverture du mode. **Un tableau rétabli en pleine session
+> redevenait modifiable** — le travail fait dessus serait perdu au `Ctrl+S`
+> suivant. Elle est désormais reposée **après chaque swap**.
+>
+> → `CHANGELOG/2026-08-29-le-mode-edition-par-blocs.md`, troisième temps.
 
 ---
 
@@ -405,9 +473,40 @@ portées** : `tous`, `ce_bloc_seul`, `ce_bloc_et_suivants`.
 pas le geste : c'est **son accès au clavier depuis le mode**, sans passer par une
 modale — et le fait qu'il soit atteignable sur le bloc du curseur.
 
+> ### ⚠️ Encart — CETTE SECTION SE TROMPE (vérifié le 30 août 2026)
+>
+> **`renommer_locuteur` refuse en 409 toute note qui porte des éléments.**
+> `front/views.py` : *« Cette note est lue par éléments : l'édition de
+> transcription ne s'y applique pas encore. Rien n'a été modifié. »* Le refus est
+> posé **avant toute écriture**, et il explique lui-même pourquoi il ne peut pas
+> deviner : un BLOC groupe les segments consécutifs d'un même locuteur, alors que
+> l'ingestion crée **un élément par segment** et saute les vides — « bloc N =
+> élément ordre N » n'est vrai que sur un corpus qui alterne les locuteurs, c'est-
+> à-dire sur la fixture de dev.
+>
+> Le moteur ELEMENT étant **le seul moteur** depuis le 10 août 2026, ce geste
+> n'existe donc **pour aucune note réelle**. Lui donner un raccourci ne servirait
+> qu'à faire répondre 409 plus vite.
+>
+> **Ce qu'il faut écrire** : un geste natif ELEMENT, qui vise l'élément par son
+> pk et écrit `provenance["locuteur"]`, avec les trois portées (`tous`,
+> `ce_bloc_seul`, `ce_bloc_et_suivants`). C'est un chantier, pas un raccourci.
+
 ### 6.3 Les deux gestes qui manquent vraiment
 
-Aucun n'apparaît dans `lecteur_audio.js` (recherche du 23 août 2026) :
+> ✅ **FAITS LE 30 AOÛT 2026, et mesurés.** Les deux vivent dans la **barre du
+> lecteur** — ils servent aussi à qui écoute sans corriger, et la barre survit à
+> `lectureReload`, qui remplace `#zone-lecture` en entier. La vitesse est une
+> **table de paliers** (0,5 → 2), s'affiche `1,25×` et **survit au changement de
+> bloc** ; le recul à la reprise vaut **2 s** par défaut, **zéro le désactive**,
+> et il ne s'applique **qu'à une reprise** — jamais à un saut volontaire, qu'il
+> déplacerait. Les deux sont retenus par le navigateur de chacun
+> (`localStorage`) : c'est un confort de poste de travail, pas une donnée du
+> corpus. Mesuré : pause à 5,79 s → reprise à 3,43 s avec un recul de 3 s ; 1,25×
+> conservé après un rechargement complet.
+> → `CHANGELOG/2026-08-30-la-stenotypie-au-clavier.md`
+
+Aucun n'apparaissait dans `lecteur_audio.js` (recherche du 23 août 2026) :
 
 1. **Le rembobinage à la reprise.** À la reprise après une pause, le son repart **une
    à trois secondes en arrière** : on met en pause pour écrire, et on a toujours perdu
