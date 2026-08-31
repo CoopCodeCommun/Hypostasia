@@ -118,7 +118,7 @@ SCRIPT_DE_PAQUETAGE_EXTENSION := bin/paqueter_l_extension.sh
 .PHONY: aide install dev status stop restart logs shell check \
         collectstatic test test-rapide test-suite test-e2e test-docling \
         test-llm test-tout backup backup-check restore verif-prod \
-        prod-update prod-status nuit recapitulatif extension-zip \
+        prod-update prod-status nuit recapitulatif extension-zip extension-zip-chrome \
         .verif-services .verif-docker
 
 # Ce Makefile PILOTE Docker, il ne l'installe pas. Sans lui, chaque
@@ -392,6 +392,9 @@ verif-prod:  ## Bilan de prod : depot, cron, secrets, DEBUG/NGINX_CONF
 
 extension-zip:  ## Fabrique dist/hypostasia-extension-<version>.zip pour addons.mozilla.org
 	@bash $(SCRIPT_DE_PAQUETAGE_EXTENSION)
+
+extension-zip-chrome:  ## Le meme paquet, sans les cles Firefox, pour le Chrome Web Store
+	@bash $(SCRIPT_DE_PAQUETAGE_EXTENSION) chrome
 
 ##@ La nuit des wikis (a lancer depuis l'hote, ou par cron)
 
