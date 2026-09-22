@@ -2493,20 +2493,28 @@ class LectureViewSet(viewsets.ViewSet):
         # / Full prompt for display (overhead + source text)
         prompt_complet = generateur_prompt.render(question=texte_source_page)
 
-        # --- Estimation precise des tokens ---
+        # --- Estimation des tokens (une approximation) ---
         # Le LLM recoit pour chaque chunk : prompt_overhead + texte_du_chunk.
         # Donc : tokens_input_total = N_chunks × tokens(overhead) + tokens(texte_total).
         # On utilise tiktoken (cl100k_base) comme approximation — le tokenizer reel
-        # varie selon le modele (Gemini, GPT, etc.) mais l'ecart est < 10%.
-        # / --- Precise token estimation ---
+        # varie selon le modele (Gemini, GPT, Mistral) ; l'ecart n'a pas ete mesure.
+        #
+        # `disallowed_special=()` : le texte d'un jeton special (`<|endoftext|>`)
+        # se compte comme du texte. Par defaut tiktoken LEVE dessus, et une note
+        # qui parle de tokenizers en contient : l'ecran tomberait en 500.
+        # / --- Token estimation (an approximation) ---
         # / The LLM receives for each chunk: prompt_overhead + chunk_text.
         # / So: total_input_tokens = N_chunks × tokens(overhead) + tokens(total_text).
-        # / We use tiktoken (cl100k_base) as approximation — the real tokenizer
-        # / varies by model (Gemini, GPT, etc.) but the gap is < 10%.
+        # / We use tiktoken (cl100k_base) as an unmeasured approximation;
+        # / special-token text is counted as plain text instead of raising.
         encodeur_tokens = tiktoken.get_encoding("cl100k_base")
 
-        tokens_overhead_par_chunk = len(encodeur_tokens.encode(prompt_overhead_reel))
-        tokens_texte_source = len(encodeur_tokens.encode(texte_source_page))
+        tokens_overhead_par_chunk = len(
+            encodeur_tokens.encode(prompt_overhead_reel, disallowed_special=()),
+        )
+        tokens_texte_source = len(
+            encodeur_tokens.encode(texte_source_page, disallowed_special=()),
+        )
 
         # Nombre de chunks : le VRAI compte pour une page ELEMENT (U3),
         # l'approximation par taille de buffer pour l'ANCIEN moteur.
@@ -2540,15 +2548,16 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Estimation du cout en euros — on passe le total output (visible + thinking)
         # Marge x1.5 arrondi au centime superieur pour absorber les variations
-        # (marge reduite car le thinking est deja une surestimation conservatrice)
+        # (marge reduite : quand le thinking est compte, il l'est deja large ;
+        # quand il ne l'est pas, le montant reste un ordre de grandeur)
         # / Cost estimate in euros — pass total output (visible + thinking)
         # / x1.5 margin rounded up to next cent to absorb variations
-        # / (reduced margin since thinking is already a conservative overestimate)
+        # / (counted thinking is already generous; uncounted, it is a rough figure)
         cout_brut_euros = modele_ia_actif.estimer_cout_euros(
             nombre_tokens_input, nombre_tokens_output_total
         )
         # None = tarif NON MESURE, pas gratuit. Le gabarit affiche alors
-        # « non mesuré » : annoncer « ≤ 0,01 € » avant un appel facturé
+        # « non mesuré » : annoncer « 0,01 € » avant un appel facturé
         # serait un chiffre inventé, et c'est sur lui qu'on décide.
         # / None means UNKNOWN, not free; the template says so.
         cout_estime_euros = (
@@ -2903,12 +2912,16 @@ class LectureViewSet(viewsets.ViewSet):
         )
         prompt_complet = prompt_systeme + "\n\n" + prompt_utilisateur
 
-        # Estimation tokens (pas de chunking pour la synthese, 1 seul appel)
-        # / Token estimation (no chunking for synthesis, single call)
+        # Estimation tokens (pas de chunking pour la synthese, 1 seul appel).
+        # `disallowed_special=()` : un jeton special dans le texte se compte
+        # comme du texte, au lieu de faire tomber l'ecran (voir l'analyse).
+        # / Token estimation (single call); special-token text is plain text.
         import tiktoken
         import math
         encodeur_tokens = tiktoken.get_encoding("cl100k_base")
-        nombre_tokens_input = len(encodeur_tokens.encode(prompt_complet))
+        nombre_tokens_input = len(
+            encodeur_tokens.encode(prompt_complet, disallowed_special=()),
+        )
         nombre_tokens_output_visible = int(nombre_tokens_input * 0.5)
         multiplicateur_thinking = modele_ia_actif.multiplicateur_thinking()
         nombre_tokens_thinking = nombre_tokens_output_visible * (multiplicateur_thinking - 1)

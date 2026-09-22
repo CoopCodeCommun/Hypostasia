@@ -106,11 +106,10 @@ SCRIPT_DE_VERIFICATION_SAUVEGARDE := bin/check_backup.sh
 SCRIPT_DE_RESTAURATION := bin/restore.sh
 SCRIPT_DE_VERIFICATION_PROD := bin/verifier_prod.sh
 
-# La passe de nuit et le recapitulatif du matin : meme raison d'etre
-# sur l'hote (Docker + crontab), et le MEME script pour les deux
-# etapes — le mail doit toujours partir apres le run.
-# / The night pass and the morning recap: one host script, two steps.
-SCRIPT_DE_NUIT := bin/nuit.sh
+# Le recapitulatif du matin, envoye a la main : il pilote Docker, donc
+# il vit sur l'hote. Le planificateur Celery l'envoie deja chaque matin.
+# / The morning recap, sent by hand from the host.
+SCRIPT_DU_RECAPITULATIF := bin/recapitulatif.sh
 SCRIPT_DE_PAQUETAGE_EXTENSION := bin/paqueter_l_extension.sh
 
 .DEFAULT_GOAL := aide
@@ -118,7 +117,7 @@ SCRIPT_DE_PAQUETAGE_EXTENSION := bin/paqueter_l_extension.sh
 .PHONY: aide install dev status stop restart logs shell check \
         collectstatic test test-rapide test-suite test-e2e test-docling \
         test-llm test-tout backup backup-check restore verif-prod \
-        prod-update prod-status nuit recapitulatif extension-zip extension-zip-chrome \
+        prod-update prod-status recapitulatif extension-zip extension-zip-chrome \
         .verif-services .verif-docker
 
 # Ce Makefile PILOTE Docker, il ne l'installe pas. Sans lui, chaque
@@ -396,13 +395,10 @@ extension-zip:  ## Fabrique dist/hypostasia-extension-<version>.zip pour addons.
 extension-zip-chrome:  ## Le meme paquet, sans les cles Firefox, pour le Chrome Web Store
 	@bash $(SCRIPT_DE_PAQUETAGE_EXTENSION) chrome
 
-##@ La nuit des wikis (a lancer depuis l'hote, ou par cron)
+##@ Le recapitulatif du matin (deja planifie ; ceci l'envoie a la main)
 
-nuit:  ## Met a jour les wikis qui ont du neuf — APPELLE UN VRAI MODELE, c'est facture
-	@bash $(SCRIPT_DE_NUIT) passe $(ARGS)
-
-recapitulatif:  ## Envoie le recapitulatif du matin (attend la fin de la passe)
-	@bash $(SCRIPT_DE_NUIT) recapitulatif $(ARGS)
+recapitulatif:  ## Envoie le recapitulatif du matin a la main (ARGS=--a-blanc pour voir)
+	@bash $(SCRIPT_DU_RECAPITULATIF) $(ARGS)
 
 # -----------------------------------------------------------------------------
 # Production
@@ -432,7 +428,7 @@ prod-update:  ## Met a jour la prod (refuse si DEBUG=true dans .env)
 	$(DANS) python manage.py migrate
 	$(DANS) python manage.py collectstatic --noinput
 	docker exec $(CONTENEUR) supervisorctl -c $(CONF_PROD) restart \
-		gunicorn daphne celery_worker celery_worker_docling
+		gunicorn daphne celery_worker celery_worker_docling celery_beat
 	@docker exec $(CONTENEUR) supervisorctl -c $(CONF_PROD) status
 
 prod-status:  ## Etat des 4 programmes de production

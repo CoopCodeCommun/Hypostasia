@@ -8,8 +8,8 @@ DEUX CHOSES SE RACONTENT, ET DEUX SEULEMENT (addendum du 21 aout
 2026) :
 
 1. les wikis **modifies** depuis le dernier mail de cette personne —
-   par la passe de nuit comme par un humain, la distinction est portee
-   par `TourDeWiki.fait_par` ;
+   par un humain ou sans auteur, la distinction est portee par
+   `TourDeWiki.fait_par` ;
 2. les wikis dont le perimetre a recu du **neuf** que l'article n'a pas
    repris.
 

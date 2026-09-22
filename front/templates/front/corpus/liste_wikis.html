@@ -1,6 +1,7 @@
 {# ONGLET WIKIS D'UN CARNET — design maquette (9 aout). #}
 {# LOCALISATION : front/templates/front/corpus/liste_wikis.html #}
-{# Variables : carnet, wikis (annotes .qualite), nombre_de_notes_sources, #}
+{# Variables : carnet, wikis (annotes .qualite et .nouveautes), #}
+{# nombre_de_notes_sources, #}
 {# peut_ecrire. #}
 <div data-testid="synthese-liste-wikis">
     <p class="note-explicative">
@@ -38,6 +39,21 @@
                     {{ wiki.qualite.verifiees }} vérifiée{{ wiki.qualite.verifiees|pluralize }} ·
                     <span style="color:var(--faible)">{{ wiki.qualite.faibles }} faible{{ wiki.qualite.faibles|pluralize }}</span>{% if wiki.qualite.introuvables %} ·
                     <span style="color:var(--faible)">{{ wiki.qualite.introuvables }} introuvable{{ wiki.qualite.introuvables|pluralize }}</span>{% endif %}{% endif %}
+                </span>
+                {% comment %}
+                LE NEUF DEPUIS LE DERNIER TOUR — et non le stock des
+                « écartées » ci-dessus, qui compte tout ce que l'article
+                n'a jamais repris. Aucun wiki ne se met à jour tout seul :
+                cette ligne dit lesquels méritent qu'on les ouvre pour
+                cliquer « Mettre à jour ». Même compte que l'en-tête de
+                l'article, même couleur.
+                / News since the last round, not the stock of left-out
+                extractions: it tells which wikis deserve an update.
+                {% endcomment %}
+                <span class="sous-note valeur-du-geste"
+                      data-testid="synthese-wiki-nouveautes"
+                      data-neuf="{% if wiki.nouveautes.total %}oui{% else %}non{% endif %}">
+                    {% if wiki.nouveautes.total %}<span aria-hidden="true">●</span> {{ wiki.nouveautes.total }} nouveauté{{ wiki.nouveautes.total|pluralize }} depuis le {{ wiki.nouveautes.depuis|date:"d/m/Y" }}{% else %}rien de neuf{% endif %}
                 </span>
             </span>
         </li>

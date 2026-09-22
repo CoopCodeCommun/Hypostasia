@@ -271,12 +271,16 @@
 /* NE COLORER QUE L'EXCEPTION. Un geste qui a une raison d'etre se
    signale ; un geste inutile reste gris. Peindre les deux en
    permanence remettrait deux boutons criards dans le tableau de bord.
+   La liste des wikis du carnet porte le MEME signal que l'en-tete de
+   l'article, donc la meme couleur : les deux disent la meme chose.
    / Only the exception is coloured: a gesture with a reason announces
-   itself, a pointless one stays grey. */
-.zone-corpus .entete-article .valeur-du-geste[data-neuf="oui"] {
+   itself, a pointless one stays grey. The wiki list shares the signal. */
+.zone-corpus .entete-article .valeur-du-geste[data-neuf="oui"],
+.zone-corpus .ligne-note .valeur-du-geste[data-neuf="oui"] {
   color:var(--info); font-weight:700;
 }
-.zone-corpus .entete-article .valeur-du-geste[data-neuf="non"] { color:var(--encre-douce); }
+.zone-corpus .entete-article .valeur-du-geste[data-neuf="non"],
+.zone-corpus .ligne-note .valeur-du-geste[data-neuf="non"] { color:var(--encre-douce); }
 
 /* ---- LES ECARTEES, DOCUMENT PAR DOCUMENT ---- */
 .zone-corpus .document-ecarte { border-top:1px dashed var(--filet); }

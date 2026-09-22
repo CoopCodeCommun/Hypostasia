@@ -8,8 +8,8 @@ Rendu par front/management/commands/envoyer_le_recapitulatif_du_matin.py,
 une fois par personne et par jour au maximum.
 
 Deux sections, et deux seulement : ce qui a change, et ce qui attend.
-Un tour sans auteur est un tour de la PASSE DE NUIT — c'est ce que
-« le moteur » veut dire ici, et la distinction doit rester lisible :
+Un tour sans auteur est un tour de l'ancienne PASSE DE NUIT — c'est ce
+que « le moteur » veut dire ici, et la distinction doit rester lisible :
 un article qu'un collegue a modifie ne se relit pas comme un article
 que la machine a complete.
 {% endcomment %}Bonjour {{ destinataire.username }},

@@ -77,37 +77,35 @@ celery_app.conf.task_routes = {
 #
 # POURQUOI PAS UN CRON D'HOTE. Il vit hors du depot : il ne se deplace
 # pas avec le code, il ne se relit pas en revue, et un clone frais ne
-# l'a pas. `bin/nuit.sh` reste, mais pour la MAIN — pas pour la nuit.
+# l'a pas. `bin/recapitulatif.sh` sert a envoyer le mail A LA MAIN.
+#
+# AUCUNE TACHE PLANIFIEE N'APPELLE UN MODELE (addendum du 21 septembre
+# 2026). Une tache planifiee qui appelle un modele est une facture qui
+# tombe sans que personne ait clique. Mettre un wiki a jour est un geste
+# humain : le bouton « Mettre a jour » de son article.
+# Verrouille par front/tests/test_le_recapitulatif_du_matin.py.
 #
 # CE QUE CA COUTE : un process de plus, `celery_beat` (supervisord). Il
 # ne consomme AUCUNE file : il ne fait qu'envoyer des messages, et ne
 # touche donc pas a la topologie des trois workers.
 # / The schedule lives in the app's code: versioned, reviewed, and it
 # travels with the repository. django-celery-beat's only advantage is
-# the Django admin, which this project disables.
+# the Django admin, which this project disables. No scheduled task
+# calls a model: updating a wiki is a human gesture.
 #
-# LES HEURES SONT EN UTC (settings.TIME_ZONE). Reglables par variables
-# d'environnement, parce que l'heure a laquelle « personne ne lit »
-# depend de qui lit. / Hours are UTC and environment-tunable.
+# L'HEURE EST EN UTC (settings.TIME_ZONE). Reglable par variable
+# d'environnement, parce que l'heure du matin depend de qui lit.
+# / The hour is UTC and environment-tunable.
 # =============================================================================
 
 from celery.schedules import crontab  # noqa: E402
 
-HEURE_DE_LA_PASSE_DE_NUIT = int(os.environ.get("HEURE_PASSE_DE_NUIT", "2"))
 HEURE_DU_RECAPITULATIF = int(os.environ.get("HEURE_RECAPITULATIF", "6"))
 
 celery_app.conf.beat_schedule = {
-    # LA NUIT : les wikis dont le perimetre a du neuf sont mis a jour.
-    # UN APPEL AU REDACTEUR PAR WIKI EXAMINE — c'est facture.
-    # / The night: one billed writer call per examined wiki.
-    "la-passe-de-nuit-des-wikis": {
-        "task": "front.tasks.lancer_la_passe_de_nuit_task",
-        "schedule": crontab(hour=HEURE_DE_LA_PASSE_DE_NUIT, minute=0),
-    },
-    # LE MATIN : un mail par personne, au maximum un par jour. La tache
-    # attend la fin de la passe — l'ecart d'horaire ci-dessus n'est
-    # qu'un confort, la garantie est dans la tache.
-    # / The morning: the task waits on the pass; the gap is comfort.
+    # LE MATIN : un mail par personne, au maximum un par jour. Il ne
+    # coute aucun appel au modele.
+    # / The morning: one mail per person per day, no model call.
     "le-recapitulatif-du-matin": {
         "task": "front.tasks.envoyer_le_recapitulatif_du_matin_task",
         "schedule": crontab(hour=HEURE_DU_RECAPITULATIF, minute=0),

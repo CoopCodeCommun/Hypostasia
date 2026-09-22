@@ -269,6 +269,9 @@ commentaires FR/EN)
 
 > ## Addendum du 21 août 2026 — le tour de wiki s'écrit, la nuit applique, le matin prévient
 >
+> ⚠️ **La section « La nuit applique » est annulée** par l'addendum du 21 septembre 2026,
+> juste en dessous. L'historique des tours et le récapitulatif du matin restent en vigueur.
+>
 > **Ce que cet addendum remplace** : le § 11.3, qui classait le journal des acceptations
 > « YAGNI assumé pour le POC », et le § 6, qui réservait l'application à un humain. Les
 > deux changent. Ce qui ne change pas : **tous** les contrôles mécaniques du § 6.2 et du
@@ -339,6 +342,87 @@ commentaires FR/EN)
 > carnets qui le portent, **et les partages du carnet** — utilisateurs directs et membres
 > des groupes. C'est un périmètre plus large que celui du bouton « tâches »
 > (`_destinataires_de_notification`), qui reste inchangé.
+
+> ## Addendum du 21 septembre 2026 — la nuit n'applique plus, la mise à jour redevient un geste
+>
+> **Ce que cet addendum remplace** : la section « La nuit applique » de l'addendum du
+> 21 août 2026. Le § 6.1 retrouve sa lettre : **un humain accepte**. Ce qui ne change pas :
+> l'historique des tours (`TourDeWiki`, `OperationDeWiki`, la garde du motif), tous les
+> contrôles du § 6.2/6.3, et le récapitulatif du matin — qui perd seulement son attente de
+> la passe, puisqu'il n'y a plus de passe à attendre.
+>
+> ### Le trou : la nuit coûtait en proportion des wikis, pas des nouveautés
+>
+> La passe retenait un wiki dès que son périmètre portait **une** extraction écartée,
+> c'est-à-dire non citée — et non pas *apparue depuis le dernier tour*. Un wiki qui écarte
+> à raison des extractions hors sujet était donc rappelé **chaque nuit**, avec la liste
+> entière de ses écartées dans le prompt, liste qui grossit avec le carnet. Le cas existe
+> dans l'étalon : 48 écartées, et « aucun changement » y est la bonne réponse (CHANGELOG
+> du 16 août 2026). Le récapitulatif du matin, lui, définissait déjà « du neuf » par
+> « apparu depuis » : les deux critères divergeaient.
+>
+> **Estimation du 21 septembre, non mesurée** — aucune capture des tokens réels n'existe :
+> pour une centaine de wikis, la nuit faisait environ les trois quarts de la facture LLM
+> mensuelle, et elle croissait même sans aucune note nouvelle. Hypothèses : environ
+> 6 000 tokens d'entrée et 1 000 de sortie par wiki et par nuit, au tarif de
+> `mistral-medium-latest` (1,50 / 7,50 $ le million) — soit ~45 € par mois pour
+> 100 wikis, contre ~10 à 17 € pour l'extraction de ~40 notes par jour sur
+> `mistral-small-latest` (16 400 caractères de prompt fixe par morceau de 1 500).
+>
+> ### La décision : aucune tâche planifiée n'appelle un modèle
+>
+> **Décision du mainteneur, 21 septembre 2026.**
+>
+> - Le planificateur (`beat_schedule`) ne lance plus que le récapitulatif du matin, qui
+>   n'appelle aucun modèle. Verrouillé par `front/tests/test_le_recapitulatif_du_matin.py`.
+> - Un wiki ne se met à jour que par le geste « Mettre à jour » de son article : le
+>   rédacteur propose, le diff montre l'avant, l'humain accepte opération par opération
+>   (§ 6.1 à 6.4, inchangés).
+> - La passe (`lancer_la_passe_de_nuit_task`, `manage.py mettre_a_jour_les_wikis`,
+>   `make nuit`, `bin/nuit.sh`) et son état (`PasseDeNuit`, supprimé par la migration
+>   `core.0077`) sont retirés.
+> - Le motif `MAJ_NOCTURNE` **reste** : les tours déjà écrits le portent, et l'historique
+>   doit pouvoir les nommer.
+>
+> ### Ce qui remplace la nuit : un signal, pas un automatisme
+>
+> Sans passe, il faut pouvoir dire **où** le geste vaut la peine sans ouvrir chaque wiki.
+> Chaque ligne de la liste des wikis d'un carnet porte « ● N nouveautés depuis le
+> JJ/MM/AAAA » ou « rien de neuf ». Le compte est **celui de l'en-tête de l'article** :
+> `nouveautes_du_perimetre` depuis `Wiki.derniere_mise_a_jour`, extractions masquées
+> exclues. Les deux écrans ne se contredisent donc jamais. Le récapitulatif du matin reste
+> le seul signal poussé. Verrouillé par
+> `front/tests/test_la_liste_des_wikis_signale_le_neuf.py`.
+>
+> Écartés par le mainteneur : un bouton « mettre à jour ces N wikis » au niveau du carnet,
+> et une file « à mettre à jour » transverse dans le menu des tâches. Le signal seul
+> d'abord.
+>
+> ### Ce qui reste ouvert — trois questions au mainteneur
+>
+> 1. **Le coût d'un clic grossit avec le carnet.** La proposition envoie au rédacteur
+>    **toutes** les extractions écartées du périmètre, pas seulement les nouvelles
+>    (`construire_la_proposition_d_operations`). Ce coût est **annoncé avant le clic**
+>    dans la modale « Mettre à jour » (`WikiViewSet.estimation`, qui compte le prompt de
+>    la tâche par `rediger_le_prompt_de_mise_a_jour`) — un ordre de grandeur, pas un
+>    plafond. Il n'est pas pour autant borné.
+> 2. **Des écartées anciennes deviennent inatteignables.** La boîte de dialogue « Mettre à
+>    jour » grise « Relancer » quand le périmètre n'a rien de neuf depuis
+>    `derniere_mise_a_jour` (`article.html`). Or un tour à moitié rejeté (une opération
+>    appliquée, deux refusées pour section fantôme) rafraîchit cette date : les deux
+>    extractions refusées ne sont plus jamais reproposées tant que rien de neuf n'arrive.
+>    La nuit était le seul chemin qui les reprenait. Le récapitulatif du matin, lui, dit
+>    encore « il reste N extractions que l'article n'a pas reprises ». À trancher :
+>    autoriser la relance quand l'article porte des écartées, ou écrire que ce stock est
+>    abandonné.
+> 3. **Un commentaire seul allume le signal, mais le geste échoue.** `nouveautes_du_perimetre`
+>    compte les commentaires ; la proposition, elle, refuse de partir sans écartée
+>    (« Rien à mettre à jour »). Sur un wiki qui cite tout son périmètre, un commentaire
+>    neuf affiche « ● 1 nouveauté », la relance part, le job finit en erreur, et le signal
+>    reste allumé. Le récapitulatif du matin exclut déjà ce cas (il exige des écartées).
+>    Comportement hérité de l'en-tête d'article, que la liste reprend à l'identique. À
+>    trancher : n'allumer le signal (liste **et** en-tête) que si l'article porte des
+>    écartées, ou faire traiter les commentaires par la mise à jour.
 
 ---
 

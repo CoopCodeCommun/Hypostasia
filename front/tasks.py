@@ -1215,10 +1215,10 @@ def _demandeur_du_job(job):
 
     LOCALISATION : front/tasks.py
 
-    Les vues posent `demandeur_id` dans `raw_result` ; les commandes de
-    management, non — un article produit par l'installation n'a aucun
-    demandeur, et c'est exactement ce que None veut dire.
-    / Management commands set no requester: None says so.
+    Les vues posent `demandeur_id` dans `raw_result`, et les commandes
+    de l'installation y posent le proprietaire du carnet. None quand la
+    cle manque, ou quand le compte n'existe plus.
+    / Views and install commands set a requester; None when missing.
     """
     from django.contrib.auth import get_user_model
 
@@ -1371,7 +1371,7 @@ def _ecrire_le_corps_d_un_article(page_d_article, texte_brut,
     return bilan_d_indexation
 
 
-def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par=None,
+def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par,
                               job=None, updated_at_de_la_proposition=None):
     """
     Applique un lot d'operations sur un wiki, et ecrit son histoire.
@@ -1379,11 +1379,11 @@ def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par=None,
 
     LOCALISATION : front/tasks.py
 
-    UN SEUL CHEMIN pour les deux appelants — la vue, quand un humain
-    accepte operation par operation, et la passe de nuit, quand le
-    moteur applique seul. Deux copies de cette sequence divergeraient,
-    et c'est toujours l'historique qui mentirait le premier.
-    / One path for both callers: the human view and the nightly pass.
+    APPELEE PAR LA VUE (`WikiViewSet.appliquer`), quand un humain
+    accepte les operations une par une. Aucun wiki ne se met a jour
+    sans ce geste (SPEC-synthese, addendum du 21 septembre 2026).
+    / Called by the view when a human accepts the operations; no wiki
+    is updated without that gesture.
 
     FLUX :
     1. controle de fraicheur (addendum n°1) quand la proposition en
@@ -1400,7 +1400,9 @@ def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par=None,
     :param wiki: le `Wiki` a mettre a jour / the wiki
     :param operations: les operations retenues / the retained operations
     :param motif: une valeur de `MotifDeTourDeWiki`
-    :param fait_par: l'humain qui accepte, ou None pour le moteur
+    :param fait_par: l'humain qui accepte — OBLIGATOIRE : un tour sans
+        auteur s'afficherait « le moteur, automatiquement ».
+        / the accepting human, mandatory.
     :param job: l'`ExtractionJob` de la proposition
     :param updated_at_de_la_proposition: le jeton de fraicheur, s'il y en a
     :return: `(bilan des operations, bilan d'indexation)`
@@ -1470,297 +1472,25 @@ def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par=None,
 
 
 @shared_task(bind=True)
-def lancer_la_passe_de_nuit_task(self, maximum=0):
+def envoyer_le_recapitulatif_du_matin_task(self):
     """
-    Ouvre la passe de nuit et met un wiki par tache en file.
-    / Opens the nightly pass and queues one task per wiki.
+    Le recapitulatif du matin : un mail par personne, au plus un par jour.
+    / The morning recap: one mail per person, at most once a day.
 
     LOCALISATION : front/tasks.py
 
-    DECLENCHEE PAR LE BEAT (`hypostasia/celery.py`, `beat_schedule`) —
-    la planification vit dans le code de l'application, pas dans le
-    crontab d'une machine : elle est versionnee, et elle survit a un
-    changement de machine.
-
-    LE FAN-OUT, ET CE QU'IL CHANGE. Une tache par wiki, sur la file par
-    defaut : les appels au redacteur avancent a la concurrence du
-    worker au lieu de se suivre. Chaque tache tient largement sous le
-    plafond de 30 minutes (`CELERY_TASK_TIME_LIMIT`), la ou une passe
-    sequentielle de vingt wikis le crevait — et un redemarrage ne coute
-    qu'un wiki, pas la nuit entiere.
-    / One task per wiki on the default queue: parallel, and each stays
-    far below the 30-minute task limit.
-
-    LA PASSE NE SE FERME PAS ICI. Aucune tache ne sait si elle est la
-    derniere : c'est le compteur `wikis_termines` qui le dit, et la
-    derniere a rendre la main ferme la passe. Tant qu'elle est ouverte,
-    le recapitulatif du matin attend.
-    / The pass is closed by the counter, not here.
-
-    :param maximum: nombre maximum de wikis (0 = tous). Ce qui est
-        ecarte par cette borne est COMPTE — une troncature muette se
-        lirait comme une couverture complete.
-    :return: le pk de la `PasseDeNuit` ouverte, ou None
+    DECLENCHEE PAR LE BEAT (`hypostasia/celery.py`, `beat_schedule`).
+    Elle n'appelle AUCUN modele : elle raconte les wikis modifies depuis
+    le dernier mail, et ceux dont le perimetre a recu du neuf. Toute la
+    logique vit dans la commande de management, que `make recapitulatif`
+    appelle aussi — un seul chemin pour les deux.
+    / Triggered by the beat; calls no model. The logic lives in the
+    management command, shared with `make recapitulatif`.
     """
-    from core.models import PasseDeNuit, Wiki
-    from core.services.passe_de_nuit import passe_en_cours
-    from core.services.synthese import extractions_ecartees
-
-    # DEUX PASSES EN MEME TEMPS DOUBLERAIENT LA FACTURE, et deux tours
-    # concurrents se disputeraient le meme article. Le cas arrive tout
-    # seul : une nuit plus longue que prevu, et le beat repart.
-    # / Concurrent passes double the bill.
-    deja_en_cours = passe_en_cours()
-    if deja_en_cours is not None:
-        logger.warning(
-            "lancer_la_passe_de_nuit_task: une passe (#%s) tourne "
-            "encore — celle-ci ne demarre pas.", deja_en_cours.pk,
-        )
-        return None
-
-    wikis_a_examiner = []
-    for wiki in Wiki.objects.select_related("page", "dossier"):
-        try:
-            a_du_neuf = extractions_ecartees(wiki.page).exists()
-        except Exception as erreur:
-            # Un perimetre illisible (article historique) n'est pas une
-            # raison d'arreter la nuit. / An unreadable scope does not
-            # stop the night.
-            logger.warning(
-                "lancer_la_passe_de_nuit_task: wiki=%s perimetre "
-                "illisible (%s) — laisse de cote.", wiki.pk, erreur,
-            )
-            continue
-        if a_du_neuf:
-            wikis_a_examiner.append(wiki)
-
-    ecartes_par_le_maximum = 0
-    if maximum and len(wikis_a_examiner) > maximum:
-        ecartes_par_le_maximum = len(wikis_a_examiner) - maximum
-        wikis_a_examiner = wikis_a_examiner[:maximum]
-
-    passe = PasseDeNuit.objects.create(
-        wikis_examines=len(wikis_a_examiner),
-        wikis_ecartes_par_le_maximum=ecartes_par_le_maximum,
-    )
-
-    # RIEN A FAIRE EST UN CAS NORMAL, et il doit fermer la passe tout
-    # de suite : sinon le recapitulatif du matin attendrait une passe
-    # qui n'a personne pour la finir.
-    # / Nothing to do must close the pass at once.
-    if not wikis_a_examiner:
-        _fermer_la_passe(passe)
-        return passe.pk
-
-    for wiki in wikis_a_examiner:
-        mettre_a_jour_un_wiki_la_nuit_task.delay(passe.pk, wiki.pk)
-
-    logger.info(
-        "lancer_la_passe_de_nuit_task: passe #%s ouverte, %s wiki(s) en "
-        "file, %s ecarte(s) par le maximum.",
-        passe.pk, len(wikis_a_examiner), ecartes_par_le_maximum,
-    )
-    return passe.pk
-
-
-def _fermer_la_passe(passe):
-    """
-    Ferme la passe et laisse partir le recapitulatif.
-    / Closes the pass and lets the recap go.
-
-    LOCALISATION : front/tasks.py
-    """
-    from django.utils import timezone
-
-    passe.terminee_le = timezone.now()
-    passe.save(update_fields=["terminee_le"])
-    logger.info(
-        "passe de nuit #%s terminee : %s examine(s), %s modifie(s), "
-        "%s en erreur.", passe.pk, passe.wikis_examines,
-        passe.wikis_modifies, passe.wikis_en_erreur,
-    )
-
-
-def _rendre_la_main_a_la_passe(passe_id, a_modifie, en_erreur):
-    """
-    Une tache de wiki a fini : compte, et ferme si elle etait la
-    derniere. / One wiki task finished: count, and close if last.
-
-    LOCALISATION : front/tasks.py
-
-    LES TROIS INCREMENTS SONT ATOMIQUES (`F(...) + 1`), et la relecture
-    se fait sous VERROU. Deux taches qui finissent dans la meme
-    milliseconde liraient sinon le meme total et, ou bien fermeraient la
-    passe deux fois, ou bien ne la fermeraient JAMAIS — et le
-    recapitulatif du matin attendrait pour toujours une passe finie.
-    / Atomic increments and a locked read: otherwise two tasks finishing
-    together would either close twice or never, and the morning recap
-    would wait forever on a finished pass.
-    """
-    from django.db import transaction
-    from django.db.models import F
-
-    from core.models import PasseDeNuit
-
-    with transaction.atomic():
-        PasseDeNuit.objects.filter(pk=passe_id).update(
-            wikis_termines=F("wikis_termines") + 1,
-            wikis_modifies=F("wikis_modifies") + (1 if a_modifie else 0),
-            wikis_en_erreur=F("wikis_en_erreur") + (1 if en_erreur else 0),
-        )
-        passe = PasseDeNuit.objects.select_for_update().filter(
-            pk=passe_id,
-        ).first()
-        if passe is None:
-            return
-        c_est_la_derniere = (
-            passe.terminee_le is None
-            and passe.wikis_termines >= passe.wikis_examines
-        )
-        if c_est_la_derniere:
-            _fermer_la_passe(passe)
-
-
-@shared_task(bind=True)
-def mettre_a_jour_un_wiki_la_nuit_task(self, passe_id, wiki_id):
-    """
-    Un wiki, un tour, sans humain — puis la main rendue a la passe.
-    / One wiki, one round, no human — then the pass is told.
-
-    LOCALISATION : front/tasks.py
-
-    UN ECHEC NE COUTE QUE SON WIKI. Un modele injoignable sur l'un ne
-    doit priver aucun autre de sa mise a jour, et surtout ne doit pas
-    laisser la passe ouverte : la main est rendue dans TOUS les cas,
-    sinon le recapitulatif du matin n'arriverait jamais.
-    / A failure costs only its own wiki, and always gives the hand back.
-    """
-    from core.models import RoleDeModele, Wiki
-    from core.services.modeles_par_role import modele_du_role
-
-    a_modifie = False
-    en_erreur = False
-    try:
-        wiki = Wiki.objects.select_related("page", "dossier").get(pk=wiki_id)
-        tour = mettre_a_jour_un_wiki_la_nuit(
-            wiki, modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE),
-        )
-        a_modifie = tour is not None and tour.a_change_l_article
-    except Exception as erreur:
-        en_erreur = True
-        logger.exception(
-            "mettre_a_jour_un_wiki_la_nuit_task: wiki=%s a echoue (%s)",
-            wiki_id, erreur,
-        )
-    finally:
-        _rendre_la_main_a_la_passe(passe_id, a_modifie, en_erreur)
-
-
-# Combien de fois le recapitulatif se repasse la main en attendant la
-# fin de la passe de nuit, et a quel intervalle.
-#
-# POURQUOI SE REPASSER LA MAIN PLUTOT QUE DORMIR. Un `sleep` dans une
-# tache OCCUPE un slot du worker — sur une file a concurrence 2, une
-# heure d'attente en mangerait la moitie, et les analyses des
-# utilisateurs attendraient derriere. La tache se remet donc en file
-# avec un `countdown`, exactement comme le juge local se repasse la
-# main entre deux paquets.
-# / A sleeping task holds a worker slot; re-queueing with a countdown
-# does not.
-SECONDES_ENTRE_DEUX_REGARDS = 120
-REGARDS_MAXIMUM_SUR_LA_PASSE = 30
-
-
-@shared_task(bind=True)
-def envoyer_le_recapitulatif_du_matin_task(self, regards_deja_faits=0):
-    """
-    Le recapitulatif du matin — APRES la passe de nuit, toujours.
-    / The morning recap — always after the nightly pass.
-
-    LOCALISATION : front/tasks.py
-
-    DECLENCHEE PAR LE BEAT, quelques heures apres la passe. L'ecart
-    d'horaire est une ESPERANCE d'ordre, pas une garantie : une nuit
-    chargee suffirait a faire partir le mail avant la fin du travail
-    qu'il annonce. La tache interroge donc la `PasseDeNuit` et SE
-    REPASSE LA MAIN tant qu'elle tourne.
-    / The schedule gap is a hope, not a guarantee: this task waits on
-    the pass itself.
-
-    AU BOUT DE L'ATTENTE, ELLE N'ENVOIE PAS. Un mail qui annonce a
-    moitie serait pire qu'un mail en retard, et le journal le dit
-    fort. / After the last look, it does not send: half-announcing is
-    worse than late.
-    """
-    from core.services.passe_de_nuit import passe_en_cours
-
-    passe = passe_en_cours()
-    if passe is not None:
-        if regards_deja_faits >= REGARDS_MAXIMUM_SUR_LA_PASSE:
-            logger.error(
-                "envoyer_le_recapitulatif_du_matin_task: la passe #%s "
-                "tourne encore apres %s regards — AUCUN mail envoye. "
-                "Le recapitulatif annoncerait un travail a moitie fait.",
-                passe.pk, regards_deja_faits,
-            )
-            return 0
-        envoyer_le_recapitulatif_du_matin_task.apply_async(
-            kwargs={"regards_deja_faits": regards_deja_faits + 1},
-            countdown=SECONDES_ENTRE_DEUX_REGARDS,
-        )
-        return 0
-
     from django.core.management import call_command
 
-    call_command("envoyer_le_recapitulatif_du_matin",
-                 sans_attendre_la_nuit=True, verbosity=0)
+    call_command("envoyer_le_recapitulatif_du_matin", verbosity=0)
     return 1
-
-
-def mettre_a_jour_un_wiki_la_nuit(wiki, modele_ia):
-    """
-    Un tour de wiki sans humain : proposer, puis appliquer.
-    / One wiki round without a human: propose, then apply.
-
-    LOCALISATION : front/tasks.py
-
-    CE QUE LA NUIT NE PEUT PAS FAIRE, et qui rend l'automatisme
-    acceptable (addendum du 21 aout 2026) :
-
-    - elle passe par le MEME applieur que la vue, donc par les memes
-      controles § 6.2/6.3 — un titre halluciné, une affirmation sans
-      preuve, une source hors perimetre sont rejetes ici comme
-      ailleurs ;
-    - elle n'a AUCUN chemin vers `produire_un_wiki_task` : elle ajoute,
-      remplace ou insere, jamais ne regenere ;
-    - tout ce qu'elle fait s'ecrit dans l'historique, rejets compris,
-      et se relit le lendemain matin.
-    / The night has no privilege over the applier, and never regenerates.
-
-    Aucune tache Celery ici : la passe est SEQUENTIELLE, dans la
-    commande de management. Un appel au redacteur a la fois, donc un
-    cout previsible et une file qui ne se remplit pas d'un coup.
-    / Sequential on purpose: one writer call at a time.
-
-    :param wiki: le `Wiki` a mettre a jour / the wiki
-    :param modele_ia: l'`AIModel` du role redacteur / the writer model
-    :return: le `TourDeWiki` ecrit / the recorded round
-    """
-    from core.models import MotifDeTourDeWiki
-
-    operations, _jeton = construire_la_proposition_d_operations(
-        wiki, modele_ia,
-    )
-    # PAS de jeton de fraicheur : la proposition vient d'etre produite
-    # sur l'article qu'on applique, dans le meme fil. Le controle
-    # protege d'une previsualisation vieille de dix minutes, pas de
-    # deux instructions consecutives. / No staleness token needed here.
-    appliquer_un_tour_de_wiki(
-        wiki, operations,
-        motif=MotifDeTourDeWiki.MAJ_NOCTURNE,
-        fait_par=None,
-    )
-    return wiki.tours.first()
 
 
 def _terminer_un_job_d_article(job, page_d_article, bilan_d_indexation,
@@ -2001,16 +1731,15 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
 
     LOCALISATION : front/tasks.py
 
-    UN SEUL PROMPT pour les deux appelants — la mise a jour demandee a
-    la main, et la passe de nuit. Une seconde copie de ce prompt
-    divergerait de la premiere, et personne ne saurait laquelle a
-    produit un article donne.
-    / One prompt for both callers: the manual update and the night pass.
+    APPELEE PAR `proposer_une_maj_de_wiki_task`, derriere le geste
+    « Mettre a jour » d'un article. Elle ne fait que PROPOSER : rien
+    n'est applique avant qu'un humain accepte (`appliquer_un_tour_de_wiki`).
+    / Called behind the "update" gesture; it only proposes.
 
     :param wiki: le `Wiki` a mettre a jour / the wiki
     :param modele_ia: l'`AIModel` du role redacteur / the writer model
-    :param job: l'`ExtractionJob` de la demande, s'il y en a un. La
-        passe de nuit n'en a pas.
+    :param job: l'`ExtractionJob` de la demande, ou None hors d'une
+        demande (un test qui appelle la fonction directement).
     :return: `(operations, jeton de fraicheur)` — le jeton est
         l'`updated_at` ISO de l'article APRES la reparation des titres.
     :raises ValueError: s'il n'y a rien a reprendre, ou si la reponse
@@ -2020,7 +1749,7 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
 
     from core.models import MotifDeTourDeWiki
     from core.services.synthese import (
-        extractions_du_perimetre, extractions_ecartees, titre_de_section,
+        extractions_du_perimetre, extractions_ecartees,
     )
 
     article = wiki.page
@@ -2030,13 +1759,6 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
             "Rien à mettre à jour : toutes les extractions du "
             "périmètre sont déjà reprises par l'article. "
             "/ Nothing left out."
-        )
-
-    lignes_d_ecartees = []
-    for extraction in ecartees:
-        lignes_d_ecartees.append(
-            f"Identifiant : ext:{extraction.pk}\n"
-            f'Citation : "{extraction.extraction_text}"'
         )
 
     # Un article d'avant la garde mecanique peut porter des `###`, que
@@ -2076,19 +1798,78 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
         )
         article.refresh_from_db()
 
+    prompt = rediger_le_prompt_de_mise_a_jour(
+        article.text_readability or "", ecartees,
+    )
+    from core.llm_providers import appeler_llm
+    reponse = appeler_llm(modele_ia, prompt)
+
+    # Contrat anti-troncature : la reponse DOIT etre un tableau JSON
+    # parseable — echec bruyant sinon, jamais une proposition a moitie
+    # lue. / Loud failure on unparseable JSON.
+    texte_json = (reponse or "").strip()
+    if texte_json.startswith("```"):
+        texte_json = texte_json.strip("`")
+        if texte_json.startswith("json"):
+            texte_json = texte_json[4:]
+    try:
+        operations = json_module.loads(texte_json)
+        if not isinstance(operations, list):
+            raise ValueError("pas un tableau")
+    except (ValueError, TypeError):
+        raise ValueError(
+            "La proposition est arrivée illisible (pas un tableau "
+            "JSON d'opérations). Rien n'a été proposé — relancez "
+            "la mise à jour. / Unparseable proposal."
+        )
+
+    return operations, article.updated_at.isoformat()
+
+
+def rediger_le_prompt_de_mise_a_jour(texte_de_l_article, ecartees):
+    """
+    Le prompt de mise a jour d'un wiki. Aucune ecriture ; la seule
+    lecture est celle du prompt systeme (`_prompt_systeme_de_synthese`).
+    / A wiki update prompt: no write; only reads the system prompt.
+
+    LOCALISATION : front/tasks.py
+
+    DEUX APPELANTS, UN SEUL PROMPT. La tache le passe au redacteur
+    (`construire_la_proposition_d_operations`), et la modale « Mettre a
+    jour » le compte pour annoncer le cout AVANT le clic
+    (`WikiViewSet.estimation`). Une copie de ce texte pour l'estimation
+    finirait par diverger : le cout annonce ne serait plus celui du
+    prompt envoye.
+    / Two callers, one prompt: the task sends it, the dialog counts it.
+
+    :param texte_de_l_article: le markdown de l'article, titres DEJA
+        normalises en `##` / the article markdown, headings normalised
+    :param ecartees: les `ExtractedEntity` non reprises, dans l'ordre
+        des pk / the left-out extractions
+    :return: le prompt complet / the full prompt
+    """
+    from core.services.synthese import titre_de_section
+
+    lignes_d_ecartees = []
+    for extraction in ecartees:
+        lignes_d_ecartees.append(
+            f"Identifiant : ext:{extraction.pk}\n"
+            f'Citation : "{extraction.extraction_text}"'
+        )
+
     titres_adressables = [
         titre for titre in (
             titre_de_section(ligne)
-            for ligne in (article.text_readability or "").split("\n")
+            for ligne in texte_de_l_article.split("\n")
         ) if titre is not None
     ]
     liste_des_titres = "\n".join(
         f"- {titre}" for titre in titres_adressables
     ) or "(l'article n'a aucune section : seule une insertion est possible)"
 
-    prompt = (
+    return (
         _prompt_systeme_de_synthese() + "\n\n"
-        "=== ARTICLE ACTUEL ===\n" + article.text_readability + "\n\n"
+        "=== ARTICLE ACTUEL ===\n" + texte_de_l_article + "\n\n"
         "=== TITRES DE SECTION ADRESSABLES ===\n"
         "Ce sont les SEULS titres que tu peux viser. Reprends-les "
         "au mot près, SANS les dièses. Toute opération visant un "
@@ -2120,29 +1901,6 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
         "\"apres\"). Chaque contenu cite ses sources par [[ext:N]] "
         "et ne contient JAMAIS de ligne de titre."
     )
-    from core.llm_providers import appeler_llm
-    reponse = appeler_llm(modele_ia, prompt)
-
-    # Contrat anti-troncature : la reponse DOIT etre un tableau JSON
-    # parseable — echec bruyant sinon, jamais une proposition a moitie
-    # lue. / Loud failure on unparseable JSON.
-    texte_json = (reponse or "").strip()
-    if texte_json.startswith("```"):
-        texte_json = texte_json.strip("`")
-        if texte_json.startswith("json"):
-            texte_json = texte_json[4:]
-    try:
-        operations = json_module.loads(texte_json)
-        if not isinstance(operations, list):
-            raise ValueError("pas un tableau")
-    except (ValueError, TypeError):
-        raise ValueError(
-            "La proposition est arrivée illisible (pas un tableau "
-            "JSON d'opérations). Rien n'a été proposé — relancez "
-            "la mise à jour. / Unparseable proposal."
-        )
-
-    return operations, article.updated_at.isoformat()
 
 
 @shared_task(bind=True)
