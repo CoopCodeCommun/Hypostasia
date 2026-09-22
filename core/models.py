@@ -2414,7 +2414,7 @@ class ElementDocument(models.Model):
                   "PDF -> {page_no, boites: [{l,t,r,b,coord_origin}, ...]} "
                   "(LISTE de boites : un paragraphe a cheval sur deux pages "
                   "ou deux colonnes produit plusieurs entrees). "
-                  "audio -> {start_time, end_time, voice}. "
+                  "audio -> {locuteur, debut, fin} (les cles ecrites par services/ingestion_audio.py, et lues par le rendu). "
                   "md/html/txt -> {}",
     )
 
@@ -2982,6 +2982,16 @@ class Wiki(models.Model):
     une reecriture. C'est ce qui permet de voir ce qui a change.
     Un wiki ne s'adopte pas, il se suit.
     / No versions: a state and an update-round counter.
+
+    UNE EXCEPTION EXISTE, ET ELLE PORTE UN NOM. `produire_un_wiki_task`
+    reecrit l'article entier, et l'historique l'enregistre sous le motif
+    `REGENERATION` (`MotifDeTourDeWiki`) — c'est ce que fait
+    `produire_les_syntheses_etalons --forcer`. Elle emporte les avis des
+    juges par CASCADE : le 19 aout 2026, un banc de comparaison l'a
+    appelee neuf fois et 165 avis sont partis en silence. La passe de
+    nuit, elle, n'a AUCUN chemin vers cette tache.
+    / One exception, and it is named: full regeneration, which cascades
+    the judges' opinions away. The nightly pass cannot reach it.
     """
 
     page = models.OneToOneField(
@@ -3133,6 +3143,13 @@ class MotifDeTourDeWiki(models.TextChoices):
         "reparation_de_titres", "Réparation des niveaux de titre",
     )
     REGENERATION = "regeneration", "Régénération complète de l'article"
+    # UN ECHEC EST UN TOUR : le motif des tentatives de l'ancienne passe
+    # de nuit qui ont echoue, avec leur `message_d_echec`. Aucun chemin
+    # actuel n'en ecrit ; il reste pour que l'historique des wikis
+    # continue de nommer ces tours.
+    # / A failure is a round: written by the former nightly pass only,
+    # kept so that the wiki history can still name those rounds.
+    ECHEC = "echec", "Tentative échouée"
 
 
 class TypeOperationDeSection(models.TextChoices):
@@ -3235,6 +3252,12 @@ class TourDeWiki(models.Model):
     )
     texte_apres = models.TextField(
         blank=True, help_text="Le markdown de l'article après ce tour.",
+    )
+    message_d_echec = models.TextField(
+        blank=True,
+        help_text="Ce qui a empêché ce tour d'aboutir. Vide quand il a "
+                  "abouti. Un échec se lit dans l'historique de "
+                  "l'article, pas seulement dans un journal de worker.",
     )
 
     class Meta:
@@ -3428,6 +3451,20 @@ class EnvoiDuRecapitulatif(models.Model):
     envoye_le = models.DateTimeField(auto_now_add=True)
     couvre_depuis = models.DateTimeField(
         help_text="La borne basse de ce que le mail racontait.",
+    )
+    # LA BORNE HAUTE, ET POURQUOI ELLE N'EST PAS `envoye_le`. La matiere
+    # est calculee a un instant T0, puis les mails partent — ce qui
+    # prend d'autant plus de temps qu'il y a de destinataires. Si le
+    # prochain envoi repartait de l'heure d'ENVOI, tout ce qui est ne
+    # entre T0 et l'envoi ne serait raconte NI ce matin (pas encore
+    # calcule) NI demain (deja passe) : perdu, en silence.
+    # / The high bound is the moment the material was computed, not the
+    # moment the mail left: everything born in between would be lost.
+    couvre_jusqu_a = models.DateTimeField(
+        null=True, blank=True,
+        help_text="L'instant où la matière a été calculée. C'est la "
+                  "borne basse du PROCHAIN envoi. NULL = envois "
+                  "d'avant ce champ.",
     )
     wikis_modifies = models.PositiveIntegerField(default=0)
     wikis_avec_du_neuf = models.PositiveIntegerField(default=0)

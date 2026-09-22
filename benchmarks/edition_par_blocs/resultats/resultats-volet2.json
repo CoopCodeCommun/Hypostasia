@@ -1,0 +1,152 @@
+{
+ "horodatage": "2026-08-23 20:30:13",
+ "charge_au_debut": [
+  "1.54",
+  "1.88",
+  "2.09"
+ ],
+ "navigateur": "Chromium 145.0.7632.6",
+ "a_entree_sans_garde": {
+  "true": {
+   "frontieres_de_bloc_identiques": true,
+   "enfants_du_corps_avant": 1,
+   "enfants_du_corps_apres": 2,
+   "balises_apres": [
+    "p",
+    "p"
+   ],
+   "le_paragraphe_a_ete_scinde": true,
+   "html_apres": "<p data-corps-de=\"d78e0326-8dc4-45f7-a3f8-3dadd1a73f6e\">Thus, a synthesis of a do</p><p data-corps-de=\"d78e0326-8dc4-45f7-a3f8-3dadd1a73f6e\">cument is defined here as a new documen",
+   "mutations_de_structure": 1
+  },
+  "plaintext-only": {
+   "frontieres_de_bloc_identiques": true,
+   "enfants_du_corps_avant": 1,
+   "enfants_du_corps_apres": 1,
+   "balises_apres": [
+    "p"
+   ],
+   "le_paragraphe_a_ete_scinde": false,
+   "html_apres": "<p data-corps-de=\"d78e0326-8dc4-45f7-a3f8-3dadd1a73f6e\">Thus, a synthesis of a do\ncument is defined here as a new document distinct from the  original,  as  its  arguments  factor ",
+   "mutations_de_structure": 0
+  }
+ },
+ "b_plaintext_only_et_la_fusion": {
+  "true": {
+   "frontieres_identiques": false,
+   "blocs_avant": 210,
+   "blocs_apres": 205,
+   "blocs_detruits": 5,
+   "bloc20_apres": "Citizen consultns of IAG-including  academic integrity, tran"
+  },
+  "plaintext-only": {
+   "frontieres_identiques": false,
+   "blocs_avant": 210,
+   "blocs_apres": 205,
+   "blocs_detruits": 5,
+   "bloc20_apres": "Citizen consultns of IAG-including  academic integrity, tran"
+  }
+ },
+ "c_vrai_collage": {
+  "ce=true_garde=0": {
+   "frontieres_de_bloc_identiques": true,
+   "blocs_apres": 210,
+   "enfants_du_corps_avant": 1,
+   "enfants_du_corps_apres": 4,
+   "balises_apres": [
+    "p",
+    "h1",
+    "p",
+    "p"
+   ],
+   "style_survivant": true,
+   "le_texte_colle_est_arrive": true,
+   "html_apres": "<p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">A  high  s</p><h1>TITRE</h1><p><b>gras</b> et <i>italique</i></p><p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">sec"
+  },
+  "ce=plaintext-only_garde=0": {
+   "frontieres_de_bloc_identiques": true,
+   "blocs_apres": 210,
+   "enfants_du_corps_avant": 1,
+   "enfants_du_corps_apres": 1,
+   "balises_apres": [
+    "p"
+   ],
+   "style_survivant": false,
+   "le_texte_colle_est_arrive": true,
+   "html_apres": "<p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">A  high  sTITRE\n\ngras et italique\n\nsecondchool  debate  is  presented  here  as  an  example,  but  this  approach  can  be "
+  },
+  "ce=true_garde=1": {
+   "frontieres_de_bloc_identiques": true,
+   "blocs_apres": 210,
+   "enfants_du_corps_avant": 1,
+   "enfants_du_corps_apres": 1,
+   "balises_apres": [
+    "p"
+   ],
+   "style_survivant": false,
+   "le_texte_colle_est_arrive": true,
+   "html_apres": "<p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">A  high  sTITRE\n\ngras et italique\n\nsecondchool  debate  is  presented  here  as  an  example,  but  this  approach  can  be "
+  },
+  "ce=plaintext-only_garde=1": {
+   "frontieres_de_bloc_identiques": true,
+   "blocs_apres": 210,
+   "enfants_du_corps_avant": 1,
+   "enfants_du_corps_apres": 1,
+   "balises_apres": [
+    "p"
+   ],
+   "style_survivant": false,
+   "le_texte_colle_est_arrive": true,
+   "html_apres": "<p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">A  high  sTITRE\n\ngras et italique\n\nsecondchool  debate  is  presented  here  as  an  example,  but  this  approach  can  be "
+  }
+ },
+ "d_vrai_glisser_deposer": {
+  "garde_0": {
+   "frontieres_identiques": true,
+   "blocs_apres": 12,
+   "un_texte_a_bouge": true,
+   "bloc1_change": true,
+   "bloc4_change": true,
+   "enfants_du_corps_4": 1
+  },
+  "garde_1": {
+   "frontieres_identiques": true,
+   "blocs_apres": 12,
+   "un_texte_a_bouge": false,
+   "bloc1_change": false,
+   "bloc4_change": false,
+   "enfants_du_corps_4": 1
+  }
+ },
+ "e_ctrl_z": {
+  "frappe_native_seule": {
+   "avant_annulation": "The interpXYZlay  between  the  methodological  ch",
+   "apres_annulation": "The interplay  between  the  methodological  chall",
+   "annulation_a_marche": true
+  },
+  "frappe_puis_geste_intercepte": {
+   "avant_annulation": "The interpXYZ\nlay  between  the  methodological  c",
+   "apres_annulation": "The interpXYZ\nlay  between  the  methodological  c",
+   "annulation_a_marche": false,
+   "le_saut_de_ligne_a_ete_annule": false,
+   "le_xyz_a_ete_annule": false,
+   "frontieres_identiques": true
+  },
+  "apres_suppression_multi_blocs": {
+   "frontieres_identiques": true,
+   "blocs_apres": 210,
+   "annulation_a_change_quelque_chose": false,
+   "les_blocs_21_24_sont_toujours_vides": [
+    true,
+    true,
+    true,
+    true
+   ]
+  }
+ },
+ "charge_a_la_fin": [
+  "1.69",
+  "1.90",
+  "2.09"
+ ]
+}

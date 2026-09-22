@@ -380,7 +380,7 @@ commentaires FR/EN)
 >   (§ 6.1 à 6.4, inchangés).
 > - La passe (`lancer_la_passe_de_nuit_task`, `manage.py mettre_a_jour_les_wikis`,
 >   `make nuit`, `bin/nuit.sh`) et son état (`PasseDeNuit`, supprimé par la migration
->   `core.0077`) sont retirés.
+>   `core.0081`) sont retirés.
 > - Le motif `MAJ_NOCTURNE` **reste** : les tours déjà écrits le portent, et l'historique
 >   doit pouvoir les nommer.
 >

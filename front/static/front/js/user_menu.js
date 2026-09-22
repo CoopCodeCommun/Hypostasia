@@ -47,12 +47,31 @@
         }
     });
 
-    // Echap ferme et REND le focus au bouton : sans cela, le focus reste
-    // dans un panneau devenu invisible. / Escape closes and returns focus.
-    document.addEventListener('keydown', function(evenement) {
-        if (evenement.key !== 'Escape') { return; }
+    // ECHAP N'A PLUS D'ECOUTEUR ICI, ET C'EST DELIBERE.
+    //
+    // Ce fichier en portait un, hors de la cascade de `keyboard.js`.
+    // Deux ecouteurs independants sur la meme touche ferment DEUX choses
+    // d'un seul appui : menu ouvert par-dessus un editeur de correction,
+    // un Echap fermait le menu ET jetait la correction en cours de
+    // frappe. C'est le defaut paye le 29 aout sur `marginalia.js`, et il
+    // se rejouait ici.
+    //
+    // La fermeture par Echap vit desormais dans `gererEscape()`, qui
+    // appelle `window.userMenu.fermerSiOuvert()`. Elle REND toujours le
+    // focus au bouton : sans cela, le focus reste dans un panneau
+    // devenu invisible.
+    // / Escape lives in keyboard.js's cascade now.
+    //
+    // :return: true si le menu etait ouvert et vient d'etre ferme.
+    function fermerSiOuvert() {
         var e = elements();
-        if (!e.dropdown || e.dropdown.classList.contains('hidden')) { return; }
+        if (!e.dropdown || e.dropdown.classList.contains('hidden')) {
+            return false;
+        }
         fermer(true);
-    });
+        return true;
+    }
+
+    // Appele par : keyboard.js:gererEscape()
+    window.userMenu = { fermerSiOuvert: fermerSiOuvert };
 })();

@@ -1,0 +1,84 @@
+{
+  "page_jetable": "47",
+  "hors_du_mode": {
+    "present": true,
+    "visible": false,
+    "hauteur": 0,
+    "compte": "2 passages masqués",
+    "lignes": 2,
+    "dans_le_champ": false,
+    "blocs_du_champ": 2
+  },
+  "dans_le_mode": {
+    "present": true,
+    "visible": true,
+    "hauteur": 39,
+    "compte": "2 passages masqués",
+    "lignes": 2,
+    "dans_le_champ": false,
+    "blocs_du_champ": 2
+  },
+  "contrastes_en_clair": {
+    "fond_du_panneau": "rgb(250, 248, 244)",
+    "resume_sur_le_fond": 5.24,
+    "extrait_sur_le_fond": 5.24,
+    "texte_du_bouton": 5.42,
+    "filet_du_bouton": 3.16,
+    "couleur_du_filet": "color(srgb 0.561961 0.54902 0.523137)",
+    "couleur_du_texte": "rgb(107, 104, 98)",
+    "taille_du_bouton": [
+      75,
+      24
+    ]
+  },
+  "contrastes_en_sombre": {
+    "fond_du_panneau": "rgb(26, 25, 31)",
+    "resume_sur_le_fond": 5.94,
+    "extrait_sur_le_fond": 5.94,
+    "texte_du_bouton": 6.18,
+    "filet_du_bouton": 4.26,
+    "couleur_du_filet": "color(srgb 0.505882 0.489216 0.471569)",
+    "couleur_du_texte": "rgb(155, 150, 141)",
+    "taille_du_bouton": [
+      75,
+      24
+    ]
+  },
+  "apres_avoir_masque_en_session": {
+    "present": true,
+    "visible": true,
+    "hauteur": 149,
+    "compte": "3 passages masqués",
+    "lignes": 3,
+    "dans_le_champ": false,
+    "blocs_du_champ": 2
+  },
+  "toast_apres_un_enregistrement": "0 passage(s) corrigé(s), 1 masqué(s), 0 refusé(s).",
+  "le_panneau_est_reste_ouvert": true,
+  "compte_rendu_affiche": "0 blocs modifiés 1 bloc masqué 0 passages détachés 0 citations détachées 0 blocs refusés",
+  "apres_le_premier": {
+    "present": true,
+    "visible": true,
+    "hauteur": 115,
+    "compte": "2 passages masqués",
+    "lignes": 2,
+    "dans_le_champ": false,
+    "blocs_du_champ": 3
+  },
+  "blocs_du_champ_apres_le_premier": 3,
+  "apres_le_retablissement": {
+    "present": true,
+    "visible": true,
+    "hauteur": 82,
+    "compte": "1 passage masqué",
+    "lignes": 1,
+    "dans_le_champ": false,
+    "blocs_du_champ": 4
+  },
+  "blocs_du_champ_apres": 4,
+  "mode_toujours_ouvert": true,
+  "erreurs_js": [],
+  "nettoyage": [
+    "SUPPRIMEE"
+  ]
+}

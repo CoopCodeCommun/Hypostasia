@@ -115,7 +115,40 @@ class ExtractionJobCreateSerializer(serializers.ModelSerializer):
             'prompt_description',
             'example_ids'
         ]
-    
+
+    def validate_example_ids(self, identifiants_recus):
+        """
+        Attacher un exemple few-shot est un geste de CONFIGURATION.
+        / Attaching a few-shot example is a configuration gesture.
+
+        LOCALISATION : hypostasis_extractor/serializers.py
+
+        Un exemple n'appartient a aucune note : il ne suit donc pas le
+        droit de la note du job, mais celui de
+        `/api/extraction-examples/` — le staff, et personne d'autre.
+        Sans ce controle, poster une liste d'identifiants sur SA PROPRE
+        note suffit a attacher n'importe quel exemple de l'instance.
+        / An example belongs to no note, so it follows the examples
+        endpoint's rule — staff only — not the note's.
+
+        Le `request` arrive par le `context` que la vue passe. Faute de
+        contexte, on refuse : le silence serait la fuite.
+        / The request comes from the view's context; no context means
+        refusal, because silence would be the leak.
+        """
+        if not identifiants_recus:
+            return identifiants_recus
+
+        requete = self.context.get("request")
+        visiteur_est_du_staff = bool(
+            requete is not None and requete.user.is_staff
+        )
+        if not visiteur_est_du_staff:
+            raise serializers.ValidationError(
+                "Attacher un exemple est réservé aux administrateurs."
+            )
+        return identifiants_recus
+
     def create(self, validated_data):
         # Recupere les IDs des exemples avant de creer le job
         example_ids = validated_data.pop('example_ids', [])
@@ -173,7 +206,32 @@ class ExtractionJobDetailSerializer(serializers.ModelSerializer):
         ]
     
     def get_examples(self, job):
-        """Retourne les exemples associes au job."""
+        """
+        Les exemples few-shot attaches au job — POUR LE STAFF SEUL.
+        / The few-shot examples attached to the job — staff only.
+
+        LOCALISATION : hypostasis_extractor/serializers.py
+
+        Ce champ rend `example_text` et `example_extractions`, c'est-a-dire
+        le contenu entier d'un exemple. Un exemple n'appartient a aucune
+        note : il suit la regle de `/api/extraction-examples/`, qui est
+        reservee au staff. Le rendre ici a qui lit un job rouvrirait
+        cette collection par la porte d'a cote.
+        / This field returns an example's whole content; examples belong
+        to no note and follow the staff-only rule of their own endpoint.
+
+        Le `request` arrive par le `context` que la vue passe. Faute de
+        contexte, on rend la liste vide : le plus prudent des deux.
+        / The request comes from the view's context; without it we return
+        the empty list, the safer of the two.
+        """
+        requete = self.context.get("request")
+        visiteur_est_du_staff = bool(
+            requete is not None and requete.user.is_staff
+        )
+        if not visiteur_est_du_staff:
+            return []
+
         mappings = JobExampleMapping.objects.filter(job=job).select_related('example')
         return [
             {
@@ -542,6 +600,67 @@ class CorrectionDElementSerializer(serializers.Serializer):
                 "Le texte ne peut pas être vide / Text cannot be blank",
             )
         return valeur
+
+
+class UnBlocDuLotSerializer(serializers.Serializer):
+    """
+    Un bloc dans un enregistrement de lot.
+    / One block inside a batch save.
+
+    LOCALISATION : hypostasis_extractor/serializers.py
+
+    DEUX ECARTS AVEC `CorrectionDElementSerializer`, ET ILS SONT VOULUS :
+
+    1. L'identifiant est l'`identifiant_stable`, jamais le pk. C'est le
+       contrat du § 7.1 de SPEC-edition-par-blocs : le pk designe une
+       ligne, l'identifiant stable designe un BLOC.
+    2. Le texte VIDE est permis, et il a un sens : un bloc vide se
+       MASQUE (§ 7.3). Le refuser ici interdirait le geste central du
+       nettoyage post-Docling.
+    / The stable id, never the pk; and an empty text means "hide it".
+    """
+    identifiant_stable = serializers.UUIDField(
+        error_messages={
+            "required": "L'identifiant du bloc est obligatoire / Block id required",
+            "invalid": "Identifiant de bloc invalide / Invalid block id",
+        },
+    )
+    texte = serializers.CharField(
+        trim_whitespace=False,
+        allow_blank=True,
+        error_messages={
+            "required": "Le texte est obligatoire / Text is required",
+        },
+    )
+
+
+class CorrectionEnLotSerializer(serializers.Serializer):
+    """
+    Validation d'un enregistrement de session : plusieurs blocs d'un coup.
+    / Validates a session save: several blocks at once.
+
+    LOCALISATION : hypostasis_extractor/serializers.py
+
+    LA BORNE, ET CE QU'ELLE ECARTE
+
+    Un lot fait un verrou et une reconciliation PAR BLOC MODIFIE. La plus
+    grosse note de la base porte 210 blocs (mesure du 23 aout 2026) : la
+    borne est posee bien au-dessus, a 500, pour qu'aucune note reelle ne
+    la rencontre — et ce qu'elle ecarterait est COMPTE et NOMME dans le
+    compte rendu, jamais jete en silence.
+    / The cap sits well above the biggest real note; what it drops is
+    counted and named, never silently discarded.
+    """
+    BORNE_DU_LOT = 500
+
+    blocs = serializers.ListField(
+        child=UnBlocDuLotSerializer(),
+        allow_empty=False,
+        error_messages={
+            "required": "Aucun bloc à enregistrer / No block to save",
+            "empty": "Aucun bloc à enregistrer / No block to save",
+        },
+    )
 
 
 class ScissionDElementSerializer(serializers.Serializer):

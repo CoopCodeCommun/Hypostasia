@@ -1,0 +1,36 @@
+{
+ "page": 19,
+ "blocs_de_la_note": 210,
+ "tous_modifies": {
+  "blocs_envoyes": 210,
+  "statut": 200,
+  "duree_ms": 9038.9,
+  "ms_par_bloc": 43.04,
+  "extrait_du_compte_rendu": "<div class=\"compte-rendu-du-lot\" role=\"status\" aria-live=\"polite\" data-testid=\"compte-rendu-du-lot\"> <ul class=\"chiffres-du-lot\"> <li data-testid=\"blocs-modifies\"> <strong>191</strong> blocs modifiés "
+ },
+ "session_realiste_21_touches_sur_210": {
+  "blocs_envoyes": 210,
+  "statut": 200,
+  "duree_ms": 1155.4,
+  "ms_par_bloc": 5.5,
+  "extrait_du_compte_rendu": "<div class=\"compte-rendu-du-lot\" role=\"status\" aria-live=\"polite\" data-testid=\"compte-rendu-du-lot\"> <ul class=\"chiffres-du-lot\"> <li data-testid=\"blocs-modifies\"> <strong>19</strong> blocs modifiés <"
+ },
+ "nettoyage_30_blocs_vides": {
+  "blocs_envoyes": 210,
+  "statut": 200,
+  "duree_ms": 1222.9,
+  "ms_par_bloc": 5.82,
+  "extrait_du_compte_rendu": "<div class=\"compte-rendu-du-lot\" role=\"status\" aria-live=\"polite\" data-testid=\"compte-rendu-du-lot\"> <ul class=\"chiffres-du-lot\"> <li data-testid=\"blocs-modifies\"> <strong>0</strong> blocs modifiés </"
+ },
+ "aucun_changement": {
+  "blocs_envoyes": 210,
+  "statut": 200,
+  "duree_ms": 294.7,
+  "ms_par_bloc": 1.4,
+  "extrait_du_compte_rendu": "<div class=\"compte-rendu-du-lot\" role=\"status\" aria-live=\"polite\" data-testid=\"compte-rendu-du-lot\"> <ul class=\"chiffres-du-lot\"> <li data-testid=\"blocs-modifies\"> <strong>0</strong> blocs modifiés </"
+ },
+ "verification_aucune_ecriture": {
+  "elements_relus": 210,
+  "elements_modifies_ou_masques": []
+ }
+}

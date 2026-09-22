@@ -1,0 +1,51 @@
+{
+ "machine": {
+  "hote": "d168f06e7360",
+  "charge_1_5_15": [
+   "1.39",
+   "1.60",
+   "1.90"
+  ],
+  "horodatage": "2026-08-23 20:35:37"
+ },
+ "navigateur": "Chromium 145.0.7632.6",
+ "mesure_1_tenue": {
+  "210_blocs": {
+   "blocs": 210,
+   "caracteres": 58770,
+   "rendu_ms": 9.2,
+   "layout_ms": 35.7,
+   "hauteur_px": 14145,
+   "frappe_n": 40,
+   "frappe_saisie_median_ms": 5.6,
+   "frappe_saisie_p95_ms": 7.4,
+   "frappe_saisie_max_ms": 7.4,
+   "frappe_frame_median_ms": 0.2,
+   "frappe_frame_p95_ms": 5.9,
+   "duree_totale_frappe_s": 0.82,
+   "cout_entree_interceptee_ms": 1.9,
+   "cout_serialisation_ms": 4.6
+  },
+  "12_blocs": {
+   "blocs": 12,
+   "caracteres": 4411,
+   "rendu_ms": 2.7,
+   "layout_ms": 11.2,
+   "hauteur_px": 1050,
+   "frappe_n": 40,
+   "frappe_saisie_median_ms": 1.1,
+   "frappe_saisie_p95_ms": 2.1,
+   "frappe_saisie_max_ms": 2.8,
+   "frappe_frame_median_ms": 7.1,
+   "frappe_frame_p95_ms": 12.7,
+   "duree_totale_frappe_s": 0.68,
+   "cout_entree_interceptee_ms": 1.9,
+   "cout_serialisation_ms": 0.7
+  }
+ },
+ "charge_a_la_fin": [
+  "1.52",
+  "1.63",
+  "1.90"
+ ]
+}

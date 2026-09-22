@@ -1,0 +1,47 @@
+{% comment %}
+LE PANNEAU DES PASSAGES MASQUÉS — SPEC-edition-par-blocs § 5.3, cas 4.
+/ The panel of hidden passages.
+
+LOCALISATION : front/templates/front/includes/_panneau_des_masques.html
+
+Ce gabarit est inclus DEUX FOIS, et c'est sa raison d'être :
+  - par `lecture_principale.html`, au chargement de la note ;
+  - par `ElementViewSet.panneau_des_masques`, pour le rendre à nouveau
+    APRÈS un enregistrement — le mode masque un bloc pendant la session,
+    et le panneau rendu au chargement ne le connaît pas.
+
+NE JAMAIS RECOPIER CE MARKUP AILLEURS, ni le reconstruire en
+JavaScript : le texte conservé d'un bloc masqué, son ordre et le pluriel
+du compte sont connus du serveur. Une copie cliente divergerait.
+
+Reçoit `passages_masques` — la liste des ElementDocument masqués, dans
+l'ordre de lecture. Vide, il ne rend RIEN : un panneau vide serait du
+bruit permanent dans un mode qui doit laisser voir le texte.
+
+IL EST HORS DU CHAMP MODIFIABLE, toujours : son conteneur est rendu
+au-dessus de `<article>`. Le CSS ne le montre qu'en mode édition — en
+lecture, c'est le mode structure qui montre les passages masqués, à
+l'endroit du texte.
+{% endcomment %}
+{% if passages_masques %}
+<details id="panneau-des-passages-masques"
+         class="panneau-des-masques"
+         data-testid="panneau-des-passages-masques">
+    <summary data-testid="compte-des-masques">{{ passages_masques|length }} passage{{ passages_masques|length|pluralize }} masqué{{ passages_masques|length|pluralize }}</summary>
+    <ul data-testid="liste-des-masques">
+        {% for element_masque in passages_masques %}
+        <li data-element="{{ element_masque.identifiant_stable }}"
+            data-testid="passage-masque-{{ element_masque.ordre }}">
+            <span class="extrait">{{ element_masque.texte|truncatechars:120 }}</span>
+            <button type="button"
+                    hx-post="/elements/{{ element_masque.pk }}/demasquer/"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    hx-swap="none"
+                    hx-disabled-elt="this"
+                    data-testid="btn-retablir-{{ element_masque.ordre }}"
+                    title="Remettre ce passage dans le texte">rétablir</button>
+        </li>
+        {% endfor %}
+    </ul>
+</details>
+{% endif %}

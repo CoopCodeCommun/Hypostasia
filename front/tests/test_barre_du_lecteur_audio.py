@@ -128,6 +128,57 @@ class BarreDuLecteurAudioTest(TestCase):
         self.assertEqual(couleurs[0], couleurs[2])
         self.assertNotEqual(couleurs[0], couleurs[1])
 
+    def test_la_barre_porte_les_reglages_de_STENOTYPIE(self):
+        """
+        SPEC-edition-par-blocs § 6.3 : les deux gestes qui manquaient
+        vraiment sont la VITESSE de lecture et le RECUL A LA REPRISE.
+        Ils vivent dans la barre, pas dans le mode d'édition : ils
+        servent aussi à qui écoute sans corriger.
+        / § 6.3: playback speed and rewind-on-resume live in the bar.
+        """
+        note = self.creer_une_note_audio()
+        html = self.client.get(f"/lire/{note.pk}/").content.decode()
+        self.assertIn('data-testid="vitesse-de-lecture"', html)
+        self.assertIn('data-testid="btn-ralentir"', html)
+        self.assertIn('data-testid="btn-accelerer"', html)
+        self.assertIn('data-testid="recul-a-la-reprise"', html)
+
+    def test_le_recul_a_la_reprise_peut_etre_mis_a_ZERO(self):
+        """
+        « Zéro le désactive » (§ 6.3). Sans cette valeur, le réglage
+        impose un comportement au lieu de l'offrir.
+        / Zero disables it: otherwise the setting imposes a behaviour.
+        """
+        note = self.creer_une_note_audio()
+        html = self.client.get(f"/lire/{note.pk}/").content.decode()
+        self.assertIn('value="0"', html)
+
+    def test_la_vitesse_part_a_UN(self):
+        """Le réglage se voit avant d'être touché. / Visible before use."""
+        import html as entites_html
+
+        note = self.creer_une_note_audio()
+        page = self.client.get(f"/lire/{note.pk}/").content.decode()
+        debut = page.index('data-testid="vitesse-de-lecture"')
+        # On DÉCODE les entités : le gabarit écrit `&times;`, et ce qui
+        # compte est ce que la personne LIT, pas la façon dont c'est
+        # écrit. / Decode entities: what matters is what is read.
+        self.assertIn("1×", entites_html.unescape(page[debut:debut + 200]))
+
+    def test_un_document_ecrit_n_a_PAS_les_reglages(self):
+        """
+        Pas de son, pas de réglages : ce serait des commandes qui ne
+        commandent rien. / No sound, no controls.
+        """
+        note = Page.objects.create(
+            title="Un article", html_original="", html_readability="",
+            text_readability="", owner=self.proprietaire,
+            source_type="web",
+        )
+        html = self.client.get(f"/lire/{note.pk}/").content.decode()
+        self.assertNotIn('data-testid="vitesse-de-lecture"', html)
+        self.assertNotIn('data-testid="recul-a-la-reprise"', html)
+
     def test_un_document_ecrit_n_a_pas_de_barre(self):
         """
         Une barre de lecture sous un PDF promettrait un son qui n'existe

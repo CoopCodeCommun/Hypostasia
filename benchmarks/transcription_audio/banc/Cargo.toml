@@ -1,0 +1,13 @@
+[package]
+name = "bench"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# La feature sortformer n'est pas activee par defaut / sortformer feature is off by default
+# Version figee : 0.3.7 est celle qui a compile / pinned: 0.3.7 is the version that compiled
+parakeet-rs = { version = "=0.3.7", features = ["sortformer"] }
+hound = "3.5"
+
+[profile.release]
+opt-level = 3

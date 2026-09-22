@@ -1,0 +1,48 @@
+{
+ "horodatage": "2026-08-23 20:40:54",
+ "charge_au_debut": [
+  "1.51",
+  "1.56",
+  "1.79"
+ ],
+ "navigateur": "Chromium 145.0.7632.6",
+ "marques_au_depart": 59,
+ "blocs_au_depart": 210,
+ "frappe_dans_la_marque": {
+  "marques_avant": 1,
+  "marques_apres": 1,
+  "texte_exact": true,
+  "la_marque_contient_la_frappe": true,
+  "extrait": "<p data-corps-de=\"2124d2cc-cf73-49cc-88d1-6adaab5e4ac8\">For both h<mark class=\"portion\">umans and XXmachines, </mark>the effect of symbolic reasoning "
+ },
+ "frappe_frontiere_gauche": {
+  "marques_avant": 1,
+  "marques_apres": 1,
+  "texte_exact": true,
+  "la_frappe_est_entree_DANS_la_marque": false
+ },
+ "frappe_frontiere_droite": {
+  "marques_avant": 1,
+  "marques_apres": 1,
+  "texte_exact": true,
+  "la_frappe_est_entree_DANS_la_marque": true
+ },
+ "suppression_couvrant_la_marque": {
+  "marques_avant": 1,
+  "marques_apres": 0,
+  "texte_exact": true
+ },
+ "marques_detruites_par_la_suppression_multi_blocs": {
+  "marques_avant": 59,
+  "marques_apres": 57,
+  "detruites": 2,
+  "marques_qui_etaient_dans_la_plage": 2,
+  "frontieres_identiques": true
+ },
+ "marques_hors_plage_intactes": 57,
+ "charge_a_la_fin": [
+  "1.51",
+  "1.56",
+  "1.79"
+ ]
+}

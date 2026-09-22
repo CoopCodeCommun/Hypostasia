@@ -1,0 +1,132 @@
+{
+ "horodatage": "2026-08-28 13:45:06",
+ "chromium": {
+  "version": "145.0.7632.6",
+  "pile_apres_un_mot": {
+   "passes": 1,
+   "refaits": 0,
+   "ecartees": 0
+  },
+  "un_mot_fait_UN_pas": true,
+  "suppression_multi_blocs": {
+   "blocs_21_a_24_vides_apres_le_geste": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "blocs_21_a_24_RENDUS_par_l_annulation": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "bloc20_rendu": true,
+   "bloc25_rendu": true,
+   "UN_SEUL_ctrl_z_a_suffi": true
+  },
+  "frontieres_identiques_apres_annulation": true,
+  "retablissement_rend_les_blocs_vides": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "frontieres_identiques_apres_retablissement": true,
+  "curseur_revient_dans_le_bon_bloc": "20",
+  "ctrl_s": {
+   "etat_d_attente_annonce": true,
+   "second_ctrl_s_refuse": true,
+   "post_produit": true,
+   "drapeau_modifie_retombe": true,
+   "pile_CONSERVEE": true
+  },
+  "erreurs_javascript": []
+ },
+ "firefox": {
+  "version": "146.0.1",
+  "pile_apres_un_mot": {
+   "passes": 1,
+   "refaits": 0,
+   "ecartees": 0
+  },
+  "un_mot_fait_UN_pas": true,
+  "suppression_multi_blocs": {
+   "blocs_21_a_24_vides_apres_le_geste": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "blocs_21_a_24_RENDUS_par_l_annulation": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "bloc20_rendu": true,
+   "bloc25_rendu": true,
+   "UN_SEUL_ctrl_z_a_suffi": true
+  },
+  "frontieres_identiques_apres_annulation": true,
+  "retablissement_rend_les_blocs_vides": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "frontieres_identiques_apres_retablissement": true,
+  "curseur_revient_dans_le_bon_bloc": "20",
+  "ctrl_s": {
+   "etat_d_attente_annonce": true,
+   "second_ctrl_s_refuse": true,
+   "post_produit": true,
+   "drapeau_modifie_retombe": true,
+   "pile_CONSERVEE": true
+  },
+  "erreurs_javascript": []
+ },
+ "webkit": {
+  "version": "26.0",
+  "pile_apres_un_mot": {
+   "passes": 1,
+   "refaits": 0,
+   "ecartees": 0
+  },
+  "un_mot_fait_UN_pas": true,
+  "suppression_multi_blocs": {
+   "blocs_21_a_24_vides_apres_le_geste": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "blocs_21_a_24_RENDUS_par_l_annulation": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "bloc20_rendu": true,
+   "bloc25_rendu": true,
+   "UN_SEUL_ctrl_z_a_suffi": true
+  },
+  "frontieres_identiques_apres_annulation": true,
+  "retablissement_rend_les_blocs_vides": [
+   true,
+   true,
+   true,
+   true
+  ],
+  "frontieres_identiques_apres_retablissement": true,
+  "curseur_revient_dans_le_bon_bloc": "20",
+  "ctrl_s": {
+   "etat_d_attente_annonce": true,
+   "second_ctrl_s_refuse": true,
+   "post_produit": true,
+   "drapeau_modifie_retombe": true,
+   "pile_CONSERVEE": true
+  },
+  "erreurs_javascript": []
+ }
+}

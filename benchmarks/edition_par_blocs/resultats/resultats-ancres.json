@@ -1,0 +1,60 @@
+{
+ "page": 19,
+ "elements_eprouves": 40,
+ "par_genre": {
+  "frappe_au_milieu": {
+   "portions_totales": 59,
+   "exactes": 19,
+   "retrouvees": 18,
+   "detachees": 22,
+   "elements_traites": 26,
+   "refus_synthese_figee": 14,
+   "refus_analyse_en_cours": 0,
+   "taux_de_detachement_pct": 37.3
+  },
+  "nbsp_comme_le_navigateur": {
+   "portions_totales": 59,
+   "exactes": 19,
+   "retrouvees": 18,
+   "detachees": 22,
+   "elements_traites": 26,
+   "refus_synthese_figee": 14,
+   "refus_analyse_en_cours": 0,
+   "taux_de_detachement_pct": 37.3
+  },
+  "saut_de_ligne": {
+   "portions_totales": 59,
+   "exactes": 19,
+   "retrouvees": 18,
+   "detachees": 22,
+   "elements_traites": 26,
+   "refus_synthese_figee": 14,
+   "refus_analyse_en_cours": 0,
+   "taux_de_detachement_pct": 37.3
+  },
+  "correction_de_casse": {
+   "portions_totales": 56,
+   "exactes": 34,
+   "retrouvees": 0,
+   "detachees": 22,
+   "elements_traites": 26,
+   "refus_synthese_figee": 14,
+   "refus_analyse_en_cours": 0,
+   "taux_de_detachement_pct": 39.3
+  },
+  "troncature_de_tete": {
+   "portions_totales": 58,
+   "exactes": 0,
+   "retrouvees": 0,
+   "detachees": 58,
+   "elements_traites": 26,
+   "refus_synthese_figee": 14,
+   "refus_analyse_en_cours": 0,
+   "taux_de_detachement_pct": 100.0
+  }
+ },
+ "verification_aucune_ecriture": {
+  "elements_inchanges": 40,
+  "elements_modifies": []
+ }
+}

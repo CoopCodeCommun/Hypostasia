@@ -1,0 +1,41 @@
+/* Reprise minimale de la grille « gouttiere | corps » de maquette.css:1670.
+   / Minimal copy of the real gutter grid. */
+body { font-family: Georgia, serif; margin: 0; padding: 1rem; background: #fdfdfb; }
+#bandeau { font: 12px monospace; background: #eee; padding: .3rem; margin: 0 0 .5rem; }
+#bandeau span { margin-right: 1.5rem; }
+#champ { max-width: 700px; outline: none; }
+.bloc {
+  display: grid;
+  grid-template-columns: 46px 3px 1fr;
+  column-gap: .5rem;
+  margin-bottom: .75rem;
+}
+.gouttiere { font: 10px monospace; color: #888; text-align: right; user-select: none; }
+.filet-etat { background: #cfcfcf; }
+.corps > * { margin: 0; }
+.corps h2 { font-size: 1.15rem; }
+mark.portion { background: #ffe9a8; }
+.bloc[data-vide="oui"] .corps { min-height: 1.2em; background: #f4f4f4; }
+#compte-rendu { font: 11px monospace; background: #f6f6f6; padding: .5rem; white-space: pre-wrap; }
+
+/* L'avertissement et la liste des modes : ce prototype n'est pas un etalon,
+   et il faut que ca se voie avant qu'on le prenne pour une reference.
+   / The warning banner: this is not a design reference. */
+#avertissement {
+  border-left: 4px solid #B61601;
+  background: #fff6f5;
+  padding: .6rem .9rem;
+  margin: 0 0 .5rem;
+  font-size: .85rem;
+  line-height: 1.5;
+  max-width: 760px;
+}
+#modes {
+  background: #f4f4f4;
+  padding: .6rem .9rem;
+  margin: 0 0 .8rem;
+  font-size: .82rem;
+  line-height: 1.6;
+  max-width: 760px;
+}
+#modes code, #avertissement code { background: #e8e8e8; padding: 0 .2em; }

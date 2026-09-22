@@ -1,0 +1,51 @@
+# Le candidat « pret a l'emploi » : loudpage/parakeet-v3-diarized
+# / The "ready-made" candidate: loudpage/parakeet-v3-diarized
+#
+# CE QU'IL EST : Parakeet servi par NeMo (donc PyTorch, pas ONNX) plus pyannote,
+# derriere une API compatible OpenAI Whisper. C'est la seule pile du banc qui
+# arrive assemblee — les autres, il a fallu les coller.
+#
+# CE QU'IL COUTE, ET C'EST LE POINT DE LA MESURE. Son `requirements.txt`
+# reclame `nemo_toolkit`, `lhotse`, `webdataset`, `transformers`, `datasets`,
+# `librosa`, `pyannote.audio` et `cuda-python` — ce dernier sur une machine qui
+# n'a pas de carte graphique. Le depot ne fournit AUCUN Dockerfile : celui-ci
+# est ecrit pour le banc. Le critere 4 de la spec (« installable sans
+# friction ») se joue exactement la.
+# / What it costs: nemo_toolkit, lhotse, webdataset, cuda-python — and the
+# repository ships no Dockerfile at all. This one is written for the benchmark.
+#
+# Python 3.11 et non 3.12 : NeMo publie ses roues pour 3.10/3.11, et une
+# installation depuis les sources ferait mesurer un compilateur, pas un modele.
+# / Python 3.11: NeMo ships wheels for 3.10/3.11.
+FROM python:3.11-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg ca-certificates curl git time build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# L'index CPU de PyTorch, sinon pip tire les bibliotheques CUDA sur une machine
+# qui n'a pas de GPU. / PyTorch's CPU index: no GPU on the target machine.
+RUN pip install --no-cache-dir torch==2.5.1 torchaudio==2.5.1 \
+        --index-url https://download.pytorch.org/whl/cpu
+
+WORKDIR /opt
+RUN git clone --depth 1 https://github.com/loudpage/parakeet-v3-diarized.git
+
+WORKDIR /opt/parakeet-v3-diarized
+# `cuda-python` est retire de la liste : il ne sert a rien ici et son
+# installation echoue ou pese pour rien sur une machine sans GPU. Le retrait est
+# une modification du candidat, et il est consigne comme tel dans la note.
+# / cuda-python is dropped: useless without a GPU. The removal is documented.
+RUN sed -i '/cuda-python/d' requirements.txt \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Le modele : la v3 MULTILINGUE, et non la v2 anglaise qui est le defaut du
+# depot. Mesurer la v2 sur du francais ne dirait rien de ce qu'on cherche.
+# / The MULTILINGUAL v3, not the repository's English v2 default.
+ENV MODEL_ID=nvidia/parakeet-tdt-0.6b-v3
+ENV ENABLE_DIARIZATION=true
+ENV INCLUDE_DIARIZATION_IN_TEXT=true
+ENV HF_HOME=/work/.cache_huggingface
+
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

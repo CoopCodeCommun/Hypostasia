@@ -182,6 +182,80 @@ class ParcoursDuDocumentTest(TestCase):
         self.assertEqual(elements[0]["reference_docling"], "#/texts/4")
 
 
+class RecollageDesFragmentsTest(TestCase):
+    """
+    Docling DECOUPE une phrase au balisage en ligne ; on la recolle.
+    / Docling splits a sentence at inline markup; we rejoin it.
+
+    LE DEFAUT QUE CES TESTS EMPECHENT DE REVENIR, et son cout reel.
+    `des **synthèses sourcées et contestables**. Trois deplacements`
+    arrive de Docling en TROIS fragments — `des`, le gras, puis
+    `. Trois deplacements`. Recoller avec un espace inconditionnel
+    produisait « contestables . », un point detache de son mot.
+
+    Ce n'est pas cosmetique : le juge de verification compare la
+    citation du modele au texte de l'element MOT POUR MOT. Le modele
+    recolle le point, notre texte ne le recollait pas, et la citation
+    partait en INTROUVABLE. Mesure du 19 aout 2026 : 34 des 60
+    citations introuvables (57 %) tenaient a un artefact de ce genre.
+    / The verification judge compares word for word; 57 % of "not
+    found" citations came from this artefact.
+    """
+
+    def test_un_point_se_colle_au_mot_qui_le_precede(self):
+        from hypostasis_extractor.services.ingestion_docling import _recoller
+
+        recolle = _recoller(
+            "des synthèses sourcées et contestables",
+            ". Trois déplacements suivent.",
+        )
+
+        self.assertIn("contestables. Trois", recolle)
+        self.assertNotIn("contestables .", recolle)
+
+    def test_les_autres_ponctuations_basses_se_collent_aussi(self):
+        from hypostasis_extractor.services.ingestion_docling import _recoller
+
+        for ponctuation in (",", ")", "]", "»", "…"):
+            with self.subTest(ponctuation=ponctuation):
+                self.assertEqual(
+                    _recoller("un mot", f"{ponctuation} la suite"),
+                    f"un mot{ponctuation} la suite",
+                )
+
+    def test_deux_mots_gardent_leur_espace(self):
+        from hypostasis_extractor.services.ingestion_docling import _recoller
+
+        self.assertEqual(
+            _recoller("le fichier", "reconciliation.py"),
+            "le fichier reconciliation.py",
+        )
+
+    def test_une_parenthese_ouvrante_se_colle_a_ce_qui_suit(self):
+        from hypostasis_extractor.services.ingestion_docling import _recoller
+
+        self.assertEqual(_recoller("voir (", "la note 3)"), "voir (la note 3)")
+
+    def test_la_ponctuation_haute_francaise_garde_son_espace(self):
+        # `;` `:` `!` `?` veulent une espace devant en francais : la
+        # trancher ici serait un choix de rendu, pas une reparation.
+        # / French high punctuation wants a space before it.
+        from hypostasis_extractor.services.ingestion_docling import _recoller
+
+        for ponctuation in (";", ":", "!", "?"):
+            with self.subTest(ponctuation=ponctuation):
+                self.assertEqual(
+                    _recoller("un mot", f"{ponctuation} la suite"),
+                    f"un mot {ponctuation} la suite",
+                )
+
+    def test_un_fragment_vide_ne_laisse_pas_d_espace(self):
+        from hypostasis_extractor.services.ingestion_docling import _recoller
+
+        self.assertEqual(_recoller("", "un début"), "un début")
+        self.assertEqual(_recoller("une fin", ""), "une fin")
+
+
 class ProvenancePhysiqueTest(TestCase):
     """
     La provenance PDF : page et boites.

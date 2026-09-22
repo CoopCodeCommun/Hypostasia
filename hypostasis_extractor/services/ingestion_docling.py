@@ -468,8 +468,8 @@ def extraire_les_elements_bruts(document_docling):
             # / A heading shares the group mark; never merge into it.
             and elements_bruts[-1].get("label") in LABELS_RECOLLABLES_EN_LIGNE
         ):
-            elements_bruts[-1]["texte"] = (
-                elements_bruts[-1]["texte"].rstrip() + " " + texte.lstrip()
+            elements_bruts[-1]["texte"] = _recoller(
+                elements_bruts[-1]["texte"], texte,
             )
             # LE RESULTAT EST DU TEXTE, meme si le fragment d'ouverture
             # etait du code : une phrase qui COMMENCE par un nom de
@@ -493,6 +493,65 @@ def extraire_les_elements_bruts(document_docling):
         len(elements_bruts),
     )
     return elements_bruts
+
+
+# La ponctuation qui se COLLE au mot qui la precede, en francais comme
+# en anglais. Le point-virgule, les deux-points, le point d'exclamation
+# et le point d'interrogation en sont volontairement ABSENTS : la
+# typographie francaise leur veut une espace insecable devant, et
+# trancher cela ici serait un choix de rendu, pas une reparation.
+# / Punctuation that clings to the preceding word. French high
+# punctuation is deliberately absent: it wants a space before.
+PONCTUATION_COLLEE_AU_MOT = ".,)]}»…"
+
+# Ce qui ne prend jamais d'espace APRES soi.
+# / What never takes a space after itself.
+PONCTUATION_COLLEE_AU_SUIVANT = "([{«"
+
+
+def _recoller(deja_la, fragment):
+    """
+    Recolle deux fragments d'une meme phrase, sans espace parasite.
+    / Rejoins two fragments of one sentence, without a stray space.
+
+    LOCALISATION : hypostasis_extractor/services/ingestion_docling.py
+
+    LE DEFAUT QUE CETTE FONCTION REPARE, ET SON COUT REEL. Docling
+    DECOUPE un paragraphe au niveau du balisage en ligne : `des
+    **synthèses sourcées et contestables**. Trois deplacements` arrive
+    en TROIS fragments — `des`, `synthèses sourcées et contestables`,
+    `. Trois deplacements`. Les recoller avec un espace inconditionnel
+    produisait `contestables .`, un point detache de son mot.
+
+    Ce n'est pas cosmetique : le juge de verification compare la
+    citation du modele au texte de l'element, MOT POUR MOT. Le modele
+    recolle le point (comme n'importe quel lecteur), notre texte ne le
+    recolle pas, et la citation est declaree INTROUVABLE. Mesure du
+    19 aout 2026 : sur 60 citations introuvables, **34 (57 %)** ne
+    tenaient qu'a une retouche de forme de ce genre, dont 20 a une
+    espace de ponctuation.
+    / Not cosmetic: the verification judge compares word for word, and
+    57 % of "not found" citations came from this kind of artefact.
+
+    :param deja_la: le fragment deja accumule / the accumulated fragment
+    :param fragment: celui qui arrive / the incoming one
+    :return: les deux, joints / the two, joined
+    """
+    gauche = (deja_la or "").rstrip()
+    droite = (fragment or "").lstrip()
+    if not gauche:
+        return droite
+    if not droite:
+        return gauche
+    # Un fragment qui COMMENCE par une ponctuation basse se colle au
+    # mot d'avant ; un fragment qui SUIT une parenthese ouvrante se
+    # colle a elle. / Low punctuation clings backwards; an opening
+    # bracket clings forwards.
+    if droite[0] in PONCTUATION_COLLEE_AU_MOT:
+        return gauche + droite
+    if gauche[-1] in PONCTUATION_COLLEE_AU_SUIVANT:
+        return gauche + droite
+    return gauche + " " + droite
 
 
 def _groupe_inline_de_l_element(element_docling, document_docling):

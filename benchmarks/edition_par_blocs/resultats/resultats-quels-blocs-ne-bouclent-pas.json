@@ -1,0 +1,25 @@
+{
+ "blocs_compares": 210,
+ "exacts": 202,
+ "differents": 8,
+ "par_label": {
+  "table": 8
+ },
+ "exemples": [
+  {
+   "label": "table",
+   "attendu": "Table 1. Formal definitions of the 30 hypostases (not refuted by X / n",
+   "obtenu": "Table 1. Formal definitions of the 30 hypostases (not refuted by X / n"
+  },
+  {
+   "label": "table",
+   "attendu": "| Conjecture   | not refuted by formal induction and not proven by emp",
+   "obtenu": "Conjecturenot refuted by formal induction and not proven by empirical "
+  },
+  {
+   "label": "table",
+   "attendu": "Table 2. Formal Definition of Debate Modes.\n\n| Debate Format   | Forma",
+   "obtenu": "Table 2. Formal Definition of Debate Modes.Debate FormatFormal Conditi"
+  }
+ ]
+}

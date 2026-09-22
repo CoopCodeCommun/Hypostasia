@@ -1,0 +1,38 @@
+{
+ "chromium": {
+  "annulation_native_sans_interception": true,
+  "ctrl_z_recu_par_la_page": 1,
+  "preventDefault_EMPECHE_l_annulation_native": true,
+  "cout_d_une_photo": {
+   "median_ms": 2.8,
+   "max_ms": 3.2,
+   "octets_d_une_photo": 57558,
+   "blocs": 210
+  },
+  "poids_de_100_photos_Mo": 5.49
+ },
+ "firefox": {
+  "annulation_native_sans_interception": true,
+  "ctrl_z_recu_par_la_page": 1,
+  "preventDefault_EMPECHE_l_annulation_native": true,
+  "cout_d_une_photo": {
+   "median_ms": 5,
+   "max_ms": 7,
+   "octets_d_une_photo": 57558,
+   "blocs": 210
+  },
+  "poids_de_100_photos_Mo": 5.49
+ },
+ "webkit": {
+  "annulation_native_sans_interception": true,
+  "ctrl_z_recu_par_la_page": 1,
+  "preventDefault_EMPECHE_l_annulation_native": true,
+  "cout_d_une_photo": {
+   "median_ms": 4,
+   "max_ms": 5,
+   "octets_d_une_photo": 57558,
+   "blocs": 210
+  },
+  "poids_de_100_photos_Mo": 5.49
+ }
+}

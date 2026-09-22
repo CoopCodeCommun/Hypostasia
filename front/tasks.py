@@ -1426,19 +1426,30 @@ def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par,
         operations, identifiants_du_perimetre,
     )
 
-    # La borne basse des nouveautes est la DERNIERE MISE A JOUR, lue
-    # avant l'ecriture : `derniere_mise_a_jour` est un auto_now, le save
-    # qui suit l'ecrasera. C'est la meme borne que celle de l'ecran
-    # (`_contexte_d_article`), donc la meme raison des deux cotes.
-    # / Read the previous date before the save overwrites it.
-    depuis = wiki.derniere_mise_a_jour
+    # LA DATE DU DERNIER ESSAI (`borne_du_dernier_essai`). Compter
+    # depuis la derniere REUSSITE ferait reraconter, au tour d'apres un
+    # lot rejete, des nouveautes que le tour rejete avait deja vues.
+    # / The last attempt's date, not the last success's.
+    depuis = borne_du_dernier_essai(wiki)
 
     # RIEN D'APPLICABLE : on ecrit l'histoire de la tentative, et on ne
     # touche PAS a l'article. Le reecrire a l'identique le ferait passer
-    # par une reindexation complete pour zero changement, et ferait
-    # monter un compteur de tours qui ne raconte rien.
-    # / Nothing applicable: record the attempt, leave the article alone.
-    if not bilan["operations_appliquees"]:
+    # par une reindexation complete pour zero changement — y compris
+    # l'enchainement d'un juge d'API, qui est FACTURE — et ferait monter
+    # un compteur de tours qui ne raconte rien.
+    #
+    # `no_change` COMPTE COMME RIEN. L'applieur l'ACCEPTE (§ 6.1 : c'est
+    # une operation legitime, celle par laquelle le modele dit « il n'y
+    # a rien a ajouter »), mais accepter n'est pas changer : un lot qui
+    # n'en contient que prendrait sinon tout le chemin d'ecriture pour
+    # un texte identique.
+    # / An accepted `no_change` changes nothing: it must not take the
+    # full write path.
+    operations_qui_changent_le_texte = [
+        ligne for ligne in bilan["operations_appliquees"]
+        if (ligne.get("operation") or {}).get("type") != "no_change"
+    ]
+    if not operations_qui_changent_le_texte:
         from core.services.historique_de_wiki import enregistrer_un_tour
 
         texte_inchange = wiki.page.text_readability or ""
@@ -1469,6 +1480,36 @@ def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par,
     ])
 
     return bilan, bilan_d_indexation
+
+
+def borne_du_dernier_essai(wiki):
+    """
+    Depuis quand ce wiki n'a-t-il pas ete REGARDE ?
+    / When was this wiki last LOOKED AT?
+
+    LOCALISATION : front/tasks.py
+
+    LA DATE DU DERNIER ESSAI, PAS DE LA DERNIERE REUSSITE.
+    `derniere_mise_a_jour` n'avance QUE lorsqu'une operation est
+    appliquee. Un lot entierement rejete la laisse donc en arriere — cas
+    reel du 16 aout : six operations proposees, six rejetees sur des
+    titres hallucines. `TourDeWiki.fait_le`, lui, est ecrit meme quand
+    tout a ete rejete : c'est lui qui dit « on a deja regarde ».
+
+    `appliquer_un_tour_de_wiki` compte depuis cette borne ce qui a
+    appele le tour : sans elle, le tour qui suit un lot rejete
+    reraconterait des nouveautes que le tour rejete avait deja vues.
+    / The date of the last ATTEMPT, not of the last success: the round
+    after a rejected batch must not re-tell what that batch already saw.
+
+    :param wiki: le `Wiki` / the wiki
+    :return: la date la plus recente entre le dernier tour et la
+             derniere mise a jour / the latest of the two dates
+    """
+    dernier_tour = wiki.tours.first()
+    if dernier_tour is None:
+        return wiki.derniere_mise_a_jour
+    return max(dernier_tour.fait_le, wiki.derniere_mise_a_jour)
 
 
 @shared_task(bind=True)

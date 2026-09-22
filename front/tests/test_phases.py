@@ -1706,6 +1706,79 @@ class Phase09MarginaliaJSContenuTest(TestCase):
                 f"{nom} appelle encore la fabrique de pastilles",
             )
 
+    def test_marginalia_n_ecoute_PLUS_la_touche_echap(self):
+        """
+        AUCUN ECOUTEUR ECHAP HORS DE LA CASCADE — ni ici, ni ailleurs.
+
+        marginalia.js en portait un second, hors cascade. Les deux
+        repondaient a la meme touche : avec le drawer ouvert par-dessus
+        un editeur de correction, UN appui fermait le drawer ET jetait
+        la correction en cours de frappe (mesure du 29 aout 2026).
+
+        Ce test tombe si quelqu'un remet un `keydown` ici. La fermeture
+        par Echap vit dans `keyboard.js:gererEscape()`, qui appelle
+        `window.marginalia.fermerEditeurEnPlace()`.
+        / One Escape listener only, and it is the cascade.
+        """
+        self.assertNotIn(
+            "addEventListener('keydown'", self.contenu_js,
+            "marginalia.js ne doit porter AUCUN ecouteur clavier : la "
+            "cascade Echap de keyboard.js est le seul point d'entree",
+        )
+        self.assertNotIn('addEventListener("keydown"', self.contenu_js)
+
+    def test_aucun_ecouteur_echap_AU_NIVEAU_DOCUMENT_hors_cascade(self):
+        """
+        La regle vaut pour TOUS les scripts, pas pour marginalia seul.
+
+        `user_menu.js` portait le meme defaut et l'a paye de la meme
+        facon : menu ouvert par-dessus un editeur de correction, un seul
+        Echap fermait les deux et jetait la frappe en cours.
+
+        LA REGLE PORTE SUR LES ECOUTEURS DE DOCUMENT, ET SUR EUX SEULS.
+        Un ecouteur pose sur UN CHAMP est legitime : il ne se declenche
+        que si le focus y est, donc il ne peut pas fermer deux choses a
+        la fois. `hypostasia.js` en a un sur le champ du titre, et il
+        reste. / The rule targets document-level listeners only.
+        """
+        for nom in ("marginalia.js", "user_menu.js", "drawer_vue_liste.js",
+                    "hypostasia.js"):
+            contenu = (STATIC_FRONT / "js" / nom).read_text(encoding="utf-8")
+            for motif in ("document.addEventListener('keydown'",
+                          'document.addEventListener("keydown"'):
+                self.assertNotIn(
+                    motif, contenu,
+                    f"{nom} pose un ecouteur clavier AU NIVEAU DOCUMENT : "
+                    f"la touche Echap appartient a la cascade de keyboard.js",
+                )
+
+    def test_marginalia_expose_la_fermeture_de_l_editeur(self):
+        """
+        La cascade appelle `window.marginalia.fermerEditeurEnPlace()` :
+        sans cet export, Echap ne fermerait plus l'editeur du tout.
+        / Without this export, Escape would stop closing the editor.
+        """
+        self.assertIn("fermerEditeurEnPlace", self.contenu_js)
+        self.assertIn(
+            "fermerEditeurEnPlace: fermerEditeurEnPlace", self.contenu_js,
+            "la fonction doit etre EXPOSEE sur window.marginalia",
+        )
+
+    def test_la_cascade_echap_ferme_l_editeur_en_place(self):
+        """
+        Le rang existe dans `gererEscape()`, et il est APRES le drawer :
+        un panneau ouvert par-dessus le texte se ferme en premier.
+        / The rung exists, and it sits after the drawer.
+        """
+        cascade = (STATIC_FRONT / "js" / "keyboard.js").read_text(encoding="utf-8")
+        self.assertIn("marginalia.fermerEditeurEnPlace", cascade)
+        rang_drawer = cascade.find("drawerVueListe.estOuvert()")
+        rang_editeur = cascade.find("marginalia.fermerEditeurEnPlace")
+        self.assertGreater(
+            rang_editeur, rang_drawer,
+            "l'editeur doit se fermer APRES le drawer dans la cascade",
+        )
+
     def test_mapping_couleurs_statut(self):
         """marginalia.js contient le mapping COULEURS_STATUT binaire (A.8)."""
         self.assertIn("COULEURS_STATUT", self.contenu_js)

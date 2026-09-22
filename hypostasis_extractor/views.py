@@ -10,7 +10,7 @@ from datetime import timedelta
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -47,6 +47,7 @@ def _normalize_attribute_orders_for_analyseur(analyseur_id):
                 attr.save(update_fields=['order'])
 
 from django.db import models as db_models
+from core.services.corpus import notes_visibles_par
 from .models import (
     ExtractionJob, ExtractedEntity, ExtractionExample,
     AnalyseurSyntaxique, PromptPiece, AnalyseurExample, ExampleExtraction, ExtractionAttribute,
@@ -79,6 +80,208 @@ from .serializers import (
 # l'ancien moteur d'ancrage. / Legacy anchoring layer, removed.
 
 
+# =============================================================================
+# LES GARDES DES TROIS COLLECTIONS JSON
+# / The three JSON collections' access gates
+#
+# Ces trois ViewSets rendent du JSON de MECANIQUE : le prompt envoye au
+# modele, son resultat brut, et le verbatim de chaque passage cite.
+#
+# LA DOCTRINE EST CELLE DU 404, JAMAIS DU 403 (AGENTS.md). Un objet
+# qu'on n'a pas le droit de lire repond EXACTEMENT comme un objet qui
+# n'existe pas. Deux reponses differentes suffiraient a lire, un
+# identifiant apres l'autre, ce que l'instance contient.
+# / 404 doctrine: a forbidden object answers exactly like a missing one,
+# otherwise the two answers enumerate what the instance holds.
+#
+# C'EST POURQUOI AUCUNE DE CES VUES N'APPELLE `get_object_or_404` : il
+# leve `Http404("No <Modele> matches the given query.")`, et DRF rend ce
+# texte dans le corps. Un refus leve par une garde rendrait « Not
+# found. » — un corps DIFFERENT, donc un oracle. Tout passe par
+# `_objet_du_perimetre_ou_404`, qui leve le meme `Http404` nu.
+# / No view here calls get_object_or_404: its message differs from a
+# bare Http404, and that difference alone is an oracle.
+#
+# LE CONTROLE EST DANS CHAQUE VUE, PAS DANS `permission_classes` : une
+# classe de permission DRF repond 401 ou 403, jamais 404.
+# / The gate lives in each view: DRF permission classes answer 401/403.
+#
+# CE QUE CES GARDES NE FONT PAS : elles ne referment pas un carnet
+# PUBLIC pour un visiteur connecte. Le perimetre est celui du projet
+# (`notes_visibles_par`, SPEC-corpus § 5.2) : ranger une note dans un
+# carnet public LA REND PUBLIQUE, jobs compris. Seul l'anonyme est
+# tenu plus court, parce qu'il n'a aucun compte a qui rattacher une
+# lecture.
+# / These gates do not close a PUBLIC notebook to a signed-in visitor:
+# filing a note into a public notebook makes it public, jobs included.
+# =============================================================================
+
+
+def _exiger_un_visiteur_connecte(request):
+    """
+    Coupe court si personne n'est connecte.
+    / Cuts short when nobody is signed in.
+
+    LOCALISATION : hypostasis_extractor/views.py
+
+    :param request: la requete Django
+    :raises Http404: quand le visiteur n'est pas authentifie
+    """
+    if not request.user.is_authenticated:
+        raise Http404
+
+
+def _exiger_un_membre_du_staff(request):
+    """
+    Coupe court si le visiteur n'est pas administrateur.
+    / Cuts short when the visitor is not a staff member.
+
+    LOCALISATION : hypostasis_extractor/views.py
+
+    C'est la garde des objets qui n'appartiennent A AUCUNE NOTE — les
+    exemples few-shot. Faute de note d'ou deriver un droit, ils suivent
+    la regle des analyseurs : la configuration du moteur est au staff.
+    / The gate for objects owned by no note: engine configuration is
+    staff-only.
+
+    :param request: la requete Django
+    :raises Http404: quand le visiteur n'est pas du staff
+    """
+    if not request.user.is_staff:
+        raise Http404
+
+
+def _exiger_le_droit_d_ecrire_sur_la_note(request, page):
+    """
+    Coupe court si le visiteur ne peut pas ecrire sur cette note.
+    / Cuts short when the visitor cannot write to this note.
+
+    LOCALISATION : hypostasis_extractor/views.py
+
+    La regle vit dans `front.views._utilisateur_peut_ecrire_page`
+    (SPEC-corpus § 5.2) : le droit se derive des carnets qui contiennent
+    la note. L'import est PARESSEUX pour eviter le cycle
+    front <-> extractor, comme dans `views_element.py`.
+    / The rule lives in front.views; the import is lazy to avoid a cycle.
+
+    :param request: la requete Django
+    :param page: la Page visee
+    :raises Http404: quand le visiteur n'a pas ce droit
+    """
+    from front.views import _utilisateur_peut_ecrire_page
+
+    if not _utilisateur_peut_ecrire_page(request.user, page):
+        raise Http404
+
+
+def _objet_du_perimetre_ou_404(queryset, identifiant_recu):
+    """
+    L'objet du perimetre qui porte cet identifiant, ou 404.
+    / The scoped object bearing this identifier, or 404.
+
+    LOCALISATION : hypostasis_extractor/views.py
+
+    TROIS CAS, UNE SEULE REPONSE : l'objet n'existe pas, il existe hors
+    du perimetre, ou l'identifiant n'est meme pas un nombre. Les trois
+    levent le MEME `Http404` nu, dont DRF fait `{"detail": "Not
+    found."}`. C'est ce qui rend le refus indiscernable de l'absence.
+    / Three cases, one answer: missing, out of scope, or not a number.
+
+    Le troisieme cas n'est pas theorique : le routeur DRF accepte
+    `[^/.]+` comme identifiant, donc `/api/extraction-jobs/abc/` arrive
+    ici avec une chaine — et `filter(pk="abc")` leve `ValueError`, donc
+    un 500 qui dit au passage que la vue existe.
+    / The third case is real: the router accepts non-numeric ids, and
+    filtering on one raises ValueError — a 500 that leaks the view.
+
+    :param queryset: le QuerySet DEJA borne au perimetre du visiteur
+    :param identifiant_recu: l'identifiant tel qu'il arrive de la requete
+    :raises Http404: dans les trois cas
+    :return: l'objet trouve
+    """
+    try:
+        objet_trouve = queryset.filter(pk=identifiant_recu).first()
+    except (TypeError, ValueError):
+        raise Http404
+
+    if objet_trouve is None:
+        raise Http404
+
+    return objet_trouve
+
+
+def _filtre_numerique_ou_rien(queryset, nom_du_champ, valeur_recue):
+    """
+    Applique un filtre sur un identifiant, ou rend le queryset intact.
+    / Applies an id filter, or returns the queryset untouched.
+
+    LOCALISATION : hypostasis_extractor/views.py
+
+    UN FILTRE DE QUERY PARAM N'EST PAS UN CHEMIN VERS LA VUE : il arrive
+    en clair de l'URL, et `filter(page_id="abc")` leve `ValueError` DES
+    L'APPEL — pas a l'evaluation du queryset. C'est donc un 500 en pleine
+    vue, qui dit au passage que la vue existe.
+    / A query-param filter raises at call time, not at evaluation: a 500
+    in the middle of the view, which tells a stranger the view exists.
+
+    On IGNORE le filtre plutot que de refuser : un filtre est un
+    retrecissement, jamais un droit. L'ignorer rend une liste PLUS
+    LARGE, jamais plus large que le perimetre — celui-ci est deja pose.
+    / We ignore the filter rather than refuse: a filter narrows, it
+    never grants. The scope is already applied.
+
+    :param queryset: le QuerySet DEJA borne au perimetre du visiteur
+    :param nom_du_champ: le champ a filtrer, par exemple "page_id"
+    :param valeur_recue: la valeur telle qu'elle arrive de l'URL
+    :return: le queryset filtre, ou tel quel si la valeur n'est pas utilisable
+    """
+    if not valeur_recue:
+        return queryset
+
+    try:
+        return queryset.filter(**{nom_du_champ: valeur_recue})
+    except (TypeError, ValueError):
+        return queryset
+
+
+def _note_visee_ou_404(request):
+    """
+    La note qu'une creation de job vise, si le visiteur peut y ecrire.
+    / The note a job creation targets, if the visitor may write to it.
+
+    LOCALISATION : hypostasis_extractor/views.py
+
+    CE CONTROLE PASSE AVANT LA VALIDATION DU SERIALIZER, et c'est ce
+    qui fait tenir la doctrine du 404. Le champ `page` d'un
+    `ModelSerializer` voit TOUTES les notes : laisser le serializer
+    trancher rendrait 400 « Invalid pk » pour une note inexistante et
+    404 pour une note interdite. La difference entre ces deux reponses
+    enumere les notes de l'instance, une par une.
+    / This gate runs BEFORE serializer validation: otherwise a missing
+    pk answers 400 and a forbidden one 404, and the difference
+    enumerates every note of the instance.
+
+    :param request: la requete Django
+    :raises Http404: note absente, identifiant non numerique, ou pas le
+        droit d'y ecrire
+    :return: la Page visee
+    """
+    from core.models import Page
+
+    # `request.data` n'est PAS toujours un dictionnaire : un corps JSON
+    # qui vaut `[1]`, `"x"` ou `3` arrive tel quel (DRF le rend brut), et
+    # `.get` leverait alors une AttributeError — donc un 500.
+    # / request.data is not always a dict: a bare JSON list or scalar
+    # arrives as-is, and .get would raise.
+    donnees_recues = request.data if hasattr(request.data, "get") else {}
+
+    note_visee = _objet_du_perimetre_ou_404(
+        Page.objects.all(), donnees_recues.get("page")
+    )
+    _exiger_le_droit_d_ecrire_sur_la_note(request, note_visee)
+    return note_visee
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class ExtractionJobViewSet(viewsets.ViewSet):
     """
@@ -93,19 +296,32 @@ class ExtractionJobViewSet(viewsets.ViewSet):
     - visualization: Generation du HTML de visualisation
     """
     
+    # Porte OUVERTE cote DRF, gardes 404 dans chaque methode : voir
+    # « LES GARDES DES TROIS COLLECTIONS JSON » en tete de fichier.
+    # / Open at the DRF layer, gated per method; see the header block.
     permission_classes = [permissions.AllowAny]
     
     def list(self, request):
         """
-        Liste tous les jobs d'extraction.
+        Liste les jobs des notes du perimetre du visiteur.
         Filtre possible par page_id via query param.
+        / Lists the jobs of the visitor's own notes.
+
+        LE PERIMETRE EST APPLIQUE AVANT TOUT AUTRE FILTRE : les filtres
+        de query params retrecissent une liste deja bornee, ils ne
+        peuvent pas l'elargir.
+        / Scope first: query filters narrow an already-bounded list.
         """
-        jobs_query = ExtractionJob.objects.select_related('page', 'ai_model')
+        _exiger_un_visiteur_connecte(request)
+
+        jobs_query = ExtractionJob.objects.filter(
+            page__in=notes_visibles_par(request.user).values('pk')
+        ).select_related('page', 'ai_model')
         
         # Filtre par page si specifie
-        page_id = request.query_params.get('page')
-        if page_id:
-            jobs_query = jobs_query.filter(page_id=page_id)
+        jobs_query = _filtre_numerique_ou_rien(
+            jobs_query, 'page_id', request.query_params.get('page')
+        )
         
         # Filtre par statut
         status_filter = request.query_params.get('status')
@@ -127,10 +343,21 @@ class ExtractionJobViewSet(viewsets.ViewSet):
     def retrieve(self, request, pk=None):
         """
         Detail d'un job avec toutes ses entites.
+        / A job's detail with all its entities.
+
+        LE PERIMETRE EST DANS LE QUERYSET, pas dans un `if` qui suivrait
+        la lecture : un job hors perimetre rend alors la MEME 404 qu'un
+        identifiant inexistant, sans qu'on ait a fabriquer la reponse.
+        / The scope is in the queryset itself, so an out-of-scope job
+        yields the very same 404 as a missing one.
         """
-        job = get_object_or_404(
-            ExtractionJob.objects.select_related('page', 'ai_model'),
-            pk=pk
+        _exiger_un_visiteur_connecte(request)
+
+        jobs_du_perimetre = ExtractionJob.objects.filter(
+            page__in=notes_visibles_par(request.user).values('pk')
+        )
+        job = _objet_du_perimetre_ou_404(
+            jobs_du_perimetre.select_related('page', 'ai_model'), pk
         )
         
         # Precharge les entites pour optimisation
@@ -138,17 +365,44 @@ class ExtractionJobViewSet(viewsets.ViewSet):
         
         # Branche HTML retiree (lot T10) : job_detail.html etendait un
         # template inexistant. / Dead HTML branch removed.
-        serializer = ExtractionJobDetailSerializer(job_with_entities)
+        serializer = ExtractionJobDetailSerializer(
+            job_with_entities, context={"request": request}
+        )
         return Response(serializer.data)
     
     def create(self, request):
         """
         Creation d'un nouveau job d'extraction.
+        / Creates a new extraction job.
+
+        UN JOB S'ECRIT SUR UNE NOTE : le droit exige est donc celui
+        d'ECRIRE sur la note visee, pas seulement de la lire. Et la note
+        est resolue AVANT la validation — voir `_note_visee_ou_404`,
+        qui dit pourquoi l'ordre inverse enumere les notes de
+        l'instance.
+        / A job writes onto a note; the note is resolved BEFORE
+        validation, or the two answers enumerate every note.
+
+        LE `context` N'EST PAS DECORATIF : c'est par lui que le
+        serializer sait si le visiteur est du staff, donc s'il a le
+        droit d'attacher des exemples few-shot.
+        / The context carries the visitor: the serializer needs it to
+        gate few-shot examples.
         """
-        serializer = ExtractionJobCreateSerializer(data=request.data)
-        
+        _exiger_un_visiteur_connecte(request)
+        note_visee = _note_visee_ou_404(request)
+
+        serializer = ExtractionJobCreateSerializer(
+            data=request.data, context={"request": request}
+        )
+
         if serializer.is_valid():
-            job = serializer.save()
+            # On ECRIT la note qu'on a CONTROLEE, jamais celle que le
+            # serializer a resolue de son cote : deux resolutions du meme
+            # identifiant coincident aujourd'hui, mais rien ne l'impose.
+            # / We write the note we checked, never the one the serializer
+            # resolved on its own.
+            job = serializer.save(page=note_visee)
             
             if request.headers.get('HX-Request'):
                 # Retourne un partiel HTMX
@@ -157,7 +411,9 @@ class ExtractionJobViewSet(viewsets.ViewSet):
                 }, status=status.HTTP_201_CREATED)
             
             return Response(
-                ExtractionJobDetailSerializer(job).data,
+                ExtractionJobDetailSerializer(
+                    job, context={"request": request}
+                ).data,
                 status=status.HTTP_201_CREATED
             )
         
@@ -184,17 +440,29 @@ class ExtractedEntityViewSet(viewsets.ViewSet):
     ViewSet pour gerer les entites extraites.
     """
     
+    # Porte OUVERTE cote DRF, gardes 404 dans chaque methode : voir
+    # « LES GARDES DES TROIS COLLECTIONS JSON » en tete de fichier.
+    # / Open at the DRF layer, gated per method; see the header block.
     permission_classes = [permissions.AllowAny]
     
     def list(self, request):
         """
-        Liste les entites, filtrable par job_id.
+        Liste les entites des notes du perimetre, filtrable par job_id.
+        / Lists the entities of the visitor's own notes.
+
+        LE PERIMETRE EST APPLIQUE AVANT TOUT AUTRE FILTRE : les filtres
+        de query params retrecissent une liste deja bornee.
+        / Scope first: query filters narrow an already-bounded list.
         """
-        entities_query = ExtractedEntity.objects.select_related('job', 'hypostasis_tag')
+        _exiger_un_visiteur_connecte(request)
+
+        entities_query = ExtractedEntity.objects.filter(
+            job__page__in=notes_visibles_par(request.user).values('pk')
+        ).select_related('job', 'hypostasis_tag')
         
-        job_id = request.query_params.get('job')
-        if job_id:
-            entities_query = entities_query.filter(job_id=job_id)
+        entities_query = _filtre_numerique_ou_rien(
+            entities_query, 'job_id', request.query_params.get('job')
+        )
         
         # Filtre par classe d'extraction
         extraction_class = request.query_params.get('class')
@@ -214,10 +482,19 @@ class ExtractedEntityViewSet(viewsets.ViewSet):
     def retrieve(self, request, pk=None):
         """
         Detail d'une entite.
+        / An entity's detail.
+
+        LE PERIMETRE EST DANS LE QUERYSET : une extraction hors
+        perimetre rend la MEME 404 qu'un identifiant inexistant.
+        / The scope is in the queryset: same 404 either way.
         """
-        entity = get_object_or_404(
-            ExtractedEntity.objects.select_related('job', 'hypostasis_tag'),
-            pk=pk
+        _exiger_un_visiteur_connecte(request)
+
+        extractions_du_perimetre = ExtractedEntity.objects.filter(
+            job__page__in=notes_visibles_par(request.user).values('pk')
+        )
+        entity = _objet_du_perimetre_ou_404(
+            extractions_du_perimetre.select_related('job', 'hypostasis_tag'), pk
         )
         
         serializer = ExtractedEntitySerializer(entity)
@@ -228,8 +505,20 @@ class ExtractedEntityViewSet(viewsets.ViewSet):
         """
         Action: Valide ou modifie une entite extraite.
         Permet a l'utilisateur de corriger le mapping vers une hypostasis.
+        / Validates or edits an extracted entity.
+
+        VALIDER, C'EST ECRIRE : le droit exige est celui d'ecrire sur la
+        note qui porte le job, pas seulement de la lire. Un carnet public
+        se lit sans se corriger.
+        / Validating is writing: a public notebook is read, not edited.
         """
-        entity = get_object_or_404(ExtractedEntity, pk=pk)
+        _exiger_un_visiteur_connecte(request)
+
+        extractions_du_perimetre = ExtractedEntity.objects.filter(
+            job__page__in=notes_visibles_par(request.user).values('pk')
+        )
+        entity = _objet_du_perimetre_ou_404(extractions_du_perimetre, pk)
+        _exiger_le_droit_d_ecrire_sur_la_note(request, entity.job.page)
         
         serializer = ExtractionValidationSerializer(data=request.data)
         if serializer.is_valid():
@@ -265,12 +554,18 @@ class ExtractionExampleViewSet(viewsets.ViewSet):
     ViewSet pour gerer les exemples few-shot reutilisables.
     """
     
+    # Porte OUVERTE cote DRF, gardes 404 dans chaque methode : voir
+    # « LES GARDES DES TROIS COLLECTIONS JSON » en tete de fichier.
+    # / Open at the DRF layer, gated per method; see the header block.
     permission_classes = [permissions.AllowAny]
     
     def list(self, request):
         """
         Liste tous les exemples actifs.
+        / Lists every active example.
         """
+        _exiger_un_membre_du_staff(request)
+
         examples_list = ExtractionExample.objects.filter(is_active=True).order_by('-created_at')
         
         # Branche HTML retiree (lot T10) : example_list.html etendait un
@@ -281,15 +576,21 @@ class ExtractionExampleViewSet(viewsets.ViewSet):
     def retrieve(self, request, pk=None):
         """
         Detail d'un exemple.
+        / An example's detail.
         """
-        example = get_object_or_404(ExtractionExample, pk=pk)
+        _exiger_un_membre_du_staff(request)
+
+        example = _objet_du_perimetre_ou_404(ExtractionExample.objects.all(), pk)
         serializer = ExtractionExampleSerializer(example)
         return Response(serializer.data)
     
     def create(self, request):
         """
         Creation d'un nouvel exemple.
+        / Creates a new example.
         """
+        _exiger_un_membre_du_staff(request)
+
         serializer = ExtractionExampleSerializer(data=request.data)
 
         if serializer.is_valid():

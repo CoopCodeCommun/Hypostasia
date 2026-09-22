@@ -165,6 +165,25 @@ class UnLotEntierementRejeteTest(BaseDUnTourDeWiki):
         self.assertNotEqual(operation.motif_de_rejet, "")
         self.assertFalse(tour.a_change_l_article)
 
+    def test_un_lot_de_no_change_ne_reecrit_pas_l_article(self):
+        # L'applieur ACCEPTE `no_change` — c'est une operation
+        # legitime. Mais accepter n'est pas changer : le chemin
+        # d'ecriture complet (reindexation, juge d'API facture,
+        # compteur de tours) ne doit pas s'ouvrir pour un texte
+        # identique. / Accepted is not changed.
+        texte_avant = self.page_du_wiki.text_readability
+        tours_avant = self.wiki.tours_de_mise_a_jour
+
+        self._proposer_puis_appliquer(json.dumps([{"type": "no_change"}]))
+
+        self.page_du_wiki.refresh_from_db()
+        self.wiki.refresh_from_db()
+        self.assertEqual(self.page_du_wiki.text_readability, texte_avant)
+        self.assertEqual(self.wiki.tours_de_mise_a_jour, tours_avant)
+        self.assertFalse(
+            TourDeWiki.objects.get(wiki=self.wiki).a_change_l_article,
+        )
+
     def test_un_lot_sans_source_est_refuse(self):
         # § 6.3 : une affirmation sans preuve n'entre pas dans un
         # article source. / No evidence, no entry.

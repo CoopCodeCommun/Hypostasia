@@ -1,0 +1,7 @@
+{
+  "balise_executee": false,
+  "le_titre_porte_une_balise_img": false,
+  "ce_que_le_toast_affiche": "Ce passage est cité par « <img src=x onerror=\"window.__balise_executee=true\"> ». Une synthèse adoptée ne doit pas change",
+  "html_du_titre": "Ce passage est cité par « &lt;img src=x onerror=\"window.__balise_executee=true\"&gt; ». Une synthèse adoptée ne doit pas changer.",
+  "erreurs_js": []
+}

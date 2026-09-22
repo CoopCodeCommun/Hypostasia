@@ -1,0 +1,84 @@
+{
+ "webkit_garde_2": {
+  "reperes_de_gouttiere_dans_la_selection": [
+   "#5"
+  ],
+  "gouttieres_avant_apres": [
+   210,
+   210
+  ],
+  "textes_de_gouttiere_INTACTS": true,
+  "blocs_avant_apres": [
+   210,
+   210
+  ],
+  "frontieres_identiques": true
+ },
+ "webkit_garde_0": {
+  "reperes_de_gouttiere_dans_la_selection": [
+   "#5"
+  ],
+  "gouttieres_avant_apres": [
+   210,
+   209
+  ],
+  "textes_de_gouttiere_INTACTS": false,
+  "blocs_avant_apres": [
+   210,
+   209
+  ],
+  "frontieres_identiques": false
+ },
+ "firefox_garde_2": {
+  "reperes_de_gouttiere_dans_la_selection": [],
+  "gouttieres_avant_apres": [
+   210,
+   210
+  ],
+  "textes_de_gouttiere_INTACTS": true,
+  "blocs_avant_apres": [
+   210,
+   210
+  ],
+  "frontieres_identiques": true
+ },
+ "firefox_garde_0": {
+  "reperes_de_gouttiere_dans_la_selection": [],
+  "gouttieres_avant_apres": [
+   210,
+   209
+  ],
+  "textes_de_gouttiere_INTACTS": false,
+  "blocs_avant_apres": [
+   210,
+   209
+  ],
+  "frontieres_identiques": false
+ },
+ "chromium_garde_2": {
+  "reperes_de_gouttiere_dans_la_selection": [],
+  "gouttieres_avant_apres": [
+   210,
+   210
+  ],
+  "textes_de_gouttiere_INTACTS": true,
+  "blocs_avant_apres": [
+   210,
+   210
+  ],
+  "frontieres_identiques": true
+ },
+ "chromium_garde_0": {
+  "reperes_de_gouttiere_dans_la_selection": [],
+  "gouttieres_avant_apres": [
+   210,
+   206
+  ],
+  "textes_de_gouttiere_INTACTS": false,
+  "blocs_avant_apres": [
+   210,
+   206
+  ],
+  "frontieres_identiques": false
+ }
+}

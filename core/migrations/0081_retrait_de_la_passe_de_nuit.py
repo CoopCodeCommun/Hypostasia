@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0076_compteur_de_la_passe_de_nuit'),
+        ('core', '0080_les_cles_de_provenance_audio'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 

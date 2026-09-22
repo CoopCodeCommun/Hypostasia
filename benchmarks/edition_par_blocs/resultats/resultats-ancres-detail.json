@@ -1,0 +1,16 @@
+{
+ "frappe_au_milieu": {
+  "portions_enjambant_le_point_DETACHEES": 22,
+  "portions_enjambant_le_point_SURVIVANTES": 0,
+  "portions_hors_plage_DETACHEES": 0,
+  "portions_hors_plage_SURVIVANTES": 37,
+  "exemples_de_detachement_hors_plage": []
+ },
+ "correction_de_casse": {
+  "portions_enjambant_le_point_DETACHEES": 22,
+  "portions_enjambant_le_point_SURVIVANTES": 0,
+  "portions_hors_plage_DETACHEES": 0,
+  "portions_hors_plage_SURVIVANTES": 37,
+  "exemples_de_detachement_hors_plage": []
+ }
+}

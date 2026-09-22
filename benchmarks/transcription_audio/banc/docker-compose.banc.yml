@@ -1,0 +1,134 @@
+# Le banc d'essai de transcription, en un seul fichier.
+# / The transcription benchmark, in a single file.
+#
+# LOCALISATION : benchmarks/transcription_audio/banc/docker-compose.banc.yml
+#
+# CE COMPOSE EST SEPARE DE CELUI DU PROJET, ET DELIBEREMENT. Le compose de la
+# racine sert la production : y ajouter quatre conteneurs de mesure, dont un qui
+# porte PyTorch, ferait grossir un fichier dont depend le site en marche, et
+# `docker compose down` sur l'un emporterait l'autre. Ici, le banc se monte et
+# se demonte sans toucher a la stack.
+# / Separate from the project's compose on purpose: the root one serves production.
+#
+# LE DOSSIER DE TRAVAIL EST UNE VARIABLE, jamais un chemin en dur : c'est ce qui
+# permet de rejouer la campagne a l'identique sur une autre machine.
+# / The work folder is a variable, never a hardcoded path.
+#
+#   export DOSSIER_DE_TRAVAIL=~/banc-transcription-travail
+#   docker compose -f docker-compose.banc.yml up -d
+#   bash lancer_la_campagne.sh "etat de la stack"
+#
+# Le jeton HuggingFace vient du `.env` du projet, monte par `env_file` — il
+# n'apparait donc dans AUCUNE ligne de commande, ou `ps` le lirait.
+# / The HF token comes from the project's .env via env_file: never on a command line.
+
+services:
+
+  # La voie A : le banc Rust des annexes de la spec.
+  # Il porte DEUX binaires : celui a 4 slots de locuteurs, et celui a 8 que
+  # `preparer_ultra_sortformer.sh` fabrique en changeant une constante.
+  banc-rust:
+    build:
+      context: ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}
+      dockerfile: Dockerfile
+    image: bench-asr:2
+    container_name: bench-asr2
+    working_dir: /work
+    volumes:
+      - ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}:/work
+    command: sleep infinity
+
+  # Le pilote ONNX : onnx-asr, plus les diariseurs qui n'exigent aucun jeton
+  # (`diarize` et `sherpa-onnx`). C'est l'image legere.
+  banc-onnx:
+    build:
+      context: ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}
+      dockerfile: Dockerfile.voie-b
+    image: bench-asr-python:1
+    container_name: bench-python
+    working_dir: /work
+    volumes:
+      - ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}:/work
+    command: sleep infinity
+
+  # Le pilote PyTorch : pyannote 3.1, le seul candidat qui exige un jeton
+  # HuggingFace ET l'acceptation de conditions sur un site tiers.
+  banc-pytorch:
+    build:
+      context: ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}
+      dockerfile: Dockerfile.diarisation
+    image: bench-diarisation:1
+    container_name: bench-diar
+    working_dir: /work
+    env_file:
+      - ${FICHIER_ENV:-../../../.env}
+    volumes:
+      - ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}:/work
+    command: sleep infinity
+
+  # pyannote.audio 4.x A JOUR : le pipeline `community-1`, celui que la
+  # documentation officielle recommande aujourd'hui. L'image ci-dessus fige des
+  # versions de 2024 pour faire tourner `3.1`, que la meme documentation appelle
+  # desormais *legacy* — les deux sont mesures, et le tableau porte la version.
+  banc-pyannote4:
+    build:
+      context: ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}
+      dockerfile: Dockerfile.pyannote4
+    image: bench-pyannote4:1
+    container_name: bench-pya4
+    working_dir: /work
+    env_file:
+      - ${FICHIER_ENV:-../../../.env}
+    volumes:
+      - ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}:/work
+    command: sleep infinity
+
+  # WhisperX : la seule pile du banc qui change d'ASR — Whisper au lieu de
+  # Parakeet — plus un alignement force au mot par wav2vec2.
+  banc-whisperx:
+    build:
+      context: ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}
+      dockerfile: Dockerfile.whisperx
+    image: bench-whisperx:1
+    container_name: bench-whisperx
+    working_dir: /work
+    env_file:
+      - ${FICHIER_ENV:-../../../.env}
+    volumes:
+      - ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}:/work
+    command: sleep infinity
+
+  # Le serveur Go, pret a l'emploi, API compatible Whisper. Il ne diarise pas :
+  # il sert a mesurer l'ASR seul, et le cout d'installation le plus bas du lot.
+  banc-achetronic:
+    image: ghcr.io/achetronic/parakeet:latest
+    container_name: banc-achetronic
+    # `-long-audio` est INDISPENSABLE : sans lui le serveur REJETTE tout fichier
+    # de plus de 400 s — « audio exceeds the single-pass model limit ». Nos
+    # tranches font 900 s. Avec l'option, il decoupe lui-meme en fenetres
+    # glissantes de 300 s (15 s de chevauchement) et choisit ses frontieres avec
+    # un VAD Silero puis l'energie mel — soit exactement la parade que ce banc a
+    # du trouver a la main pour les autres piles.
+    # / `-long-audio` is required: without it the server REJECTS anything over
+    # 400 s. With it, it slides 300 s windows and picks boundaries with a VAD.
+    command: ["-long-audio"]
+    ports:
+      - "5092:5092"
+
+  # loudpage : le candidat « pret a l'emploi » (NeMo + pyannote). Il n'est PAS
+  # demarre par defaut — son image pese plusieurs giga-octets et il ne sert qu'a
+  # mesurer le cout d'une pile assemblee en amont.
+  # Le lancer explicitement :  docker compose -f docker-compose.banc.yml --profile complet up -d
+  banc-loudpage:
+    profiles: ["complet"]
+    build:
+      context: ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}
+      dockerfile: Dockerfile.loudpage
+    image: bench-loudpage:1
+    container_name: banc-loudpage
+    env_file:
+      - ${FICHIER_ENV:-../../../.env}
+    volumes:
+      - ${DOSSIER_DE_TRAVAIL:-../../../../banc-transcription-travail}:/work
+    ports:
+      - "5093:8000"

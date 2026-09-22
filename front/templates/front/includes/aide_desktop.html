@@ -65,6 +65,37 @@
                     </div>
                 </div>
             </div>
+
+            {# NOUVEAUTE — le mode d'edition par blocs (30 aout 2026).      #}
+            {# L'aide est le seul endroit ou un utilisateur apprend qu'un   #}
+            {# geste existe : un mode qui capture le clavier et que rien    #}
+            {# n'annonce est une source de confusion (SPEC-edition § 2).    #}
+            {# / The help is where a gesture becomes discoverable.          #}
+            <div class="aide-nouveaute">
+                <p class="aide-nouveaute-titre">Nouveau&nbsp;: corriger le texte</p>
+                <p>
+                    Le bouton <strong>&laquo;&nbsp;&Eacute;diter le texte&nbsp;&raquo;</strong>
+                    &mdash; ou la touche <kbd class="aide-kbd">M</kbd> &mdash;
+                    rend <strong>tout le texte modifiable d&rsquo;un coup</strong>&nbsp;:
+                    on corrige une transcription ou l&rsquo;on nettoie un PDF sans passer
+                    passage par passage. Le panneau des analyses s&rsquo;efface&nbsp;:
+                    on ne voit plus que le texte.
+                </p>
+                <p>
+                    La s&eacute;lection <strong>traverse les passages</strong>&nbsp;: on peut en
+                    vider trente d&rsquo;un geste. Un passage vid&eacute; est
+                    <strong>masqu&eacute;, jamais supprim&eacute;</strong> &mdash; il reste
+                    r&eacute;tablissable, et ses citations avec lui.
+                </p>
+                <p>
+                    Les <strong>fronti&egrave;res entre passages ne bougent jamais</strong>&nbsp;:
+                    couper et recoller restent des gestes &agrave; part, dans
+                    &laquo;&nbsp;Modifier la structure&nbsp;&raquo;.
+                    <kbd class="aide-kbd">Ctrl</kbd>+<kbd class="aide-kbd">S</kbd> enregistre et
+                    rend un compte rendu, <kbd class="aide-kbd">Ctrl</kbd>+<kbd class="aide-kbd">Z</kbd>
+                    annule le dernier geste, <kbd class="aide-kbd">&Eacute;chap</kbd> sort.
+                </p>
+            </div>
         </div>
 
         {# === Panneau 2 : Statuts (A.8 binaire : nouveau / commente) === #}
@@ -117,6 +148,25 @@
 </div>
 
 <style>
+/* Le bloc « nouveaute » du panneau processus. Il se distingue sans
+   crier : un filet a gauche et un fond a peine pose.
+   / The "what's new" block: a rule and a barely-there ground. */
+.aide-nouveaute {
+    margin-top: 1.25rem;
+    padding: .85rem 1rem;
+    border-left: 3px solid #4f46e5;
+    background: #f8fafc;
+    border-radius: 0 .5rem .5rem 0;
+    font-size: .875rem;
+    line-height: 1.55;
+}
+.aide-nouveaute p { margin: 0 0 .5rem; }
+.aide-nouveaute p:last-child { margin-bottom: 0; }
+.aide-nouveaute-titre {
+    font-weight: 600;
+    color: #4f46e5;
+}
+
 /* === Modale aide redesign === */
 /* / === Help modal redesign === */
 .aide-modale {

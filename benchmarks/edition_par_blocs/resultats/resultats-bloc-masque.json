@@ -1,0 +1,18 @@
+{
+ "element": 9,
+ "sans_correction": {
+  "portions_ancrees_au_depart": 3,
+  "rattachees_au_demasquage": 3,
+  "laissees_detachees": 0
+ },
+ "AVEC_correction_du_bloc_masque": {
+  "portions_ancrees_au_depart": 3,
+  "rattachees_au_demasquage": 0,
+  "laissees_detachees": 3
+ },
+ "verification": {
+  "masque": false,
+  "texte_intact": true,
+  "portions_ancrees": 3
+ }
+}

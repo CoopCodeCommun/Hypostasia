@@ -1,0 +1,26 @@
+{
+ "texte_identique": {
+  "exactes": 0,
+  "retrouvees": 0,
+  "detachees": 0,
+  "traites": 26,
+  "refuses": 14,
+  "detail_par_element": []
+ },
+ "une_lettre_a_la_fin": {
+  "exactes": 59,
+  "retrouvees": 0,
+  "detachees": 0,
+  "traites": 26,
+  "refuses": 14,
+  "detail_par_element": []
+ },
+ "une_lettre_au_debut": {
+  "exactes": 0,
+  "retrouvees": 59,
+  "detachees": 0,
+  "traites": 26,
+  "refuses": 14,
+  "detail_par_element": []
+ }
+}

@@ -289,6 +289,31 @@
     // Ferme le panneau le plus "proche" de l'utilisateur en premier
     // / Close the panel closest to the user first
     function gererEscape() {
+        // 0.0 bis Le DIALOGUE de scission est en top layer : il est
+        //     au-dessus de tout, il se ferme donc en premier. Sans ce
+        //     rang, le rang 4.5 fermait l'editeur CACHE DERRIERE lui
+        //     — un brouillon perdu sans que rien ne se voie — et le
+        //     preventDefault de ce fichier empechait en plus la
+        //     fermeture native du <dialog>.
+        // / A <dialog> sits in the top layer: it closes first.
+        var dialogueElement = document.getElementById('dialogue-element-ouvert');
+        if (dialogueElement && dialogueElement.open) {
+            dialogueElement.close();
+            return true;
+        }
+
+        // 0.0 ter Menu utilisateur ouvert → fermer. Il s'ouvre par-dessus
+        //     l'ecran, donc avant tout le reste. Ce rang REMPLACE un
+        //     ecouteur que `user_menu.js` portait hors cascade : menu +
+        //     editeur ouverts, un seul Echap fermait les deux et jetait
+        //     la correction en cours de frappe.
+        // / Replaces an out-of-cascade listener in user_menu.js.
+        if (window.userMenu && window.userMenu.fermerSiOuvert) {
+            if (window.userMenu.fermerSiOuvert()) {
+                return true;
+            }
+        }
+
         // 0.0 Bottom sheet mobile ouvert → fermer (PHASE-21)
         // / 0.0 Mobile bottom sheet open → close (PHASE-21)
         if (window.bottomSheet && window.bottomSheet.estOuvert()) {
@@ -335,6 +360,40 @@
         //    12 aout 2026. Retire avec l'arbre.
         // / 4. The side tree held this rung until it was removed.
 
+        // 4.5 Editeur de correction en place ouvert -> fermer.
+        //
+        // CE RANG EST APRES LE DRAWER, ET C'EST VOULU : le drawer est un
+        // panneau qui s'ouvre PAR-DESSUS le texte, donc plus pres de
+        // l'utilisateur. Un Echap ferme le drawer, un second ferme
+        // l'editeur — une chose a la fois, ce que cette cascade existe
+        // pour garantir.
+        //
+        // Ce rang REMPLACE un second ecouteur `keydown` que marginalia.js
+        // portait hors cascade : les deux repondaient a la meme touche, et
+        // un seul appui fermait le drawer ET jetait la correction en cours
+        // de frappe (mesure du 29 aout 2026).
+        // / This rung replaces a second, out-of-cascade Escape listener:
+        // one keypress used to close two things and discard the edit.
+        if (window.marginalia && window.marginalia.fermerEditeurEnPlace) {
+            if (window.marginalia.fermerEditeurEnPlace()) {
+                return true;
+            }
+        }
+
+        // 4.6 Mode d'edition ouvert → en sortir.
+        //
+        // CE RANG EST LE DERNIER AVANT LA DESELECTION, ET C'EST VOULU :
+        // le mode est un ETAT, pas un panneau. Tout ce qui s'ouvre
+        // par-dessus lui — dialogue, menu, drawer, editeur en place — se
+        // ferme d'abord ; on ne sort du mode que lorsqu'il ne reste plus
+        // que lui. En sortir par megarde coute cher.
+        // / The mode is a state, not a panel: everything else closes first.
+        if (window.modeEdition && window.modeEdition.estOuvert
+            && window.modeEdition.estOuvert()) {
+            window.modeEdition.fermer();
+            return true;
+        }
+
         // 5. Extraction selectionnee → deselectionner
         // (la branche 'carte inline ouverte' a ete retiree avec la refonte
         //  drawer-only A.8 : il n'y a plus de carte inline sous le paragraphe)
@@ -367,6 +426,26 @@
         // / Ignore shortcuts if in an input field
         if (estDansChampSaisie()) return;
 
+        // LE MODE D'EDITION PREND LE CLAVIER, MEME QUAND LE FOCUS EST
+        // SORTI DU CHAMP.
+        //
+        // La garde ci-dessus ne voit que le champ lui-meme. Or pendant
+        // une session d'edition, le focus passe legitimement sur le rail
+        // du lecteur (`tabindex="0"`), sur le menu du recul a la
+        // reprise, sur un bouton du panneau des masques — et la, les
+        // touches simples redevenaient vivantes : « e » ouvrait un
+        // tiroir que le mode cache, « m » rebasculait le mode, et
+        // surtout « z » REMPLACE `#zone-lecture` par la comparaison de
+        // versions, ce qui detruit la session de frappe sans une
+        // question.
+        //
+        // `Echap` est traite PLUS HAUT, avant cette garde : le mode s'en
+        // sort au rang 4.6, comme il le doit.
+        // / During an editing session the focus legitimately leaves the
+        // field; bare letters must stay silent, or "z" replaces the
+        // whole reading zone and the session dies unasked.
+        if (window.modeEdition && window.modeEdition.estOuvert()) return;
+
         // Ignorer si Ctrl, Meta ou Alt est enfonce (raccourcis navigateur)
         // / Ignore if Ctrl, Meta or Alt is pressed (browser shortcuts)
         if (evenement.ctrlKey || evenement.metaKey || evenement.altKey) return;
@@ -380,6 +459,26 @@
 
             // E → Toggle drawer vue liste
             // / E → Toggle list view drawer
+            // 'm' — ENTRER EN MODE EDITION.
+            //
+            // Le mode se ferme par Echap (rang 4.6 de la cascade), et
+            // cette touche-ci ne peut pas l'y aider : une fois le mode
+            // ouvert, le focus est DANS le champ, et `estDansChampSaisie`
+            // — qui compte `isContentEditable` — arrete toutes les
+            // touches simples avant d'arriver ici. C'est heureux : sans
+            // cela, taper « m » dans le texte sortirait du mode.
+            // / 'm' enters; Escape leaves. Once inside, single keys are
+            // stopped by the input-field guard, which is what we want.
+            case 'm':
+                if (window.modeEdition && window.modeEdition.basculer) {
+                    var boutonDuMode = document.getElementById('bouton-mode-edition');
+                    if (boutonDuMode && !boutonDuMode.disabled) {
+                        evenement.preventDefault();
+                        window.modeEdition.basculer(boutonDuMode);
+                    }
+                }
+                break;
+
             case 'e':
                 if (window.drawerVueListe) {
                     window.drawerVueListe.basculer();

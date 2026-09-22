@@ -1,7 +1,7 @@
 # La mise à jour des wikis redevient un geste / Wiki updates are a human gesture again
 
 **Date :** 2026-09-21
-**Migration :** Oui — `core.0077_retrait_de_la_passe_de_nuit` (supprime `PasseDeNuit`, et
+**Migration :** Oui — `core.0081_retrait_de_la_passe_de_nuit` (supprime `PasseDeNuit`, et
 met à jour le `help_text` de `TourDeWiki.fait_par`, sans effet SQL).
 `docker exec -w /app hypostasia_web python manage.py migrate`
 
@@ -34,7 +34,7 @@ not anything new had arrived.*
 | `front/management/commands/envoyer_le_recapitulatif_du_matin.py` | **retirés** : `--attendre-minutes`, `--sans-attendre-la-nuit` et la boucle d'attente |
 | `front/management/commands/mettre_a_jour_les_wikis.py` | **supprimé** |
 | `core/services/passe_de_nuit.py` | **supprimé** |
-| `core/models.py`, `core/migrations/0077_…` | `PasseDeNuit` supprimé. `MotifDeTourDeWiki.MAJ_NOCTURNE` **gardé** : les tours déjà écrits le portent. `TourDeWiki.fait_par` : NULL ne désigne plus que l'ancienne nuit ou un compte supprimé |
+| `core/models.py`, `core/migrations/0081_…` | `PasseDeNuit` supprimé. `MotifDeTourDeWiki.MAJ_NOCTURNE` **gardé** : les tours déjà écrits le portent. `TourDeWiki.fait_par` : NULL ne désigne plus que l'ancienne nuit ou un compte supprimé |
 | `front/views_synthese.py` | `lister_pour_le_carnet` annote chaque wiki de ses `nouveautes` (même calcul que l'en-tête d'article) |
 | `front/templates/front/corpus/liste_wikis.html` | la ligne « ● N nouveautés depuis le … » / « rien de neuf » |
 | `front/templates/front/corpus/_style_maquette.html` | le style `.valeur-du-geste[data-neuf]` de l'en-tête s'applique aussi à la liste |
@@ -59,6 +59,24 @@ mémoire : il enverrait chaque nuit une tâche qui n'existe plus (erreur « unre
 task » dans les journaux, rien de facturé). `make prod-update` le relance désormais ;
 après un déploiement fait autrement :
 `docker exec hypostasia_web supervisorctl -c /app/supervisord.conf restart celery_beat`.
+
+### Au merge avec `origin/dev` (22 septembre)
+
+La branche distante avait fait évoluer la passe pendant ce temps (critère « du neuf depuis
+le dernier essai », fan-out, verrou en base, tours d'échec, borne haute du récapitulatif).
+Résolution : la passe reste retirée, tout le reste est gardé.
+
+- **Migration renumérotée** : elle s'appelait `0077_retrait_…` et suit désormais les quatre
+  migrations distantes — `0081_retrait_de_la_passe_de_nuit`, après `0080`. Elle supprime
+  aussi la contrainte `une_seule_passe_de_nuit_ouverte` (avec la table).
+- **Gardé du distant** : la borne haute du récapitulatif (`couvre_jusqu_a`), ses six
+  rubriques, `--forcer` et `--depuis-jours` ; le motif `ECHEC` et `message_d_echec`
+  (historique seulement : aucun chemin actuel n'en écrit) ; `borne_du_dernier_essai`, que
+  l'applieur utilise pour compter ce qui a appelé un tour ; le traitement de `no_change`
+  par l'applieur (test rebranché sur le geste humain).
+- **Retiré du distant** : le critère de reprise nocturne, le verrou de passe, les tâches de
+  fan-out, et leurs tests. `core/tests/test_le_planificateur.py` verrouille désormais
+  « seul le récapitulatif est planifié ».
 
 ---
 
@@ -101,5 +119,5 @@ attente et sans erreur « la passe de nuit tourne encore ».
 
 ```bash
 docker exec -w /app hypostasia_web python manage.py showmigrations core | tail -2
-# -> [X] 0077_retrait_de_la_passe_de_nuit
+# -> [X] 0081_retrait_de_la_passe_de_nuit
 ```

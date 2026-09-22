@@ -9,6 +9,51 @@
 > Ce qui n'a pas été vérifié est dit comme tel. Ne jamais réécrire un chiffre
 > sans le remesurer.
 
+
+> ## La journée du 23 août 2026 — une session d'exploration, un correctif
+>
+> **Ce qui a été LIVRÉ** : un seul correctif, `CHANGELOG/2026-08-23-la-fusion-de-deux-tours-gardait-le-mauvais-locuteur.md`
+> (migration `core/0080`, appliquée). `_fusionner_les_provenances` lisait
+> `start_time`/`end_time`/`voice` — trois clés que l'ingestion audio n'écrit nulle
+> part. Recoller deux tours gardait donc **le locuteur du premier, quel qu'il soit**,
+> et une borne de fin trop courte. Les tests étaient verts sur ce contrat mort.
+>
+> **Le soir** : le prototype de l'option C a tourné — le champ unique est instruit,
+> son interception doit vivre dans `beforeinput`, et deux relectures adverses ont
+> trouvé dans le premier compte rendu une contradiction interne et un trou béant
+> (la garde ne couvrait pas le geste le plus courant d'un correcteur : taper sur
+> une sélection). Les deux avaient raison. →
+> `CHANGELOG/2026-08-23-le-champ-unique-tranche-l-edition-par-blocs.md`
+>
+> **Ce qui a été ÉCRIT, non codé** : `PLAN/TODO/` passe à **20 notes**, et une spec
+> neuve — `PLAN/specs/SPEC-edition-par-blocs-et-stenotypie.md` (v1.1, relue le jour
+> même, deux erreurs de fait corrigées). Plus un dossier externe conservé dans
+> `PLAN/Documents exterieurs/`.
+>
+> **Trois constats qui changent une priorité :**
+>
+> 1. ✅ **`/api/extraction-jobs/` et `/api/extracted-entities/` étaient ouverts à
+>    tous — c'est FERMÉ depuis le 23 août au soir.** Mesuré sans cookie, avec le Host
+>    de production : 17 487 octets pour un job (prompt + 25 extractions verbatim),
+>    **375 122 octets** pour la liste des extractions. Routé dans les deux conf nginx.
+>    Les quatre endpoints rendent maintenant **404** en anonyme, remesurés au même
+>    endroit. → `CHANGELOG/2026-08-23-fermer-l-api-d-extraction.md`
+> 2. **Le prompt réellement envoyé n'est enregistré sur AUCUN chemin.**
+>    `prompt_description` porte le préambule système (4 999 car.) ou une étiquette
+>    (38 car.) ; le prompt assemblé fait **75 928 car.** sur le job 35. Et
+>    `ExtractionJob.analyseur_version` n'a **aucun écrivain** : 0 job sur 37.
+>    → aucun banc n'est rattachable à sa cause tant que ce n'est pas réparé.
+> 3. **La doc ment sur la nuit et sur la vérification.** Les planches
+>    `PLAN/Diagrams/` datent du 17 août et n'ont pas suivi : la planche 03 affirme que
+>    la vérification n'est « jamais automatique à la production », faux depuis le
+>    21 août ; la planche 02 ne montre que le chemin humain de mise à jour d'un wiki.
+>    L'addendum du 18 août de `SPEC-synthese-carnet.md` porte la même erreur.
+>
+> **La méthode qui a produit ces trois-là** : faire relire par deux agents adverses
+> avec accès au dépôt. Ils ont trouvé deux erreurs de fait dans un document que je
+> venais d'écrire, et l'une d'elles était le symptôme du bug de production corrigé
+> depuis. **À reconduire.**
+
 ---
 
 ## 0. Ce qu'il faut savoir en trois phrases
@@ -75,8 +120,19 @@ Le Makefile n'est qu'une façade : il appelle `bin/install.sh` et
 descriptions du même démarrage finissent toujours par diverger, et c'est
 exactement la panne que ce Makefile existe pour empêcher.
 
-**Le site : https://h.localhost/ — identifiants `jonas` / `admin1234`.** Le
-serveur écoute sur le **port 8000, pas 8123** (`nginx/dev.conf` proxie vers
+**Le site : https://beta.hypostasia.org/ — identifiants `jonas` / `admin1234`.**
+
+> **`https://h.localhost/` ne répond plus, et cette ligne l'annonçait encore le
+> 23 août 2026.** Le routeur Traefik ne connaît que ``Host(`${DOMAIN}`)``
+> (`docker-compose.yml:165`), et `DOMAIN=beta.hypostasia.org` dans le `.env` de cette
+> machine : `h.localhost` rend un **404 de Traefik**, pas une page Django.
+>
+> ⚠️ **Cette machine EST `beta.hypostasia.org`** — son IPv4 publique est celle du
+> domaine (217.182.66.209, vérifié le 23 août). L'instance de dev est donc **exposée
+> sur Internet**, avec `DEBUG=true` dans le `.env`. Toute fuite constatée ici est
+> publique.
+
+Le serveur écoute sur le **port 8000, pas 8123** (`nginx/dev.conf` proxie vers
 `web:8000` ; sur 8123 on obtient un 502).
 
 **TROIS workers Celery, jamais moins.** Le détail de chacun — sa file, sa
@@ -138,7 +194,7 @@ refacture rien. `--forcer` est son seul flag, et il fait l'inverse.
 
 **`front/static/front/maquettes/maquette.html`** — c'est **la seule autorité**.
 Servi sur `https://hyp.nasjo.fr/static/front/maquettes/maquette.html` et en
-local sur `https://h.localhost/static/front/maquettes/maquette.html`.
+local sur `https://beta.hypostasia.org/static/front/maquettes/maquette.html`.
 
 > Une copie plus ancienne dormait dans `tmp/maquettes/` et l'index de
 > documentation la désignait par erreur comme l'autorité. Elle a été renommée
@@ -273,6 +329,14 @@ S'il n'y a rien, le dire — c'est un résultat.
 
 ### 5.4 La transcription audio en local — ouvert le 16 août
 
+> ⚖️ **Le 30 août 2026, le mainteneur a nommé les deux voies** : **Voxtral**
+> (rapide, bon marché) et **notre conteneur sur GPU loué** (souverain). La
+> seconde voie n'est donc **plus** « le local sur notre VPS » : ce qui suit
+> garde toutes ses mesures, mais la cible d'exécution a changé — pas de worker
+> de transcription sous `nice` sur notre machine, et le curseur de la taille de
+> Whisper se rouvre. Voir
+> `PLAN/TODO/2026-08-23-le-moteur-de-transcription-a-deux-voies.md`.
+
 Seul chantier de ce fichier qui ne soit pas d'UX/UI : il est ici parce que c'est
 l'endroit prévu pour les chantiers ouverts, et qu'il porte trois décisions en
 attente (§ 6).
@@ -280,10 +344,67 @@ attente (§ 6).
 **L'état cible et le protocole sont dans `PLAN/specs/SPEC-transcription-audio-locale.md`.**
 Ne pas les recopier ici — cette entrée ne dit que ce qui bouge.
 
-**Où on en est** : rien n'est mesuré. Le banc d'essai est écrit et compile sans
-avertissement (vérifié le 16 août), le matériau de test est choisi, et le § 7 de
-la spec donne les huit étapes à dérouler. La première session s'est arrêtée pendant
-le téléchargement des 2,4 Go de l'encodeur.
+**Où on en est — la campagne a tourné le 22 août 2026.** Résultats détaillés :
+`benchmarks/transcription_audio/2026-08-22_parakeet-contre-voxtral-sur-huit-vcpu.md`,
+entrée de chantier : `CHANGELOG/2026-08-22-transcription-locale.md`. Ne pas les
+recopier ici. **Ce qui reste vrai, et qui commande la suite :**
+
+- **Le banc est versionné** dans `benchmarks/transcription_audio/banc/` (décision
+  du mainteneur, 22 août). Les annexes de la spec ne sont plus la seule copie.
+- **Le protocole de découpage de la spec (§ 6.2, blocs de 240 s) est faux** : il
+  rend 95 % de WER et du franglais. Parakeet TDT v3 exige un découpage sur la
+  parole (VAD) ou, à défaut, des blocs de 20 s.
+- **Le critère 3 est satisfait** : 12,8 min de calcul par heure d'audio, 1,84 Go
+  de pic, 2,4 cœurs sur 8.
+- **Le critère 1 ne l'est pas.** Sur une tranche à 6 voix, Sortformer en rend 4,
+  `diarize` 5, et **les deux affichent 0 % d'INCONNU** : l'échec est silencieux,
+  exactement le mode de panne disqualifiant. Voxtral se trompe aussi (7 pour 6)
+  mais en sur-segmentant — une erreur qu'un seuil peut voir.
+- **Le WER local reste 8 points au-dessus de Voxtral** (34,9 % contre 26,9 %).
+
+**Le 23 août, la campagne complète a tourné** : neuf piles, trois tranches,
+vingt-sept mesures.
+`benchmarks/transcription_audio/2026-08-23_neuf-piles-contre-la-transcription-humaine.md`.
+Ce qui change les conclusions ci-dessus :
+
+- **pyannote est le seul diariseur juste sur les trois tranches**, six voix
+  comprises — 3.1 *legacy* et `community-1` à égalité. Il coûte **65 min/h** et
+  exige un jeton plus l'acceptation de conditions.
+- **WhisperX bat Voxtral sur le WER partout** (25,05 % contre 27,07 % sur T1),
+  mais coûte **deux fois le temps réel** et 8 Go, et rate le compte à six voix.
+- **Parakeet TDT v3 est instable en français** : de 0,36 % à 38 % de mots
+  anglais selon la tranche et l'implémentation, contre 0,10 % chez l'humain.
+  C'est lui qui plombe toutes les piles locales bon marché.
+- **`sherpa-onnx` rend 15 à 24 locuteurs pour 4** avec le seuil par défaut du
+  banc : la mesure porte sur **notre paramétrage**, pas sur la pile. À reprendre
+  avant d'en conclure quoi que ce soit.
+- **Whisper `small` bat Parakeet sur tous les tableaux** (36,0 % contre 47,7 %
+  de WER, 0,03 % contre 4,38 % de mots anglais, 3,15 contre 3,90 Go, coût
+  comparable). **Parakeet n'a plus aucun argument**, et les sept piles bâties
+  dessus tombent avec lui.
+- **`large-v3-turbo` domine `medium`** — meilleur WER et 1,8 Go de moins. Il ne
+  le domine pas en vitesse : turbo garde l'encodeur complet de large-v3, et
+  **sur CPU c'est l'encodeur qui coûte**, pas le décodeur.
+- **`sherpa-onnx` est écarté** : aucun seuil de clustering ne convient aux trois
+  tranches, et l'affiner davantage reviendrait à sur-ajuster sur notre matériau.
+- **`loudpage` est abandonné** : tué par l'OOM killer à **11,6 Go** sur une
+  tranche de 900 s, après quatre correctifs d'installation dont un module NVIDIA
+  absent de PyPI.
+- **La combinaison qui n'a pas été mesurée** : Whisper pour l'ASR + pyannote
+  pour la diarisation + **notre** collage au point milieu. C'est la seule façon
+  connue d'avoir le texte de Whisper ET le 6/6 de pyannote, que WhisperX manque
+  par son assignation. Les trois briques sont dans le banc.
+
+**Ce qui n'a pas été fait** : `loudpage/parakeet-v3-diarized` (son image se
+construit, le dépôt ne fournit aucun Dockerfile) et le banc sur GPU ou sur NPU
+— voir `PLAN/TODO/2026-08-23-le-banc-de-transcription-sur-gpu-et-sur-npu.md`.
+
+**Le jeton `HF_TOKEN_DIARIZATION` fonctionne** — les conditions de
+`speaker-diarization-3.1` **et** de `community-1` sont acceptées depuis le
+23 août. Piège à connaître : **l'accès se vérifie sur un fichier, jamais sur le
+dépôt** ; l'API des métadonnées répond 200 alors que les poids sont refusés
+en 403. Le conteneur `web` du projet, lui, ne voit toujours pas ce jeton —
+`env_file` est lu au démarrage, et le recréer coupe les workers.
 
 **Les trois choses à savoir avant d'y toucher** :
 
@@ -296,9 +417,10 @@ le téléchargement des 2,4 Go de l'encodeur.
   `logger.info`. Il dit notre *intention*, pas le comportement actuel. Ça compte,
   parce que le diariseur candidat (Sortformer) plafonne à **4** locuteurs, et que
   son mode de panne au-delà est **silencieux** : la sortie reste plausible.
-- **Le banc n'existe que dans les annexes de la spec.** Le scratchpad où il vivait
-  a déjà été purgé une fois. Les annexes A à G sont intégrales et suffisent à tout
-  reconstruire — ne pas les alléger.
+- **Le banc est versionné depuis le 22 août** dans
+  `benchmarks/transcription_audio/banc/`, avec son `installer_le_banc.sh` et le
+  collage Python de la voie B. Les annexes A à G de la spec restent la copie de
+  référence — ne pas les alléger — mais elles ne sont plus la seule.
 
 **Résultats à consigner** dans un `CHANGELOG/AAAA-MM-JJ-transcription-locale.md`,
 pas ici.
@@ -306,6 +428,18 @@ pas ici.
 ---
 
 ## 6. Décisions en attente du mainteneur
+
+> ### ⚖️ Quatre décisions prises le 30 août 2026 — elles ne sont plus en attente
+>
+> Elles sont consignées **dans leur note**, en encart daté ; ce qui suit n'en est
+> que l'index. Aucune n'est codée.
+>
+> | Ce qui est tranché | Où c'est écrit |
+> |---|---|
+> | **La nuit peut réécrire un article entier**, toutes sections comprises — **à condition que l'historique le conserve**. Pas de borne. La vérification du 30 août dit que la condition n'est pas entièrement tenue : trois trous à combler, dont **la perte des contestations humaines, qui n'est écrite nulle part**. | `PLAN/TODO/2026-08-22-borner-la-reecriture-nocturne-d-un-wiki.md` |
+> | **Une marge de neutralité par juge** (voie A). Les distributions par juge ont été mesurées le jour même, et elles bornent l'attente : mDeBERTa v3 reste structurellement muet. | `PLAN/TODO/2026-08-22-la-marge-de-neutralite-des-juges-locaux.md` |
+> | **Les deux voies de transcription sont nommées** : Voxtral pour la rapidité et le prix ; **notre conteneur sur GPU loué** pour la souveraineté. Ce n'est plus « le local sur notre VPS ». | `PLAN/TODO/2026-08-23-le-moteur-de-transcription-a-deux-voies.md` et `…-la-transcription-sur-gpu-loue-a-la-minute.md` |
+> | **Le verbatim : la question posée plus bas est PÉRIMÉE, et la suite est CODÉE.** Les trois règles de forme datent du 21 août ; la **comparaison par les mots** a été mesurée puis livrée le 30 — **42 des 45 citations au fond intact récupérées, 0 blanchie sur 225 falsifications**, non-régression intacte. Un score de similarité avait été mesuré d'abord, et écarté : un chiffre falsifié y obtient 0,996. Restent le **rejugement** (gratuit) et la **réingestion**. | `CHANGELOG/2026-08-30-le-verbatim-se-compare-par-les-mots.md` et `PLAN/TODO/2026-08-30-ce-qui-reste-du-verbatim-introuvable.md` |
 
 **La granularité de l'ancrage sur un tableau.** Un tableau est **un seul**
 `ElementDocument` de 4 471 signes : une idée ancrée dessus désigne le tableau
@@ -316,7 +450,10 @@ tableaux n'en ont aucun. Découper par ligne à l'ingestion, ou assumer le bloc 
 signalée deux fois, jamais tranchée.
 
 **Combien de voix dans les enregistrements réels ?** (chantier 5.4) C'est la
-question qui commande toute l'architecture de la transcription locale. Le
+question qui commande toute l'architecture de la transcription locale — et la
+mesure du 22 août la rend **plus** aiguë : sur une tranche à 6 voix réelles,
+Sortformer en rend 4 et `diarize` 5, tous deux avec **0 % d'INCONNU**. L'échec
+prédit par le § 4.5 est mesuré, et il est muet. Le
 diariseur candidat plafonne à **4 locuteurs**, notre `max_speakers` vaut **5**, et
 au-delà de 4 la sortie est fausse **sans le dire**. À 3-4 voix, la pile candidate
 est excellente et gère même la parole superposée ; à 6-8, il faut un autre modèle
@@ -329,11 +466,12 @@ le taux d'erreur de diarisation. Un vrai DER suppose d'annoter à la main les
 frontières de tours sur un extrait — quelques heures de travail. À arbitrer avant
 de s'y engager, pas après.
 
-**Où ranger le banc d'essai ?** (chantier 5.4) Il n'existe aujourd'hui que dans
-les annexes de sa spec, faute d'un emplacement décidé pour du code qui n'est pas
-du code de production.
+> **Où ranger le banc d'essai ? — TRANCHÉ le 22 août 2026.** Les scripts vont
+> dans `benchmarks/transcription_audio/banc/` (versionnés) ; les poids, l'audio
+> et les résultats bruts restent **hors dépôt**, dans un dossier de travail passé
+> en argument à `installer_le_banc.sh`. Fait le jour même.
 
-**La marge de neutralité des juges locaux, à revoir.** (mesure du 20 août, sur
+**La marge de neutralité des juges locaux, à revoir.** ⚖️ **TRANCHÉ le 30 août 2026 : une marge par juge** (voie A). Ce qui suit reste le dossier ; les distributions mesurées le 30 août sont dans la note. (mesure du 20 août, sur
 836 avis réels) `MARGE_DE_NEUTRALITE = 2,5` est appliquée uniformément à des
 échelles différentes : **CamemBERTa v2 et mDeBERTa v3 — les deux MEILLEURS
 juges par AUC appariée — sont muets 85 % du temps**, contre 4 % pour `bge-m3`.
@@ -344,7 +482,15 @@ de 50 ; `bge-m3` rend `P(entailment)` brut, étalé de 0,3 à 99,2.
 contradiction, c'est-à-dire sans le signal que tout le dossier défend. Une marge
 par juge, ou une échelle commune : à trancher.
 
-**Faut-il assouplir la comparaison du verbatim ?** (mesure du 19 août,
+**Le rédacteur : Medium, tranché le 22 août 2026.** Le banc ne départageait pas
+Small et Medium (articles différents, pas meilleurs) ; le mainteneur garde
+**Medium** pour sa densité de sources — 10 % de prose sans marqueur contre
+18,8 %. Reste ouvert, et jamais posé comme question produit : **un article sur
+un sujet que le corpus couvre mal se dégrade en prose non sourcée** (4,5 % sur
+« open badges », **35,2 %** sur « gouvernance collective »), et changer de
+modèle n'y change rien.
+
+**Faut-il assouplir la comparaison du verbatim ?** ⚠️ **PÉRIMÉ — les trois règles décrites ci-dessous sont CODÉES depuis le 21 août 2026** (`_le_verbatim_est_present`). Ce qui reste est mesuré et instruit dans `PLAN/TODO/2026-08-30-ce-qui-reste-du-verbatim-introuvable.md`. Ce qui suit décrit l'état d'avant le correctif. (mesure du 19 août,
 `benchmarks/extraction_format/2026-08-19_le-mode-d-echec-du-verbatim.md`) Sur
 les 60 citations `INTROUVABLE` en base, **34 (57 %)** ne tiennent qu'à une
 retouche de forme : un espace de ponctuation (20), un point ajouté (8), une
@@ -356,9 +502,21 @@ veut dire dans la chaîne de preuve, et le produit tout entier repose dessus.
 
 Et la cause dominante n'est pas le modèle : **la page 1 porte littéralement
 `territoire .`**, un point détaché de son mot par l'ingestion, que les trois
-Mistral recollent et que notre comparaison leur refuse. Corriger l'ingestion
-traiterait la cause — au prix d'une réingestion. **Trois voies, aucune
-tranchée.**
+Mistral recollent et que notre comparaison leur refuse.
+
+> **La cause côté moteur a été corrigée le 22 août 2026**
+> (`CHANGELOG/2026-08-22-le-point-detache-de-son-mot.md`). La mesure a
+> d'abord tranché une question qui ne l'était pas : **le défaut a DEUX
+> origines distinctes**. Sur un fichier (markdown, PDF), c'est le moteur —
+> Docling découpe au balisage en ligne, et notre recollage insérait un espace
+> inconditionnel ; `PRESENTATION-V3.md` porte zéro espace avant un point,
+> l'élément stocké en portait un. Sur une **capture web**, c'est la donnée
+> source elle-même : **505** espaces avant un point dans le HTML d'une seule
+> page. Là, le moteur recopie fidèlement, et il a raison.
+>
+> **Ce qui reste ouvert** est donc l'arbitrage, pas la cause : faut-il
+> assouplir la comparaison pour les sources qui écrivent `mot .` ? Et faut-il
+> réingérer les documents déjà en base (22 éléments touchés sur 1103) ?
 
 **Le banc des rédacteurs a tourné, et il a mesuré son propre bruit.** Neuf
 passes (3 modèles × 3 répétitions × 4 articles, températures à 0, périmètre
@@ -387,19 +545,45 @@ arbitrage produit qui n'a jamais été posé.**
 
 ---
 
-## 7. L'état des tests — remesuré le 21 août, après l'histoire des wikis
+## 7. L'état des tests — remesuré le 23 août au soir
 
-**2396 tests, tous verts**, dont **1** sauté. La suite tourne en **28 min 33 s**
-(`Ran 2396 tests in 1712.607s`, `make test-rapide`, donc **hors e2e / docling /
+> **Mesure du 23 août 2026, sur cette machine (VM Haswell 8 vCPU) :**
+> `make test-rapide` rend **2 490 tests, OK (skipped=1)**, en **30 min 47**.
+> Les 42 tests neufs de `test_l_api_d_extraction_est_fermee.py` sont dedans ;
+> ils tournent seuls en **92,7 s**.
+>
+> **L'écart avec le `Makefile` s'est encore creusé** : son aide annonce toujours
+> « 1748 tests, ~7 min 30 (mesure du 15 août 2026) », soit **742 tests et
+> 23 minutes de moins** que la réalité. La question posée plus bas au mainteneur
+> — le `Makefile` cesse-t-il d'annoncer un compte, ou est-il remis à jour à
+> chaque mesure ? — n'est toujours pas tranchée, et le coût de ne pas la
+> trancher est qu'on planifie une session sur un chiffre faux par quatre.
+
+### Le détail, mesuré le 21 août après l'histoire des wikis
+
+**2426 tests, tous verts**, dont **1** sauté. La suite tourne en **29 min 04 s**
+(`Ran 2426 tests in 1744.341s`, `make test-rapide`, donc **hors e2e / docling /
 llm**). Suite lancée **seule**, aucune mesure concurrente.
 
-> **Les 196 tests de plus que la mesure de 2200 ci-dessous ne sont pas tous les
+> ⚠️ **Cette mesure est ANTÉRIEURE aux correctifs de la relecture adverse du
+> 21 août au soir.** Onze tests ont été ajoutés depuis (5 sur la passe de nuit,
+> 4 sur le récapitulatif, 2 sur la contrainte d'unicité de la passe), et le
+> total n'a **pas** été remesuré — le mainteneur avait demandé de ne pas
+> relancer la suite entière. Les six suites touchées, elles, ont été relancées
+> une par une et sont vertes : `test_la_passe_de_nuit_des_wikis` (26),
+> `test_le_recapitulatif_du_matin` (36), `test_l_etat_de_la_passe_de_nuit` (7),
+> `test_le_planificateur` (8), `test_historique_de_wiki` (12),
+> `test_aucun_corps_de_wiki_sans_tour` (3), `test_l_ecran_de_l_historique` (9),
+> `test_synthese_phase_h` (17). **Remesurer le total avant de citer un
+> chiffre.**
+
+> **Les 226 tests de plus que la mesure de 2200 ci-dessous ne sont pas tous les
 > miens, et je ne les attribue pas.** Le chantier de l'histoire des wikis en
-> ajoute **65**, comptés : 12 pour l'historique d'un tour, 3 pour la garde du
-> motif, 5 pour les destinataires, 5 pour l'état de la passe, 16 pour la passe
-> de nuit, 15 pour le récapitulatif du matin, 9 pour son écran. Les **131
-> restants** viennent d'un travail mené en parallèle : je les compte, je ne dis
-> pas d'où ils sortent.
+> ajoute **106** à l'état du 21 août au soir, comptés : 12 pour l'historique
+> d'un tour, 3 pour la garde du motif, 5 pour les destinataires, 7 pour l'état
+> de la passe, 8 pour le planificateur, 26 pour la passe de nuit, 36 pour le
+> récapitulatif du matin, 9 pour son écran. Les **131 restants** viennent d'un travail mené en
+> parallèle : je les compte, je ne dis pas d'où ils sortent.
 
 > ⚠️ **Une suite tuée depuis l'hôte continue de tourner DANS le conteneur.**
 > `timeout` (ou un Ctrl-C) tue le client `docker compose exec`, pas le process
@@ -659,11 +843,294 @@ un contraste de 1,15:1 là où il valait 4,13:1.
 
 ## 10. Par quoi commencer
 
-1. **Ouvrir l'étalon et le produit côte à côte**, en clair puis en sombre. Les
-   sept écarts sont tous résolus ou assumés — mais les tableaux périment, et
-   celui-ci s'est déjà révélé faux sur quatre lignes. Mesurer avant de croire.
-2. **Écrire la spec du visualiseur PDF** avant de l'attaquer (§ 5.2).
-3. **Mesurer les proportions** (§ 5.3). S'il n'y a rien à corriger, le dire :
-   c'est un résultat.
-4. **Mettre à jour le tableau des écarts** dans l'en-tête de `maquette.html` à
-   chaque ligne touchée. La session suivante repart de là.
+> **Révisé le 23 août 2026.** L'ordre qui suit remplace celui du chantier UX/UI, qui
+> visait le visualiseur PDF et les proportions. Ces deux-là restent au § 5 et dans
+> `PLAN/TODO/2026-08-22-le-visualiseur-pdf-avec-surlignage.md` — ils ne sont plus
+> premiers, parce qu'un défaut de sécurité et un trou de traçabilité sont passés
+> devant.
+
+1. ✅ **FAIT le 23 août 2026 — `/api/extraction-jobs/`, `/api/extracted-entities/` et
+   `/api/extraction-examples/` sont fermés.** Contrôle explicite par vue, doctrine du
+   404, périmètre posé dans les querysets, 42 tests.
+   → `CHANGELOG/2026-08-23-fermer-l-api-d-extraction.md`
+
+   **Deux choses restent ouvertes, et elles se décident, elles ne se codent pas :**
+   un carnet **public** ouvre cette API à **tout compte connecté** (c'est la règle du
+   projet — `notes_visibles_par` — mais ces endpoints rendent le prompt et le
+   `raw_result`, pas seulement le corpus) ; et `/api/analyseurs/` répond toujours
+   **403** là où la doctrine demande 404.
+2. ✅ **FAIT le 23 août 2026 au soir — le prototype de l'option C a tourné.**
+   Le champ unique tient à 210 blocs (6 ms par frappe), le diff par
+   `identifiant_stable` est exact (0 perdu, 0 dupliqué, 191 blocs intacts à
+   l'octet), et **l'interception doit vivre dans `beforeinput`** : une garde par
+   `keydown` laisse `Ctrl+A` + frappe réduire une note de 210 blocs à **un seul**.
+   `contenteditable="plaintext-only"` **n'empêche pas** la fusion multi-blocs.
+   → `CHANGELOG/2026-08-23-le-champ-unique-tranche-l-edition-par-blocs.md`
+
+   **La mesure des ancres a été prise** (elle était le critère éliminatoire) :
+   `reconcilier_les_portions_de_l_element` ne détache **que** les portions qui
+   enjambent le point d'édition — 22 sur 22, et 0 des 37 autres —, et c'est
+   **identique pour les trois voies**. Au passage, sur l'échantillon
+   mesuré — 40 porteurs de la page 19 — **14 sont refusés d'emblée** parce qu'une
+   synthèse figée les cite. C'est 35 % **de cet échantillon** ; le chiffre global
+   du § 8.2 de la spec est **30 %** (114 sur 386). Les deux sont justes, ils ne
+   comptent pas la même chose.
+
+   **La note TODO n'a PAS été supprimée.** À la date du 23 août, trois mesures
+   conditionnaient encore la décision ; **les trois ont été faites les 26 et 28 août
+   et les trois passent** — voir le point 3 ci-dessous. Ce qui reste ouvert, et pour
+   quoi cette note survit : **B n'a jamais été construite ni pesée**, elle est
+   écartée par arbitrage, pas par la mesure.
+3. ✅ **FAIT les 23-24 août 2026 — LES TROIS PRÉALABLES DU § 11 DE LA SPEC.**
+   Ce sont les trois choses qui servent **les trois voies** d'édition
+   indifféremment, donc qui pouvaient s'écrire sans attendre la décision.
+
+   - **la fusion des provenances** — corrigée le 23 août ;
+   - **le swap ciblé** : `corriger`, `masquer` et `demasquer` renvoient **le bloc
+     touché** en `hx-swap-oob` au lieu de faire recharger toute la zone de lecture.
+     `scinder` et `fusionner` gardent le rechargement — ils renumérotent — et un pk
+     mort aussi. Chaque bloc porte enfin son `identifiant_stable` dans le DOM.
+     Éprouvé **au navigateur**, témoin posé sur un bloc voisin : il survit.
+     Mesuré : **68,5 ms et 1,4 Ko** contre **159,5 ms et 801 Ko** pour ce qu'il
+     remplace.
+     → `CHANGELOG/2026-08-23-un-endpoint-qui-rend-un-seul-bloc.md`
+   - **l'endpoint de lot** : `POST /elements/corriger_en_lot/`. Texte **brut** et
+     jamais l'empreinte normalisée, blocs vidés **masqués**, un bloc disparu refusé
+     **lui seul**, lot **entier** refusé si une analyse tourne, **un** `PageEdit`
+     par lot, et les cinq nombres avec la liste des refus.
+     → `CHANGELOG/2026-08-24-l-endpoint-de-lot.md`
+
+   **518 tests OK** sur toute l'app `hypostasis_extractor`.
+
+   **Aucun front ne les appelle encore** : le mode d'édition attend les mesures qui
+   conditionnent la voie technique. **Elles ne sont plus que deux** — celle du
+   **DOM réel** est tombée le 26 août, et elle passe : la garde injectée dans la
+   vraie page — **sur Chromium seul** — tient les trois gestes (**189 → 189**, zéro
+   mutation, zéro erreur JS),
+   et le contrat de sérialisation du § 7.1 est vérifié par le chiffre — lire
+   `.corps.textContent` rend **0 bloc exact sur 189**, lire l'élément interne en
+   rend **189 sur 189**. Au passage, la question ouverte des 58 éléments non
+   textuels est **tranchée** : sur la page 19, **202 blocs sur 210 bouclent, et les
+   8 échecs sont exactement les 8 `table`** → lecture seule dans le mode.
+
+   **La passe Firefox/WebKit est faite le 26 août** — `libgtk-3-0t64` posé dans le
+   conteneur sur décision du mainteneur. **La promesse fondatrice de l'option C
+   tient sur les trois moteurs** (Chromium 145, Firefox 146, WebKit 26), et la garde
+   aussi sur le chemin réel : **210 blocs et 210 gouttières intacts** avec elle,
+   cassés sans elle sur les trois. Le piège de `getTargetRanges()` vide est **propre
+   à Chromium**. Une divergence WebKit à connaître : le repère de gouttière entre
+   dans la sélection étendue au clavier — défaut de **copie**, pas de correction.
+
+   **La composition IME est mesurée le 26 août, et sa parade marche** : vraie
+   composition par CDP, **210 → 205 blocs sans parade** (la queue du bloc 25
+   recollée à la tête du 20), **210 → 210 avec**. On ne combat pas la composition —
+   `insertCompositionText` n'est pas annulable —, on lui retire sa matière en
+   normalisant la sélection dès `compositionstart`.
+
+   **LES TROIS MESURES QUI CONDITIONNAIENT LA VOIE SONT FAITES, ET LES TROIS
+   PASSENT.** L'option C est tranchée : champ unique, garde sur `beforeinput` avec
+   repli sur la sélection, parade sur `compositionstart`.
+
+   **Ce qui reste n'est plus une condition, c'est un reste à faire** : éprouver la
+   composition sur un vrai **Android** (la vraie composition n'est déclenchable que
+   sur Chromium), le **lecteur d'écran réel** (§ 9, jamais levé), et **peser le
+   bundle de BlockNote** si l'on veut un jour comparer B autrement que par
+   arbitrage.
+
+   **28 août — `Ctrl+Z` et `Ctrl+S` sont spécifiés et prototypés.** Addendum A de
+   la spec, et un prototype qui les tient sur les trois moteurs. L'annulation est
+   **entièrement applicative** : la pile native meurt dès qu'une interception écrit
+   dans le DOM, et `execCommand` ne la rend qu'à moitié (une opération par
+   `Ctrl+Z`). Une photo ne contient que des textes — la liste des blocs est
+   invariante — et coûte **2,6 à 5 ms pour 57 Ko**. **Un `Ctrl+Z` = un geste**,
+   vérifié. `Ctrl+S` : état d'attente annoncé, second envoi refusé, **pile
+   conservée** après l'enregistrement.
+   → `CHANGELOG/2026-08-28-l-annulation-et-l-enregistrement-au-clavier.md`
+
+   ✅ **29 août — l'obstacle est levé, et il cachait un défaut de production.**
+   `marginalia.js` ne porte plus aucun écouteur clavier ; la fermeture par `Échap`
+   vit dans la cascade de `keyboard.js`, à un rang **après** le drawer. Le geste
+   juste était de **fusionner**, pas de neutraliser : cet écouteur était le jumeau
+   du bouton « Annuler », une fonction vivante. Et le danger n'était pas que futur —
+   mesuré au navigateur, avec le drawer ouvert par-dessus un éditeur, **un seul
+   `Échap` fermait les deux** et jetait la correction en cours de frappe.
+   **527 tests OK.** → `CHANGELOG/2026-08-29-un-seul-ecouteur-echap.md`
+
+4. ✅ **FAIT le 29 août 2026 — LE MODE D'ÉDITION EXISTE.** Un bouton « Éditer le
+   texte » ouvre un mode où tout le texte de la note est modifiable d'un coup, les
+   blocs restant des blocs. `Ctrl+S` enregistre par l'endpoint de lot, `Ctrl+Z`
+   annule **un geste**, `Échap` sort. Vérifié sur **les trois moteurs** (189 blocs
+   préservés sur chaque geste, zéro erreur JS) et `Ctrl+S` **de bout en bout** sur
+   une note jetable : 1 modifié, 1 masqué, le texte du bloc masqué **préservé**.
+   **623 tests OK.**
+   → `CHANGELOG/2026-08-29-le-mode-edition-par-blocs.md`
+
+   **Deux défauts que le prototype ne pouvait pas montrer**, trouvés en branchant
+   sur le vrai gabarit : le texte tapé au bord d'un bloc tombait **à côté** du texte
+   (donc perdu à l'enregistrement, avec un « 0 modifié » silencieux), et `closest()`
+   remonte sans descendre — un point posé sur `.corps` ne résolvait vers aucun bloc.
+
+   **Et un défaut de fond corrigé le même jour** (addendum B de la spec) :
+   corriger un bloc **déjà masqué** rendait son démasquage **impossible**, en
+   silence et pour toujours. Mesuré : sur un bloc portant 3 ancres, masquer puis
+   démasquer en rattache 3 ; masquer, **corriger**, puis démasquer en rattache 0 et
+   en laisse 3 détachées. Le lot **refuse** désormais ce bloc, lui seul, avec son
+   motif — et le refus est vérifié : le texte ne bouge pas, et les 3 ancres
+   reviennent.
+
+   **Ce qui reste hors du socle** : toute la sténotypie (§ 6 — piloter l'audio,
+   rembobiner, la vitesse, le locuteur), la table de raccourcis (§ 4.4), le
+   `white-space: pre-line` de l'`Entrée`, le démasquage depuis le mode, et le
+   **lecteur d'écran réel**, jamais éprouvé.
+
+5. **Le gratuit, si on veut un résultat sans facture** : les distributions par juge
+   sur les 836 avis déjà en base. **Aucun modèle appelé**, et cela débloque le degré
+   progressif, que la note du 20 août appelle « la cible du mainteneur ».
+   → `2026-08-22-la-marge-de-neutralite-des-juges-locaux.md`
+6. **La doc qui ment** (planches 02/03, README des Diagrams, addendum de spec,
+   docstring Q3, et le prompt qui promet au modèle qu'« un humain acceptera »). Une
+   demi-journée, faisable en parallèle de n'importe quoi d'autre.
+   → `2026-08-23-la-doc-ment-sur-la-nuit-et-la-verification.md`
+
+> ### ⚠️ REPRISE — état au 30 août 2026, rien n'est commité
+>
+> ✅ **LA SUITE A TOURNÉ le 30 août : 691 tests OK en 432 s.** Elle couvre les cinq
+> améliorations du mode, le refus des tableaux, la modale de refus, la touche `M`,
+> les rangs de cascade de `user_menu.js` et du `<dialog>`, et la garde serveur
+> `LABELS_QUI_NE_SE_RELISENT_PAS` : **aucun échec**. La commande :
+> ```bash
+> docker exec -w /app hypostasia_web python manage.py test \
+>   front.tests.test_mode_edition front.tests.test_ce_que_dit_l_aide \
+>   front.tests.test_phases front.tests.test_lecture_elements \
+>   front.tests.test_boutons_elements front.tests.test_rendu_elements \
+>   hypostasis_extractor.tests.test_corriger_en_lot \
+>   hypostasis_extractor.tests.test_le_rendu_d_un_seul_bloc \
+>   hypostasis_extractor.tests.test_views_element --noinput
+> ```
+> **Puis 46 tests neufs ont été écrits dans la journée** — le refus par synthèse
+> figée dans un lot, les deux compteurs d'ancres, le refus des tableaux, la borne
+> et les doublons, le panneau des masqués, l'endpoint qui le tient à jour, et la
+> garde d'analyse des vidages. La suite ci-dessus, augmentée de
+> `hypostasis_extractor.tests.test_le_lot_et_les_ancrages`, rend
+> **737 tests OK en 481 s** (30 août, au soir).
+>
+> ⚠️ **UNE FAILLE DE SÉCURITÉ A ÉTÉ FERMÉE LE 30 AOÛT, et elle ne venait pas du
+> mode.** `Swal.fire` rend son `title` **en HTML**, et `hypostasia.js` y passait
+> le `message` de `HX-Trigger: showToast` — soit **84 emplacements** qui portent
+> des données écrites par des humains (nom de groupe, titre de base, et depuis
+> ce matin le titre de la synthèse qui bloque une édition). **Mesuré** : un
+> message contenant `<img src=x onerror=…>` faisait **exécuter le script** chez
+> qui recevait le toast. Corrigé par `titleText`, remesuré, `?v=41`.
+> → `benchmarks/edition_par_blocs/banc/mesures22_le_toast_et_le_html.py`
+>
+> **Ce qui reste ouvert sur le mode**, par ordre de gravité :
+>
+> 1. ✅ **FAIT le 30 août — le refus par synthèse figée DANS un lot est exercé.**
+>    Le chemin le plus délicat (exception attrapée dans l'`atomic`) tient : le bloc
+>    gelé est refusé **lui seul**, les autres blocs du lot sont **écrits en base**,
+>    vider un bloc gelé est refusé aussi, un wiki ne gèle rien, et un lot
+>    entièrement gelé n'écrit **aucun** `PageEdit`. **Le mordant est mesuré** : en
+>    neutralisant la garde dans les deux services, **7 des 15 tests tombent**.
+>    → `CHANGELOG/2026-08-24-l-endpoint-de-lot.md`, section du 30 août.
+> 2. ✅ **FAIT le 30 août — une fixture porte enfin de vrais ancrages.**
+>    Extractions, portions posées sur des **offsets calculés depuis le texte**, et
+>    citations créées par le vrai service `indexer_les_citations` (seul chemin qui
+>    pose `ancrage_source`). `ancres_detachees` et `citations_detachees` sont
+>    désormais affirmés **par leur nombre**, et l'état en base est vérifié.
+> 3. ✅ **TRANCHÉ le 30 août — l'i18n SORT de cette liste.** Ce n'était pas un
+>    reste du mode, mais l'état du projet entier : **2** occurrences de
+>    `{% translate %}` dans les **85** gabarits de `front/`, **0** `gettext` dans
+>    `front/*.py`, **aucun dossier `locale/`**, **aucun `LOCALE_PATHS`**, rien
+>    côté JS. Envelopper les seules chaînes du mode ne traduirait **rien**.
+>    Décision du mainteneur : **rien maintenant, chantier de projet**, avec ce
+>    qu'il suppose écrit une fois pour toutes.
+>    → `PLAN/TODO/2026-08-30-l-i18n-est-un-chantier-de-projet.md`
+> 4. ✅ **FAIT le 30 août — le mode sait démasquer** (§ 5.3, cas 4). Un panneau
+>    replié, rendu **au-dessus du champ** (donc hors de lui, donc jamais
+>    sérialisé), liste les passages masqués et les rétablit d'un clic.
+>    *Arbitrage du mainteneur : une commande, pas des placeholders au fil du
+>    texte.* La liste vient du serveur (filtre `passages_masques_de`), le bouton
+>    poste l'endpoint `demasquer` qui existait déjà, le JS ne fait que
+>    l'affichage. **Mesuré de bout en bout** sur une note jetable : « 2 passages
+>    masqués » → « 1 » → panneau disparu, blocs du champ 2 → 3 → 4, mode toujours
+>    ouvert, **0 erreur JS**, contrastes **5,24:1** clair / **5,94:1** sombre,
+>    filet du bouton **3,16** / **4,26**, cible **72 × 24 px**.
+>    **Et une relecture adverse a repris le tout**, ce qui a livré quatre
+>    défauts réels : le panneau **ignorait ce que le mode venait de masquer**
+>    (le cas fondateur du § 5.3 cas 4 — corrigé par un endpoint qui rend le même
+>    partial, redemandé après chaque enregistrement) ; les `hx-post` d'un
+>    fragment posé par `innerHTML` sont **inertes** sans `htmx.process()` ; le
+>    panneau **se refermait** sous les doigts ; et la lecture seule des tableaux
+>    **comme les gouttières** n'étaient posées qu'à l'ouverture — un bloc revenu
+>    par swap redevenait modifiable là où il ne doit pas l'être. Tout est reposé
+>    après chaque swap, et mesuré dans les deux sens.
+>    → `benchmarks/edition_par_blocs/resultats/resultats-le-panneau-des-masques.json`
+> 5. **Un tableau ne se corrige NULLE PART** — ni dans le mode, ni ailleurs. Le seul
+>    recours est de réingérer. C'est un manque du moteur, antérieur au mode.
+> 5 bis. ✅ **FAIT le 30 août — la garde d'analyse couvre enfin les vidages.**
+>    Trouvé par la relecture adverse, **mesuré avant de corriger** : une analyse
+>    démarrée pendant un lot de vidages le laissait passer — **200 au lieu de
+>    409**, blocs masqués pour de bon. Les corrections étaient couvertes (le
+>    service repose la garde), les vidages non
+>    (`masquer_un_element(..., verifier_les_jobs=False)`) — et le commentaire de
+>    la vue affirmait le contraire. La garde est reposée **une fois en fin de
+>    lot**, dans l'`atomic`, et **seulement s'il y a eu des écritures** : le lot
+>    entier est annulé, 409, le texte reste à l'écran. Deux tests l'épinglent,
+>    dont un pour le cas « rien n'a changé », qui ne doit **pas** refuser.
+>    → `CHANGELOG/2026-08-24-l-endpoint-de-lot.md`
+> 6. **Le lecteur d'écran réel** n'a jamais été essayé (§ 9), et **Android** non plus
+>    (la vraie composition IME n'est déclenchable que sur Chromium).
+> 7. ✅ **FAIT le 30 août — la sténotypie au clavier et la table de raccourcis.**
+>    Dans le mode : `F4` lit/pause, `F2` écoute **à partir du passage du curseur**,
+>    `F7`/`F8` reculent et avancent de 5 s, `F9`/`F10` changent la vitesse — et
+>    chaque geste accepte aussi les codes de **pédale** (`MediaPlayPause`,
+>    `F13`–`F15`). Deux réglages neufs dans la barre : la **vitesse** (paliers 0,5
+>    → 2, affichée, **survit au rechargement**) et le **recul à la reprise** (2 s
+>    par défaut, **zéro le désactive**, et il ne s'applique **qu'à une reprise**).
+>    Les touches sont une **table** publiée, et le bandeau du mode se compose
+>    depuis elle — il portait une recopie dans du CSS. Mesuré sur `/lire/4/` :
+>    `F2` sur le passage à 3,2 s y saute, ±5 s justes, 1,25× conservé après
+>    rechargement, **0 erreur JS**.
+>    → `CHANGELOG/2026-08-30-la-stenotypie-au-clavier.md`
+>
+>    **Une relecture adverse a repris le tout, et trouvé quatre défauts qui
+>    faisaient perdre du travail** — tous corrigés et remesurés : les frappes
+>    tapées **pendant l'envoi** étaient désarmées en silence ; `Ctrl+Z` avec le
+>    focus hors du champ (rail, menu du recul, panneau) annulait le texte
+>    derrière ; la touche **« z » nue** remplaçait `#zone-lecture` sans une
+>    question ; et **cliquer un passage surligné** — le geste le plus ordinaire
+>    du mode — ouvrait le tiroir, la garde étant posée sur le mauvais des deux
+>    listeners de `marginalia.js`. Plus : le motif FALC d'un refus et le résumé
+>    d'un enregistrement **partiel** n'atteignaient jamais l'écran, et le recul à
+>    la reprise **déplaçait un point qu'on venait de viser**, contre ce que
+>    l'encart du § 6.3 promet. **768 tests OK.**
+>
+>    **Ce qui reste de la sténotypie** : la **correction du locuteur** (§ 6.2),
+>    et la spec **se trompe** à son sujet — `renommer_locuteur` **refuse en 409
+>    toute note à éléments**, donc le geste n'existe pour **aucune note réelle**.
+>    Il faut un geste natif ELEMENT qui écrit `provenance["locuteur"]`, pas un
+>    raccourci vers un endpoint qui refuse. La **modale d'aide** doit encore rendre
+>    la table, et les **trois autres listeners** (`keyboard.js`, `marginalia.js`,
+>    `user_menu.js`) gardent leurs touches en dur.
+> 8. ✅ **FAIT le 30 août — un `Ctrl+S` réussi se voit.** Le résumé que la vue pose
+>    dans `HX-Trigger` n'atteignait personne (le `fetch` ignore les en-têtes) : le
+>    mode le relit et rejoue l'événement, donc le toast s'affiche en haut à droite,
+>    quel que soit le défilement. Le libellé était du bricolage
+>    (« 0 passage(s) corrigé(s), 1 masqué(s), 0 refusé(s) ») ; il est maintenant
+>    composé par `_resume_du_lot`, accordé, et **ne dit que ce qui a eu lieu** —
+>    « 1 passage corrigé, 1 masqué. », « Aucun changement à enregistrer. » Sept
+>    tests l'épinglent.
+>
+> **Deux relectures adverses du 29 août ont laissé des restes** : le compte de charge
+> annoncé dans le CHANGELOG de la décision ne couvre pas toute la session ; « les
+> mesures 1 et 2 sont les seules prises deux fois » est inexact ; deux notes de
+> `PLAN/TODO/` disent encore « rien n'est codé » alors que le partial de bloc et
+> l'endpoint existent ; et `mesures10_le_vrai_dom.py` porte le mot de passe en dur.
+
+**Ce qui vient ensuite, dans l'ordre** : la provenance minimale d'un prompt (bloquante
+pour toute mesure), les deux bornes — le prompt de mise à jour et la réécriture
+nocturne —, puis le typage des analyseurs.
+
+**Et une règle de méthode, mesurée le 23 août** : faire relire par un agent adverse
+avec accès au dépôt, **avant** de croire un document qu'on vient d'écrire. Deux erreurs
+de fait y ont été trouvées le jour même, dont une qui cachait un bug de production.

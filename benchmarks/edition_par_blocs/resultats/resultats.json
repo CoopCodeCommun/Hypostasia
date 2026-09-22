@@ -1,0 +1,341 @@
+{
+ "machine": {
+  "hote": "d168f06e7360",
+  "charge_1_5_15": [
+   "2.02",
+   "1.92",
+   "2.15"
+  ],
+  "horodatage": "2026-08-23 20:25:55"
+ },
+ "navigateur": "Chromium 145.0.7632.6",
+ "mesure_6_plaintext_only": {
+  "moteur": "chromium",
+  "true": {
+   "attribut_relu": "true",
+   "propriete_relue": "true",
+   "accepte": true,
+   "entree_nue_casse_les_frontieres": false,
+   "entree_nue_blocs_avant_apres": [
+    12,
+    12
+   ],
+   "entree_nue_mutations_de_structure": 1,
+   "collage_nu_casse_les_frontieres": false,
+   "collage_nu_a_laisse_du_gras": false,
+   "collage_nu_extrait_html": "<p data-corps-de=\"09fdce5a-232f-45aa-a075-e496d9b95e1f\">Tu vois, c'est précisément cette rhétorique guerrière qui est toxique. L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverne"
+  },
+  "plaintext-only": {
+   "attribut_relu": "plaintext-only",
+   "propriete_relue": "plaintext-only",
+   "accepte": true,
+   "entree_nue_casse_les_frontieres": false,
+   "entree_nue_blocs_avant_apres": [
+    12,
+    12
+   ],
+   "entree_nue_mutations_de_structure": 0,
+   "collage_nu_casse_les_frontieres": false,
+   "collage_nu_a_laisse_du_gras": false,
+   "collage_nu_extrait_html": "<p data-corps-de=\"09fdce5a-232f-45aa-a075-e496d9b95e1f\">Tu vois, c'est précisément cette rhétorique guerrière qui est toxique. L'IA ne se contente pas d'augmenter nos capacités : elle prétend gouverne"
+  }
+ },
+ "mesure_1_tenue": {
+  "210_blocs": {
+   "blocs": 210,
+   "caracteres": 58770,
+   "rendu_ms": 8.7,
+   "layout_ms": 44.9,
+   "hauteur_px": 14145,
+   "frappe_n": 40,
+   "frappe_saisie_median_ms": 6,
+   "frappe_saisie_p95_ms": 8.7,
+   "frappe_saisie_max_ms": 8.8,
+   "frappe_frame_median_ms": 0.2,
+   "frappe_frame_p95_ms": 2,
+   "duree_totale_frappe_s": 0.89,
+   "cout_entree_interceptee_ms": 2.6,
+   "cout_serialisation_ms": 4.1
+  },
+  "12_blocs": {
+   "blocs": 12,
+   "caracteres": 4411,
+   "rendu_ms": 3.1,
+   "layout_ms": 8.5,
+   "hauteur_px": 1050,
+   "frappe_n": 40,
+   "frappe_saisie_median_ms": 1.1,
+   "frappe_saisie_p95_ms": 1.8,
+   "frappe_saisie_max_ms": 2.2,
+   "frappe_frame_median_ms": 7.4,
+   "frappe_frame_p95_ms": 10.1,
+   "duree_totale_frappe_s": 0.66,
+   "cout_entree_interceptee_ms": 1.6,
+   "cout_serialisation_ms": 1
+  }
+ },
+ "mesure_4_suppression_multi_blocs": {
+  "garde_0": {
+   "frontieres_identiques": false,
+   "blocs_avant": 210,
+   "blocs_apres": 205,
+   "frontieres_perdues": [
+    "def6ecdb-a1e0-46d9-a7c5-283f3a874f45:21",
+    "d407ce56-b571-496d-b97a-5eae9bc8e467:22",
+    "b1557642-c7ad-4d91-bb06-04efbd4ae606:23",
+    "c5d8d865-0420-42ef-8537-a46e50347c30:24",
+    "7e7c6342-e5f9-45c8-96ed-ea89bc462ed2:25"
+   ],
+   "bloc20_avant": "Citizen consultations and community co-creati",
+   "bloc20_apres": "Citizen consultns of IAG-including  academic ",
+   "bloc25_apres": "In this context, AI does not act as a substit",
+   "blocs_21_24_vides": [
+    false,
+    false,
+    false,
+    false
+   ],
+   "mutations_de_structure": 7,
+   "clavier_seul_selection_traverse": true,
+   "clavier_seul_frontieres_identiques": false
+  },
+  "garde_1": {
+   "frontieres_identiques": true,
+   "blocs_avant": 210,
+   "blocs_apres": 210,
+   "frontieres_perdues": [],
+   "bloc20_avant": "Citizen consultations and community co-creati",
+   "bloc20_apres": "Citizen consult",
+   "bloc25_apres": "ns of IAG-including  academic integrity, tran",
+   "blocs_21_24_vides": [
+    true,
+    true,
+    true,
+    true
+   ],
+   "mutations_de_structure": 0,
+   "clavier_seul_selection_traverse": true,
+   "clavier_seul_frontieres_identiques": true
+  }
+ },
+ "mesure_3_gestes_creant_des_noeuds": {
+  "entree": {
+   "frontieres_identiques": true,
+   "saut_de_ligne_dans_le_bloc": true,
+   "html_du_bloc": "<p data-corps-de=\"d78e0326-8dc4-45f7-a3f8-3dadd1a73f6e\">Thus, a synthesis of a do\ncument is defined here as a new docume"
+  },
+  "retour_arriere_en_tete": {
+   "frontieres_identiques": true,
+   "aucun_texte_modifie": true
+  },
+  "collage_garde_0": {
+   "frontieres_identiques": true,
+   "blocs_apres": 210,
+   "style_survivant": false,
+   "extrait": "<p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">A  high  school  debate  is  presented  here  as  an  example,  but  this  approach  can  be applied jus"
+  },
+  "collage_garde_1": {
+   "frontieres_identiques": true,
+   "blocs_apres": 210,
+   "style_survivant": false,
+   "extrait": "<p data-corps-de=\"8ce8d360-4678-486e-96ff-99f186f7b0ad\">A  high  sTITRE\n\ngras et italique\n\nsecondchool  debate  is  presented  here  as  an  example,  but  this"
+  },
+  "glisser_deposer_garde_0": {
+   "frontieres_identiques": true,
+   "blocs_apres": 210
+  },
+  "glisser_deposer_garde_1": {
+   "frontieres_identiques": true,
+   "blocs_apres": 210
+  },
+  "correcteur_orthographique": {
+   "spellcheck_actif_sur_le_champ": true,
+   "beforeinput_insertReplacementText_intercepte": false,
+   "keydown_recu_pour_ce_geste": false,
+   "note": "headless : le vrai correcteur ne peut pas etre declenche"
+  },
+  "ctrl_z": {
+   "frontieres_identiques": true,
+   "blocs_apres": 210,
+   "texte_bloc18_avant_annulation": "The interpXYZ\nlay  between  the  methodological  challenges ",
+   "texte_bloc18_apres_annulation": "The interpXYZ\nlay  between  the  methodological  challenges ",
+   "annulation_a_efface_le_saut_de_ligne": false,
+   "annulation_a_rendu_le_xyz": true,
+   "mutations_de_structure": 0
+  }
+ },
+ "mesure_5_clavier": {
+  "tab_atteint_le_champ": true,
+  "fleche_bas_traverse_les_blocs": true,
+  "bloc_avant_apres_fleche": [
+   "0",
+   "1"
+  ],
+  "ctrl_fin_va_au_dernier_bloc": true,
+  "maj_bas_etend_a_travers_les_blocs": true,
+  "la_selection_contient_le_texte_de_la_gouttiere": false,
+  "extrait_de_la_selection": " exactement le discours qui m'inquiète. On nous présente l'IA comme une fatalité historique, alors qu'il s'agit d'un cho",
+  "ctrl_s_intercepte": true,
+  "compte_rendu_annonce": "12 blocs envoyés",
+  "ax_nombre_de_noeuds": 177,
+  "ax_premiers_noeuds": [
+   {
+    "role": "RootWebArea",
+    "name": "Prototype option C — le champ unique"
+   },
+   {
+    "role": "paragraph",
+    "name": ""
+   },
+   {
+    "role": "status",
+    "name": ""
+   },
+   {
+    "role": "textbox",
+    "name": "Texte de la note, éditable bloc par bloc"
+   },
+   {
+    "role": "generic",
+    "name": ""
+   },
+   {
+    "role": "generic",
+    "name": ""
+   },
+   {
+    "role": "StaticText",
+    "name": " "
+   },
+   {
+    "role": "generic",
+    "name": ""
+   },
+   {
+    "role": "StaticText",
+    "name": " "
+   },
+   {
+    "role": "generic",
+    "name": ""
+   },
+   {
+    "role": "StaticText",
+    "name": "12 blocs envoyés"
+   },
+   {
+    "role": "generic",
+    "name": ""
+   },
+   {
+    "role": "paragraph",
+    "name": ""
+   },
+   {
+    "role": "generic",
+    "name": ""
+   }
+  ],
+  "ax_expose_un_numero_de_bloc": true,
+  "ax_expose_un_locuteur": true
+ },
+ "mesure_2_vingt_gestes": {
+  "journal_des_gestes": [
+   {
+    "n": 1,
+    "geste": "frappe simple dans le bloc 5"
+   },
+   {
+    "n": 2,
+    "geste": "correction de CASSE au debut du bloc 7"
+   },
+   {
+    "n": 3,
+    "geste": "double ESPACE insere dans le bloc 9"
+   },
+   {
+    "n": 4,
+    "geste": "Entree au milieu du bloc 11"
+   },
+   {
+    "n": 5,
+    "geste": "Retour arriere en TETE du bloc 13"
+   },
+   {
+    "n": 6,
+    "geste": "Suppr en FIN du bloc 15"
+   },
+   {
+    "n": 7,
+    "geste": "selection du bloc 20 au bloc 25, Suppr"
+   },
+   {
+    "n": 8,
+    "geste": "collage de HTML riche dans le bloc 30"
+   },
+   {
+    "n": 9,
+    "geste": "collage multi-paragraphes dans le bloc 32"
+   },
+   {
+    "n": 10,
+    "geste": "glisser-deposer dans le bloc 35"
+   },
+   {
+    "n": 11,
+    "geste": "frappe puis Ctrl+Z dans le bloc 38"
+   },
+   {
+    "n": 12,
+    "geste": "vider entierement le bloc 40"
+   },
+   {
+    "n": 13,
+    "geste": "Suppr sur le bloc 40 selectionne"
+   },
+   {
+    "n": 14,
+    "geste": "vider puis re-remplir le bloc 45"
+   },
+   {
+    "n": 15,
+    "geste": "frappe dans un bloc table"
+   },
+   {
+    "n": 16,
+    "geste": "Maj+Bas x10 puis Retour arriere depuis le bloc 50"
+   },
+   {
+    "n": 17,
+    "geste": "Entree dans un titre (section_header)"
+   },
+   {
+    "n": 18,
+    "geste": "frappe dans le dernier bloc"
+   },
+   {
+    "n": 19,
+    "geste": "frappe dans un bloc a saut de ligne interne"
+   },
+   {
+    "n": 20,
+    "geste": "Ctrl+S"
+   }
+  ],
+  "frontieres_identiques": true,
+  "blocs_avant": 210,
+  "blocs_apres": 210,
+  "mutations_de_structure": [],
+  "nombre_de_mutations_de_structure": 0,
+  "post_et_initiaux_retires": {
+   "blocs_dans_le_post": 210,
+   "blocs_initiaux": 210,
+   "pourquoi": "Ces deux tableaux portaient le texte integral de la page 19 (58 770 caracteres), qui appartient a un tiers. Le resume du diff est dans le README ; pour les rejouer, re-extraire les donnees avec banc/extraire_les_donnees_reelles.py."
+  }
+ },
+ "charge_a_la_fin": [
+  "2.39",
+  "2.01",
+  "2.17"
+ ]
+}

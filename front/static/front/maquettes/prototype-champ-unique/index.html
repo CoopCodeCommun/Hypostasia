@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Prototype — l'option C, le champ unique</title>
+<link rel="stylesheet" href="prototype.css">
+</head>
+<body>
+<p id="avertissement">
+  <strong>Ce n'est PAS un étalon.</strong> C'est le prototype jetable qui a
+  tranché la voie technique de l'édition par blocs, le 23 août 2026 — gardé
+  pour qu'on puisse le remanipuler, pas pour qu'on s'y aligne. Les données
+  affichées sont <strong>synthétiques</strong>.
+  Ce qu'il a mesuré :
+  <code>CHANGELOG/2026-08-23-le-champ-unique-tranche-l-edition-par-blocs.md</code>.
+</p>
+<p id="modes">
+  À essayer en changeant l'adresse :
+  <code>?garde=0</code> le navigateur nu ·
+  <code>?garde=1</code> la garde par <code>keydown</code> ·
+  <code>?garde=2</code> la garde par <code>beforeinput</code> ·
+  <code>&amp;ce=plaintext-only</code> ·
+  <code>&amp;compo=1</code> la parade à la composition IME ·
+  <code>&amp;annulation=1</code> la pile d'annulation ·
+  <code>&amp;page=3</code> la transcription.
+  <br><strong>La configuration éprouvée est
+  <code>?garde=2&amp;ce=plaintext-only&amp;compo=1&amp;annulation=1</code></strong> : garde sur
+  <code>beforeinput</code> avec repli sur la sélection, <code>plaintext-only</code>
+  pour le collage non traversant, parade sur <code>compositionstart</code>, et la pile d'annulation (<code>Ctrl+Z</code>, <code>Ctrl+Maj+Z</code>, <code>Ctrl+S</code>).
+  Sélectionnez du bloc 3 au bloc 8 et tapez une lettre : en
+  <code>garde=0</code> et <code>garde=1</code> cinq blocs disparaissent, en
+  <code>garde=2</code> non. <code>Ctrl+S</code> rend le POST.
+</p>
+<p id="bandeau">
+  <span id="etat-mode">mode : —</span>
+  <span id="compte-blocs">blocs : —</span>
+  <span id="compte-caracteres">caractères : —</span>
+</p>
+<div id="zone-annonces" role="status" aria-live="polite"></div>
+<div id="champ" role="textbox" aria-multiline="true"
+     aria-label="Texte de la note, éditable bloc par bloc"></div>
+<pre id="compte-rendu"></pre>
+<script src="prototype.js"></script>
+</body>
+</html>

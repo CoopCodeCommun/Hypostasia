@@ -1,0 +1,53 @@
+{
+ "horodatage": "2026-08-23 20:58:25",
+ "charge_au_debut": [
+  "2.20",
+  "1.97",
+  "1.87"
+ ],
+ "navigateur": "Chromium 145.0.7632.6",
+ "ime_sur_selection_multi_blocs_garde_2": {
+  "identique": false,
+  "blocs_avant": 210,
+  "blocs_apres": 205,
+  "geste_non_annulable_signale": "insertCompositionText",
+  "journal_beforeinput": [
+   {
+    "type": "insertCompositionText",
+    "traverse": true,
+    "hors_bloc": false,
+    "annulable": false
+   },
+   {
+    "type": "insertCompositionText",
+    "traverse": false,
+    "hors_bloc": false,
+    "annulable": false
+   }
+  ]
+ },
+ "ime_sur_selection_multi_blocs_garde_0": {
+  "identique": false,
+  "blocs_avant": 210,
+  "blocs_apres": 205,
+  "geste_non_annulable_signale": null,
+  "journal_beforeinput": []
+ },
+ "annulation_garde_2": {
+  "frappe_simple_annulee": true,
+  "apres_une_entree_annulation_a_change_quelque_chose": false,
+  "extrait_avant": "1.1 BackgrQQQ\nound and Issues",
+  "extrait_apres": "1.1 BackgrQQQ\nound and Issues"
+ },
+ "annulation_garde_1": {
+  "frappe_simple_annulee": true,
+  "apres_une_entree_annulation_a_change_quelque_chose": false,
+  "extrait_avant": "1.1 BackgrQQQ\nound and Issues",
+  "extrait_apres": "1.1 BackgrQQQ\nound and Issues"
+ },
+ "charge_a_la_fin": [
+  "2.18",
+  "1.97",
+  "1.87"
+ ]
+}

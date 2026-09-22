@@ -1,9 +1,15 @@
 # L'histoire d'un wiki, la passe de nuit et le récapitulatif du matin / A wiki's history, the nightly pass and the morning recap
 
 **Date :** 2026-08-21
-**Migration :** **Oui** — `core.0074_tourdewiki_operationdewiki` et
-`core.0075_passedenuit_envoidurecapitulatif`
+**Migration :** **Oui** — `core.0074_tourdewiki_operationdewiki`,
+`core.0075_passedenuit_envoidurecapitulatif`,
+`core.0076_compteur_de_la_passe_de_nuit`,
+`core.0077_borne_haute_du_recapitulatif`,
+`core.0078_une_seule_passe_ouverte` et `core.0079_un_echec_est_un_tour`
 (`docker compose exec web python manage.py migrate core`)
+**Redémarrage exigé :** **Oui** — trois tâches Celery neuves.
+`make restart S=celery_worker`, sinon le worker tourne avec l'ancien code et
+ne sait pas les exécuter (constaté le jour même).
 
 ## Resume / Summary
 
@@ -21,11 +27,66 @@ and one line per operation — additions, replacements, and refusals with reason
 jour toute seule (elle propose ET applique), et un **recapitulatif du matin**,
 un mail par personne et par jour au maximum, qui annonce les wikis modifies —
 humains comme automatiques — et ceux dont le perimetre a recu du neuf non
-repris. **Le mail part toujours APRES le run de la nuit** : la commande
-interroge la `PasseDeNuit`, attend qu'elle finisse, et **refuse d'envoyer**
-plutot que d'annoncer un travail a moitie fait.
+repris. **Le mail part toujours APRES le run de la nuit** : il interroge la
+`PasseDeNuit`, attend qu'elle finisse, et **refuse d'envoyer** plutot que
+d'annoncer un travail a moitie fait.
 / A nightly pass that proposes AND applies, plus a once-a-day recap mail that
 always waits for the night run to finish.
+
+**LA PLANIFICATION VIT DANS L'APPLICATION.** `hypostasia/celery.py`
+(`beat_schedule`) declare les deux rendez-vous, un programme `celery_beat` les
+declenche, et les heures se reglent par `HEURE_PASSE_DE_NUIT` et
+`HEURE_RECAPITULATIF` (UTC, defaut 2 h et 6 h). Pas de `django-celery-beat` :
+sa valeur ajoutee est de piloter l'horaire depuis l'**admin Django**, qui est
+desactive dans ce projet — il couterait une dependance, une migration et deux
+tables pour un ecran qui n'existe pas. Pas de cron d'hote non plus : il vit
+hors du depot, ne se relit pas en revue, et un clone frais ne l'a pas.
+**`celery_beat` n'est pas un quatrieme worker** : il ne consomme aucune file et
+ne prend aucun slot — la topologie des trois workers reste vraie.
+/ The schedule lives in the app's code, not in a host crontab.
+
+**LE RECAPITULATIF SURVEILLE SIX CHOSES**, pas seulement les wikis : les wikis
+**modifies** (en disant quelle note les a appeles), les **commentaires** neufs —
+avec leur **texte**, leur **auteur** et un bouton **« Reagir »** qui ouvre la
+note commentee —, les **articles neufs** (wikis et syntheses), les **notes
+neuves**, les **carnets publics** qui viennent d'apparaitre, et les wikis dont
+le perimetre porte du **neuf non repris**. Le titre du mail est « Ce qui a bouge
+sur Hypostasia.org ».
+
+**CREER N'EST PAS METTRE A JOUR, ET LA REGLE N'EST PAS LA MEME.**
+
+**Ce qu'on a CREE ne nous est pas annonce** : sa propre note, son propre
+commentaire, son propre carnet public. Le lendemain matin, leur auteur le sait
+deja ; les lui raconter ferait du recapitulatif un accuse de reception — et
+c'est l'utilisateur le PLUS ACTIF qui recevrait le plus de bruit, donc celui qui
+cesserait de le lire le premier. Mesure sur la base de dev : le destinataire le
+plus actif passe de 20 lignes annoncees a 7.
+
+**UN WIKI QUI CHANGE EST ANNONCE, QUEL QUE SOIT L'AUTEUR DU TOUR** — y compris
+le sien (decision du mainteneur, 22 aout 2026). Un wiki est VIVANT : ce qui
+compte n'est pas qui a clique, c'est l'ETAT de l'article apres le tour.
+Accepter cinq operations sur douze, puis lire le lendemain ce que l'article dit
+devenu, n'est pas un accuse de reception — c'est le suivi d'un document qui
+bouge. Et le mail porte deja l'auteur du tour : le lecteur voit s'il se relit ou
+s'il lit un collegue.
+/ Creating is not updating: one is not told what one created, but a living wiki
+is announced whenever it changes, whoever changed it.
+
+**Le perimetre n'est pas le meme partout, et c'est deliberé.** Le CONTENU
+(notes, commentaires, articles) ne porte que sur les carnets qu'on **suit** —
+les siens et ceux qu'on lui a partages. Les carnets **publics** de tiers ont
+leur propre rubrique, qui annonce le **carnet** et jamais son contenu : cent
+notes importees dans un carnet public arroseraient sinon tout le monde.
+/ Followed notebooks for content; public ones only announce themselves.
+
+**LA PASSE EST UN FAN-OUT, plus une boucle sequentielle.** Une tache Celery par
+wiki, sur la file par defaut : les appels au redacteur avancent a la
+concurrence du worker, et chacun tient largement sous le plafond de 30 minutes
+(`CELERY_TASK_TIME_LIMIT`) — la ou une passe sequentielle de vingt wikis le
+crevait. Aucune tache ne sait si elle est la derniere : chacune incremente
+`PasseDeNuit.wikis_termines` de facon **atomique** en rendant la main, et celle
+qui rejoint le total ferme la passe. C'est cette fermeture que le matin attend.
+/ One task per wiki; an atomic counter closes the pass.
 
 **Pourquoi / Why :** le moteur produisait toute la matiere de sa propre
 tracabilite — les operations appliquees **avec l'ancien contenu**, les rejets
@@ -51,16 +112,18 @@ les tient tous — **un wiki ne se regenere jamais**.
 | `core/models.py` | **Neufs :** `MotifDeTourDeWiki`, `TypeOperationDeSection`, `TourDeWiki`, `OperationDeWiki`, `PasseDeNuit`, `EnvoiDuRecapitulatif` |
 | `core/services/historique_de_wiki.py` | **Neuf.** Ecrit un tour et ses operations depuis le bilan de l'applieur ; les sources viennent des marqueurs `[[ext:N]]` |
 | `core/services/destinataires_de_wiki.py` | **Neuf.** Proprietaire de l'article + proprietaires des carnets + **partages** (utilisateurs et membres de groupes), sans adresse vide |
-| `core/services/recapitulatif_du_matin.py` | **Neuf.** Ce qu'il y a a dire, par personne : modifies, et « du neuf non repris » — « du neuf » exige quelque chose d'APPARU depuis le dernier mail, sinon c'est un rappel quotidien. Un tour qui n'a rien change, et une **reparation de titres**, ne font pas un mail |
+| `core/services/recapitulatif_du_matin.py` | **Neuf.** Six rubriques : wikis modifies, commentaires (texte + auteur), articles neufs, notes neuves, carnets publics, wikis en retard sur leur perimetre. `carnets_suivis_par()` porte le perimetre du contenu. Ce qu'il y a a dire, par personne : modifies, et « du neuf non repris » — « du neuf » exige quelque chose d'APPARU depuis le dernier mail, sinon c'est un rappel quotidien. Un tour qui n'a rien change, et une **reparation de titres**, ne font pas un mail |
 | `core/services/passe_de_nuit.py` | **Neuf.** Deux pannes silencieuses : deux passes en meme temps (facture doublee), et une passe **morte** dont `terminee_le` reste NULL — elle bloquerait le mail pour toujours. Au-dela de **12 h**, une passe est declaree abandonnee |
 | `front/tasks.py` | `_ecrire_le_corps_d_un_article` **refuse** un wiki sans motif de tour ; `appliquer_un_tour_de_wiki` (vue **et** nuit) ; `construire_la_proposition_d_operations` extrait de la tache ; `mettre_a_jour_un_wiki_la_nuit` ; `_demandeur_du_job` |
 | `front/views_synthese.py` | `appliquer` passe par le chemin commun ; nouvelle action `GET /wikis/{id}/historique/` |
 | `front/management/commands/mettre_a_jour_les_wikis.py` | **Neuf.** La passe de nuit : `--maximum`, `--a-blanc`, une erreur n'arrete pas les autres |
 | `front/management/commands/envoyer_le_recapitulatif_du_matin.py` | **Neuf.** Attend la nuit, un mail par jour, `--a-blanc`, `--destinataire`, `--sans-attendre-la-nuit` |
-| `front/templates/front/emails/recapitulatif_du_matin.{txt,html}` | **Neufs.** Deux sections : « ce qui a change », « ce qui attend » |
+| `front/templates/front/emails/recapitulatif_du_matin.{txt,html}` | **Neufs.** Six rubriques ; bouton **« Reagir »** sur chaque commentaire. **L'autoescape est coupe dans le `.txt` seulement** : Django y transformait « C'est » en « C&#x27;est ». Le HTML le GARDE — un commentaire est du contenu d'utilisateur |
 | `front/templates/front/corpus/partials/historique_de_wiki.html` | **Neuf.** Le depliant d'historique — classes existantes, aucun CSS neuf (build Tailwind fige) |
 | `front/templates/front/corpus/article.html` | Ligne depliante « Historique » dans l'en-tete, a cote d'« Ecartees » |
-| `bin/nuit.sh`, `Makefile` | **Neuf.** `make nuit` et `make recapitulatif` ; les deux lignes de cron sont dans l'en-tete du script |
+| `hypostasia/celery.py` | **`beat_schedule`** : les deux rendez-vous, en UTC, reglables par variables d'environnement |
+| `supervisord.conf`, `supervisord-dev.conf` | Programme **`celery_beat`** — il ne consomme aucune file, donc la topologie des trois workers reste vraie. **`autostart=true` des deux cotes** : meme topologie en dev qu'en prod |
+| `bin/nuit.sh`, `Makefile` | **Neuf.** `make nuit` et `make recapitulatif` — la porte **manuelle**. **Ne pas poser ce script dans un cron** : la passe partirait deux fois |
 
 ### Tests
 
@@ -70,8 +133,9 @@ les tient tous — **un wiki ne se regenere jamais**.
 | `core/tests/test_aucun_corps_de_wiki_sans_tour.py` (3) | la garde : ecrire un wiki sans motif est **refuse**, et le refus n'ecrit rien |
 | `core/tests/test_destinataires_de_wiki.py` (5) | proprietaires, partages directs, membres de groupe, adresse vide ecartee, aucun doublon |
 | `core/tests/test_l_etat_de_la_passe_de_nuit.py` (5) | une passe trop vieille est fermee, une passe recente reste en cours |
-| `front/tests/test_la_passe_de_nuit_des_wikis.py` (16) | signe par le moteur, un lot rejete laisse l'article **identique**, `--maximum` compte ce qu'il ecarte, `--a-blanc` n'ecrit rien, une erreur n'arrete pas les autres, **deux passes ne tournent jamais ensemble** |
-| `front/tests/test_le_recapitulatif_du_matin.py` (15) | le mail **suit** la nuit, un seul par jour, rien a dire = rien envoye, une reparation de titres ne fait pas un mail, les partages recoivent, un echec SMTP n'arrete pas les suivants |
+| `core/tests/test_le_planificateur.py` (8) | chaque tache planifiee **existe**, le beat est declare dans les DEUX topologies, il n'y en a **qu'un**, il ne consomme aucune file |
+| `front/tests/test_la_passe_de_nuit_des_wikis.py` (28) | signe par le moteur, un lot rejete laisse l'article **identique**, `--maximum` compte ce qu'il ecarte, `--a-blanc` n'ecrit rien, une erreur n'arrete pas les autres, **deux passes ne tournent jamais ensemble** |
+| `front/tests/test_le_recapitulatif_du_matin.py` (42) — dont l'auto-notification | le mail **suit** la nuit, un seul par jour, rien a dire = rien envoye, une reparation de titres ne fait pas un mail, les partages recoivent, un echec SMTP n'arrete pas les suivants |
 | `front/tests/test_l_ecran_de_l_historique.py` (9) | le moteur annonce comme tel, la raison chiffree, l'avant d'un remplacement, le rejet avec son motif, **les marqueurs `[[ext:N]]` ne sont pas montres** |
 
 ---
@@ -98,8 +162,12 @@ les tient tous — **un wiki ne se regenere jamais**.
 # Ce qui partirait, sans rien appeler ni ecrire :
 docker compose exec web python manage.py mettre_a_jour_les_wikis --a-blanc
 
-# Pour de vrai — ATTENTION, un appel au redacteur par wiki, c'est facture :
-docker compose exec web python manage.py mettre_a_jour_les_wikis --maximum 1
+# Pour de vrai — ATTENTION, un appel au redacteur par wiki, c'est facture.
+# `--attendre` est INDISPENSABLE si l'on veut lire le resultat juste apres :
+# sans lui la commande rend la main des la mise en file, et rien n'est
+# encore ecrit.
+docker compose exec web python manage.py mettre_a_jour_les_wikis \
+    --maximum 1 --attendre
 ```
 
 Puis, en base :
@@ -123,8 +191,13 @@ nuit ajoute, elle ne regenere pas.
 ### Test 3 — le recapitulatif du matin
 
 ```bash
-# Qui recevrait quoi, sans envoyer :
+# Qui recevrait quoi, rubrique par rubrique, sans envoyer :
 docker compose exec web python manage.py envoyer_le_recapitulatif_du_matin --a-blanc
+
+# CE QUE DONNERAIT UN MOIS CHARGE, envoye a une seule adresse et
+# sans consommer la journee de personne :
+docker compose exec web python manage.py envoyer_le_recapitulatif_du_matin \
+    --adresse-de-test moi@exemple.fr --depuis-jours 30
 
 # L'envoi (backend console en dev : le mail s'imprime dans les journaux) :
 docker compose exec web python manage.py envoyer_le_recapitulatif_du_matin
@@ -152,16 +225,67 @@ from django.utils import timezone
 PasseDeNuit.objects.filter(terminee_le__isnull=True).update(terminee_le=timezone.now())"
 ```
 
-### Les deux lignes de cron (a poser sur l'hote)
+### Ce que la relecture adverse a corrige (21 aout, apres coup)
 
-L'heure est celle de **l'hote** — les settings Django sont en `UTC`.
+- **Le critere de reprise porte sur le dernier ESSAI, pas sur la derniere
+  reussite.** `derniere_mise_a_jour` n'avance que si une operation est
+  appliquee : un lot entierement rejete la laissait en arriere, et la meme
+  nouveaute rappelait le redacteur **chaque nuit**, pour le meme rejet.
+  `borne_du_dernier_essai` lit `TourDeWiki.fait_le`, ecrit meme pour un lot
+  rejete.
+- **Un lot de `no_change` ne prend plus le chemin d'ecriture.** L'applieur
+  l'ACCEPTE (c'est une operation legitime), mais accepter n'est pas changer.
+- **La borne haute d'un envoi est l'instant du CALCUL**, pas l'heure d'envoi :
+  ce qui naissait pendant que les mails partaient n'etait raconte ni ce
+  matin-la ni le lendemain.
+- **« Un mail par jour » est devenu mecanique** : la garde regarde les envois
+  des 20 dernieres heures. Avant, une relance a la main apres l'arrivee d'un
+  commentaire renvoyait un second mail le meme jour.
+- **`bin/nuit.sh tout` attend la fin de la passe** (`--attendre`) : la commande
+  ne faisant plus que mettre en file, le recapitulatif partait avant que la
+  passe n'existe — la promesse centrale, cassee par sa propre porte manuelle.
+- **Le compte de tours du depliant vient des tours ecrits**, pas du compteur du
+  wiki : les deux divergent des le premier lot rejete.
+- **L'auto-notification est retiree sur les CREATIONS** (decision du mainteneur,
+  apres la relecture) : ses propres notes, commentaires et carnets publics ne
+  sont plus annonces. **Les MISES A JOUR de wiki le restent**, quel que soit
+  l'auteur du tour — un wiki est un document vivant qu'on suit.
+- **UN ECHEC EST UN TOUR** (motif `ECHEC`, champ `message_d_echec`). Sans lui,
+  une tache qui echoue ne laissait RIEN : pas de tour, donc pas d'avancee de la
+  borne, donc le meme wiki rappelait le redacteur chaque nuit — sans backoff,
+  sans plafond, et invisiblement. Atomic resout le meme probleme par un ledger a
+  backoff exponentiel (`max_attempts = 3`) ; nous le resolvons en ecrivant
+  l'echec dans l'histoire de l'article, ou le lecteur le voit.
 
-```cron
-0 3 * * * bash /home/ubuntu/Hypostasia/bin/nuit.sh passe         >> /var/log/hypostasia-nuit.log 2>&1
-0 7 * * * bash /home/ubuntu/Hypostasia/bin/nuit.sh recapitulatif >> /var/log/hypostasia-nuit.log 2>&1
+### Test 4 — la planification
+
+Rien a poser : elle est dans le code. Ce qu'il faut verifier une fois :
+
+```bash
+make status                      # celery_beat — RUNNING en prod
+docker compose logs web | grep "beat: Starting"
 ```
 
-Depuis le depot : `make nuit` et `make recapitulatif` font la meme chose.
+**Ce que la nuit coute, mesure le 21 aout 2026.** Elle ne reprend un wiki que si
+quelque chose est **apparu** dans son perimetre depuis son dernier **essai** —
+une nuit sans nouveaute ne coute donc RIEN. Une nuit chargee coute, par wiki
+repris : un appel au **redacteur** (Mistral Medium, 5 800 a 17 500 tokens
+d'entree, soit **0,022 a 0,038 EUR** aux tarifs de
+`AIModel.cout_par_million_tokens`) **plus** un appel au **juge de verification**
+sur les citations neuves, qui est une API et donc facture lui aussi. Les quatre
+juges locaux, eux, sont gratuits (ils tournent sur la machine).
+
+Pour changer les heures, dans le `.env` (UTC), puis
+`make restart S=celery_beat` :
+
+```
+HEURE_PASSE_DE_NUIT=2
+HEURE_RECAPITULATIF=6
+```
+
+`make nuit` et `make recapitulatif` restent la porte **manuelle**.
+**Ne jamais poser `bin/nuit.sh` dans un cron** : la passe partirait deux fois
+par nuit, et la facture du redacteur avec elle.
 
 ### Ce qu'il faut savoir avant de brancher le cron
 
@@ -172,10 +296,15 @@ Depuis le depot : `make nuit` et `make recapitulatif` font la meme chose.
   `nice -n 19`) : vingt wikis mis a jour font vingt verifications a la file. Le
   mail du matin peut donc partir **avant** que tous les verdicts soient rendus —
   il annonce la modification, pas le jugement.
-- **Deux passes ne tournent jamais ensemble** : la seconde refuse de demarrer.
-  Et une passe dont le conteneur a ete tue est declaree **abandonnee** au bout de
-  12 h — sans quoi le recapitulatif attendrait sa fin pour toujours, et plus
-  personne ne recevrait rien.
+- **Deux passes ne tournent jamais ensemble** : la contrainte PostgreSQL
+  `une_seule_passe_de_nuit_ouverte` l'interdit — un controle en Python laissait
+  passer deux lancements simultanes.
+- **Une tache tuee net ne rend PAS la main** (SIGKILL, OOM, plafond de
+  30 minutes : le `finally` ne s'execute pas). Le compteur n'atteint alors jamais
+  son total, et le recapitulatif — qui attend la fin de la passe — refuserait
+  d'envoyer : **un seul wiki tue couterait le mail de tout le monde**. C'est
+  pourquoi une passe ouverte depuis plus de **3 h** est declaree abandonnee : le
+  delai est calcule pour qu'elle soit fauchee AVANT le mail du matin.
 - **L'envoi reel exige `EMAIL_HOST*` dans le `.env`.** Sans eux, le backend par
   defaut est la **console** : les mails s'impriment dans les journaux du
   conteneur et personne ne recoit rien, **sans la moindre erreur**.
