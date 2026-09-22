@@ -738,6 +738,19 @@ class WikiViewSet(viewsets.ViewSet):
         )
         for wiki in wikis:
             wiki.qualite = _qualifier_une_ligne_d_article(wiki.page)
+            # CE QUI EST ARRIVE DEPUIS LE DERNIER TOUR. Aucun wiki ne se
+            # met a jour tout seul : c'est cette ligne qui dit lesquels
+            # meritent le geste « Mettre a jour », sans les ouvrir un par
+            # un. Le calcul est celui de l'en-tete de l'article
+            # (`_contexte_d_article`) : les deux ecrans ne doivent jamais
+            # se contredire.
+            # / What arrived since the last round: this line tells which
+            # wikis deserve an update. Same computation as the article
+            # header, so the two screens never disagree.
+            wiki.nouveautes = nouveautes_du_perimetre(
+                notes_du_perimetre_d_un_wiki(wiki),
+                wiki.derniere_mise_a_jour,
+            )
         return render(request, "front/corpus/liste_wikis.html", {
             "carnet": carnet,
             "wikis": wikis,
@@ -873,6 +886,125 @@ class WikiViewSet(viewsets.ViewSet):
         contexte["article_preloaded"] = True
         return render(request, "front/base.html", contexte)
 
+    @action(detail=True, methods=["GET"], url_path="estimation")
+    def estimation(self, request, pk=None):
+        """
+        GET /wikis/{id}/estimation/ — le cout estime d'une mise a jour.
+        / The estimated cost of an update.
+
+        LOCALISATION : front/views_synthese.py
+
+        Chargee par la modale « Mettre a jour » (article.html) a son
+        ouverture, et seulement la : l'estimation reconstruit la liste des
+        ecartees, ce qui n'a pas a etre fait pour qui ne clique pas.
+
+        ON COMPTE LE PROMPT QUI PARTIRA. Le texte est normalise EN
+        MEMOIRE comme la tache le repare en base (`###` -> `##`), puis
+        passe au meme constructeur (`rediger_le_prompt_de_mise_a_jour`).
+        Rien n'est ecrit ici. Seule exception : sur un article herite a
+        reparer, la reindexation de la tache peut retirer des marqueurs
+        — le compte est alors un peu SUREVALUE, jamais sous-evalue.
+
+        MEMES CONVENTIONS QUE LA CONFIRMATION DE SYNTHESE : tokens
+        comptes par tiktoken (cl100k_base, une approximation du
+        tokenizer reel), sortie estimee a 50 % de l'entree, marge x1,5,
+        plancher 0,01 €. C'est un ORDRE DE GRANDEUR, pas un plafond : la
+        taille d'une proposition n'a jamais ete mesuree, et les tokens de
+        reflexion d'un modele absent de `MULTIPLICATEUR_THINKING` ne sont
+        pas comptes (core/models.py). La modale dit donc « environ ».
+        Un tarif inconnu rend « non mesure », jamais « 0 € ».
+
+        UN ECHEC DE L'ESTIMATION NE BLOQUE JAMAIS LE GESTE. Une reponse
+        500 declencherait le gestionnaire global `htmx:responseError`,
+        qui REMPLACE la modale par une boite d'erreur : la mise a jour
+        deviendrait impossible depuis l'ecran. On rend « non mesure » a
+        la place, et le journal garde la trace.
+        / Counts the prompt the task will send; writes nothing; an order
+        of magnitude, not a cap; a failure never blocks the gesture.
+        """
+        import math
+
+        import tiktoken
+
+        from front.tasks import (
+            _normaliser_les_niveaux_de_titre, rediger_le_prompt_de_mise_a_jour,
+        )
+
+        wiki = get_object_or_404(Wiki.objects.select_related("page"), pk=pk)
+        refus = _ecriture_ou_refus(request, wiki.dossier)
+        if refus:
+            return refus
+
+        gabarit = "front/corpus/partials/estimation_de_mise_a_jour.html"
+        ecartees = list(extractions_ecartees(wiki.page).order_by("pk"))
+        if not ecartees:
+            return render(request, gabarit, {"rien_a_reprendre": True})
+
+        texte_tel_que_la_tache_l_enverra = _normaliser_les_niveaux_de_titre(
+            wiki.page.text_readability or "",
+        )
+        # LE MEME ANALYSEUR QUE LA TACHE, parce que c'est lui qui choisit
+        # le prompt systeme : compter avec un autre annoncerait un cout
+        # qui n'est pas celui du prompt envoye. La tache le lit sur le
+        # job (`analyseur_id`), que la demande pose depuis ce meme champ
+        # du wiki — c'est donc la meme valeur, avant et apres le clic.
+        # / The same analyzer as the task: it picks the system prompt,
+        # so counting with another one would announce the wrong cost.
+        from hypostasis_extractor.services.provenance import (
+            analyseur_de_redaction,
+        )
+
+        analyseur_redacteur = (
+            wiki.analyseur_de_redaction or analyseur_de_redaction()[0]
+        )
+        prompt = rediger_le_prompt_de_mise_a_jour(
+            texte_tel_que_la_tache_l_enverra, ecartees,
+            analyseur=analyseur_redacteur,
+        )
+        modele_redacteur = modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE)
+
+        # `disallowed_special=()` : le texte d'un jeton special
+        # (`<|endoftext|>`) se compte comme du texte. Par defaut tiktoken
+        # LEVE dessus — et une note qui parle de tokenizers en contient.
+        # Le `except` large couvre le reste (encodage absent d'un
+        # conteneur sans reseau) : voir « un echec ne bloque jamais ».
+        # / Special-token text counted as text; any failure -> unmeasured.
+        try:
+            encodeur_de_tokens = tiktoken.get_encoding("cl100k_base")
+            nombre_tokens_entree = len(
+                encodeur_de_tokens.encode(prompt, disallowed_special=()),
+            )
+        except Exception as erreur:
+            logger.warning(
+                "estimation: comptage impossible pour le wiki %s (%s)",
+                wiki.pk, erreur,
+            )
+            return render(request, gabarit, {
+                "rien_a_reprendre": False,
+                "comptage_impossible": True,
+                "modele_redacteur": modele_redacteur,
+            })
+
+        cout_estime_euros = None
+        if modele_redacteur is not None:
+            nombre_tokens_sortie = int(nombre_tokens_entree * 0.5)
+            nombre_tokens_sortie *= modele_redacteur.multiplicateur_thinking()
+            cout_brut_euros = modele_redacteur.estimer_cout_euros(
+                nombre_tokens_entree, nombre_tokens_sortie,
+            )
+            if cout_brut_euros is not None:
+                cout_estime_euros = max(
+                    0.01, math.ceil(cout_brut_euros * 1.5 * 100) / 100,
+                )
+
+        return render(request, gabarit, {
+            "rien_a_reprendre": False,
+            "nombre_tokens_entree": nombre_tokens_entree,
+            "nombre_d_ecartees": len(ecartees),
+            "modele_redacteur": modele_redacteur,
+            "cout_estime_euros": cout_estime_euros,
+        })
+
     @action(detail=True, methods=["POST"], url_path="mise_a_jour")
     def mise_a_jour(self, request, pk=None):
         """
@@ -997,11 +1129,10 @@ class WikiViewSet(viewsets.ViewSet):
             if indice in indices_retenus
         ]
 
-        # LE MEME CHEMIN QUE LA PASSE DE NUIT (addendum du 21 aout 2026) :
-        # fraicheur, application, ecriture du corps, historique, juges.
-        # Ce qui change ici, et seulement ici : un humain a choisi les
+        # UN SEUL CHEMIN D'APPLICATION : fraicheur, application,
+        # ecriture du corps, historique, juges. Un humain a choisi les
         # operations, et c'est lui qui signe le tour.
-        # / The same path the nightly pass takes; only the signer differs.
+        # / One application path; the human who chose signs the round.
         from core.models import MotifDeTourDeWiki
         from core.services.section_ops import PropositionPerimee
         from front.tasks import appliquer_un_tour_de_wiki

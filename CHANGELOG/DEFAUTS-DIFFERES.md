@@ -83,6 +83,18 @@ commande écrit réellement.
 | `TranscriptionJob` créé avec `status='pending'` en dur au lieu de `TranscriptionJobStatus.PENDING` | la commande |
 | « Gio » employé au sens décimal de Go dans les commentaires (préexistant) | commentaires |
 
+## Les écrans de coût
+
+*Constatés le 22 septembre 2026, par les relectures du chantier « coût d'une mise à jour
+de wiki ».*
+
+| Défaut | Où |
+|---|---|
+| Si tiktoken ne peut pas télécharger `cl100k_base` (conteneur neuf sans réseau : rien ne le précharge), les confirmations d'analyse et de synthèse tombent en 500 et « Lancer » devient inaccessible. La modale du wiki, elle, rend « non mesuré » | `front/views.py`, `previsualiser_analyse` et `previsualiser_synthese` |
+| Audio : `calculer_duree_audio` rend 0,0 quand mutagen et ffprobe échouent — l'écran affiche « ≤ 0,01 € » quelle que soit la longueur du fichier | `front/services/transcription_audio.py` (`calculer_duree_audio`), `front/views.py` (`confirmation_audio`) |
+| Audio : `TranscriptionConfig.cout_par_minute_usd` rend 0,0 pour un modèle absent de `TARIFS_PAR_MINUTE_USD`, au lieu de None (« non mesuré »). Inatteignable tant que les choix et la table restent synchronisés | `core/models.py`, `cout_par_minute_usd` |
+| L'étalon calcule la réflexion comme `sortie × 5`, le code comme `visible × (5 − 1)` : la ligne « Tokens réflexion » de l'étalon est 25 % au-dessus. Ses références de lignes (`core/models.py:666-669`, `views.py:1840-1846`) sont périmées. Le vérificateur ne compare l'étalon qu'à lui-même | `front/static/front/maquettes/maquette.html`, `rendreLEstimation` |
+
 ## LangExtract 1.6.0 : monté — ce qui reste ouvert derrière
 
 *Constaté puis fait le 18 août 2026.*

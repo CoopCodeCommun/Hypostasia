@@ -1,4 +1,13 @@
 # Le locuteur, l'aide qui lit la table, et la doc qui mentait
+
+> **⚠️ Encart du 22 septembre 2026 — la passe de nuit n'existe plus.**
+> Elle a été retirée le 21 septembre 2026 (`CHANGELOG/2026-09-21-la-mise-a-jour-des-wikis-redevient-un-geste.md`) :
+> aucune tâche planifiée n'appelle plus de modèle, et mettre un wiki à jour est
+> un geste humain — le bouton « Mettre à jour » de son article. **Tout ce que ce
+> fichier dit de la nuit est donc de l'histoire**, y compris la commande
+> `mettre_a_jour_les_wikis`, supprimée, et le module de tests
+> `front/tests/test_la_passe_de_nuit_des_wikis.py`, supprimé lui aussi. Ce qui
+> reste vrai : la provenance s'écrit toujours, sur le chemin du geste.
 / The speaker, the help that reads the table, and the lying docs
 
 **Date :** 2026-09-01

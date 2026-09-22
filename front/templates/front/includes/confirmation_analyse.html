@@ -59,9 +59,9 @@
         </div>
     </div>
 
-    {# Estimation tokens et cout — calcul precis tenant compte du chunking LangExtract #}
+    {# Estimation tokens et cout — une approximation, qui tient compte du chunking LangExtract #}
     {# et du mode thinking (tokens de reflexion internes factures au tarif output) #}
-    {# / Token and cost estimate — precise calculation accounting for LangExtract chunking #}
+    {# / Token and cost estimate — an approximation accounting for LangExtract chunking #}
     {# / and thinking mode (internal reasoning tokens billed at output rate) #}
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2 text-sm mb-4" data-testid="estimation-tokens">
         {% if nombre_chunks_estime > 1 %}
@@ -92,13 +92,18 @@
         « non mesuré » n'est PAS « gratuit » : un tarif absent de la
         table ne vaut pas zéro, et c'est sur ce chiffre que l'utilisateur
         décide de lancer un appel facturé.
+
+        « environ », PAS « ≤ » : le montant est un ordre de grandeur. La
+        sortie est estimée, et les tokens de réflexion d'un modèle absent
+        de `MULTIPLICATEUR_THINKING` (core/models.py) ne sont pas comptés :
+        la facture peut dépasser ce chiffre.
         {% endcomment %}
         <div class="flex justify-between items-center text-amber-900 border-t border-amber-300 pt-2 mt-2">
             <span class="font-bold">Cout estime</span>
             {% if cout_estime_euros == None %}
             <span class="font-bold text-lg" data-testid="cout-non-mesure">non mesur&eacute;</span>
             {% else %}
-            <span class="font-bold text-lg">&le; {{ cout_estime_euros|floatformat:2 }} &euro;</span>
+            <span class="font-bold text-lg">environ {{ cout_estime_euros|floatformat:2 }} &euro;</span>
             {% endif %}
         </div>
         {% if nombre_tokens_thinking > 0 %}

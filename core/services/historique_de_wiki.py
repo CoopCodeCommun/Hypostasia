@@ -15,8 +15,8 @@ pourquoi, ni ce qu'il avait remplace.
 
 CE MODULE NE CONNAIT PAS `front`. Il ecrit ce qu'on lui remet : le
 bilan rendu par `appliquer_les_operations` (fonction pure), le texte
-d'avant, et la borne basse du comptage. C'est l'appelant — la vue ou
-la passe de nuit — qui connait le MOTIF, et lui seul.
+d'avant, et la borne basse du comptage. C'est l'appelant qui connait
+le MOTIF, et lui seul.
 / This module never imports `front`: it writes the report it is given.
 
 LES SOURCES VIENNENT DES MARQUEURS, jamais d'un champ parallele

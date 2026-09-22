@@ -5,8 +5,22 @@
 #
 # S'EXECUTE DEPUIS L'HOTE.   Lance par :  make extension-zip
 #
-# Il produit  dist/hypostasia-extension-<version>.zip,  pret a etre
-# televerse sur addons.mozilla.org.
+# Sans argument, il produit  dist/hypostasia-extension-<version>.zip,
+# pret a etre televerse sur addons.mozilla.org.
+#
+# Avec l'argument `chrome`, il produit
+# dist/hypostasia-extension-<version>-chrome.zip, identique au precedent
+# SAUF qu'il retire `browser_specific_settings` du manifest.
+#
+# POURQUOI RETIRER CETTE CLE POUR CHROME. Elle ne porte que des notions
+# de Firefox : l'identifiant gecko, `strict_min_version: 140.0`, et
+# `data_collection_permissions`. Chrome les ignore — la clé n'est donc
+# pas dangereuse — mais un relecteur qui ouvre le manifest y lit une
+# version minimale de Firefox et une declaration de collecte au format
+# de Mozilla. Autant ne pas lui donner a dechiffrer ce qui ne le
+# concerne pas.
+# / With `chrome`, strips browser_specific_settings: it carries only
+# Firefox notions that a Chrome reviewer would have to decipher.
 #
 # LE MANIFEST DOIT ETRE A LA RACINE DE L'ARCHIVE, pas dans un dossier
 # `extension/`. Un zip fabrique depuis la racine du depot avec
@@ -43,7 +57,20 @@ import json
 print(json.load(open('$DOSSIER_SOURCE/manifest.json'))['version'])
 ")"
 
-ARCHIVE="$DOSSIER_SORTIE/hypostasia-extension-$VERSION_DE_L_EXTENSION.zip"
+CIBLE="${1:-firefox}"
+
+case "$CIBLE" in
+    firefox)
+        ARCHIVE="$DOSSIER_SORTIE/hypostasia-extension-$VERSION_DE_L_EXTENSION.zip"
+        ;;
+    chrome)
+        ARCHIVE="$DOSSIER_SORTIE/hypostasia-extension-$VERSION_DE_L_EXTENSION-chrome.zip"
+        ;;
+    *)
+        echo "Cible inconnue : $CIBLE (attendu : firefox ou chrome)" >&2
+        exit 1
+        ;;
+esac
 
 mkdir -p "$DOSSIER_SORTIE"
 
@@ -61,7 +88,34 @@ rm -f "$ARCHIVE"
 # moment de remplir la fiche, pas parce qu'elles s'installent.
 # / screen/ holds the store listing captures: 1.7 MB that the browser
 # never opens. They live in the repo to be found at listing time.
-cd "$DOSSIER_SOURCE"
+# POUR CHROME, ON ZIPPE UNE COPIE, JAMAIS LA SOURCE. Retirer la cle
+# directement dans `extension/manifest.json` casserait la version
+# Firefox du depot — et le ferait en silence, puisque le manifest
+# resterait un JSON valide.
+# / For Chrome we zip a COPY: editing the source manifest would silently
+# break the Firefox build.
+DOSSIER_A_ZIPPER="$DOSSIER_SOURCE"
+DOSSIER_TEMPORAIRE=""
+
+if [ "$CIBLE" = "chrome" ]; then
+    DOSSIER_TEMPORAIRE="$(mktemp -d)"
+    trap 'rm -rf "$DOSSIER_TEMPORAIRE"' EXIT
+    cp -r "$DOSSIER_SOURCE/." "$DOSSIER_TEMPORAIRE/"
+    rm -rf "$DOSSIER_TEMPORAIRE/screen"
+    python3 - "$DOSSIER_TEMPORAIRE/manifest.json" <<'FIN_PYTHON'
+import json, sys, collections
+chemin = sys.argv[1]
+with open(chemin, encoding="utf-8") as fichier:
+    manifest = json.load(fichier, object_pairs_hook=collections.OrderedDict)
+manifest.pop("browser_specific_settings", None)
+with open(chemin, "w", encoding="utf-8") as fichier:
+    json.dump(manifest, fichier, indent=4, ensure_ascii=False)
+    fichier.write("\n")
+FIN_PYTHON
+    DOSSIER_A_ZIPPER="$DOSSIER_TEMPORAIRE"
+fi
+
+cd "$DOSSIER_A_ZIPPER"
 zip --recurse-paths --filesync --quiet "$ARCHIVE" . \
     --exclude '.*' '*/.*' '*~' 'screen/*' 'screen'
 

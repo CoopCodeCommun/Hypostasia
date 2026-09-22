@@ -1047,12 +1047,16 @@ class AIModel(models.Model):
     # Le thinking genere des tokens de reflexion internes factures au tarif output.
     # Le ratio varie selon la complexite de la requete (3x a 8x observe).
     # On utilise 5x comme estimation conservatrice.
-    # Les modeles absents de cette table n'ont pas de thinking (multiplicateur = 1).
+    # Un modele ABSENT de cette table recoit le multiplicateur 1 : sa
+    # reflexion, s'il en a une (gemini-3.x, gpt-5), n'est PAS comptee, et
+    # l'estimation est alors un plancher. C'est pourquoi les ecrans de cout
+    # disent « environ », jamais « ≤ ».
     # / Output token multiplier for models with "thinking" mode.
     # / Thinking generates internal reasoning tokens billed at output rate.
     # / Ratio varies by request complexity (3x to 8x observed).
     # / We use 5x as a conservative estimate.
-    # / Models not in this table have no thinking (multiplier = 1).
+    # / A model ABSENT from this table gets 1: its reasoning, if any, is
+    # / not counted, so the estimate is a floor.
     MULTIPLICATEUR_THINKING = {
         "gemini-2.5-pro": 5,
         "gemini-2.5-flash": 5,
@@ -3160,13 +3164,12 @@ class MotifDeTourDeWiki(models.TextChoices):
         "reparation_de_titres", "Réparation des niveaux de titre",
     )
     REGENERATION = "regeneration", "Régénération complète de l'article"
-    # UN ECHEC EST UN TOUR, ET C'EST DELIBERE. Sans lui, une tache qui
-    # echoue ne laisse RIEN : pas de tour, donc pas d'avancee de la
-    # borne du dernier essai, donc le meme wiki rappelle le redacteur
-    # chaque nuit — sans backoff, sans plafond, et sans que personne ne
-    # le voie ailleurs que dans un journal de worker.
-    # / A failure is a round: otherwise nothing advances and the writer
-    # is summoned every night, invisibly.
+    # UN ECHEC EST UN TOUR : le motif des tentatives de l'ancienne passe
+    # de nuit qui ont echoue, avec leur `message_d_echec`. Aucun chemin
+    # actuel n'en ecrit ; il reste pour que l'historique des wikis
+    # continue de nommer ces tours.
+    # / A failure is a round: written by the former nightly pass only,
+    # kept so that the wiki history can still name those rounds.
     ECHEC = "echec", "Tentative échouée"
 
 
@@ -3214,14 +3217,17 @@ class TourDeWiki(models.Model):
         help_text="La valeur de Wiki.tours_de_mise_a_jour a ce tour.",
     )
     fait_le = models.DateTimeField(auto_now_add=True)
-    # NULL = LE MOTEUR. C'est le seul signe qu'aucun humain n'a rien
-    # decide : la passe de nuit applique sans demander.
-    # / NULL = the engine: the nightly pass applies without asking.
+    # NULL = AUCUN HUMAIN CONNU. Ce sont les tours de l'ancienne passe
+    # de nuit (motif MAJ_NOCTURNE), ou ceux dont l'auteur a supprime son
+    # compte depuis (SET_NULL). Tout chemin actuel signe le tour de son
+    # demandeur. L'historique doit pouvoir nommer ce cas.
+    # / NULL = no known human: legacy nightly rounds, or a deleted author.
     fait_par = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name="tours_de_wiki",
-        help_text="L'humain qui a accepté les opérations. NULL = le "
-                  "moteur (passe de nuit).",
+        help_text="L'humain qui a accepté les opérations. NULL = aucun "
+                  "humain connu (ancienne passe de nuit, ou compte "
+                  "supprimé).",
     )
     motif = models.CharField(
         max_length=30, choices=MotifDeTourDeWiki.choices,
@@ -3437,103 +3443,12 @@ class OperationDeWiki(models.Model):
 
 
 # =============================================================================
-# LA PASSE DE NUIT ET LE RECAPITULATIF DU MATIN
-# (SPEC-synthese, addendum du 21 aout 2026)
-# Le mail part TOUJOURS apres le run de la nuit. Ces deux tables font de
-# cet ordre un fait verifiable, pas une convention entre deux lignes de
-# cron : la passe dit quand elle a fini, l'envoi dit ce qu'il a couvert.
-# / The morning mail always follows the night run — mechanically.
+# LE RECAPITULATIF DU MATIN
+# (SPEC-synthese, addenda du 21 aout et du 21 septembre 2026)
+# Un mail par personne et par jour, au maximum : c'est lui qui dit quels
+# wikis ont recu du neuf, puisque aucun ne se met a jour tout seul.
+# / One mail per person per day: it tells which wikis have news.
 # =============================================================================
-
-
-class PasseDeNuit(models.Model):
-    """
-    Une execution de la mise a jour automatique des wikis.
-    / One run of the automatic wiki update.
-
-    LOCALISATION : core/models.py
-
-    `terminee_le` a NULL veut dire « elle tourne encore » — et c'est ce
-    que le recapitulatif du matin interroge avant de partir. Sans cette
-    ligne en base, deux crons a quatre heures d'ecart seraient une
-    ESPERANCE d'ordre, pas une garantie : une nuit chargee suffirait a
-    faire partir le mail avant la fin du travail qu'il annonce.
-    / NULL end date means "still running": the morning recap waits.
-    """
-
-    lancee_le = models.DateTimeField(auto_now_add=True)
-    terminee_le = models.DateTimeField(
-        null=True, blank=True,
-        help_text="NULL tant que la passe tourne.",
-    )
-    wikis_examines = models.PositiveIntegerField(
-        default=0,
-        help_text="Combien de wikis ont été mis en file pour ce tour.",
-    )
-    # LE COMPTEUR QUI FERME LA PASSE. Les mises a jour partent en
-    # PARALLELE, une tache par wiki : aucune d'elles ne sait si elle est
-    # la derniere. Chacune s'incremente ici de facon ATOMIQUE en rendant
-    # la main, et celle qui atteint le total ferme la passe — puis
-    # seulement alors, le matin peut ecrire.
-    # / The counter that closes the pass: fan-out tasks cannot know who
-    # is last, so each increments atomically and the one reaching the
-    # total closes.
-    wikis_termines = models.PositiveIntegerField(
-        default=0,
-        help_text="Combien ont rendu la main — succès et erreurs "
-                  "confondus. La passe se ferme quand ce compte "
-                  "rejoint wikis_examines.",
-    )
-    wikis_modifies = models.PositiveIntegerField(default=0)
-    wikis_en_erreur = models.PositiveIntegerField(default=0)
-    wikis_ecartes_par_le_maximum = models.PositiveIntegerField(
-        default=0,
-        help_text="Wikis laissés de côté par --maximum. Compté, jamais "
-                  "passé sous silence : une troncature muette se lirait "
-                  "comme une couverture complète.",
-    )
-    # LE VERROU, ET POURQUOI IL EST EN BASE. « Regarder s'il y en a une,
-    # puis en créer une » laisse une fenêtre : deux lancements
-    # simultanés — le planificateur et un `make nuit` à la même seconde
-    # — passent tous les deux le contrôle avant que l'un n'ait écrit.
-    # La facture du rédacteur double, et deux tours concurrents se
-    # disputent le même article.
-    #
-    # Un verrou en CACHE ne suffirait pas : le cache par défaut de ce
-    # projet est local au process, or les deux lancements viennent de
-    # process différents. La contrainte ci-dessous, elle, est tenue par
-    # PostgreSQL : une seule ligne peut porter `verrou=True` avec
-    # `terminee_le` à NULL. La seconde création lève, et c'est tant
-    # mieux.
-    # / A database lock: the default cache is per-process, and the two
-    # launches come from different processes.
-    verrou = models.BooleanField(
-        default=True, editable=False,
-        help_text="Toujours True. N'existe que pour porter la "
-                  "contrainte d'unicité qui interdit deux passes "
-                  "ouvertes en même temps.",
-    )
-
-    class Meta:
-        ordering = ["-lancee_le", "-pk"]
-        verbose_name = "Passe de nuit"
-        verbose_name_plural = "Passes de nuit"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["verrou"],
-                condition=models.Q(terminee_le__isnull=True),
-                name="une_seule_passe_de_nuit_ouverte",
-            ),
-        ]
-
-    def __str__(self):
-        etat = "en cours" if self.terminee_le is None else "terminée"
-        return f"Passe de nuit du {self.lancee_le:%d/%m/%Y %H:%M} ({etat})"
-
-    @property
-    def tourne_encore(self):
-        """/ Still running?"""
-        return self.terminee_le is None
 
 
 class EnvoiDuRecapitulatif(models.Model):

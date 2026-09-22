@@ -30,11 +30,9 @@ sa longueur. Le texte integral est un autre chantier
 """
 
 import hashlib
-from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
-from django.utils import timezone
 
 from core.models import (
     MotifDeTourDeWiki, Page, TourDeWiki, TypeDeNote, Wiki,
@@ -205,22 +203,30 @@ class LaProvenanceNePassePasParLeJobTest(BaseD_uneProduction):
         self.assertNotIn("empreinte", champs_rendus)
 
 
-class LaProvenanceD_unTourDeNuitTest(TestCase):
+class LaProvenanceD_unTourDeMiseAJourTest(TestCase):
     """
-    La nuit aussi laisse sa provenance, et on remonte au modele depuis
-    le tour. / The night leaves provenance too.
+    Une mise a jour de wiki laisse sa provenance, et on remonte au
+    modele depuis le tour.
+    / A wiki update leaves its provenance behind.
+
+    LE TOUR ET LA PROVENANCE SE REJOIGNENT PAR LE JOB. La provenance
+    s'ecrit AVANT l'appel au modele, quand aucun tour n'existe encore :
+    le tour ne nait qu'a l'acceptation humaine. C'est donc le job, que
+    les deux portent, qui les relie.
+    / They meet through the job: provenance is written before the call,
+    the round only when a human accepts.
     """
 
     def setUp(self):
         self.fixtures = creer_fixtures_phase_c()
         self.page_du_wiki = Page.objects.create(
-            title="Wiki de la nuit",
+            title="Wiki du seuil",
             text_readability=(
                 "## Le seuil\n\nLe seuil est acté."
                 f"[[ext:{self.fixtures['extraction_seuil'].pk}]]\n"
             ),
             html_readability="<p>w</p>", html_original="<p>w</p>",
-            content_hash="hash-provenance-nuit", type_de_note=TypeDeNote.WIKI,
+            content_hash="hash-provenance-maj", type_de_note=TypeDeNote.WIKI,
             owner=self.fixtures["demandeur"],
         )
         ranger_une_note_dans_un_carnet(
@@ -231,59 +237,70 @@ class LaProvenanceD_unTourDeNuitTest(TestCase):
             page=self.page_du_wiki, dossier=self.fixtures["carnet"],
             sujet="Le seuil",
         )
-        # Les fixtures naissent toutes a la meme seconde, donc le wiki
-        # nait APRES ses extractions : rien n'aurait « paru depuis le
-        # dernier tour », et la passe n'aurait aucune raison de le
-        # reprendre. Le cas reel est l'inverse — un article produit
-        # hier, des extractions arrivees aujourd'hui.
-        # / Otherwise the wiki is born after its own extractions.
-        Wiki.objects.filter(pk=self.wiki.pk).update(
-            derniere_mise_a_jour=timezone.now() - timedelta(days=1),
+
+    def _mettre_a_jour_a_la_main(self):
+        """
+        Le geste « Mettre a jour » : le modele propose, un humain
+        accepte. / The gesture: the model proposes, a human accepts.
+        """
+        from front.tasks import (
+            appliquer_un_tour_de_wiki,
+            construire_la_proposition_d_operations,
         )
-        self.wiki.refresh_from_db()
 
-    def _passer_la_nuit(self):
-        from django.core.management import call_command
-
-        operations = (
+        operations_proposees = (
             '[{"type": "append_to_section", "section": "Le seuil", '
             '"contenu": "L\'ajournement coûte.'
             f'[[ext:{self.fixtures["extraction_cout"].pk}]]"}}]'
         )
-        with patch(
-            "core.llm_providers.appeler_llm", return_value=operations,
-        ), patch("front.tasks.enchainer_la_verification"):
-            call_command("mettre_a_jour_les_wikis", verbosity=0)
-
-    def test_le_tour_de_nuit_ecrit_sa_provenance(self):
-        self._passer_la_nuit()
-
-        tour = TourDeWiki.objects.get(
-            wiki=self.wiki, motif=MotifDeTourDeWiki.MAJ_NOCTURNE,
+        self.job = ExtractionJob.objects.create(
+            page=self.page_du_wiki, ai_model=self.fixtures["modele_ia"],
+            name="Mise à jour de wiki", prompt_description="t",
+            status="pending",
+            raw_result={"est_wiki": True, "wiki_id": self.wiki.pk},
         )
-        provenance = ProvenanceDeProduction.objects.get(tour_de_wiki=tour)
+        with patch(
+            "core.llm_providers.appeler_llm",
+            return_value=operations_proposees,
+        ), patch("front.tasks.enchainer_la_verification"):
+            operations, _jeton, _provenance = (
+                construire_la_proposition_d_operations(
+                    self.wiki, self.fixtures["modele_ia"], job=self.job,
+                )
+            )
+            appliquer_un_tour_de_wiki(
+                self.wiki, operations,
+                motif=MotifDeTourDeWiki.MAJ_MANUELLE,
+                fait_par=self.fixtures["demandeur"],
+                job=self.job,
+            )
+
+    def test_le_tour_de_mise_a_jour_ecrit_sa_provenance(self):
+        self._mettre_a_jour_a_la_main()
+
+        provenance = ProvenanceDeProduction.objects.get(job=self.job)
         self.assertEqual(provenance.chemin, CheminDeProduction.MAJ_WIKI)
 
     def test_on_remonte_au_modele_depuis_le_tour(self):
-        # LA question de la note : « quel modele a ecrit un article de
-        # nuit ? » / The note's question.
-        self._passer_la_nuit()
+        # LA question de la note : « quel modele a ecrit cet article ? »
+        # / The note's question.
+        self._mettre_a_jour_a_la_main()
 
         tour = TourDeWiki.objects.get(
-            wiki=self.wiki, motif=MotifDeTourDeWiki.MAJ_NOCTURNE,
+            wiki=self.wiki, motif=MotifDeTourDeWiki.MAJ_MANUELLE,
         )
-        self.assertEqual(
-            tour.provenances.get().modele, self.fixtures["modele_ia"],
-        )
+        provenance = ProvenanceDeProduction.objects.get(job=tour.job)
+        self.assertEqual(provenance.modele, self.fixtures["modele_ia"])
 
-    def test_la_provenance_de_nuit_porte_aussi_son_job(self):
-        self._passer_la_nuit()
+    def test_le_tour_et_la_provenance_partagent_le_job(self):
+        self._mettre_a_jour_a_la_main()
 
         tour = TourDeWiki.objects.get(
-            wiki=self.wiki, motif=MotifDeTourDeWiki.MAJ_NOCTURNE,
+            wiki=self.wiki, motif=MotifDeTourDeWiki.MAJ_MANUELLE,
         )
-        provenance = ProvenanceDeProduction.objects.get(tour_de_wiki=tour)
+        provenance = ProvenanceDeProduction.objects.get(job=self.job)
         self.assertEqual(provenance.job, tour.job)
+
 
 
 class LaProvenanceD_uneAnalyseTest(TestCase):

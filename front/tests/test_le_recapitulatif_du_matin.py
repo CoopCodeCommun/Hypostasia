@@ -4,16 +4,17 @@ Le recapitulatif du matin : un mail par jour, jamais deux.
 
 LOCALISATION : front/tests/test_le_recapitulatif_du_matin.py
 
-SPEC-synthese, addendum du 21 aout 2026. Trois regles s'exercent ici :
+SPEC-synthese, addenda du 21 aout et du 21 septembre 2026. Trois regles
+s'exercent ici :
 
-- **le mail part TOUJOURS apres le run de la nuit** — c'est la
-  `PasseDeNuit` qui le dit, pas un ecart entre deux lignes de cron ;
+- **le planificateur ne lance QUE ce mail**, et le mail part sans rien
+  attendre ;
 - **un seul mail par personne et par jour** (modele Discourse), et rien
   du tout quand il n'y a rien a dire ;
 - **le perimetre des destinataires porte les partages du carnet**, pas
   seulement les proprietaires.
-/ The mail follows the night run; one mail per person per day; shares
-are included.
+/ The scheduler only runs this mail; one mail per person per day;
+shares are included.
 """
 
 from datetime import timedelta
@@ -27,7 +28,7 @@ from django.utils import timezone
 
 from core.models import (
     Dossier, DossierPartage, EnvoiDuRecapitulatif, MotifDeTourDeWiki, Page,
-    PasseDeNuit, TourDeWiki, TypeDeNote, Wiki,
+    TourDeWiki, TypeDeNote, Wiki,
 )
 from core.services.corpus import ranger_une_note_dans_un_carnet
 from front.tests.test_synthese_phase_c import creer_fixtures_phase_c
@@ -143,40 +144,35 @@ class BaseDuRecapitulatif(TestCase):
         )
 
 
-class LeMailSuitLaNuitTest(BaseDuRecapitulatif):
+class LePlanificateurTest(BaseDuRecapitulatif):
     """
-    Une passe en cours retient le mail : il annonce le travail de la
-    nuit, il ne peut donc pas partir avant sa fin.
-    / A running pass holds the mail back.
+    Le planificateur ne lance que le recapitulatif, et celui-ci part sans
+    rien attendre.
+    / The scheduler runs only the recap, which waits on nothing.
     """
 
-    def test_une_passe_en_cours_empeche_l_envoi(self):
-        PasseDeNuit.objects.create()  # terminee_le reste NULL
+    def test_le_beat_ne_planifie_que_le_recapitulatif(self):
+        # Une tache planifiee qui appelle un modele est une facture qui
+        # tombe sans que personne ait clique. Il n'en reste aucune.
+        # / A scheduled model call is a bill nobody clicked for.
+        from hypostasia.celery import celery_app
+
+        taches_planifiees = sorted(
+            entree["task"]
+            for entree in celery_app.conf.beat_schedule.values()
+        )
+
+        self.assertEqual(
+            taches_planifiees,
+            ["front.tasks.envoyer_le_recapitulatif_du_matin_task"],
+        )
+
+    def test_la_tache_du_matin_envoie_sans_rien_attendre(self):
+        from front.tasks import envoyer_le_recapitulatif_du_matin_task
+
         self._un_tour_de_nuit()
 
-        with self.assertRaises(CommandError):
-            self._envoyer(attendre_minutes=0)
-
-        self.assertEqual(len(mail.outbox), 0)
-        self.assertFalse(EnvoiDuRecapitulatif.objects.exists())
-
-    def test_une_passe_terminee_laisse_partir_le_mail(self):
-        passe = PasseDeNuit.objects.create()
-        passe.terminee_le = timezone.now()
-        passe.save(update_fields=["terminee_le"])
-        self._un_tour_de_nuit()
-
-        self._envoyer(attendre_minutes=0)
-
-        self.assertEqual(len(mail.outbox), 1)
-
-    def test_l_envoi_force_passe_outre(self):
-        # Un envoi a la main, quand quelqu'un sait ce qu'il fait.
-        # / A manual send, for someone who knows what they are doing.
-        PasseDeNuit.objects.create()
-        self._un_tour_de_nuit()
-
-        self._envoyer(attendre_minutes=0, sans_attendre_la_nuit=True)
+        envoyer_le_recapitulatif_du_matin_task()
 
         self.assertEqual(len(mail.outbox), 1)
 

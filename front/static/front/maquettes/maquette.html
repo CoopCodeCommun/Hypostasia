@@ -1783,7 +1783,7 @@ function rendreLEstimation(doc) {
     '<div class="ligne"><span>Tokens réflexion (×' + MULTIPLICATEUR_THINKING +
       ')</span><span>' + grouperLesMilliers(e.tokensReflexion) + '</span></div>' +
     '<div class="ligne" style="margin-top:.3rem"><span>Coût estimé</span>' +
-      '<span class="cout">≤ ' + e.euros.toFixed(2).replace('.', ',') + ' €</span></div>';
+      '<span class="cout">environ ' + e.euros.toFixed(2).replace('.', ',') + ' €</span></div>';
 
   /* Le compte d'extractions supprimables est DERIVE, pas annonce. */
   var sansCommentaire = toutesLesIdees(doc).filter(function (idee) {

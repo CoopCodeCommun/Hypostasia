@@ -125,18 +125,20 @@ def _jobs_qui_s_adressent_a_quelqu_un(user):
 
     LOCALISATION : front/views_taches.py
 
-    LA PASSE DE NUIT NE S'ADRESSE A PERSONNE. Elle applique sans
-    demander, a une heure ou nul ne regarde, et son recit a deja deux
-    vehicules : le recapitulatif du matin, et le depliant « Historique »
-    de l'article. Sa fiche de production
-    (`front/tasks._ecrire_le_job_d_un_tour_de_nuit`) existe pour nommer
-    le redacteur, pas pour reclamer une lecture.
-    / The nightly pass addresses nobody: its story already has the
+    LES JOBS DE L'ANCIENNE PASSE DE NUIT NE S'ADRESSENT A PERSONNE. La
+    passe a ete retiree le 21 septembre 2026 et plus aucun job ne nait
+    avec ce marqueur, mais CEUX QU'ELLE A ECRITS SONT TOUJOURS EN BASE.
+    Ils nommaient le redacteur d'un article applique sans demande, pas
+    un destinataire, et leur recit a deja deux vehicules : le
+    recapitulatif du matin, et le depliant « Historique » de l'article.
+    / Jobs written by the removed nightly pass address nobody: they
+    named a writer, not a reader, and their story already has the
     morning digest and the article's history panel.
 
-    SANS CETTE EXCLUSION, le badge s'allumerait chaque matin — une fois
-    par wiki modifie et par proprietaire — et LE CLIC NE L'ETEINDRAIT
-    PAS : le lien du menu mene a `/lire/<page>/?marquer_lue=…`, or
+    SANS CETTE EXCLUSION, le badge se rallumerait sur des productions de
+    nuit vieilles de plusieurs semaines — une fois par wiki et par
+    proprietaire — et LE CLIC NE L'ETEINDRAIT PAS : le lien du menu
+    mene a `/lire/<page>/?marquer_lue=…`, or
     `LireViewSet.retrieve` redirige toute page de wiki vers
     `/wikis/<id>/` AVANT de lire `marquer_lue`, en jetant la chaine de
     requete. Seul « tout marquer lu » en viendrait a bout.

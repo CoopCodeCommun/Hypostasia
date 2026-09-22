@@ -34,7 +34,7 @@ citent une mesure, elles la datent.
 |---|---|
 | Cadre **vert** | une vérité durable : les éléments, les portions, un verdict établi |
 | Cadre **rouge** | un **refus** — et le projet en est fier : ils sont tous *bruyants* ou *visibles*, jamais silencieux |
-| Cadre **violet** | un geste **humain**. *(Il ne dit PAS que rien ne s'applique tout seul : la passe de nuit applique des opérations sans humain, `fait_par=None`, depuis le 21 août 2026.)* |
+| Cadre **violet** | un geste **humain** — et depuis le retrait de la passe de nuit, le 21 septembre 2026, **plus rien ne s'applique sans lui** : `appliquer_un_tour_de_wiki` exige son `fait_par`. |
 | Cadre **orange** | un appel au modèle, donc **facturé** |
 | Flèche pointillée | une note, une justification, une branche d'échec |
 

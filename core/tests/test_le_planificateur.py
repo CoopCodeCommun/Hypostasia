@@ -8,20 +8,22 @@ POURQUOI TESTER UN FICHIER DE CONFIGURATION. Pour la meme raison que
 `test_files_celery_ingestion.py` : la topologie ne vit dans aucun code
 Python, et c'est precisement la qu'ont eu lieu les derives. Une entree
 de `beat_schedule` qui nomme une tache inexistante ne leve rien au
-demarrage — elle echoue chaque nuit, dans les journaux d'un worker que
-personne ne lit.
-/ A beat entry naming a missing task fails every night, in logs nobody
+demarrage — elle echoue a chaque rendez-vous, dans les journaux d'un
+worker que personne ne lit.
+/ A beat entry naming a missing task fails at every run, in logs nobody
 reads.
 
 CE QUE CES TESTS VERROUILLENT
 
-1. Chaque tache planifiee EXISTE et est enregistree dans Celery.
-2. Le planificateur est declare dans les DEUX topologies supervisord.
-3. Il ne consomme AUCUNE file — sinon il prendrait un slot
+1. Seul le recapitulatif du matin est planifie : AUCUNE tache
+   planifiee n'appelle un modele (SPEC-synthese, addendum du
+   21 septembre 2026) — une facture ne tombe jamais sans un clic.
+2. Chaque tache planifiee EXISTE et est enregistree dans Celery.
+3. Le planificateur est declare dans les DEUX topologies supervisord.
+4. Il ne consomme AUCUNE file — sinon il prendrait un slot
    d'execution, et la topologie des trois workers ne serait plus vraie.
-4. Il n'y en a qu'UN : deux beats enverraient chaque tache en double,
-   donc deux passes de nuit sur les memes wikis, donc la facture du
-   redacteur doublee.
+5. Il n'y en a qu'UN : deux beats enverraient chaque tache en double,
+   donc deux recapitulatifs le meme matin.
 """
 
 import configparser
@@ -49,15 +51,18 @@ def _programmes_de(nom_du_fichier):
 
 class LesTachesPlanifieesExistentTest(TestCase):
     """
-    Une entree qui nomme une tache absente echoue chaque nuit, en
-    silence. / An entry naming a missing task fails silently, nightly.
+    Une entree qui nomme une tache absente echoue a chaque rendez-vous,
+    en silence. / An entry naming a missing task fails silently.
     """
 
-    def test_les_deux_rendez_vous_sont_declares(self):
+    def test_seul_le_recapitulatif_est_planifie(self):
+        # Mettre un wiki a jour est un geste humain : une tache
+        # planifiee qui appellerait le redacteur serait une facture qui
+        # tombe sans que personne ait clique.
+        # / Updating a wiki is a human gesture, never a scheduled one.
         noms = set(celery_app.conf.beat_schedule)
 
-        self.assertIn("la-passe-de-nuit-des-wikis", noms)
-        self.assertIn("le-recapitulatif-du-matin", noms)
+        self.assertEqual(noms, {"le-recapitulatif-du-matin"})
 
     def test_chaque_tache_planifiee_est_enregistree(self):
         # `autodiscover_tasks` doit les avoir trouvees : sinon le beat
@@ -73,24 +78,6 @@ class LesTachesPlanifieesExistentTest(TestCase):
                     f"le planificateur l'appellerait dans le vide.",
                 )
 
-    def test_le_recapitulatif_passe_apres_la_passe_de_nuit(self):
-        # L'ecart d'horaire n'est qu'un confort — la garantie est dans
-        # la tache, qui attend la fin de la passe. Mais un horaire
-        # inverse ferait attendre le mail une journee entiere.
-        # / The gap is comfort; an inverted one would cost a whole day.
-        heure_de_la_passe = min(
-            celery_app.conf.beat_schedule[
-                "la-passe-de-nuit-des-wikis"
-            ]["schedule"].hour
-        )
-        heure_du_mail = min(
-            celery_app.conf.beat_schedule[
-                "le-recapitulatif-du-matin"
-            ]["schedule"].hour
-        )
-
-        self.assertLess(heure_de_la_passe, heure_du_mail)
-
 
 class LePlanificateurTourneQuelquePartTest(TestCase):
     """
@@ -105,16 +92,16 @@ class LePlanificateurTourneQuelquePartTest(TestCase):
                 self.assertIn(
                     "celery_beat", programmes,
                     f"{nom_du_fichier} ne lance aucun planificateur : "
-                    f"la passe de nuit ne partirait jamais.",
+                    f"le récapitulatif du matin ne partirait jamais.",
                 )
                 self.assertIn(
                     "beat", programmes["celery_beat"]["command"],
                 )
 
     def test_il_n_y_a_qu_un_seul_planificateur_par_topologie(self):
-        # Deux beats enverraient chaque tache en double : deux passes
-        # sur les memes wikis, donc la facture doublee.
-        # / Two beats double every task, and the bill with it.
+        # Deux beats enverraient chaque tache en double : deux
+        # recapitulatifs le meme matin.
+        # / Two beats double every task.
         for nom_du_fichier in FICHIERS_SUPERVISORD:
             with self.subTest(fichier=nom_du_fichier):
                 programmes = _programmes_de(nom_du_fichier)
@@ -140,10 +127,10 @@ class LePlanificateurTourneQuelquePartTest(TestCase):
     def test_il_demarre_dans_les_deux_topologies(self):
         # MEME TOPOLOGIE DES DEUX COTES, comme les trois workers : ce
         # qui tourne en dev doit se comporter comme ce qui tourne en
-        # prod. Un beat qui ne demarre pas est une nuit qui ne passe
-        # jamais — en silence.
+        # prod. Un beat qui ne demarre pas est un matin sans
+        # recapitulatif — en silence.
         # / Same topology on both sides: a beat that does not start is
-        # a night that silently never happens.
+        # a morning without a recap, silently.
         for nom_du_fichier in FICHIERS_SUPERVISORD:
             with self.subTest(fichier=nom_du_fichier):
                 self.assertEqual(

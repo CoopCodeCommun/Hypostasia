@@ -11,8 +11,8 @@ Six rubriques, et une seule regle de redaction : une rubrique VIDE ne
 s'affiche pas. Un mail qui aligne cinq titres suivis de « rien » ne se
 lit plus au bout de trois jours.
 
-Un tour sans auteur est un tour de la PASSE DE NUIT — c'est ce que
-« le moteur » veut dire ici, et la distinction doit rester lisible :
+Un tour sans auteur est un tour de l'ancienne PASSE DE NUIT — c'est ce
+que « le moteur » veut dire ici, et la distinction doit rester lisible :
 un article qu'un collegue a modifie ne se relit pas comme un article
 que la machine a complete.
 

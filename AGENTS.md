@@ -106,13 +106,15 @@ Chacun a déjà cassé quelque chose. Aucun ne lève d'erreur explicite.
   chargée. Verrouillés par
   `hypostasis_extractor/tests/test_files_celery_ingestion.py` et
   `.../test_worker_du_juge_local.py`.
-- **UN planificateur, jamais deux.** `celery_beat` (supervisord, les deux
-  topologies) lit le `beat_schedule` de `hypostasia/celery.py` et déclenche la
-  passe de nuit des wikis puis le récapitulatif du matin. **Ce n'est pas un
-  quatrième worker** : il ne consomme aucune file, n'exécute rien, et ne prend
-  donc aucun slot — la ligne ci-dessus reste vraie. Deux beats enverraient chaque
-  tâche **en double** : deux passes de nuit sur les mêmes wikis, donc la facture
-  du rédacteur doublée. Verrouillé par `core/tests/test_le_planificateur.py`.
+- **UN planificateur, jamais deux — et aucun appel de modèle planifié.**
+  `celery_beat` (supervisord, les deux topologies) lit le `beat_schedule` de
+  `hypostasia/celery.py` et ne déclenche que le récapitulatif du matin, qui
+  n'appelle aucun modèle. Mettre un wiki à jour est un geste humain : la passe
+  de nuit a été retirée le 21 septembre 2026, parce qu'elle facturait sans que
+  personne ait cliqué. **Ce n'est pas un quatrième worker** : il ne consomme
+  aucune file, n'exécute rien, et ne prend donc aucun slot — la ligne ci-dessus
+  reste vraie. Deux beats enverraient chaque tâche **en double** : deux
+  récapitulatifs le même matin. Verrouillé par `core/tests/test_le_planificateur.py`.
 - **Toute tâche Celery neuve exige un redémarrage du worker** — `make restart
   S=celery_worker` — sinon il tourne avec l'ancien code et `inspect registered`
   ne la connaît pas. C'est arrivé le 21 août : trois tâches neuves, un beat qui

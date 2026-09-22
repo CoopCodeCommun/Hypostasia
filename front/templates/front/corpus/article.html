@@ -136,11 +136,10 @@ tous les verdicts seraient des citations introuvables n'aurait aucune ligne
         {% comment %}
         L'HISTOIRE DE L'ARTICLE, dans l'en-tete, avec les autres
         chiffres d'audit. Un wiki se SUIT : sans son histoire, un
-        paragraphe apparu cette nuit se lit exactement comme un
-        paragraphe ecrit il y a six semaines, et rien ne dit lequel
-        vient d'un humain et lequel vient du moteur.
+        paragraphe apparu hier se lit exactement comme un paragraphe
+        ecrit il y a six semaines, et rien ne dit qui l'a accepte.
         / A wiki is followed, not adopted: without its history, a
-        paragraph added last night reads like one written six weeks ago.
+        paragraph added yesterday reads like one written six weeks ago.
         {% endcomment %}
         {% if wiki %}
         <details class="ligne-depliante" data-testid="synthese-historique-bloc">
@@ -204,6 +203,7 @@ tous les verdicts seraient des citations introuvables n'aurait aucune ligne
                 data-testid="synthese-ligne-maj"
                 data-geste="mise-a-jour"
                 data-url="/wikis/{{ wiki.pk }}/mise_a_jour/"
+                data-url-estimation="/wikis/{{ wiki.pk }}/estimation/"
                 data-nouveautes="{{ nouveautes_pour_la_maj.total }}"
                 data-extractions="{{ nouveautes_pour_la_maj.extractions }}"
                 data-commentaires="{{ nouveautes_pour_la_maj.commentaires }}"
@@ -494,9 +494,40 @@ breadcrumb's path, for the same reason.
                       "qu'après un changement de juge ou de seuil.");
         }
 
+        /* LE CORPS DE LA BOITE EST CONSTRUIT EN DOM, JAMAIS EN HTML BRUT :
+           la phrase porte une date venue d'un attribut, `textContent`
+           l'empeche d'etre lue comme du balisage.
+           / Built as DOM, never raw HTML: textContent cannot inject. */
+        var corps = document.createElement("div");
+        var phrase = document.createElement("p");
+        phrase.style.margin = "0";
+        phrase.textContent = texte;
+        corps.appendChild(phrase);
+
+        /* LE COUT, AVANT LE CLIC — pour une mise a jour qui partira
+           vraiment, et seulement la. Le serveur le calcule a l'ouverture
+           (WikiViewSet.estimation) : il compte le prompt exact que la
+           tache enverra, sans rien ecrire.
+           / The cost, before the click, computed by the server. */
+        if (estUneMiseAJour && ilYADeQuoi && ligne.dataset.urlEstimation) {
+            var zoneDuCout = document.createElement("div");
+            zoneDuCout.setAttribute("data-testid", "wiki-zone-estimation");
+            zoneDuCout.setAttribute("aria-live", "polite");
+            zoneDuCout.setAttribute("hx-get", ligne.dataset.urlEstimation);
+            zoneDuCout.setAttribute("hx-trigger", "load");
+            zoneDuCout.setAttribute("hx-swap", "innerHTML");
+            zoneDuCout.style.marginTop = ".9rem";
+            zoneDuCout.style.fontSize = ".9rem";
+            var attente = document.createElement("span");
+            attente.style.color = "var(--encre-douce)";
+            attente.textContent = "Calcul du coût…";
+            zoneDuCout.appendChild(attente);
+            corps.appendChild(zoneDuCout);
+        }
+
         Swal.fire({
             title: titre,
-            text: texte,
+            html: corps,
             icon: ilYADeQuoi ? "question" : "info",
             showCancelButton: true,
             /* LE BOUTON EST GRISE QUAND IL N'Y A RIEN A FAIRE, et la
@@ -507,6 +538,10 @@ breadcrumb's path, for the same reason.
             cancelButtonText: "Fermer",
             reverseButtons: true,
             didOpen: function () {
+                /* htmx ne voit pas un contenu pose par SweetAlert : on
+                   le lui fait traiter, ce qui declenche le « load » de
+                   la zone du cout. / htmx must process the dialog body. */
+                htmx.process(Swal.getHtmlContainer());
                 if (ilYADeQuoi) { return; }
                 var bouton = Swal.getConfirmButton();
                 bouton.disabled = true;

@@ -5,15 +5,11 @@ Le recapitulatif du matin : un mail par personne, une fois par jour.
 LOCALISATION :
 front/management/commands/envoyer_le_recapitulatif_du_matin.py
 
-LE MAIL PART TOUJOURS APRES LE RUN DE LA NUIT. Deux lignes de cron a
-quatre heures d'ecart sont une ESPERANCE d'ordre, pas une garantie :
-une nuit chargee suffirait a faire partir le mail avant la fin du
-travail qu'il annonce. Cette commande interroge donc la `PasseDeNuit`,
-et ATTEND qu'elle soit terminee. Si l'attente expire, elle N'ENVOIE
-RIEN et sort en erreur — un mail qui annonce a moitie serait pire
-qu'un mail en retard, et un cron en erreur se voit.
-/ The mail always follows the night run: it waits, and refuses rather
-than half-announcing.
+ELLE N'APPELLE AUCUN MODELE. Aucun wiki ne se met a jour tout seul
+(SPEC-synthese, addendum du 21 septembre 2026) : ce mail est ce qui dit
+a chacun quels wikis ont recu du neuf, donc lesquels meritent le geste
+« Mettre a jour ». / It calls no model: it tells people which wikis
+deserve a manual update.
 
 CE QU'ELLE RACONTE : les six rubriques du service (wikis modifies,
 commentaires avec leur texte, articles neufs, notes neuves, carnets
@@ -28,14 +24,12 @@ l'arrivee d'un commentaire renvoyait un second mail le meme jour.
 / One mail per person per day, enforced by a look at the last sends.
 
 FLUX :
-1. attend la fin de la passe de nuit (sauf --sans-attendre-la-nuit) ;
-2. rassemble la matiere, par destinataire (core/services) ;
-3. envoie, et enregistre l'envoi — c'est l'enregistrement qui borne le
+1. rassemble la matiere, par destinataire (core/services) ;
+2. envoie, et enregistre l'envoi — c'est l'enregistrement qui borne le
    prochain, donc qui tient la promesse « un par jour ».
 """
 
 import logging
-import time
 from datetime import timedelta
 
 from django.conf import settings
@@ -45,38 +39,17 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from core.models import EnvoiDuRecapitulatif
-from core.services.passe_de_nuit import passe_en_cours
 from core.services.recapitulatif_du_matin import (
     a_deja_recu_un_recapitulatif_aujourd_hui, matiere_par_destinataire,
 )
 
 logger = logging.getLogger(__name__)
 
-# Entre deux regards sur la passe de nuit. Assez court pour ne pas
-# retarder le mail, assez long pour ne pas marteler la base.
-# / Between two looks at the night pass.
-SECONDES_ENTRE_DEUX_REGARDS = 30
-
 
 class Command(BaseCommand):
-    help = (
-        "Envoie le recapitulatif du matin. Attend la fin de la passe "
-        "de nuit avant de partir."
-    )
+    help = "Envoie le recapitulatif du matin."
 
     def add_arguments(self, analyseur_d_arguments):
-        analyseur_d_arguments.add_argument(
-            "--attendre-minutes", type=int, default=60,
-            dest="attendre_minutes",
-            help="Combien de temps attendre la fin de la passe de nuit "
-                 "avant d'abandonner (defaut : 60).",
-        )
-        analyseur_d_arguments.add_argument(
-            "--sans-attendre-la-nuit", action="store_true",
-            dest="sans_attendre_la_nuit",
-            help="Part meme si une passe de nuit tourne. Pour un envoi "
-                 "a la main, en connaissance de cause.",
-        )
         analyseur_d_arguments.add_argument(
             "--a-blanc", action="store_true", dest="a_blanc",
             help="N'envoie rien : dit qui recevrait quoi.",
@@ -109,11 +82,6 @@ class Command(BaseCommand):
         )
 
     def handle(self, *arguments, **options):
-        if not options.get("sans_attendre_la_nuit"):
-            self._attendre_la_fin_de_la_nuit(
-                options.get("attendre_minutes", 60),
-            )
-
         # UNE BORNE IMPOSEE NE SERT QU'A REGARDER. L'envoi reel garde
         # la borne de chacun — la date de son dernier mail — sinon la
         # promesse « rien deux fois » tomberait.
@@ -272,35 +240,6 @@ class Command(BaseCommand):
         else:
             morceau = "des nouveautés"
         return f"Hypostasia — {morceau} depuis hier"
-
-    def _attendre_la_fin_de_la_nuit(self, attendre_minutes):
-        """
-        Retient le mail tant que la passe de nuit tourne.
-        / Holds the mail while the night pass is running.
-        """
-        secondes_restantes = max(0, attendre_minutes) * 60
-        while True:
-            # `passe_en_cours` ferme d'abord les passes ABANDONNEES :
-            # sans ce nettoyage, un conteneur tue en pleine nuit
-            # bloquerait le recapitulatif POUR TOUJOURS, et personne
-            # ne recevrait plus rien — sans un message.
-            # / Dead passes are closed first: one kill would otherwise
-            # block the mail forever.
-            passe = passe_en_cours()
-            if passe is None:
-                return
-            if secondes_restantes <= 0:
-                raise CommandError(
-                    f"La passe de nuit lancée le "
-                    f"{passe.lancee_le:%d/%m/%Y à %H:%M} tourne "
-                    f"encore : le récapitulatif n'est pas parti. Il "
-                    f"annoncerait un travail à moitié fait. Relancez-le "
-                    f"quand elle aura fini. / The night pass is still "
-                    f"running; the recap was not sent."
-                )
-            attente = min(SECONDES_ENTRE_DEUX_REGARDS, secondes_restantes)
-            time.sleep(attente)
-            secondes_restantes -= attente
 
     def _envoyer_a(self, entree, adresse=None, enregistrer=True,
                    instant_du_calcul=None):

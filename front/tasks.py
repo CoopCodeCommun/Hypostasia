@@ -615,6 +615,24 @@ BALISES_HTML_AUTORISEES = [
     "ul", "ol", "li", "a", "code", "pre", "hr",
 ]
 ATTRIBUTS_HTML_AUTORISES = {"a": ["href", "title"]}
+
+# LE MARQUEUR DES JOBS ECRITS PAR L'ANCIENNE PASSE DE NUIT.
+#
+# La passe a ete retiree le 21 septembre 2026 : plus aucun job ne nait
+# avec ce marqueur. Mais CEUX QU'ELLE A ECRITS SONT EN BASE, et le menu
+# des taches doit continuer a les ecarter
+# (`front/views_taches._jobs_qui_s_adressent_a_quelqu_un`) : ils ne
+# s'adressent a personne, et un clic ne les eteindrait pas — le lien
+# mene a `/lire/<page>/?marquer_lue=…`, or `LireViewSet.retrieve`
+# redirige toute page de wiki AVANT de lire la chaine de requete.
+#
+# NE PAS SUPPRIMER CETTE CONSTANTE tant que des jobs la portent : sans
+# elle, le badge de chaque proprietaire de wiki se rallumerait sur des
+# productions de nuit vieilles de plusieurs semaines.
+# / Marker of jobs written by the removed nightly pass. No new job
+# carries it, but the ones it wrote are still in the database and the
+# task menu must keep excluding them: a click could not clear them.
+MARQUEUR_DU_JOB_DE_NUIT = "est_maj_wiki_de_nuit"
 PROTOCOLES_AUTORISES = ["http", "https", "mailto"]
 
 
@@ -1260,10 +1278,10 @@ def _demandeur_du_job(job):
 
     LOCALISATION : front/tasks.py
 
-    Les vues posent `demandeur_id` dans `raw_result` ; les commandes de
-    management, non — un article produit par l'installation n'a aucun
-    demandeur, et c'est exactement ce que None veut dire.
-    / Management commands set no requester: None says so.
+    Les vues posent `demandeur_id` dans `raw_result`, et les commandes
+    de l'installation y posent le proprietaire du carnet. None quand la
+    cle manque, ou quand le compte n'existe plus.
+    / Views and install commands set a requester; None when missing.
     """
     from django.contrib.auth import get_user_model
 
@@ -1416,7 +1434,7 @@ def _ecrire_le_corps_d_un_article(page_d_article, texte_brut,
     return bilan_d_indexation
 
 
-def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par=None,
+def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par,
                               job=None, updated_at_de_la_proposition=None):
     """
     Applique un lot d'operations sur un wiki, et ecrit son histoire.
@@ -1424,11 +1442,11 @@ def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par=None,
 
     LOCALISATION : front/tasks.py
 
-    UN SEUL CHEMIN pour les deux appelants — la vue, quand un humain
-    accepte operation par operation, et la passe de nuit, quand le
-    moteur applique seul. Deux copies de cette sequence divergeraient,
-    et c'est toujours l'historique qui mentirait le premier.
-    / One path for both callers: the human view and the nightly pass.
+    APPELEE PAR LA VUE (`WikiViewSet.appliquer`), quand un humain
+    accepte les operations une par une. Aucun wiki ne se met a jour
+    sans ce geste (SPEC-synthese, addendum du 21 septembre 2026).
+    / Called by the view when a human accepts the operations; no wiki
+    is updated without that gesture.
 
     FLUX :
     1. controle de fraicheur (addendum n°1) quand la proposition en
@@ -1445,7 +1463,9 @@ def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par=None,
     :param wiki: le `Wiki` a mettre a jour / the wiki
     :param operations: les operations retenues / the retained operations
     :param motif: une valeur de `MotifDeTourDeWiki`
-    :param fait_par: l'humain qui accepte, ou None pour le moteur
+    :param fait_par: l'humain qui accepte — OBLIGATOIRE : un tour sans
+        auteur s'afficherait « le moteur, automatiquement ».
+        / the accepting human, mandatory.
     :param job: l'`ExtractionJob` de la proposition
     :param updated_at_de_la_proposition: le jeton de fraicheur, s'il y en a
     :return: `(bilan des operations, bilan d'indexation)`
@@ -1469,11 +1489,10 @@ def appliquer_un_tour_de_wiki(wiki, operations, motif, fait_par=None,
         operations, identifiants_du_perimetre,
     )
 
-    # LA MEME BORNE QUE LE CRITERE DE REPRISE : la date du dernier
-    # ESSAI. Compter depuis la derniere REUSSITE ferait reraconter, au
-    # tour d'apres un lot rejete, des nouveautes que le tour rejete
-    # avait deja vues.
-    # / The same bound as the re-run criterion: the last attempt.
+    # LA DATE DU DERNIER ESSAI (`borne_du_dernier_essai`). Compter
+    # depuis la derniere REUSSITE ferait reraconter, au tour d'apres un
+    # lot rejete, des nouveautes que le tour rejete avait deja vues.
+    # / The last attempt's date, not the last success's.
     depuis = borne_du_dernier_essai(wiki)
 
     # RIEN D'APPLICABLE : on ecrit l'histoire de la tentative, et on ne
@@ -1533,21 +1552,18 @@ def borne_du_dernier_essai(wiki):
 
     LOCALISATION : front/tasks.py
 
-    LA DATE DU DERNIER ESSAI, PAS DE LA DERNIERE REUSSITE. C'est la
-    distinction qui empeche une boucle nocturne, et elle n'est pas
-    intuitive : `derniere_mise_a_jour` n'avance QUE lorsqu'une
-    operation est appliquee. Un lot entierement rejete — cas reel du
-    16 aout : six operations proposees, six rejetees sur des titres
-    hallucines — laisse donc la date en arriere. La nouveaute qui avait
-    declenche ce tour compte encore le lendemain, et le surlendemain :
-    le redacteur est rappele chaque nuit sur la meme matiere, pour le
-    meme rejet.
+    LA DATE DU DERNIER ESSAI, PAS DE LA DERNIERE REUSSITE.
+    `derniere_mise_a_jour` n'avance QUE lorsqu'une operation est
+    appliquee. Un lot entierement rejete la laisse donc en arriere — cas
+    reel du 16 aout : six operations proposees, six rejetees sur des
+    titres hallucines. `TourDeWiki.fait_le`, lui, est ecrit meme quand
+    tout a ete rejete : c'est lui qui dit « on a deja regarde ».
 
-    `TourDeWiki.fait_le` est ecrit meme quand tout a ete rejete. C'est
-    lui qui dit « on a deja regarde, et ca n'a rien donne ».
-    / The date of the last ATTEMPT, not of the last success: a fully
-    rejected batch leaves `derniere_mise_a_jour` behind, and the same
-    novelty would summon the writer every night.
+    `appliquer_un_tour_de_wiki` compte depuis cette borne ce qui a
+    appele le tour : sans elle, le tour qui suit un lot rejete
+    reraconterait des nouveautes que le tour rejete avait deja vues.
+    / The date of the last ATTEMPT, not of the last success: the round
+    after a rejected batch must not re-tell what that batch already saw.
 
     :param wiki: le `Wiki` / the wiki
     :return: la date la plus recente entre le dernier tour et la
@@ -1559,581 +1575,26 @@ def borne_du_dernier_essai(wiki):
     return max(dernier_tour.fait_le, wiki.derniere_mise_a_jour)
 
 
-def _le_wiki_a_une_raison_d_etre_repris(wiki):
-    """
-    Ce wiki merite-t-il un tour cette nuit ?
-    / Does this wiki deserve a round tonight?
-
-    LOCALISATION : front/tasks.py
-
-    DEUX CONDITIONS, ET LES DEUX SONT NECESSAIRES :
-
-    1. quelque chose est APPARU dans le perimetre depuis le dernier
-       ESSAI — une extraction, un commentaire. Le dernier essai, et non
-       la derniere reussite : voir `borne_du_dernier_essai` ;
-    2. il reste des extractions que l'article n'a pas reprises.
-
-    LA PREMIERE EST CELLE QUI MANQUAIT, et son absence ne coutait pas
-    surtout de l'argent : elle faisait du BRUIT. Un wiki garde des
-    extractions ecartees en permanence — c'est meme le cas nominal, un
-    article ne reprend jamais tout son perimetre (mesure du 21 aout :
-    91 et 97 ecartees sur deux wikis qui n'avaient AUCUNE nouveaute).
-    Le seul critere des ecartees les faisait donc reprendre chaque
-    nuit, indefiniment : le modele reproposait les memes extractions,
-    l'historique se remplissait de tours sans cause, et le
-    recapitulatif annonçait des modifications que rien n'avait
-    appelees. Un journal qui raconte tous les jours la meme chose
-    cesse d'etre lu.
-    / The missing condition cost noise more than money: a wiki always
-    has left-out extractions, so that criterion alone re-ran it every
-    night on the same material.
-
-    LA SECONDE RESTE INDISPENSABLE : sans ecartee, la proposition
-    echouerait sur « rien a mettre a jour ».
-    / Without a left-out extraction the proposal would fail outright.
-
-    :param wiki: le `Wiki` a examiner / the wiki
-    :return: True s'il faut le reprendre / True if it deserves a round
-    """
-    from core.services.nouveautes_du_perimetre import nouveautes_du_perimetre
-    from core.services.synthese import (
-        extractions_ecartees, notes_du_perimetre_d_un_wiki,
-    )
-
-    try:
-        if not extractions_ecartees(wiki.page).exists():
-            return False
-    except Exception as erreur:
-        # Un perimetre illisible (article historique) n'est pas une
-        # raison d'arreter la nuit. / An unreadable scope does not stop
-        # the night.
-        logger.warning(
-            "passe de nuit: wiki=%s perimetre illisible (%s) — laisse "
-            "de cote.", wiki.pk, erreur,
-        )
-        return False
-
-    comptes = nouveautes_du_perimetre(
-        notes_du_perimetre_d_un_wiki(wiki), borne_du_dernier_essai(wiki),
-    )
-    return bool(comptes["total"])
-
-
 @shared_task(bind=True)
-def lancer_la_passe_de_nuit_task(self, maximum=0):
+def envoyer_le_recapitulatif_du_matin_task(self):
     """
-    Ouvre la passe de nuit et met un wiki par tache en file.
-    / Opens the nightly pass and queues one task per wiki.
+    Le recapitulatif du matin : un mail par personne, au plus un par jour.
+    / The morning recap: one mail per person, at most once a day.
 
     LOCALISATION : front/tasks.py
 
-    DECLENCHEE PAR LE BEAT (`hypostasia/celery.py`, `beat_schedule`) —
-    la planification vit dans le code de l'application, pas dans le
-    crontab d'une machine : elle est versionnee, et elle survit a un
-    changement de machine.
-
-    LE FAN-OUT, ET CE QU'IL CHANGE. Une tache par wiki, sur la file par
-    defaut : les appels au redacteur avancent a la concurrence du
-    worker au lieu de se suivre. Chaque tache tient largement sous le
-    plafond de 30 minutes (`CELERY_TASK_TIME_LIMIT`), la ou une passe
-    sequentielle de vingt wikis le crevait — et un redemarrage ne coute
-    qu'un wiki, pas la nuit entiere.
-    / One task per wiki on the default queue: parallel, and each stays
-    far below the 30-minute task limit.
-
-    LA PASSE NE SE FERME PAS ICI. Aucune tache ne sait si elle est la
-    derniere : c'est le compteur `wikis_termines` qui le dit, et la
-    derniere a rendre la main ferme la passe. Tant qu'elle est ouverte,
-    le recapitulatif du matin attend.
-    / The pass is closed by the counter, not here.
-
-    :param maximum: nombre maximum de wikis (0 = tous). Ce qui est
-        ecarte par cette borne est COMPTE — une troncature muette se
-        lirait comme une couverture complete.
-    :return: le pk de la `PasseDeNuit` ouverte, ou None
+    DECLENCHEE PAR LE BEAT (`hypostasia/celery.py`, `beat_schedule`).
+    Elle n'appelle AUCUN modele : elle raconte les wikis modifies depuis
+    le dernier mail, et ceux dont le perimetre a recu du neuf. Toute la
+    logique vit dans la commande de management, que `make recapitulatif`
+    appelle aussi — un seul chemin pour les deux.
+    / Triggered by the beat; calls no model. The logic lives in the
+    management command, shared with `make recapitulatif`.
     """
-    from core.models import PasseDeNuit, Wiki
-    from core.services.passe_de_nuit import passe_en_cours
-    from core.services.synthese import extractions_ecartees
-
-    # DEUX PASSES EN MEME TEMPS DOUBLERAIENT LA FACTURE, et deux tours
-    # concurrents se disputeraient le meme article. Le cas arrive tout
-    # seul : une nuit plus longue que prevu, et le beat repart.
-    #
-    # CE CONTROLE-CI DONNE LE MESSAGE CLAIR ; LA GARANTIE EST AILLEURS.
-    # Regarder puis creer laisse une fenetre : deux lancements a la
-    # meme seconde — le planificateur et un `make nuit` — la traversent
-    # tous les deux. C'est la contrainte `une_seule_passe_de_nuit_ouverte`
-    # (core/models.py) qui la ferme, en faisant lever la creation.
-    # / This check gives the clear message; the database constraint
-    # gives the guarantee.
-    deja_en_cours = passe_en_cours()
-    if deja_en_cours is not None:
-        logger.warning(
-            "lancer_la_passe_de_nuit_task: une passe (#%s) tourne "
-            "encore — celle-ci ne demarre pas.", deja_en_cours.pk,
-        )
-        return None
-
-    wikis_a_examiner = [
-        wiki for wiki in Wiki.objects.select_related("page", "dossier")
-        if _le_wiki_a_une_raison_d_etre_repris(wiki)
-    ]
-
-    ecartes_par_le_maximum = 0
-    if maximum and len(wikis_a_examiner) > maximum:
-        ecartes_par_le_maximum = len(wikis_a_examiner) - maximum
-        wikis_a_examiner = wikis_a_examiner[:maximum]
-
-    from django.db import IntegrityError
-
-    try:
-        passe = PasseDeNuit.objects.create(
-            wikis_examines=len(wikis_a_examiner),
-            wikis_ecartes_par_le_maximum=ecartes_par_le_maximum,
-        )
-    except IntegrityError:
-        # LA CONTRAINTE A PARLE. `une_seule_passe_de_nuit_ouverte`
-        # (core/models.py) interdit deux passes ouvertes a la fois :
-        # une autre a demarre pendant qu'on listait les wikis, et le
-        # controle du debut ne pouvait pas la voir.
-        # / The constraint spoke: a pass opened while we were listing.
-        logger.warning(
-            "lancer_la_passe_de_nuit_task: une passe a ete ouverte "
-            "pendant le listage — celle-ci ne demarre pas.",
-        )
-        return None
-
-    # RIEN A FAIRE EST UN CAS NORMAL, et il doit fermer la passe tout
-    # de suite : sinon le recapitulatif du matin attendrait une passe
-    # qui n'a personne pour la finir.
-    # / Nothing to do must close the pass at once.
-    if not wikis_a_examiner:
-        _fermer_la_passe(passe)
-        return passe.pk
-
-    for wiki in wikis_a_examiner:
-        mettre_a_jour_un_wiki_la_nuit_task.delay(passe.pk, wiki.pk)
-
-    logger.info(
-        "lancer_la_passe_de_nuit_task: passe #%s ouverte, %s wiki(s) en "
-        "file, %s ecarte(s) par le maximum.",
-        passe.pk, len(wikis_a_examiner), ecartes_par_le_maximum,
-    )
-    return passe.pk
-
-
-def _fermer_la_passe(passe):
-    """
-    Ferme la passe et laisse partir le recapitulatif.
-    / Closes the pass and lets the recap go.
-
-    LOCALISATION : front/tasks.py
-    """
-    from django.utils import timezone
-
-    passe.terminee_le = timezone.now()
-    passe.save(update_fields=["terminee_le"])
-    logger.info(
-        "passe de nuit #%s terminee : %s examine(s), %s modifie(s), "
-        "%s en erreur.", passe.pk, passe.wikis_examines,
-        passe.wikis_modifies, passe.wikis_en_erreur,
-    )
-
-
-def _rendre_la_main_a_la_passe(passe_id, a_modifie, en_erreur):
-    """
-    Une tache de wiki a fini : compte, et ferme si elle etait la
-    derniere. / One wiki task finished: count, and close if last.
-
-    LOCALISATION : front/tasks.py
-
-    LES TROIS INCREMENTS SONT ATOMIQUES (`F(...) + 1`), et la relecture
-    se fait sous VERROU. Deux taches qui finissent dans la meme
-    milliseconde liraient sinon le meme total et, ou bien fermeraient la
-    passe deux fois, ou bien ne la fermeraient JAMAIS — et le
-    recapitulatif du matin attendrait pour toujours une passe finie.
-    / Atomic increments and a locked read: otherwise two tasks finishing
-    together would either close twice or never, and the morning recap
-    would wait forever on a finished pass.
-    """
-    from django.db import transaction
-    from django.db.models import F
-
-    from core.models import PasseDeNuit
-
-    with transaction.atomic():
-        PasseDeNuit.objects.filter(pk=passe_id).update(
-            wikis_termines=F("wikis_termines") + 1,
-            wikis_modifies=F("wikis_modifies") + (1 if a_modifie else 0),
-            wikis_en_erreur=F("wikis_en_erreur") + (1 if en_erreur else 0),
-        )
-        passe = PasseDeNuit.objects.select_for_update().filter(
-            pk=passe_id,
-        ).first()
-        if passe is None:
-            return
-        c_est_la_derniere = (
-            passe.terminee_le is None
-            and passe.wikis_termines >= passe.wikis_examines
-        )
-        if c_est_la_derniere:
-            _fermer_la_passe(passe)
-
-
-# Le marqueur du job d'un tour de nuit. Il est DISTINCT de
-# `est_maj_wiki`, qui designe la proposition d'un humain : deux vues
-# (`proposition` et `appliquer`, front/views_synthese.py) adressent par
-# son id n'importe quel job `est_maj_wiki` de la page, pour previsualiser
-# puis appliquer des operations qu'un humain a retenues. Un job de nuit
-# n'attend aucune retenue — ses operations sont deja appliquees — et un
-# `appliquer` force sur lui ecrirait un tour manuel fantome, signe par
-# l'utilisateur, avec zero operation.
-# / A distinct marker: the human path addresses any est_maj_wiki job of
-# the page by id; a forged apply on a night job would write a phantom
-# manual round signed by the user.
-MARQUEUR_DU_JOB_DE_NUIT = "est_maj_wiki_de_nuit"
-
-
-def _ecrire_le_job_d_un_tour_de_nuit(wiki, modele_ia, erreur=None):
-    """
-    Ecrit la fiche de production d'un tour de nuit.
-    / Writes the production record of one night round.
-
-    LOCALISATION : front/tasks.py
-
-    SANS ELLE, LE TOUR NE NOMME AUCUN MODELE. `TourDeWiki.fait_par=None`
-    dit qu'aucun humain n'a decide ; rien ne dit QUI a ecrit. Le chemin
-    humain cree deja ce job (`WikiViewSet.mise_a_jour`) : les deux
-    chemins laissent donc la meme trace, et l'histoire d'un article ne
-    depend pas de l'heure a laquelle il a ete ecrit.
-    / Without it the round names no model, while the human path already
-    creates one: both paths must trace alike.
-
-    ELLE S'ECRIT APRES COUP, AVEC SON ISSUE — jamais en `pending` ni en
-    `processing`. Trois vues prennent « le dernier job en cours de cette
-    page » pour decider ce qu'elles affichent
-    (`LireViewSet.retrieve`, `previsualiser_analyse`, `drawer_contenu`,
-    front/views.py) : un job de nuit en cours ferait lire « une analyse
-    tourne deja » sur un article que personne n'analyse. Et
-    `_verifier_et_nettoyer_job_bloque` marque en erreur tout job
-    `processing` sans battement depuis cinq minutes — or un tour de nuit
-    ne bat pas le coeur, et un appel de redaction depasse cinq minutes.
-    / Written after the fact with its outcome: three views treat any
-    in-flight job of the page as a running analysis, and the stall guard
-    kills a `processing` job after five heartbeat-less minutes.
-
-    AUCUN `demandeur_id` : c'est ce qui garde la nuit silencieuse. Le
-    champ est lu par `_terminer_un_job_d_article` et
-    `_echouer_un_job_d_article` pour choisir qui prevenir — le chemin de
-    nuit ne passe par ni l'un ni l'autre, et le recapitulatif du matin
-    raconte la nuit a leur place.
-    / No requester id: the night stays silent; the morning digest tells.
-
-    :param wiki: le `Wiki` mis a jour cette nuit / tonight's wiki
-    :param modele_ia: l'`AIModel` du role redacteur, ou None s'il n'a
-        pas meme pu etre resolu / the writer model, or None
-    :param erreur: l'exception qui a interrompu le tour, s'il y en a une
-    :return: l'`ExtractionJob` ecrit / the recorded job
-    """
-    from hypostasis_extractor.models import ExtractionJob
-
-    return ExtractionJob.objects.create(
-        page=wiki.page,
-        ai_model=modele_ia,
-        name=f"Mise à jour de nuit — {wiki.sujet}"[:200],
-        prompt_description="Proposition d'opérations (passe de nuit)",
-        status="error" if erreur is not None else "completed",
-        error_message=str(erreur)[:500] if erreur is not None else None,
-        raw_result={MARQUEUR_DU_JOB_DE_NUIT: True, "wiki_id": wiki.pk},
-    )
-
-
-@shared_task(bind=True)
-def mettre_a_jour_un_wiki_la_nuit_task(self, passe_id, wiki_id):
-    """
-    Un wiki, un tour, sans humain — puis la main rendue a la passe.
-    / One wiki, one round, no human — then the pass is told.
-
-    LOCALISATION : front/tasks.py
-
-    UN ECHEC NE COUTE QUE SON WIKI. Un modele injoignable sur l'un ne
-    doit priver aucun autre de sa mise a jour, et surtout ne doit pas
-    laisser la passe ouverte : la main est rendue dans TOUS les cas,
-    sinon le recapitulatif du matin n'arriverait jamais.
-    / A failure costs only its own wiki, and always gives the hand back.
-    """
-    from core.models import RoleDeModele, Wiki
-    from core.services.modeles_par_role import modele_du_role
-
-    a_modifie = False
-    en_erreur = False
-    # Le redacteur est retenu ICI pour que le tour d'echec puisse le
-    # nommer : un modele durablement injoignable doit se lire dans
-    # l'historique de l'article, et pas seulement dans un journal de
-    # worker. None = l'echec est arrive avant meme sa resolution.
-    # / Kept here so the failure round can name the writer model.
-    modele_redacteur = None
-    try:
-        wiki = Wiki.objects.select_related("page", "dossier").get(pk=wiki_id)
-        modele_redacteur = modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE)
-        tour = mettre_a_jour_un_wiki_la_nuit(wiki, modele_redacteur)
-        a_modifie = tour is not None and tour.a_change_l_article
-    except TourDeNuitDejaRaconte as erreur:
-        # L'applieur a refuse : le tour d'echec et sa fiche sont deja
-        # ecrits. On compte l'erreur, on ne raconte pas deux fois.
-        # / Already told: count the error, do not tell it twice.
-        en_erreur = True
-        logger.exception(
-            "mettre_a_jour_un_wiki_la_nuit_task: wiki=%s — l'applieur a "
-            "refusé (%s). Le tour d'échec est déjà écrit.",
-            wiki_id, erreur,
-        )
-    except Exception as erreur:
-        en_erreur = True
-        logger.exception(
-            "mettre_a_jour_un_wiki_la_nuit_task: wiki=%s a echoue (%s)",
-            wiki_id, erreur,
-        )
-        _ecrire_un_tour_d_echec(wiki_id, erreur, modele_redacteur)
-    finally:
-        _rendre_la_main_a_la_passe(passe_id, a_modifie, en_erreur)
-
-
-def _ecrire_un_tour_d_echec(wiki_id, erreur, modele_ia=None, job=None):
-    """
-    Un echec s'ecrit dans l'histoire de l'article.
-    / A failure is written into the article's history.
-
-    LOCALISATION : front/tasks.py
-
-    DEUX RAISONS, ET LA PREMIERE EST MECANIQUE. Sans tour, la borne du
-    dernier essai n'avance pas : le meme wiki rappelle le redacteur la
-    nuit suivante, et celle d'apres, sans backoff ni plafond — un
-    modele durablement injoignable coute alors tous les soirs. Avec
-    lui, l'echec compte comme un regard : on ne reessaiera qu'a la
-    prochaine nouveaute.
-
-    La seconde raison est pour le lecteur : un echec qui ne vit que
-    dans le journal d'un worker n'existe pour personne. Ici, il se lit
-    dans le depliant « Historique », a cote des tours qui ont abouti.
-    / Two reasons: the attempt bound must advance, and a failure living
-    only in a worker log exists for nobody.
-
-    L'ECHEC ECRIT SA FICHE DE PRODUCTION, comme la reussite. C'est ici
-    que la question « quel modele ? » se pose le plus : un redacteur
-    durablement injoignable doit se nommer dans l'historique.
-    / A failure records its production sheet too: this is where the
-    model matters most.
-
-    :param wiki_id: la cle du wiki / the wiki key
-    :param erreur: l'exception qui a interrompu le tour / the exception
-    :param modele_ia: le redacteur de cette nuit, s'il a pu etre resolu
-    :param job: la fiche de production DEJA ecrite, quand l'echec vient
-        de l'applieur — sinon une seconde naitrait pour le meme tour
-    :return: le `TourDeWiki` ecrit, ou None si le wiki a disparu
-    """
-    from core.models import MotifDeTourDeWiki, TourDeWiki, Wiki
-
-    wiki = Wiki.objects.filter(pk=wiki_id).select_related("page").first()
-    if wiki is None:
-        return None
-    texte_inchange = wiki.page.text_readability or ""
-    return TourDeWiki.objects.create(
-        wiki=wiki,
-        numero_de_tour=wiki.tours_de_mise_a_jour,
-        fait_par=None,
-        motif=MotifDeTourDeWiki.ECHEC,
-        depuis=borne_du_dernier_essai(wiki),
-        texte_avant=texte_inchange,
-        texte_apres=texte_inchange,
-        message_d_echec=str(erreur)[:2000],
-        job=job if job is not None else _ecrire_le_job_d_un_tour_de_nuit(
-            wiki, modele_ia, erreur,
-        ),
-    )
-
-
-# Combien de fois le recapitulatif se repasse la main en attendant la
-# fin de la passe de nuit, et a quel intervalle.
-#
-# POURQUOI SE REPASSER LA MAIN PLUTOT QUE DORMIR. Un `sleep` dans une
-# tache OCCUPE un slot du worker — sur une file a concurrence 2, une
-# heure d'attente en mangerait la moitie, et les analyses des
-# utilisateurs attendraient derriere. La tache se remet donc en file
-# avec un `countdown`, exactement comme le juge local se repasse la
-# main entre deux paquets.
-# / A sleeping task holds a worker slot; re-queueing with a countdown
-# does not.
-SECONDES_ENTRE_DEUX_REGARDS = 120
-REGARDS_MAXIMUM_SUR_LA_PASSE = 30
-
-
-@shared_task(bind=True)
-def envoyer_le_recapitulatif_du_matin_task(self, regards_deja_faits=0):
-    """
-    Le recapitulatif du matin — APRES la passe de nuit, toujours.
-    / The morning recap — always after the nightly pass.
-
-    LOCALISATION : front/tasks.py
-
-    DECLENCHEE PAR LE BEAT, quelques heures apres la passe. L'ecart
-    d'horaire est une ESPERANCE d'ordre, pas une garantie : une nuit
-    chargee suffirait a faire partir le mail avant la fin du travail
-    qu'il annonce. La tache interroge donc la `PasseDeNuit` et SE
-    REPASSE LA MAIN tant qu'elle tourne.
-    / The schedule gap is a hope, not a guarantee: this task waits on
-    the pass itself.
-
-    AU BOUT DE L'ATTENTE, ELLE N'ENVOIE PAS. Un mail qui annonce a
-    moitie serait pire qu'un mail en retard, et le journal le dit
-    fort. / After the last look, it does not send: half-announcing is
-    worse than late.
-    """
-    from core.services.passe_de_nuit import passe_en_cours
-
-    passe = passe_en_cours()
-    if passe is not None:
-        if regards_deja_faits >= REGARDS_MAXIMUM_SUR_LA_PASSE:
-            logger.error(
-                "envoyer_le_recapitulatif_du_matin_task: la passe #%s "
-                "tourne encore apres %s regards — AUCUN mail envoye. "
-                "Le recapitulatif annoncerait un travail a moitie fait.",
-                passe.pk, regards_deja_faits,
-            )
-            return 0
-        envoyer_le_recapitulatif_du_matin_task.apply_async(
-            kwargs={"regards_deja_faits": regards_deja_faits + 1},
-            countdown=SECONDES_ENTRE_DEUX_REGARDS,
-        )
-        return 0
-
     from django.core.management import call_command
 
-    call_command("envoyer_le_recapitulatif_du_matin",
-                 sans_attendre_la_nuit=True, verbosity=0)
+    call_command("envoyer_le_recapitulatif_du_matin", verbosity=0)
     return 1
-
-
-class TourDeNuitDejaRaconte(Exception):
-    """
-    Le tour d'echec est deja ecrit : ne pas en ecrire un second.
-    / The failure round is already recorded: do not write another.
-
-    LOCALISATION : front/tasks.py
-
-    Elle distingue les deux moments ou un tour de nuit peut echouer. Si
-    le REDACTEUR ne repond pas, rien n'est encore ecrit et c'est la
-    tache appelante qui raconte. Si l'APPLIEUR refuse, la fiche de
-    production existe deja et l'echec a ete raconte avec elle — un
-    second recit ferait deux tours pour une seule nuit, et deux fiches
-    pour une seule production.
-    / It tells apart a writer that never answered from an applier that
-    refused: the second has already told its story.
-    """
-
-
-def _rattacher_la_provenance(provenance, job, tour):
-    """
-    Accroche une provenance de nuit a son job et a son tour.
-    / Anchors a night provenance to its job and round.
-
-    LOCALISATION : front/tasks.py
-
-    LE RATTACHEMENT SE FAIT APRES COUP, faute d'ancre au moment de
-    l'envoi : la nuit n'a ni job ni tour tant que le modele n'a pas
-    repondu. C'est lui qui permet de repondre a « quel modele a ecrit
-    cet article de nuit ? » depuis l'article lui-meme.
-    / Anchored afterwards: the night has neither at send time.
-
-    :param provenance: la `ProvenanceDeProduction`, ou None
-    :param job: la fiche de production / the production sheet
-    :param tour: le `TourDeWiki` ecrit, ou None
-    """
-    if provenance is None:
-        return
-    provenance.job = job
-    provenance.tour_de_wiki = tour
-    provenance.save(update_fields=["job", "tour_de_wiki"])
-
-
-def mettre_a_jour_un_wiki_la_nuit(wiki, modele_ia):
-    """
-    Un tour de wiki sans humain : proposer, puis appliquer.
-    / One wiki round without a human: propose, then apply.
-
-    LOCALISATION : front/tasks.py
-
-    CE QUE LA NUIT NE PEUT PAS FAIRE, et qui rend l'automatisme
-    acceptable (addendum du 21 aout 2026) :
-
-    - elle passe par le MEME applieur que la vue, donc par les memes
-      controles § 6.2/6.3 — un titre halluciné, une affirmation sans
-      preuve, une source hors perimetre sont rejetes ici comme
-      ailleurs ;
-    - elle n'a AUCUN chemin vers `produire_un_wiki_task` : elle ajoute,
-      remplace ou insere, jamais ne regenere ;
-    - tout ce qu'elle fait s'ecrit dans l'historique, rejets compris,
-      et se relit le lendemain matin.
-    / The night has no privilege over the applier, and never regenerates.
-
-    CETTE FONCTION N'EST PAS UNE TACHE : c'est le corps d'un tour, et
-    c'est `mettre_a_jour_un_wiki_la_nuit_task` qui l'appelle, une tache
-    par wiki. La garder hors du decorateur la rend appelable
-    directement, en test comme a la main, sans passer par la file.
-    / Not a task itself: the fan-out task calls it, one per wiki.
-
-    :param wiki: le `Wiki` a mettre a jour / the wiki
-    :param modele_ia: l'`AIModel` du role redacteur / the writer model
-    :return: le `TourDeWiki` ecrit / the recorded round
-    """
-    from core.models import MotifDeTourDeWiki
-
-    operations, _jeton, provenance = construire_la_proposition_d_operations(
-        wiki, modele_ia,
-    )
-    # La fiche s'ecrit UNE FOIS LA REDACTION RENDUE, et porte deja son
-    # issue : c'est ce qui lui evite d'exister en « tache en cours »
-    # (voir `_ecrire_le_job_d_un_tour_de_nuit`).
-    # / Written once the writing came back, already carrying its outcome.
-    job = _ecrire_le_job_d_un_tour_de_nuit(wiki, modele_ia)
-    try:
-        # PAS de jeton de fraicheur : la proposition vient d'etre
-        # produite sur l'article qu'on applique, dans le meme fil. Le
-        # controle protege d'une previsualisation vieille de dix
-        # minutes, pas de deux instructions consecutives.
-        # / No staleness token needed here.
-        appliquer_un_tour_de_wiki(
-            wiki, operations,
-            motif=MotifDeTourDeWiki.MAJ_NOCTURNE,
-            fait_par=None,
-            job=job,
-        )
-    except Exception as erreur:
-        # L'APPLIEUR PEUT REFUSER APRES COUP — deux titres en collision,
-        # un article sans citation sur un perimetre non vide. La fiche
-        # dirait alors `completed` alors que RIEN n'a ete applique, et la
-        # tache appelante en ouvrirait une SECONDE pour le meme tour. On
-        # corrige donc celle-ci, on raconte l'echec avec elle, et on
-        # releve : la tache compte l'erreur sans reecrire d'histoire.
-        # / The applier can refuse after the fact: fix this sheet, tell
-        # the failure with it, and re-raise.
-        job.status = "error"
-        job.error_message = str(erreur)[:500]
-        job.save(update_fields=["status", "error_message"])
-        tour_d_echec = _ecrire_un_tour_d_echec(wiki.pk, erreur, job=job)
-        _rattacher_la_provenance(provenance, job, tour_d_echec)
-        raise TourDeNuitDejaRaconte(str(erreur)) from erreur
-
-    # LE TOUR DE CE JOB, jamais « le dernier tour ». `TourDeWiki` est
-    # ordonne par date decroissante : un tour manuel ecrit entre-temps —
-    # la file par defaut sert deux taches a la fois — ferait ancrer cette
-    # provenance sur l'histoire de quelqu'un d'autre.
-    # / This job's round, never "the latest": a concurrent manual round
-    # would otherwise steal the anchor.
-    tour = wiki.tours.filter(job=job).first()
-    _rattacher_la_provenance(provenance, job, tour)
-    return tour
 
 
 def _terminer_un_job_d_article(job, page_d_article, bilan_d_indexation,
@@ -2418,7 +1879,8 @@ def assembler_le_prompt_de_synthese_dirigee(page_de_synthese,
     return prompt, identifiants_du_perimetre
 
 
-def assembler_le_prompt_de_mise_a_jour(wiki, analyseur=None):
+def assembler_le_prompt_de_mise_a_jour(wiki, analyseur=None,
+                                       ecartees=None):
     """
     Le prompt qui demande des OPERATIONS de section, jamais un article.
     / The prompt asking for section OPERATIONS, never an article.
@@ -2437,13 +1899,23 @@ def assembler_le_prompt_de_mise_a_jour(wiki, analyseur=None):
     article, so it stays with the caller, which repairs before assembling.
 
     :param wiki: le `Wiki` a mettre a jour / the wiki
+    :param analyseur: l'`Analyseur` du role redacteur / the writer one
+    :param ecartees: les extractions non reprises, deja figees par
+        l'appelant. None les lit a l'instant present.
+        / The left-out extractions, already frozen by the caller.
     :return: `(prompt, identifiants_des_extractions_ecartees)`
     :raises ValueError: si l'article reprend deja tout son perimetre
     """
-    from core.services.synthese import extractions_ecartees, titre_de_section
+    from core.services.synthese import extractions_ecartees
 
     article = wiki.page
-    ecartees = list(extractions_ecartees(article).order_by("pk"))
+    # APPELEE SEULE, elle lit l'etat courant ; appelee par
+    # `construire_la_proposition_d_operations`, elle recoit les ecartees
+    # figees AVANT la reparation des titres — voir le commentaire de
+    # l'appelant. / Called alone it reads the current state; called by
+    # the task it receives the list frozen before the repair.
+    if ecartees is None:
+        ecartees = list(extractions_ecartees(article).order_by("pk"))
     if not ecartees:
         raise ValueError(
             "Rien à mettre à jour : toutes les extractions du "
@@ -2451,72 +1923,18 @@ def assembler_le_prompt_de_mise_a_jour(wiki, analyseur=None):
             "/ Nothing left out."
         )
 
-    lignes_d_ecartees = []
-    identifiants_ecartes = set()
-    for extraction in ecartees:
-        identifiants_ecartes.add(extraction.pk)
-        lignes_d_ecartees.append(
-            f"Identifiant : ext:{extraction.pk}\n"
-            f'Citation : "{extraction.extraction_text}"'
-        )
-
-    titres_adressables = [
-        titre for titre in (
-            titre_de_section(ligne)
-            for ligne in (article.text_readability or "").split("\n")
-        ) if titre is not None
-    ]
-    liste_des_titres = "\n".join(
-        f"- {titre}" for titre in titres_adressables
-    ) or "(l'article n'a aucune section : seule une insertion est possible)"
-
-    prompt = (
-        _prompt_systeme_de_synthese(analyseur) + "\n\n"
-        "=== ARTICLE ACTUEL ===\n" + article.text_readability + "\n\n"
-        "=== TITRES DE SECTION ADRESSABLES ===\n"
-        "Ce sont les SEULS titres que tu peux viser. Reprends-les "
-        "au mot près, SANS les dièses. Toute opération visant un "
-        "autre titre sera rejetée.\n"
-        + liste_des_titres + "\n\n"
-        "=== EXTRACTIONS NON REPRISES ===\n"
-        + "\n\n".join(lignes_d_ecartees) + "\n\n"
-        "=== CONSIGNE ===\n"
-        # CE PROMPT DIT « ELLES PEUVENT ETRE APPLIQUEES TELLES QUELLES »
-        # PARCE QUE C'EST VRAI LA NUIT : `mettre_a_jour_un_wiki_la_nuit`
-        # emploie le MEME prompt et applique sans personne
-        # (`fait_par=None`). Promettre un filtre humain autoriserait le
-        # modele a proposer largement, en comptant sur une relecture qui
-        # n'existe pas la nuit.
-        #
-        # Le texte est vrai dans les DEUX cas, et c'est pourquoi il n'est
-        # pas conditionne a l'appelant : une phrase qui changerait selon
-        # l'heure serait une seconde version du prompt, donc une seconde
-        # production a comparer.
-        # / The night applies with no human: the prompt must say so, and
-        # say it identically to both callers.
-        "Propose des opérations de mise à jour de l'article pour "
-        "intégrer ces extractions. Tu ne réécris JAMAIS l'article : "
-        "tu proposes des opérations. Elles peuvent être appliquées "
-        "TELLES QUELLES, sans relecture humaine — n'en propose donc "
-        "aucune dont tu ne répondrais pas toi-même.\n"
-        "UNE OPÉRATION PORTE SUR UNE SECTION, JAMAIS SUR UNE "
-        "EXTRACTION. N'émets donc pas une entrée par extraction : "
-        "regroupe dans une même opération toutes les extractions "
-        "qui vont dans la même section, et n'émets AUCUNE entrée "
-        "pour une extraction que tu écartes — ne pas la citer "
-        "suffit. `no_change` est une opération GLOBALE, à émettre "
-        "SEULE et seulement si aucune extraction n'apporte quoi "
-        "que ce soit à l'article.\n\n"
-        "=== FORMAT DE SORTIE ===\n"
-        "Réponds UNIQUEMENT par un tableau JSON d'opérations, sans "
-        "aucun texte autour :\n"
-        '[{"type": "append_to_section", "section": "<un titre de '
-        'la liste, sans dièses>", "contenu": "<markdown avec '
-        '[[ext:N]]>"}, ...]\n'
-        "Types permis : no_change, append_to_section, "
-        "replace_section, insert_section (avec \"titre\" et "
-        "\"apres\"). Chaque contenu cite ses sources par [[ext:N]] "
-        "et ne contient JAMAIS de ligne de titre."
+    # UN SEUL TEXTE DE PROMPT, DEUX ENTREES. La tache arrive par ici
+    # (l'article est lu en base, la provenance est fermee) ; la modale
+    # « Mettre a jour » appelle `rediger_le_prompt_de_mise_a_jour`
+    # directement, sur un texte normalise EN MEMOIRE, parce qu'une
+    # estimation n'ecrit rien. Reecrire le texte ici en ferait une
+    # seconde version : le cout annonce avant le clic ne serait plus
+    # celui du prompt envoye.
+    # / One prompt text, two entry points. A copy here would make the
+    # cost announced before the click stop matching what is sent.
+    identifiants_ecartes = {extraction.pk for extraction in ecartees}
+    prompt = rediger_le_prompt_de_mise_a_jour(
+        article.text_readability or "", ecartees, analyseur=analyseur,
     )
     return prompt, identifiants_ecartes
 
@@ -2668,21 +2086,23 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
 
     LOCALISATION : front/tasks.py
 
-    UN SEUL PROMPT pour les deux appelants — la mise a jour demandee a
-    la main, et la passe de nuit. Une seconde copie de ce prompt
-    divergerait de la premiere, et personne ne saurait laquelle a
-    produit un article donne.
-    / One prompt for both callers: the manual update and the night pass.
+    APPELEE PAR `proposer_une_maj_de_wiki_task`, derriere le geste
+    « Mettre a jour » d'un article. Elle ne fait que PROPOSER : rien
+    n'est applique avant qu'un humain accepte (`appliquer_un_tour_de_wiki`).
+    / Called behind the "update" gesture; it only proposes.
 
     :param wiki: le `Wiki` a mettre a jour / the wiki
     :param modele_ia: l'`AIModel` du role redacteur / the writer model
-    :param job: l'`ExtractionJob` de la demande, s'il y en a un. La
-        passe de nuit n'en a pas encore a ce stade.
+    :param job: l'`ExtractionJob` de la demande, ou None hors d'une
+        demande (un test qui appelle la fonction directement).
     :return: `(operations, jeton de fraicheur, provenance)` — le jeton
         est l'`updated_at` ISO de l'article APRES la reparation des
         titres ; la provenance est RENDUE plutot que refermee ici parce
-        que la passe de nuit n'a ni job ni tour au moment de l'envoi :
-        elle les accroche apres.
+        que le TOUR n'existe pas encore au moment de l'envoi : il nait
+        quand un humain accepte la proposition, et l'appelant accroche
+        alors le job et le tour a la provenance.
+        / The provenance is returned, not closed here: the round does
+        not exist yet when the prompt is sent.
     :raises ValueError: s'il n'y a rien a reprendre, ou si la reponse
         n'est pas un tableau JSON lisible.
     """
@@ -2696,7 +2116,17 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
     from hypostasis_extractor.services.provenance import analyseur_de_redaction
 
     article = wiki.page
-    if not extractions_ecartees(article).exists():
+    # LES ECARTEES SE FIGENT AVANT LA REPARATION DES TITRES. La
+    # reparation ECRIT l'article et le reindexe : une extraction dont le
+    # marqueur etait deja dans le texte y retrouve son ancrage, et sort
+    # donc des ecartees. Les recalculer APRES ferait diverger le prompt
+    # envoye de celui que la modale a compte — elle, n'ecrit rien, et ne
+    # peut donc pas connaitre l'etat d'apres reparation.
+    # / Frozen before the heading repair: the repair reindexes, and
+    # recomputing afterwards would make the sent prompt diverge from the
+    # one the dialog counted — the dialog writes nothing.
+    ecartees = list(extractions_ecartees(article).order_by("pk"))
+    if not ecartees:
         raise ValueError(
             "Rien à mettre à jour : toutes les extractions du "
             "périmètre sont déjà reprises par l'article. "
@@ -2748,8 +2178,9 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
     # L'ANALYSEUR DU JOB, quand il y en a un. Un wiki créé avec un
     # rédacteur choisi à la main doit être mis à jour par le MÊME : sans
     # cela, le préambule change au milieu de l'histoire d'un article, et
-    # c'est le défaut du moment qui l'écrit. La passe de nuit n'a pas de
-    # job à ce stade — elle suit le défaut, et sa provenance le dit.
+    # c'est le défaut du moment qui l'écrit. Hors d'un job — un test qui
+    # appelle la fonction directement — on suit le rédacteur du wiki,
+    # puis le défaut, et la provenance le dit.
     # / The job's analyzer when there is one: a wiki written by a
     # hand-picked writer must be updated by the same one.
     analyseur_redacteur = (
@@ -2757,7 +2188,7 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
         else (wiki.analyseur_de_redaction or analyseur_de_redaction()[0])
     )
     prompt, identifiants_ecartes = assembler_le_prompt_de_mise_a_jour(
-        wiki, analyseur=analyseur_redacteur,
+        wiki, analyseur=analyseur_redacteur, ecartees=ecartees,
     )
     provenance = _tracer_la_production(
         CheminDeProduction.MAJ_WIKI, prompt, job, identifiants_ecartes,
@@ -2787,6 +2218,90 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
         )
 
     return operations, article.updated_at.isoformat(), provenance
+
+
+def rediger_le_prompt_de_mise_a_jour(texte_de_l_article, ecartees,
+                                     analyseur=None):
+    """
+    Le prompt de mise a jour d'un wiki. Aucune ecriture ; la seule
+    lecture est celle du prompt systeme (`_prompt_systeme_de_synthese`).
+    / A wiki update prompt: no write; only reads the system prompt.
+
+    LOCALISATION : front/tasks.py
+
+    DEUX APPELANTS, UN SEUL PROMPT. La tache y arrive par
+    `assembler_le_prompt_de_mise_a_jour`, qui lit la base et ferme la
+    provenance ; la modale « Mettre a jour » le compte pour annoncer le
+    cout AVANT le clic (`WikiViewSet.estimation`), en normalisant le
+    texte en memoire sans rien ecrire. Une copie de ce texte pour
+    l'estimation finirait par diverger : le cout annonce ne serait plus
+    celui du prompt envoye. L'ANALYSEUR EN FAIT PARTIE — il choisit le
+    prompt systeme, donc deux analyseurs donnent deux couts.
+    / Two callers, one prompt: the task sends it, the dialog counts it.
+    The analyzer is part of it: it picks the system prompt.
+
+    :param texte_de_l_article: le markdown de l'article, titres DEJA
+        normalises en `##` / the article markdown, headings normalised
+    :param ecartees: les `ExtractedEntity` non reprises, dans l'ordre
+        des pk / the left-out extractions
+    :param analyseur: l'`Analyseur` du role redacteur, qui porte le
+        prompt systeme. None retombe sur le defaut.
+        / The writer analyzer carrying the system prompt.
+    :return: le prompt complet / the full prompt
+    """
+    from core.services.synthese import titre_de_section
+
+    lignes_d_ecartees = []
+    for extraction in ecartees:
+        lignes_d_ecartees.append(
+            f"Identifiant : ext:{extraction.pk}\n"
+            f'Citation : "{extraction.extraction_text}"'
+        )
+
+    titres_adressables = [
+        titre for titre in (
+            titre_de_section(ligne)
+            for ligne in texte_de_l_article.split("\n")
+        ) if titre is not None
+    ]
+    liste_des_titres = "\n".join(
+        f"- {titre}" for titre in titres_adressables
+    ) or "(l'article n'a aucune section : seule une insertion est possible)"
+
+    return (
+        _prompt_systeme_de_synthese(analyseur) + "\n\n"
+        "=== ARTICLE ACTUEL ===\n" + texte_de_l_article + "\n\n"
+        "=== TITRES DE SECTION ADRESSABLES ===\n"
+        "Ce sont les SEULS titres que tu peux viser. Reprends-les "
+        "au mot près, SANS les dièses. Toute opération visant un "
+        "autre titre sera rejetée.\n"
+        + liste_des_titres + "\n\n"
+        "=== EXTRACTIONS NON REPRISES ===\n"
+        + "\n\n".join(lignes_d_ecartees) + "\n\n"
+        "=== CONSIGNE ===\n"
+        "Propose des opérations de mise à jour de l'article pour "
+        "intégrer ces extractions. Tu ne réécris JAMAIS l'article : "
+        "tu proposes des opérations, un humain les acceptera une "
+        "par une.\n"
+        "UNE OPÉRATION PORTE SUR UNE SECTION, JAMAIS SUR UNE "
+        "EXTRACTION. N'émets donc pas une entrée par extraction : "
+        "regroupe dans une même opération toutes les extractions "
+        "qui vont dans la même section, et n'émets AUCUNE entrée "
+        "pour une extraction que tu écartes — ne pas la citer "
+        "suffit. `no_change` est une opération GLOBALE, à émettre "
+        "SEULE et seulement si aucune extraction n'apporte quoi "
+        "que ce soit à l'article.\n\n"
+        "=== FORMAT DE SORTIE ===\n"
+        "Réponds UNIQUEMENT par un tableau JSON d'opérations, sans "
+        "aucun texte autour :\n"
+        '[{"type": "append_to_section", "section": "<un titre de '
+        'la liste, sans dièses>", "contenu": "<markdown avec '
+        '[[ext:N]]>"}, ...]\n'
+        "Types permis : no_change, append_to_section, "
+        "replace_section, insert_section (avec \"titre\" et "
+        "\"apres\"). Chaque contenu cite ses sources par [[ext:N]] "
+        "et ne contient JAMAIS de ligne de titre."
+    )
 
 
 @shared_task(bind=True)

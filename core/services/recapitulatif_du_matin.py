@@ -7,7 +7,7 @@ LOCALISATION : core/services/recapitulatif_du_matin.py
 SIX CHOSES SE RACONTENT (addendum du 21 aout 2026) :
 
 1. les **wikis modifies** depuis le dernier mail de cette personne —
-   par la passe de nuit comme par un humain, **soi-meme compris** : la
+   par un humain ou sans auteur, **soi-meme compris** : la
    distinction est portee par `TourDeWiki.fait_par`, et le tour dit CE
    QUI l'a appele (les notes entrees dans le perimetre) ;
 2. les **notes neuves** dans ses carnets ;

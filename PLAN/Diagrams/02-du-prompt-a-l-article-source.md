@@ -158,7 +158,7 @@ flowchart TD
     JETON["Jeton de fraîcheur :<br/>updated_at de l'article"]
 
     PREV["Prévisualisation par un PASSAGE À BLANC<br/>de l'applieur réel — jamais deux vérités"]
-    HUM(["L'humain coche, opération par opération<br/>— ou LA NUIT applique sans lui,<br/>par le même applieur (fait_par=None)"])
+    HUM(["L'humain coche, opération par opération<br/>— rien ne s'applique sans lui<br/>(fait_par est obligatoire)"])
 
     FRAIS{"article inchangé<br/>depuis ?"}
     PERIME["REFUS 409 — proposition périmée<br/>jamais un écrasement"]

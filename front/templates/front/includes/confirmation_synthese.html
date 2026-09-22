@@ -146,16 +146,21 @@
         {% comment %}
         « non mesuré » n'est PAS « gratuit ». Le tarif d'un modèle servi
         par une plateforme (identifiant `vendor/modele`) n'est dans
-        aucune table écrite à la main : annoncer « ≤ 0,00 € » avant un
+        aucune table écrite à la main : annoncer « 0,01 € » avant un
         appel facturé serait un chiffre inventé, et c'est sur ce chiffre
         que l'utilisateur décide.
+
+        « environ », PAS « ≤ » : le montant est un ordre de grandeur. La
+        sortie est estimée, et les tokens de réflexion d'un modèle absent
+        de `MULTIPLICATEUR_THINKING` (core/models.py) ne sont pas comptés :
+        la facture peut dépasser ce chiffre.
         {% endcomment %}
         <div class="flex justify-between items-center text-amber-900 border-t border-amber-300 pt-2 mt-2">
             <span class="font-bold">Coût estimé</span>
             {% if cout_estime_euros == None %}
             <span class="font-bold text-lg" data-testid="cout-non-mesure">non mesuré</span>
             {% else %}
-            <span class="font-bold text-lg">≤ {{ cout_estime_euros|floatformat:2 }} €</span>
+            <span class="font-bold text-lg">environ {{ cout_estime_euros|floatformat:2 }} €</span>
             {% endif %}
         </div>
     </div>
