@@ -276,6 +276,76 @@ class LaMemeChoseQueLaTacheTest(BaseDeLEstimation):
         )
 
 
+class LeVraiCheminDuGesteTest(BaseDeLEstimation):
+    """
+    Du clic a la tache, avec un redacteur qui N'EST PAS celui par defaut.
+    / From the click to the task, with a non-default writer.
+
+    Les tests ci-dessus appellent la proposition SANS job : elle resout
+    alors l'analyseur avec la meme expression que l'estimation, et ils
+    lui donneraient raison meme si les deux chemins divergeaient. Le vrai
+    geste passe par un job : `mise_a_jour` y pose `analyseur_id`, que la
+    tache relit (`_analyseur_fige_sur_le_job`). C'est ce chemin-la qu'on
+    suit ici, avec une piece de prompt reconnaissable.
+    / The real gesture goes through a job; this test follows it.
+    """
+
+    PIECE_RECONNAISSABLE = "PRÉAMBULE-DU-RÉDACTEUR-CHOISI-7Q2"
+
+    def _un_wiki_avec_son_propre_redacteur(self):
+        from hypostasis_extractor.models import (
+            AnalyseurSyntaxique,
+            PromptPiece,
+        )
+
+        redacteur_choisi = AnalyseurSyntaxique.objects.create(
+            name="Rédacteur choisi", type_analyseur="rediger_un_article",
+            is_active=True, est_par_defaut=False,
+        )
+        PromptPiece.objects.create(
+            analyseur=redacteur_choisi,
+            role=PromptPiece.RoleChoices.INSTRUCTION,
+            content=self.PIECE_RECONNAISSABLE, order=0,
+        )
+        wiki = self._un_wiki_partiel()
+        wiki.analyseur_de_redaction = redacteur_choisi
+        wiki.save(update_fields=["analyseur_de_redaction"])
+        return wiki
+
+    def test_le_cout_annonce_est_celui_du_prompt_que_la_tache_envoie(self):
+        from front.tasks import proposer_une_maj_de_wiki_task
+        from hypostasis_extractor.models import ExtractionJob
+
+        wiki = self._un_wiki_avec_son_propre_redacteur()
+
+        _reponse, contenu = self._lire_l_estimation(wiki)
+
+        with patch("front.tasks.proposer_une_maj_de_wiki_task.delay"):
+            reponse_du_geste = self.client.post(
+                f"/wikis/{wiki.pk}/mise_a_jour/", HTTP_HX_REQUEST="true",
+            )
+        self.assertEqual(reponse_du_geste.status_code, 200)
+        job = ExtractionJob.objects.get(
+            page=wiki.page, raw_result__est_maj_wiki=True,
+        )
+
+        with patch(
+            "core.llm_providers.appeler_llm", return_value="[]",
+        ) as appel, patch("front.tasks.enchainer_la_verification"):
+            proposer_une_maj_de_wiki_task(job.pk)
+        prompt_envoye = appel.call_args.args[1]
+
+        # Le redacteur choisi a bien ecrit le preambule envoye…
+        # / The chosen writer's preamble is the one sent…
+        self.assertIn(self.PIECE_RECONNAISSABLE, prompt_envoye)
+        # … et c'est lui que l'estimation a compte.
+        # / … and it is the one the estimate counted.
+        encodeur = tiktoken.get_encoding("cl100k_base")
+        self.assertEqual(
+            self._tokens_annonces(contenu), len(encodeur.encode(prompt_envoye)),
+        )
+
+
 class LaModaleSaitOuChercherTest(BaseDeLEstimation):
     """Le bouton porte l'adresse de l'estimation. / The button knows."""
 

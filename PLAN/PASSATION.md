@@ -10,6 +10,35 @@
 > sans le remesurer.
 
 
+> ## Les journées du 21 et du 22 septembre 2026 — la nuit retirée, deux merges
+>
+> **La passe de nuit des wikis est retirée** (décision du mainteneur, 21 septembre,
+> pour le coût LLM) : aucune tâche planifiée n'appelle plus de modèle, le beat ne
+> lance que le récapitulatif du matin. Mettre un wiki à jour est le geste « Mettre à
+> jour » de l'article, qui **annonce son coût avant le clic** ; la liste des wikis
+> d'un carnet dit lesquels ont du neuf. Addendum du 21 septembre dans
+> `PLAN/specs/SPEC-synthese-carnet.md` (trois questions ouvertes y attendent un
+> arbitrage). CHANGELOG : `2026-09-21-la-mise-a-jour-des-wikis-redevient-un-geste.md`,
+> `2026-09-21-le-cout-d-une-mise-a-jour-de-wiki.md`,
+> `2026-09-22-le-merge-du-retrait-de-la-nuit.md`,
+> `2026-09-22-la-relecture-des-deux-merges.md`.
+>
+> **Deux merges** : `f320573` (machine A), puis `2f4da77` + `98c41e7` (machine B).
+> **Migrations renumérotées** : le retrait de la passe est
+> `core/0081_retrait_de_la_passe_de_nuit`, et « le wiki porte son rédacteur » est
+> devenue **`core/0082`** — la section du 1er septembre ci-dessous garde son ancien
+> nom, `0081`. Une base qui porte encore l'ancien nom : procédure dans le CHANGELOG
+> du merge, **à suivre avant tout redémarrage du conteneur**.
+>
+> **La suite a tourné le 22 septembre à HEAD `98c41e7` : 2 711 tests OK (1 sauté)**,
+> `make test-rapide`, 853 s. Les suites de la passe de nuit citées plus bas
+> (`test_la_passe_de_nuit_des_wikis`, `test_l_etat_de_la_passe_de_nuit`) n'existent
+> plus.
+>
+> **Devenus caducs plus bas** : l'arbitrage « la nuit peut réécrire un article
+> entier » (il n'y a plus de nuit) et la note de la planche 04 (supprimée).
+
+
 > ## La journée du 1er septembre 2026 — la provenance d'un prompt, et le typage des analyseurs
 >
 > **Quatre chantiers livrés, dans cet ordre — et c'est l'ordre qui comptait.**
@@ -85,8 +114,8 @@
 > utilisateur connecté ; chacun crée et modifie les siens. Les **prompts
 > d'origine** (`est_d_origine`) et les **trois champs à portée globale**
 > (`est_par_defaut`, `type_analyseur`, `is_active`) restent au
-> superutilisateur : chacun suffirait à faire passer tous les gestes — passe de
-> nuit **facturée** comprise — par l'analyseur de n'importe qui. Pour choisir
+> superutilisateur : chacun suffirait à faire passer tous les gestes — tous
+> **facturés** — par l'analyseur de n'importe qui. Pour choisir
 > le sien sans l'imposer, une **préférence par utilisateur**
 > (`PreferenceD_analyseur`) préremplit son seul sélecteur.
 >
@@ -526,7 +555,7 @@ pas ici.
 >
 > | Ce qui est tranché | Où c'est écrit |
 > |---|---|
-> | **La nuit peut réécrire un article entier**, toutes sections comprises — **à condition que l'historique le conserve**. Pas de borne. La vérification du 30 août dit que la condition n'est pas entièrement tenue : trois trous à combler, dont **la perte des contestations humaines, qui n'est écrite nulle part**. | `PLAN/TODO/2026-08-22-borner-la-reecriture-nocturne-d-un-wiki.md` |
+> | *(Caduc depuis le 21 septembre 2026 : la passe de nuit est retirée.)* **La nuit peut réécrire un article entier**, toutes sections comprises — **à condition que l'historique le conserve**. Pas de borne. La vérification du 30 août dit que la condition n'est pas entièrement tenue : trois trous à combler, dont **la perte des contestations humaines, qui n'est écrite nulle part**. | `PLAN/TODO/2026-08-22-borner-la-reecriture-nocturne-d-un-wiki.md` |
 > | **Une marge de neutralité par juge** (voie A). Les distributions par juge ont été mesurées le jour même, et elles bornent l'attente : mDeBERTa v3 reste structurellement muet. | `PLAN/TODO/2026-08-22-la-marge-de-neutralite-des-juges-locaux.md` |
 > | **Les deux voies de transcription sont nommées** : Voxtral pour la rapidité et le prix ; **notre conteneur sur GPU loué** pour la souveraineté. Ce n'est plus « le local sur notre VPS ». | `PLAN/TODO/2026-08-23-le-moteur-de-transcription-a-deux-voies.md` et `…-la-transcription-sur-gpu-loue-a-la-minute.md` |
 > | **Le verbatim : la question posée plus bas est PÉRIMÉE, et la suite est CODÉE.** Les trois règles de forme datent du 21 août ; la **comparaison par les mots** a été mesurée puis livrée le 30 — **42 des 45 citations au fond intact récupérées, 0 blanchie sur 225 falsifications**, non-régression intacte. Un score de similarité avait été mesuré d'abord, et écarté : un chiffre falsifié y obtient 0,996. Restent le **rejugement** (gratuit) et la **réingestion**. | `CHANGELOG/2026-08-30-le-verbatim-se-compare-par-les-mots.md` et `PLAN/TODO/2026-08-30-ce-qui-reste-du-verbatim-introuvable.md` |
@@ -1083,7 +1112,8 @@ un contraste de 1,15:1 là où il valait 4,13:1.
    ✅ **FAIT le 1er septembre 2026** — les six points sont corrigés, par encarts
    datés. → `CHANGELOG/2026-09-01-le-locuteur-l-aide-et-la-doc.md`. **Reste la
    planche 04**, qui ne corrige rien mais écrit ce qui manque :
-   → `PLAN/TODO/2026-09-01-la-planche-04-de-la-nuit-des-wikis.md`
+   → `PLAN/TODO/2026-09-01-la-planche-04-de-la-nuit-des-wikis.md` — *supprimée le
+   22 septembre 2026 avec la passe de nuit : il n'y a plus rien à diagrammer.*
 
 > ### ⚠️ REPRISE — état au 30 août 2026, rien n'est commité
 >

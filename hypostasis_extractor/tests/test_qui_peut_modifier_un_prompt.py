@@ -15,7 +15,7 @@ TROIS RÈGLES, ET CHACUNE PROTÈGE D'UNE CHOSE DIFFÉRENTE :
 - **les trois champs à portée globale** — `est_par_defaut`,
   `type_analyseur`, `is_active` — restent au superutilisateur MÊME sur
   un analyseur ordinaire. Un seul suffirait à détourner la production de
-  tout le monde, la passe de nuit comprise, qui est facturée.
+  tout le monde, et chaque production est facturée.
 / Three rules: read for all, original prompts for superusers, and the
 three global-reach fields for superusers even on an ordinary analyzer.
 
@@ -173,9 +173,9 @@ class LesTroisChampsGlobauxRestentFermesTest(BaseDesPermissions):
     """
 
     def test_un_ordinaire_ne_coche_pas_le_defaut_du_site(self):
-        # Cocher `est_par_defaut` ferait passer TOUS les gestes — et la
-        # passe de nuit, FACTURÉE — par son analyseur.
-        # / It would route every gesture, including the billed night pass.
+        # Cocher `est_par_defaut` ferait passer TOUS les gestes, tous
+        # FACTURÉS, par son analyseur.
+        # / It would route every billed gesture through it.
         self.client.force_login(self.ordinaire)
 
         reponse = self.client.patch(

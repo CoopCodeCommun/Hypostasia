@@ -902,8 +902,7 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         # detourner la production de tout le monde :
         #
         # - `est_par_defaut` designe l'analyseur sur lequel TOUS les
-        #   gestes retombent, y compris la passe de nuit, qui est
-        #   FACTUREE ;
+        #   gestes retombent — et chacun appelle un modele FACTURE ;
         # - `type_analyseur` deplace le defaut d'un type a l'autre, et
         #   laisse le type de depart SANS defaut — la resolution retombe
         #   alors sur l'ordre alphabetique, qu'il suffit de gagner en se
@@ -1013,9 +1012,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
         C'EST LE GESTE QUI REMPLACE « cocher le défaut » POUR UN
         UTILISATEUR ORDINAIRE. Le défaut du site engage les productions
-        de tout le monde, la passe de nuit comprise, et reste au
-        superutilisateur ; une préférence ne préremplit que MON
-        sélecteur.
+        de tout le monde, et reste au superutilisateur ; une préférence
+        ne préremplit que MON sélecteur.
         / The gesture that replaces "check the default" for an ordinary
         user: a preference preselects only MY selector.
 

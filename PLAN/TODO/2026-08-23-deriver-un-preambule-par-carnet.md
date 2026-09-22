@@ -1,5 +1,10 @@
 # Dériver un préambule par carnet — optionnel, à décider sur mesure
 
+> 🗓️ **22 septembre 2026** — la raison n° 1 ci-dessous (« la nuit n'a pas
+> d'utilisateur ») a disparu avec la passe de nuit, **retirée le 21 septembre** ;
+> les raisons 2 et 3 tiennent toujours. Depuis le 1er septembre, un wiki porte son
+> analyseur de rédaction (`Wiki.analyseur_de_redaction`), choisi au geste.
+
 **Discuté le 23 août 2026. Volontairement placé en dernier de la série, et
 volontairement non décidé.**
 

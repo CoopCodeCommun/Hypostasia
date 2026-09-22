@@ -120,4 +120,5 @@ attente et sans erreur « la passe de nuit tourne encore ».
 ```bash
 docker exec -w /app hypostasia_web python manage.py showmigrations core | tail -2
 # -> [X] 0081_retrait_de_la_passe_de_nuit
+#    [X] 0082_le_wiki_porte_son_redacteur   (arrivee avec le merge du 22 septembre)
 ```

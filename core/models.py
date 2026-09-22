@@ -2988,10 +2988,11 @@ class Wiki(models.Model):
     `REGENERATION` (`MotifDeTourDeWiki`) — c'est ce que fait
     `produire_les_syntheses_etalons --forcer`. Elle emporte les avis des
     juges par CASCADE : le 19 aout 2026, un banc de comparaison l'a
-    appelee neuf fois et 165 avis sont partis en silence. La passe de
-    nuit, elle, n'a AUCUN chemin vers cette tache.
+    appelee neuf fois et 165 avis sont partis en silence. Le geste
+    « Mettre a jour », lui, n'a AUCUN chemin vers cette tache : il ajoute,
+    remplace ou insere des sections, jamais ne regenere.
     / One exception, and it is named: full regeneration, which cascades
-    the judges' opinions away. The nightly pass cannot reach it.
+    the judges' opinions away. The update gesture cannot reach it.
     """
 
     page = models.OneToOneField(
@@ -3023,16 +3024,18 @@ class Wiki(models.Model):
     )
     # LE REDACTEUR DE CET ARTICLE, choisi au geste de creation.
     #
-    # Un wiki VIT : il est ecrit une fois, puis mis a jour, chaque nuit
-    # parfois, pendant des semaines. Sans ce champ, la mise a jour
-    # retombait sur l'analyseur PAR DEFAUT du moment — le preambule
-    # changeait au milieu de l'histoire d'un article, et rien a l'ecran
-    # ne l'annoncait.
+    # Un wiki VIT : il est ecrit une fois, puis mis a jour pendant des
+    # semaines. Sans ce champ, chaque mise a jour retomberait sur
+    # l'analyseur PAR DEFAUT du moment — le preambule changerait au
+    # milieu de l'histoire d'un article, et rien a l'ecran ne
+    # l'annoncerait.
     #
-    # SET_NULL : un analyseur supprime laisse l'article vivre ; la mise
-    # a jour retombe alors sur le defaut, et sa provenance le dit.
-    # / A wiki lives on: without this, updates silently switched to
-    # whatever the default analyzer was that night.
+    # VIDE, la mise a jour retombe sur le defaut du moment : c'est le cas
+    # des wikis nes avant ce champ, et de ceux dont l'analyseur a ete
+    # supprime (SET_NULL — l'article continue de vivre). La provenance
+    # nomme alors l'analyseur qui a reellement servi.
+    # / A wiki lives on: without this, updates would silently switch to
+    # whatever the default analyzer is. Empty means the default.
     analyseur_de_redaction = models.ForeignKey(
         "hypostasis_extractor.AnalyseurSyntaxique",
         on_delete=models.SET_NULL,

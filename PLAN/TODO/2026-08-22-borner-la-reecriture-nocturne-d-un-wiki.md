@@ -1,5 +1,14 @@
 # Faut-il empêcher la nuit de réécrire un article entier ?
 
+> ## 🗓️ 22 septembre 2026 — la nuit n'existe plus
+>
+> La passe de nuit a été **retirée le 21 septembre 2026** (addendum de
+> `PLAN/specs/SPEC-synthese-carnet.md`) : plus rien ne réécrit un article sans
+> humain. La question « borner la nuit » est donc **sans objet**. Les trois trous
+> d'historique mesurés plus bas restent, eux, **à vérifier pour le geste manuel**
+> « Mettre à jour », qui passe par le même applieur. Les références de lignes
+> datent du 30 août.
+
 > ## ⚖️ TRANCHÉ par le mainteneur le 30 août 2026 — PAS DE BORNE
 >
 > **La nuit peut réécrire un article entier, toutes sections comprises, à la

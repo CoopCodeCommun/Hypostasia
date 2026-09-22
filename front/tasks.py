@@ -1565,11 +1565,23 @@ def borne_du_dernier_essai(wiki):
     / The date of the last ATTEMPT, not of the last success: the round
     after a rejected batch must not re-tell what that batch already saw.
 
+    UN TOUR DE REPARATION DES TITRES N'EST PAS UN ESSAI. La proposition
+    l'ecrit elle-meme, juste avant d'appeler le modele, sur un article
+    herite a `###` : il ne regarde aucune nouveaute. Le prendre pour
+    borne ferait compter ZERO nouveaute au tour accepte juste apres, et
+    l'historique ne dirait plus ce qui l'a appele.
+    / A heading-repair round is not an attempt: the proposal writes it
+    itself, right before the call, and it looks at no news.
+
     :param wiki: le `Wiki` / the wiki
     :return: la date la plus recente entre le dernier tour et la
              derniere mise a jour / the latest of the two dates
     """
-    dernier_tour = wiki.tours.first()
+    from core.models import MotifDeTourDeWiki
+
+    dernier_tour = wiki.tours.exclude(
+        motif=MotifDeTourDeWiki.REPARATION_DE_TITRES,
+    ).first()
     if dernier_tour is None:
         return wiki.derniere_mise_a_jour
     return max(dernier_tour.fait_le, wiki.derniere_mise_a_jour)
@@ -2097,12 +2109,12 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
         demande (un test qui appelle la fonction directement).
     :return: `(operations, jeton de fraicheur, provenance)` — le jeton
         est l'`updated_at` ISO de l'article APRES la reparation des
-        titres ; la provenance est RENDUE plutot que refermee ici parce
-        que le TOUR n'existe pas encore au moment de l'envoi : il nait
-        quand un humain accepte la proposition, et l'appelant accroche
-        alors le job et le tour a la provenance.
-        / The provenance is returned, not closed here: the round does
-        not exist yet when the prompt is sent.
+        titres ; la provenance est ecrite ici, avant l'appel, et RENDUE.
+        Le TOUR n'existe pas encore : il nait quand un humain accepte la
+        proposition, et il rejoint alors sa provenance par le job
+        (`TourDeWiki.job`), que la vue `appliquer` lui passe.
+        / The provenance is written here and returned; the later round
+        reaches it through the job.
     :raises ValueError: s'il n'y a rien a reprendre, ou si la reponse
         n'est pas un tableau JSON lisible.
     """
@@ -2230,8 +2242,9 @@ def rediger_le_prompt_de_mise_a_jour(texte_de_l_article, ecartees,
     LOCALISATION : front/tasks.py
 
     DEUX APPELANTS, UN SEUL PROMPT. La tache y arrive par
-    `assembler_le_prompt_de_mise_a_jour`, qui lit la base et ferme la
-    provenance ; la modale « Mettre a jour » le compte pour annoncer le
+    `assembler_le_prompt_de_mise_a_jour`, qui lit la base (la provenance
+    est ecrite ensuite par `construire_la_proposition_d_operations`) ; la
+    modale « Mettre a jour » le compte pour annoncer le
     cout AVANT le clic (`WikiViewSet.estimation`), en normalisant le
     texte en memoire sans rien ecrire. Une copie de ce texte pour
     l'estimation finirait par diverger : le cout annonce ne serait plus

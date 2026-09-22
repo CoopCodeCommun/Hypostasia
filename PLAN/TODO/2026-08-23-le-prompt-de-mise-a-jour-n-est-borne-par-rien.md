@@ -1,5 +1,12 @@
 # Le prompt de mise à jour n'est borné par rien
 
+> 🗓️ **22 septembre 2026** — toujours **non borné**. Deux choses ont changé : son
+> coût est désormais **annoncé avant le clic** dans la modale « Mettre à jour »
+> (`WikiViewSet.estimation`), et la passe de nuit qui le rejouait chaque nuit a été
+> **retirée le 21 septembre**. Le prompt est construit par
+> `rediger_le_prompt_de_mise_a_jour` (`front/tasks.py`) ; les références de lignes
+> ci-dessous datent du 23 août.
+
 **Mesuré le 23 août 2026 sur les cinq wikis de la base de dev. Rien n'est codé.**
 
 ## Ce que le code fait aujourd'hui

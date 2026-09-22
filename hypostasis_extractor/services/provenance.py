@@ -64,24 +64,25 @@ def analyseur_de_redaction():
 
     LOCALISATION : hypostasis_extractor/services/provenance.py
 
-    LE RESOLVEUR UNIQUE, sur le modele de `modele_du_role()` : actif, du
-    type `rediger_un_article`, trie `-est_par_defaut, name`.
-    `_prompt_systeme_de_synthese` l'appelle, et lui seul — deux regles de
+    LE RESOLVEUR UNIQUE DU DEFAUT, sur le modele de `modele_du_role()` :
+    actif, du type `rediger_un_article`, trie `-est_par_defaut, name`.
+    Tout chemin qui a besoin du defaut passe par lui — deux regles de
     choix designeraient un jour deux analyseurs differents, et la
     provenance nommerait celui qui n'a pas servi.
-    / The single resolver: the prompt builder calls it too, so the trace
-    can never name an analyzer that did not serve.
+    / The single resolver of the default, so the trace can never name an
+    analyzer that did not serve.
 
-    L'ORDRE DE RESOLUTION EST : defaut du type, puis repli en dur
-    JOURNALISE (chez l'appelant). Il n'y en a pas de troisieme : ni le
-    geste ni le carnet ne portent d'analyseur pour les articles — aucune
-    cle etrangere `Dossier -> AnalyseurSyntaxique` n'existe, et aucun des
-    trois chemins d'article ne prend d'`analyseur_id`. Coder ces niveaux
-    ferait du code mort. Voir l'addendum du 1er septembre 2026 dans
-    `PLAN/TODO/2026-08-23-typer-les-analyseurs-par-action.md`.
-    / Type default, then a logged hard fallback: neither gesture nor
-    notebook carries an analyzer for articles, so a third level would be
-    dead code.
+    L'ORDRE DE RESOLUTION, DU PLUS PRECIS AU PLUS GENERAL :
+    1. ce que le GESTE a fige — l'analyseur pose sur le job
+       (`front.tasks._analyseur_fige_sur_le_job`) ou porte par le wiki
+       (`Wiki.analyseur_de_redaction`) ;
+    2. a defaut, ce resolveur : le defaut du type ;
+    3. a defaut encore, le repli en dur, JOURNALISE chez
+       `_prompt_systeme_de_synthese`.
+    Le carnet, lui, ne porte pas d'analyseur : aucune cle etrangere
+    `Dossier -> AnalyseurSyntaxique` n'existe.
+    / Resolution order: what the gesture froze (job or wiki), then this
+    type default, then a logged hard fallback.
 
     :return: `(analyseur, version)` — l'un et l'autre peuvent etre None
     """

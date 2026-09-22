@@ -71,9 +71,9 @@ def creer_fixtures_phase_c():
 
     # LE REDACTEUR D'ARTICLE, distinct du synthetiseur de note.
     #
-    # Sans lui, les douze suites qui partent de ces fixtures — passe de
-    # nuit, recapitulatif du matin, assemblage des prompts, historique,
-    # provenance — produiraient leurs articles avec la consigne
+    # Sans lui, les suites qui partent de ces fixtures — mise a jour
+    # d'un wiki, recapitulatif du matin, assemblage des prompts,
+    # historique, provenance — produiraient leurs articles avec la consigne
     # generique de trois lignes du repli, SANS ROUGIR : elles
     # testeraient alors le repli, pas le prompt.
     # / Without it, twelve suites would silently test the fallback.

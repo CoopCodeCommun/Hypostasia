@@ -4,7 +4,8 @@
 **Migration :** **Oui** — `core.0081_le_wiki_porte_son_redacteur` est **renumérotée
 en `0082`** et dépend désormais de `core.0081_retrait_de_la_passe_de_nuit`. La base
 de dev porte déjà l'ancien nom : voir « Ce qu'il reste à faire sur la base » plus bas.
-**Ne pas lancer `migrate` sans avoir lu cette section.**
+**Lire cette section AVANT tout redémarrage du conteneur et avant tout `make
+prod-update` : `migrate` part tout seul au démarrage (`bin/install.sh`).**
 
 ## Résumé / Summary
 
@@ -93,6 +94,13 @@ sans ce figeage, il tombe à 436 tokens annoncés contre 414 envoyés.
 renumérotation. La colonne `wiki.analyseur_de_redaction` existe donc déjà, et
 rejouer la migration échouerait sur un `column already exists`.
 
+⚠️ **À faire AVANT de redémarrer le conteneur ou de lancer `make prod-update`.** Les
+deux lancent `migrate` : il appliquerait `0081_retrait`, puis échouerait sur `0082`
+(« column already exists »), et le conteneur redémarrerait en boucle. **S'il boucle
+déjà**, passer les mêmes commandes par `docker compose run --rm web python manage.py …`
+au lieu de `docker exec` (qui ne trouve plus de conteneur vivant) ; l'étape 2 est
+alors déjà faite, les étapes 1 et 3 suffisent.
+
 La séquence, dans cet ordre :
 
 ```bash
@@ -144,10 +152,16 @@ retirer — le script n'existe plus.
 
 Le cas qui a cassé pendant le merge : un article portant un `###` hérité.
 
-1. Sur un tel article, ouvrir la modale et noter le `data-tokens` annoncé.
-2. Lancer la mise à jour, puis relire le prompt réellement envoyé dans la
-   provenance (`ProvenanceDeProduction.longueur` du dernier job).
-3. Les deux comptes doivent concorder.
+1. Sur un tel article, ouvrir la modale : le coût s'affiche, avec son nombre de
+   tokens (`data-tokens`).
+2. **Ne pas le comparer à `ProvenanceDeProduction.longueur`** : ce champ compte des
+   **caractères** (`len(prompt)`), la modale des **tokens** — ils ne concordent
+   jamais.
+3. La concordance se vérifie par les tests automatiques
+   `test_sur_un_article_a_reparer_le_compte_est_celui_d_apres_reparation` et
+   `test_le_cout_annonce_est_celui_du_prompt_que_la_tache_envoie`
+   (`front/tests/test_estimation_de_la_mise_a_jour.py`), qui comptent le prompt
+   réellement envoyé.
 
 ### Vérifs automatiques
 

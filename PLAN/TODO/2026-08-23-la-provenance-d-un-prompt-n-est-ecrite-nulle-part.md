@@ -1,5 +1,10 @@
 # La provenance d'un prompt n'est écrite nulle part
 
+> 🗓️ **22 septembre 2026** — « la passe de nuit écrit sa fiche de production » :
+> la passe, l'un des producteurs, a été **retirée le 21 septembre**. Les autres
+> écrivent toujours la leur. Le champ `ProvenanceDeProduction.tour_de_wiki` n'a
+> plus d'écrivain : un tour rejoint sa provenance par son job (`TourDeWiki.job`).
+
 **Mesuré le 23 août 2026 sur la base de dev (37 jobs). Rien n'est codé.**
 **C'est le préalable de toute mesure : sans lui, aucun banc n'est rattachable à sa cause.**
 

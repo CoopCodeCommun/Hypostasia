@@ -798,10 +798,13 @@ class ProvenanceDeProduction(models.Model):
        corpus par job ;
     2. le menu des taches charge trente `ExtractionJob` COMPLETS, sans
        `.only()` ni `.defer()` ;
-    3. un tour de wiki est l'objet d'histoire du projet, et il merite de
-       pointer sa provenance sans passer par un job.
+    3. un tour de wiki est l'objet d'histoire du projet. Le champ
+       `tour_de_wiki` existe pour qu'il pointe sa provenance, mais
+       AUCUN chemin actuel ne l'ecrit : un tour rejoint sa provenance
+       par le job de la proposition (`TourDeWiki.job`).
     / A dedicated table: the API exposes job rows, the task menu loads
-    thirty whole ones, and a wiki round deserves its own pointer.
+    thirty whole ones. A round reaches its provenance through the job;
+    `tour_de_wiki` has no writer today.
 
     CE QU'ELLE NE GARDE PAS : le texte du prompt. Une EMPREINTE et une
     longueur suffisent aux deux seules questions qui comptent — « quel

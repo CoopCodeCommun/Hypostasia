@@ -287,3 +287,56 @@ class LaRaisonDuTourTest(BaseDUnTourDeWiki):
             note_neuve.pk,
             tour.notes_declenchantes.values_list("pk", flat=True),
         )
+
+    def test_la_reparation_des_titres_ne_masque_pas_les_nouveautes(self):
+        # Sur un article HERITE (des `###`), la proposition repare les
+        # titres en ecrivant un tour `REPARATION_DE_TITRES` — juste avant
+        # d'appeler le modele, donc APRES l'arrivee des nouveautes. Ce
+        # tour-la ne regarde rien : s'il servait de borne, le tour accepte
+        # compterait zero nouveaute et l'historique ne dirait plus ce qui
+        # l'a appele.
+        # / The repair round looks at nothing: it must not become the
+        # lower bound, or the accepted round would count zero news.
+        from hypostasis_extractor.models import ExtractedEntity, ExtractionJob
+
+        Page.objects.filter(pk=self.page_du_wiki.pk).update(
+            text_readability=(
+                "### Le seuil\n\nLe seuil est acté."
+                f"[[ext:{self.fixtures['extraction_seuil'].pk}]]\n"
+            ),
+        )
+        self.page_du_wiki.refresh_from_db()
+        self.wiki.derniere_mise_a_jour = timezone.now()
+        self.wiki.save(update_fields=["derniere_mise_a_jour"])
+
+        note_neuve = Page.objects.create(
+            title="Note arrivée avant le clic",
+            text_readability="Un fait neuf.", html_readability="<p>n</p>",
+            html_original="<p>n</p>", content_hash="hash-tour-reparation",
+            owner=self.fixtures["demandeur"],
+        )
+        ranger_une_note_dans_un_carnet(
+            note_neuve, self.fixtures["carnet"], self.fixtures["demandeur"],
+        )
+        job = ExtractionJob.objects.create(
+            page=note_neuve, name="Analyse neuve", status="completed",
+            ai_model=self.fixtures["modele_ia"],
+        )
+        ExtractedEntity.objects.create(
+            job=job, extraction_class="donnee",
+            extraction_text="Un fait neuf.", start_char=0, end_char=13,
+        )
+
+        self._proposer_puis_appliquer(self._operations_valides())
+
+        self.assertTrue(TourDeWiki.objects.filter(
+            wiki=self.wiki, motif=MotifDeTourDeWiki.REPARATION_DE_TITRES,
+        ).exists())
+        tour_accepte = TourDeWiki.objects.get(
+            wiki=self.wiki, motif=MotifDeTourDeWiki.MAJ_MANUELLE,
+        )
+        self.assertEqual(tour_accepte.extractions_nouvelles, 1)
+        self.assertIn(
+            note_neuve.pk,
+            tour_accepte.notes_declenchantes.values_list("pk", flat=True),
+        )
