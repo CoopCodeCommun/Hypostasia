@@ -30,22 +30,6 @@
     <td class="py-2 pr-2 text-xs text-slate-500">
         {{ analyseur.get_type_analyseur_display }}
     </td>
-    {# Inclure texte original / Include original text #}
-    <td class="py-2 px-2 text-center" title="Inclure le texte original dans le contexte">
-        {% if analyseur.inclure_texte_original %}
-            <span class="text-emerald-600 text-base" aria-label="Texte original inclus">✓</span>
-        {% else %}
-            <span class="text-slate-300 text-base" aria-label="Texte original non inclus">·</span>
-        {% endif %}
-    </td>
-    {# Inclure extractions et commentaires / Include extractions and comments #}
-    <td class="py-2 px-2 text-center" title="Inclure les extractions et leurs commentaires">
-        {% if analyseur.inclure_extractions %}
-            <span class="text-emerald-600 text-base" aria-label="Extractions incluses">✓</span>
-        {% else %}
-            <span class="text-slate-300 text-base" aria-label="Extractions non incluses">·</span>
-        {% endif %}
-    </td>
     {# Actif / Active #}
     <td class="py-2 px-2 text-center">
         {% if analyseur.is_active %}

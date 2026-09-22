@@ -287,8 +287,19 @@ class AnalyseurSyntaxique(models.Model):
     # Types d'analyseur disponibles
     # / Available analyzer types
     class TypeAnalyseur(models.TextChoices):
+        # TROIS TYPES, ET PAS DAVANTAGE TANT QU'UNE MESURE NE LE RECLAME.
+        #
+        # La mise a jour d'un wiki n'a PAS son type : c'est le meme metier
+        # sur le meme article, et ce qui change est la consigne, qui reste
+        # en dur dans le code. Un type de plus ferait diverger deux
+        # preambules qui doivent dire la meme chose — et
+        # `mettre_a_jour_un_wiki` aurait fait 21 caracteres, donc n'aurait
+        # pas tenu dans `max_length=20`.
+        # / Three types: a wiki update is the same trade on the same
+        # article, and a fourth name would not even fit the column.
         ANALYSER = "analyser", "Analyser"
         SYNTHETISER = "synthetiser", "Synthétiser"
+        REDIGER_UN_ARTICLE = "rediger_un_article", "Rédiger un article"
 
     name = models.CharField(max_length=200, help_text="Nom de l'analyseur")
     description = models.TextField(blank=True, help_text="Description de l'analyseur")
@@ -300,18 +311,20 @@ class AnalyseurSyntaxique(models.Model):
         max_length=20,
         choices=TypeAnalyseur.choices,
         default=TypeAnalyseur.ANALYSER,
-        help_text="Type d'analyseur : analyser ou synthetiser / Analyzer type: analyser or synthetiser",
+        help_text="Type d'analyseur : analyser, synthetiser ou rediger_un_article "
+                  "/ Analyzer type: analyser, synthetiser or rediger_un_article",
     )
 
-    # Options d'injection de contexte dans le prompt avant envoi au LLM
-    # / Context injection options in the prompt before sending to LLM
-    inclure_extractions = models.BooleanField(
+    # Pose par l'installation, jamais par un geste d'utilisateur.
+    # / Set by the installation, never by a user gesture.
+    est_d_origine = models.BooleanField(
         default=False,
-        help_text="Injecter les extractions dans le contexte du prompt / Inject extractions into prompt context",
-    )
-    inclure_texte_original = models.BooleanField(
-        default=False,
-        help_text="Injecter le texte original dans le contexte du prompt / Inject original text into prompt context",
+        help_text=(
+            "Analyseur posé par l'installation. Seul un superutilisateur "
+            "peut le modifier : c'est le prompt sur lequel tout le site "
+            "retombe, et une modification malheureuse s'y propage à "
+            "toutes les productions."
+        ),
     )
 
     # Marqueur "par defaut" : un seul analyseur par type peut l'etre.
@@ -335,6 +348,43 @@ class AnalyseurSyntaxique(models.Model):
     def __str__(self):
         return self.name
 
+    def texte_du_prompt(self):
+        """
+        Le preambule assemble : chaque piece sous le titre de son role.
+        / The assembled preamble: each piece under its role heading.
+
+        LOCALISATION : hypostasis_extractor/models.py
+
+        LE SEUL POINT D'ASSEMBLAGE. Neuf endroits du depot recollaient
+        les pieces a la main, chacun a sa facon. Une seule facon, ici :
+        un titre `=== ROLE ===` par piece, dans l'ordre de `order`.
+        / The single assembly site: nine places used to glue pieces by
+        hand, each its own way.
+
+        POURQUOI LE ROLE PART AU MODELE. Il classait les pieces a l'ecran
+        sans jamais rien dire au modele. Titrer chaque bloc le rend
+        LISIBLE par le modele, et cohérent avec le reste du prompt, qui
+        est deja decoupe ainsi (`=== SUJET DE L'ARTICLE ===`,
+        `=== EXTRACTIONS DU PERIMETRE ===`, `=== CONSIGNE ===`).
+        / The role now travels: it titles each block, like the rest of
+        the prompt already does.
+
+        UNE PIECE VIDE NE PRODUIT PAS DE TITRE ORPHELIN : un bloc sans
+        contenu n'apprend rien au modele, et son titre seul lui ferait
+        croire a une section qu'on aurait oublie de remplir.
+        / An empty piece yields no orphan heading.
+
+        :return: le preambule, ou une chaine vide s'il n'y a rien
+        """
+        blocs = []
+        for piece in self.pieces.order_by("order", "pk"):
+            contenu = (piece.content or "").strip()
+            if not contenu:
+                continue
+            titre = piece.get_role_display().upper()
+            blocs.append(f"=== {titre} ===\n{contenu}")
+        return "\n\n".join(blocs)
+
     def save(self, *args, **kwargs):
         # Si on coche est_par_defaut, decocher les autres analyseurs du meme type
         # / If we check est_par_defaut, uncheck other analyzers of the same type
@@ -346,12 +396,83 @@ class AnalyseurSyntaxique(models.Model):
         super().save(*args, **kwargs)
 
 
+class PreferenceD_analyseur(models.Model):
+    """
+    L'analyseur qu'UN utilisateur prefere, pour UN type de geste.
+    / The analyzer ONE user prefers, for ONE gesture type.
+
+    LOCALISATION : hypostasis_extractor/models.py
+
+    POURQUOI UNE PREFERENCE PLUTOT QU'UN DEFAUT DE PLUS.
+    `AnalyseurSyntaxique.est_par_defaut` designe l'analyseur sur lequel
+    TOUT LE SITE retombe : le cocher engage les productions de tout le
+    monde. Une preference n'engage que celui qui la pose — elle
+    preremplit SON selecteur, et rien d'autre.
+    / A site default binds everyone; a preference binds only its owner.
+
+    ELLE NE FAIT QUE PREREMPLIR. Le choix reel se fige sur le job au
+    moment du geste (`raw_result["analyseur_id"]`) : changer sa
+    preference ne rejoue aucune production passee, et n'atteint aucune
+    production deja en file.
+    / It only preselects: the real choice freezes on the job.
+
+    UNE SEULE PAR (UTILISATEUR, TYPE) — sans quoi « ma preference » ne
+    designerait rien de precis. / One per (user, type).
+    """
+
+    utilisateur = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="preferences_d_analyseur",
+    )
+    type_analyseur = models.CharField(
+        max_length=20,
+        choices=AnalyseurSyntaxique.TypeAnalyseur.choices,
+        help_text="Le geste auquel cette préférence s'applique "
+                  "/ The gesture this preference applies to",
+    )
+    # CASCADE : une preference qui designe un analyseur supprime ne veut
+    # plus rien dire — la resolution retomberait de toute facon sur le
+    # defaut du type. / CASCADE: a preference naming a deleted analyzer
+    # means nothing; resolution falls back to the type default anyway.
+    analyseur = models.ForeignKey(
+        AnalyseurSyntaxique,
+        on_delete=models.CASCADE,
+        related_name="preferee_par",
+    )
+    posee_le = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["utilisateur", "type_analyseur"],
+                name="une_preference_par_utilisateur_et_par_type",
+            ),
+        ]
+        verbose_name = "Préférence d'analyseur"
+        verbose_name_plural = "Préférences d'analyseur"
+
+    def __str__(self):
+        return f"{self.utilisateur} préfère {self.analyseur} pour {self.type_analyseur}"
+
+
 class PromptPiece(models.Model):
     """
     Morceau de prompt ordonne, lie a un AnalyseurSyntaxique.
-    Roles possibles : definition, instruction, format, context.
     / Ordered prompt piece, linked to an AnalyseurSyntaxique.
-    Possible roles: definition, instruction, format, context.
+
+    LOCALISATION : hypostasis_extractor/models.py
+
+    CE QUI PART AU MODELE : le `content`, TITRE par le role, dans
+    l'ordre de `order` — c'est `AnalyseurSyntaxique.texte_du_prompt()`
+    qui assemble, et lui seul.
+    / What is sent: the content, TITLED by its role, in `order` order.
+
+    UNE PIECE N'A PAS DE NOM, et n'en a jamais eu besoin : le nom ne
+    partait nulle part. L'ecran en offrait un a remplir, que le modele
+    ne voyait pas — les trois pieces de l'installation l'avaient laisse
+    vide.
+    / A piece has no name: it never travelled anywhere.
     """
     class RoleChoices(models.TextChoices):
         DEFINITION = "definition", "Définition"
@@ -364,7 +485,6 @@ class PromptPiece(models.Model):
         on_delete=models.CASCADE,
         related_name='pieces'
     )
-    name = models.CharField(max_length=200, help_text="Nom du morceau de prompt")
     role = models.CharField(
         max_length=20,
         choices=RoleChoices.choices,
@@ -377,7 +497,7 @@ class PromptPiece(models.Model):
         ordering = ['order']
 
     def __str__(self):
-        return f"[{self.role}] {self.name}"
+        return f"[{self.role}] {(self.content or '')[:60]}"
 
 
 class AnalyseurExample(models.Model):
@@ -636,6 +756,146 @@ class AnalyseurVersion(models.Model):
 
     def __str__(self):
         return f"{self.analyseur.name} v{self.version_number}"
+
+
+class CheminDeProduction(models.TextChoices):
+    """
+    Par quel geste un prompt est parti au modele.
+    / Which gesture sent a prompt to the model.
+
+    LOCALISATION : hypostasis_extractor/models.py
+
+    UN CHEMIN N'EST PAS UN TYPE D'ANALYSEUR. Le type dit quel PROMPT-
+    SOURCE a servi ; le chemin dit quel GESTE l'a employe. Deux gestes
+    peuvent partager un type — rediger un wiki et le mettre a jour sont
+    le meme metier sur le meme article — et il faut pourtant pouvoir les
+    comparer separement.
+    / A path is not an analyzer type: the type says which prompt source
+    served, the path says which gesture used it.
+    """
+    ANALYSE = "analyse", "Analyse d'une note"
+    SYNTHESE_NOTE = "synthese_note", "Synthèse d'une note"
+    WIKI = "wiki", "Article de wiki"
+    SYNTHESE_DIRIGEE = "synthese_dirigee", "Synthèse dirigée de carnet"
+    MAJ_WIKI = "maj_wiki", "Mise à jour d'un wiki"
+
+
+class ProvenanceDeProduction(models.Model):
+    """
+    Quel prompt a produit ce texte, et n'a-t-il pas change depuis ?
+    / Which prompt produced this text, and has it changed since?
+
+    LOCALISATION : hypostasis_extractor/models.py
+
+    UNE TABLE DEDIEE, JAMAIS `ExtractionJob`. Trois raisons, toutes
+    verifiees :
+
+    1. `/api/extraction-jobs/` rend `prompt_description` ET `raw_result`
+       (`ExtractionJobDetailSerializer`). L'API est fermee aux inconnus
+       depuis le 23 aout 2026, mais elle reste ouverte a qui accede a la
+       note — donc a tout compte connecte si le carnet est public. Y
+       ecrire l'assemblage y deverserait 25 000 a 80 000 caracteres de
+       corpus par job ;
+    2. le menu des taches charge trente `ExtractionJob` COMPLETS, sans
+       `.only()` ni `.defer()` ;
+    3. un tour de wiki est l'objet d'histoire du projet, et il merite de
+       pointer sa provenance sans passer par un job.
+    / A dedicated table: the API exposes job rows, the task menu loads
+    thirty whole ones, and a wiki round deserves its own pointer.
+
+    CE QU'ELLE NE GARDE PAS : le texte du prompt. Une EMPREINTE et une
+    longueur suffisent aux deux seules questions qui comptent — « quel
+    prompt a ecrit ce paragraphe ? » et « le prompt a-t-il change entre
+    deux tours ? ». Garder le texte integral est un chantier a part
+    (`PLAN/TODO/2026-08-23-garder-le-texte-integral-d-un-prompt.md`),
+    parce qu'il pose des questions de volume et de fuite que
+    l'empreinte ne pose pas.
+    / It keeps a fingerprint and a length, never the text.
+
+    DEUX ANCRES NULLABLES, ET ELLES PEUVENT DISPARAITRE TOUTES LES DEUX.
+    `SET_NULL` des deux cotes : un job supprime ou un tour supprime
+    laisse une provenance orpheline, qui garde son empreinte, son
+    chemin, son modele et sa date. C'est voulu — une empreinte sans
+    ancre reste comparable a une autre, et c'est exactement ce qu'un banc
+    lui demande.
+    / Both anchors are nullable and may vanish: the fingerprint stays
+    comparable, which is what a benchmark asks of it.
+    """
+
+    # L'ancre du chemin humain : le job porte deja le demandeur, le
+    # modele et l'issue. / The human path's anchor.
+    job = models.ForeignKey(
+        ExtractionJob,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="provenances",
+        help_text="Le job de la demande, s'il y en a un / The job, if any",
+    )
+    # L'ancre de l'histoire d'un article. / The article history anchor.
+    tour_de_wiki = models.ForeignKey(
+        "core.TourDeWiki",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="provenances",
+        help_text="Le tour de wiki que cette production a écrit "
+                  "/ The wiki round this production wrote",
+    )
+    chemin = models.CharField(
+        max_length=30,
+        choices=CheminDeProduction.choices,
+        help_text="Le geste qui a envoyé ce prompt / The sending gesture",
+    )
+    analyseur = models.ForeignKey(
+        AnalyseurSyntaxique,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="provenances",
+        help_text="L'analyseur dont le préambule a servi / The analyzer used",
+    )
+    analyseur_version = models.ForeignKey(
+        "AnalyseurVersion",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="provenances",
+        help_text="La version de cet analyseur au moment de l'envoi "
+                  "/ That analyzer's version at send time",
+    )
+    modele = models.ForeignKey(
+        AIModel,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="provenances",
+        help_text="Le modèle qui a reçu ce prompt / The model that got it",
+    )
+    # SHA-256 hexadecimal du prompt assemble, tel qu'envoye.
+    # / Hex SHA-256 of the assembled prompt, as sent.
+    empreinte = models.CharField(
+        max_length=64,
+        db_index=True,
+        help_text="SHA-256 du prompt assemblé / SHA-256 of the prompt",
+    )
+    longueur = models.PositiveIntegerField(
+        help_text="Longueur du prompt assemblé, en caractères "
+                  "/ Assembled prompt length, in characters",
+    )
+    # TRIEE, toujours. Les perimetres se calculent en `set`, qui s'itere
+    # dans un ordre que rien ne garantit : versee telle quelle, la liste
+    # changerait d'une production a l'autre sans qu'aucune extraction
+    # n'ait bouge. / Always sorted: scopes are computed as sets.
+    extractions_montrees = models.JSONField(
+        default=list, blank=True,
+        help_text="Les identifiants d'extractions montrés au modèle, "
+                  "triés / The extraction ids shown to the model, sorted",
+    )
+    cree_le = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-cree_le", "-pk"]
+        verbose_name = "Provenance de production"
+        verbose_name_plural = "Provenances de production"
+
+    def __str__(self):
+        return f"{self.chemin} · {self.empreinte[:12]} · {self.longueur} car."
 
 
 # =============================================================================

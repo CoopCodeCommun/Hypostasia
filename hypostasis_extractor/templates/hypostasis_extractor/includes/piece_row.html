@@ -3,23 +3,24 @@
     <div class="flex items-center gap-2 mb-2">
         <!-- Bouton toggle pour reduire/ouvrir le contenu du prompt -->
         <button type="button" class="collapsible-toggle text-slate-400 hover:text-slate-600 text-xs shrink-0" data-target="piece-body-{{ piece.id }}">&#9660;</button>
-        <input type="text" value="{{ piece.name }}" id="piece-name-{{ piece.id }}"
-               class="flex-1 text-sm font-medium border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
-               placeholder="Nom du morceau">
+        {# Le morceau n'a PAS de nom : ce qui part au modele, c'est son #}
+        {# contenu, TITRE par le role choisi ici. Un champ de nom ne     #}
+        {# changeait rien a l'envoi, et laissait croire le contraire.    #}
+        {# / No name: the content travels, titled by the role picked here. #}
         <select id="piece-role-{{ piece.id }}"
-                class="text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                class="flex-1 text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
             <option value="definition" {% if piece.role == "definition" %}selected{% endif %}>Definition</option>
             <option value="instruction" {% if piece.role == "instruction" %}selected{% endif %}>Instruction</option>
             <option value="format" {% if piece.role == "format" %}selected{% endif %}>Format</option>
             <option value="context" {% if piece.role == "context" %}selected{% endif %}>Contexte</option>
         </select>
+        {% if peut_modifier %}
         <button type="button" class="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 shrink-0"
                 data-testid="btn-sauver-piece-{{ piece.id }}"
                 hx-patch="/api/analyseurs/{{ analyseur.id }}/update_piece/"
                 hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
                 hx-vals='js:{
                     "piece_id": {{ piece.id }},
-                    "name": document.getElementById("piece-name-{{ piece.id }}").value,
                     "role": document.getElementById("piece-role-{{ piece.id }}").value,
                     "content": document.getElementById("piece-content-{{ piece.id }}").value
                 }'
@@ -32,10 +33,12 @@
                 hx-target="#piece-{{ piece.id }}"
                 hx-swap="delete"
                 hx-confirm="Supprimer ce morceau ?">&times;</button>
+        {% endif %}
     </div>
     <div id="piece-body-{{ piece.id }}">
         <textarea rows="1" id="piece-content-{{ piece.id }}"
                   class="w-full text-sm border border-slate-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 font-mono"
+                  {% if not peut_modifier %}readonly aria-readonly="true"{% endif %}
                   placeholder="Contenu du prompt…">{{ piece.content }}</textarea>
     </div>
 </div>

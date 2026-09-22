@@ -59,7 +59,7 @@ class BaseAnalyseRoutageTest(TestCase):
         self.analyseur = AnalyseurSyntaxique.objects.create(
             name="Analyseur BR-C", type_analyseur="analyser")
         PromptPiece.objects.create(
-            analyseur=self.analyseur, name="Instruction",
+            analyseur=self.analyseur,
             content="Extraire.", order=0,
 
     )

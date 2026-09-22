@@ -620,6 +620,100 @@ _MESSAGES_D_ATTENTE = {
 }
 
 
+def _redacteurs_proposables():
+    """
+    Les analyseurs de rédaction qu'un geste peut proposer, préféré d'abord.
+    / The writing analyzers a gesture may offer, preferred one first.
+
+    LOCALISATION : front/views_synthese.py
+
+    LE MEME TRI QUE LA RESOLUTION — `-est_par_defaut, name`. Le premier
+    de cette liste est donc EXACTEMENT celui qui servirait si le geste
+    n'en proposait aucun : l'ecran presente le defaut reel, jamais un
+    autre.
+    / The same ordering as the resolver: the first row IS the default
+    that would have served anyway.
+
+    :return: un queryset d'`AnalyseurSyntaxique`
+    """
+    from hypostasis_extractor.models import AnalyseurSyntaxique
+
+    return AnalyseurSyntaxique.objects.filter(
+        is_active=True,
+        type_analyseur=AnalyseurSyntaxique.TypeAnalyseur.REDIGER_UN_ARTICLE,
+    ).order_by("-est_par_defaut", "name")
+
+
+def _redacteur_prefere_de(utilisateur):
+    """
+    L'analyseur que CET utilisateur prefere pour rediger, ou None.
+    / The analyzer THIS user prefers for writing, or None.
+
+    LOCALISATION : front/views_synthese.py
+
+    ELLE NE VAUT QUE POUR LUI. Le defaut du site
+    (`AnalyseurSyntaxique.est_par_defaut`) engage les productions de
+    tout le monde et reste au superutilisateur ; une preference ne
+    preremplit que le selecteur de celui qui l'a posee.
+    / It binds only its owner, unlike the site default.
+
+    :param utilisateur: l'utilisateur du geste / the gesture's user
+    :return: un `AnalyseurSyntaxique` proposable, ou None
+    """
+    from hypostasis_extractor.models import (
+        AnalyseurSyntaxique, PreferenceD_analyseur,
+    )
+
+    if not getattr(utilisateur, "is_authenticated", False):
+        return None
+    preference = PreferenceD_analyseur.objects.filter(
+        utilisateur=utilisateur,
+        type_analyseur=AnalyseurSyntaxique.TypeAnalyseur.REDIGER_UN_ARTICLE,
+    ).select_related("analyseur").first()
+    if preference is None:
+        return None
+    # Une preference qui designe un analyseur devenu inactif ne se
+    # propose pas : elle vaut alors comme absente.
+    # / A preference naming a deactivated analyzer counts as absent.
+    if not preference.analyseur.is_active:
+        return None
+    return preference.analyseur
+
+
+def _redacteur_choisi(request):
+    """
+    L'analyseur que le geste a choisi, ou le défaut de son type.
+    / The analyzer the gesture picked, or its type's default.
+
+    LOCALISATION : front/views_synthese.py
+
+    UN CHOIX QUI N'EST PAS PROPOSABLE EST IGNORE, jamais honore : le
+    parametre arrive du client, et rien n'empeche d'y poser l'id d'un
+    analyseur inactif ou d'un autre type. On retombe alors sur le defaut,
+    qui est ce que le geste aurait fait sans parametre.
+    / An unofferable choice is ignored, never honoured.
+
+    :param request: la requete du geste / the gesture's request
+    :return: un `AnalyseurSyntaxique` ou None
+    """
+    proposables = _redacteurs_proposables()
+    identifiant = str(
+        request.data.get("analyseur_id")
+        or request.GET.get("analyseur_id")
+        or ""
+    )
+    if identifiant.isdigit():
+        choisi = proposables.filter(pk=int(identifiant)).first()
+        if choisi is not None:
+            return choisi
+    # L'ORDRE DE RESOLUTION : le geste, puis MA preference, puis le
+    # defaut du site. / Gesture, then MY preference, then the site default.
+    prefere = _redacteur_prefere_de(request.user)
+    if prefere is not None:
+        return prefere
+    return proposables.first()
+
+
 class WikiViewSet(viewsets.ViewSet):
     """Les wikis d'un carnet (§ 3.1, § 10). / Notebook wikis."""
 
@@ -657,6 +751,7 @@ class WikiViewSet(viewsets.ViewSet):
             "modele_de_redaction": modele_du_role(
                 RoleDeModele.REDACTEUR_D_ARTICLE,
             ),
+            "redacteurs_proposables": _redacteurs_proposables(),
             "nombre_de_notes_sources":
                 notes_sources_du_carnet(carnet).count(),
             "peut_ecrire": (
@@ -691,6 +786,7 @@ class WikiViewSet(viewsets.ViewSet):
         ranger_une_note_dans_un_carnet(page_d_article, carnet, request.user)
         wiki = Wiki.objects.create(
             page=page_d_article, dossier=carnet, sujet=sujet,
+            analyseur_de_redaction=_redacteur_choisi(request),
         )
         identifiants_de_categories = [
             int(v) for v in request.data.getlist("categorie")
@@ -715,6 +811,12 @@ class WikiViewSet(viewsets.ViewSet):
             raw_result={
                 "est_wiki": True, "wiki_id": wiki.pk,
                 "demandeur_id": request.user.pk,
+                # L'ANALYSEUR SE FIGE AU GESTE, pas a l'execution : entre
+                # la demande et son tour dans la file, le defaut a pu
+                # changer. Le job estampille ce qui a ete decide.
+                # / Frozen at the gesture: the default can change while
+                # the job waits in the queue.
+                "analyseur_id": getattr(_redacteur_choisi(request), "pk", None),
             },
         )
         from front.tasks import produire_un_wiki_task
@@ -792,6 +894,10 @@ class WikiViewSet(viewsets.ViewSet):
             raw_result={
                 "est_maj_wiki": True, "wiki_id": wiki.pk,
                 "demandeur_id": request.user.pk,
+                # LE REDACTEUR DE L'ARTICLE, pas le defaut du moment :
+                # une mise a jour continue une histoire commencee.
+                # / The article's writer, not the current default.
+                "analyseur_id": wiki.analyseur_de_redaction_id,
             },
         )
         from front.tasks import proposer_une_maj_de_wiki_task
@@ -1137,6 +1243,7 @@ class SyntheseViewSet(viewsets.ViewSet):
             "modele_de_redaction": modele_du_role(
                 RoleDeModele.REDACTEUR_D_ARTICLE,
             ),
+            "redacteurs_proposables": _redacteurs_proposables(),
             "nombre_de_notes_sources":
                 notes_sources_du_carnet(carnet).count(),
             "peut_ecrire": (
@@ -1209,6 +1316,9 @@ class SyntheseViewSet(viewsets.ViewSet):
                 "est_synthese_carnet": True,
                 "demandeur_id": request.user.pk,
                 "notes_du_perimetre": notes_figees,
+                # Fige au geste, comme le perimetre juste au-dessus.
+                # / Frozen at the gesture, like the scope above.
+                "analyseur_id": getattr(_redacteur_choisi(request), "pk", None),
             },
         )
         from front.tasks import produire_une_synthese_de_carnet_task

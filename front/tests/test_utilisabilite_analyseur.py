@@ -101,13 +101,35 @@ class UtilisabiliteAnalyseurTest(TestCase):
         self.assertTrue(utilisable)
         self.assertEqual(problemes, [])
 
-    def test_analyseur_synthese_toujours_utilisable(self):
-        # La synthese ne s'appuie pas sur des exemples few-shot
-        # / Synthesis does not rely on few-shot examples
+    def test_un_analyseur_de_synthese_n_a_pas_besoin_d_exemple(self):
+        # LE CRITERE N'EST PAS LE MEME QUE POUR UNE EXTRACTION : une
+        # synthese ne s'appuie sur aucun exemple few-shot. Il lui faut,
+        # en revanche, une PIECE DE PROMPT — sans elle,
+        # `synthetiser_page_task` leve « n'a aucune piece de prompt » et
+        # le job finit en erreur. Le badge doit le dire AVANT.
+        # / Different criterion: no few-shot example needed, but a prompt
+        # piece is, or the task raises.
+        from hypostasis_extractor.models import PromptPiece
+
         analyseur = self._creer_analyseur(type_analyseur="synthetiser")
+        PromptPiece.objects.create(
+            analyseur=analyseur, role="instruction",
+            content="Synthétise.", order=0,
+        )
+
         utilisable, problemes = verifier_utilisabilite_analyseur(analyseur)
         self.assertTrue(utilisable)
         self.assertEqual(problemes, [])
+
+    def test_un_analyseur_de_synthese_sans_piece_n_est_pas_utilisable(self):
+        # Sans piece, la tache leve et le job finit en erreur : un badge
+        # vert serait un mensonge.
+        # / Without a piece the task raises: a green badge would lie.
+        analyseur = self._creer_analyseur(type_analyseur="synthetiser")
+
+        utilisable, problemes = verifier_utilisabilite_analyseur(analyseur)
+        self.assertFalse(utilisable)
+        self.assertTrue(problemes)
 
     # ---- Serializer ----
 

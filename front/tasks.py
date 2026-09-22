@@ -397,13 +397,16 @@ CONSIGNE_DE_SOURCAGE = (
 def _construire_prompt_synthese(page, dernier_job_analyse, analyseur_synthese):
     """
     Construit le prompt utilisateur pour la synthese deliberative.
-    Les sections injectees dependent des bool de l'analyseur :
-    - inclure_texte_original → bloc TEXTE ORIGINAL
-    - inclure_extractions → bloc HYPOSTASES ET DEBAT (extractions + commentaires)
-    Au moins l'un des deux doit etre actif (validation faite en amont).
     / Builds the user prompt for deliberative synthesis.
-    Sections depend on the analyzer's bool flags.
-    At least one of the two must be active (validation done upstream).
+
+    DEUX BLOCS, TOUJOURS LES DEUX : le texte original de la note, puis
+    ses extractions avec leurs commentaires. Ils dependaient autrefois de
+    deux drapeaux de l'analyseur — un reglage qui pouvait produire une
+    synthese sans matiere, et qu'il fallait garder deux vues pour
+    empecher. Une synthese qui ne voit ni le texte ni le debat n'a rien
+    a synthetiser.
+    / Always both blocks: a synthesis that sees neither the text nor the
+    debate has nothing to synthesize.
 
     SPEC-synthese phase C : chaque hypostase expose son identifiant
     (« Identifiant : ext:N ») pour que le modele produise les marqueurs
@@ -414,27 +417,25 @@ def _construire_prompt_synthese(page, dernier_job_analyse, analyseur_synthese):
     """
     sections_du_prompt = []
 
-    # Bloc TEXTE ORIGINAL — inclus si l'analyseur le demande
-    # / TEXT block — included if analyzer requests it
-    if analyseur_synthese.inclure_texte_original:
-        # Le texte d'une note, ce sont ses ELEMENTS. `text_readability`
-        # est VIDE sur toute note ingeree par Docling : le lire ici
-        # injectait un bloc VIDE, en silence — le drapeau de l'analyseur
-        # etait vivant et sans effet. Mesure du 17 aout 2026.
-        # Repli sur le texte plat pour les pages sans aucun element.
-        # / A note's text is its elements; text_readability is empty on
-        # Docling-ingested notes. Fallback for element-less pages only.
-        from front.views import _texte_de_la_note_depuis_ses_elements
+    # Bloc TEXTE ORIGINAL — toujours. / TEXT block — always.
+    #
+    # Le texte d'une note, ce sont ses ELEMENTS. `text_readability` est
+    # VIDE sur toute note ingeree par Docling : le lire ici injecterait
+    # un bloc VIDE, en silence (mesure du 17 aout 2026). Repli sur le
+    # texte plat pour les pages sans aucun element.
+    # / A note's text is its elements; text_readability is empty on
+    # Docling-ingested notes. Fallback for element-less pages only.
+    from front.views import _texte_de_la_note_depuis_ses_elements
 
-        texte_original = _texte_de_la_note_depuis_ses_elements(page)
-        sections_du_prompt.append(f"=== TEXTE ORIGINAL ===\n{texte_original}")
+    texte_original = _texte_de_la_note_depuis_ses_elements(page)
+    sections_du_prompt.append(f"=== TEXTE ORIGINAL ===\n{texte_original}")
 
     # Bloc HYPOSTASES ET DEBAT — extractions + commentaires si l'analyseur le demande
     # ET si un job d'analyse complet existe. Si pas de job, le bloc est omis silencieusement
     # (cas du previsualiser_synthese pour estimation avant qu'une analyse n'ait ete lancee).
     # / HYPOSTASES block — extractions + comments if analyzer requests it AND analysis job exists.
     # / If no job, block is omitted silently (preview synthesis case).
-    if analyseur_synthese.inclure_extractions and dernier_job_analyse is not None:
+    if dernier_job_analyse is not None:
         # Toutes les extractions visibles de la note (tous jobs termines
         # — analyse, manuelles, selection). / Every visible extraction.
         entites_du_job = _extractions_pour_la_synthese(page)
@@ -512,7 +513,7 @@ def _construire_prompt_synthese(page, dernier_job_analyse, analyseur_synthese):
     # / SOURCING block — citation contract and anti-truncation line. The
     # line is ALWAYS required.
     consignes_de_sourcage = []
-    if analyseur_synthese.inclure_extractions and dernier_job_analyse is not None:
+    if dernier_job_analyse is not None:
         consignes_de_sourcage.append(CONSIGNE_DE_SOURCAGE)
     consignes_de_sourcage.append(
         "Termine IMPÉRATIVEMENT ta réponse par une DERNIÈRE ligne de "
@@ -740,10 +741,7 @@ def synthetiser_page_task(self, job_id):
 
         # Construire le prompt systeme depuis les pieces de l'analyseur
         # / Build system prompt from analyzer pieces
-        pieces_ordonnees = PromptPiece.objects.filter(
-            analyseur=analyseur_synthese,
-        ).order_by("order")
-        prompt_systeme = "\n".join(piece.content for piece in pieces_ordonnees)
+        prompt_systeme = analyseur_synthese.texte_du_prompt()
 
         if not prompt_systeme.strip():
             raise ValueError(f"L'analyseur '{analyseur_synthese.name}' n'a aucune piece de prompt")
@@ -765,15 +763,13 @@ def synthetiser_page_task(self, job_id):
         # denoncee comme hallucination. Parametre OBLIGATOIRE ensuite.
         # / The citation scope = exactly the extractions sent to the
         # model, snapshotted BEFORE the call. Mandatory parameter.
-        identifiants_du_perimetre = set()
-        if analyseur_synthese.inclure_extractions:
-            identifiants_du_perimetre = set(
-                _extractions_pour_la_synthese(page_source)
-                .values_list("pk", flat=True)
-            )
+        identifiants_du_perimetre = set(
+            _extractions_pour_la_synthese(page_source)
+            .values_list("pk", flat=True)
+        )
 
-        # Construire le prompt utilisateur en respectant les bool de l'analyseur
-        # / Build user prompt respecting the analyzer's bool flags
+        # Le prompt utilisateur : texte original et extractions, toujours.
+        # / The user prompt: original text and extractions, always.
         prompt_utilisateur = _construire_prompt_synthese(
             page_source, dernier_job_analyse, analyseur_synthese,
         )
@@ -784,6 +780,14 @@ def synthetiser_page_task(self, job_id):
         logger.info(
             "synthetiser_page_task: job=%s page=%s model=%s msg_len=%d",
             job_id, page_source.pk, modele_ia.model_name, len(message_complet),
+        )
+
+        from hypostasis_extractor.models import CheminDeProduction
+
+        _tracer_la_production(
+            CheminDeProduction.SYNTHESE_NOTE, message_complet, job_synthese,
+            identifiants_du_perimetre, modele=modele_ia,
+            analyseur=analyseur_synthese,
         )
 
         # Appel au LLM via la couche unifiee / Call LLM via unified layer
@@ -1053,13 +1057,29 @@ def _blocs_d_extractions_par_note(pages):
 
     LOCALISATION : front/tasks.py
 
+    L'ORDRE DES NOTES EST FIXE ICI, PAR CLE. Les deux perimetres qui
+    alimentent cette fonction ne garantissent aucun ordre :
+    `notes_du_perimetre_d_un_wiki` rend un queryset `.distinct()` sans
+    `order_by`, `SyntheseDirigee.notes_du_perimetre` est une M2M sans
+    `Meta.ordering`, et `Page` n'a pas d'ordre par defaut. La base est
+    donc libre de rendre les notes dans l'ordre qu'elle veut, et il
+    change sans qu'une seule donnee ait bouge.
+    / The note order is pinned here: neither scope guarantees one.
+
+    C'est ce qui rend l'EMPREINTE d'un prompt signifiante : sans ordre
+    canonique, deux assemblages de la meme base rendraient deux
+    empreintes, et « le prompt a-t-il change entre deux tours ? »
+    repondrait oui a tort.
+    / Without a canonical order, the prompt fingerprint would drift on
+    its own and answer "yes, it changed" when nothing had.
+
     :return: (texte_des_blocs, identifiants_du_perimetre)
     """
     from core.services.synthese import extractions_citables_de_la_note
 
     blocs = []
     identifiants_du_perimetre = set()
-    for page in pages:
+    for page in sorted(pages, key=lambda note: note.pk):
         lignes = [f"=== NOTE : {page.title or f'Note {page.pk}'} ==="]
         extractions = list(
             extractions_citables_de_la_note(page)
@@ -1109,24 +1129,49 @@ def _consignes_de_forme_d_article():
     )
 
 
-def _prompt_systeme_de_synthese():
+def _prompt_systeme_de_synthese(analyseur=None):
     """
-    Le prompt systeme : l'analyseur de synthese par defaut s'il existe,
+    Le preambule d'un article : les pieces de l'analyseur de redaction,
     sinon une consigne generique honnete.
-    / The default synthesis analyzer's prompt, or a plain fallback.
-    """
-    from hypostasis_extractor.models import AnalyseurSyntaxique, PromptPiece
+    / The article preamble: the writing analyzer's pieces, or a plain
+    fallback.
 
-    analyseur = AnalyseurSyntaxique.objects.filter(
-        is_active=True, type_analyseur="synthetiser",
-    ).order_by("-est_par_defaut", "name").first()
+    LOCALISATION : front/tasks.py
+
+    L'ANALYSEUR SE PASSE, IL NE SE RE-RESOUT PAS. L'appelant qui a
+    besoin de NOMMER l'analyseur dans la provenance doit le resoudre une
+    fois, puis le donner ici : deux resolutions separees de quelques
+    instructions suffisent a ce qu'un changement de defaut, entre les
+    deux, fasse ecrire dans la trace un analyseur qui n'a pas servi.
+    / Resolved once by the caller and passed in: two separate lookups
+    would let a default change between them name the wrong analyzer.
+
+    LE REPLI EST JOURNALISE. Sans analyseur, le redacteur ecrit avec
+    trois lignes de consigne generique — un article sort quand meme, et
+    rien a l'ecran ne dit qu'il a ete ecrit sans preambule. Le journal
+    du worker est le seul endroit ou cela peut se voir.
+    / The fallback is logged: an article still comes out, and nothing on
+    screen says it was written without a preamble.
+
+    :param analyseur: l'analyseur deja resolu, ou None pour le resoudre
+    :return: le preambule / the preamble
+    """
+    from hypostasis_extractor.services.provenance import (
+        analyseur_de_redaction,
+    )
+
+    if analyseur is None:
+        analyseur, _version = analyseur_de_redaction()
     if analyseur is not None:
-        pieces = PromptPiece.objects.filter(
-            analyseur=analyseur,
-        ).order_by("order")
-        prompt = "\n".join(piece.content for piece in pieces)
+        prompt = analyseur.texte_du_prompt()
         if prompt.strip():
             return prompt
+    logger.warning(
+        "_prompt_systeme_de_synthese: AUCUN analyseur de rédaction "
+        "utilisable — l'article part avec la consigne générique de trois "
+        "lignes. Vérifiez qu'un analyseur actif du bon type porte au "
+        "moins une pièce de prompt.",
+    )
     return (
         "Tu es un moteur de synthèse délibérative : tu rédiges des "
         "articles sobres, fidèles aux extractions fournies, sans rien "
@@ -1736,6 +1781,74 @@ def _rendre_la_main_a_la_passe(passe_id, a_modifie, en_erreur):
             _fermer_la_passe(passe)
 
 
+# Le marqueur du job d'un tour de nuit. Il est DISTINCT de
+# `est_maj_wiki`, qui designe la proposition d'un humain : deux vues
+# (`proposition` et `appliquer`, front/views_synthese.py) adressent par
+# son id n'importe quel job `est_maj_wiki` de la page, pour previsualiser
+# puis appliquer des operations qu'un humain a retenues. Un job de nuit
+# n'attend aucune retenue — ses operations sont deja appliquees — et un
+# `appliquer` force sur lui ecrirait un tour manuel fantome, signe par
+# l'utilisateur, avec zero operation.
+# / A distinct marker: the human path addresses any est_maj_wiki job of
+# the page by id; a forged apply on a night job would write a phantom
+# manual round signed by the user.
+MARQUEUR_DU_JOB_DE_NUIT = "est_maj_wiki_de_nuit"
+
+
+def _ecrire_le_job_d_un_tour_de_nuit(wiki, modele_ia, erreur=None):
+    """
+    Ecrit la fiche de production d'un tour de nuit.
+    / Writes the production record of one night round.
+
+    LOCALISATION : front/tasks.py
+
+    SANS ELLE, LE TOUR NE NOMME AUCUN MODELE. `TourDeWiki.fait_par=None`
+    dit qu'aucun humain n'a decide ; rien ne dit QUI a ecrit. Le chemin
+    humain cree deja ce job (`WikiViewSet.mise_a_jour`) : les deux
+    chemins laissent donc la meme trace, et l'histoire d'un article ne
+    depend pas de l'heure a laquelle il a ete ecrit.
+    / Without it the round names no model, while the human path already
+    creates one: both paths must trace alike.
+
+    ELLE S'ECRIT APRES COUP, AVEC SON ISSUE — jamais en `pending` ni en
+    `processing`. Trois vues prennent « le dernier job en cours de cette
+    page » pour decider ce qu'elles affichent
+    (`LireViewSet.retrieve`, `previsualiser_analyse`, `drawer_contenu`,
+    front/views.py) : un job de nuit en cours ferait lire « une analyse
+    tourne deja » sur un article que personne n'analyse. Et
+    `_verifier_et_nettoyer_job_bloque` marque en erreur tout job
+    `processing` sans battement depuis cinq minutes — or un tour de nuit
+    ne bat pas le coeur, et un appel de redaction depasse cinq minutes.
+    / Written after the fact with its outcome: three views treat any
+    in-flight job of the page as a running analysis, and the stall guard
+    kills a `processing` job after five heartbeat-less minutes.
+
+    AUCUN `demandeur_id` : c'est ce qui garde la nuit silencieuse. Le
+    champ est lu par `_terminer_un_job_d_article` et
+    `_echouer_un_job_d_article` pour choisir qui prevenir — le chemin de
+    nuit ne passe par ni l'un ni l'autre, et le recapitulatif du matin
+    raconte la nuit a leur place.
+    / No requester id: the night stays silent; the morning digest tells.
+
+    :param wiki: le `Wiki` mis a jour cette nuit / tonight's wiki
+    :param modele_ia: l'`AIModel` du role redacteur, ou None s'il n'a
+        pas meme pu etre resolu / the writer model, or None
+    :param erreur: l'exception qui a interrompu le tour, s'il y en a une
+    :return: l'`ExtractionJob` ecrit / the recorded job
+    """
+    from hypostasis_extractor.models import ExtractionJob
+
+    return ExtractionJob.objects.create(
+        page=wiki.page,
+        ai_model=modele_ia,
+        name=f"Mise à jour de nuit — {wiki.sujet}"[:200],
+        prompt_description="Proposition d'opérations (passe de nuit)",
+        status="error" if erreur is not None else "completed",
+        error_message=str(erreur)[:500] if erreur is not None else None,
+        raw_result={MARQUEUR_DU_JOB_DE_NUIT: True, "wiki_id": wiki.pk},
+    )
+
+
 @shared_task(bind=True)
 def mettre_a_jour_un_wiki_la_nuit_task(self, passe_id, wiki_id):
     """
@@ -1755,24 +1868,39 @@ def mettre_a_jour_un_wiki_la_nuit_task(self, passe_id, wiki_id):
 
     a_modifie = False
     en_erreur = False
+    # Le redacteur est retenu ICI pour que le tour d'echec puisse le
+    # nommer : un modele durablement injoignable doit se lire dans
+    # l'historique de l'article, et pas seulement dans un journal de
+    # worker. None = l'echec est arrive avant meme sa resolution.
+    # / Kept here so the failure round can name the writer model.
+    modele_redacteur = None
     try:
         wiki = Wiki.objects.select_related("page", "dossier").get(pk=wiki_id)
-        tour = mettre_a_jour_un_wiki_la_nuit(
-            wiki, modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE),
-        )
+        modele_redacteur = modele_du_role(RoleDeModele.REDACTEUR_D_ARTICLE)
+        tour = mettre_a_jour_un_wiki_la_nuit(wiki, modele_redacteur)
         a_modifie = tour is not None and tour.a_change_l_article
+    except TourDeNuitDejaRaconte as erreur:
+        # L'applieur a refuse : le tour d'echec et sa fiche sont deja
+        # ecrits. On compte l'erreur, on ne raconte pas deux fois.
+        # / Already told: count the error, do not tell it twice.
+        en_erreur = True
+        logger.exception(
+            "mettre_a_jour_un_wiki_la_nuit_task: wiki=%s — l'applieur a "
+            "refusé (%s). Le tour d'échec est déjà écrit.",
+            wiki_id, erreur,
+        )
     except Exception as erreur:
         en_erreur = True
         logger.exception(
             "mettre_a_jour_un_wiki_la_nuit_task: wiki=%s a echoue (%s)",
             wiki_id, erreur,
         )
-        _ecrire_un_tour_d_echec(wiki_id, erreur)
+        _ecrire_un_tour_d_echec(wiki_id, erreur, modele_redacteur)
     finally:
         _rendre_la_main_a_la_passe(passe_id, a_modifie, en_erreur)
 
 
-def _ecrire_un_tour_d_echec(wiki_id, erreur):
+def _ecrire_un_tour_d_echec(wiki_id, erreur, modele_ia=None, job=None):
     """
     Un echec s'ecrit dans l'histoire de l'article.
     / A failure is written into the article's history.
@@ -1791,14 +1919,27 @@ def _ecrire_un_tour_d_echec(wiki_id, erreur):
     dans le depliant « Historique », a cote des tours qui ont abouti.
     / Two reasons: the attempt bound must advance, and a failure living
     only in a worker log exists for nobody.
+
+    L'ECHEC ECRIT SA FICHE DE PRODUCTION, comme la reussite. C'est ici
+    que la question « quel modele ? » se pose le plus : un redacteur
+    durablement injoignable doit se nommer dans l'historique.
+    / A failure records its production sheet too: this is where the
+    model matters most.
+
+    :param wiki_id: la cle du wiki / the wiki key
+    :param erreur: l'exception qui a interrompu le tour / the exception
+    :param modele_ia: le redacteur de cette nuit, s'il a pu etre resolu
+    :param job: la fiche de production DEJA ecrite, quand l'echec vient
+        de l'applieur — sinon une seconde naitrait pour le meme tour
+    :return: le `TourDeWiki` ecrit, ou None si le wiki a disparu
     """
     from core.models import MotifDeTourDeWiki, TourDeWiki, Wiki
 
     wiki = Wiki.objects.filter(pk=wiki_id).select_related("page").first()
     if wiki is None:
-        return
+        return None
     texte_inchange = wiki.page.text_readability or ""
-    TourDeWiki.objects.create(
+    return TourDeWiki.objects.create(
         wiki=wiki,
         numero_de_tour=wiki.tours_de_mise_a_jour,
         fait_par=None,
@@ -1807,6 +1948,9 @@ def _ecrire_un_tour_d_echec(wiki_id, erreur):
         texte_avant=texte_inchange,
         texte_apres=texte_inchange,
         message_d_echec=str(erreur)[:2000],
+        job=job if job is not None else _ecrire_le_job_d_un_tour_de_nuit(
+            wiki, modele_ia, erreur,
+        ),
     )
 
 
@@ -1871,6 +2015,48 @@ def envoyer_le_recapitulatif_du_matin_task(self, regards_deja_faits=0):
     return 1
 
 
+class TourDeNuitDejaRaconte(Exception):
+    """
+    Le tour d'echec est deja ecrit : ne pas en ecrire un second.
+    / The failure round is already recorded: do not write another.
+
+    LOCALISATION : front/tasks.py
+
+    Elle distingue les deux moments ou un tour de nuit peut echouer. Si
+    le REDACTEUR ne repond pas, rien n'est encore ecrit et c'est la
+    tache appelante qui raconte. Si l'APPLIEUR refuse, la fiche de
+    production existe deja et l'echec a ete raconte avec elle — un
+    second recit ferait deux tours pour une seule nuit, et deux fiches
+    pour une seule production.
+    / It tells apart a writer that never answered from an applier that
+    refused: the second has already told its story.
+    """
+
+
+def _rattacher_la_provenance(provenance, job, tour):
+    """
+    Accroche une provenance de nuit a son job et a son tour.
+    / Anchors a night provenance to its job and round.
+
+    LOCALISATION : front/tasks.py
+
+    LE RATTACHEMENT SE FAIT APRES COUP, faute d'ancre au moment de
+    l'envoi : la nuit n'a ni job ni tour tant que le modele n'a pas
+    repondu. C'est lui qui permet de repondre a « quel modele a ecrit
+    cet article de nuit ? » depuis l'article lui-meme.
+    / Anchored afterwards: the night has neither at send time.
+
+    :param provenance: la `ProvenanceDeProduction`, ou None
+    :param job: la fiche de production / the production sheet
+    :param tour: le `TourDeWiki` ecrit, ou None
+    """
+    if provenance is None:
+        return
+    provenance.job = job
+    provenance.tour_de_wiki = tour
+    provenance.save(update_fields=["job", "tour_de_wiki"])
+
+
 def mettre_a_jour_un_wiki_la_nuit(wiki, modele_ia):
     """
     Un tour de wiki sans humain : proposer, puis appliquer.
@@ -1903,19 +2089,51 @@ def mettre_a_jour_un_wiki_la_nuit(wiki, modele_ia):
     """
     from core.models import MotifDeTourDeWiki
 
-    operations, _jeton = construire_la_proposition_d_operations(
+    operations, _jeton, provenance = construire_la_proposition_d_operations(
         wiki, modele_ia,
     )
-    # PAS de jeton de fraicheur : la proposition vient d'etre produite
-    # sur l'article qu'on applique, dans le meme fil. Le controle
-    # protege d'une previsualisation vieille de dix minutes, pas de
-    # deux instructions consecutives. / No staleness token needed here.
-    appliquer_un_tour_de_wiki(
-        wiki, operations,
-        motif=MotifDeTourDeWiki.MAJ_NOCTURNE,
-        fait_par=None,
-    )
-    return wiki.tours.first()
+    # La fiche s'ecrit UNE FOIS LA REDACTION RENDUE, et porte deja son
+    # issue : c'est ce qui lui evite d'exister en « tache en cours »
+    # (voir `_ecrire_le_job_d_un_tour_de_nuit`).
+    # / Written once the writing came back, already carrying its outcome.
+    job = _ecrire_le_job_d_un_tour_de_nuit(wiki, modele_ia)
+    try:
+        # PAS de jeton de fraicheur : la proposition vient d'etre
+        # produite sur l'article qu'on applique, dans le meme fil. Le
+        # controle protege d'une previsualisation vieille de dix
+        # minutes, pas de deux instructions consecutives.
+        # / No staleness token needed here.
+        appliquer_un_tour_de_wiki(
+            wiki, operations,
+            motif=MotifDeTourDeWiki.MAJ_NOCTURNE,
+            fait_par=None,
+            job=job,
+        )
+    except Exception as erreur:
+        # L'APPLIEUR PEUT REFUSER APRES COUP — deux titres en collision,
+        # un article sans citation sur un perimetre non vide. La fiche
+        # dirait alors `completed` alors que RIEN n'a ete applique, et la
+        # tache appelante en ouvrirait une SECONDE pour le meme tour. On
+        # corrige donc celle-ci, on raconte l'echec avec elle, et on
+        # releve : la tache compte l'erreur sans reecrire d'histoire.
+        # / The applier can refuse after the fact: fix this sheet, tell
+        # the failure with it, and re-raise.
+        job.status = "error"
+        job.error_message = str(erreur)[:500]
+        job.save(update_fields=["status", "error_message"])
+        tour_d_echec = _ecrire_un_tour_d_echec(wiki.pk, erreur, job=job)
+        _rattacher_la_provenance(provenance, job, tour_d_echec)
+        raise TourDeNuitDejaRaconte(str(erreur)) from erreur
+
+    # LE TOUR DE CE JOB, jamais « le dernier tour ». `TourDeWiki` est
+    # ordonne par date decroissante : un tour manuel ecrit entre-temps —
+    # la file par defaut sert deux taches a la fois — ferait ancrer cette
+    # provenance sur l'histoire de quelqu'un d'autre.
+    # / This job's round, never "the latest": a concurrent manual round
+    # would otherwise steal the anchor.
+    tour = wiki.tours.filter(job=job).first()
+    _rattacher_la_provenance(provenance, job, tour)
+    return tour
 
 
 def _terminer_un_job_d_article(job, page_d_article, bilan_d_indexation,
@@ -2000,6 +2218,309 @@ def _le_job_n_est_pas_le_mien(job, marqueur, tache_type):
     )
     return True
 
+# ===========================================================================
+# LES TROIS ASSEMBLEURS DE PROMPT D'ARTICLE
+# / The three article-prompt assemblers
+#
+# LOCALISATION : front/tasks.py
+#
+# CE QU'ILS SONT : le prompt de production, et rien d'autre. Chacun rend
+# le texte EXACT qui part au modele, et les identifiants d'extractions
+# qui y sont montres. Un test par chemin epingle cette egalite
+# (front/tests/test_l_assemblage_des_prompts_d_article.py) : sans lui,
+# un assembleur deviendrait une SECONDE VERSION du prompt, et deux
+# versions divergent toujours. C'est deja arrive —
+# `benchmarks/chaine_complete/comparer_la_chaine.py` reassemble le
+# prompt de creation a la main tout en annoncant « le prompt de
+# production ».
+# / They ARE the production prompt: one test per path pins the equality,
+# because a second copy always drifts from the first.
+#
+# CE QU'ILS NE FONT PAS : appeler un modele, ecrire quoi que ce soit,
+# lire l'horloge. C'est ce qui les rend REJOUABLES — donc ce qui permet
+# de recalculer l'empreinte d'un prompt sans rien facturer.
+# / They call no model, write nothing, read no clock: hence replayable.
+# ===========================================================================
+
+
+def _analyseur_fige_sur_le_job(job):
+    """
+    L'analyseur que le GESTE a choisi, ou le defaut du type.
+    / The analyzer the GESTURE picked, or the type's default.
+
+    LOCALISATION : front/tasks.py
+
+    LE JOB ESTAMPILLE CE QUI A ETE DECIDE. Entre la demande et son tour
+    dans la file, l'analyseur par defaut a pu changer : relire le defaut
+    a l'execution ferait mentir la provenance de l'article. C'est la
+    meme regle que pour le modele, que le job porte deja.
+    / The job stamps what was decided: re-reading the default at run
+    time would make the article's provenance lie.
+
+    LE REPLI RESTE LE DEFAUT DU TYPE, pour les jobs nes avant ce
+    parametre — et pour ceux des commandes de management, qui n'en
+    posent pas. / The fallback is the type's default.
+
+    :param job: l'`ExtractionJob` de la production / the job
+    :return: un `AnalyseurSyntaxique` ou None
+    """
+    from hypostasis_extractor.models import AnalyseurSyntaxique
+    from hypostasis_extractor.services.provenance import analyseur_de_redaction
+
+    identifiant = (job.raw_result or {}).get("analyseur_id")
+    if identifiant:
+        fige = AnalyseurSyntaxique.objects.filter(pk=identifiant).first()
+        if fige is not None:
+            return fige
+    analyseur, _version = analyseur_de_redaction()
+    return analyseur
+
+
+def _tracer_la_production(chemin, prompt, job, extractions_montrees,
+                          modele=None, tour_de_wiki=None, analyseur=None):
+    """
+    Ecrit la provenance d'un prompt d'article qui part au modele.
+    / Records the provenance of an article prompt about to be sent.
+
+    LOCALISATION : front/tasks.py
+
+    ELLE S'ECRIT AVANT L'APPEL, pas apres. Un prompt qui part et dont le
+    modele ne revient pas a bel et bien ete envoye : sa trace repond
+    encore a « qu'a-t-on demande, et avec quel preambule ? », qui est la
+    premiere question quand une production echoue.
+    / Written before the call: a prompt whose model never answers was
+    still sent, and its trace still answers the first question.
+
+    :param chemin: une valeur de `CheminDeProduction` / the gesture
+    :param prompt: le texte exact qui part / the exact text sent
+    :param job: l'`ExtractionJob` de la demande, ou None
+    :param extractions_montrees: les identifiants montres au modele
+    :param modele: l'`AIModel`, quand il ne vient pas du job
+    :param tour_de_wiki: le tour ecrit, quand il existe deja
+    :param analyseur: l'analyseur, quand le geste le connait deja —
+        sinon on refait la MEME resolution que le prompt systeme
+    :return: la `ProvenanceDeProduction`, ou None si elle a echoue
+    """
+    from hypostasis_extractor.services.provenance import (
+        analyseur_de_redaction, derniere_version_de, enregistrer_la_provenance,
+    )
+
+    if analyseur is None:
+        analyseur, version = analyseur_de_redaction()
+    else:
+        version = derniere_version_de(analyseur)
+    return enregistrer_la_provenance(
+        chemin=chemin,
+        prompt=prompt,
+        modele=modele if modele is not None else getattr(job, "ai_model", None),
+        job=job,
+        tour_de_wiki=tour_de_wiki,
+        analyseur=analyseur,
+        analyseur_version=version,
+        extractions_montrees=extractions_montrees,
+    )
+
+
+def assembler_le_prompt_de_wiki(wiki, analyseur=None):
+    """
+    Le prompt de creation (ou de regeneration) d'un article de wiki.
+    / The prompt that creates — or regenerates — a wiki article.
+
+    LOCALISATION : front/tasks.py
+
+    :param wiki: le `Wiki` a rediger / the wiki
+    :param analyseur: l'analyseur deja resolu, ou None / the analyzer
+    :return: `(prompt, identifiants_des_extractions_montrees)`
+    """
+    from core.services.synthese import notes_du_perimetre_d_un_wiki
+
+    return assembler_un_article_sur_des_notes(
+        wiki.sujet, list(notes_du_perimetre_d_un_wiki(wiki)),
+        analyseur=analyseur,
+    )
+
+
+def assembler_un_article_sur_des_notes(sujet, notes, analyseur=None):
+    """
+    Le meme prompt, sur un sujet et des notes donnes.
+    / The same prompt, over a given subject and notes.
+
+    LOCALISATION : front/tasks.py
+
+    ELLE EXISTE POUR LE BANC. `benchmarks/chaine_complete/comparer_la_chaine.py`
+    mesure la redaction sur UNE note choisie et un sujet en dur : il n'a
+    pas de `Wiki` a passer. Sans ce point d'entree, il gardait sa PROPRE
+    copie du prompt tout en annoncant « le prompt de production » — une
+    copie qui ne suivait ni le preambule, ni les consignes de forme, et
+    que rien ne signalait.
+    / It exists for the benchmark, which has no Wiki to pass and was
+    therefore keeping its own copy of the prompt.
+
+    :param sujet: le sujet de l'article / the article subject
+    :param notes: les notes du perimetre / the scope notes
+    :param analyseur: l'analyseur deja resolu, ou None / the analyzer
+    :return: `(prompt, identifiants_des_extractions_montrees)`
+    """
+    blocs, identifiants_du_perimetre = _blocs_d_extractions_par_note(notes)
+    prompt = (
+        _prompt_systeme_de_synthese(analyseur) + "\n\n"
+        f"=== SUJET DE L'ARTICLE ===\n{sujet}\n\n"
+        "=== EXTRACTIONS DU PÉRIMÈTRE ===\n" + blocs + "\n\n"
+        "=== CONSIGNE ===\n"
+        "Rédige un article de wiki sur ce sujet, nourri UNIQUEMENT "
+        "des extractions ci-dessus. Le sujet oriente la rédaction ; "
+        "il ne t'autorise pas à inventer.\n\n"
+        + _consignes_de_forme_d_article()
+    )
+    return prompt, identifiants_du_perimetre
+
+
+def assembler_le_prompt_de_synthese_dirigee(page_de_synthese,
+                                            analyseur=None):
+    """
+    Le prompt d'une synthese dirigee de carnet.
+    / The prompt of a notebook-level directed synthesis.
+
+    LOCALISATION : front/tasks.py
+
+    LE PERIMETRE EST FIGE, jamais recalcule : une synthese dirigee est
+    un acte date (`SyntheseDirigee.notes_du_perimetre`). C'est LA
+    difference avec un wiki, dont le perimetre se recalcule a chaque
+    tour. / The scope is frozen, never recomputed: that is the
+    difference with a wiki.
+
+    :param page_de_synthese: la `Page` de la synthese / the synthesis page
+    :return: `(prompt, identifiants_des_extractions_montrees)`
+    """
+    synthese_dirigee = page_de_synthese.synthese_dirigee
+    blocs, identifiants_du_perimetre = _blocs_d_extractions_par_note(
+        list(synthese_dirigee.notes_du_perimetre.all())
+    )
+
+    direction = ""
+    if synthese_dirigee.categorie_de_direction is not None:
+        direction = (
+            f"\n=== DIRECTION ===\nLa synthèse porte sur la "
+            f"catégorie « "
+            f"{synthese_dirigee.categorie_de_direction.nom} ».\n"
+        )
+    prompt = (
+        _prompt_systeme_de_synthese(analyseur) + "\n\n"
+        f"=== TITRE DEMANDÉ ===\n{page_de_synthese.title}\n"
+        + direction + "\n"
+        "=== EXTRACTIONS DU PÉRIMÈTRE ===\n" + blocs + "\n\n"
+        "=== CONSIGNE ===\n"
+        "Produis la synthèse délibérative de ce corpus : un texte "
+        "autonome et lisible, nourri UNIQUEMENT des extractions "
+        "ci-dessus.\n\n"
+        + _consignes_de_forme_d_article()
+    )
+    return prompt, identifiants_du_perimetre
+
+
+def assembler_le_prompt_de_mise_a_jour(wiki, analyseur=None):
+    """
+    Le prompt qui demande des OPERATIONS de section, jamais un article.
+    / The prompt asking for section OPERATIONS, never an article.
+
+    LOCALISATION : front/tasks.py
+
+    PRECONDITION : l'article ne porte plus de titre de niveau 3 ou plus.
+    La reparation de ces titres ECRIT l'article — elle reindexe, deplace
+    `updated_at` et ouvre un tour de reparation — et ne peut donc pas
+    vivre dans un assembleur qu'on doit pouvoir rejouer sans rien
+    changer. Elle reste chez l'appelant,
+    `construire_la_proposition_d_operations`, qui repare AVANT
+    d'assembler. Sur un article a `###` herites, assembler deux fois
+    sans reparer d'abord rendrait deux textes differents.
+    / Precondition: no level-3+ headings left. Repairing them WRITES the
+    article, so it stays with the caller, which repairs before assembling.
+
+    :param wiki: le `Wiki` a mettre a jour / the wiki
+    :return: `(prompt, identifiants_des_extractions_ecartees)`
+    :raises ValueError: si l'article reprend deja tout son perimetre
+    """
+    from core.services.synthese import extractions_ecartees, titre_de_section
+
+    article = wiki.page
+    ecartees = list(extractions_ecartees(article).order_by("pk"))
+    if not ecartees:
+        raise ValueError(
+            "Rien à mettre à jour : toutes les extractions du "
+            "périmètre sont déjà reprises par l'article. "
+            "/ Nothing left out."
+        )
+
+    lignes_d_ecartees = []
+    identifiants_ecartes = set()
+    for extraction in ecartees:
+        identifiants_ecartes.add(extraction.pk)
+        lignes_d_ecartees.append(
+            f"Identifiant : ext:{extraction.pk}\n"
+            f'Citation : "{extraction.extraction_text}"'
+        )
+
+    titres_adressables = [
+        titre for titre in (
+            titre_de_section(ligne)
+            for ligne in (article.text_readability or "").split("\n")
+        ) if titre is not None
+    ]
+    liste_des_titres = "\n".join(
+        f"- {titre}" for titre in titres_adressables
+    ) or "(l'article n'a aucune section : seule une insertion est possible)"
+
+    prompt = (
+        _prompt_systeme_de_synthese(analyseur) + "\n\n"
+        "=== ARTICLE ACTUEL ===\n" + article.text_readability + "\n\n"
+        "=== TITRES DE SECTION ADRESSABLES ===\n"
+        "Ce sont les SEULS titres que tu peux viser. Reprends-les "
+        "au mot près, SANS les dièses. Toute opération visant un "
+        "autre titre sera rejetée.\n"
+        + liste_des_titres + "\n\n"
+        "=== EXTRACTIONS NON REPRISES ===\n"
+        + "\n\n".join(lignes_d_ecartees) + "\n\n"
+        "=== CONSIGNE ===\n"
+        # CE PROMPT DIT « ELLES PEUVENT ETRE APPLIQUEES TELLES QUELLES »
+        # PARCE QUE C'EST VRAI LA NUIT : `mettre_a_jour_un_wiki_la_nuit`
+        # emploie le MEME prompt et applique sans personne
+        # (`fait_par=None`). Promettre un filtre humain autoriserait le
+        # modele a proposer largement, en comptant sur une relecture qui
+        # n'existe pas la nuit.
+        #
+        # Le texte est vrai dans les DEUX cas, et c'est pourquoi il n'est
+        # pas conditionne a l'appelant : une phrase qui changerait selon
+        # l'heure serait une seconde version du prompt, donc une seconde
+        # production a comparer.
+        # / The night applies with no human: the prompt must say so, and
+        # say it identically to both callers.
+        "Propose des opérations de mise à jour de l'article pour "
+        "intégrer ces extractions. Tu ne réécris JAMAIS l'article : "
+        "tu proposes des opérations. Elles peuvent être appliquées "
+        "TELLES QUELLES, sans relecture humaine — n'en propose donc "
+        "aucune dont tu ne répondrais pas toi-même.\n"
+        "UNE OPÉRATION PORTE SUR UNE SECTION, JAMAIS SUR UNE "
+        "EXTRACTION. N'émets donc pas une entrée par extraction : "
+        "regroupe dans une même opération toutes les extractions "
+        "qui vont dans la même section, et n'émets AUCUNE entrée "
+        "pour une extraction que tu écartes — ne pas la citer "
+        "suffit. `no_change` est une opération GLOBALE, à émettre "
+        "SEULE et seulement si aucune extraction n'apporte quoi "
+        "que ce soit à l'article.\n\n"
+        "=== FORMAT DE SORTIE ===\n"
+        "Réponds UNIQUEMENT par un tableau JSON d'opérations, sans "
+        "aucun texte autour :\n"
+        '[{"type": "append_to_section", "section": "<un titre de '
+        'la liste, sans dièses>", "contenu": "<markdown avec '
+        '[[ext:N]]>"}, ...]\n'
+        "Types permis : no_change, append_to_section, "
+        "replace_section, insert_section (avec \"titre\" et "
+        "\"apres\"). Chaque contenu cite ses sources par [[ext:N]] "
+        "et ne contient JAMAIS de ligne de titre."
+    )
+    return prompt, identifiants_ecartes
+
+
 @shared_task(bind=True)
 def produire_un_wiki_task(self, job_id):
     """
@@ -2010,8 +2531,10 @@ def produire_un_wiki_task(self, job_id):
     LOCALISATION : front/tasks.py
     """
     from core.models import MotifDeTourDeWiki, Wiki
-    from core.services.synthese import notes_du_perimetre_d_un_wiki
-    from hypostasis_extractor.models import ExtractionJob
+    from hypostasis_extractor.models import (
+        CheminDeProduction, ExtractionJob,
+    )
+    from hypostasis_extractor.services.provenance import analyseur_de_redaction
 
     try:
         job = ExtractionJob.objects.get(pk=job_id)
@@ -2025,18 +2548,15 @@ def produire_un_wiki_task(self, job_id):
         job.save(update_fields=["status"])
 
         wiki = Wiki.objects.get(pk=job.raw_result["wiki_id"])
-        notes = list(notes_du_perimetre_d_un_wiki(wiki))
-        blocs, identifiants_du_perimetre = _blocs_d_extractions_par_note(notes)
-
-        prompt = (
-            _prompt_systeme_de_synthese() + "\n\n"
-            f"=== SUJET DE L'ARTICLE ===\n{wiki.sujet}\n\n"
-            "=== EXTRACTIONS DU PÉRIMÈTRE ===\n" + blocs + "\n\n"
-            "=== CONSIGNE ===\n"
-            "Rédige un article de wiki sur ce sujet, nourri UNIQUEMENT "
-            "des extractions ci-dessus. Le sujet oriente la rédaction ; "
-            "il ne t'autorise pas à inventer.\n\n"
-            + _consignes_de_forme_d_article()
+        # UNE resolution, deux usages : le prompt et sa trace nomment le
+        # MEME analyseur. / One lookup, two uses.
+        analyseur_redacteur = _analyseur_fige_sur_le_job(job)
+        prompt, identifiants_du_perimetre = assembler_le_prompt_de_wiki(
+            wiki, analyseur=analyseur_redacteur,
+        )
+        _tracer_la_production(
+            CheminDeProduction.WIKI, prompt, job, identifiants_du_perimetre,
+            analyseur=analyseur_redacteur,
         )
         from core.llm_providers import appeler_llm
         reponse = appeler_llm(job.ai_model, prompt)
@@ -2086,7 +2606,10 @@ def produire_une_synthese_de_carnet_task(self, job_id):
 
     LOCALISATION : front/tasks.py
     """
-    from hypostasis_extractor.models import ExtractionJob
+    from hypostasis_extractor.models import (
+        CheminDeProduction, ExtractionJob,
+    )
+    from hypostasis_extractor.services.provenance import analyseur_de_redaction
 
     try:
         job = ExtractionJob.objects.get(pk=job_id)
@@ -2104,26 +2627,15 @@ def produire_une_synthese_de_carnet_task(self, job_id):
 
         page_de_synthese = job.page
         synthese_dirigee = page_de_synthese.synthese_dirigee
-        notes = list(synthese_dirigee.notes_du_perimetre.all())
-        blocs, identifiants_du_perimetre = _blocs_d_extractions_par_note(notes)
-
-        direction = ""
-        if synthese_dirigee.categorie_de_direction is not None:
-            direction = (
-                f"\n=== DIRECTION ===\nLa synthèse porte sur la "
-                f"catégorie « "
-                f"{synthese_dirigee.categorie_de_direction.nom} ».\n"
+        analyseur_redacteur = _analyseur_fige_sur_le_job(job)
+        prompt, identifiants_du_perimetre = (
+            assembler_le_prompt_de_synthese_dirigee(
+                page_de_synthese, analyseur=analyseur_redacteur,
             )
-        prompt = (
-            _prompt_systeme_de_synthese() + "\n\n"
-            f"=== TITRE DEMANDÉ ===\n{page_de_synthese.title}\n"
-            + direction + "\n"
-            "=== EXTRACTIONS DU PÉRIMÈTRE ===\n" + blocs + "\n\n"
-            "=== CONSIGNE ===\n"
-            "Produis la synthèse délibérative de ce corpus : un texte "
-            "autonome et lisible, nourri UNIQUEMENT des extractions "
-            "ci-dessus.\n\n"
-            + _consignes_de_forme_d_article()
+        )
+        _tracer_la_production(
+            CheminDeProduction.SYNTHESE_DIRIGEE, prompt, job,
+            identifiants_du_perimetre, analyseur=analyseur_redacteur,
         )
         from core.llm_providers import appeler_llm
         reponse = appeler_llm(job.ai_model, prompt)
@@ -2165,9 +2677,12 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
     :param wiki: le `Wiki` a mettre a jour / the wiki
     :param modele_ia: l'`AIModel` du role redacteur / the writer model
     :param job: l'`ExtractionJob` de la demande, s'il y en a un. La
-        passe de nuit n'en a pas.
-    :return: `(operations, jeton de fraicheur)` — le jeton est
-        l'`updated_at` ISO de l'article APRES la reparation des titres.
+        passe de nuit n'en a pas encore a ce stade.
+    :return: `(operations, jeton de fraicheur, provenance)` — le jeton
+        est l'`updated_at` ISO de l'article APRES la reparation des
+        titres ; la provenance est RENDUE plutot que refermee ici parce
+        que la passe de nuit n'a ni job ni tour au moment de l'envoi :
+        elle les accroche apres.
     :raises ValueError: s'il n'y a rien a reprendre, ou si la reponse
         n'est pas un tableau JSON lisible.
     """
@@ -2175,23 +2690,17 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
 
     from core.models import MotifDeTourDeWiki
     from core.services.synthese import (
-        extractions_du_perimetre, extractions_ecartees, titre_de_section,
+        extractions_du_perimetre, extractions_ecartees,
     )
+    from hypostasis_extractor.models import CheminDeProduction
+    from hypostasis_extractor.services.provenance import analyseur_de_redaction
 
     article = wiki.page
-    ecartees = list(extractions_ecartees(article).order_by("pk"))
-    if not ecartees:
+    if not extractions_ecartees(article).exists():
         raise ValueError(
             "Rien à mettre à jour : toutes les extractions du "
             "périmètre sont déjà reprises par l'article. "
             "/ Nothing left out."
-        )
-
-    lignes_d_ecartees = []
-    for extraction in ecartees:
-        lignes_d_ecartees.append(
-            f"Identifiant : ext:{extraction.pk}\n"
-            f'Citation : "{extraction.extraction_text}"'
         )
 
     # Un article d'avant la garde mecanique peut porter des `###`, que
@@ -2201,8 +2710,13 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
     # 6 operations proposees, 6 rejetees). La reparation ne touche que
     # la notation des titres, jamais le texte — et le jeton de
     # fraicheur est pris APRES, donc il reste juste.
+    #
+    # ELLE VIT ICI, ET PAS DANS L'ASSEMBLEUR : elle ECRIT l'article
+    # (reindexation, `updated_at` deplace, tour de reparation ouvert),
+    # or un assembleur doit pouvoir etre rejoue sans rien changer.
     # / Repair legacy `###` before prompting, so the model never sees a
-    # heading the applier will reject.
+    # heading the applier will reject. It WRITES the article, so it
+    # cannot live inside a replayable assembler.
     texte_normalise = _normaliser_les_niveaux_de_titre(
         article.text_readability or ""
     )
@@ -2231,50 +2745,25 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
         )
         article.refresh_from_db()
 
-    titres_adressables = [
-        titre for titre in (
-            titre_de_section(ligne)
-            for ligne in (article.text_readability or "").split("\n")
-        ) if titre is not None
-    ]
-    liste_des_titres = "\n".join(
-        f"- {titre}" for titre in titres_adressables
-    ) or "(l'article n'a aucune section : seule une insertion est possible)"
-
-    prompt = (
-        _prompt_systeme_de_synthese() + "\n\n"
-        "=== ARTICLE ACTUEL ===\n" + article.text_readability + "\n\n"
-        "=== TITRES DE SECTION ADRESSABLES ===\n"
-        "Ce sont les SEULS titres que tu peux viser. Reprends-les "
-        "au mot près, SANS les dièses. Toute opération visant un "
-        "autre titre sera rejetée.\n"
-        + liste_des_titres + "\n\n"
-        "=== EXTRACTIONS NON REPRISES ===\n"
-        + "\n\n".join(lignes_d_ecartees) + "\n\n"
-        "=== CONSIGNE ===\n"
-        "Propose des opérations de mise à jour de l'article pour "
-        "intégrer ces extractions. Tu ne réécris JAMAIS l'article : "
-        "tu proposes des opérations, un humain les acceptera une "
-        "par une.\n"
-        "UNE OPÉRATION PORTE SUR UNE SECTION, JAMAIS SUR UNE "
-        "EXTRACTION. N'émets donc pas une entrée par extraction : "
-        "regroupe dans une même opération toutes les extractions "
-        "qui vont dans la même section, et n'émets AUCUNE entrée "
-        "pour une extraction que tu écartes — ne pas la citer "
-        "suffit. `no_change` est une opération GLOBALE, à émettre "
-        "SEULE et seulement si aucune extraction n'apporte quoi "
-        "que ce soit à l'article.\n\n"
-        "=== FORMAT DE SORTIE ===\n"
-        "Réponds UNIQUEMENT par un tableau JSON d'opérations, sans "
-        "aucun texte autour :\n"
-        '[{"type": "append_to_section", "section": "<un titre de '
-        'la liste, sans dièses>", "contenu": "<markdown avec '
-        '[[ext:N]]>"}, ...]\n'
-        "Types permis : no_change, append_to_section, "
-        "replace_section, insert_section (avec \"titre\" et "
-        "\"apres\"). Chaque contenu cite ses sources par [[ext:N]] "
-        "et ne contient JAMAIS de ligne de titre."
+    # L'ANALYSEUR DU JOB, quand il y en a un. Un wiki créé avec un
+    # rédacteur choisi à la main doit être mis à jour par le MÊME : sans
+    # cela, le préambule change au milieu de l'histoire d'un article, et
+    # c'est le défaut du moment qui l'écrit. La passe de nuit n'a pas de
+    # job à ce stade — elle suit le défaut, et sa provenance le dit.
+    # / The job's analyzer when there is one: a wiki written by a
+    # hand-picked writer must be updated by the same one.
+    analyseur_redacteur = (
+        _analyseur_fige_sur_le_job(job) if job is not None
+        else (wiki.analyseur_de_redaction or analyseur_de_redaction()[0])
     )
+    prompt, identifiants_ecartes = assembler_le_prompt_de_mise_a_jour(
+        wiki, analyseur=analyseur_redacteur,
+    )
+    provenance = _tracer_la_production(
+        CheminDeProduction.MAJ_WIKI, prompt, job, identifiants_ecartes,
+        modele=modele_ia, analyseur=analyseur_redacteur,
+    )
+
     from core.llm_providers import appeler_llm
     reponse = appeler_llm(modele_ia, prompt)
 
@@ -2297,7 +2786,7 @@ def construire_la_proposition_d_operations(wiki, modele_ia, job=None):
             "la mise à jour. / Unparseable proposal."
         )
 
-    return operations, article.updated_at.isoformat()
+    return operations, article.updated_at.isoformat(), provenance
 
 
 @shared_task(bind=True)
@@ -2329,7 +2818,7 @@ def proposer_une_maj_de_wiki_task(self, job_id):
         job.save(update_fields=["status"])
 
         wiki = Wiki.objects.get(pk=job.raw_result["wiki_id"])
-        operations, jeton_de_fraicheur = (
+        operations, jeton_de_fraicheur, _provenance = (
             construire_la_proposition_d_operations(
                 wiki, job.ai_model, job=job,
             )
@@ -2653,10 +3142,25 @@ def enchainer_la_verification(page_d_article, demandeur_id=None):
 @shared_task(bind=True)
 def verifier_les_citations_task(self, job_id):
     """
-    La verification § 7 en asynchrone — un geste explicite, jamais
-    automatique (decision Q3). / On-demand § 7 verification.
+    La verification § 7 en asynchrone. / Async § 7 verification.
 
     LOCALISATION : front/tasks.py
+
+    CETTE TACHE A TROIS DECLENCHEURS, ET NON UN.
+
+    Sa docstring a dit « un geste explicite, jamais automatique
+    (decision Q3) » jusqu'au 1er septembre 2026. C'etait faux depuis le
+    21 aout : `_ecrire_le_corps_d_un_article` appelle
+    `enchainer_la_verification()` a TOUTE ecriture de corps d'article —
+    creation, regeneration, mise a jour appliquee, reparation de titres.
+    Les trois declencheurs sont donc l'humain, l'installation, et cette
+    ecriture-la.
+
+    Ce qui reste vrai de la decision Q3 : la verification COMPLETE et
+    rejouee d'un article demeure un geste explicite. L'enchainement, lui,
+    ne juge que les citations SANS VERDICT — c'est la qu'est sa borne.
+    / Three triggers, not one; the chained one judges only unjudged
+    citations.
     """
     from core.services.verification import verifier_les_citations_d_un_article
     from hypostasis_extractor.models import ExtractionJob

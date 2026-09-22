@@ -103,16 +103,14 @@
             <span>Pièces de prompt</span>
             <span class="font-semibold text-slate-800">{{ nombre_pieces }}</span>
         </div>
+        {# Ce qui part est desormais invariable : le texte de la note,   #}
+        {# ses extractions et leurs commentaires. On l'ENONCE plutot que  #}
+        {# d'afficher deux reglages, qui laissaient croire a un choix.    #}
+        {# / What is sent is now invariable: stated, not offered.         #}
         <div class="flex justify-between items-center">
-            <span>Inclure texte original</span>
-            <span class="font-semibold {% if analyseur.inclure_texte_original %}text-emerald-700{% else %}text-slate-400{% endif %}">
-                {% if analyseur.inclure_texte_original %}✓ Oui{% else %}✗ Non{% endif %}
-            </span>
-        </div>
-        <div class="flex justify-between items-center">
-            <span>Inclure extractions et commentaires</span>
-            <span class="font-semibold {% if analyseur.inclure_extractions %}text-emerald-700{% else %}text-slate-400{% endif %}">
-                {% if analyseur.inclure_extractions %}✓ Oui{% else %}✗ Non{% endif %}
+            <span>Ce qui est envoyé</span>
+            <span class="font-semibold text-slate-800">
+                Texte, extractions et commentaires
             </span>
         </div>
     </div>

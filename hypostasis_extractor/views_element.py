@@ -39,6 +39,7 @@ from hypostasis_extractor.serializers import (
     CorrectionEnLotSerializer,
     CorrectionDElementSerializer,
     JustificationDElementSerializer,
+    RenommageDuLocuteurSerializer,
     ScissionDElementSerializer,
 )
 from hypostasis_extractor.services.garde_edition import (
@@ -1167,6 +1168,199 @@ class ElementViewSet(viewsets.ViewSet):
             message = "Texte corrigé. Les passages surlignés suivent."
         element.refresh_from_db()
         return _reponse_de_succes_avec_le_bloc(request, element, message)
+
+    @action(detail=True, methods=["POST"])
+    def renommer_le_locuteur(self, request, pk=None):
+        """
+        Corrige le locuteur d'un tour de parole, sur le moteur ELEMENT.
+        / Fixes a turn's speaker, on the ELEMENT engine.
+
+        LOCALISATION : hypostasis_extractor/views_element.py
+
+        SPEC-edition-par-blocs-et-stenotypie.md § 6.2.
+
+        POURQUOI CE GESTE EXISTE ALORS QU'UN AUTRE PORTE LE MEME NOM
+
+        `PageViewSet.renommer_locuteur` (`front/views.py`) appartient a
+        l'ancienne interface : il reecrit `transcription_raw`, le HTML
+        et le texte plat — et le lecteur ne rend AUCUN des trois. Il
+        REFUSE donc en 409 toute note portant des elements, ce qui est
+        toute note reelle depuis que le moteur ELEMENT est le seul
+        (10 aout 2026). Son refus dit lui-meme pourquoi il ne peut pas
+        etre recycle : un BLOC groupe les segments consecutifs d'un meme
+        locuteur, alors que l'ingestion cree UN ELEMENT PAR SEGMENT et
+        saute les vides — « bloc N = element ordre N » n'est vrai que
+        sur un corpus qui alterne les locuteurs.
+
+        Celui-ci vise l'element PAR SON PK. Il n'y a plus d'index a
+        deviner.
+
+        CE QU'IL NE TOUCHE PAS, ET C'EST TOUT L'INTERET
+
+        Ni le texte, ni l'empreinte, ni l'ordre, ni les ancres. Il ecrit
+        UNE cle de `provenance`, en laissant `debut` et `fin` — sans
+        lesquels « ecouter a partir de ce passage » (§ 6.1) cesserait de
+        fonctionner. C'est pourquoi il ne passe ni par la
+        reconciliation, ni par la garde des syntheses figees : une
+        citation porte un PASSAGE, et ce passage ne bouge pas.
+
+        LA GARDE D'ANALYSE, ELLE, S'APPLIQUE : une transcription en
+        cours va remplacer tous les elements de la note, donc ecrire
+        maintenant serait ecrire dans ce qui va disparaitre.
+
+        :return: 200 + les blocs touches en `hx-swap-oob`, JAMAIS un
+            `lectureReload` : ce geste sera appele depuis le mode
+            d'edition, ou un rechargement detruirait la session.
+        """
+        from core.models import Page as ModelePage
+
+        validation = RenommageDuLocuteurSerializer(data=request.data)
+        if not validation.is_valid():
+            return _reponse_avec_toast(
+                "Le nom du locuteur est obligatoire, et ne doit pas "
+                "dépasser 100 caractères.",
+                statut=400,
+            )
+        nouveau_locuteur = validation.validated_data["nouveau_locuteur"]
+        portee = validation.validated_data["portee"]
+
+        element = get_object_or_404(
+            ElementDocument.objects.select_related("page"), pk=pk,
+        )
+        page = element.page
+
+        from front.views import _utilisateur_a_acces_page
+
+        if not _utilisateur_a_acces_page(request.user, page):
+            raise Http404
+        refus_de_droit = self._refus_si_pas_le_droit(request, page)
+        if refus_de_droit:
+            return refus_de_droit
+
+        try:
+            verifier_qu_aucune_analyse_ne_tourne(page)
+        except EditionBloqueePendantAnalyse:
+            return _reponse_avec_toast(
+                _message_falc_du_blocage_par_analyse(), statut=409,
+            )
+
+        ancien_locuteur = (element.provenance or {}).get("locuteur")
+
+        # UN TOUR SANS VOIX NE SE RENOMME QUE SEUL.
+        #
+        # La fusion de deux tours de voix differentes RETIRE la cle
+        # (`moteur_structure.py`) : un bloc peut donc n'avoir aucun
+        # locuteur, et ce geste est aussi ce qui repare ce cas. Mais
+        # « tous les blocs sans locuteur » n'est pas un groupe — ces
+        # blocs n'ont rien en commun qu'une ABSENCE. Les renommer
+        # ensemble inventerait une voix la ou l'information manque.
+        # / Blocks without a speaker share nothing but an absence.
+        if ancien_locuteur is None and portee != "ce_bloc_seul":
+            return _reponse_avec_toast(
+                "Ce passage n'a pas de locuteur : on ne peut le nommer "
+                "que pour lui seul.",
+                statut=400,
+            )
+
+        with transaction.atomic():
+            elements_a_toucher = self._tours_de_la_portee(
+                element, page, portee, ancien_locuteur,
+            )
+            tours_touches = []
+            for tour in elements_a_toucher:
+                provenance = dict(tour.provenance or {})
+                if provenance.get("locuteur") == nouveau_locuteur:
+                    continue
+                provenance["locuteur"] = nouveau_locuteur
+                tour.provenance = provenance
+                tours_touches.append(tour)
+
+            if not tours_touches:
+                # Un non-geste : le locuteur est deja celui-la. On ne
+                # journalise rien — un historique qui note ce qui n'a
+                # pas change devient illisible.
+                # / A no-op leaves no trace.
+                return _reponse_avec_toast(
+                    f"Ce passage est déjà attribué à « {nouveau_locuteur} ».",
+                    statut=200, icone="info",
+                )
+
+            ElementDocument.objects.bulk_update(
+                tours_touches, ["provenance", "updated_at"],
+            )
+            PageEdit.objects.create(
+                page=page,
+                user=request.user,
+                type_edit="locuteur",
+                description=(
+                    f"Locuteur « {ancien_locuteur or 'sans voix'} » → "
+                    f"« {nouveau_locuteur} » sur {len(tours_touches)} tour(s)"
+                )[:500],
+                donnees_avant={
+                    "locuteur": ancien_locuteur,
+                    "tours": [str(t.identifiant_stable) for t in tours_touches],
+                },
+                donnees_apres={
+                    "locuteur": nouveau_locuteur,
+                    "portee": portee,
+                    "tours_touches": len(tours_touches),
+                },
+            )
+
+        # LES BLOCS TOUCHES, TOUS, en swap hors bande.
+        #
+        # `_reponse_de_succes_avec_le_bloc` n'en rend qu'un ; ici la
+        # portee peut en toucher des dizaines, et un `lectureReload`
+        # detruirait la session d'edition depuis laquelle ce geste est
+        # appele. On rend donc autant de fragments qu'il y a de tours
+        # changes — ce qui reste borne par le nombre de tours d'UN
+        # locuteur, et coute toujours moins que la zone entiere.
+        # / As many out-of-band fragments as there are changed turns.
+        fragments = []
+        for tour in tours_touches:
+            html = _html_du_bloc(request, tour, pour_swap_oob=True)
+            if html:
+                fragments.append(html)
+
+        reponse = HttpResponse("".join(fragments), status=200)
+        reponse["HX-Trigger"] = json.dumps({
+            "showToast": {
+                "message": (
+                    f"{len(tours_touches)} tour(s) attribué(s) à "
+                    f"« {nouveau_locuteur} »."
+                ),
+                "icon": "success",
+            },
+        })
+        return reponse
+
+    def _tours_de_la_portee(self, element, page, portee, ancien_locuteur):
+        """
+        Les tours que la portee designe, verrouilles.
+        / The turns the scope designates, locked.
+
+        LOCALISATION : hypostasis_extractor/views_element.py
+
+        LE VERROU EST SUR LES LIGNES QU'ON VA ECRIRE, et sur elles
+        seules : deux personnes qui renomment deux locuteurs differents
+        de la meme note ne se bloquent pas.
+        / The lock covers exactly the rows about to be written.
+        """
+        tours = ElementDocument.objects.select_for_update().filter(page=page)
+        if portee == "ce_bloc_seul":
+            return list(tours.filter(pk=element.pk))
+        if portee == "ce_bloc_et_suivants":
+            return list(
+                tours.filter(
+                    ordre__gte=element.ordre,
+                    provenance__locuteur=ancien_locuteur,
+                ).order_by("ordre")
+            )
+        return list(
+            tours.filter(
+                provenance__locuteur=ancien_locuteur,
+            ).order_by("ordre")
+        )
 
     @action(detail=True, methods=["POST"])
     def scinder(self, request, pk=None):

@@ -19,6 +19,23 @@ fréquent.
 
 ## Qui déclenche, et par où
 
+> ### ⚠️ Encart daté — 1er septembre 2026 : IL Y A UN TROISIÈME DÉCLENCHEUR
+>
+> **La phrase ci-dessous est fausse depuis le 21 août 2026** (commit `08965de`,
+> chantier consigné dans `CHANGELOG/2026-08-20-la-preuve-dans-son-contexte.md`).
+> `_ecrire_le_corps_d_un_article` (`front/tasks.py:1369`) appelle
+> `enchainer_la_verification()` à **toute écriture de corps d'article** — création,
+> régénération, mise à jour appliquée, réparation de titres.
+>
+> **Ce déclencheur est automatique, et il est FACTURÉ** : il part avec le fan-out
+> des quatre juges locaux (`_lancer_un_second_avis`), qui ne figurent pas non plus
+> sur la planche. Il ne juge que les citations **sans verdict** — c'est ce qui
+> borne son coût, pas son caractère manuel.
+>
+> La planche montre donc **deux** déclencheurs sur trois. Ce qui reste vrai de la
+> phrase : la vérification **complète et rejouée** d'un article, elle, reste un
+> geste explicite.
+
 **La vérification n'est JAMAIS automatique à la production.** C'est la question n°3 de
 `SPEC-synthese-carnet.md`, tranchée le 9 août 2026. Un article fraîchement produit a donc
 **tous** ses renvois en « non vérifié » — ce n'est pas un défaut, c'est un état d'attente,
@@ -65,7 +82,7 @@ voie parallèle — sans quoi le chemin de démonstration cesserait d'éprouver 
 
 ```mermaid
 flowchart TD
-    START(["Vérifier les citations — geste EXPLICITE,<br/>jamais automatique à la production"])
+    START(["Vérifier les citations — trois déclencheurs :<br/>l'humain, l'installation,<br/>et TOUTE écriture de corps d'article (facturé)"])
     LIENS["Tous les SourceLink de l'article"]
 
     G1{"un humain a posé<br/>CONTESTÉ ?"}

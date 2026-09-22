@@ -75,7 +75,7 @@
                 <p class="aide-nouveaute-titre">Nouveau&nbsp;: corriger le texte</p>
                 <p>
                     Le bouton <strong>&laquo;&nbsp;&Eacute;diter le texte&nbsp;&raquo;</strong>
-                    &mdash; ou la touche <kbd class="aide-kbd">M</kbd> &mdash;
+                    &mdash; ou la touche <kbd class="aide-kbd" data-raccourci="entrerDansLeMode"></kbd> &mdash;
                     rend <strong>tout le texte modifiable d&rsquo;un coup</strong>&nbsp;:
                     on corrige une transcription ou l&rsquo;on nettoie un PDF sans passer
                     passage par passage. Le panneau des analyses s&rsquo;efface&nbsp;:
@@ -91,10 +91,30 @@
                     Les <strong>fronti&egrave;res entre passages ne bougent jamais</strong>&nbsp;:
                     couper et recoller restent des gestes &agrave; part, dans
                     &laquo;&nbsp;Modifier la structure&nbsp;&raquo;.
-                    <kbd class="aide-kbd">Ctrl</kbd>+<kbd class="aide-kbd">S</kbd> enregistre et
-                    rend un compte rendu, <kbd class="aide-kbd">Ctrl</kbd>+<kbd class="aide-kbd">Z</kbd>
-                    annule le dernier geste, <kbd class="aide-kbd">&Eacute;chap</kbd> sort.
+                    <kbd class="aide-kbd" data-raccourci="enregistrer"></kbd> enregistre et
+                    rend un compte rendu, <kbd class="aide-kbd" data-raccourci="annuler"></kbd>
+                    annule le dernier geste, <kbd class="aide-kbd" data-raccourci="sortir"></kbd> sort.
                 </p>
+            </div>
+
+            {% comment %}
+            LES RACCOURCIS DU MODE, RENDUS DEPUIS LA TABLE (SPEC § 4.4).
+
+            Cette liste est VIDE dans le gabarit, et c'est voulu :
+            `mode_edition.js` la remplit depuis `RACCOURCIS`, qui EST la
+            liaison. Une liste ecrite ici serait une seconde copie — et
+            une copie n'annonce pas sa divergence, elle continue de
+            nommer l'ancienne touche jusqu'a ce qu'on s'en plaigne.
+
+            Elle ne parait donc que si le JavaScript tourne. C'est
+            assume : ces raccourcis n'existent QUE par lui.
+            / Filled from the table by mode_edition.js; a list written
+            here would be a second copy that never announces its drift.
+            {% endcomment %}
+            <div class="aide-section" id="aide-raccourcis-du-mode"
+                 data-testid="aide-raccourcis-du-mode" hidden>
+                <h3 class="aide-section-titre">Le mode &eacute;dition, au clavier</h3>
+                <dl class="aide-raccourcis" data-testid="aide-liste-du-mode"></dl>
             </div>
         </div>
 

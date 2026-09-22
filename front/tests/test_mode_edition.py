@@ -469,7 +469,14 @@ class LeScriptEstCharge(TestCase):
         script = self._le_script_du_mode()
         depouille = script.replace(" ", "").replace("\n", "")
         self.assertIn(
-            "geste==='sortir')return", depouille,
-            "le listener du mode doit écarter le geste « sortir » : "
-            "Échap se traite dans la cascade de keyboard.js, jamais ici",
+            "RACCOURCIS[geste].traiteAilleurs)return", depouille,
+            "le listener du mode doit écarter les gestes marqués "
+            "« traiteAilleurs » : Échap et M se traitent dans la cascade "
+            "de keyboard.js, jamais ici",
         )
+        # ET LE MARQUEUR EST BIEN POSÉ. Sans cette seconde assertion, la
+        # ligne ci-dessus resterait vraie le jour où quelqu'un retirerait
+        # `traiteAilleurs` de la table : le geste redeviendrait traité
+        # ici, et le double Échap du 29 août reviendrait.
+        # / The guard is only worth the marker it reads.
+        self.assertIn("traiteAilleurs:true", depouille)

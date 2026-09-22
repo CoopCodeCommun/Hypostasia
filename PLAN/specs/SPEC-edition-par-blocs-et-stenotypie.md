@@ -329,9 +329,15 @@ Les touches ne sont pas fixées ici : voir 4.4.
 > **trois**, et celui qu'il faudra convertir ensuite est `lecteur_audio.js` — les
 > flèches, `Début` et `Fin` du rail —, que le texte d'origine ne cite pas.
 >
-> **Ce qui reste** : la modale d'aide, `lecteur_audio.js`, et surtout
-> `aide_desktop.html`, qui **recopie** `M`, `Ctrl+S`, `Ctrl+Z` et `Échap` en dur —
-> la recopie que ce paragraphe interdit, et qui échappe aux deux audits existants.
+> ✅ **L'AIDE REND LA TABLE DEPUIS LE 1er SEPTEMBRE 2026.** Les trois lignes que
+> `front/views.py` doublait en sont **retirées** ; la prose du gabarit ne porte
+> plus une seule touche, mais des `<kbd data-raccourci="…">` vides que le
+> JavaScript remplit ; et une section « Le mode édition, au clavier » se compose
+> depuis la table — sans les gestes de son quand la note n'en a pas. Trois tests
+> épinglent la non-recopie. Mesuré : **12 raccourcis** rendus.
+>
+> **Ce qui reste** : `lecteur_audio.js` (flèches, Début, Fin du rail) est le
+> dernier listener que la table ne gouverne pas.
 
 ---
 
@@ -488,9 +494,19 @@ modale — et le fait qu'il soit atteignable sur le bloc du curseur.
 > n'existe donc **pour aucune note réelle**. Lui donner un raccourci ne servirait
 > qu'à faire répondre 409 plus vite.
 >
-> **Ce qu'il faut écrire** : un geste natif ELEMENT, qui vise l'élément par son
-> pk et écrit `provenance["locuteur"]`, avec les trois portées (`tous`,
-> `ce_bloc_seul`, `ce_bloc_et_suivants`). C'est un chantier, pas un raccourci.
+> ✅ **ÉCRIT LE 1er SEPTEMBRE 2026.**
+> `POST /elements/<pk>/renommer_le_locuteur/` vise l'élément **par son pk**, écrit
+> `provenance["locuteur"]` en laissant `debut` et `fin`, et porte les trois
+> portées — `ce_bloc_et_suivants` ne suit **que la même voix**, `tous` remonte
+> aussi **en arrière**. Un tour **sans voix** ne se renomme que seul : « tous les
+> blocs sans locuteur » n'est pas un groupe.
+>
+> Ni le texte, ni l'empreinte, ni l'ordre, ni les ancres ne bougent — donc **pas**
+> de garde des synthèses figées : une citation porte un passage, et ce passage ne
+> bouge pas. La garde d'**analyse**, elle, s'applique.
+>
+> **Au clavier** : `Ctrl+Maj+L` sur le passage du curseur. 17 tests.
+> → `CHANGELOG/2026-09-01-le-locuteur-l-aide-et-la-doc.md`
 
 ### 6.3 Les deux gestes qui manquent vraiment
 
@@ -635,6 +651,22 @@ rendu** → sortir.
   frontières. Chaque bloc porte son repère — son numéro, et son **locuteur**.
 - **L'entrée et la sortie du mode s'annoncent.**
 - **À éprouver avec un vrai lecteur d'écran**, jamais en le supposant.
+
+> ### Encart daté — 1er septembre 2026 : l'ARBRE est mesuré, le RENDU ne l'est pas
+>
+> Mesuré par CDP sur `/lire/4/` : le bouton du mode est nommé et bascule son
+> `aria-pressed` ; l'entrée et la sortie **s'annoncent** ; le champ est un
+> `textbox` **nommé** et `aria-multiline` dans l'arbre de Chromium ; **9 blocs sur
+> 9** portent leur numéro **et** leur locuteur — c'est le « savoir où l'on est sans
+> regarder » de ce paragraphe ; les gestes de son s'annoncent un par un. Zéro
+> erreur JavaScript.
+>
+> **Cela ne clôt pas ce paragraphe.** L'arbre d'accessibilité est ce que le
+> navigateur *remet* aux technologies d'assistance ; NVDA, VoiceOver et Orca en
+> font chacun ce qu'ils veulent, en particulier sur un `contenteditable`
+> multi-blocs. L'exigence « avec un vrai lecteur d'écran » reste **entière** ; ce
+> qu'il reste à éprouver à la main est seulement plus petit.
+> → `benchmarks/edition_par_blocs/banc/mesures24_l_accessibilite_du_mode.py`
 
 ---
 

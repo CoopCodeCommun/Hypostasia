@@ -200,10 +200,10 @@ class JustesseSemantiqueParFamilleTest(TestCase):
             self.skipTest(
                 "TESTS_LLM_REELS non definie : test d'appel LLM reel ignore.",
             )
-        if not os.environ.get("GOOGLE_API_KEY"):
+        if not os.environ.get("MISTRAL_API_KEY"):
             self.skipTest(
-                "GOOGLE_API_KEY absente : ce test a besoin d'un vrai "
-                "fournisseur LLM.",
+                "MISTRAL_API_KEY absente : ce test a besoin du vrai "
+                "fournisseur, celui que le site emploie.",
             )
 
         # L'ANALYSEUR DE PRODUCTION, PAS UN ANALYSEUR DE TEST.
@@ -217,7 +217,7 @@ class JustesseSemantiqueParFamilleTest(TestCase):
         rapport_des_fixtures = creer_les_modeles_ia_et_les_analyseurs()
         self.assertFalse(
             rapport_des_fixtures["aucune_cle_api_detectee"],
-            "Aucun modele IA n'a pu etre cree malgre GOOGLE_API_KEY.",
+            "Aucun modele IA n'a pu etre cree malgre MISTRAL_API_KEY.",
         )
         self.analyseur_de_production = AnalyseurSyntaxique.objects.get(
             name=NOM_DE_L_ANALYSEUR_D_EXTRACTION,
@@ -241,16 +241,30 @@ class JustesseSemantiqueParFamilleTest(TestCase):
             )
             self.famille_attendue_par_element[element.pk] = famille_attendue
 
-        # ATTENTION : c'est model_choice qui decide du provider reel.
-        # `creer_les_modeles_ia_et_les_analyseurs` a deja pose le bon
-        # AIModel a partir de la cle presente dans l'environnement ; on le
-        # reprend tel quel plutot que d'en fabriquer un, sous peine de
-        # partir sur le provider MOCK sans appeler personne.
-        # / The service already created the right AIModel from the env key;
-        # building another one risks silently landing on the MOCK provider.
+        # LE MODELE QUI EXTRAIT VRAIMENT, celui de la Configuration.
+        #
+        # `creer_les_modeles_ia_et_les_analyseurs` pose le meme AIModel
+        # que l'installation : on le reprend tel quel plutot que d'en
+        # fabriquer un, sous peine de partir sur le provider MOCK sans
+        # appeler personne. C'est `base_url` qui designe la plateforme —
+        # `api.mistral.ai` — et `variable_de_cle_api` qui dit ou lire la
+        # cle ; un `model_choice` seul ne suffirait pas.
+        # / The model that actually extracts: the service posts the same
+        # AIModel the installation does.
         self.modele_ia = rapport_des_fixtures["modele_ia_de_la_configuration"]
         self.assertIsNotNone(
             self.modele_ia, "Aucun modele IA disponible pour l'appel reel.",
+        )
+        # MESURER SUR CE QUE LE SITE EMPLOIE, ou ne pas mesurer. Un
+        # fournisseur que la production n'utilise pas ne dit rien de ce
+        # qu'elle produit : le meme prompt ne rend pas les memes
+        # extractions d'un modele a l'autre.
+        # / Measure on what the site uses, or do not measure.
+        self.assertEqual(
+            self.modele_ia.variable_de_cle_api, "MISTRAL_API_KEY",
+            "Ce test doit éprouver le fournisseur de production. "
+            f"Il part sur « {self.modele_ia.name} », qui lit "
+            f"{self.modele_ia.variable_de_cle_api}.",
         )
 
         self.job = ExtractionJob.objects.create(

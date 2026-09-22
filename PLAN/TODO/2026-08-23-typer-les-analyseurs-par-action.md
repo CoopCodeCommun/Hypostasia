@@ -2,6 +2,88 @@
 
 **Décidé par le mainteneur le 23 août 2026. Rien n'est codé.**
 
+---
+
+## ⚠️ ADDENDUM DU 1er SEPTEMBRE 2026 — deux prescriptions de cette note sont fausses, et une décision manque
+
+> Cet encart fait foi sur les trois points qu'il traite. Le corps de la note
+> reste juste partout ailleurs. Les faits ci-dessous ont été vérifiés dans le
+> code du 1er septembre 2026, et relus par une seconde lecture adverse.
+
+### 1. « BASCULER l'analyseur existant » casserait la synthèse d'une note
+
+La note écrit : « IL FAUT UNE MIGRATION DE DONNÉES qui BASCULE l'analyseur
+existant, jamais qui en crée un à côté. »
+
+Or « Synthèse délibérative » sert **deux métiers**, pas un :
+
+- la **rédaction d'article**, par `_prompt_systeme_de_synthese()`
+  (`front/tasks.py`), dont les quatre appelants sont les trois assembleurs
+  d'article et le banc de la chaîne complète ;
+- la **synthèse d'une note**, par trois vues qui résolvent
+  `type_analyseur="synthetiser"` : `previsualiser_synthese`
+  (`front/views.py:2857, 2861, 2876`), `synthetiser` (`:3143, 3149`) et
+  `drawer_contenu` (`:5816`).
+
+Le basculer laisserait ces trois vues sans aucun analyseur : **HTTP 400** et le
+toast « Aucun analyseur de synthèse actif ». Pire, le toast de `synthetiser`
+promet que `docker compose down -v && make install` répare — ce serait **faux** :
+`creer_les_modeles_ia_et_les_analyseurs()` fait `get_or_create(name="Synthèse
+délibérative")`, retrouverait l'analyseur **basculé par son nom**, et ne
+recréerait jamais de `synthetiser`. La casse serait permanente et le remède
+affiché mentirait.
+
+⇒ **La migration doit COPIER**, pas basculer : « Synthèse délibérative » reste en
+`synthetiser`, et un analyseur `rediger_un_article` naît avec une **copie de ses
+pièces actuelles** — donc le texte du mainteneur s'il l'a édité, jamais celui des
+fixtures. L'intention de la note est préservée (le prompt personnalisé ne devient
+pas orphelin : il part dans les deux), sans casser un geste existant.
+
+**Et la migration seule ne suffit pas.** `bin/install.sh` migre **avant** de poser
+les fixtures : sur un clone neuf, « Synthèse délibérative » n'existe pas encore
+au moment du `migrate`, donc la copie ne copierait rien. Il faut **aussi** un
+troisième `get_or_create` dans `fixtures_analyseurs.py`, et le nom de la copie
+doit être **exactement** la constante des fixtures — sinon le démarrage suivant
+crée un **second** `rediger_un_article` garni du texte par défaut qui, s'il naît
+`est_par_defaut=True`, **décoche celui du mainteneur**. C'est le piège que la
+note décrit, reconstitué un cran plus bas. À épingler par un test qui compare le
+nom de la migration à celui des fixtures.
+
+### 2. « Onze querysets » : exact, mais dix d'entre eux ne bougent pas
+
+Le compte est aujourd'hui de **douze** (le chantier de la provenance en a ajouté
+un). **Deux seulement changent de valeur** :
+
+| Emplacement | Destin |
+|---|---|
+| `front/tasks.py:1145` (`_prompt_systeme_de_synthese`) | → `rediger_un_article` |
+| `hypostasis_extractor/services/provenance.py:79` (`analyseur_de_redaction`) | → `rediger_un_article`, **en verrou avec le précédent** : deux règles divergentes feraient nommer à la provenance un autre analyseur que celui qui a servi |
+
+Les huit autres `synthetiser` servent la **synthèse d'une note** et restent ;
+`migrations/0035` est figée et ne se touche pas.
+
+### 3. LE « puis carnet » DU RÉGIME DE REPLI N'A AUCUN ÉCRIVAIN — décision demandée
+
+La note demande d'écrire l'ordre de résolution « geste (`?analyseur_id=`), puis
+carnet, puis défaut ». **Deux de ces trois niveaux n'existent pas** :
+
+- **carnet** : il n'y a aucune clé étrangère `Dossier → AnalyseurSyntaxique`,
+  nulle part. Le seul champ carnet-niveau approchant est
+  `Dossier.guide_de_redaction` (`core/models.py:98`) — un texte **montré aux
+  humains** dans l'écran du carnet, injecté dans **aucun** prompt ;
+- **geste** : aucun des trois chemins d'article ne porte d'`analyseur_id` — la
+  note le dit elle-même (« les trois autres n'ont aucun paramètre »).
+
+Coder ces deux niveaux fabriquerait du code mort, c'est-à-dire exactement la
+faute que la note sur la provenance existe pour empêcher.
+
+⇒ **Le régime posé est donc, pour `rediger_un_article` : défaut du type, puis
+repli en dur JOURNALISÉ.** Si le niveau « carnet » est voulu, il demande un
+champ, un écran et un écrivain — **c'est un chantier à part, à décider par le
+mainteneur**, pas une ligne de ce chantier-ci.
+
+---
+
 ## Ce que le code fait aujourd'hui
 
 `AnalyseurSyntaxique.TypeAnalyseur` (`hypostasis_extractor/models.py:289`) ne connaît

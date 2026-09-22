@@ -81,14 +81,12 @@ class E2EConfirmationAnalyseTest(PlaywrightLiveTestCase):
         )
         PromptPiece.objects.create(
             analyseur=self.analyseur,
-            name="Instruction principale",
             role="instruction",
             content="Tu es Hypostasia, un expert en analyse argumentative.",
             order=0,
         )
         PromptPiece.objects.create(
             analyseur=self.analyseur,
-            name="Format de sortie",
             role="format",
             content="Chaque extraction a une classe et un texte.",
             order=1,

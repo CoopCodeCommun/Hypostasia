@@ -262,6 +262,7 @@ document.addEventListener('click', async function(evenement) {
         + '<select id="swal-type" class="swal2-select" style="margin-top:0.5rem">'
         + '  <option value="analyser">Analyser</option>'
         + '  <option value="synthetiser">Synthétiser</option>'
+        + '  <option value="rediger_un_article">Rédiger un article</option>'
         + '</select>';
 
     var resultatSwal = await Swal.fire({

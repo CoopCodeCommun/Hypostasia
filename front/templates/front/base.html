@@ -580,7 +580,7 @@
     / Bump on every change: nginx serves /static/ as immutable for 30
     days, so a stale browser would keep the old script for a month.
     {% endcomment %}
-    <script src="{% static 'front/js/hypostasia.js' %}?v=41"></script>
+    <script src="{% static 'front/js/hypostasia.js' %}?v=42"></script>
     <script src="{% static 'front/js/marginalia.js' %}?v=30"></script>
     <script src="{% static 'front/js/bottom_sheet.js' %}?v=23"></script>
     {# `arbre_overlay.js` et `arbre_context_menu.js` etaient charges ici. #}
@@ -610,7 +610,7 @@
     {# Echap appelle window.modeEdition, qui doit exister a la frappe —   #}
     {# ce qui est le cas, l'appel etant fait au moment de la touche.      #}
     {# / Loaded after keyboard.js; the cascade calls it at keypress time. #}
-    <script src="{% static 'front/js/mode_edition.js' %}?v=15"></script>
+    <script src="{% static 'front/js/mode_edition.js' %}?v=17"></script>
 
     {% comment %}
     LE MESSAGE D'ACCUEIL — en DERNIER dans le corps, et sous garde.

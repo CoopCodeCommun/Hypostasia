@@ -87,20 +87,33 @@ class AnalyseAvecUnVraiLlmTest(TestCase):
                 "uv run python manage.py test hypostasis_extractor "
                 "--tag=llm_reel",
             )
-        if not os.environ.get("GOOGLE_API_KEY"):
+        if not os.environ.get("MISTRAL_API_KEY"):
             self.skipTest(
-                "GOOGLE_API_KEY absente : ce test a besoin d'un vrai "
+                "MISTRAL_API_KEY absente : ce test a besoin d'un vrai "
                 "fournisseur LLM.",
             )
 
-        # ATTENTION : c'est model_choice qui compte, pas provider.
-        # AIModel.save() derive provider et model_name depuis model_choice.
-        # Creer le modele avec provider="google" seul le laisse en MOCK, et
-        # l'appel part alors sans cle d'API.
-        # / AIModel.save() derives provider from model_choice: setting
-        # provider alone silently leaves the model on MOCK.
+        # LE MODELE DE PRODUCTION, PAS UN AUTRE.
+        #
+        # Mesurer sur un fournisseur que le site n'emploie pas ne dit
+        # rien de ce que le site produit : le meme prompt ne donne pas
+        # les memes extractions d'un modele a l'autre. Ce test eprouve
+        # donc la configuration REELLE du role d'extraction —
+        # `compatible_openai` pointe sur `api.mistral.ai`, et la cle se
+        # lit dans `MISTRAL_API_KEY`.
+        #
+        # `base_url` DECIDE DE LA PLATEFORME, et `variable_de_cle_api`
+        # de la cle : un `model_choice` seul laisserait le modele en
+        # MOCK, et l'appel partirait sans rien.
+        # / The production model: measuring on a provider the site does
+        # not use says nothing about what the site produces.
         self.modele_disponible = AIModel.objects.create(
-            model_choice="gemini-2.5-flash",
+            name="Mistral Small (test réel)",
+            model_choice="mistral-small-latest",
+            provider="compatible_openai",
+            model_name="mistral-small-latest",
+            base_url="https://api.mistral.ai/v1",
+            variable_de_cle_api="MISTRAL_API_KEY",
         )
 
         self.analyseur = AnalyseurSyntaxique.objects.create(

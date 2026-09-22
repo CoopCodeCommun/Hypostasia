@@ -108,12 +108,12 @@ class TexteOriginalDepuisLesElementsTest(TestCase):
     LOCALISATION : front/tests/test_synthese_par_note_gardes.py
 
     `_construire_prompt_synthese` lisait `page.text_readability`. Ce
-    champ est VIDE sur toute note ingeree par Docling : le drapeau
-    `inclure_texte_original` de l'analyseur etait donc vivant et
-    n'injectait RIEN — un bloc vide, en silence. Ni « config morte », ni
-    fonction qui marche : fonction sans effet, ce qui est pire que les
-    deux. Mesure du 17 aout 2026.
-    / The flag was live and injected an empty block on Docling notes.
+    champ est VIDE sur toute note ingeree par Docling : le bloc partait
+    donc vide, en silence. Ni « config morte », ni fonction qui marche :
+    fonction sans effet, ce qui est pire que les deux. Mesure du
+    17 aout 2026.
+    / It used to read a field left empty by Docling ingestion, and sent
+    an empty block in silence.
     """
 
     def setUp(self):
@@ -141,8 +141,6 @@ class TexteOriginalDepuisLesElementsTest(TestCase):
         from front.tasks import _construire_prompt_synthese
 
         analyseur = self.fixtures["analyseur"]
-        analyseur.inclure_texte_original = True
-        analyseur.save(update_fields=["inclure_texte_original"])
         return _construire_prompt_synthese(
             self.note, dernier_job_d_analyse_de_la_note(self.note), analyseur,
         )

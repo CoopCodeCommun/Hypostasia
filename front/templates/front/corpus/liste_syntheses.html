@@ -74,6 +74,21 @@
                 {% endfor %}{% endfor %}
             </select>
             {% endif %}
+            {# L'analyseur de rédaction : le préféré est en tête, donc  #}
+            {# présélectionné. Le choix se FIGE sur le job — entre la     #}
+            {# demande et son tour dans la file, le défaut peut changer.  #}
+            {# / The preferred writer comes first, hence preselected.     #}
+            {% if redacteurs_proposables %}
+            <label class="champ-etiquette" for="synth-analyseur">Analyseur de rédaction</label>
+            <select class="champ-select" id="synth-analyseur" name="analyseur_id"
+                    data-testid="select-analyseur-synthese-dirigee">
+                {% for redacteur in redacteurs_proposables %}
+                <option value="{{ redacteur.pk }}">
+                    {{ redacteur.name }}{% if redacteur.est_par_defaut %} ★ (préféré){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+            {% endif %}
             <p class="resume-filtres" data-testid="synthese-portee" style="margin-top:.5rem">
                 Portée : {{ nombre_de_notes_sources }} note{{ nombre_de_notes_sources|pluralize }}
             </p>

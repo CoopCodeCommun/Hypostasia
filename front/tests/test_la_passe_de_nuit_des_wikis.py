@@ -678,3 +678,148 @@ class LaPasseEstUnFanOutDeTachesTest(BaseDeLaPasseDeNuit):
         passe = PasseDeNuit.objects.get()
         self.assertIsNotNone(passe.terminee_le)
         self.assertEqual(passe.wikis_examines, 0)
+
+
+class LaNuitLaisseLaTraceDeCeQuiAEcritTest(BaseDeLaPasseDeNuit):
+    """
+    Un tour de nuit dit QUEL MODELE a ecrit l'article.
+    / A night round says WHICH MODEL wrote the article.
+
+    LOCALISATION : front/tests/test_la_passe_de_nuit_des_wikis.py
+
+    Le tour de nuit n'a pas d'humain — c'est ce que dit `fait_par=None`.
+    Mais il a un redacteur, et sans job le tour ne le nomme nulle part :
+    on ne peut plus repondre a « quel modele a ecrit ce paragraphe ? »,
+    qui est la question dont depend tout banc de mesure.
+    / The night has no human, but it has a writer model. Without a job,
+    the round names it nowhere.
+
+    LE CHEMIN HUMAIN, LUI, CREE UN JOB (`front/views_synthese.py`, action
+    `mise_a_jour`). Les deux chemins doivent laisser la meme trace, sinon
+    l'histoire d'un article depend de l'heure a laquelle il a ete ecrit.
+    / The human path already creates a job: both paths must trace alike.
+    """
+
+    def test_le_tour_de_nuit_porte_un_job(self):
+        self._passer_la_nuit(self._operations_valides())
+
+        tour = TourDeWiki.objects.get(wiki=self.wiki)
+        self.assertIsNotNone(
+            tour.job,
+            "Un tour de nuit sans job ne nomme aucun rédacteur.",
+        )
+
+    def test_on_retrouve_le_modele_redacteur_depuis_le_tour(self):
+        self._passer_la_nuit(self._operations_valides())
+
+        tour = TourDeWiki.objects.get(wiki=self.wiki)
+        self.assertEqual(tour.job.ai_model, self.fixtures["modele_ia"])
+
+    def test_le_job_de_nuit_n_attend_personne(self):
+        # Un job laisse en `pending` s'afficherait comme une tache
+        # eternellement en cours dans le menu des taches.
+        # / A job left `pending` would show as a never-ending task.
+        self._passer_la_nuit(self._operations_valides())
+
+        tour = TourDeWiki.objects.get(wiki=self.wiki)
+        self.assertEqual(tour.job.status, "completed")
+
+    def test_le_job_de_nuit_n_existe_jamais_en_cours(self):
+        # TROIS VUES prennent « le dernier job en cours de cette page »
+        # pour decider ce qu'elles affichent (`LireViewSet.retrieve`,
+        # `previsualiser_analyse`, `drawer_contenu`) : un job de nuit en
+        # vol ferait lire « une analyse tourne deja » sur un article que
+        # personne n'analyse. Et `_verifier_et_nettoyer_job_bloque`
+        # marque en erreur tout job `processing` sans battement depuis
+        # cinq minutes — un tour de nuit ne bat pas le coeur.
+        # / Three views treat any in-flight job of the page as a running
+        # analysis, and the stall guard kills a heartbeat-less one.
+        from hypostasis_extractor.models import ExtractionJob
+
+        jobs_en_cours_pendant_la_redaction = []
+
+        def regarder_pendant_que_le_modele_ecrit(*args, **kwargs):
+            jobs_en_cours_pendant_la_redaction.append(
+                ExtractionJob.objects.filter(
+                    page=self.page_du_wiki,
+                    status__in=["pending", "processing"],
+                ).count()
+            )
+            return self._operations_valides()
+
+        with patch(
+            "core.llm_providers.appeler_llm",
+            side_effect=regarder_pendant_que_le_modele_ecrit,
+        ), patch("front.tasks.enchainer_la_verification"):
+            call_command("mettre_a_jour_les_wikis", verbosity=0)
+
+        self.assertEqual(jobs_en_cours_pendant_la_redaction, [0])
+
+    def test_le_job_de_nuit_n_allume_pas_le_badge(self):
+        # Le badge s'allumerait chaque matin, une fois par wiki et par
+        # proprietaire — ET LE CLIC NE L'ETEINDRAIT PAS : le lien du
+        # menu mene a `/lire/<page>/?marquer_lue=…`, or une page de wiki
+        # est redirigee vers `/wikis/<id>/` AVANT que `marquer_lue` ne
+        # soit lu. / The click could not clear it: the wiki redirect
+        # happens before `marquer_lue` is read.
+        from front.views_taches import _calculer_etat_bouton
+
+        avant = _calculer_etat_bouton(self.fixtures["demandeur"])
+
+        self._passer_la_nuit(self._operations_valides())
+
+        apres = _calculer_etat_bouton(self.fixtures["demandeur"])
+        self.assertEqual(
+            apres["nombre_non_lues"], avant["nombre_non_lues"],
+        )
+
+    def test_le_job_de_nuit_ne_reveille_personne(self):
+        # La nuit ne notifie pas : le recapitulatif du matin raconte la
+        # passe, et une notification a 3 h du matin n'a pas de lecteur.
+        # / The night does not notify: the morning digest tells the story.
+        with patch("front.tasks.notifier_tache_terminee") as notification:
+            self._passer_la_nuit(self._operations_valides())
+
+        self.assertFalse(
+            notification.called,
+            "La passe de nuit ne doit réveiller personne.",
+        )
+
+    def test_un_applieur_qui_refuse_ne_laisse_qu_une_seule_fiche(self):
+        # L'APPLIEUR PEUT REFUSER APRES COUP — deux titres en collision,
+        # un article sans citation. La fiche de production dirait alors
+        # `completed` alors que RIEN n'a ete applique, et la tache
+        # appelante en ouvrirait une SECONDE pour le meme tour.
+        # / The applier can refuse after the fact: one sheet, not two,
+        # and it must say `error`.
+        from hypostasis_extractor.models import ExtractionJob
+
+        with patch(
+            "front.tasks.appliquer_un_tour_de_wiki",
+            side_effect=ValueError("l'applieur refuse"),
+        ), patch(
+            "core.llm_providers.appeler_llm",
+            return_value=self._operations_valides(),
+        ), patch("front.tasks.enchainer_la_verification"):
+            call_command("mettre_a_jour_les_wikis", verbosity=0)
+
+        fiches = ExtractionJob.objects.filter(
+            page=self.page_du_wiki,
+            raw_result__contains={"est_maj_wiki_de_nuit": True},
+        )
+        self.assertEqual(fiches.count(), 1)
+        self.assertEqual(fiches.get().status, "error")
+
+    def test_un_echec_de_nuit_laisse_aussi_son_job(self):
+        # L'echec est la ou la question « quel modele ? » se pose le
+        # plus : un modele injoignable doit se nommer.
+        # / A failure is exactly where the model must be nameable.
+        with patch(
+            "core.llm_providers.appeler_llm",
+            side_effect=RuntimeError("le modèle est injoignable"),
+        ), patch("front.tasks.enchainer_la_verification"):
+            call_command("mettre_a_jour_les_wikis", verbosity=0)
+
+        tour = TourDeWiki.objects.filter(wiki=self.wiki).first()
+        self.assertIsNotNone(tour.job)
+        self.assertEqual(tour.job.status, "error")

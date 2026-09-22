@@ -80,7 +80,7 @@
 **Ce prototype est jetable, et son but est de DÉCIDER**, pas de livrer. Il tranche
 entre trois voies concurrentes pour l'édition par blocs :
 
-- **A — le clavier maison** : `2026-08-23-le-mode-edition-et-son-clavier.md`
+- **A — le clavier maison** : *(sa note a été supprimée le 1er septembre 2026, l'option étant codée ; la spec `SPEC-edition-par-blocs-et-stenotypie.md` fait foi)*
   (~300 lignes dans `keyboard.js`, aucune dépendance nouvelle) ;
 - **B — BlockNote** : les gestes d'édition fournis par la bibliothèque, au prix d'un
   bundle JS et d'un modèle de données à traduire ;
@@ -89,7 +89,7 @@ entre trois voies concurrentes pour l'édition par blocs :
   note, et la commencer par elle : une journée contre trois.
 
 **Tant que ce prototype n'a pas parlé, aucune des trois ne doit être codée.** La
-note du back (`2026-08-23-les-deux-gestes-manquants-de-l-edition-par-blocs.md`) sert
+note du back (supprimée le 1er septembre 2026, ses trois gestes étant codés) servait
 les trois indifféremment : elle, en revanche, peut avancer.
 
 ## Ce qui est déjà établi, et n'a pas à être remesuré
@@ -461,7 +461,8 @@ Le reste du chemin est fait. Ces trois-là ne le sont pas, et **aucune n'appara�
    passage difficile, on accélère à 1,5× un passage clair. **Aucune occurrence** de
    `playbackRate` dans le code. Une propriété, deux touches, un affichage.
 3. **La correction du locuteur** — le seul manque de fond, déjà décrit dans
-   `2026-08-23-les-deux-gestes-manquants-de-l-edition-par-blocs.md`. Sans elle, on
+   la note du back, supprimée le 1er septembre 2026 (ses trois gestes sont
+   codés : voir `SPEC-edition-par-blocs-et-stenotypie.md`). Sans elle, on
    corrige le texte d'une transcription mais pas **qui parle** — or c'est la
    correction la plus fréquente après une diarisation.
 

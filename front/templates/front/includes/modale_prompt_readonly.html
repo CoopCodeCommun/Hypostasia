@@ -37,7 +37,7 @@
                         {% elif piece.role == 'format' %}bg-green-50 text-green-700
                         {% elif piece.role == 'context' %}bg-amber-50 text-amber-700
                         {% endif %}">
-                        {{ piece.get_role_display }} — {{ piece.name }}
+                        {{ piece.get_role_display }}
                     </div>
                     <pre class="px-3 py-2 text-xs text-slate-700 whitespace-pre-wrap bg-slate-50 font-mono" data-testid="piece-content">{{ piece.content }}</pre>
                 </div>

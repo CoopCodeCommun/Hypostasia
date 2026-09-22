@@ -49,7 +49,7 @@
             <li><strong>Le prompt</strong> : les instructions envoyees a l'IA. Elles expliquent quoi chercher dans le texte (des personnes, des dates, des arguments, etc.).</li>
             <li><strong>Les exemples</strong> : des textes avec les bonnes reponses deja remplies. L'IA apprend de ces exemples pour mieux extraire. Plus il y a d'exemples, meilleur est le resultat.</li>
         </ul>
-        <p class="text-xs text-slate-500 mt-1">Les options de contexte permettent d'injecter automatiquement les extractions existantes ou le texte original dans le prompt.</p>
+        <p class="text-xs text-slate-500 mt-1">Chaque morceau de prompt part au modèle sous le titre de son <strong>rôle</strong> (<code>=== INSTRUCTION ===</code>), dans l'ordre où il est posé.</p>
     </div>
 
     <!-- Liste des analyseurs + bouton creer -->
@@ -71,8 +71,6 @@
                     <tr class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-200">
                         <th class="text-left py-2 pr-2">Nom</th>
                         <th class="text-left py-2 pr-2">Type</th>
-                        <th class="text-center py-2 px-2" title="Inclure le texte original dans le contexte">Texte</th>
-                        <th class="text-center py-2 px-2" title="Inclure les extractions et leurs commentaires">Extractions</th>
                         <th class="text-center py-2 px-2">Actif</th>
                         <th class="text-center py-2 pl-2">Défaut</th>
                     </tr>

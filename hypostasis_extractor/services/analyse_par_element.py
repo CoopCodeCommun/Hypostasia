@@ -73,6 +73,87 @@ logger = logging.getLogger(__name__)
 MARGE_POUR_NEUTRALISER_LE_CHUNKER = 1000
 
 
+def _tracer_l_analyse(job_extraction):
+    """
+    Ecrit la provenance d'une analyse — une par ENVOI, jamais par chunk.
+    / Records an analysis provenance: one per send, never per chunk.
+
+    LOCALISATION : hypostasis_extractor/services/analyse_par_element.py
+
+    CE QUE L'EMPREINTE COUVRE ICI, ET CE QU'ELLE NE COUVRE PAS. Sur les
+    autres chemins, elle porte sur le texte EXACT envoye au modele. Ici,
+    c'est impossible et il faut le dire : LangExtract assemble lui-meme
+    le message final a partir du preambule, des exemples few-shot et de
+    son propre habillage, que nous ne voyons pas.
+
+    L'empreinte porte donc sur CE QUE NOUS LUI DONNONS : le preambule du
+    job, et les exemples tels que `_construire_les_exemples_du_job` les
+    rend — c'est-a-dire le texte de chaque exemple, ses extractions
+    attendues et leurs attributs, dans l'ordre d'envoi. Elle repond a
+    « le prompt-source a-t-il change entre deux analyses ? », pas a
+    « quel message exact est parti ? ». Une empreinte qui pretendrait le
+    second serait fausse.
+    / It covers what WE hand over — preamble and examples as the builder
+    returns them — not the final message, which LangExtract assembles out
+    of our reach.
+
+    ELLE SE CALCULE SUR L'OBJET REELLEMENT ENVOYE, jamais sur une seconde
+    lecture de la base. Serialiser les exemples a part ferait diverger la
+    trace de l'envoi : le NOM d'un exemple ne part pas, ses EXTRACTIONS
+    et leurs ATTRIBUTS partent — et ce sont eux qu'on edite.
+    / Computed on the very object sent: a second reading would drift.
+
+    UNE PAR ENVOI, ET NON PAR JOB. Un job relance — retry Celery, ou
+    relance manuelle d'un job en erreur — renvoie reellement le prompt :
+    il laisse donc une seconde trace, comme il a fait un second envoi.
+    C'est aussi pourquoi les provenances ne sont PAS purgees avec les
+    extractions au debut d'une reprise.
+    / One per SEND, not per job: a re-run really re-sends.
+
+    :param job_extraction: l'`ExtractionJob` de l'analyse / the job
+    """
+    from ..models import AnalyseurSyntaxique, CheminDeProduction
+    from . import _construire_exemples_langextract
+    from .provenance import derniere_version_de, enregistrer_la_provenance
+
+    # L'analyseur n'est pas une cle etrangere du job : il est range dans
+    # `raw_result["analyseur_id"]`, comme partout ailleurs. On le lit
+    # sans lever — `_construire_les_exemples_du_job` le fera, et avec un
+    # message qui nomme le job ; une trace ne doit jamais devancer une
+    # garde metier par une exception moins claire.
+    # / Read without raising: the examples builder raises the clear error.
+    analyseur = AnalyseurSyntaxique.objects.filter(
+        pk=(job_extraction.raw_result or {}).get("analyseur_id") or 0,
+    ).first()
+    exemples_serialises = ""
+    if analyseur is not None:
+        exemples_serialises = "\n".join(
+            repr((
+                exemple.text,
+                [
+                    (
+                        extraction.extraction_class,
+                        extraction.extraction_text,
+                        sorted((extraction.attributes or {}).items()),
+                    )
+                    for extraction in exemple.extractions
+                ],
+            ))
+            for exemple in _construire_exemples_langextract(analyseur)
+        )
+    enregistrer_la_provenance(
+        chemin=CheminDeProduction.ANALYSE,
+        prompt=(
+            (job_extraction.prompt_description or "")
+            + "\n" + exemples_serialises
+        ),
+        modele=job_extraction.ai_model,
+        job=job_extraction,
+        analyseur=analyseur,
+        analyseur_version=derniere_version_de(analyseur),
+    )
+
+
 def analyser_une_page_par_element(page, job_extraction, appeler_le_llm=None):
     """
     Analyse tous les elements d'une page et cree les ancres.
@@ -106,6 +187,8 @@ def analyser_une_page_par_element(page, job_extraction, appeler_le_llm=None):
     """
     if appeler_le_llm is None:
         appeler_le_llm = appeler_langextract_sur_un_chunk
+
+    _tracer_l_analyse(job_extraction)
 
     # ON REPART D'UNE PAGE PROPRE POUR CE JOB.
     #

@@ -197,18 +197,11 @@ def extraire(modele_ia, texte):
     analyseur = AnalyseurSyntaxique.objects.filter(
         is_active=True, type_analyseur="analyser",
     ).first()
-    prompt = "\n".join(
-        piece.content
-        for piece in analyseur.prompt_pieces.order_by("order")
-    ) if hasattr(analyseur, "prompt_pieces") else None
-    if not prompt:
-        from hypostasis_extractor.models import PromptPiece
-        prompt = "\n".join(
-            piece.content
-            for piece in PromptPiece.objects.filter(
-                analyseur=analyseur,
-            ).order_by("order")
-        )
+    # LE MEME ASSEMBLAGE QUE LA PRODUCTION, jamais une copie : le banc
+    # a longtemps recolle les pieces a la main, et il aurait rate le
+    # titrage des blocs par leur role.
+    # / Production's own assembly, never a copy.
+    prompt = analyseur.texte_du_prompt()
 
     resultat = lx.extract(
         text_or_documents=texte,
@@ -235,25 +228,22 @@ def extraire(modele_ia, texte):
 
 
 def prompt_de_redaction():
-    """Le prompt de production, sur les extractions de la note choisie."""
-    from front.tasks import (
-        _blocs_d_extractions_par_note, _consignes_de_forme_d_article,
-        _prompt_systeme_de_synthese,
-    )
+    """
+    Le prompt de production, sur les extractions de la note choisie.
+
+    IL EST DEMANDE A LA PRODUCTION, jamais reassemble ici. Ce banc a
+    longtemps gardé sa propre copie du prompt tout en annonçant « le
+    prompt de production » : elle ne suivait ni le préambule, ni les
+    consignes de forme, et rien ne le disait.
+    / Asked of production code, never reassembled here.
+    """
+    from front.tasks import assembler_un_article_sur_des_notes
 
     note = Page.objects.get(pk=PAGE_DE_L_ECHANTILLON)
-    blocs, identifiants = _blocs_d_extractions_par_note([note])
-    return (
-        _prompt_systeme_de_synthese() + "\n\n"
-        "=== SUJET DE L'ARTICLE ===\n"
-        "Ce que ce débat dit du rôle de l'intelligence artificielle\n\n"
-        "=== EXTRACTIONS DU PÉRIMÈTRE ===\n" + blocs + "\n\n"
-        "=== CONSIGNE ===\n"
-        "Rédige un article de wiki sur ce sujet, nourri UNIQUEMENT des "
-        "extractions ci-dessus. Le sujet oriente la rédaction ; il ne "
-        "t'autorise pas à inventer.\n\n"
-        + _consignes_de_forme_d_article()
-    ), identifiants
+    return assembler_un_article_sur_des_notes(
+        "Ce que ce débat dit du rôle de l'intelligence artificielle",
+        [note],
+    )
 
 
 def rediger(modele_ia, prompt, identifiants_du_perimetre):

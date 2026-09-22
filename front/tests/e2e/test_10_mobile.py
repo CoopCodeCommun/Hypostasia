@@ -61,7 +61,6 @@ class E2EMobileTest(PlaywrightLiveTestCase):
             is_active=True)
         PromptPiece.objects.create(
             analyseur=self.analyseur,
-            name="Instruction",
             role="instruction",
             content="Analyse le texte.",
             order=0,

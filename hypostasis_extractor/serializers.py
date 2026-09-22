@@ -301,8 +301,6 @@ class AnalyseurSyntaxiqueUpdateSerializer(serializers.Serializer):
         choices=AnalyseurSyntaxique.TypeAnalyseur.choices,
         required=False,
     )
-    inclure_extractions = serializers.BooleanField(required=False)
-    inclure_texte_original = serializers.BooleanField(required=False)
     est_par_defaut = serializers.BooleanField(required=False)
 
     def validate_name(self, value):
@@ -348,13 +346,9 @@ class AnalyseurUtilisabiliteSerializer(serializers.Serializer):
 
 class PromptPieceCreateSerializer(serializers.Serializer):
     """Creation d'une piece de prompt / Create a prompt piece."""
-    name = serializers.CharField(max_length=200)
     role = serializers.ChoiceField(choices=PromptPiece.RoleChoices.choices, default="instruction")
     content = serializers.CharField(allow_blank=True, default="")
     order = serializers.IntegerField(default=0)
-
-    def validate_name(self, value):
-        return sanitize_text(value)
 
     def validate_content(self, value):
         return sanitize_text(value)
@@ -363,13 +357,9 @@ class PromptPieceCreateSerializer(serializers.Serializer):
 class PromptPieceUpdateSerializer(serializers.Serializer):
     """Mise a jour partielle d'une piece (auto-save) / Partial update."""
     piece_id = serializers.IntegerField()
-    name = serializers.CharField(max_length=200, required=False)
     role = serializers.ChoiceField(choices=PromptPiece.RoleChoices.choices, required=False)
     content = serializers.CharField(required=False, allow_blank=True)
     order = serializers.IntegerField(required=False)
-
-    def validate_name(self, value):
-        return sanitize_text(value)
 
     def validate_content(self, value):
         return sanitize_text(value)
@@ -659,6 +649,47 @@ class CorrectionEnLotSerializer(serializers.Serializer):
         error_messages={
             "required": "Aucun bloc à enregistrer / No block to save",
             "empty": "Aucun bloc à enregistrer / No block to save",
+        },
+    )
+
+
+class RenommageDuLocuteurSerializer(serializers.Serializer):
+    """
+    Validation d'un renommage de locuteur sur un tour de parole.
+    / Validates a speaker rename on one turn.
+
+    LOCALISATION : hypostasis_extractor/serializers.py
+
+    SPEC-edition-par-blocs-et-stenotypie.md § 6.2.
+
+    LES TROIS PORTEES, ET CE QU'ELLES VEULENT DIRE
+
+      - `ce_bloc_seul` : ce tour, et lui seul. C'est LA reattribution
+        d'un tour — le geste que la diarisation rend necessaire ;
+      - `ce_bloc_et_suivants` : ce tour et les suivants QUI PORTENT LE
+        MEME locuteur. Jamais tous les suivants : ce serait ecraser la
+        voix de l'autre, donc detruire la diarisation au lieu de la
+        corriger ;
+      - `tous` : tous les tours de la note qui portent ce locuteur, y
+        compris CEUX QUI PRECEDENT — sans quoi ce ne serait qu'un
+        « et suivants » deguise.
+    / The three scopes; the middle one follows the SAME speaker only.
+    """
+    nouveau_locuteur = serializers.CharField(
+        max_length=100,
+        trim_whitespace=True,
+        allow_blank=False,
+        error_messages={
+            "required": "Le nom du locuteur est obligatoire / Required",
+            "blank": "Le nom du locuteur ne peut pas être vide / Cannot be blank",
+            "max_length": "Le nom du locuteur est trop long / Too long",
+        },
+    )
+    portee = serializers.ChoiceField(
+        choices=["ce_bloc_seul", "ce_bloc_et_suivants", "tous"],
+        default="ce_bloc_seul",
+        error_messages={
+            "invalid_choice": "Portée inconnue / Unknown scope",
         },
     )
 

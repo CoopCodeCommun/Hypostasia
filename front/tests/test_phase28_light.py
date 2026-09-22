@@ -68,13 +68,10 @@ def creer_fixtures_synthese():
         type_analyseur="synthetiser",
         # PHASE-29 : les deux bool actifs pour que le prompt contienne TEXTE + HYPOSTASES
         # / PHASE-29: both bools active so prompt contains TEXT + HYPOSTASES
-        inclure_extractions=True,
-        inclure_texte_original=True,
     )
 
     PromptPiece.objects.create(
         analyseur=analyseur_synthese,
-        name="Contexte test",
         role="context",
         content="Tu es un moteur de synthese deliberative.",
         order=0,

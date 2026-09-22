@@ -117,10 +117,32 @@
             libelle: 'Ctrl+Maj+Z',
             geste: 'Rétablir',
         },
+        // LES DEUX GESTES QUE LE MODE NE TRAITE PAS LUI-MEME.
+        //
+        // `Echap` et `M` sont lies dans la cascade de `keyboard.js` — le
+        // premier au rang 4.6, parce que sa PLACE compte (tout ce qui
+        // s'ouvre par-dessus le mode se ferme d'abord), le second parce
+        // qu'il faut pouvoir ENTRER dans le mode quand il est fermé.
+        //
+        // Ils figurent quand meme dans la table : c'est elle que l'aide
+        // rend, et une aide qui tairait la touche pour sortir serait
+        // pire qu'une aide absente. `traiteAilleurs` dit au listener de
+        // les laisser passer — sans ce marqueur, le mode fermerait au
+        // rang de son propre ecouteur, et le double `Echap` du 29 aout
+        // reviendrait.
+        // / Two gestures the mode does not handle: they are bound in
+        // keyboard.js's cascade, but the help must still name them.
         sortir: {
             touches: ['Escape'],
             libelle: 'Échap',
             geste: 'Sortir du mode',
+            traiteAilleurs: true,
+        },
+        entrerDansLeMode: {
+            touches: ['m'],
+            libelle: 'M',
+            geste: 'Ouvrir ou fermer le mode édition',
+            traiteAilleurs: true,
         },
         lireOuPause: {
             touches: ['F4', 'MediaPlayPause', 'F13'],
@@ -159,6 +181,18 @@
             touches: ['F10'],
             libelle: 'F10',
             geste: 'Accélérer la lecture',
+            son: true,
+        },
+        corrigerLeLocuteur: {
+            // PAS une touche F : celles qui restent libres sont prises
+            // par le navigateur (F1 aide, F3 recherche, F5 rechargement,
+            // F6 barre d'adresse, F11 plein ecran, F12 outils). Et pas
+            // `Ctrl+L`, qui EST la barre d'adresse. `Ctrl+Maj+L` est
+            // libre dans Chrome comme dans Firefox.
+            // / The remaining F keys are taken; Ctrl+L is the address bar.
+            touches: ['Control+Shift+l'],
+            libelle: 'Ctrl+Maj+L',
+            geste: 'Corriger qui parle dans ce passage',
             son: true,
         },
     };
@@ -1350,11 +1384,128 @@
      * note ecrite, annoncer « F4 lit » promettrait un geste qui ne fait
      * rien. / Sound keys appear only when there is sound.
      */
+    /**
+     * CORRIGE QUI PARLE DANS LE PASSAGE OU EST LE CURSEUR.
+     *
+     * LOCALISATION : front/static/front/js/mode_edition.js
+     *
+     * SPEC-edition-par-blocs-et-stenotypie.md § 6.2 : c'est la
+     * correction la plus frequente apres une diarisation — six voix
+     * reelles, Sortformer en rend quatre, et 0 % d'INCONNU : les tours
+     * sont attribues a tort, en silence.
+     *
+     * LE DIALOGUE SE CONSTRUIT EN DOM, jamais par concatenation : le
+     * nom courant vient de la base, donc d'un humain. Meme regle que la
+     * modale des refus.
+     *
+     * L'ENVOI PASSE PAR HTMX, et c'est necessaire : le serveur repond
+     * par des fragments `hx-swap-oob` — un `fetch()` ne les traiterait
+     * pas, et l'ecran garderait l'ancien nom sans que rien ne le dise.
+     * / Sent through htmx: the server answers with out-of-band
+     * fragments, which a fetch() would silently drop.
+     */
+    function corrigerLeLocuteurDuBloc() {
+        var bloc = blocDuCurseur();
+        if (!bloc) {
+            annoncer('Placez le curseur dans un passage.');
+            return;
+        }
+        var interne = elementDeTexte(bloc);
+        var identifiant = interne ? interne.dataset.elementId : null;
+        if (!identifiant) {
+            annoncer("Ce passage n'a pas d'identifiant.");
+            return;
+        }
+        if (!window.Swal || typeof window.Swal.fire !== 'function') return;
+
+        var locuteurCourant = bloc.dataset.locuteur || '';
+        var corps = document.createElement('div');
+        corps.style.textAlign = 'left';
+
+        var champNom = document.createElement('input');
+        champNom.type = 'text';
+        champNom.className = 'swal2-input';
+        champNom.value = locuteurCourant;
+        champNom.setAttribute('aria-label', 'Nom du locuteur');
+        champNom.placeholder = 'Nom du locuteur';
+        corps.appendChild(champNom);
+
+        var choixPortee = document.createElement('select');
+        choixPortee.className = 'swal2-select';
+        choixPortee.style.display = 'block';
+        choixPortee.setAttribute('aria-label', 'Portée du renommage');
+        // « ce tour seul » d'abord : c'est le geste de reattribution,
+        // le plus frequent et le moins destructeur. Les portees larges
+        // viennent apres, dans l'ordre de ce qu'elles touchent.
+        // / The narrowest scope first: it is the frequent, safe one.
+        var portees = [
+            ['ce_bloc_seul', 'ce passage seulement'],
+            ['ce_bloc_et_suivants', 'ce passage et les suivants de cette voix'],
+            ['tous', 'tous les passages de cette voix'],
+        ];
+        for (var i = 0; i < portees.length; i += 1) {
+            var option = document.createElement('option');
+            option.value = portees[i][0];
+            option.textContent = portees[i][1];
+            choixPortee.appendChild(option);
+        }
+        // Un tour SANS voix ne se renomme que seul : le serveur le
+        // refuse, et proposer le choix serait promettre un geste qui
+        // sera refuse. / A turn with no voice renames alone.
+        if (!locuteurCourant) {
+            choixPortee.disabled = true;
+            choixPortee.title = "Ce passage n'a pas de locuteur : "
+                + 'le nommer ne vaut que pour lui.';
+        }
+        corps.appendChild(choixPortee);
+
+        window.Swal.fire({
+            title: 'Qui parle ici ?',
+            html: corps,
+            showCancelButton: true,
+            confirmButtonText: 'Corriger',
+            cancelButtonText: 'Annuler',
+            didOpen: function () { champNom.focus(); champNom.select(); },
+            preConfirm: function () {
+                var nom = champNom.value.trim();
+                if (!nom) {
+                    window.Swal.showValidationMessage(
+                        'Le nom du locuteur ne peut pas être vide.');
+                    return false;
+                }
+                return {nom: nom, portee: choixPortee.value};
+            },
+        }).then(function (choix) {
+            if (!choix || !choix.isConfirmed || !choix.value) return;
+            if (!window.htmx || typeof window.htmx.ajax !== 'function') return;
+            window.htmx.ajax(
+                'POST', '/elements/' + identifiant + '/renommer_le_locuteur/',
+                {
+                    // `source: bloc` fait hériter les en-têtes du body,
+                    // dont le jeton CSRF. / Inherits the CSRF header.
+                    source: bloc,
+                    swap: 'none',
+                    values: {
+                        nouveau_locuteur: choix.value.nom,
+                        portee: choix.value.portee,
+                    },
+                },
+            );
+            annoncer('Passage attribué à ' + choix.value.nom + '.');
+        });
+    }
+
     function composerLeBandeau(champ) {
         var lecteur = window.lecteurAudio;
         var ilYADuSon = !!(lecteur && lecteur.estDisponible());
+        // `entrerDansLeMode` n'y figure pas : le bandeau ne se voit
+        // qu'une fois DEDANS. / Not the entry key: the banner only shows
+        // once inside.
         var gestes = ['enregistrer', 'annuler', 'sortir'];
-        if (ilYADuSon) gestes = gestes.concat(['lireOuPause', 'ecouterLeBloc']);
+        if (ilYADuSon) {
+            gestes = gestes.concat(
+                ['lireOuPause', 'ecouterLeBloc', 'corrigerLeLocuteur']);
+        }
         var morceaux = [];
         for (var i = 0; i < gestes.length; i += 1) {
             var raccourci = RACCOURCIS[gestes[i]];
@@ -1364,13 +1515,22 @@
         champ.dataset.bandeau = 'Mode édition — ' + morceaux.join(' · ');
     }
 
-    function ecouterLeBlocDuCurseur() {
+    /**
+     * LE BLOC OU EST LE CURSEUR, ou null.
+     * / The block the caret sits in, or null.
+     *
+     * Deux gestes de stenotypie en dependent — ecouter le passage, et
+     * corriger qui parle. Un seul chemin pour les deux : le jour ou la
+     * resolution changera, elle changera pour les deux ensemble.
+     */
+    function blocDuCurseur() {
         var selection = window.getSelection();
-        if (!selection || !selection.rangeCount) {
-            annoncer('Placez le curseur dans un passage.');
-            return;
-        }
-        var bloc = blocDuNoeud(selection.getRangeAt(0).startContainer);
+        if (!selection || !selection.rangeCount) return null;
+        return blocDuNoeud(selection.getRangeAt(0).startContainer);
+    }
+
+    function ecouterLeBlocDuCurseur() {
+        var bloc = blocDuCurseur();
         if (!bloc) {
             annoncer('Placez le curseur dans un passage.');
             return;
@@ -1437,7 +1597,7 @@
     document.addEventListener('keydown', function (evenement) {
         if (!estOuvert()) return;
         var geste = gesteDeLaFrappe(evenement);
-        if (!geste || geste === 'sortir') return;
+        if (!geste || RACCOURCIS[geste].traiteAilleurs) return;
 
         // LES GESTES DE TEXTE EXIGENT LE FOCUS DANS LE CHAMP.
         //
@@ -1493,6 +1653,10 @@
         }
         if (geste === 'ecouterLeBloc') {
             ecouterLeBlocDuCurseur();
+            return;
+        }
+        if (geste === 'corrigerLeLocuteur') {
+            corrigerLeLocuteurDuBloc();
             return;
         }
         if (geste === 'reculer' || geste === 'avancer') {
@@ -1600,6 +1764,70 @@
         rafraichirLePanneauDesMasques();
     });
 
+    /**
+     * REMPLIT L'AIDE DEPUIS LA TABLE (SPEC § 4.4).
+     *
+     * LOCALISATION : front/static/front/js/mode_edition.js
+     *
+     * Deux endroits, et aucun des deux n'ecrit de touche :
+     *   - les `<kbd data-raccourci="…">` semes dans la prose ;
+     *   - la liste `#aide-raccourcis-du-mode`, vide dans le gabarit.
+     *
+     * La liste reste CACHEE tant qu'elle n'est pas remplie : une
+     * section « au clavier » vide ferait croire que le mode n'a pas de
+     * raccourcis, ce qui est le contraire de ce qu'elle annonce.
+     *
+     * LES GESTES DE SON N'Y PARAISSENT QUE SI LA NOTE A DU SON — l'aide
+     * s'ouvre depuis une note, et promettre `F2` sur un article web
+     * serait promettre un geste qui ne fait rien.
+     * / Fills the help from the table: the prose markers and the list.
+     */
+    function remplirLAideDepuisLaTable(racine) {
+        if (!racine || !racine.querySelectorAll) return;
+        var marqueurs = racine.querySelectorAll('[data-raccourci]');
+        for (var i = 0; i < marqueurs.length; i += 1) {
+            var nomDuGeste = marqueurs[i].getAttribute('data-raccourci');
+            if (RACCOURCIS[nomDuGeste]) {
+                marqueurs[i].textContent = RACCOURCIS[nomDuGeste].libelle;
+            }
+        }
+
+        var section = racine.querySelector('#aide-raccourcis-du-mode');
+        if (!section) return;
+        var liste = section.querySelector('[data-testid="aide-liste-du-mode"]');
+        if (!liste) return;
+        var lecteur = window.lecteurAudio;
+        var ilYADuSon = !!(lecteur && lecteur.estDisponible());
+        liste.textContent = '';
+        var noms = Object.keys(RACCOURCIS);
+        var posees = 0;
+        for (var j = 0; j < noms.length; j += 1) {
+            var raccourci = RACCOURCIS[noms[j]];
+            if (raccourci.son && !ilYADuSon) continue;
+            var touche = document.createElement('dt');
+            var etiquette = document.createElement('kbd');
+            etiquette.className = 'aide-kbd';
+            etiquette.textContent = raccourci.libelle;
+            touche.appendChild(etiquette);
+            var quoi = document.createElement('dd');
+            quoi.textContent = raccourci.geste.replace(
+                '{pas}', PAS_DE_TRANSPORT);
+            liste.appendChild(touche);
+            liste.appendChild(quoi);
+            posees += 1;
+        }
+        section.hidden = posees === 0;
+    }
+
+    // L'aide arrive par HTMX : on la remplit a son atterrissage.
+    // / The help lands through HTMX: fill it on arrival.
+    document.body.addEventListener('htmx:afterSwap', function (evenement) {
+        var cible = evenement.target || document;
+        if (cible.querySelector && cible.querySelector('[data-raccourci]')) {
+            remplirLAideDepuisLaTable(cible);
+        }
+    });
+
     window.modeEdition = {
         estOuvert: estOuvert,
         fermer: fermer,
@@ -1608,6 +1836,10 @@
         // ne recopie jamais une liste qui divergerait (§ 4.4).
         // / The table is public: the help screen renders it as-is.
         raccourcis: RACCOURCIS,
+        // L'aide peut se remplir a la demande — utile quand elle est
+        // posee autrement que par un swap HTMX.
+        // / The help can be filled on demand.
+        remplirLAide: remplirLAideDepuisLaTable,
     };
 })();
 

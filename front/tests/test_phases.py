@@ -699,7 +699,6 @@ class Phase03JobStockeAnalyseurIdTest(TestCase):
         )
         PromptPiece.objects.create(
             analyseur=self.analyseur,
-            name="Instruction",
             content="Extraire les entites.",
             order=0,
         )
@@ -5025,7 +5024,6 @@ class Phase23PrevisualiserAnalyseViewTest(TestCase):
         )
         PromptPiece.objects.create(
             analyseur=self.analyseur,
-            name="Instruction test",
             role="instruction",
             content="Tu es un analyseur de test.",
             order=0,

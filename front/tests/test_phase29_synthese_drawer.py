@@ -19,11 +19,9 @@ class EstParDefautModeleTests(TestCase):
         # Trois analyseurs du meme type / Three analyzers of the same type
         self.analyseur_a = AnalyseurSyntaxique.objects.create(
             name="Synthese A", type_analyseur="synthetiser",
-            inclure_texte_original=True,
         )
         self.analyseur_b = AnalyseurSyntaxique.objects.create(
             name="Synthese B", type_analyseur="synthetiser",
-            inclure_texte_original=True,
         )
         # Un analyseur d'un autre type / One analyzer of another type
         self.analyseur_autre_type = AnalyseurSyntaxique.objects.create(
@@ -74,11 +72,9 @@ class PartialUpdateEstParDefautToastTests(TestCase):
         self.client.force_login(self.user_admin)
         self.analyseur_a = AnalyseurSyntaxique.objects.create(
             name="Synthese A", type_analyseur="synthetiser",
-            inclure_texte_original=True,
         )
         self.analyseur_b = AnalyseurSyntaxique.objects.create(
             name="Synthese B", type_analyseur="synthetiser",
-            inclure_texte_original=True,
             est_par_defaut=True,
         )
 
@@ -213,7 +209,6 @@ class PrevisualiserSyntheseTests(TestCase):
         config.save()
         self.analyseur_synthese = AnalyseurSyntaxique.objects.create(
             name="Synthese delib", type_analyseur="synthetiser",
-            inclure_extractions=True, inclure_texte_original=True,
             est_par_defaut=True,
         )
 
@@ -278,32 +273,29 @@ class PrevisualiserSyntheseTests(TestCase):
         self.assertIn("alerte-blocage-synthese", contenu)
         self.assertIn("disabled", contenu)
 
-    def test_previsualiser_avec_les_deux_bool_a_false(self):
-        # Les deux bool a False → bouton desactive avec message "configurez"
-        # / Both bools False → button disabled with "configure" message
-        AnalyseurSyntaxique.objects.filter(pk=self.analyseur_synthese.pk).update(
-            inclure_extractions=False,
-            inclure_texte_original=False,
-        )
+    def test_l_ecran_enonce_ce_qui_part_sans_offrir_de_reglage(self):
+        # UNE SYNTHESE ENVOIE TOUJOURS LES MEMES CHOSES : le texte de la
+        # note, ses extractions et leurs commentaires. L'ecran l'ENONCE ;
+        # il n'affiche plus deux bascules qui laissaient croire a un
+        # choix — et qui pouvaient produire une synthese sans matiere.
+        # / Always the same three things: the screen states it instead of
+        # offering a setting that could empty the prompt.
         reponse = self.client.get(
             f"/lire/{self.page.pk}/previsualiser_synthese/",
             HTTP_HX_REQUEST="true",
         )
+
         self.assertEqual(reponse.status_code, 200)
         contenu = reponse.content.decode("utf-8")
-        # Apostrophe HTML-encodee dans le template
-        # / Apostrophe HTML-encoded in template
-        self.assertIn("Configurez", contenu)
-        self.assertIn("analyseur pour inclure", contenu)
-        self.assertIn("alerte-blocage-synthese", contenu)
-        self.assertIn("disabled", contenu)
+        self.assertIn("Ce qui est envoyé", contenu)
+        self.assertNotIn("Inclure texte original", contenu)
+        self.assertNotIn("Inclure extractions", contenu)
 
     def test_previsualiser_select_analyseur_param(self):
         # Si plusieurs analyseurs, ?analyseur_id=N permet de basculer
         # / If multiple analyzers, ?analyseur_id=N switches
         autre_analyseur = AnalyseurSyntaxique.objects.create(
             name="Autre Synthese", type_analyseur="synthetiser",
-            inclure_texte_original=True,
         )
         reponse = self.client.get(
             f"/lire/{self.page.pk}/previsualiser_synthese/?analyseur_id={autre_analyseur.pk}",

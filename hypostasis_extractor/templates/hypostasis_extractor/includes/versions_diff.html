@@ -43,7 +43,7 @@
                 {% endif %}">
                 {% if paire.gauche %}
                 <div class="font-medium text-slate-500 mb-1">
-                    <span class="text-slate-400">[{{ paire.gauche.role }}]</span> {{ paire.gauche.name }}
+                    <span class="text-slate-400">[{{ paire.gauche.role }}]</span> {{ paire.gauche.role }}
                 </div>
                 {% if paire.statut == 'modifiee' %}
                 <div class="whitespace-pre-wrap font-mono text-[11px] text-slate-600 leading-relaxed max-h-40 overflow-y-auto">{{ paire.html_gauche|safe }}</div>
@@ -63,7 +63,7 @@
                 {% endif %}">
                 {% if paire.droite %}
                 <div class="font-medium text-slate-500 mb-1">
-                    <span class="text-slate-400">[{{ paire.droite.role }}]</span> {{ paire.droite.name }}
+                    <span class="text-slate-400">[{{ paire.droite.role }}]</span> {{ paire.droite.role }}
                 </div>
                 {% if paire.statut == 'modifiee' %}
                 <div class="whitespace-pre-wrap font-mono text-[11px] text-slate-600 leading-relaxed max-h-40 overflow-y-auto">{{ paire.html_droite|safe }}</div>
@@ -90,7 +90,7 @@
                 {% else %}border-slate-200
                 {% endif %}">
                 {% if paire.gauche %}
-                <span class="font-medium text-slate-600">{{ paire.gauche.name }}</span>
+                <span class="font-medium text-slate-600">{{ paire.gauche.role }}</span>
                 <span class="text-slate-400">— {{ paire.gauche.extractions|length }} extraction{{ paire.gauche.extractions|length|pluralize }}</span>
                 {% else %}
                 <span class="text-slate-300 italic">—</span>
@@ -103,7 +103,7 @@
                 {% else %}border-slate-200
                 {% endif %}">
                 {% if paire.droite %}
-                <span class="font-medium text-slate-600">{{ paire.droite.name }}</span>
+                <span class="font-medium text-slate-600">{{ paire.droite.role }}</span>
                 <span class="text-slate-400">— {{ paire.droite.extractions|length }} extraction{{ paire.droite.extractions|length|pluralize }}</span>
                 {% else %}
                 <span class="text-slate-300 italic">—</span>

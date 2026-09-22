@@ -118,6 +118,51 @@ def _ordinal_francais(rang):
     return f"{rang}ᵉ"
 
 
+def _jobs_qui_s_adressent_a_quelqu_un(user):
+    """
+    Les jobs d'extraction que le menu des taches a le droit de montrer.
+    / The extraction jobs the task menu may show.
+
+    LOCALISATION : front/views_taches.py
+
+    LA PASSE DE NUIT NE S'ADRESSE A PERSONNE. Elle applique sans
+    demander, a une heure ou nul ne regarde, et son recit a deja deux
+    vehicules : le recapitulatif du matin, et le depliant « Historique »
+    de l'article. Sa fiche de production
+    (`front/tasks._ecrire_le_job_d_un_tour_de_nuit`) existe pour nommer
+    le redacteur, pas pour reclamer une lecture.
+    / The nightly pass addresses nobody: its story already has the
+    morning digest and the article's history panel.
+
+    SANS CETTE EXCLUSION, le badge s'allumerait chaque matin — une fois
+    par wiki modifie et par proprietaire — et LE CLIC NE L'ETEINDRAIT
+    PAS : le lien du menu mene a `/lire/<page>/?marquer_lue=…`, or
+    `LireViewSet.retrieve` redirige toute page de wiki vers
+    `/wikis/<id>/` AVANT de lire `marquer_lue`, en jetant la chaine de
+    requete. Seul « tout marquer lu » en viendrait a bout.
+    / Without it the badge lights every morning and the click cannot
+    clear it: the wiki redirect happens before `marquer_lue` is read.
+
+    `__contains` ET NON LE LOOKUP DIRECT : `.exclude()` sur un lookup
+    JSONField ordinaire ecarte AUSSI les lignes ou la cle est absente
+    (le lookup rend NULL, et NOT NULL est faux) — donc tous les autres
+    jobs. Meme piege, meme parade que
+    `core.services.synthese.dernier_job_d_analyse_de_la_note`.
+    / `__contains`, because `.exclude()` on a plain JSONField lookup
+    also drops every row lacking the key.
+
+    :param user: l'utilisateur dont on garnit le menu / the menu's user
+    :return: un queryset d'`ExtractionJob` / an ExtractionJob queryset
+    """
+    from front.tasks import MARQUEUR_DU_JOB_DE_NUIT
+
+    return ExtractionJob.objects.filter(
+        _filtre_proprietaire_page("page__", user),
+    ).exclude(
+        raw_result__contains={MARQUEUR_DU_JOB_DE_NUIT: True},
+    )
+
+
 def _calculer_etat_bouton(user):
     """
     Calcule l'etat du bouton + les compteurs pour un utilisateur.
@@ -182,8 +227,9 @@ def _calculer_etat_bouton(user):
     # bouge pas (voir le rapport de tache).
     # / "Unread" is now "no NotificationTacheLue row for THIS user" —
     # an anti-join subquery, not an extra round trip.
-    nombre_extractions_non_lues = ExtractionJob.objects.filter(
-        _filtre_proprietaire_page("page__", user),
+    nombre_extractions_non_lues = _jobs_qui_s_adressent_a_quelqu_un(
+        user,
+    ).filter(
         status__in=["completed", "error"],
     ).exclude(
         pk__in=_ids_taches_lues_par(user, TypeDeTache.EXTRACTION),
@@ -214,8 +260,9 @@ def _calculer_etat_bouton(user):
     # / We want to see 'en_cours' while a task is running, even if there
     # / are unread old notifications (don't mask them but defer to end of
     # / current task).
-    a_des_erreurs_non_lues = ExtractionJob.objects.filter(
-        _filtre_proprietaire_page("page__", user),
+    a_des_erreurs_non_lues = _jobs_qui_s_adressent_a_quelqu_un(
+        user,
+    ).filter(
         status="error",
     ).exclude(
         pk__in=_ids_taches_lues_par(user, TypeDeTache.EXTRACTION),
@@ -281,9 +328,10 @@ class TachesViewSet(viewsets.ViewSet):
         # / Recent tasks: 30 latest extractions + 30 latest transcriptions
         # / merged by created_at desc, max 30 total. Widened scope; the
         # / join can duplicate rows, hence distinct().
-        extractions_recentes = list(ExtractionJob.objects.filter(
-            _filtre_proprietaire_page("page__", request.user),
-        ).select_related("page").order_by("-created_at").distinct()[:30])
+        extractions_recentes = list(
+            _jobs_qui_s_adressent_a_quelqu_un(request.user)
+            .select_related("page").order_by("-created_at").distinct()[:30]
+        )
 
         transcriptions_recentes = list(TranscriptionJob.objects.filter(
             _filtre_proprietaire_page("page__", request.user),
@@ -509,8 +557,9 @@ class TachesViewSet(viewsets.ViewSet):
                     utilisateur=request.user, type_tache=TypeDeTache.EXTRACTION,
                     tache_id=identifiant,
                 )
-                for identifiant in ExtractionJob.objects.filter(
-                    _filtre_proprietaire_page("page__", request.user),
+                for identifiant in _jobs_qui_s_adressent_a_quelqu_un(
+                    request.user,
+                ).filter(
                     status__in=["completed", "error"],
                 ).exclude(
                     pk__in=_ids_taches_lues_par(request.user, TypeDeTache.EXTRACTION),

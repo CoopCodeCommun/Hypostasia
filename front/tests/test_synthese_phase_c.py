@@ -63,11 +63,28 @@ def creer_fixtures_phase_c():
         name="Synthese phase C",
         is_active=True,
         type_analyseur="synthetiser",
-        inclure_extractions=True,
-        inclure_texte_original=True,
     )
     PromptPiece.objects.create(
-        analyseur=analyseur, name="Contexte", role="context",
+        analyseur=analyseur, role="context",
+        content="Tu es un moteur de synthese deliberative.", order=0,
+    )
+
+    # LE REDACTEUR D'ARTICLE, distinct du synthetiseur de note.
+    #
+    # Sans lui, les douze suites qui partent de ces fixtures — passe de
+    # nuit, recapitulatif du matin, assemblage des prompts, historique,
+    # provenance — produiraient leurs articles avec la consigne
+    # generique de trois lignes du repli, SANS ROUGIR : elles
+    # testeraient alors le repli, pas le prompt.
+    # / Without it, twelve suites would silently test the fallback.
+    analyseur_de_redaction = AnalyseurSyntaxique.objects.create(
+        name="Redaction phase C",
+        is_active=True,
+        type_analyseur="rediger_un_article",
+        est_par_defaut=True,
+    )
+    PromptPiece.objects.create(
+        analyseur=analyseur_de_redaction, role="context",
         content="Tu es un moteur de synthese deliberative.", order=0,
     )
 
@@ -93,6 +110,7 @@ def creer_fixtures_phase_c():
         "note_source": note_source,
         "modele_ia": modele_ia,
         "analyseur": analyseur,
+        "analyseur_de_redaction": analyseur_de_redaction,
         "job_analyse": job_analyse,
         "extraction_seuil": extraction_seuil,
         "extraction_cout": extraction_cout,
@@ -710,7 +728,7 @@ class CorrectifsRelectureETest(TestCase):
             type_analyseur="analyser",
         )
         PromptPiece.objects.create(
-            analyseur=analyseur_d_analyse, name="Consigne", role="context",
+            analyseur=analyseur_d_analyse, role="context",
             content="Extrais les hypostases.", order=0,
         )
 

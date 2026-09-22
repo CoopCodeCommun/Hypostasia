@@ -190,7 +190,7 @@ class EstimationDuDrawerTest(BaseRestesTest):
         analyseur = AnalyseurSyntaxique.objects.create(
             name="Analyseur U3", type_analyseur="analyser", is_active=True)
         PromptPiece.objects.create(
-            analyseur=analyseur, name="i", role="instruction",
+            analyseur=analyseur, role="instruction",
             content="Analyse.", order=0,
         )
         # UN ANALYSEUR SANS EXEMPLE FEW-SHOT N'EST PAS PROPOSE.

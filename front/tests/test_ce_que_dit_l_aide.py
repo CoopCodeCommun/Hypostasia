@@ -55,6 +55,9 @@ VUES = RACINE / "views.py"
 # doivent agir meme dans un champ de saisie. / Handled outside the switch.
 TOUCHES_HORS_SWITCH = {"ESC"}
 MODE_EDITION_JS = CLAVIER_JS.parent / "mode_edition.js"
+GABARIT_DE_L_AIDE = (
+    RACINE / "templates" / "front" / "includes" / "aide_desktop.html"
+)
 
 
 def touches_liees_dans_le_javascript():
@@ -144,6 +147,80 @@ def touches_annoncees_par_la_modale():
     fin = source.index("]", debut)
     trouvees = re.findall(r'\(\s*"(.+?)"\s*,', source[debut:fin])
     return {touche.strip().upper() for touche in trouvees}
+
+
+class LAideNeRECOPIE_PAS_LaTableTest(SimpleTestCase):
+    """
+    § 4.4 : « La modale d'aide la rend TELLE QU'ELLE EST, jamais une
+    liste recopiée qui divergerait. »
+    / The help renders the table as-is, never a copy.
+
+    LOCALISATION : front/tests/test_ce_que_dit_l_aide.py
+
+    CE QUE CE TEST EXISTE POUR ATTRAPER
+
+    Trois listes disaient les mêmes touches : la table `RACCOURCIS` de
+    `mode_edition.js`, `liste_raccourcis` dans `front/views.py`, et la
+    prose du gabarit d'aide. Les deux dernières sont des copies — et une
+    copie ne diverge pas bruyamment : elle continue d'annoncer l'ancienne
+    touche, avec aplomb, jusqu'à ce que quelqu'un s'en plaigne.
+
+    La règle épinglée ici : dans le gabarit, une touche du mode ne
+    s'écrit pas, elle se DEMANDE — un `<kbd data-raccourci="…">` que le
+    JavaScript remplit depuis la table.
+    """
+
+    def test_le_gabarit_de_l_aide_n_ecrit_AUCUNE_touche_du_mode(self):
+        gabarit = GABARIT_DE_L_AIDE.read_text(encoding="utf-8")
+
+        # Les `<kbd>` du gabarit, avec leur contenu.
+        # / The template's <kbd> tags, with their content.
+        balises = re.findall(r"<kbd[^>]*>(.*?)</kbd>", gabarit, re.DOTALL)
+        ecrites_en_dur = []
+        for contenu in balises:
+            texte = re.sub(r"<[^>]+>", "", contenu).strip()
+            texte = texte.replace("&Eacute;", "É").replace("&eacute;", "é")
+            if not texte:
+                continue  # rempli par le JS depuis la table
+            if texte.upper() in {"CTRL", "MAJ", "S", "Z", "M", "ÉCHAP", "ESC"}:
+                ecrites_en_dur.append(texte)
+
+        self.assertEqual(
+            ecrites_en_dur, [],
+            "Le gabarit de l'aide écrit des touches du mode d'édition en "
+            f"dur : {ecrites_en_dur}. Elles doivent venir de la table "
+            "(`<kbd data-raccourci=\"…\">`), sinon elles divergeront "
+            "sans témoin (SPEC § 4.4).",
+        )
+
+    def test_le_gabarit_DEMANDE_les_touches_a_la_table(self):
+        """
+        L'inverse du test précédent : sans marqueur, la prose de l'aide
+        parlerait de touches invisibles.
+        / Without markers, the prose would name nothing.
+        """
+        gabarit = GABARIT_DE_L_AIDE.read_text(encoding="utf-8")
+        self.assertIn('data-raccourci="enregistrer"', gabarit)
+        self.assertIn('data-raccourci="annuler"', gabarit)
+        self.assertIn('data-raccourci="sortir"', gabarit)
+
+    def test_la_liste_SERVEUR_ne_double_plus_la_table(self):
+        """
+        `liste_raccourcis` portait `Ctrl+S`, `Ctrl+Z` et `Ctrl+Maj+Z` —
+        une seconde copie de la table, qu'aucun audit ne compare à la
+        première. La modale les reçoit maintenant de la table.
+        / The server list no longer duplicates the table.
+        """
+        source_des_vues = VUES.read_text(encoding="utf-8")
+        debut = source_des_vues.index("liste_raccourcis = [")
+        fin = source_des_vues.index("]", debut)
+        liste = source_des_vues[debut:fin]
+        for touche in ("Ctrl+S", "Ctrl+Z", "Ctrl+Maj+Z"):
+            self.assertNotIn(
+                f'("{touche}"', liste,
+                f"« {touche} » est écrit dans views.py ET dans la table de "
+                "mode_edition.js : la modale doit le lire dans la table.",
+            )
 
 
 class LesRaccourcisAnnoncesSontLiesTest(SimpleTestCase):

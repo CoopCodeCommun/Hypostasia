@@ -3017,6 +3017,27 @@ class Wiki(models.Model):
                   "le carnet. Les categories d'un meme axe se combinent en "
                   "OU, les axes entre eux en ET (spec corpus § 8.2).",
     )
+    # LE REDACTEUR DE CET ARTICLE, choisi au geste de creation.
+    #
+    # Un wiki VIT : il est ecrit une fois, puis mis a jour, chaque nuit
+    # parfois, pendant des semaines. Sans ce champ, la mise a jour
+    # retombait sur l'analyseur PAR DEFAUT du moment — le preambule
+    # changeait au milieu de l'histoire d'un article, et rien a l'ecran
+    # ne l'annoncait.
+    #
+    # SET_NULL : un analyseur supprime laisse l'article vivre ; la mise
+    # a jour retombe alors sur le defaut, et sa provenance le dit.
+    # / A wiki lives on: without this, updates silently switched to
+    # whatever the default analyzer was that night.
+    analyseur_de_redaction = models.ForeignKey(
+        "hypostasis_extractor.AnalyseurSyntaxique",
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="wikis_rediges",
+        help_text="L'analyseur choisi à la création. Les mises à jour "
+                  "le suivent / The analyzer picked at creation; updates "
+                  "follow it",
+    )
     tours_de_mise_a_jour = models.PositiveIntegerField(default=1)
     derniere_mise_a_jour = models.DateTimeField(auto_now=True)
 

@@ -608,6 +608,70 @@ class ExtractionExampleViewSet(viewsets.ViewSet):
 # / ViewSet for Syntactic Analyzers
 # =============================================================================
 
+def _refus_de_modifier(message):
+    """
+    Le refus, rendu comme l'ecran l'attend. / The refusal, as HTMX wants it.
+
+    LOCALISATION : hypostasis_extractor/views.py
+    """
+    from django.http import HttpResponse
+
+    return HttpResponse(
+        '<div class="flex items-center justify-center p-8 text-slate-500">'
+        f'<p class="text-sm">{message}</p></div>',
+        status=403,
+    )
+
+
+def _exiger_de_pouvoir_creer(request):
+    """
+    Creer un analyseur : tout utilisateur connecte.
+    / Creating an analyzer: any signed-in user.
+
+    LOCALISATION : hypostasis_extractor/views.py
+
+    :return: None si c'est permis, une reponse 403 sinon
+    """
+    if not request.user.is_authenticated:
+        return _refus_de_modifier(
+            "Connectez-vous pour créer un analyseur."
+        )
+    return None
+
+
+def _exiger_de_pouvoir_modifier(request, analyseur):
+    """
+    Modifier un analyseur : superutilisateur si c'est un prompt d'origine.
+    / Editing an analyzer: superuser when it is an original prompt.
+
+    LOCALISATION : hypostasis_extractor/views.py
+
+    POURQUOI LES PROMPTS D'ORIGINE SONT PLUS FERMES QUE LES AUTRES. Ce
+    sont ceux sur lesquels TOUT LE SITE retombe : le resolveur prend
+    l'analyseur par defaut de chaque type, et l'installation les pose
+    par defaut. Une modification malheureuse s'y propage a toutes les
+    productions de tout le monde, sans qu'aucun ecran ne l'annonce.
+    Un analyseur cree a la main n'engage que qui le choisit.
+    / Original prompts are what the whole site falls back on: a bad edit
+    propagates to everyone's productions, silently.
+
+    :param request: la requete du geste / the gesture's request
+    :param analyseur: l'`AnalyseurSyntaxique` vise / the target
+    :return: None si c'est permis, une reponse 403 sinon
+    """
+    if not request.user.is_authenticated:
+        return _refus_de_modifier(
+            "Connectez-vous pour modifier un analyseur."
+        )
+    if analyseur.est_d_origine and not request.user.is_superuser:
+        return _refus_de_modifier(
+            "Ce prompt vient de l'installation : tout le site retombe "
+            "sur lui. Seul un superutilisateur peut le modifier. "
+            "Dupliquez-le pour le vôtre."
+        )
+    return None
+
+
 def _exiger_staff(request):
     """
     Verifie que l'utilisateur est staff (admin).
@@ -745,6 +809,26 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             'scroll_to': scroll_to,
             'collapse_examples': bool(scroll_to),
             'active_ai_models': active_ai_models,
+            # LES TYPES VIENNENT DU MODELE, jamais du gabarit. Ecrits en
+            # dur, ils rendaient un type neuf INSELECTIONNABLE — et
+            # pire : sans option `selected`, le navigateur affiche la
+            # PREMIERE, donc l'ecran annonce un type qui n'est pas celui
+            # de l'analyseur, et le premier `change` de l'auto-save
+            # ECRASE le vrai type.
+            # / Types come from the model: hard-coded, a new one is
+            # unselectable, the screen misreports it, and the first
+            # change overwrites the real value.
+            'types_d_analyseur': AnalyseurSyntaxique.TypeAnalyseur.choices,
+            # NE PAS OFFRIR UN GESTE IMPOSSIBLE. Le refus fonctionne
+            # (403), mais HTMX ne swappe pas sur 4xx : un bouton
+            # « Sauver » laisse a qui n'a pas le droit l'impression
+            # d'avoir sauve, et rien ne s'affiche.
+            # / Do not offer an impossible gesture: HTMX does not swap on
+            # 4xx, so a refused save looks like nothing at all.
+            'peut_modifier': _exiger_de_pouvoir_modifier(
+                request, analyseur,
+            ) is None,
+            'est_superutilisateur': request.user.is_superuser,
         }
 
         # Requete HTMX → partial seulement
@@ -758,14 +842,26 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         })
 
     def create(self, request):
-        """Creation d'un analyseur. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        """Creation d'un analyseur. Tout utilisateur connecte.
+        / Creating an analyzer: any signed-in user."""
+        reponse_refus = _exiger_de_pouvoir_creer(request)
         if reponse_refus:
             return reponse_refus
         serializer = AnalyseurSyntaxiqueCreateSerializer(data=request.data)
         if serializer.is_valid():
             analyseur = AnalyseurSyntaxique.objects.create(**serializer.validated_data)
             logger.info("Analyseur cree: pk=%d name='%s'", analyseur.pk, analyseur.name)
+            # NAITRE EST DEJA UNE VERSION. Sans v1, une production faite
+            # avant la premiere edition ne pourrait designer aucune
+            # version, et `ExtractionJob.analyseur_version` resterait NULL
+            # sur tout un pan de l'histoire — le champ a vecu des mois
+            # ainsi, vide sur 154 jobs.
+            # / Being born is a version: without a v1, everything produced
+            # before the first edit points at nothing.
+            from .services import creer_version_analyseur
+            creer_version_analyseur(
+                analyseur, request.user, "Création de l'analyseur",
+            )
             # Nouvel analyseur = pas encore d'exemple → badge "non utilisable" coherent.
             # / New analyzer = no example yet → consistent "not usable" badge.
             _attacher_utilisabilite(analyseur)
@@ -790,10 +886,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         / validated_data with False even when the field is NOT sent.
         / Fix: only update fields explicitly present in request.data (raw key check).
         """
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = AnalyseurSyntaxiqueUpdateSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -801,6 +897,39 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         # Champs reellement envoyes par le client (cles brutes du request.data)
         # / Fields actually sent by the client (raw request.data keys)
         champs_envoyes = set(request.data.keys())
+
+        # TROIS CHAMPS ONT UNE PORTEE GLOBALE, et un seul suffit a
+        # detourner la production de tout le monde :
+        #
+        # - `est_par_defaut` designe l'analyseur sur lequel TOUS les
+        #   gestes retombent, y compris la passe de nuit, qui est
+        #   FACTUREE ;
+        # - `type_analyseur` deplace le defaut d'un type a l'autre, et
+        #   laisse le type de depart SANS defaut — la resolution retombe
+        #   alors sur l'ordre alphabetique, qu'il suffit de gagner en se
+        #   nommant « AAA » ;
+        # - `is_active` retire un analyseur de tous les selecteurs.
+        #
+        # Chacun reste donc au superutilisateur. Pour choisir SON
+        # analyseur sans l'imposer, il y a la preference
+        # (`PreferenceD_analyseur`), qui n'engage que celui qui la pose.
+        # / Three fields are global: one is enough to redirect everyone's
+        # productions. A preference binds only its owner.
+        CHAMPS_A_PORTEE_GLOBALE = (
+            "est_par_defaut", "type_analyseur", "is_active",
+        )
+        if not request.user.is_superuser:
+            champs_globaux_demandes = [
+                champ for champ in CHAMPS_A_PORTEE_GLOBALE
+                if champ in champs_envoyes
+            ]
+            if champs_globaux_demandes:
+                return _refus_de_modifier(
+                    "Ce réglage vaut pour tout le site : seul un "
+                    "superutilisateur peut le changer. Pour choisir cet "
+                    "analyseur pour vous seul, marquez-le comme votre "
+                    "préféré."
+                )
 
         # Capturer l'autre default du meme type AVANT le save (pour le toast)
         # On capture seulement quand le client coche est_par_defaut a True ET que
@@ -816,14 +945,47 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
                     est_par_defaut=True,
                 ).exclude(pk=analyseur.pk).first()
 
+        # LES CHAMPS QUI DECIDENT DE CE QUI PART AU MODELE.
+        #
+        # `type_analyseur` decide quel geste ira chercher cet analyseur ;
+        # `est_par_defaut` decide s'il sera choisi. Les changer sans
+        # laisser de version rend deux productions incomparables sans
+        # qu'aucune trace ne le dise.
+        #
+        # Le nom et la description, eux, ne changent RIEN a ce qui part :
+        # les versionner ferait grossir l'historique de snapshots
+        # identiques a un caractere pres, et le bouton « Sauver » de
+        # l'editeur les repost a chaque clic.
+        # / These two decide what is sent; name and description do not.
+        CHAMPS_QUI_CHANGENT_CE_QUI_PART = (
+            "type_analyseur", "est_par_defaut",
+        )
+        changements_a_versionner = []
+
         # Ne mettre a jour QUE les champs explicitement envoyes par le client.
         # Evite de desactiver is_active accidentellement quand HTMX envoie en form-data.
         # / Only update fields explicitly sent by the client.
         # / Avoids accidentally disabling is_active when HTMX sends form-data.
         for field_name, field_value in serializer.validated_data.items():
-            if field_name in champs_envoyes:
-                setattr(analyseur, field_name, field_value)
+            if field_name not in champs_envoyes:
+                continue
+            # On compare AVANT d'ecrire : un PATCH qui repose la meme
+            # valeur ne change rien, donc ne versionne rien.
+            # / Compared before writing: an idempotent PATCH versions nothing.
+            if (
+                field_name in CHAMPS_QUI_CHANGENT_CE_QUI_PART
+                and getattr(analyseur, field_name) != field_value
+            ):
+                changements_a_versionner.append(field_name)
+            setattr(analyseur, field_name, field_value)
         analyseur.save()
+
+        if changements_a_versionner:
+            from .services import creer_version_analyseur
+            creer_version_analyseur(
+                analyseur, request.user,
+                "Modification : " + ", ".join(changements_a_versionner),
+            )
 
         # Reponse standard + HX-Trigger toast si un autre default a ete decoche
         # / Standard response + HX-Trigger toast if another default was unchecked
@@ -841,12 +1003,56 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             })
         return reponse
 
+    @action(detail=True, methods=["POST"], url_path="preferer")
+    def preferer(self, request, pk=None):
+        """
+        POST /api/analyseurs/{id}/preferer/ — mon analyseur pour ce type.
+        / Marks this analyzer as MY preferred one for its type.
+
+        LOCALISATION : hypostasis_extractor/views.py
+
+        C'EST LE GESTE QUI REMPLACE « cocher le défaut » POUR UN
+        UTILISATEUR ORDINAIRE. Le défaut du site engage les productions
+        de tout le monde, la passe de nuit comprise, et reste au
+        superutilisateur ; une préférence ne préremplit que MON
+        sélecteur.
+        / The gesture that replaces "check the default" for an ordinary
+        user: a preference preselects only MY selector.
+
+        ELLE NE REJOUE RIEN. Le choix réel se fige sur le job au moment
+        du geste : changer sa préférence n'atteint aucune production
+        passée, ni aucune déjà en file.
+        / It replays nothing: the real choice freezes on the job.
+        """
+        from .models import PreferenceD_analyseur
+
+        if not request.user.is_authenticated:
+            return _refus_de_modifier(
+                "Connectez-vous pour choisir votre analyseur préféré."
+            )
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        if not analyseur.is_active:
+            return _refus_de_modifier(
+                "Cet analyseur est retiré : il ne peut pas être votre "
+                "préféré."
+            )
+        PreferenceD_analyseur.objects.update_or_create(
+            utilisateur=request.user,
+            type_analyseur=analyseur.type_analyseur,
+            defaults={"analyseur": analyseur},
+        )
+        logger.info(
+            "preferer: %s prefere l'analyseur %s pour le type %s",
+            request.user, analyseur.pk, analyseur.type_analyseur,
+        )
+        return _saved_response()
+
     def destroy(self, request, pk=None):
         """Suppression d'un analyseur. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         logger.info("Analyseur supprime: pk=%d name='%s'", analyseur.pk, analyseur.name)
         analyseur.delete()
         # 200 au lieu de 204 : HTMX ignore le swap sur 204 No Content
@@ -857,10 +1063,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def add_piece(self, request, pk=None):
         """Ajoute une piece de prompt. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = PromptPieceCreateSerializer(data=request.data)
         if serializer.is_valid():
             piece = PromptPiece.objects.create(
@@ -868,16 +1074,24 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             )
             # Auto-snapshot apres ajout de piece / Auto-snapshot after adding piece
             from .services import creer_version_analyseur
-            creer_version_analyseur(analyseur, request.user, f"Ajout piece: {piece.name}")
+            creer_version_analyseur(
+                analyseur, request.user,
+                f"Ajout d'une pièce ({piece.get_role_display()})",
+            )
             return render(request, 'hypostasis_extractor/includes/piece_row.html', {
-                'piece': piece, 'analyseur': analyseur
+                'piece': piece, 'analyseur': analyseur,
+                # Qui vient d'ajouter cette piece peut la modifier : le
+                # gabarit doit le savoir, sinon la ligne neuve nait sans
+                # ses boutons. / Whoever just added it may edit it.
+                'peut_modifier': True,
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['patch'])
     def update_piece(self, request, pk=None):
         """Mise a jour partielle d'une piece. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
         get_object_or_404(AnalyseurSyntaxique, pk=pk)
@@ -891,25 +1105,32 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
             # Auto-snapshot apres modification de piece / Auto-snapshot after updating piece
             analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
             from .services import creer_version_analyseur
-            creer_version_analyseur(analyseur, request.user, f"Modification piece: {piece.name}")
+            creer_version_analyseur(
+                analyseur, request.user,
+                f"Modification d'une pièce ({piece.get_role_display()})",
+            )
             return _saved_response()
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['delete'])
     def delete_piece(self, request, pk=None):
         """Supprime une piece. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
         get_object_or_404(AnalyseurSyntaxique, pk=pk)
         piece_id = request.data.get('piece_id') or request.query_params.get('piece_id')
         piece = get_object_or_404(PromptPiece, pk=piece_id, analyseur_id=pk)
-        nom_piece_supprimee = piece.name
+        role_de_la_piece_supprimee = piece.get_role_display()
         piece.delete()
         # Auto-snapshot apres suppression de piece / Auto-snapshot after deleting piece
         analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         from .services import creer_version_analyseur
-        creer_version_analyseur(analyseur, request.user, f"Suppression piece: {nom_piece_supprimee}")
+        creer_version_analyseur(
+            analyseur, request.user,
+            f"Suppression d'une pièce ({role_de_la_piece_supprimee})",
+        )
         return HttpResponse(status=200)
 
     # ---- Actions AnalyseurExample ----
@@ -917,10 +1138,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def add_example(self, request, pk=None):
         """Ajoute un exemple. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = AnalyseurExampleCreateSerializer(data=request.data)
         if serializer.is_valid():
             example = AnalyseurExample.objects.create(
@@ -937,7 +1158,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['patch'])
     def update_example(self, request, pk=None):
         """Mise a jour partielle d'un exemple. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
         get_object_or_404(AnalyseurSyntaxique, pk=pk)
@@ -958,7 +1180,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['delete'])
     def delete_example(self, request, pk=None):
         """Supprime un exemple. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
         get_object_or_404(AnalyseurSyntaxique, pk=pk)
@@ -984,10 +1207,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         If the example already has extractions, copy attribute keys
         (with order) from the first one, with empty values.
         """
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = ExampleExtractionCreateSerializer(data=request.data)
         if serializer.is_valid():
             example_id = serializer.validated_data.pop('example_id')
@@ -1026,10 +1249,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['patch'])
     def update_extraction(self, request, pk=None):
         """Mise a jour partielle d'une extraction. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = ExampleExtractionUpdateSerializer(data=request.data)
         if serializer.is_valid():
             extraction_id = serializer.validated_data.pop('extraction_id')
@@ -1068,7 +1291,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         / Save ALL extractions of an example at once.
         Prevents overwrites when multiple extractions are modified.
         """
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
         from .serializers import sanitize_text
@@ -1165,10 +1389,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         pointaient vers cette extraction (promoted_to_extraction).
         / Delete an expected extraction. Staff only.
         """
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         extraction_id = request.data.get('extraction_id') or request.query_params.get('extraction_id')
         extraction = get_object_or_404(
             ExampleExtraction.objects.select_related('example').filter(example__analyseur=analyseur),
@@ -1199,10 +1423,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'])
     def add_attribute(self, request, pk=None):
         """Ajoute un attribut a une extraction. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         extraction_id = request.data.get('extraction_id')
         extraction = get_object_or_404(
             ExampleExtraction.objects.filter(example__analyseur=analyseur),
@@ -1244,10 +1468,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['patch'])
     def update_attribute(self, request, pk=None):
         """Mise a jour d'un attribut. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         serializer = ExtractionAttributeUpdateSerializer(data=request.data)
         if serializer.is_valid():
             attribute_id = serializer.validated_data.pop('attribute_id')
@@ -1271,10 +1495,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         Le swap est applique sur TOUTES les extractions de l'exemple.
         / Swap an attribute's order with its neighbor. Staff only.
         """
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         attribute_id = request.data.get('attribute_id')
         direction = request.data.get('direction')  # "up" ou "down"
 
@@ -1339,10 +1563,10 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['delete'])
     def delete_attribute(self, request, pk=None):
         """Supprime un attribut. Staff uniquement. / Staff only."""
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
-        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
         attribute_id = request.data.get('attribute_id') or request.query_params.get('attribute_id')
         attribute = get_object_or_404(
             ExtractionAttribute.objects.filter(extraction__example__analyseur=analyseur),
@@ -1364,7 +1588,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         Lance un entrainement LangExtract asynchrone. Staff uniquement.
         / Launches an async LangExtract training. Staff only.
         """
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
         from core.models import AIModel
@@ -1399,10 +1624,7 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
         # Construire le prompt snapshot depuis les pieces de l'analyseur
         # / Build prompt snapshot from analyzer's prompt pieces
-        pieces_ordonnees = PromptPiece.objects.filter(
-            analyseur=analyseur,
-        ).order_by("order")
-        prompt_snapshot = "\n".join(piece.content for piece in pieces_ordonnees)
+        prompt_snapshot = analyseur.texte_du_prompt()
 
         # Creer le test run en status PENDING
         # / Create test run in PENDING status
@@ -1569,7 +1791,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         Valide une extraction obtenue. Staff uniquement.
         / Validate an obtained extraction. Staff only.
         """
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
         from .models import TestRunExtractionAnnotation
@@ -1661,7 +1884,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         Marque une extraction obtenue comme inappropriee. Staff uniquement.
         / Mark an obtained extraction as inappropriate. Staff only.
         """
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
         from .models import TestRunExtractionAnnotation
@@ -1754,7 +1978,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
         LOCALISATION : hypostasis_extractor/views.py
         """
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
         from .models import AnalyseurVersion
@@ -1843,7 +2068,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
                     'gauche': piece_g, 'droite': None,
                     'statut': 'supprimee', 'html_gauche': escape(piece_g.get('content', '')), 'html_droite': '',
                 })
-            elif piece_g.get('content') != piece_d.get('content') or piece_g.get('name') != piece_d.get('name') or piece_g.get('role') != piece_d.get('role'):
+            elif (piece_g.get('content') != piece_d.get('content')
+                  or piece_g.get('role') != piece_d.get('role')):
                 html_ancien, html_nouveau = _diff_inline_mots(
                     piece_g.get('content', ''), piece_d.get('content', ''),
                 )
@@ -1905,7 +2131,8 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
 
         LOCALISATION : hypostasis_extractor/views.py
         """
-        reponse_refus = _exiger_staff(request)
+        analyseur = get_object_or_404(AnalyseurSyntaxique, pk=pk)
+        reponse_refus = _exiger_de_pouvoir_modifier(request, analyseur)
         if reponse_refus:
             return reponse_refus
         from .models import AnalyseurVersion, PromptPiece, ExtractionAttribute
@@ -1933,7 +2160,7 @@ class AnalyseurSyntaxiqueViewSet(viewsets.ViewSet):
         for donnees_piece_snapshot in snapshot_a_restaurer.get('pieces', []):
             PromptPiece.objects.create(
                 analyseur=analyseur,
-                name=donnees_piece_snapshot.get('name', ''),
+
                 role=donnees_piece_snapshot.get('role', 'instruction'),
                 content=donnees_piece_snapshot.get('content', ''),
                 order=donnees_piece_snapshot.get('order', 0),

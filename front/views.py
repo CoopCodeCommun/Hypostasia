@@ -2116,16 +2116,19 @@ class LectureViewSet(viewsets.ViewSet):
             ("Z", "Comparer les versions"),
             ("?", "Afficher cette aide"),
             ("Esc", "Fermer le panneau actif"),
-            # LES TROIS DU MODE D'EDITION. Ils ne vivent PAS dans le
-            # `switch` de `keyboard.js` — ce fichier ignore tout ce qui
-            # porte Ctrl — mais dans `mode_edition.js`, et le test de
-            # l'aide y lit desormais aussi. Annoncer un raccourci mort
-            # ferait douter de toute la liste.
-            # / The three editing-mode shortcuts live in mode_edition.js;
-            # the help test reads them there too.
-            ("Ctrl+S", "Enregistrer la session d’édition"),
-            ("Ctrl+Z", "Annuler le dernier geste — en mode édition"),
-            ("Ctrl+Maj+Z", "Rétablir — en mode édition"),
+            # LES RACCOURCIS DU MODE D'EDITION NE SONT PAS ICI, et c'est
+            # la regle du § 4.4 : ils vivent dans la table `RACCOURCIS`
+            # de `mode_edition.js`, qui EST leur liaison, et la modale
+            # les rend DEPUIS elle (section `aide-raccourcis-du-mode`).
+            #
+            # Ils y ont figure trois jours, en copie. Une copie ne
+            # diverge pas bruyamment : elle continue d'annoncer
+            # l'ancienne touche, avec aplomb. Et il y en a desormais
+            # huit, dont six de stenotypie — les tenir a jour ici
+            # reviendrait a maintenir deux listes qu'aucun test ne
+            # compare.
+            # / The editing-mode shortcuts live in the JS table, which is
+            # their binding; the modal renders them from it.
         ]
         return render(request, "front/includes/aide_desktop.html", {
             "raccourcis": liste_raccourcis,
@@ -2439,13 +2442,7 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Pieces de prompt concatenees (description envoyee au LLM)
         # / Prompt pieces concatenated (description sent to the LLM)
-        pieces_ordonnees = PromptPiece.objects.filter(
-            analyseur=analyseur,
-        ).order_by("order")
-        segments_contenu_prompt = []
-        for piece in pieces_ordonnees:
-            segments_contenu_prompt.append(piece.content)
-        texte_prompt_pieces = "\n".join(segments_contenu_prompt)
+        texte_prompt_pieces = analyseur.texte_du_prompt()
 
         # Exemples few-shot au format LangExtract (identique a tasks.py)
         # / Few-shot examples in LangExtract format (same as tasks.py)
@@ -2601,7 +2598,7 @@ class LectureViewSet(viewsets.ViewSet):
             "cout_estime_euros": cout_estime_euros,
             "prompt_complet": prompt_complet,
             "nombre_exemples": tous_les_exemples.count(),
-            "nombre_pieces": pieces_ordonnees.count(),
+            "nombre_pieces": analyseur.pieces.count(),
             "nombre_chunks_estime": nombre_chunks_estime,
             "tokens_overhead_par_chunk": tokens_overhead_par_chunk,
             "nombre_entites_ia_sans_commentaires": entites_ia_sans_commentaires,
@@ -2748,10 +2745,7 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Construire le prompt snapshot depuis les pieces de l'analyseur
         # / Build prompt snapshot from the analyzer's prompt pieces
-        pieces_ordonnees = PromptPiece.objects.filter(
-            analyseur=analyseur,
-        ).order_by("order")
-        prompt_snapshot = "\n".join(piece.content for piece in pieces_ordonnees)
+        prompt_snapshot = analyseur.texte_du_prompt()
 
         # Creer le job d'extraction en status PENDING (l'analyseur_id suffit,
         # la tache Celery reconstruira les exemples depuis la DB)
@@ -2913,10 +2907,7 @@ class LectureViewSet(viewsets.ViewSet):
         # Construire le prompt complet pour l'estimation et l'affichage
         # / Build the full prompt for estimation and display
         from front.tasks import _construire_prompt_synthese
-        pieces_ordonnees = PromptPiece.objects.filter(
-            analyseur=analyseur_synthese,
-        ).order_by("order")
-        prompt_systeme = "\n".join(piece.content for piece in pieces_ordonnees)
+        prompt_systeme = analyseur_synthese.texte_du_prompt()
         prompt_utilisateur = _construire_prompt_synthese(
             page, dernier_job_analyse, analyseur_synthese,
         )
@@ -2949,19 +2940,15 @@ class LectureViewSet(viewsets.ViewSet):
         # / Blocking conditions for the "Launch" button
         bouton_desactive = False
         raison_desactivation = ""
-        if (not analyseur_synthese.inclure_extractions
-                and not analyseur_synthese.inclure_texte_original):
+        # Une synthese envoie TOUJOURS le texte original et les
+        # extractions : il n'y a plus de reglage a verifier, seulement
+        # de la matiere a avoir. / Always both blocks: nothing to check
+        # but the material itself.
+        if nombre_extractions_disponibles == 0:
             bouton_desactive = True
             raison_desactivation = (
-                "Configurez l'analyseur pour inclure au moins le texte original "
-                "ou les extractions."
-            )
-        elif (analyseur_synthese.inclure_extractions
-                and nombre_extractions_disponibles == 0):
-            bouton_desactive = True
-            raison_desactivation = (
-                "Lancez d'abord une analyse pour cet analyseur, "
-                "ou d\u00e9cochez \u00ab Inclure les extractions \u00bb."
+                "Lancez d'abord une analyse sur cette note : une synthèse "
+                "se nourrit de ses extractions."
             )
 
         contexte = {
@@ -2969,7 +2956,7 @@ class LectureViewSet(viewsets.ViewSet):
             "analyseur": analyseur_synthese,
             "analyseurs_actifs": tous_les_analyseurs_synthese,
             "modele_ia": modele_ia_actif,
-            "nombre_pieces": pieces_ordonnees.count(),
+            "nombre_pieces": analyseur_synthese.pieces.count(),
             "nombre_tokens_input": nombre_tokens_input,
             "nombre_tokens_output_visible": nombre_tokens_output_visible,
             "nombre_tokens_thinking": nombre_tokens_thinking,
@@ -3165,28 +3152,6 @@ class LectureViewSet(viewsets.ViewSet):
             })
             return reponse_erreur
 
-        # Garde-fou : au moins l'un des deux contextes doit etre coche pour
-        # produire un prompt utile. Sinon le LLM n'aurait que la consigne.
-        # / Guard: at least one of the two context flags must be enabled,
-        # otherwise the LLM would only receive the instruction.
-        bool_aucun_actif = (
-            not analyseur_synthese.inclure_extractions
-            and not analyseur_synthese.inclure_texte_original
-        )
-        if bool_aucun_actif:
-            reponse_erreur = HttpResponse(status=400)
-            reponse_erreur["HX-Trigger"] = json.dumps({
-                "showToast": {
-                    "message": (
-                        "L'analyseur de synthèse doit inclure au moins le texte "
-                        "original ou les extractions. Activez l'un des deux dans "
-                        "la configuration de l'analyseur."
-                    ),
-                    "icon": "warning",
-                },
-            })
-            return reponse_erreur
-
         # Le modele du role REDACTEUR — la synthese est une redaction,
         # pas une extraction. / The WRITER's model: a synthesis is
         # writing, not extraction.
@@ -3203,10 +3168,7 @@ class LectureViewSet(viewsets.ViewSet):
 
         # Construire le prompt snapshot depuis les pieces de l'analyseur
         # / Build prompt snapshot from the analyzer's prompt pieces
-        pieces_ordonnees = PromptPiece.objects.filter(
-            analyseur=analyseur_synthese,
-        ).order_by("order")
-        prompt_snapshot = "\n".join(piece.content for piece in pieces_ordonnees)
+        prompt_snapshot = analyseur_synthese.texte_du_prompt()
 
         # Creer le job d'extraction en status PENDING
         # / Create extraction job in PENDING status
@@ -5328,8 +5290,7 @@ class ExtractionViewSet(viewsets.ViewSet):
         from hypostasis_extractor.services import _construire_exemples_langextract, resolve_model_params
         import langextract as lx
 
-        pieces_ordonnees = PromptPiece.objects.filter(analyseur=analyseur).order_by("order")
-        prompt_complet = "\n".join(piece.content for piece in pieces_ordonnees)
+        prompt_complet = analyseur.texte_du_prompt()
         liste_exemples = _construire_exemples_langextract(analyseur)
         parametres_modele = resolve_model_params(configuration_ia.ai_model)
 

@@ -23,6 +23,26 @@ commentaires FR/EN)
 > caractère **explicite** du geste — la vérification ne se déclenche jamais à la
 > production.
 >
+> > #### ⚠️ Correction datée du 1er septembre 2026 — la dernière ligne est FAUSSE
+> >
+> > **La vérification se déclenche à toute écriture de corps d'article** depuis le
+> > 21 août 2026 : `_ecrire_le_corps_d_un_article` appelle
+> > `enchainer_la_verification()` — création, régénération, mise à jour appliquée,
+> > réparation de titres. Elle est **automatique** et **facturée** (fan-out des
+> > quatre juges locaux, plus un job de juge d'API).
+> >
+> > Ce qu'elle ne fait pas : rejuger ce qui a déjà un verdict. **Elle ne juge que
+> > les citations sans verdict** — c'est là qu'est la borne, et non dans un
+> > caractère manuel qui n'existe plus.
+> >
+> > **Conséquence sur le coût d'une nuit**, que l'addendum du 21 août chiffre à
+> > « un appel au rédacteur par wiki ayant du neuf » : il faut y ajouter, **par
+> > wiki réellement modifié**, l'enchaînement de vérification et son juge d'API.
+> >
+> > *(La règle du dépôt est « encarts datés > sections », et non « récent >
+> > ancien » : le silence de l'addendum du 21 août ne corrigeait pas cette
+> > phrase-ci. Il fallait l'écrire.)*
+>
 > ### Le trou : « établir » n'est défini nulle part
 >
 > Le prompt demande « la source doit **établir** ce que l'affirmation avance, pas

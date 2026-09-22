@@ -46,6 +46,15 @@ from hypostasis_extractor.models import (
 
 NOM_DE_L_ANALYSEUR_D_EXTRACTION = "Hypostasia"
 NOM_DE_L_ANALYSEUR_DE_SYNTHESE = "Synthèse délibérative"
+# CE NOM EST UN VERROU. La migration de donnees
+# `hypostasis_extractor/0038_le_type_rediger_un_article` copie l'analyseur
+# de synthese sous ce nom EXACT. S'ils divergeaient, le demarrage suivant
+# creerait ici un SECOND redacteur, garni du texte par defaut, qui naitrait
+# `est_par_defaut=True` et decocherait celui du mainteneur : son prompt
+# cesserait de servir sans qu'aucune erreur ne le dise.
+# Verrouille par `test_la_migration_et_les_fixtures_nomment_le_MEME_analyseur`.
+# / This name is a lock, shared verbatim with the data migration.
+NOM_DE_L_ANALYSEUR_DE_REDACTION = "Rédacteur d'article"
 NOM_DE_L_EXEMPLE_FEW_SHOT = "IA & éducation — 30 hypostases"
 
 # Les modeles IA crees automatiquement, un par cle API trouvee dans le
@@ -151,6 +160,14 @@ ROLES_PAR_DEFAUT = {
     "redacteur_d_article": "mistral-medium-latest",
     "juge_de_verification": "mistral-small-latest",
 }
+
+DESCRIPTION_DE_L_ANALYSEUR_DE_REDACTION = (
+    "Le préambule des ARTICLES : création d'un wiki, synthèse dirigée de "
+    "carnet, et mise à jour d'un wiki. Distinct de « Synthèse "
+    "délibérative », qui sert la synthèse d'UNE note — les deux partent du "
+    "même texte, et c'est précisément pour pouvoir les faire diverger "
+    "qu'ils sont séparés."
+)
 
 DESCRIPTION_DE_L_ANALYSEUR_DE_SYNTHESE = (
     "Rédige une note de carnet — wiki vivant ou synthèse dirigée — à "
@@ -469,8 +486,9 @@ def creer_les_modeles_ia_et_les_analyseurs():
         defaults={
             "type_analyseur": "analyser",
             "is_active": True,
-            "inclure_extractions": False,
-            "inclure_texte_original": False,
+            # Pose par l'installation : seul un superutilisateur le
+            # modifiera. / Installed: superuser-only from now on.
+            "est_d_origine": True,
             "est_par_defaut": True,
         },
     )
@@ -486,13 +504,66 @@ def creer_les_modeles_ia_et_les_analyseurs():
         defaults={
             "type_analyseur": "synthetiser",
             "is_active": True,
-            "inclure_extractions": True,
-            "inclure_texte_original": True,
+            "est_d_origine": True,
             "est_par_defaut": True,
             "description": DESCRIPTION_DE_L_ANALYSEUR_DE_SYNTHESE,
         },
     )
     pieces_de_synthese_creees = _garnir_le_prompt_de_synthese(analyseur_synthese)
+
+    # --- 4. L'analyseur de redaction d'article ---
+    # / --- 4. The article-writing analyzer ---
+    #
+    # IL EST CREE ICI **ET** COPIE PAR LA MIGRATION, et il faut les deux.
+    # `bin/install.sh` migre AVANT de poser les fixtures : sur un clone
+    # neuf, « Synthese deliberative » n'existe pas encore au moment du
+    # `migrate`, donc la migration n'a rien a copier. Sans ce bloc, une
+    # installation neuve n'aurait JAMAIS de redacteur, et tous ses
+    # articles partiraient avec la consigne generique de trois lignes,
+    # provenance sans analyseur, a vie et sans un mot.
+    # / Both are needed: install.sh migrates before seeding, so on a fresh
+    # clone the migration has nothing to copy.
+    # LA GARDE PORTE SUR LE TYPE, pas sur le nom — comme celle de la
+    # migration. Un rédacteur créé à la main sous un autre nom ferait
+    # sauter la migration mais pas ce bloc : « Rédacteur d'article »
+    # naîtrait quand même, `est_par_defaut=True`, et son `save()`
+    # décocherait le rédacteur du mainteneur, dont le prompt cesserait
+    # de servir sans qu'une erreur ne le dise. Le nom reste un verrou
+    # partagé avec la migration ; il ne suffit pas à lui seul.
+    # / The guard is on the TYPE, like the migration's: a hand-made
+    # writer under another name would otherwise lose its default.
+    redacteur_existant = AnalyseurSyntaxique.objects.filter(
+        type_analyseur="rediger_un_article",
+    ).order_by("-est_par_defaut", "name").first()
+    if redacteur_existant is not None:
+        analyseur_redaction = redacteur_existant
+        analyseur_redaction_cree = False
+    else:
+        analyseur_redaction = AnalyseurSyntaxique.objects.create(
+            name=NOM_DE_L_ANALYSEUR_DE_REDACTION,
+            type_analyseur="rediger_un_article",
+            is_active=True,
+            est_d_origine=True,
+            est_par_defaut=True,
+            description=DESCRIPTION_DE_L_ANALYSEUR_DE_REDACTION,
+        )
+        analyseur_redaction_cree = True
+    # Le meme garnissage que la synthese : les deux preambules DISENT LA
+    # MEME CHOSE au depart, et c'est tout l'objet du typage de pouvoir les
+    # faire diverger ENSUITE, a la main. `_garnir_*` ne pose rien si
+    # l'analyseur a deja une piece — un prompt edite survit donc a un
+    # redemarrage.
+    # / Same seeding as synthesis: both preambles start identical, and the
+    # point of typing them is to let them diverge later, by hand.
+    pieces_de_redaction_creees = _garnir_le_prompt_de_synthese(
+        analyseur_redaction,
+    )
+
+    # --- 5. La v1 des analyseurs de l'installation ---
+    # / --- 5. The installed analyzers' v1 ---
+    versions_creees = _poser_la_v1_si_elle_manque(
+        [analyseur_extraction, analyseur_synthese, analyseur_redaction],
+    )
 
     return {
         "modeles_ia_crees": modeles_ia_crees,
@@ -508,7 +579,48 @@ def creer_les_modeles_ia_et_les_analyseurs():
         "analyseur_synthese": analyseur_synthese,
         "analyseur_synthese_cree": analyseur_synthese_cree,
         "pieces_de_synthese_creees": pieces_de_synthese_creees,
+        "analyseur_redaction": analyseur_redaction,
+        "analyseur_redaction_cree": analyseur_redaction_cree,
+        "pieces_de_redaction_creees": pieces_de_redaction_creees,
+        "versions_creees": versions_creees,
     }
+
+
+def _poser_la_v1_si_elle_manque(analyseurs):
+    """
+    Donne sa premiere version a un analyseur qui n'en a aucune.
+    / Gives a first version to an analyzer that has none.
+
+    LOCALISATION : front/services/fixtures_analyseurs.py
+
+    « AUCUNE VERSION », ET PAS « ANALYSEUR NEUF ». Cette fonction tourne
+    a CHAQUE demarrage de conteneur (`bin/install.sh`) : une garde sur
+    « l'analyseur vient d'etre cree » n'en poserait aucune sur les
+    analyseurs deja en base — or ce sont precisement eux qui n'en ont
+    pas (mesure du 1er septembre 2026 : zero `AnalyseurVersion` pour deux
+    analyseurs installes). Et une absence de garde ajouterait un
+    snapshot par redemarrage.
+    / "No version at all", not "brand-new analyzer": the existing ones
+    are exactly those lacking a version, and this runs at every start.
+
+    ELLE EST APPELEE APRES LES PIECES ET LES EXEMPLES : un snapshot pris
+    avant serait celui d'un analyseur vide, donc faux des sa naissance.
+    / Called after pieces and examples: an earlier snapshot would be empty.
+
+    :param analyseurs: les analyseurs a doter / the analyzers to endow
+    :return: le nombre de versions creees / how many versions were created
+    """
+    from hypostasis_extractor.services import creer_version_analyseur
+
+    versions_creees = 0
+    for analyseur in analyseurs:
+        if analyseur.versions.exists():
+            continue
+        creer_version_analyseur(
+            analyseur, None, "Version initiale (installation)",
+        )
+        versions_creees += 1
+    return versions_creees
 
 
 def _garnir_le_prompt_d_extraction(analyseur_extraction):

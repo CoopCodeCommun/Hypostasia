@@ -10,6 +10,96 @@
 > sans le remesurer.
 
 
+> ## La journée du 1er septembre 2026 — la provenance d'un prompt, et le typage des analyseurs
+>
+> **Quatre chantiers livrés, dans cet ordre — et c'est l'ordre qui comptait.**
+> `CHANGELOG/2026-09-01-la-provenance-d-un-prompt.md`,
+> `CHANGELOG/2026-09-01-typer-les-analyseurs-par-action.md`,
+> `CHANGELOG/2026-09-01-ce-qui-part-vraiment-dans-un-prompt.md` et
+> `CHANGELOG/2026-09-01-qui-peut-modifier-un-prompt.md`.
+> **SIX migrations appliquées** : `hypostasis_extractor/0037` (table de
+> provenance), `0038` (le troisième type + la copie de l'analyseur), `0039`
+> (le morceau de prompt n'a pas de nom), `0040` (les deux bascules
+> d'injection disparaissent), `0041` (la préférence d'analyseur et les prompts
+> d'origine), et `core/0081` (le wiki porte son rédacteur).
+>
+> **Ce que la base disait ce matin, mesuré sur 154 jobs** : `prompt_description`
+> portait **onze formes** différentes, jamais le prompt réellement envoyé (sur un
+> job de synthèse : 75 928 caractères assemblés contre 1 239 enregistrés) ;
+> `analyseur_version` valait NULL sur **154 jobs sur 154** et
+> `AnalyseurVersion.objects.count()` valait **0** ; **25 des 30 tours de wiki**
+> n'avaient ni job ni auteur — rien ne disait quel modèle avait écrit un article
+> de nuit.
+>
+> **Ce qui est CODÉ** : la table `ProvenanceDeProduction` (empreinte SHA-256 du
+> prompt réellement assemblé, longueur, modèle, analyseur, version, extractions
+> montrées), écrite par les **cinq** producteurs ; trois **assembleurs purs** qui
+> rendent le prompt sans appeler aucun modèle ; le troisième type
+> `rediger_un_article`, qui sépare enfin le préambule des articles de celui de la
+> synthèse d'une note.
+>
+> **Trois découvertes qui ne figuraient dans aucune note :**
+>
+> 1. **L'ordre des notes d'un périmètre n'était garanti par rien** —
+>    `notes_du_perimetre_d_un_wiki` rend un `.distinct()` sans `order_by`, la M2M
+>    d'une synthèse dirigée n'a pas d'ordering, et `Page` n'a pas de
+>    `Meta.ordering`. L'empreinte aurait dérivé toute seule, et « le prompt
+>    a-t-il changé ? » aurait répondu oui à tort. L'ordre est désormais canonique.
+> 2. **Un job non lu sur une page de wiki ne peut pas être acquitté par le clic** :
+>    `LireViewSet.retrieve` redirige toute page de wiki vers `/wikis/<id>/`
+>    **avant** de lire `marquer_lue`, en jetant la chaîne de requête. Défaut
+>    **préexistant** pour les jobs manuels de wiki, de mise à jour et de synthèse
+>    dirigée ; la passe de nuit l'aurait industrialisé, elle est donc exclue du
+>    menu des tâches. **Non corrigé à la source** — c'est un chantier à part.
+> 3. **La note du typage prescrivait une bascule qui aurait cassé la synthèse
+>    d'une note**, de façon permanente et avec un message d'erreur mensonger. La
+>    migration **copie**. Voir l'addendum daté dans la note.
+>
+> **DEUX DÉCISIONS VOUS ATTENDENT** (les deux sont posées en addendum daté) :
+>
+> - **`ExtractionJob.analyseur_version` reste sans écrivain.** La provenance
+>   porte désormais l'information ; remplir les deux ferait diverger deux copies.
+>   Le champ est à retirer, ou à documenter comme remplacé.
+> - **Le niveau « carnet » du régime de repli n'a aucun écrivain**, ni le niveau
+>   « geste » pour les articles : aucune FK `Dossier → AnalyseurSyntaxique`
+>   n'existe, et aucun des trois chemins d'article ne prend d'`analyseur_id`. Le
+>   régime posé est **défaut du type, puis repli journalisé**. Si le niveau
+>   carnet est voulu, il demande un champ, un écran et un écrivain.
+>
+> **LE TROISIÈME CHANTIER** — l'éditeur ne propose plus que ce qui part
+> vraiment : le nom d'un morceau disparaît (il ne partait nulle part), son
+> **rôle** part désormais en titre de bloc (`=== INSTRUCTION ===`), les deux
+> bascules d'injection sont supprimées, et chacun des trois gestes choisit son
+> analyseur — un wiki gardant le sien pour ses mises à jour.
+> ⚠️ **Toutes les empreintes de provenance changent** : le prompt change
+> réellement, donc les productions d'avant ne sont plus comparables à celles
+> d'après.
+>
+> **CE QUI N'EST PAS FAIT** : les **bancs LLM réels par type** (facturés) et les
+> **fixtures étalons gelées par type**. La note du typage demande une mesure
+> avant/après la séparation — et rappelle que le § 6 ci-dessous mesure
+> **11 points d'amplitude intra-modèle** : rien ne se conclut sous cette
+> amplitude.
+>
+> **LE QUATRIÈME CHANTIER** — le panneau des analyseurs s'ouvre à tout
+> utilisateur connecté ; chacun crée et modifie les siens. Les **prompts
+> d'origine** (`est_d_origine`) et les **trois champs à portée globale**
+> (`est_par_defaut`, `type_analyseur`, `is_active`) restent au
+> superutilisateur : chacun suffirait à faire passer tous les gestes — passe de
+> nuit **facturée** comprise — par l'analyseur de n'importe qui. Pour choisir
+> le sien sans l'imposer, une **préférence par utilisateur**
+> (`PreferenceD_analyseur`) préremplit son seul sélecteur.
+>
+> **Les 5 tests `llm_reel` passent** (`make test-llm`, lancés le 1er septembre) —
+> dont celui de justesse sémantique, qui emploie l'analyseur de PRODUCTION, donc
+> le prompt avec ses titres. Réserve : ils appellent **Gemini**, pas Mistral qui
+> est le modèle du rôle rédacteur.
+>
+> **Mesure d'environnement, au passage** : `make test-rapide` fait aujourd'hui
+> **2685 tests en 2094 s (~35 min)** sur cette machine. L'aide du Makefile
+> annonce encore « 1748 tests, ~7 min 30 » : le compte a grossi, et la durée avec.
+
+
 > ## La journée du 23 août 2026 — une session d'exploration, un correctif
 >
 > **Ce qui a été LIVRÉ** : un seul correctif, `CHANGELOG/2026-08-23-la-fusion-de-deux-tours-gardait-le-mauvais-locuteur.md`
@@ -990,7 +1080,10 @@ un contraste de 1,15:1 là où il valait 4,13:1.
 6. **La doc qui ment** (planches 02/03, README des Diagrams, addendum de spec,
    docstring Q3, et le prompt qui promet au modèle qu'« un humain acceptera »). Une
    demi-journée, faisable en parallèle de n'importe quoi d'autre.
-   → `2026-08-23-la-doc-ment-sur-la-nuit-et-la-verification.md`
+   ✅ **FAIT le 1er septembre 2026** — les six points sont corrigés, par encarts
+   datés. → `CHANGELOG/2026-09-01-le-locuteur-l-aide-et-la-doc.md`. **Reste la
+   planche 04**, qui ne corrige rien mais écrit ce qui manque :
+   → `PLAN/TODO/2026-09-01-la-planche-04-de-la-nuit-des-wikis.md`
 
 > ### ⚠️ REPRISE — état au 30 août 2026, rien n'est commité
 >
@@ -1078,8 +1171,16 @@ un contraste de 1,15:1 là où il valait 4,13:1.
 >    entier est annulé, 409, le texte reste à l'écran. Deux tests l'épinglent,
 >    dont un pour le cas « rien n'a changé », qui ne doit **pas** refuser.
 >    → `CHANGELOG/2026-08-24-l-endpoint-de-lot.md`
-> 6. **Le lecteur d'écran réel** n'a jamais été essayé (§ 9), et **Android** non plus
+> 6. ✅ **MESURÉ le 1er septembre — l'arbre d'accessibilité tient** : bouton nommé,
+>    `aria-pressed` qui bascule, entrée et sortie annoncées, champ `textbox` nommé
+>    et multiligne dans l'arbre de Chromium, **9 blocs sur 9** portant leur numéro
+>    ET leur locuteur, gestes de son annoncés un par un, **0 erreur JS**.
+>    **Mais ce n'est PAS un lecteur d'écran** : l'arbre est ce que le navigateur
+>    remet à l'assistance ; NVDA, VoiceOver et Orca en font chacun ce qu'ils
+>    veulent sur un `contenteditable` multi-blocs. **L'exigence du § 9 reste
+>    entière**, seulement plus petite. **Android** non plus n'a jamais été essayé
 >    (la vraie composition IME n'est déclenchable que sur Chromium).
+>    → `benchmarks/edition_par_blocs/banc/mesures24_l_accessibilite_du_mode.py`
 > 7. ✅ **FAIT le 30 août — la sténotypie au clavier et la table de raccourcis.**
 >    Dans le mode : `F4` lit/pause, `F2` écoute **à partir du passage du curseur**,
 >    `F7`/`F8` reculent et avancent de 5 s, `F9`/`F10` changent la vitesse — et

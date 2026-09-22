@@ -3,6 +3,44 @@
 **Mesuré le 23 août 2026 sur la base de dev (37 jobs). Rien n'est codé.**
 **C'est le préalable de toute mesure : sans lui, aucun banc n'est rattachable à sa cause.**
 
+---
+
+## ✅ ÉTAT AU 1er SEPTEMBRE 2026 — le lot bloquant est CODÉ ; cette note reste ouverte pour son reste
+
+> Cet encart fait foi sur l'état d'avancement. Le détail est dans
+> `CHANGELOG/2026-09-01-la-provenance-d-un-prompt.md`.
+> **Les chiffres du corps de la note datent du 23 août** : le corpus a
+> quadruplé depuis (37 jobs → 154). Ne pas les citer sans les remesurer.
+
+**CODÉ** — table `ProvenanceDeProduction` (migration
+`hypostasis_extractor/0037`), empreinte SHA-256 du prompt réellement assemblé,
+longueur, modèle, analyseur, version, identifiants montrés ; les **cinq**
+producteurs l'écrivent ; trois assembleurs purs rendent le prompt sans appeler
+aucun modèle ; l'ordre des notes est devenu canonique (il n'était garanti par
+rien, et l'empreinte aurait dérivé toute seule) ; les trois trous du versionnage
+sont bouchés ; la passe de nuit écrit sa fiche de production.
+
+**PAS CODÉ, et toujours à faire :**
+
+- **les fixtures étalons**, gelées hors base sur le modèle de
+  `benchmarks/juge_de_verification/etalon-du-juge.json` — un carnet, ses notes,
+  ses extractions, et les prompts attendus par chemin. C'est ce qui permettrait
+  de **rejouer** une production, pas seulement de la reconnaître ;
+- **le test LLM réel** (`make test-llm`, tag `llm_reel`, **facturé**) : vérifier
+  de bout en bout que la trace écrite correspond au prompt réellement parti.
+  L'empreinte est aujourd'hui vérifiée **contre l'assembleur**, pas contre ce
+  que le fournisseur a reçu ;
+- **le texte intégral d'un prompt** — c'est
+  `2026-08-23-garder-le-texte-integral-d-un-prompt.md`, délibérément hors lot.
+
+**UNE DÉCISION VOUS REVIENT.** `ExtractionJob.analyseur_version` reste **sans
+écrivain**. La provenance porte désormais cette information, et remplir les deux
+ferait diverger deux copies de la même chose. Le champ est donc **soit à
+retirer, soit à documenter comme remplacé** — la session ne l'a pas tranché
+seule.
+
+---
+
 ## Ce que le code fait aujourd'hui
 
 ### Le prompt envoyé n'est enregistré sur AUCUN chemin

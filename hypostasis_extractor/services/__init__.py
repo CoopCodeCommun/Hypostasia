@@ -226,8 +226,23 @@ def verifier_utilisabilite_analyseur(analyseur):
     l'analyseur est pret a etre utilise, et pourquoi il ne l'est pas.
 
     Les analyseurs de synthese ne s'appuient pas sur des exemples few-shot :
-    ils sont toujours consideres utilisables ici (leur propre blocage est
-    gere dans la vue de synthese via inclure_extractions / inclure_texte_original).
+    ils sont toujours consideres utilisables ici. Une synthese envoie
+    TOUJOURS le texte de la note et ses extractions ; ce qui peut lui
+    manquer, c'est la matiere, et la vue de synthese le verifie.
+
+    UN REDACTEUR D'ARTICLE, LUI, A UN CRITERE — ET IL N'EST PAS LE MEME.
+    Il n'a besoin d'aucun exemple few-shot, mais il ne sert a rien sans
+    PIECE DE PROMPT : sans elle, `_prompt_systeme_de_synthese` retombe sur
+    sa consigne generique de trois lignes et l'article s'ecrit sans
+    preambule, sans que rien ne leve. Le badge doit donc pouvoir le dire.
+    / A writing analyzer needs no few-shot example but is useless without a
+    prompt piece: the article would then be written with a three-line
+    generic instruction, and nothing would say so.
+
+    CE QUE CETTE FONCTION NE FAIT PAS : elle ne ferme aucun chemin. Elle
+    alimente le selecteur d'analyse et le badge de l'ecran de
+    configuration ; aucune production d'article n'est conditionnee a son
+    verdict. / It gates nothing: it feeds a selector and a badge.
 
     / An extraction analyzer teaches the LLM what to extract. It needs at least
     / one complete example: a filled source text AND at least one extraction with
@@ -240,6 +255,28 @@ def verifier_utilisabilite_analyseur(analyseur):
     :return: tuple (utilisable: bool, problemes: list[str])
     """
     from ..models import AnalyseurSyntaxique
+
+    # Un analyseur qui REDIGE — article ou synthese d'une note — n'a
+    # besoin d'aucun exemple few-shot, mais ne sert a rien sans PIECE DE
+    # PROMPT. Sans elle, `synthetiser_page_task` leve « n'a aucune piece
+    # de prompt » et le job finit en erreur ; l'article, lui, part avec
+    # la consigne generique. Le badge doit le dire AVANT.
+    # / A writing analyzer needs no example but is useless without a
+    # prompt piece: one path raises, the other writes without a preamble.
+    if analyseur.type_analyseur in (
+        AnalyseurSyntaxique.TypeAnalyseur.REDIGER_UN_ARTICLE,
+        AnalyseurSyntaxique.TypeAnalyseur.SYNTHETISER,
+    ):
+        pieces_avec_du_texte = [
+            piece for piece in analyseur.pieces.all()
+            if (piece.content or "").strip()
+        ]
+        if not pieces_avec_du_texte:
+            return False, [
+                "Cet analyseur n'a aucune pièce de prompt : il ne dit "
+                "rien au modèle.",
+            ]
+        return True, []
 
     # Le critere few-shot ne concerne que les analyseurs d'extraction.
     # / The few-shot rule only applies to extraction analyzers.
@@ -342,7 +379,6 @@ def creer_snapshot_analyseur(analyseur):
     toutes_les_pieces_snapshot = []
     for piece in toutes_les_pieces_ordonnees:
         toutes_les_pieces_snapshot.append({
-            'name': piece.name,
             'role': piece.role,
             'content': piece.content,
             'order': piece.order,
@@ -381,8 +417,6 @@ def creer_snapshot_analyseur(analyseur):
         'name': analyseur.name,
         'description': analyseur.description,
         'type_analyseur': analyseur.type_analyseur,
-        'inclure_extractions': analyseur.inclure_extractions,
-        'inclure_texte_original': analyseur.inclure_texte_original,
         'pieces': toutes_les_pieces_snapshot,
         'examples': tous_les_exemples_snapshot,
     }

@@ -187,8 +187,7 @@ class Command(BaseCommand):
             analyser_une_page_avec_le_moteur_element,
         )
 
-        pieces = PromptPiece.objects.filter(analyseur=analyseur).order_by("order")
-        prompt_snapshot = "\n".join(piece.content for piece in pieces)
+        prompt_snapshot = analyseur.texte_du_prompt()
         job = ExtractionJob.objects.create(
             page=note, ai_model=ai_model,
             name=f"Analyseur: {analyseur.name}",
