@@ -1,0 +1,61 @@
+{% load l10n %}
+{% comment %}
+LE COUT D'UNE MISE A JOUR, ANNONCE AVANT LE CLIC.
+/ The cost of an update, shown before the click.
+
+LOCALISATION : front/templates/front/corpus/partials/estimation_de_mise_a_jour.html
+
+Rendu par WikiViewSet.estimation (front/views_synthese.py), charge par
+la modale « Mettre a jour » d'article.html a son ouverture (hx-trigger
+« load »), a l'interieur de la boite SweetAlert.
+
+« ENVIRON », PAS « ≤ » : c'est un ordre de grandeur. La taille d'une
+proposition n'a jamais ete mesuree, et les tokens de reflexion de
+certains modeles ne sont pas comptes (voir la docstring de la vue).
+
+« non mesure » QUAND LE TARIF EST INCONNU, jamais « 0 € » : annoncer un
+montant nul avant un appel facture serait un chiffre invente, et c'est
+sur ce chiffre que la personne decide (meme regle que
+confirmation_synthese.html).
+
+LE MODELE EST NOMME PAR `get_display_name` : `AIModel.name` est
+facultatif, et un nom vide laisserait « envoyes a , pour ».
+
+`data-tokens` porte le compte BRUT, sans separateur de milliers : c'est
+lui que les tests comparent au prompt reellement envoye.
+/ An order of magnitude; unknown price reads "non mesure"; the model
+is named by get_display_name; data-tokens is raw.
+{% endcomment %}
+{% if rien_a_reprendre %}
+<p data-testid="wiki-estimation-rien"
+   style="margin:0; color:var(--encre-douce)">
+    Toutes les extractions du périmètre sont déjà reprises : rien ne
+    partirait au modèle.
+</p>
+{% elif comptage_impossible %}
+<p data-testid="wiki-estimation-non-mesuree"
+   style="margin:0; padding-top:.7rem; border-top:1px solid var(--filet)">
+    Coût estimé : <strong>non mesuré</strong> — le comptage des tokens a
+    échoué. La mise à jour reste possible.
+</p>
+{% else %}
+<div data-testid="wiki-estimation" data-tokens="{{ nombre_tokens_entree|unlocalize }}"
+     style="padding-top:.7rem; border-top:1px solid var(--filet)">
+    {% if cout_estime_euros == None %}
+    <p data-testid="wiki-estimation-non-mesuree" style="margin:0">
+        Coût estimé : <strong>non mesuré</strong>
+        {% if modele_redacteur %}— le tarif de {{ modele_redacteur.get_display_name }} n'est pas connu.{% else %}— aucun modèle rédacteur n'est configuré.{% endif %}
+    </p>
+    {% else %}
+    <p data-testid="wiki-estimation-cout" style="margin:0">
+        Coût estimé : <strong>environ {{ cout_estime_euros|floatformat:2 }} €</strong>
+    </p>
+    {% endif %}
+    <p style="margin:.35rem 0 0; color:var(--encre-douce)">
+        Environ {{ nombre_tokens_entree }} tokens envoyés{% if modele_redacteur %} à
+        {{ modele_redacteur.get_display_name }}{% endif %}, pour {{ nombre_d_ecartees }}
+        extraction{{ nombre_d_ecartees|pluralize }} non reprise{{ nombre_d_ecartees|pluralize }}.
+        La vérification des nouvelles citations s'y ajoute, facturée à part.
+    </p>
+</div>
+{% endif %}
