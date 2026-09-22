@@ -1,0 +1,88 @@
+{
+  "la_region_d_annonces": {
+    "role": "status",
+    "live": "polite",
+    "atomique": "true",
+    "visible_a_l_ecran": false,
+    "contenu": ""
+  },
+  "le_bouton_du_mode": {
+    "nom_accessible": "Éditer le texte",
+    "pressé": "false",
+    "atteignable": true
+  },
+  "annonce_a_l_entree": [
+    "Mode édition ouvert. Ctrl+S enregistre, Échap sort."
+  ],
+  "le_champ_dans_l_arbre": {
+    "role": "textbox",
+    "nom_accessible": "Texte de la note, modifiable passage par passage",
+    "multiligne": "true",
+    "modifiable": "plaintext-only"
+  },
+  "aria_pressed_apres_entree": "true",
+  "les_reperes_des_blocs": {
+    "blocs": 9,
+    "avecNumero": 9,
+    "avecLocuteur": 9,
+    "premiers": [
+      {
+        "numero": "#1",
+        "locuteur": "speaker_1",
+        "gouttiere_masquee_a_l_assistance": false
+      },
+      {
+        "numero": "#2",
+        "locuteur": "speaker_2",
+        "gouttiere_masquee_a_l_assistance": false
+      },
+      {
+        "numero": "#3",
+        "locuteur": "speaker_1",
+        "gouttiere_masquee_a_l_assistance": false
+      }
+    ]
+  },
+  "annonces_des_gestes_de_son": [
+    "Lecture.",
+    "Vitesse 1,25 fois.",
+    "Recul de 5 secondes.",
+    "Pause."
+  ],
+  "le_champ_vu_par_chromium": [
+    "Texte de la note, modifiable passage par passage"
+  ],
+  "les_regions_live_vues_par_chromium": [
+    ""
+  ],
+  "combien_de_noeuds_dans_l_arbre": 472,
+  "annonce_a_la_sortie": [
+    "Mode édition fermé."
+  ],
+  "aria_pressed_apres_sortie": "false",
+  "l_aide": {
+    "section": true,
+    "cachee": false,
+    "touches_listees": [
+      "Ctrl+S",
+      "Ctrl+Z",
+      "Ctrl+Maj+Z",
+      "Échap",
+      "M",
+      "F4",
+      "F2",
+      "F7",
+      "F8",
+      "F9",
+      "F10",
+      "Ctrl+Maj+L"
+    ],
+    "marqueurs_dans_la_prose": [
+      "M",
+      "Ctrl+S",
+      "Ctrl+Z",
+      "Échap"
+    ]
+  },
+  "erreurs_js": []
+}
